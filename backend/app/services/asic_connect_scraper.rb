@@ -1,13 +1,13 @@
-require 'selenium-webdriver'
+require "selenium-webdriver"
 
 class AsicConnectScraper
-  ASIC_CONNECT_URL = 'https://www.edge.asic.gov.au/004/compportal/get/ServicesLogin'
+  ASIC_CONNECT_URL = "https://www.edge.asic.gov.au/004/compportal/get/ServicesLogin"
   LOGIN_TIMEOUT = 30 # seconds
   PAGE_LOAD_TIMEOUT = 60 # seconds
 
   def initialize(company, headless: true)
     @company = company
-    @acn = company.acn&.gsub(/\s+/, '') # Remove spaces from ACN
+    @acn = company.acn&.gsub(/\s+/, "") # Remove spaces from ACN
     @username = company.asic_username
     @password = company.encrypted_asic_password # Rails auto-decrypts
     @recovery_answer = company.encrypted_recovery_answer
@@ -45,14 +45,14 @@ class AsicConnectScraper
     options = Selenium::WebDriver::Chrome::Options.new
 
     if @headless
-      options.add_argument('--headless=new')
-      options.add_argument('--disable-gpu')
+      options.add_argument("--headless=new")
+      options.add_argument("--disable-gpu")
     end
 
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument('--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36')
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36")
 
     @driver = Selenium::WebDriver.for :chrome, options: options
     @driver.manage.timeouts.implicit_wait = 10
@@ -70,7 +70,7 @@ class AsicConnectScraper
     # STEP 1: Enter ACN/ABN
     Rails.logger.info("Step 1: Entering ACN (#{@acn})...")
     acn_field = wait.until {
-      @driver.find_element(name: 'Portal-1-COMPServicesLogin-1-ACN-1')
+      @driver.find_element(name: "Portal-1-COMPServicesLogin-1-ACN-1")
     }
     acn_field.clear
     acn_field.send_keys(@acn)
@@ -104,18 +104,18 @@ class AsicConnectScraper
 
     # Verify login success
     wait.until {
-      @driver.current_url.include?('Forms') ||
-      @driver.current_url.include?('compportal') ||
-      @driver.page_source.include?('Forms manager') ||
-      @driver.page_source.include?('Company')
+      @driver.current_url.include?("Forms") ||
+      @driver.current_url.include?("compportal") ||
+      @driver.page_source.include?("Forms manager") ||
+      @driver.page_source.include?("Company")
     }
 
     Rails.logger.info("Login successful!")
   rescue Selenium::WebDriver::Error::TimeoutError => e
-    take_screenshot('login_timeout')
+    take_screenshot("login_timeout")
     raise "Login timeout - check credentials or ASIC Connect may be down"
   rescue Selenium::WebDriver::Error::NoSuchElementError => e
-    take_screenshot('login_element_not_found')
+    take_screenshot("login_element_not_found")
     raise "Login form elements not found - ASIC Connect HTML may have changed"
   end
 
@@ -168,7 +168,7 @@ class AsicConnectScraper
       officers_link.click
       sleep 2
     rescue
-      take_screenshot('navigation_failed')
+      take_screenshot("navigation_failed")
       raise "Could not navigate to Officers page - HTML structure may have changed"
     end
   end
@@ -230,7 +230,7 @@ class AsicConnectScraper
       position: cells[1]&.text&.strip,
       appointment_date: parse_date_from_text(cells[2]&.text),
       resignation_date: parse_date_from_text(cells[3]&.text),
-      status: cells[4]&.text&.strip || 'Current'
+      status: cells[4]&.text&.strip || "Current"
     }
   end
 
@@ -243,8 +243,8 @@ class AsicConnectScraper
 
     # Look for director names (usually in specific patterns)
     doc.css('.officer, .director, [class*="person"]').each do |element|
-      name = element.css('.name, .person-name').text.strip
-      position = element.css('.position, .role').text.strip
+      name = element.css(".name, .person-name").text.strip
+      position = element.css(".position, .role").text.strip
 
       next if name.blank?
 
@@ -253,7 +253,7 @@ class AsicConnectScraper
         position: position,
         appointment_date: nil,
         resignation_date: nil,
-        status: 'Current'
+        status: "Current"
       }
     end
 
@@ -261,7 +261,7 @@ class AsicConnectScraper
   end
 
   def parse_date_from_text(text)
-    return nil if text.blank? || text.strip == '-' || text.strip.downcase == 'n/a'
+    return nil if text.blank? || text.strip == "-" || text.strip.downcase == "n/a"
 
     Date.parse(text.strip)
   rescue ArgumentError
@@ -271,7 +271,7 @@ class AsicConnectScraper
   def take_screenshot(name)
     return unless @driver
 
-    screenshot_dir = Rails.root.join('tmp', 'asic_screenshots')
+    screenshot_dir = Rails.root.join("tmp", "asic_screenshots")
     FileUtils.mkdir_p(screenshot_dir)
 
     filename = "#{@company.id}_#{name}_#{Time.now.to_i}.png"

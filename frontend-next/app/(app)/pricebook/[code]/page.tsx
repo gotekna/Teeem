@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -594,7 +594,7 @@ export default function PriceBookItemDetailPage() {
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

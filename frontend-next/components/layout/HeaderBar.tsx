@@ -41,6 +41,7 @@ import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useMicrosoftAutoReconnect } from "@/lib/hooks/useMicrosoftAutoReconnect";
 
 // Microsoft 365 icon component
 function Microsoft365Icon({ className }: { className?: string }) {
@@ -79,6 +80,17 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const fetchingRef = React.useRef(false);
+
+  // Microsoft 365 auto-reconnect hook - handles seamless OAuth popup when refresh token dies
+  const { isReconnecting: isMicrosoftReconnecting, status: microsoftAutoStatus, refreshStatus: refreshMicrosoftStatus } = useMicrosoftAutoReconnect({
+    enabled: true,
+    maxAttempts: 1,
+    onReconnectSuccess: () => {
+      // Update status immediately after successful reconnect
+      setOffice365Status('connected');
+      setOffice365Tooltip('Microsoft 365: Connected');
+    },
+  });
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -153,12 +165,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       }
 
       // Check user's Microsoft 365 connection status
-      // TEEEM Rule: Microsoft must ALWAYS be connected - self-heal, never show disconnected
+      // TEEEM Rule: Microsoft must ALWAYS be connected - self-heal via auto-reconnect hook
       try {
-        const microsoftResponse = await api.get<{
+        let microsoftResponse = await api.get<{
           connected?: boolean;
           needs_reconnect?: boolean;
           needs_refresh?: boolean;
+          refresh_token_dead?: boolean;
+          can_auto_reconnect?: boolean;
           email?: string;
           status?: string;
           error?: string;
@@ -170,6 +184,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         const needsConsent = microsoftResponse?.sync_error?.includes('AADSTS65001') ||
                             microsoftResponse?.sync_error?.includes('has not consented');
 
+        // SELF-HEAL: If needs_reconnect but token isn't dead, try explicit refresh first
+        // This prevents showing orange for transient failures
+        if (microsoftResponse?.needs_reconnect && !microsoftResponse?.refresh_token_dead && !needsConsent) {
+          console.info('[Microsoft] Token needs reconnect but not dead - attempting self-heal refresh...');
+          try {
+            const refreshResult = await api.post<{ success: boolean; expires_at?: string }>("/api/v1/microsoft/refresh");
+            if (refreshResult?.success) {
+              console.info('[Microsoft] Self-heal refresh succeeded - rechecking status');
+              // Re-fetch status after successful refresh
+              microsoftResponse = await api.get<typeof microsoftResponse>("/api/v1/microsoft/status");
+            }
+          } catch (refreshError) {
+            console.debug('[Microsoft] Self-heal refresh failed:', refreshError);
+            // Continue with original response - will show orange if needed
+          }
+        }
+
         if (microsoftResponse?.connected === true && !microsoftResponse?.needs_reconnect) {
           // Fully connected and healthy
           setOffice365Status('connected');
@@ -179,13 +210,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             sessionStorage.removeItem('microsoft_self_heal_attempted');
           }
         } else if (needsConsent || microsoftResponse?.needs_reconnect || microsoftResponse?.status === 'error') {
-          // Show as "needs attention" but DON'T auto-redirect (causes infinite loop)
-          // User must manually click to reconnect on the Microsoft settings page
-          setOffice365Status('degraded');
-          setOffice365Tooltip('Microsoft 365: Needs reconnection - click to reconnect');
-
-          // Log for debugging but don't auto-redirect
-          console.info('[Microsoft] Auth issue detected - user should reconnect via settings');
+          // Check if auto-reconnect is handling this
+          if (microsoftResponse?.refresh_token_dead && microsoftResponse?.can_auto_reconnect && isMicrosoftReconnecting) {
+            // Auto-reconnect is in progress - show as "reconnecting" (keep green, show tooltip)
+            setOffice365Status('connected');
+            setOffice365Tooltip('Microsoft 365: Reconnecting...');
+            console.info('[Microsoft] Auto-reconnect in progress');
+          } else if (microsoftResponse?.refresh_token_dead && microsoftResponse?.can_auto_reconnect) {
+            // Auto-reconnect hook will handle this - show as connected while it works
+            setOffice365Status('connected');
+            setOffice365Tooltip('Microsoft 365: Reconnecting...');
+            console.info('[Microsoft] Waiting for auto-reconnect hook to trigger');
+          } else {
+            // Show as "needs attention" - manual reconnection required
+            setOffice365Status('degraded');
+            setOffice365Tooltip('Microsoft 365: Needs reconnection - click to reconnect');
+            console.info('[Microsoft] Manual reconnection required');
+          }
         } else {
           // Default: always show as connected (TEEEM rule - never disconnected)
           setOffice365Status('connected');
@@ -217,6 +258,16 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       fetchingRef.current = false;
     };
   }, []);
+
+  // Update Microsoft status when auto-reconnect state changes
+  React.useEffect(() => {
+    if (isMicrosoftReconnecting) {
+      setOffice365Tooltip('Microsoft 365: Reconnecting...');
+    } else if (microsoftAutoStatus?.connected) {
+      setOffice365Status('connected');
+      setOffice365Tooltip(`Microsoft 365: Connected${microsoftAutoStatus.email ? ` (${microsoftAutoStatus.email})` : ''}`);
+    }
+  }, [isMicrosoftReconnecting, microsoftAutoStatus]);
 
   // Helper to get color classes based on connection status
   const getStatusColors = (status: ConnectionStatus) => {
@@ -346,13 +397,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           <Link
             href="/settings/integrations/microsoft"
             className={cn(
-              "p-1.5 rounded-md transition-colors",
+              "relative p-1.5 rounded-md transition-colors",
               getStatusColors(office365Status)
             )}
             title={office365Tooltip}
           >
             <span className="sr-only">Office 365</span>
             <Microsoft365Icon className="h-4 w-4" />
+            {/* Status indicator dot */}
+            {office365Status === 'connected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'degraded' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'error' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
+            )}
           </Link>
 
           {/* Xero Status */}

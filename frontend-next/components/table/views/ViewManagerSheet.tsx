@@ -32,10 +32,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Sheet,
   SheetContent,
@@ -97,6 +98,7 @@ interface Column {
   lookup_foundation_id?: number;
   lookup_display_column?: string;
   available_choices?: { id: number; value: string }[] | string[];
+  searchable?: boolean;
 }
 
 interface ViewManagerSheetProps {
@@ -183,6 +185,7 @@ export function ViewManagerSheet({
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
   const [editSmartFit, setEditSmartFit] = React.useState(true); // Default to TEEEM Smart
   const [editShowTotals, setEditShowTotals] = React.useState(true);
+  const [editSearchableColumns, setEditSearchableColumns] = React.useState<Record<string, boolean>>({});
 
   // Collapse state
   const [filtersExpanded, setFiltersExpanded] = React.useState(true);
@@ -250,6 +253,7 @@ export function ViewManagerSheet({
           filterGroups: v.filters?.filterGroups || [{ id: "default", logic: "AND" }],
           interGroupLogic: v.filters?.interGroupLogic || "OR",
           visibleColumns: v.columns?.visible || {},
+          searchableColumns: v.columns?.searchable || {},
           columnOrder: v.columns?.order || [],
           columnWidths: v.columns?.widths || {},
           autoFitColumns: v.columns?.autoFitColumns === true,
@@ -319,12 +323,21 @@ export function ViewManagerSheet({
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
+
+    // Load searchable columns - default to foundation schema's searchable settings
+    const hasSearchableColumns = view.searchableColumns && Object.keys(view.searchableColumns).length > 0;
+    const searchableColumnsToSet = hasSearchableColumns
+      ? view.searchableColumns
+      : Object.fromEntries(effectiveColumns.map(c => [c.column_name, c.searchable ?? false]));
+    setEditSearchableColumns(searchableColumnsToSet!);
   };
 
   const handleSelectView = (view: SavedView) => {
     setActiveViewId(view.id);
     loadViewIntoEditor(view);
     setIsEditing(false);
+    // Also apply the view to the table immediately (better UX - click = use)
+    onApplyView?.(view);
   };
 
   const handleEditView = (view: SavedView) => {
@@ -386,6 +399,7 @@ export function ViewManagerSheet({
         autoFitColumns: editAutoFitColumns,
         smartFit: editSmartFit,
         showTotals: editShowTotals,
+        searchableColumns: editSearchableColumns,
         filters: editFilters,
         filterGroups: editFilterGroups,
         interGroupLogic: editInterGroupLogic,
@@ -411,6 +425,7 @@ export function ViewManagerSheet({
           autoFitColumns: currentEditState.autoFitColumns,
           smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
+          searchable: currentEditState.searchableColumns,
         },
         sort_order: currentEditState.sortColumns,
         group_by_columns: currentEditState.groupByColumns,
@@ -447,6 +462,7 @@ export function ViewManagerSheet({
           autoFitColumns: currentEditState.autoFitColumns,
           smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
+          searchableColumns: currentEditState.searchableColumns,
           filters: currentEditState.filters,
           filterGroups: currentEditState.filterGroups,
           interGroupLogic: currentEditState.interGroupLogic,
@@ -462,6 +478,7 @@ export function ViewManagerSheet({
 
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
+        console.log('[ViewManagerSheet] Applying saved view with columnOrder:', savedView.columnOrder);
         onApplyView?.(savedView);
 
         // Trigger data refresh to apply new filters/sorting/etc
@@ -707,7 +724,7 @@ export function ViewManagerSheet({
               onSelect={(item) => updateFilter(filter.id, { value: item.id })}
               placeholder="Search value..."
               searchInTrigger={true}
-              popoverProps={{ className: "w-[200px]" }}
+              popoverProps={{ className: "min-w-[200px] w-auto" }}
             />
           </div>
         );
@@ -768,7 +785,7 @@ export function ViewManagerSheet({
             onSelect={(item) => updateFilter(filter.id, { value: item.id })}
             placeholder={ssotConfig.placeholder}
             searchInTrigger={true}
-            popoverProps={{ className: "w-[200px]" }}
+            popoverProps={{ className: "min-w-[200px] w-auto" }}
           />
         </div>
       );
@@ -792,7 +809,7 @@ export function ViewManagerSheet({
               onSelect={(item) => updateFilter(filter.id, { value: item.id })}
               placeholder="Search value..."
               searchInTrigger={true}
-              popoverProps={{ className: "w-[200px]" }}
+              popoverProps={{ className: "min-w-[200px] w-auto" }}
             />
           </div>
         );
@@ -848,7 +865,7 @@ export function ViewManagerSheet({
               placeholder="Search value..."
               searchInTrigger={true}
               emptyResults="No options available"
-              popoverProps={{ className: "w-[200px]" }}
+              popoverProps={{ className: "min-w-[200px] w-auto" }}
             />
           </div>
         );
@@ -876,9 +893,9 @@ export function ViewManagerSheet({
   };
 
   // Sort management
+  // Per GOLD_STANDARD_TABLE.md: System columns should be available for sorting
   const addSortColumn = () => {
     const availableCols = effectiveColumns.filter(c =>
-      !["id", "created_at", "updated_at"].includes(c.column_name) &&
       !editSortColumns.some(s => s.column === c.column_name)
     );
     if (availableCols.length > 0) {
@@ -906,6 +923,14 @@ export function ViewManagerSheet({
     if (newVisible && !editColumnOrder.includes(columnName)) {
       setEditColumnOrder([...editColumnOrder, columnName]);
     }
+  };
+
+  // Toggle whether a column is included in search for this view
+  const toggleColumnSearchable = (columnName: string) => {
+    setEditSearchableColumns({
+      ...editSearchableColumns,
+      [columnName]: !editSearchableColumns[columnName],
+    });
   };
 
   const showAllColumns = () => {
@@ -956,7 +981,9 @@ export function ViewManagerSheet({
     setEditColumnOrder([...newVisibleOrder, ...hiddenCols]);
   };
 
-  const filteredColumns = effectiveColumns.filter(c => !["id", "created_at", "updated_at"].includes(c.column_name));
+  // Per GOLD_STANDARD_TABLE.md: System columns should be visible (but not editable)
+  // Include all columns - system columns are available for filtering, sorting, grouping
+  const filteredColumns = effectiveColumns;
 
   // Calculate smart width for a column based on priority
   const calculateSmartWidth = (col: Column): number => {
@@ -1217,18 +1244,24 @@ export function ViewManagerSheet({
                       <ScrollArea className="w-[400px] shrink-0 p-4 border-r">
                         <div className="space-y-4">
                           {/* View Filter Section */}
-                          <Collapsible open={filtersExpanded} onOpenChange={setFiltersExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {filtersExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <Filter className="h-4 w-4" />
-                            View Filter
-                            {editFilters.length > 0 && (
-                              <Badge variant="secondary" className="ml-2">
-                                {editFilters.length} active
-                              </Badge>
-                            )}
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
+                          <Accordion
+                            type="single"
+                            collapsible
+                            value={filtersExpanded ? "filters" : ""}
+                            onValueChange={(v) => setFiltersExpanded(v === "filters")}
+                          >
+                            <AccordionItem value="filters" className="border-none">
+                              <AccordionTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary p-0 hover:no-underline [&>svg]:hidden">
+                                {filtersExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                <Filter className="h-4 w-4" />
+                                View Filter
+                                {editFilters.length > 0 && (
+                                  <Badge variant="secondary" className="ml-2">
+                                    {editFilters.length} active
+                                  </Badge>
+                                )}
+                              </AccordionTrigger>
+                              <AccordionContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
                                 {/* Filter Groups Controls */}
@@ -1348,7 +1381,7 @@ export function ViewManagerSheet({
                                                     onSelect={(item) => updateFilter(filter.id, { column: item.id })}
                                                     placeholder="Search column..."
                                                     searchInTrigger={true}
-                                                    popoverProps={{ className: "w-[200px]" }}
+                                                    popoverProps={{ className: "min-w-[200px] w-auto" }}
                                                   />
                                                 </div>
 
@@ -1397,24 +1430,31 @@ export function ViewManagerSheet({
                                 </div>
                               </CardContent>
                             </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
 
                         <Separator />
 
                         {/* Sort By Section */}
-                        <Collapsible open={sortExpanded} onOpenChange={setSortExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {sortExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <ArrowUpDown className="h-4 w-4" />
-                            Sort By
-                            {editSortColumns.length > 0 && (
-                              <Badge variant="secondary" className="ml-2">
-                                {editSortColumns.length} column{editSortColumns.length !== 1 ? "s" : ""}
-                              </Badge>
-                            )}
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
+                        <Accordion
+                          type="single"
+                          collapsible
+                          value={sortExpanded ? "sort" : ""}
+                          onValueChange={(v) => setSortExpanded(v === "sort")}
+                        >
+                          <AccordionItem value="sort" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary p-0 hover:no-underline [&>svg]:hidden">
+                              {sortExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <ArrowUpDown className="h-4 w-4" />
+                              Sort By
+                              {editSortColumns.length > 0 && (
+                                <Badge variant="secondary" className="ml-2">
+                                  {editSortColumns.length} column{editSortColumns.length !== 1 ? "s" : ""}
+                                </Badge>
+                              )}
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
                                 <DndContext
@@ -1455,24 +1495,31 @@ export function ViewManagerSheet({
                                 </Button>
                               </CardContent>
                             </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
 
                         <Separator />
 
                         {/* Group By Section */}
-                        <Collapsible open={groupByExpanded} onOpenChange={setGroupByExpanded}>
-                          <CollapsibleTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary">
-                            {groupByExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            <Columns3 className="h-4 w-4" />
-                            Group By
-                            {editGroupByColumns.length > 0 && (
+                        <Accordion
+                          type="single"
+                          collapsible
+                          value={groupByExpanded ? "groupBy" : ""}
+                          onValueChange={(v) => setGroupByExpanded(v === "groupBy")}
+                        >
+                          <AccordionItem value="groupBy" className="border-none">
+                            <AccordionTrigger className="flex items-center gap-2 w-full text-left font-semibold text-sm hover:text-primary p-0 hover:no-underline [&>svg]:hidden">
+                              {groupByExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <Columns3 className="h-4 w-4" />
+                              Group By
+                              {editGroupByColumns.length > 0 && (
                               <Badge variant="secondary" className="ml-2">
                                 {editGroupByColumns.length} column{editGroupByColumns.length !== 1 ? "s" : ""}
                               </Badge>
                             )}
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-3">
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-3">
                             <Card>
                               <CardContent className="p-4">
                                 <DndContext
@@ -1527,23 +1574,31 @@ export function ViewManagerSheet({
                                 </Button>
                               </CardContent>
                             </Card>
-                          </CollapsibleContent>
-                        </Collapsible>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
 
                         </div>
                       </ScrollArea>
 
-                      {/* Right Side - Columns (Collapsible) */}
-                      <Collapsible open={columnsExpanded} onOpenChange={setColumnsExpanded} className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}>
+                      {/* Right Side - Columns */}
+                      <Accordion
+                        type="single"
+                        collapsible
+                        value={columnsExpanded ? "columns" : ""}
+                        onValueChange={(v) => setColumnsExpanded(v === "columns")}
+                        className={cn("flex flex-col p-4 overflow-hidden border-l transition-all", columnsExpanded ? "flex-1 min-w-0" : "w-auto")}
+                      >
+                        <AccordionItem value="columns" className="border-none flex flex-col flex-1">
                         <div className="flex items-center justify-between mb-3 -mx-2 px-2 py-1 shrink-0">
-                          <CollapsibleTrigger showIcon={false} className="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded">
+                          <AccordionTrigger className="flex items-center gap-2 font-semibold text-sm cursor-pointer hover:bg-muted/50 px-2 py-1 rounded p-0 hover:no-underline [&>svg]:hidden">
                             {columnsExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                             <Eye className="h-4 w-4" />
                             Columns
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                               {Object.values(editVisibleColumns).filter(Boolean).length}
                             </Badge>
-                          </CollapsibleTrigger>
+                          </AccordionTrigger>
                           {columnsExpanded && (
                             <div className="flex items-center gap-4">
                               <div className="flex items-center gap-2">
@@ -1597,7 +1652,7 @@ export function ViewManagerSheet({
                             )}
                           </div>
                         )}
-                        <CollapsibleContent className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">
+                        <AccordionContent className="flex-1 min-h-0 overflow-y-auto -mx-4 px-4">
                             <DndContext
                               sensors={sensors}
                               collisionDetection={closestCenter}
@@ -1639,7 +1694,9 @@ export function ViewManagerSheet({
                                             id={col.column_name}
                                             column={col}
                                             isVisible={true}
+                                            isSearchable={editSearchableColumns[col.column_name] === true}
                                             onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                            onToggleSearchable={() => toggleColumnSearchable(col.column_name)}
                                             index={originalIndex + 1}
                                             totalVisible={visibleCols.length}
                                             onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
@@ -1692,7 +1749,9 @@ export function ViewManagerSheet({
                                               id={col.column_name}
                                               column={col}
                                               isVisible={false}
+                                              isSearchable={editSearchableColumns[col.column_name] === true}
                                               onToggleVisibility={() => toggleColumnVisibility(col.column_name)}
+                                              onToggleSearchable={() => toggleColumnSearchable(col.column_name)}
                                               lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                             />
                                           ))}
@@ -1707,8 +1766,9 @@ export function ViewManagerSheet({
                                 </div>
                               </SortableContext>
                             </DndContext>
-                        </CollapsibleContent>
-                      </Collapsible>
+                        </AccordionContent>
+                        </AccordionItem>
+                      </Accordion>
                     </div>
                   </>
                 ) : (

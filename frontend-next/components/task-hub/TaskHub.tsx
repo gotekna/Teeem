@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader } from '@/components/ui/loader';
+import { Spinner } from '@/components/ui/spinner';
 import {
   Search,
   LayoutGrid,
@@ -43,7 +43,7 @@ export function TaskHub() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[200px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

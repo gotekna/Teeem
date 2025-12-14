@@ -21,9 +21,11 @@
 # SAME refresh token for up to 30 minutes. This makes the system much more resilient.
 #
 class XeroTokenManager
-  # Refresh tokens 15 minutes BEFORE they expire (proactive, not reactive)
-  # Xero access tokens expire after 30 minutes, so 15 min buffer is ideal
-  REFRESH_BUFFER = 15.minutes
+  # Refresh tokens 20 minutes BEFORE they expire (proactive, not reactive)
+  # Xero access tokens expire after 30 minutes
+  # Buffer MUST be larger than job interval (15 min) to prevent gaps
+  # Example: Token expires 07:30, job at 07:15 checks 07:30 < 07:35 = true ✓
+  REFRESH_BUFFER = 20.minutes
 
   # After 3 consecutive refresh failures, mark credential as disconnected
   MAX_REFRESH_ATTEMPTS = 3
@@ -214,12 +216,28 @@ class XeroTokenManager
     end
 
     # Get health summary for all credentials
+    # IMPORTANT: Counts by ACTUAL status (token expiry), not just DB status column
     def health_summary
+      connected = 0
+      degraded = 0
+      disconnected = 0
+
+      XeroCredential.all.each do |cred|
+        if cred.status == "disconnected" || cred.poisoned?
+          disconnected += 1
+        elsif cred.status == "connected" && !cred.expired?
+          connected += 1
+        else
+          # status="connected" but expired, OR status="degraded"
+          degraded += 1
+        end
+      end
+
       {
         total: XeroCredential.count,
-        connected: XeroCredential.where(status: "connected").count,
-        degraded: XeroCredential.where(status: "degraded").count,
-        disconnected: XeroCredential.where(status: "disconnected").count,
+        connected: connected,
+        degraded: degraded,
+        disconnected: disconnected,
         circuit_open: XeroCredential.where(circuit_state: "open").count,
         expiring_soon: credentials_needing_refresh.count,
         at_risk_of_inactivity: XeroCredential.where(status: %w[connected degraded])

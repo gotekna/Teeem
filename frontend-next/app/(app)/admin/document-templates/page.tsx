@@ -15,10 +15,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Table,
   TableBody,
@@ -345,28 +346,23 @@ export default function DocumentTemplatesPage() {
                 </ol>
               </div>
 
-              <div className="space-y-2">
+              <Accordion type="multiple" value={expandedGroups} onValueChange={setExpandedGroups} className="space-y-2">
                 {FIELD_REFERENCE.map((group) => (
-                  <Collapsible
+                  <AccordionItem
                     key={group.name}
-                    open={expandedGroups.includes(group.name)}
-                    onOpenChange={() => toggleGroup(group.name)}
+                    value={group.name}
+                    className="border-none"
                   >
-                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg bg-slate-100 p-3 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">
+                    <AccordionTrigger className="flex w-full items-center justify-between rounded-lg bg-slate-100 p-3 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 hover:no-underline [&>svg]:hidden">
                       <div className="flex items-center gap-2">
-                        {expandedGroups.includes(group.name) ? (
-                          <ChevronDown className="h-4 w-4" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4" />
-                        )}
                         <span className="font-medium">{group.name}</span>
                         {group.isLoop && (
                           <Badge variant="outline" className="text-xs">Loop</Badge>
                         )}
                       </div>
                       <span className="text-sm text-slate-500">{group.description}</span>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
+                    </AccordionTrigger>
+                    <AccordionContent>
                       <div className="mt-2 rounded-lg border">
                         {group.isLoop && (
                           <div className="border-b bg-amber-50 p-3 dark:bg-amber-950/30">
@@ -439,10 +435,10 @@ export default function DocumentTemplatesPage() {
                           </TableBody>
                         </Table>
                       </div>
-                    </CollapsibleContent>
-                  </Collapsible>
+                    </AccordionContent>
+                  </AccordionItem>
                 ))}
-              </div>
+              </Accordion>
             </CardContent>
           </Card>
 

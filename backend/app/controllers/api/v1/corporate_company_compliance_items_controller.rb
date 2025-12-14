@@ -26,7 +26,7 @@ module Api
         render json: {
           success: true,
           compliance_items: @items.as_json(
-            include: { company: { only: [ :id, :name ] } },
+            include: { company: {} },
             methods: [ :days_until_due, :formatted_compliance_type, :overdue?, :due_soon? ]
           )
         }
@@ -37,7 +37,7 @@ module Api
         render json: {
           success: true,
           compliance_item: @item.as_json(
-            include: { company: { only: [ :id, :name ] } },
+            include: { company: {} },
             methods: [ :days_until_due, :formatted_compliance_type, :reminder_days ]
           )
         }

@@ -167,6 +167,13 @@ class Api::V1::MicrosoftAuthController < ApplicationController
         expires_at: microsoft_token.token_expires_at,
         needs_refresh: microsoft_token.needs_refresh?,
         needs_reconnect: needs_reconnect,
+        # New fields for seamless auto-reconnect
+        refresh_token_dead: microsoft_token.refresh_token_dead?,
+        reconnect_reason: microsoft_token.reconnect_reason,
+        can_auto_reconnect: ENV["OUTLOOK_CLIENT_ID"].present?,
+        consecutive_failures: microsoft_token.consecutive_failures,
+        last_refresh_attempt_at: microsoft_token.last_refresh_attempt_at,
+        # Existing fields
         last_sync_at: microsoft_token.last_sync_at,
         sync_error: microsoft_token.sync_error,
         services: {

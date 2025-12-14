@@ -382,7 +382,7 @@ export default function DocumentTypesPage() {
         foundationIdNumeric={454}
         tableName={`Document Types (${documentTypes.length})`}
         entries={documentTypes}
-        columns={columns}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         onEdit={handleEdit}
         onRowUpdate={handleRowUpdate}
         onRowClick={handleRowClick}

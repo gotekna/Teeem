@@ -174,10 +174,10 @@ class OrgEmailSyncJob < ApplicationJob
         Rails.logger.debug "[OrgEmailSync] Skipping internal sent email (will sync from inbox): #{subject}"
         return nil
       end
-      # Otherwise, sync external sent emails
+    # Otherwise, sync external sent emails
     # NEVER FILTER: Emails with attachments
     elsif has_attachments
-      # Always sync emails with attachments (important business emails)
+    # Always sync emails with attachments (important business emails)
     # FILTER: Check against blacklist
     else
       # Use database-backed blacklist (supports incremental & full sync)

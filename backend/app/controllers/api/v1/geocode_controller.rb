@@ -73,24 +73,24 @@ class Api::V1::GeocodeController < ApplicationController
   private
 
   def parse_street_name_and_type(street_full)
-    street_types = ['street', 'st', 'road', 'rd', 'avenue', 'ave', 'court', 'ct',
-                    'drive', 'dr', 'lane', 'ln', 'place', 'pl', 'crescent', 'cres',
-                    'terrace', 'tce', 'circuit', 'cct', 'esplanade', 'parade', 'way',
-                    'boulevard', 'blvd', 'highway', 'hwy', 'close', 'grove', 'walk']
+    street_types = [ "street", "st", "road", "rd", "avenue", "ave", "court", "ct",
+                    "drive", "dr", "lane", "ln", "place", "pl", "crescent", "cres",
+                    "terrace", "tce", "circuit", "cct", "esplanade", "parade", "way",
+                    "boulevard", "blvd", "highway", "hwy", "close", "grove", "walk" ]
 
     street_lower = street_full.downcase
     matched_type = street_types.find { |t| street_lower.end_with?(" #{t}") }
 
     if matched_type
       type_pattern = /\s*#{Regexp.escape(matched_type)}\s*$/i
-      street_name = street_full.gsub(type_pattern, '').strip
+      street_name = street_full.gsub(type_pattern, "").strip
       # Capitalize abbreviations, title case for full words
       street_type = matched_type.length <= 3 ? matched_type.upcase : matched_type.capitalize
-      return [street_name, street_type]
+      return [ street_name, street_type ]
     end
 
     # No recognized type found
-    [street_full, nil]
+    [ street_full, nil ]
   end
 
   def abbreviate_state(state_name)

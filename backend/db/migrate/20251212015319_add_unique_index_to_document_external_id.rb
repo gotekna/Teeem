@@ -39,7 +39,7 @@ class AddUniqueIndexToDocumentExternalId < ActiveRecord::Migration[8.0]
     # Step 3: Add unique constraint on [source, external_id] to prevent future duplicates
     # Only applies when external_id is NOT NULL (partial unique index)
     add_index :corporate_company_documents,
-              [:source, :external_id],
+              [ :source, :external_id ],
               unique: true,
               where: "external_id IS NOT NULL",
               name: 'index_corporate_company_documents_on_source_and_external_id'

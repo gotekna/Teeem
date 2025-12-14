@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
 import { LeadForm } from "@/components/leads/lead-form";
 import { GenerateContractModal } from "@/components/contracts/generate-contract-modal";
@@ -122,7 +122,7 @@ export default function LeadDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

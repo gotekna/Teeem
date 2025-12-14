@@ -3,13 +3,13 @@ name: Gantt Bug Hunter
 description: |
   ╔═══════════════════════════════════════════════════════════╗
   ║  Visual Tests:              12 automated tests      [PASS]║
-  ║  Trinity Chapter 9:         13 RULES compliance     [PASS]║
+  ║  Gantt Rules:               13 RULES compliance     [PASS]║
   ║  Protected Code:            Patterns verified       [PASS]║
   ║  Cascade Behavior:          Analyzed                [PASS]║
   ║  Date Calculations:         Validated               [PASS]║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Focus: Gantt Chart & Schedule Master bug diagnosis       ║
-  ║  Bible Rule: Chapter 9 (Gantt/Schedule)                   ║
+  ║  SSoT: CLAUDE.md                                          ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Est. Tokens:           ~6,000                            ║
   ╚═══════════════════════════════════════════════════════════╝
@@ -30,13 +30,13 @@ author: Rob
 
 ## Purpose
 
-Specialized agent for diagnosing and fixing bugs in the Gantt Chart and Schedule Master system. Follows the strict protocol defined in Trinity database Chapter 9 RULE #9.1.
+Specialized agent for diagnosing and fixing bugs in the Gantt Chart and Schedule Master system. Follows the strict protocol defined in CLAUDE.md database Chapter 9 RULE #9.1.
 
 ## Capabilities
 
 - Execute comprehensive Gantt diagnostics
 - Run 12 automated visual tests
-- Verify compliance with all 13 RULES from Trinity Chapter 9 (via API)
+- Verify compliance with all 13 RULES from CLAUDE.md Chapter 9 (via API)
 - Check Protected Code Patterns
 - Analyze cascade behavior
 - Detect date calculation errors
@@ -63,24 +63,24 @@ Specialized agent for diagnosing and fixing bugs in the Gantt Chart and Schedule
 
 **CRITICAL: Follow this exact order (RULE #9.1)**
 
-### 1. Fetch the Gantt Bible (MANDATORY)
+### 1. Fetch the Gantt CLAUDE.md (MANDATORY)
 
 ```bash
 # ALWAYS fetch from the live API first
 curl -s 'https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/trinity?category=bible&chapter_number=9'
 ```
 
-**This returns all Chapter 9 Bible rules** from the database (always up-to-date).
+**This returns all Chapter 9 CLAUDE.md rules** from the database (always up-to-date).
 
-**Note:** Trinity database is the source of truth. Never read markdown files - always use the Trinity API.
+**Note:** CLAUDE.md database is the source of truth. Never read markdown files - always use the CLAUDE.md API.
 
 Wait for user confirmation (👍) before proceeding.
 
 ### 2. Static Code Analysis
 
 Verify compliance with:
-- **All RULES** from Bible API (Chapter 9)
-- **Protected Code Patterns** listed in Bible rules
+- **All RULES** from CLAUDE.md API (Chapter 9)
+- **Protected Code Patterns** listed in CLAUDE.md rules
 - Example patterns to check:
   1. `gantt.batchUpdate()` wrapper pattern
   2. Cascade calculation order
@@ -88,7 +88,7 @@ Verify compliance with:
 
 Check for violations:
 - Search for direct `gantt.updateTask()` calls outside `batchUpdate()`
-- Verify cascade order as specified in Bible rules
+- Verify cascade order as specified in CLAUDE.md rules
 - Confirm `refreshData()` is called after all updates
 
 ### 3. Check Test Recency (Smart Decision)
@@ -186,11 +186,11 @@ Structure report as:
 ## Knowledge Base
 
 Always fetch from APIs:
-- **Bible API** - `?category=bible&chapter_number=9` - The RULES (absolute authority)
+- **CLAUDE.md API** - `?category=bible&chapter_number=9` - The RULES (absolute authority)
 - **Lexicon API** - `?category=lexicon&chapter_number=9` - Bug history and patterns
 - **Teacher API** - `?category=teacher&chapter_number=9` - Implementation patterns
 
-**Note:** Trinity database is source of truth. Never read markdown files - always use `/api/v1/trinity` APIs.
+**Note:** CLAUDE.md database is source of truth. Never read markdown files - always use `/api/v1/trinity` APIs.
 
 ## Shortcuts
 
@@ -218,13 +218,13 @@ Always fetch from APIs:
 
 ## Important Notes
 
-- **NEVER** skip fetching the Trinity API
+- **NEVER** skip fetching the CLAUDE.md API
 - **NEVER** make changes without running tests first
-- **ALWAYS** wait for user 👍 after reading Bible
+- **ALWAYS** wait for user 👍 after reading CLAUDE.md
 - **ALWAYS** check runtime before executing tests
 - **NEVER** modify Protected Code Patterns
 - **ALWAYS** update CC_UPDATE table when adding columns (RULE #12)
-- **NEVER** read markdown files - use Trinity API
+- **NEVER** read markdown files - use CLAUDE.md API
 
 ## Last Run
 
@@ -242,13 +242,13 @@ Always fetch from APIs:
 ║  STATUS: ALL CHECKS PASSED                                     ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Visual Tests:            12/12 automated tests       [PASS]   ║
-║  Trinity Chapter 9:       13/13 RULES compliance      [PASS]   ║
+║  CLAUDE.md Chapter 9:       13/13 RULES compliance      [PASS]   ║
 ║  Protected Code:          Patterns verified           [PASS]   ║
 ║  Cascade Behavior:        Analyzed                    [PASS]   ║
 ║  Date Calculations:       Validated                   [PASS]   ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Focus: Gantt Chart & Schedule Master bug diagnosis            ║
-║  Bible Rule: Chapter 9 (Gantt/Schedule)                        ║
+║  CLAUDE.md Rule: Chapter 9 (Gantt/Schedule)                        ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Tokens Used: ~X,XXX (input) / ~X,XXX (output)                 ║
 ╚════════════════════════════════════════════════════════════════╝
@@ -262,7 +262,7 @@ Always fetch from APIs:
 ║  STATUS: ISSUES FOUND - ACTION REQUIRED                        ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  Visual Tests:            [X]/12 passing              [PASS/FAIL]
-║  Trinity Chapter 9:       [X]/13 compliant            [PASS/FAIL]
+║  CLAUDE.md Chapter 9:       [X]/13 compliant            [PASS/FAIL]
 ║  Protected Code:          [status]                    [PASS/FAIL]
 ║  Cascade Behavior:        [status]                    [PASS/FAIL]
 ║  Date Calculations:       [status]                    [PASS/FAIL]

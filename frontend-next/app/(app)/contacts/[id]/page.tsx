@@ -8,7 +8,7 @@ import { currentFiltersAtom, currentFilterGroupsAtom, foundationViewsAtom, activ
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -63,6 +63,41 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
+import { ContactHeader } from "./components/ContactHeader";
+import {
+  ContactOverviewTab,
+  ContactCorporateTab,
+  ContactFinancialTab,
+  ContactDirectorshipsTab,
+  ContactCasesTab,
+  ContactEmailsTab,
+} from "./components";
+import type {
+  Contact,
+  ContactPerson,
+  ContactGroup,
+  ContactEmail,
+  ContactPhone,
+  DirectorCompany,
+  AdditionalCompany,
+  LinkedCompanyDirector,
+  LinkedCompanyShareholder,
+  LinkedCompanyBankAccount,
+  LinkedCompany,
+  CompanyGroupMembership,
+  Directorship,
+  Shareholding,
+  TrustRole,
+  TrustRolesData,
+  OwnershipNode,
+  EmailMessage,
+  EmailsPagination,
+  CaseRelationship,
+  ContactRelationship,
+  RelationshipsResponse,
+  RelationshipTypeMetadata,
+} from "./types";
+import { formatABN, formatACN, validateABN, formatPhoneNumber, validatePhoneNumber } from "./types";
 import {
   Select,
   SelectContent,
@@ -100,428 +135,6 @@ import {
   isPriceOnly
 } from "@/lib/entity-types";
 
-// Helper function to format ABN as XX XXX XXX XXX
-const formatABN = (abn: string | null) => {
-  if (!abn) return "";
-  const digits = abn.replace(/\D/g, "");
-  if (digits.length === 11) {
-    return `${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 11)}`;
-  }
-  return abn;
-};
-
-// Helper function to format ACN as XXX XXX XXX
-const formatACN = (acn: string | null) => {
-  if (!acn) return "";
-  const digits = acn.replace(/\D/g, "");
-  if (digits.length === 9) {
-    return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
-  }
-  return acn;
-};
-
-// Validate ABN - must be 11 digits
-const validateABN = (abn: string | null): { isValid: boolean; error?: string } => {
-  if (!abn || abn.trim() === "") return { isValid: true }; // Empty is OK
-  const digits = abn.replace(/\D/g, "");
-  if (digits.length === 0) return { isValid: true }; // Just spaces/formatting chars is OK
-  if (digits.length !== 11) {
-    return { isValid: false, error: `ABN must be 11 digits (got ${digits.length})` };
-  }
-  return { isValid: true };
-};
-
-// Format Australian phone number - handles mobile (04XX XXX XXX) and landline (0X XXXX XXXX)
-const formatPhoneNumber = (phone: string | null): string => {
-  if (!phone) return "";
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 0) return "";
-
-  // Mobile: 04XX XXX XXX (10 digits starting with 04)
-  if (digits.length === 10 && digits.startsWith("04")) {
-    return `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7, 10)}`;
-  }
-  // Landline: 0X XXXX XXXX (10 digits starting with 0)
-  if (digits.length === 10 && digits.startsWith("0")) {
-    return `${digits.slice(0, 2)} ${digits.slice(2, 6)} ${digits.slice(6, 10)}`;
-  }
-  // International or other format - return as-is with spaces every 3-4 digits
-  if (digits.length >= 8) {
-    return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trim();
-  }
-  return phone;
-};
-
-// Validate phone number - must be 8-15 digits
-const validatePhoneNumber = (phone: string | null): { isValid: boolean; error?: string } => {
-  if (!phone || phone.trim() === "") return { isValid: true }; // Empty is OK
-  const digits = phone.replace(/\D/g, "");
-  if (digits.length === 0) return { isValid: true };
-  if (digits.length < 8) {
-    return { isValid: false, error: `Phone must be at least 8 digits (got ${digits.length})` };
-  }
-  if (digits.length > 15) {
-    return { isValid: false, error: `Phone must be at most 15 digits (got ${digits.length})` };
-  }
-  return { isValid: true };
-};
-
-interface ContactPerson {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  mobile: string | null;
-  role: string | null;
-  is_primary: boolean;
-  include_in_emails: boolean;
-}
-
-interface ContactGroup {
-  id: number;
-  name: string;
-}
-
-interface ContactEmail {
-  id?: number;
-  email: string;
-  is_primary: boolean;
-  label: string | null;
-  position: number;
-  _destroy?: boolean;
-}
-
-interface ContactPhone {
-  id?: number;
-  phone_number: string;
-  phone_type: 'mobile' | 'office' | 'fax' | 'home';
-  is_primary: boolean;
-  label: string | null;
-  position: number;
-  _destroy?: boolean;
-}
-
-interface Contact {
-  id: number;
-  display_name: string;
-  first_name: string | null;
-  middle_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  mobile_phone: string | null;
-  office_phone: string | null;
-  website: string | null;
-  tax_number: string | null;
-  address: string | null;
-  notes: string | null;
-  is_active: boolean;
-  // Multiple emails and phones
-  contact_emails?: ContactEmail[];
-  contact_phones?: ContactPhone[];
-  "is_supplier?": boolean;
-  "is_customer?": boolean;
-  "is_director?": boolean;
-  is_family_member: boolean;
-  is_team_contact: boolean;
-  xero_contact_id: string | null;
-  xero_id?: string | null;
-  xero_contact_number?: string | null;
-  xero_contact_status?: string | null;
-  xero_account_number?: string | null;
-  xero_synced?: boolean | null;
-  xero_invoice_count?: number | null;
-  xero_contact_types: string[];
-  sync_with_xero: boolean;
-  created_at: string;
-  updated_at: string;
-  contact_persons: ContactPerson[];
-  contact_groups: ContactGroup[];
-  jobs_count: number;
-  purchase_orders_count: number;
-  quotes_count: number;
-  // Company/Business fields
-  company_name: string | null;
-  company_name_or_trust: string | null; // SSoT for company/trust display names
-  position: string | null;
-  department: string | null;
-  // Director details
-  director_id: string | null;
-  date_of_birth: string | null;
-  place_of_birth: string | null;
-  birth_state: string | null;
-  birth_country: string | null;
-  residential_address: string | null;
-  drivers_licence: string | null;
-  passport_number: string | null;
-  photo_url: string | null;
-  // Bank details
-  bank_bsb: string | null;
-  bank_account_number: string | null;
-  bank_account_name: string | null;
-  // LGAs
-  lgas: string[];
-  // Entity type for SSoT
-  entity_type: string | null;
-  // Company/Employee linking
-  primary_company_id?: number | null;
-  primary_company?: {
-    id: number;
-    name: string;
-    email?: string;
-    website?: string;
-    address?: string;
-    abn?: string;
-    acn?: string;
-    contact_emails?: ContactEmail[];
-    contact_phones?: ContactPhone[];
-  } | null;
-  employees?: Array<{
-    id: number;
-    display_name: string;
-    first_name: string | null;
-    last_name: string | null;
-    email: string | null;
-    mobile_phone: string | null;
-    primary_role: string | null;
-  }>;
-  // Director companies
-  director_companies?: DirectorCompany[];
-  // Additional companies via relationships
-  additional_companies?: AdditionalCompany[];
-  // SSoT permission indicators
-  can_view_confidential?: boolean;
-  can_view_corporate?: boolean;
-  can_edit_corporate?: boolean;
-  can_view_cases?: boolean;
-  // SSoT: Linked company data for company-type contacts
-  linked_company?: LinkedCompany;
-  // Financial fields
-  accounts_receivable_outstanding?: number | null;
-  accounts_receivable_overdue?: number | null;
-  accounts_payable_outstanding?: number | null;
-  accounts_payable_overdue?: number | null;
-  default_discount?: number | null;
-  bill_due_day?: number | null;
-  bill_due_type?: string | null;
-  sales_due_day?: number | null;
-  sales_due_type?: string | null;
-  // ABN verification fields
-  abn_valid?: boolean | null;
-  abn_entity_name?: string | null;
-  abn_entity_type?: string | null;
-  abn_gst_registered?: boolean | null;
-  abn_verified_at?: string | null;
-}
-
-interface DirectorCompany {
-  id: number;
-  company_id: number;
-  company_name: string;
-  position: string;
-  appointed_date: string | null;
-  resigned_date: string | null;
-  is_current: boolean;
-}
-
-interface AdditionalCompany {
-  id: number;
-  name: string;
-  entity_type: string | null;
-  relationship_type: string;
-  role_in_relationship: string | null;
-  ownership_percentage: number | null;
-  context: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  is_active: boolean;
-}
-
-// SSoT: Linked Company data for company-type contacts
-interface LinkedCompanyDirector {
-  id: number;
-  contact_id: number;
-  contact_name: string | null;
-  position: string;
-  formatted_position: string;
-  appointment_date: string | null;
-  resignation_date: string | null;
-  is_current: boolean;
-}
-
-interface LinkedCompanyShareholder {
-  id: number;
-  shareholder_type: string;
-  shareholder_id: number;
-  shareholder_name: string | null;
-  share_class: string | null;
-  number_of_shares: number | null;
-  beneficially_held: boolean | null;
-  date_acquired: string | null;
-}
-
-// SSoT: Bank account data from bank_accounts table
-interface LinkedCompanyBankAccount {
-  id: number;
-  institution_name: string;
-  bsb: string | null;
-  account_number: string;
-  account_name: string | null;
-  bank_code: string | null;
-  xero_account_id: string | null;
-  status: "active" | "closed";
-  display_name: string;
-  formatted_bsb: string | null;
-  linked_to_xero: boolean;
-}
-
-interface LinkedCompany {
-  id: number;
-  name: string;
-  acn: string | null;
-  abn: string | null;
-  status: string | null;
-  entity_type: string | null;
-  is_trustee: boolean;
-  trust_name: string | null;
-  date_incorporated: string | null;
-  registered_office_address: string | null;
-  principal_place_of_business: string | null;
-  company_group_id: number | null;
-  company_group_name: string | null;
-  directors: LinkedCompanyDirector[];
-  shareholdings: LinkedCompanyShareholder[];
-  directors_count: number;
-  shareholdings_count: number;
-  documents_count: number;
-  // SSoT: Bank accounts from bank_accounts table
-  bank_accounts?: LinkedCompanyBankAccount[];
-  bank_accounts_count?: number;
-}
-
-interface CompanyGroupMembership {
-  id: number;
-  contact_id: number;
-  company_group_id: number;
-  company_group_name: string;
-  membership_type: string;
-  company_id: number | null;
-  company_name: string | null;
-  can_view_confidential: boolean;
-  can_edit: boolean;
-  is_active: boolean;
-}
-
-// SSoT: Directorship from CompanyDirector table
-interface Directorship {
-  id: number;
-  company_id: number;
-  company_name: string;
-  company_acn: string | null;
-  company_abn: string | null;
-  company_status: string | null;
-  company_entity_type: string | null;
-  company_group_id: number | null;
-  company_group_name: string | null;
-  position: string;
-  formatted_position: string;
-  appointment_date: string | null;
-  resignation_date: string | null;
-  is_current: boolean;
-  din: string | null;
-}
-
-// SSoT: Shareholding from CompanyShareholding table
-interface Shareholding {
-  id: number;
-  company_id: number;
-  company_name: string;
-  company_acn: string | null;
-  company_abn: string | null;
-  company_status: string | null;
-  company_entity_type: string | null;
-  company_group_id: number | null;
-  company_group_name: string | null;
-  share_class: string | null;
-  number_of_shares: number | null;
-  percentage_of_total: number | null;
-  beneficially_held: boolean | null;
-  acquisition_date: string | null;
-  disposal_date: string | null;
-  consideration_paid: number | null;
-}
-
-// SSoT: Trust role (trustee, beneficiary, appointor)
-interface TrustRole {
-  id: number;
-  role_type: "trustee" | "beneficiary" | "appointor";
-  trust_id: number;
-  trust_name: string;
-  trust_entity_type: string | null;
-  ownership_percentage?: number | null;
-  start_date: string | null;
-  end_date: string | null;
-  is_active: boolean;
-  notes: string | null;
-}
-
-interface TrustRolesData {
-  trustee_roles: TrustRole[];
-  beneficiary_roles: TrustRole[];
-  appointor_roles: TrustRole[];
-  total_count: number;
-}
-
-// Ownership chain for corporate structure visualization
-interface OwnershipNode {
-  company_id: number;
-  company_name: string;
-  percentage: number;
-  entity_type?: string;
-  is_trustee?: boolean;
-  trust_name?: string;
-  trust_id?: number;
-  trust_entity_type?: string;
-  children?: OwnershipNode[];
-}
-
-// Email from EmailWarehouse
-interface EmailMessage {
-  id: number;
-  subject: string | null;
-  from_email: string;
-  display_from?: string;
-  to_emails: string[];
-  cc_emails?: string[];
-  preview_body?: string;
-  received_at: string;
-  has_attachments?: boolean;
-  attachment_count?: number;
-}
-
-interface EmailsPagination {
-  page: number;
-  per_page: number;
-  total: number;
-  total_pages: number;
-}
-
-// Case relationship for contacts linked to cases
-interface CaseRelationship {
-  id: number;
-  case_id: number;
-  case_number: string;
-  case_title: string;
-  relationship_type: string;
-  formatted_relationship_type?: string;
-  alignment: 'friendly' | 'opposing' | 'neutral' | null;
-  role?: string | null;
-  reason?: string | null;
-  notes?: string | null;
-  is_primary?: boolean;
-  include_all_emails?: boolean;
-  added_at?: string | null;
-  added_by?: string | null;
-}
 
 // Contact data from company list API
 interface CompanyListContact {
@@ -531,6 +144,8 @@ interface CompanyListContact {
   last_name: string | null;
   email: string | null;
   entity_type: string | null;
+  is_team_contact?: boolean;
+  primary_company?: { id: number; name: string } | null;
 }
 
 // API response for company list
@@ -545,57 +160,6 @@ interface CompanyListResponse {
 }
 
 // Contact relationship data from relationships API
-interface ContactRelationship {
-  id: number;
-  source_contact_id: number;
-  target_contact_id: number;
-  related_contact_id?: number; // Alias for target_contact_id in some API responses
-  relationship_type: string;
-  relationship_type_label?: string;
-  direction?: 'outgoing' | 'incoming';
-  role_in_relationship?: string | null;
-  ownership_percentage?: number | null;
-  context?: string | null;
-  start_date?: string | null;
-  end_date?: string | null;
-  is_active: boolean;
-  notes?: string | null;
-  other_contact?: {
-    id: number;
-    name: string;
-    entity_type: string;
-    email?: string;
-    phone?: string;
-    roles?: string[];
-  };
-  related_contact?: {
-    id: number;
-    display_name: string;
-    email?: string;
-    phone?: string;
-    roles?: string[];
-  };
-}
-
-// API response for relationships
-interface RelationshipsResponse {
-  success: boolean;
-  relationships: {
-    outgoing: ContactRelationship[];
-    incoming: ContactRelationship[];
-  };
-}
-
-// Relationship type metadata from API (SSoT)
-interface RelationshipTypeMetadata {
-  value: string;
-  label: string;
-  category: string;
-  source_types: string[];
-  target_types: string[];
-  description: string;
-  syncs_to_corporate: boolean;
-}
 
 // Fallback relationship types (used until API metadata loads)
 const FALLBACK_RELATIONSHIP_TYPES: Option[] = [
@@ -1028,13 +592,21 @@ export default function ContactDetailPage() {
     mobile_phone: "",
     office_phone: "",
     website: "",
-    tax_number: "",
     address: "",
     notes: "",
     is_active: true,
     is_family_member: false,
     is_team_contact: false,
     entity_type: "person",
+    director_id: "",
+    date_of_birth: "",
+    place_of_birth: "",
+    birth_state: "",
+    birth_country: "",
+    residential_address: "",
+    drivers_licence: "",
+    passport_number: "",
+    tax_number: "",
     sync_with_xero: false,
   });
   const [saving, setSaving] = useState(false);
@@ -1173,11 +745,27 @@ export default function ContactDetailPage() {
      
   }, [contact?.id]);
 
-  // Fetch all companies for multi-select dropdown - lazy load when edit modal opens
+  // Fetch all companies for multi-select dropdown - load when contact is a person type
   useEffect(() => {
-    // Only fetch when edit modal opens and we haven't loaded companies yet
-    if (!editModalOpen || availableCompanies.length > 0) return;
+    console.log('[Company Multi-Select] useEffect triggered:', {
+      hasContact: !!contact,
+      contactId: contact?.id,
+      entityType: contact?.entity_type,
+      availableCompaniesLength: availableCompanies.length,
+      canHaveEmployer: contact ? canHaveEmployer(contact.entity_type) : 'N/A',
+    });
 
+    // Only fetch for person entity types that can have employers, and if not already loaded
+    if (!contact || availableCompanies.length > 0) {
+      console.log('[Company Multi-Select] Early return - contact:', !!contact, 'companies already loaded:', availableCompanies.length > 0);
+      return;
+    }
+    if (!canHaveEmployer(contact.entity_type)) {
+      console.log('[Company Multi-Select] Early return - entity type cannot have employer:', contact.entity_type);
+      return;
+    }
+
+    console.log('[Company Multi-Select] Fetching companies...');
     const fetchCompanies = async () => {
       setLoadingCompanies(true);
       try {
@@ -1192,14 +780,16 @@ export default function ContactDetailPage() {
         }));
         console.log('[Company Multi-Select] Company options:', companyOptions);
         setAvailableCompanies(companyOptions);
+        console.log('[Company Multi-Select] Companies loaded successfully, count:', companyOptions.length);
       } catch (err) {
-        console.error("Failed to fetch companies:", err);
+        console.error("[Company Multi-Select] Failed to fetch companies:", err);
       } finally {
+        console.log('[Company Multi-Select] Setting loadingCompanies to false');
         setLoadingCompanies(false);
       }
     };
     fetchCompanies();
-  }, [editModalOpen, availableCompanies.length]);
+  }, [contact?.id, contact?.entity_type, availableCompanies.length]);
 
   // Populate selected companies and roles from contact.additional_companies
   useEffect(() => {
@@ -1240,13 +830,20 @@ export default function ContactDetailPage() {
       setLoadingPeople(true);
       try {
         const response = await api.get<CompanyListResponse>("/api/v1/contacts", {
-          params: { entity_type: "person" },
+          params: { entity_type: "person", include_companies: "true" },
         });
         const people = response.contacts || [];
-        const peopleOptions: Option[] = people.map((p: CompanyListContact) => ({
-          value: p.id.toString(),
-          label: `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.display_name || "Unknown Person",
-        }));
+        const peopleOptions: Option[] = people.map((p: CompanyListContact) => {
+          let label = `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.display_name || "Unknown Person";
+          // For team contacts, append company name to differentiate (e.g., "Accounts Team - Buildcraft")
+          if (p.is_team_contact && p.primary_company?.name) {
+            label = `${label} - ${p.primary_company.name}`;
+          }
+          return {
+            value: p.id.toString(),
+            label,
+          };
+        });
         setAvailablePeople(peopleOptions);
       } catch (err) {
         console.error("Failed to fetch people:", err);
@@ -1684,13 +1281,21 @@ export default function ContactDetailPage() {
         mobile_phone: contact.mobile_phone || "",
         office_phone: contact.office_phone || "",
         website: contact.website || "",
-        tax_number: contact.tax_number || "",
-        address: contact.address || "",
+        address: "", // SSoT: address editing is via contact_addresses in ContactOverviewTab
         notes: contact.notes || "",
         is_active: contact.is_active ?? true,
         is_family_member: contact.is_family_member ?? false,
         is_team_contact: contact.is_team_contact ?? false,
         entity_type: contact.entity_type || "person",
+        director_id: contact.director_id || "",
+        date_of_birth: contact.date_of_birth || "",
+        place_of_birth: contact.place_of_birth || "",
+        birth_state: contact.birth_state || "",
+        birth_country: contact.birth_country || "",
+        residential_address: contact.residential_address || "",
+        drivers_licence: contact.drivers_licence || "",
+        passport_number: contact.passport_number || "",
+        tax_number: contact.tax_number || "",
         sync_with_xero: contact.sync_with_xero ?? false,
       });
       setHasChanges(false);
@@ -2291,9 +1896,31 @@ export default function ContactDetailPage() {
       const primaryMobile = contact.contact_phones?.find(p => p.phone_type === 'mobile' && p.is_primary && !p._destroy);
       const primaryOffice = contact.contact_phones?.find(p => p.phone_type === 'office' && p.is_primary && !p._destroy);
 
+      // SSoT: Prepare contact_addresses_attributes from contact object
+      const contact_addresses_attributes = (contact.contact_addresses || [])
+        .filter(a => a.id || (!a.id && !a._destroy)) // Keep if has ID or is new and not destroyed
+        .map(a => ({
+          id: a.id,
+          address_type: a.address_type,
+          line1: a.line1,
+          line2: a.line2,
+          line3: a.line3,
+          line4: a.line4,
+          city: a.city,
+          region: a.region,
+          postal_code: a.postal_code,
+          country: a.country,
+          attention_to: a.attention_to,
+          is_primary: a.is_primary,
+          _destroy: a._destroy
+        }));
+
+      // Exclude legacy address field from formData
+      const { address: _unusedAddress, ...restFormData } = formData;
+
       await api.patch(`/api/v1/contacts/${contact.id}`, {
         contact: {
-          ...formData,
+          ...restFormData,
           display_name,
           is_team_contact, // Override formData value with validated value
           // Keep legacy fields in sync for backwards compatibility
@@ -2301,7 +1928,8 @@ export default function ContactDetailPage() {
           mobile_phone: primaryMobile?.phone_number || formData.mobile_phone,
           office_phone: primaryOffice?.phone_number || formData.office_phone,
           contact_emails_attributes,
-          contact_phones_attributes
+          contact_phones_attributes,
+          contact_addresses_attributes
         },
       });
       setHasChanges(false);
@@ -2547,7 +2175,7 @@ export default function ContactDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -2568,64 +2196,13 @@ export default function ContactDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <Button variant="ghost" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5 mr-2" />
-            Contacts
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight font-serif">
-                {contact.display_name || contact.display_name}
-              </h1>
-              {contact["is_supplier?"] && (
-                <Badge className="bg-purple-100 text-purple-700">Supplier</Badge>
-              )}
-              {contact["is_customer?"] && (
-                <Badge className="bg-blue-100 text-blue-700">Customer</Badge>
-              )}
-              {contact.is_family_member && (
-                <Badge className="bg-green-100 text-green-700">Family</Badge>
-              )}
-              {contact.xero_contact_id && (
-                <Badge variant="outline" className="gap-1">
-                  <ShieldCheck className="h-3 w-3" />
-                  Xero Linked
-                </Badge>
-              )}
-            </div>
-            {contact.company_name && (
-              <p className="text-sm text-muted-foreground mt-1">
-                {contact.position && `${contact.position} at `}{contact.company_name}
-              </p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleEnrichFromWeb}
-            disabled={enrichingFromWeb || (!contact?.email && !contact?.website)}
-          >
-            {enrichingFromWeb ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Enriching...
-              </>
-            ) : (
-              <>
-                <Globe className="h-4 w-4 mr-2" />
-                Get Info from Web
-              </>
-            )}
-          </Button>
-          <Button variant="destructive" onClick={handleDelete}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
-        </div>
-      </div>
+      <ContactHeader
+        contact={contact}
+        onBack={() => router.back()}
+        onDelete={handleDelete}
+        onEnrichFromWeb={handleEnrichFromWeb}
+        enrichingFromWeb={enrichingFromWeb}
+      />
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -2694,1683 +2271,87 @@ export default function ContactDetailPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="mt-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Edit Form Column */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Basic Info and Contact Details - Side by Side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Basic Info Card */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <User className="h-5 w-5" />
-                      Basic Information
-                    </CardTitle>
-                    {hasChanges && (
-                      <Button onClick={handleSave} disabled={saving} size="sm">
-                        {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                        Save
-                      </Button>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-4">
-                      {/* Person and Sole Trader show first/middle/last name fields */}
-                      {hasFirstLastName(formData.entity_type) ? (
-                        <>
-                          <div className="space-y-2">
-                            <Label htmlFor="first_name">First Name</Label>
-                            <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} onBlur={handleAutoSave} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="middle_name">Middle Name</Label>
-                            <Input id="middle_name" value={formData.middle_name} onChange={(e) => handleInputChange("middle_name", e.target.value)} onBlur={handleAutoSave} />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="last_name">Last Name</Label>
-                            <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} onBlur={handleAutoSave} />
-                          </div>
-                          {/* Show display_name from database as read-only (SSoT) */}
-                          <div className="space-y-2">
-                            <Label htmlFor="display_name_display">Display Name (SSoT)</Label>
-                            <Input
-                              id="display_name_display"
-                              value={contact.display_name || ""}
-                              disabled
-                              className="bg-muted"
-                            />
-                            <p className="text-xs text-muted-foreground">Database value - updated on save from First + Middle + Last name</p>
-                          </div>
-                        </>
-                      ) : (
-                        /* Company, Trust use company_name_or_trust (SSoT), Price Only shows display_name read-only */
-                        <>
-                          <div className="space-y-2">
-                            <Label htmlFor="company_name_or_trust">
-                              {isPriceOnly(formData.entity_type) ? "Display Name" : "Company/Trust Name"}
-                            </Label>
-                            <Input
-                              id="company_name_or_trust"
-                              value={isPriceOnly(formData.entity_type) ? formData.display_name : formData.company_name_or_trust}
-                              onChange={(e) => {
-                                if (isPriceOnly(formData.entity_type)) {
-                                  // For Price Only, update display_name directly
-                                  handleInputChange("display_name", e.target.value);
-                                } else {
-                                  handleInputChange("company_name_or_trust", e.target.value);
-                                }
-                              }}
-                              onBlur={handleAutoSave}
-                              placeholder={isPriceOnly(formData.entity_type) ? "e.g. INTERNAL STAIRS" : "e.g. ABC Pty Ltd"}
-                            />
-                            {isPriceOnly(formData.entity_type) && (
-                              <p className="text-xs text-muted-foreground">Will be saved in CAPITALS automatically</p>
-                            )}
-                          </div>
-                          {/* Show display_name from database as read-only (SSoT) for Company/Trust */}
-                          {!isPriceOnly(formData.entity_type) && (
-                            <div className="space-y-2">
-                              <Label htmlFor="display_name_display">Display Name (SSoT)</Label>
-                              <Input
-                                id="display_name_display"
-                                value={contact.display_name || ""}
-                                disabled
-                                className="bg-muted"
-                              />
-                              <p className="text-xs text-muted-foreground">Database value - updated on save from Company/Trust Name</p>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="entity_type">Entity Type</Label>
-                      <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} onBlur={handleAutoSave} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                        {/* SSoT: Entity types from API */}
-                        {entityTypeMetadata.map((type) => (
-                          <option key={type.value} value={type.value}>{type.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                    {/* Company multi-select - show for person entity type (employees can work for companies) */}
-                    {canHaveEmployer(formData.entity_type) && (
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label>Companies</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowAddCompany(!showAddCompany)}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              Add Company
-                            </Button>
-                          </div>
-
-                          {/* Add Company inline form */}
-                          {showAddCompany && (
-                            <div className="p-3 border rounded-md bg-muted/30 space-y-3">
-                              <div className="space-y-2">
-                                <Label htmlFor="new-company-name">Company Name</Label>
-                                <Input
-                                  id="new-company-name"
-                                  value={newCompanyName}
-                                  onChange={(e) => setNewCompanyName(e.target.value)}
-                                  placeholder="Enter company name..."
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter" && newCompanyName.trim()) {
-                                      handleCreateCompany();
-                                    }
-                                  }}
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={handleCreateCompany}
-                                  disabled={creatingCompany || !newCompanyName.trim()}
-                                >
-                                  {creatingCompany ? (
-                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Plus className="h-3 w-3 mr-1" />
-                                  )}
-                                  Create & Link
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setShowAddCompany(false);
-                                    setNewCompanyName("");
-                                  }}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Creates a new company and adds {formData.first_name || "this person"} as an employee.
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Companies multi-selector */}
-                          <MultipleSelector
-                            value={selectedCompanies}
-                            onChange={(newOptions) => {
-                              handleCompanyChange(newOptions);
-                            }}
-                            placeholder="🔍 Search and add companies..."
-                            options={availableCompanies}
-                            emptyIndicator={
-                              <p className="text-center text-sm text-muted-foreground">
-                                {loadingCompanies ? "Loading companies..." : "No companies found"}
-                              </p>
-                            }
-                            disabled={loadingCompanies}
-                            hidePlaceholderWhenSelected={false}
-                            className="w-full bg-white dark:bg-gray-950"
-                          />
-
-                          <p className="text-xs text-muted-foreground">
-                            Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    {/* Linked Company - removed for companies (redundant to show company its own details) */}
-                    {/* Employee multi-select - show for company/trust entity types */}
-                    {canHaveEmployees(formData.entity_type) && (
-                      <div className="space-y-3">
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label>Employees</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowAddEmployee(!showAddEmployee)}
-                            >
-                              <Plus className="h-3 w-3 mr-1" />
-                              Add Employee
-                            </Button>
-                          </div>
-
-                          {/* Add Employee inline form */}
-                          {showAddEmployee && (
-                            <div className="p-3 border rounded-md bg-muted/30 space-y-3">
-                              <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label htmlFor="new-employee-first">First Name</Label>
-                                  <Input
-                                    id="new-employee-first"
-                                    value={newEmployeeFirstName}
-                                    onChange={(e) => setNewEmployeeFirstName(e.target.value)}
-                                    placeholder="First name..."
-                                  />
-                                </div>
-                                <div className="space-y-1">
-                                  <Label htmlFor="new-employee-last">Last Name</Label>
-                                  <Input
-                                    id="new-employee-last"
-                                    value={newEmployeeLastName}
-                                    onChange={(e) => setNewEmployeeLastName(e.target.value)}
-                                    placeholder="Last name..."
-                                    onKeyDown={(e) => {
-                                      if (e.key === "Enter" && newEmployeeFirstName.trim()) {
-                                        handleCreateEmployee();
-                                      }
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={handleCreateEmployee}
-                                  disabled={creatingEmployee || !newEmployeeFirstName.trim()}
-                                >
-                                  {creatingEmployee ? (
-                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                                  ) : (
-                                    <Plus className="h-3 w-3 mr-1" />
-                                  )}
-                                  Create & Link
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setShowAddEmployee(false);
-                                    setNewEmployeeFirstName("");
-                                    setNewEmployeeLastName("");
-                                  }}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Creates a new person and adds them as an employee of {formData.company_name_or_trust || "this company"}.
-                              </p>
-                            </div>
-                          )}
-
-                          <MultipleSelector
-                            value={selectedEmployees}
-                            onChange={handleEmployeeChange}
-                            placeholder="Click to search employees..."
-                            options={availablePeople}
-                            emptyIndicator={
-                              <p className="text-center text-sm text-muted-foreground">
-                                {loadingPeople ? "Loading people..." : "No people found"}
-                              </p>
-                            }
-                            disabled={loadingPeople}
-                            className="w-full"
-                            hidePlaceholderWhenSelected
-                          />
-                          <p className="text-xs text-muted-foreground">Add people who work for this {isTrust(formData.entity_type) ? 'trust' : 'company'}. View and edit roles in the Overview tab.</p>
-                        </div>
-                      </div>
-                    )}
-                    {/* Primary Company - show for person entity type */}
-                    {isPerson(formData.entity_type) && contact.primary_company && (
-                      <div className="space-y-2">
-                        <Label>Primary Company (Auto-synced)</Label>
-                        <div className="p-3 rounded-md border bg-muted/30">
-                          <Badge
-                            variant="secondary"
-                            className="bg-green-100 text-green-900 dark:bg-green-900 dark:text-green-100 px-3 py-1.5 text-sm font-medium inline-flex items-center gap-2"
-                          >
-                            <Building2 className="h-4 w-4" />
-                            {contact.primary_company.name}
-                            <Link href={`/contacts/${contact.primary_company.id}`}>
-                              <ExternalLink className="h-3.5 w-3.5 ml-1 hover:text-green-700 dark:hover:text-green-300" />
-                            </Link>
-                          </Badge>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            <CheckCircle className="inline h-3 w-3 mr-1" />
-                            Automatically synced from employee relationships
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between py-2">
-                      <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
-                      <Switch checked={formData.is_active} onCheckedChange={(c) => { handleInputChange("is_active", c); handleAutoSave(); }} />
-                    </div>
-                    {isPerson(formData.entity_type) && (
-                      <div className="flex items-center justify-between py-2">
-                        <div><Label>Family Member</Label></div>
-                        <Switch checked={formData.is_family_member} onCheckedChange={(c) => { handleInputChange("is_family_member", c); handleAutoSave(); }} />
-                      </div>
-                    )}
-                    {isPerson(formData.entity_type) && (
-                      <div className="flex items-center justify-between py-2">
-                        <div>
-                          <Label className={!contact.primary_company && selectedCompanies.length === 0 ? "text-muted-foreground" : ""}>Team Contact</Label>
-                          <p className="text-xs text-muted-foreground">
-                            {!contact.primary_company && selectedCompanies.length === 0
-                              ? "Add a company first to enable this option"
-                              : "Append company name to avoid duplicates (e.g., \"Accounts Team - Buildcraft\")"}
-                          </p>
-                        </div>
-                        <Switch
-                          checked={formData.is_team_contact}
-                          onCheckedChange={handleTeamContactToggle}
-                          disabled={saving || (!contact.primary_company && selectedCompanies.length === 0)}
-                        />
-                      </div>
-                    )}
-
-                    {/* Xero Link Status - SSoT display */}
-                    {contact.xero_id && (
-                      <div className="mt-4 pt-4 border-t">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-green-500" />
-                            <span className="text-sm font-medium">Linked to Xero</span>
-                          </div>
-                          {contact.xero_invoice_count && (
-                            <Badge variant="secondary">{contact.xero_invoice_count} invoices</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Xero ID: {contact.xero_id}
-                          {contact.xero_contact_number && ` • Contact #${contact.xero_contact_number}`}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Raw Data Section - Collapsible */}
-                    <details className="mt-4 pt-4 border-t">
-                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
-                        <Code className="h-4 w-4" />
-                        Raw Data (Debug)
-                      </summary>
-                      <div className="mt-3 p-3 bg-muted rounded-md overflow-auto max-h-96">
-                        <pre className="text-xs whitespace-pre-wrap break-all font-mono">
-                          {JSON.stringify(contact, null, 2)}
-                        </pre>
-                      </div>
-                    </details>
-                  </CardContent>
-                </Card>
-
-                {/* Contact Details Card */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Phone className="h-5 w-5" />
-                      Contact Details
-                      {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-                        <Badge variant="outline" className="ml-2">
-                          <Building2 className="h-3 w-3 mr-1" />
-                          Company Details
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* Direct/Personal Contact Details Section Header */}
-                    {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-                      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        Direct Contact (Personal)
-                      </div>
-                    )}
-
-                    {/* Emails Section */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label>{canHaveEmployer(formData.entity_type) && contact.primary_company ? 'Direct Email Addresses' : 'Emails'}</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const newEmail: ContactEmail = {
-                              email: '',
-                              is_primary: (contact.contact_emails?.length || 0) === 0,
-                              label: null,
-                              position: (contact.contact_emails?.length || 0)
-                            };
-                            const updated = [...(contact.contact_emails || []), newEmail];
-                            setContact({ ...contact, contact_emails: updated });
-                            setHasChanges(true);
-                          }}
-                        >
-                          <Mail className="h-3 w-3 mr-1" />
-                          Add Email
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {(contact.contact_emails || [])
-                          .map((email, originalIndex) => ({ email, originalIndex }))
-                          .filter(({ email }) => !email._destroy)
-                          .sort((a, b) => {
-                            if (a.email.is_primary && !b.email.is_primary) return -1;
-                            if (!a.email.is_primary && b.email.is_primary) return 1;
-                            return a.email.position - b.email.position;
-                          })
-                          .map(({ email, originalIndex }) => (
-                          <div key={email.id || `new-${originalIndex}`} className="flex items-center gap-2">
-                            <Input
-                              type="email"
-                              value={email.email}
-                              onChange={(e) => {
-                                const updated = [...(contact.contact_emails || [])];
-                                updated[originalIndex] = { ...updated[originalIndex], email: e.target.value };
-                                setContact({ ...contact, contact_emails: updated });
-                                setHasChanges(true);
-                              }}
-                              onBlur={handleAutoSave}
-                              placeholder="email@example.com"
-                              className={email.is_primary ? 'border-primary' : ''}
-                            />
-                            <Button
-                              type="button"
-                              variant={email.is_primary ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => {
-                                const updated = (contact.contact_emails || []).map((e, i) => ({
-                                  ...e,
-                                  is_primary: i === originalIndex
-                                }));
-                                setContact({ ...contact, contact_emails: updated });
-                                setHasChanges(true);
-                                handleAutoSave();
-                              }}
-                              title="Set as primary"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const updated = [...(contact.contact_emails || [])];
-                                if (email.id) {
-                                  updated[originalIndex] = { ...updated[originalIndex], _destroy: true };
-                                } else {
-                                  updated.splice(originalIndex, 1);
-                                }
-                                setContact({ ...contact, contact_emails: updated });
-                                setHasChanges(true);
-                                handleAutoSave();
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Phones Section */}
-                    <div className="space-y-2">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between">
-                          <Label>{canHaveEmployer(formData.entity_type) && contact.primary_company ? 'Direct Phone Numbers' : 'Phones'}</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                            const newPhone: ContactPhone = {
-                              phone_number: '',
-                              phone_type: 'mobile',
-                              is_primary: (contact.contact_phones?.length || 0) === 0,
-                              label: null,
-                              position: (contact.contact_phones?.length || 0)
-                            };
-                            const updated = [...(contact.contact_phones || []), newPhone];
-                            setContact({ ...contact, contact_phones: updated });
-                            setHasChanges(true);
-                          }}
-                        >
-                            <Phone className="h-3 w-3 mr-1" />
-                            Add Phone
-                          </Button>
-                        </div>
-                        {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-                          <p className="text-xs text-muted-foreground">Personal/direct line, mobile, or extension</p>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        {(contact.contact_phones || [])
-                          .map((phone, originalIndex) => ({ phone, originalIndex }))
-                          .filter(({ phone }) => !phone._destroy)
-                          .sort((a, b) => {
-                            if (a.phone.is_primary && !b.phone.is_primary) return -1;
-                            if (!a.phone.is_primary && b.phone.is_primary) return 1;
-                            return a.phone.position - b.phone.position;
-                          })
-                          .map(({ phone, originalIndex }) => (
-                          <div key={phone.id || `new-${originalIndex}`} className="flex items-center gap-2">
-                            <select
-                              value={phone.phone_type}
-                              onChange={(e) => {
-                                const updated = [...(contact.contact_phones || [])];
-                                updated[originalIndex] = { ...updated[originalIndex], phone_type: e.target.value as ContactPhone['phone_type'] };
-                                setContact({ ...contact, contact_phones: updated });
-                                setHasChanges(true);
-                              }}
-                              onBlur={handleAutoSave}
-                              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                            >
-                              <option value="mobile">Mobile</option>
-                              <option value="office">Office</option>
-                              <option value="fax">Fax</option>
-                              <option value="home">Home</option>
-                            </select>
-                            <Input
-                              type="tel"
-                              value={phone.phone_number}
-                              onChange={(e) => {
-                                const updated = [...(contact.contact_phones || [])];
-                                updated[originalIndex] = { ...updated[originalIndex], phone_number: e.target.value };
-                                setContact({ ...contact, contact_phones: updated });
-                                setHasChanges(true);
-                                // Clear error on change
-                                setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
-                              }}
-                              onBlur={() => {
-                                // Validate and format
-                                const validation = validatePhoneNumber(phone.phone_number);
-                                if (!validation.isValid) {
-                                  setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: validation.error || 'Invalid phone' }));
-                                } else {
-                                  // Format the number
-                                  const formatted = formatPhoneNumber(phone.phone_number);
-                                  if (formatted !== phone.phone_number) {
-                                    const updated = [...(contact.contact_phones || [])];
-                                    updated[originalIndex] = { ...updated[originalIndex], phone_number: formatted };
-                                    setContact({ ...contact, contact_phones: updated });
-                                  }
-                                  setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
-                                }
-                                // Always trigger auto-save - the ref pattern ensures latest state is used
-                                handleAutoSave();
-                              }}
-                              placeholder="0400 000 000"
-                              className={cn(
-                                phone.is_primary ? 'border-primary' : '',
-                                fieldErrors[`phone_${originalIndex}`] && 'border-red-500 focus-visible:ring-red-500'
-                              )}
-                            />
-                            {fieldErrors[`phone_${originalIndex}`] && (
-                              <p className="text-xs text-red-500">{fieldErrors[`phone_${originalIndex}`]}</p>
-                            )}
-                            <Button
-                              type="button"
-                              variant={phone.is_primary ? 'default' : 'outline'}
-                              size="sm"
-                              onClick={() => {
-                                const updated = (contact.contact_phones || []).map((p, i) => ({
-                                  ...p,
-                                  is_primary: i === originalIndex
-                                }));
-                                setContact({ ...contact, contact_phones: updated });
-                                setHasChanges(true);
-                                handleAutoSave();
-                              }}
-                              title="Set as primary"
-                            >
-                              <CheckCircle className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                const updated = [...(contact.contact_phones || [])];
-                                if (phone.id) {
-                                  updated[originalIndex] = { ...updated[originalIndex], _destroy: true };
-                                } else {
-                                  updated.splice(originalIndex, 1);
-                                }
-                                setContact({ ...contact, contact_phones: updated });
-                                setHasChanges(true);
-                                handleAutoSave();
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Website and Address - only show if NOT part of a company */}
-                    {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
-                      <>
-                        <div className="space-y-2">
-                          <Label htmlFor="website">Website</Label>
-                          <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="address">Address</Label>
-                          <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} onBlur={handleAutoSave} placeholder="Full address" rows={2} />
-                        </div>
-                      </>
-                    )}
-
-                    {/* Company Contact Details - Show when person/sole_trader has a primary company */}
-                    {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-                      <div className="space-y-4 p-4 rounded-lg border bg-muted/30 mt-6">
-                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                          <Building2 className="h-4 w-4" />
-                          {contact.primary_company.name} Contact Info
-                        </div>
-
-                        {/* Company ABN/ACN */}
-                        {(contact.primary_company.abn || contact.primary_company.acn) && (
-                          <div className="flex flex-wrap gap-3">
-                            {contact.primary_company.abn && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="text-xs text-muted-foreground font-medium">ABN:</span>
-                                <span className="font-mono">{formatABN(contact.primary_company.abn)}</span>
-                              </div>
-                            )}
-                            {contact.primary_company.acn && (
-                              <div className="flex items-center gap-2 text-sm">
-                                <span className="text-xs text-muted-foreground font-medium">ACN:</span>
-                                <span className="font-mono">{formatACN(contact.primary_company.acn)}</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Company Emails */}
-                        {contact.primary_company.contact_emails && contact.primary_company.contact_emails.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Emails</Label>
-                            {contact.primary_company.contact_emails
-                              .sort((a, b) => {
-                                if (a.is_primary && !b.is_primary) return -1;
-                                if (!a.is_primary && b.is_primary) return 1;
-                                return a.position - b.position;
-                              })
-                              .map((email, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm">
-                                  <Mail className="h-3 w-3 text-muted-foreground" />
-                                  <span>{email.email}</span>
-                                  {email.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-                                </div>
-                              ))}
-                          </div>
-                        )}
-
-                        {/* Company Phones */}
-                        {contact.primary_company.contact_phones && contact.primary_company.contact_phones.length > 0 && (
-                          <div className="space-y-2">
-                            <Label className="text-xs text-muted-foreground">Phones</Label>
-                            {contact.primary_company.contact_phones
-                              .sort((a, b) => {
-                                if (a.is_primary && !b.is_primary) return -1;
-                                if (!a.is_primary && b.is_primary) return 1;
-                                return a.position - b.position;
-                              })
-                              .map((phone, idx) => (
-                                <div key={idx} className="flex items-center gap-2 text-sm">
-                                  <Phone className="h-3 w-3 text-muted-foreground" />
-                                  <Badge variant="outline" className="text-xs">{phone.phone_type}</Badge>
-                                  <span>{phone.phone_number}</span>
-                                  {phone.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-                                </div>
-                              ))}
-                          </div>
-                        )}
-
-                        {/* Company Website */}
-                        {contact.primary_company.website && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Globe className="h-3 w-3 text-muted-foreground" />
-                            <a href={contact.primary_company.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                              {contact.primary_company.website}
-                            </a>
-                          </div>
-                        )}
-
-                        {/* Company Address */}
-                        {contact.primary_company.address && (
-                          <div className="flex items-start gap-2 text-sm">
-                            <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
-                            <span className="whitespace-pre-line">{contact.primary_company.address}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Associated People Card - for company/trust/sole_trader entity types */}
-              {canHaveEmployees(formData.entity_type) && contact.employees && contact.employees.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      People
-                      <Badge variant="secondary" className="ml-2">{contact.employees.length}</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleEmployeeDragEnd}
-                    >
-                      <SortableContext
-                        items={contact.employees.map(e => e.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="space-y-3">
-                          {contact.employees.map((employee, index) => (
-                            <SortableEmployeeItem
-                              key={employee.id}
-                              employee={employee}
-                              index={index}
-                              employeeRoles={employeeRoles}
-                              onRolesChange={handleEmployeeRolesChange}
-                              onRemove={handleRemoveEmployee}
-                              onPositionChange={handleEmployeePositionChange}
-                              isPrimary={index === 0}
-                              availableRoleTypes={getValidRelationshipTypes(
-                                relationshipTypeMetadata,
-                                'person', // employee is a person
-                                formData.entity_type // target is this company/trust
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Associated Companies Card - for person entity type */}
-              {canHaveEmployer(formData.entity_type) && selectedCompanies.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Building2 className="h-5 w-5" />
-                      Companies
-                      <Badge variant="secondary" className="ml-2">{selectedCompanies.length}</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <DndContext
-                      sensors={sensors}
-                      collisionDetection={closestCenter}
-                      onDragEnd={handleCompanyDragEnd}
-                    >
-                      <SortableContext
-                        items={selectedCompanies.map(c => c.value)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="space-y-3">
-                          {selectedCompanies.map((company, index) => (
-                            <SortableCompanyItem
-                              key={company.value}
-                              company={company}
-                              index={index}
-                              companyRoles={companyRoles}
-                              onRolesChange={handleCompanyRolesChange}
-                              onRemove={() => {
-                                const newSelected = selectedCompanies.filter(c => c.value !== company.value);
-                                handleCompanyChange(newSelected);
-                              }}
-                              onPositionChange={handleCompanyPositionChange}
-                              isPrimary={index === 0}
-                              availableRoleTypes={getValidRelationshipTypes(
-                                relationshipTypeMetadata,
-                                formData.entity_type, // this person is the source
-                                'company' // target is company (we filter companies only)
-                              )}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </DndContext>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Related Entities Card - for relationships not covered by Companies/Employees */}
-              {/* Shows: Company→Company, Person→Person, Trust→Trust, etc. */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Link2 className="h-5 w-5" />
-                      Related Entities
-                      {relatedEntities.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">{relatedEntities.length}</Badge>
-                      )}
-                    </CardTitle>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowAddRelatedEntity(!showAddRelatedEntity)}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Relationship
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {/* Add Relationship Form */}
-                  {showAddRelatedEntity && (
-                    <div className="mb-4 p-4 border rounded-lg bg-muted/30 space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Related Contact</Label>
-                          <Select
-                            value={newRelatedEntityContactId}
-                            onValueChange={setNewRelatedEntityContactId}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select contact..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableContacts.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Relationship Type</Label>
-                          <Select
-                            value={newRelatedEntityType}
-                            onValueChange={setNewRelatedEntityType}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select type..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getValidRelationshipTypes(relationshipTypeMetadata, formData.entity_type, null).map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          size="sm"
-                          onClick={handleAddRelatedEntity}
-                          disabled={!newRelatedEntityContactId || !newRelatedEntityType || addingRelatedEntity}
-                        >
-                          {addingRelatedEntity ? "Adding..." : "Add"}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setShowAddRelatedEntity(false);
-                            setNewRelatedEntityContactId("");
-                            setNewRelatedEntityType("");
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Related Entities List */}
-                  {loadingRelatedEntities ? (
-                    <div className="text-center py-4 text-muted-foreground">
-                      Loading relationships...
-                    </div>
-                  ) : relatedEntities.length === 0 ? (
-                    <div className="text-center py-4 text-muted-foreground">
-                      <p className="text-sm">No related entities</p>
-                      <p className="text-xs mt-1">
-                        Add relationships like parent companies, subsidiaries, family members, or business partners
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {relatedEntities.map((rel) => (
-                        <div
-                          key={rel.id}
-                          className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors"
-                        >
-                          {/* Entity Icon */}
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            {rel.other_contact?.entity_type === 'person' ? (
-                              <User className="h-5 w-5 text-primary" />
-                            ) : rel.other_contact?.entity_type === 'trust' ? (
-                              <Scale className="h-5 w-5 text-primary" />
-                            ) : (
-                              <Building2 className="h-5 w-5 text-primary" />
-                            )}
-                          </div>
-
-                          {/* Entity Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Link href={`/contacts/${rel.other_contact?.id}`} className="text-sm font-medium hover:underline">
-                                {rel.other_contact?.name || 'Unknown'}
-                              </Link>
-                              <Badge variant="outline" className="text-xs">
-                                {rel.other_contact?.entity_type}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="secondary" className="text-xs">
-                                {rel.direction === 'outgoing' ? '→' : '←'} {rel.relationship_type_label || rel.relationship_type.replace(/_/g, ' ')}
-                              </Badge>
-                              {rel.ownership_percentage && (
-                                <span className="text-xs text-muted-foreground">
-                                  {rel.ownership_percentage}%
-                                </span>
-                              )}
-                            </div>
-                            {rel.other_contact?.email && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                                <Mail className="h-3 w-3" />
-                                {rel.other_contact.email}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRemoveRelatedEntity(rel.id, rel.source_contact_id)}
-                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            <Link href={`/contacts/${rel.other_contact?.id}`}>
-                              <Button variant="ghost" size="sm">
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            </Link>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Business & Tax Card - Hide for people with primary company */}
-              {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Building2 className="h-5 w-5" />
-                      Business & Tax
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="tax_number">
-                        {isPerson(formData.entity_type) ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
-                      </Label>
-                      <Input
-                        id="tax_number"
-                        value={formData.tax_number}
-                        onChange={(e) => {
-                          handleInputChange("tax_number", e.target.value);
-                          // Clear error on change
-                          setFieldErrors(prev => ({ ...prev, tax_number: '' }));
-                        }}
-                        onBlur={() => {
-                          // Validate and format ABN
-                          const validation = validateABN(formData.tax_number);
-                          if (!validation.isValid) {
-                            setFieldErrors(prev => ({ ...prev, tax_number: validation.error || 'Invalid ABN' }));
-                          } else {
-                            // Format the ABN
-                            const formatted = formatABN(formData.tax_number);
-                            if (formatted !== formData.tax_number) {
-                              handleInputChange("tax_number", formatted);
-                            }
-                            setFieldErrors(prev => ({ ...prev, tax_number: '' }));
-                          }
-                          handleAutoSave();
-                        }}
-                        placeholder="XX XXX XXX XXX"
-                        className={cn(fieldErrors.tax_number && 'border-red-500 focus-visible:ring-red-500')}
-                      />
-                      {fieldErrors.tax_number && (
-                        <p className="text-xs text-red-500">{fieldErrors.tax_number}</p>
-                      )}
-                      {isPerson(formData.entity_type) && !fieldErrors.tax_number && (
-                        <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <div><Label>Sync with Xero</Label><p className="text-xs text-muted-foreground">Keep synced with Xero</p></div>
-                      <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => { handleInputChange("sync_with_xero", c); handleAutoSave(); }} />
-                    </div>
-                    {contact.linked_company && (
-                      <Link href={`/corporate/companies/${contact.linked_company.id}`}>
-                        <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-4 w-4 mr-2" />View Corporate Record</Button>
-                      </Link>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Notes Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Notes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} onBlur={handleAutoSave} placeholder="Internal notes..." rows={4} />
-                </CardContent>
-              </Card>
-
-              {/* Contact Persons (read-only) */}
-              {contact.contact_persons && contact.contact_persons.length > 0 && (
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Contact Persons
-                      <Badge variant="secondary" className="ml-2">{contact.contact_persons.length}</Badge>
-                    </CardTitle>
-                    <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
-                      <Pencil className="h-4 w-4 mr-2" />Edit
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {contact.contact_persons.map((person) => (
-                        <div key={person.id} className={cn("flex items-center justify-between p-3 rounded-lg border", person.is_primary && "bg-primary/5 border-primary/20")}>
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"><User className="h-4 w-4 text-muted-foreground" /></div>
-                            <div>
-                              <p className="text-sm font-medium">{person.first_name} {person.last_name}{person.is_primary && <Badge variant="outline" className="ml-2 text-xs">Primary</Badge>}</p>
-                              <p className="text-xs text-muted-foreground">{person.email} {person.mobile && `| ${person.mobile}`}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* OLD: Contact Information - keep groups/LGAs display */}
-              {(contact.contact_groups && contact.contact_groups.length > 0) && (
-                <Card>
-                  <CardHeader><CardTitle className="text-lg">Groups</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {contact.contact_groups.map((group) => (<Badge key={group.id} variant="secondary">{group.name}</Badge>))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {contact.lgas && contact.lgas.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle className="text-lg">Service Areas (LGAs)</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {contact.lgas.map((lga, idx) => (<Badge key={idx} variant="outline">{lga}</Badge>))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Sidebar Column - REMOVED old contact info cards, keep only stats/system */}
-            <div className="space-y-6">
-              {hasChanges && (
-                <Card className="border-primary/50 bg-primary/5">
-                  <CardContent className="pt-6">
-                    <Button onClick={handleSave} disabled={saving} className="w-full">
-                      {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                      Save Changes
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Quick Stats</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Jobs</span>
-                    <span className="text-lg font-semibold">{contact.jobs_count || 0}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Purchase Orders</span>
-                    <span className="text-lg font-semibold">{contact.purchase_orders_count || 0}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Quotes</span>
-                    <span className="text-lg font-semibold">{contact.quotes_count || 0}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="text-lg">System Info</CardTitle></CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">ID</span>
-                    <span className="font-mono">{contact.id}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Created</span>
-                    <span>{new Date(contact.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Updated</span>
-                    <span>{new Date(contact.updated_at).toLocaleDateString()}</span>
-                  </div>
-                  {contact.xero_contact_id && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Xero ID</span>
-                      <span className="font-mono text-xs truncate max-w-[120px]">{contact.xero_contact_id.slice(0, 8)}...</span>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+          <ContactOverviewTab
+            contact={contact}
+            setContact={setContact}
+            formData={formData}
+            hasChanges={hasChanges}
+            setHasChanges={setHasChanges}
+            saving={saving}
+            fieldErrors={fieldErrors}
+            setFieldErrors={setFieldErrors}
+            handleInputChange={handleInputChange}
+            handleAutoSave={handleAutoSave}
+            handleSave={handleSave}
+            handleTeamContactToggle={handleTeamContactToggle}
+            entityTypeMetadata={entityTypeMetadata}
+            availableCompanies={availableCompanies}
+            selectedCompanies={selectedCompanies}
+            loadingCompanies={loadingCompanies}
+            companyRoles={companyRoles}
+            handleCompanyChange={handleCompanyChange}
+            handleCompanyDragEnd={handleCompanyDragEnd}
+            handleCompanyRolesChange={handleCompanyRolesChange}
+            handleCompanyPositionChange={handleCompanyPositionChange}
+            showAddCompany={showAddCompany}
+            setShowAddCompany={setShowAddCompany}
+            newCompanyName={newCompanyName}
+            setNewCompanyName={setNewCompanyName}
+            creatingCompany={creatingCompany}
+            handleCreateCompany={handleCreateCompany}
+            availablePeople={availablePeople}
+            selectedEmployees={selectedEmployees}
+            loadingPeople={loadingPeople}
+            employeeRoles={employeeRoles}
+            handleEmployeeChange={handleEmployeeChange}
+            handleEmployeeDragEnd={handleEmployeeDragEnd}
+            handleEmployeeRolesChange={handleEmployeeRolesChange}
+            handleEmployeePositionChange={handleEmployeePositionChange}
+            handleRemoveEmployee={handleRemoveEmployee}
+            showAddEmployee={showAddEmployee}
+            setShowAddEmployee={setShowAddEmployee}
+            newEmployeeFirstName={newEmployeeFirstName}
+            setNewEmployeeFirstName={setNewEmployeeFirstName}
+            newEmployeeLastName={newEmployeeLastName}
+            setNewEmployeeLastName={setNewEmployeeLastName}
+            creatingEmployee={creatingEmployee}
+            handleCreateEmployee={handleCreateEmployee}
+            relatedEntities={relatedEntities}
+            loadingRelatedEntities={loadingRelatedEntities}
+            showAddRelatedEntity={showAddRelatedEntity}
+            setShowAddRelatedEntity={setShowAddRelatedEntity}
+            availableContacts={availableContacts}
+            relationshipTypeMetadata={relationshipTypeMetadata}
+            newRelatedEntityContactId={newRelatedEntityContactId}
+            setNewRelatedEntityContactId={setNewRelatedEntityContactId}
+            newRelatedEntityType={newRelatedEntityType}
+            setNewRelatedEntityType={setNewRelatedEntityType}
+            addingRelatedEntity={addingRelatedEntity}
+            handleAddRelatedEntity={handleAddRelatedEntity}
+            handleRemoveRelatedEntity={handleRemoveRelatedEntity}
+            getValidRelationshipTypes={getValidRelationshipTypes}
+            setEditModalOpen={setEditModalOpen}
+            sensors={sensors}
+          />
         </TabsContent>
 
         {/* Corporate Tab - Identity and Summary with nested sub-tabs */}
         <TabsContent value="corporate" className="mt-6">
-          <Tabs value={activeSubTab} onValueChange={handleCorporateSubTabChange}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="identity">
-                <IdCard className="h-3.5 w-3.5 mr-1" />
-                Identity
-              </TabsTrigger>
-              <TabsTrigger value="summary">
-                <Table className="h-3.5 w-3.5 mr-1" />
-                Summary
-                {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
-                  <Badge variant="secondary" className="ml-1.5">
-                    {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value="structure">
-                <Network className="h-3.5 w-3.5 mr-1" />
-                Structure
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Identity Sub-Tab */}
-            <TabsContent value="identity" className="mt-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Identity Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <IdCard className="h-5 w-5" />
-                      Identity Information
-                      {!contact.can_view_confidential && (
-                        <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Restricted
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Date of Birth */}
-                      <div>
-                        <p className="text-xs text-muted-foreground">Date of Birth</p>
-                        <p className="text-sm font-medium">
-                          {contact.date_of_birth === "[RESTRICTED]" ? (
-                            <span className="text-amber-600 flex items-center gap-1">
-                              <Lock className="h-3 w-3" /> Restricted
-                            </span>
-                          ) : contact.date_of_birth ? (
-                            new Date(contact.date_of_birth).toLocaleDateString()
-                          ) : (
-                            <span className="text-muted-foreground">Not set</span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Place of Birth */}
-                      <div>
-                        <p className="text-xs text-muted-foreground">Place of Birth</p>
-                        <p className="text-sm font-medium">
-                          {contact.place_of_birth === "[RESTRICTED]" ? (
-                            <span className="text-amber-600 flex items-center gap-1">
-                              <Lock className="h-3 w-3" /> Restricted
-                            </span>
-                          ) : contact.place_of_birth ? (
-                            `${contact.place_of_birth}${contact.birth_state ? `, ${contact.birth_state}` : ""}${contact.birth_country ? `, ${contact.birth_country}` : ""}`
-                          ) : (
-                            <span className="text-muted-foreground">Not set</span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Director ID (DIN) */}
-                      <div>
-                        <p className="text-xs text-muted-foreground">Director ID (DIN)</p>
-                        <p className="text-sm font-medium font-mono">
-                          {contact.director_id || <span className="text-muted-foreground">Not set</span>}
-                        </p>
-                      </div>
-
-                      {/* TFN */}
-                      <div>
-                        <p className="text-xs text-muted-foreground">Tax File Number</p>
-                        <p className="text-sm font-medium font-mono">
-                          {contact.tax_number === "[RESTRICTED]" ? (
-                            <span className="text-amber-600 flex items-center gap-1">
-                              <Lock className="h-3 w-3" /> Restricted
-                            </span>
-                          ) : contact.tax_number ? (
-                            contact.tax_number
-                          ) : (
-                            <span className="text-muted-foreground">Not set</span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    {/* Passport */}
-                    <div>
-                      <p className="text-xs text-muted-foreground">Passport Number</p>
-                      <p className="text-sm font-medium font-mono">
-                        {contact.passport_number === "[RESTRICTED]" ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" /> Restricted
-                          </span>
-                        ) : contact.passport_number ? (
-                          contact.passport_number
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Drivers Licence */}
-                    <div>
-                      <p className="text-xs text-muted-foreground">Drivers Licence</p>
-                      <p className="text-sm font-medium font-mono">
-                        {contact.drivers_licence === "[RESTRICTED]" ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" /> Restricted
-                          </span>
-                        ) : contact.drivers_licence ? (
-                          contact.drivers_licence
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Residential Address */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Home className="h-5 w-5" />
-                      Residential Address
-                      {!contact.can_view_confidential && (
-                        <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Restricted
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {contact.residential_address === "[RESTRICTED]" ? (
-                      <div className="text-amber-600 flex items-center gap-2">
-                        <Lock className="h-4 w-4" />
-                        <span>Restricted - You don&apos;t have permission to view this field</span>
-                      </div>
-                    ) : contact.residential_address ? (
-                      <p className="text-sm whitespace-pre-line">{contact.residential_address}</p>
-                    ) : (
-                      <p className="text-muted-foreground text-sm">No residential address on file</p>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* Summary Sub-Tab - All corporate roles in one view */}
-            <TabsContent value="summary" className="mt-4">
-              {(loadingDirectorships || loadingShareholdings || loadingTrustRoles || loadingMemberships) ? (
-                <Card>
-                  <CardContent className="py-8">
-                    <div className="flex items-center justify-center">
-                      <Loader />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-6">
-                  {/* Directorships Table */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Briefcase className="h-5 w-5 text-green-600" />
-                        Directorships ({directorships.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {directorships.length > 0 ? (
-                        <TeeemTableView
-                          entries={directorships.map(d => ({
-                            id: d.id,
-                            company_id: d.company_id,
-                            company_name: d.company_name,
-                            position: d.formatted_position || d.position,
-                            company_group: d.company_group_name || "-",
-                            status: d.is_current ? "Current" : "Former",
-                            appointed: d.appointment_date ? new Date(d.appointment_date).toLocaleDateString() : "-",
-                            resigned: d.resignation_date ? new Date(d.resignation_date).toLocaleDateString() : "-",
-                          }))}
-                          columns={[
-                            { key: "company_name", label: "Company", column_type: "text" },
-                            { key: "position", label: "Position", column_type: "text" },
-                            { key: "company_group", label: "Group", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                            { key: "appointed", label: "Appointed", column_type: "text" },
-                            { key: "resigned", label: "Resigned", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Directorships"
-                          viewOnly={true}
-                          onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Current" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">No directorships found.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Shareholdings Table */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Percent className="h-5 w-5 text-blue-600" />
-                        Shareholdings ({shareholdings.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {shareholdings.length > 0 ? (
-                        <TeeemTableView
-                          entries={shareholdings.map(sh => ({
-                            id: sh.id,
-                            company_id: sh.company_id,
-                            company_name: sh.company_name,
-                            share_class: sh.share_class || "Ordinary",
-                            shares: sh.number_of_shares?.toLocaleString() || "-",
-                            percentage: sh.percentage_of_total != null ? `${sh.percentage_of_total.toFixed(1)}%` : "-",
-                            company_group: sh.company_group_name || "-",
-                            status: !sh.disposal_date ? "Current" : "Disposed",
-                            acquired: sh.acquisition_date ? new Date(sh.acquisition_date).toLocaleDateString() : "-",
-                          }))}
-                          columns={[
-                            { key: "company_name", label: "Company", column_type: "text" },
-                            { key: "share_class", label: "Class", column_type: "text" },
-                            { key: "shares", label: "Shares", column_type: "text" },
-                            { key: "percentage", label: "%", column_type: "text" },
-                            { key: "company_group", label: "Group", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                            { key: "acquired", label: "Acquired", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Shareholdings"
-                          viewOnly={true}
-                          onRowClick={(row) => router.push(`/corporate/companies/${row.company_id}`)}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Current" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">No shareholdings found.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Company Bank Accounts - SSoT: Read-only view of linked company's bank accounts */}
-                  {contact.linked_company && contact.linked_company.bank_accounts && contact.linked_company.bank_accounts.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <Landmark className="h-5 w-5 text-emerald-600" />
-                          Company Bank Accounts ({contact.linked_company.bank_accounts.length})
-                          <Link
-                            href={`/corporate/companies/${contact.linked_company.id}?subtab=bank-accounts`}
-                            className="ml-auto text-xs text-primary hover:underline flex items-center gap-1"
-                          >
-                            Edit in Corporate <ExternalLink className="h-3 w-3" />
-                          </Link>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="border rounded-lg overflow-hidden">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/50">
-                              <tr>
-                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Bank</th>
-                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">BSB</th>
-                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Account</th>
-                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Name</th>
-                                <th className="text-left px-4 py-2 text-muted-foreground font-medium">Xero</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y">
-                              {contact.linked_company.bank_accounts.filter(ba => ba.status === "active").map((account) => (
-                                <tr key={account.id} className="hover:bg-muted/30">
-                                  <td className="px-4 py-2 font-medium">{account.institution_name}</td>
-                                  <td className="px-4 py-2 font-mono">{account.formatted_bsb || account.bsb || "-"}</td>
-                                  <td className="px-4 py-2 font-mono">****{account.account_number.slice(-4)}</td>
-                                  <td className="px-4 py-2">{account.account_name || "-"}</td>
-                                  <td className="px-4 py-2">
-                                    {account.linked_to_xero ? (
-                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                                        <CheckCircle className="h-3 w-3 mr-1" />
-                                        Linked
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-muted-foreground">-</span>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Trust Roles Table */}
-                  {trustRoles && trustRoles.total_count > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base flex items-center gap-2">
-                          <ShieldCheck className="h-5 w-5 text-purple-600" />
-                          Trust Roles ({trustRoles.total_count})
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <TeeemTableView
-                          entries={[
-                            ...trustRoles.trustee_roles.map(r => ({
-                              id: r.id,
-                              trust_id: r.trust_id,
-                              trust_name: r.trust_name,
-                              role: "Trustee",
-                              entitlement: "-",
-                              status: r.is_active ? "Active" : "Inactive",
-                              since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
-                            })),
-                            ...trustRoles.beneficiary_roles.map(r => ({
-                              id: r.id,
-                              trust_id: r.trust_id,
-                              trust_name: r.trust_name,
-                              role: "Beneficiary",
-                              entitlement: r.ownership_percentage != null ? `${r.ownership_percentage.toFixed(1)}%` : "-",
-                              status: r.is_active ? "Active" : "Inactive",
-                              since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
-                            })),
-                            ...trustRoles.appointor_roles.map(r => ({
-                              id: r.id,
-                              trust_id: r.trust_id,
-                              trust_name: r.trust_name,
-                              role: "Appointor",
-                              entitlement: "-",
-                              status: r.is_active ? "Active" : "Inactive",
-                              since: r.start_date ? new Date(r.start_date).toLocaleDateString() : "-",
-                            })),
-                          ]}
-                          columns={[
-                            { key: "trust_name", label: "Trust", column_type: "text" },
-                            { key: "role", label: "Role", column_type: "text" },
-                            { key: "entitlement", label: "Entitlement", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                            { key: "since", label: "Since", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Trust Roles"
-                          viewOnly={true}
-                          onRowClick={(row) => router.push(`/corporate/companies/${row.trust_id}`)}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "role") {
-                              const role = entry.role as string;
-                              const colorClass = role === "Trustee"
-                                ? "bg-purple-100 text-purple-700"
-                                : role === "Beneficiary"
-                                  ? "bg-green-100 text-green-700"
-                                  : "bg-amber-100 text-amber-700";
-                              return <Badge className={colorClass}>{role}</Badge>;
-                            }
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {/* Company Groups Table */}
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Building2 className="h-5 w-5 text-indigo-600" />
-                        Company Groups ({memberships.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {memberships.length > 0 ? (
-                        <TeeemTableView
-                          entries={memberships.map(m => ({
-                            id: m.id,
-                            company_group_id: m.company_group_id,
-                            company_group_name: m.company_group_name,
-                            membership_type: m.membership_type,
-                            company_name: m.company_name || "-",
-                            can_view: m.can_view_confidential ? "Yes" : "No",
-                            can_edit: m.can_edit ? "Yes" : "No",
-                            status: m.is_active ? "Active" : "Inactive",
-                          }))}
-                          columns={[
-                            { key: "company_group_name", label: "Group", column_type: "text" },
-                            { key: "membership_type", label: "Type", column_type: "text" },
-                            { key: "company_name", label: "Via Company", column_type: "text" },
-                            { key: "can_view", label: "View Confidential", column_type: "text" },
-                            { key: "can_edit", label: "Can Edit", column_type: "text" },
-                            { key: "status", label: "Status", column_type: "text" },
-                          ] as TableColumn[]}
-                          tableName="Company Groups"
-                          viewOnly={true}
-                          customCellRenderer={(entry, columnKey) => {
-                            if (columnKey === "membership_type") {
-                              const type = entry.membership_type as string;
-                              const colorClass = type === "director"
-                                ? "bg-purple-100 text-purple-700"
-                                : type === "shareholder"
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-gray-100 text-gray-600";
-                              return <Badge className={colorClass}>{type}</Badge>;
-                            }
-                            if (columnKey === "status") {
-                              const status = entry.status as string;
-                              return (
-                                <Badge className={status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"}>
-                                  {status}
-                                </Badge>
-                              );
-                            }
-                            return null;
-                          }}
-                        />
-                      ) : (
-                        <p className="text-muted-foreground text-center py-4">Not a member of any company groups.</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </TabsContent>
-
-            {/* Structure Sub-Tab - Corporate Structure Visualization */}
-            <TabsContent value="structure" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Network className="h-5 w-5 text-indigo-600" />
-                    Corporate Structure
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Visual representation of all company relationships for this person
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  {loadingOwnershipChain || loadingDirectorships ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader />
-                    </div>
-                  ) : ownershipChain.length > 0 || directorships.length > 0 ? (
-                    <PersonStructureChart
-                      personName={contact.display_name}
-                      personEmail={contact.email}
-                      ownershipChain={ownershipChain}
-                      directorRoles={directorships.map(d => ({
-                        company_id: d.company_id,
-                        company_name: d.company_name,
-                        position: d.formatted_position || d.position,
-                        is_current: d.is_current,
-                      }))}
-                      onCompanyClick={(companyId) => router.push(`/corporate/companies/${companyId}`)}
-                    />
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <Network className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                      <p>No corporate structure data available</p>
-                      <p className="text-sm mt-1">This contact has no shareholdings or directorships</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <ContactCorporateTab
+            contact={contact}
+            activeSubTab={activeSubTab}
+            handleCorporateSubTabChange={handleCorporateSubTabChange}
+            directorships={directorships}
+            loadingDirectorships={loadingDirectorships}
+            shareholdings={shareholdings}
+            loadingShareholdings={loadingShareholdings}
+            trustRoles={trustRoles}
+            loadingTrustRoles={loadingTrustRoles}
+            memberships={memberships}
+            loadingMemberships={loadingMemberships}
+            ownershipChain={ownershipChain}
+            loadingOwnershipChain={loadingOwnershipChain}
+          />
         </TabsContent>
 
         {/* Documents Tab */}
@@ -4392,388 +2373,15 @@ export default function ContactDetailPage() {
 
         {/* Financial Tab with nested sub-tabs (Bank Details, Xero, Bills, Jobs, Purchase Orders) */}
         <TabsContent value="financial" className="mt-6">
-          <Tabs value={activeFinancialSubTab} onValueChange={handleFinancialSubTabChange}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="bank">
-                <CreditCard className="h-3.5 w-3.5 mr-1" />
-                Bank Details
-              </TabsTrigger>
-              <TabsTrigger value="xero">
-                <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                Xero
-              </TabsTrigger>
-              {contact["is_supplier?"] && (
-                <TabsTrigger value="bills">
-                  <FileText className="h-3.5 w-3.5 mr-1" />
-                  Bills
-                </TabsTrigger>
-              )}
-              <TabsTrigger value="jobs">
-                <Briefcase className="h-3.5 w-3.5 mr-1" />
-                Jobs
-              </TabsTrigger>
-              {contact["is_supplier?"] && (
-                <TabsTrigger value="purchase-orders">
-                  <FileText className="h-3.5 w-3.5 mr-1" />
-                  Purchase Orders
-                </TabsTrigger>
-              )}
-            </TabsList>
-
-            {/* Bank Details Sub-Tab */}
-            <TabsContent value="bank" className="mt-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Bank Details */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <CreditCard className="h-5 w-5" />
-                      Bank Details
-                      {!contact.can_view_confidential && (
-                        <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Restricted
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">BSB</p>
-                      <p className="text-sm font-medium font-mono">
-                        {contact.bank_bsb === "[RESTRICTED]" ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" /> Restricted
-                          </span>
-                        ) : contact.bank_bsb ? (
-                          contact.bank_bsb
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">Account Number</p>
-                      <p className="text-sm font-medium font-mono">
-                        {contact.bank_account_number === "[RESTRICTED]" ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" /> Restricted
-                          </span>
-                        ) : contact.bank_account_number ? (
-                          contact.bank_account_number
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-xs text-muted-foreground">Account Name</p>
-                      <p className="text-sm font-medium">
-                        {contact.bank_account_name === "[RESTRICTED]" ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" /> Restricted
-                          </span>
-                        ) : contact.bank_account_name ? (
-                          contact.bank_account_name
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Tax Information */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Hash className="h-5 w-5" />
-                      Tax Information
-                      {!contact.can_view_confidential && (
-                        <Badge variant="outline" className="ml-2 text-amber-600 border-amber-300">
-                          <Lock className="h-3 w-3 mr-1" />
-                          Restricted
-                        </Badge>
-                      )}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <p className="text-xs text-muted-foreground">ABN / TFN</p>
-                      <p className="text-sm font-medium font-mono">
-                        {contact.tax_number === "[RESTRICTED]" ? (
-                          <span className="text-amber-600 flex items-center gap-1">
-                            <Lock className="h-3 w-3" /> Restricted
-                          </span>
-                        ) : contact.tax_number ? (
-                          formatABN(contact.tax_number)
-                        ) : (
-                          <span className="text-muted-foreground">Not set</span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* ABN Verification Status */}
-                    {contact.tax_number && contact.tax_number !== "[RESTRICTED]" && contact.tax_number.replace(/\D/g, "").length === 11 && (
-                      <div className="pt-3 border-t">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs text-muted-foreground">ABN Verification</p>
-                          {contact.abn_valid ? (
-                            <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                              <CheckCircle className="h-3 w-3 mr-1" />
-                              Verified
-                            </Badge>
-                          ) : contact.abn_valid === false ? (
-                            <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Invalid
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">
-                              Not Verified
-                            </Badge>
-                          )}
-                        </div>
-                        {contact.abn_entity_name && (
-                          <div className="text-sm">
-                            <p className="font-medium">{contact.abn_entity_name}</p>
-                            {contact.abn_entity_type && (
-                              <p className="text-xs text-muted-foreground">{contact.abn_entity_type}</p>
-                            )}
-                          </div>
-                        )}
-                        {contact.abn_gst_registered && (
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-1 flex items-center gap-1">
-                            <CheckCircle className="h-3 w-3" />
-                            GST Registered
-                          </p>
-                        )}
-                        {contact.abn_verified_at && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Verified: {new Date(contact.abn_verified_at).toLocaleDateString("en-AU")}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Financial Summary and Payment Terms Row */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                {/* Financial Summary */}
-                {(contact["is_supplier?"] || contact["is_customer?"]) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <FileText className="h-5 w-5" />
-                        Financial Summary
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      {contact["is_customer?"] && (
-                        <>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Accounts Receivable:</span>
-                            <span className="text-sm font-medium">
-                              {contact.accounts_receivable_outstanding != null
-                                ? `$${contact.accounts_receivable_outstanding.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                : "-"}
-                            </span>
-                          </div>
-                          {contact.accounts_receivable_overdue != null && contact.accounts_receivable_overdue > 0 && (
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">AR Overdue:</span>
-                              <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                                ${contact.accounts_receivable_overdue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      {contact["is_supplier?"] && (
-                        <>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm text-muted-foreground">Accounts Payable:</span>
-                            <span className="text-sm font-medium">
-                              {contact.accounts_payable_outstanding != null
-                                ? `$${contact.accounts_payable_outstanding.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                                : "-"}
-                            </span>
-                          </div>
-                          {contact.accounts_payable_overdue != null && contact.accounts_payable_overdue > 0 && (
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-muted-foreground">AP Overdue:</span>
-                              <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                                ${contact.accounts_payable_overdue.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Payment Terms */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Percent className="h-5 w-5" />
-                      Payment Terms
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {contact["is_supplier?"] && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Bill Payment Terms</p>
-                        <p className="text-sm font-medium">
-                          {contact.bill_due_day && contact.bill_due_type
-                            ? `${contact.bill_due_day} days (${contact.bill_due_type})`
-                            : "-"}
-                        </p>
-                      </div>
-                    )}
-                    {contact["is_customer?"] && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Sales Payment Terms</p>
-                        <p className="text-sm font-medium">
-                          {contact.sales_due_day && contact.sales_due_type
-                            ? `${contact.sales_due_day} days (${contact.sales_due_type})`
-                            : "-"}
-                        </p>
-                      </div>
-                    )}
-                    {contact.default_discount != null && contact.default_discount > 0 && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-1">Default Discount</p>
-                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                          {contact.default_discount}%
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            {/* Xero Sub-Tab */}
-            <TabsContent value="xero" className="mt-4">
-              <div className="space-y-6">
-                <PendingXeroReviewPanel />
-                <XeroSyncSection
-                  contact={contact}
-                  onContactUpdate={(updatedContact) => setContact(updatedContact as Contact)}
-                />
-                <XeroTransactionsSection
-                  contactId={contact.id}
-                  xeroLink={null}
-                  onViewInvoiceDetail={(invoiceId) => {
-                    setSelectedInvoiceId(invoiceId);
-                    setShowInvoiceDetail(true);
-                  }}
-                />
-              </div>
-            </TabsContent>
-
-            {/* Bills Sub-Tab */}
-            {contact["is_supplier?"] && (
-              <TabsContent value="bills" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Bills</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <XeroInvoicesListByTenant
-                      contactId={contact.id}
-                      type="ACCPAY"
-                      onViewInvoiceDetail={handleViewInvoiceDetail}
-                    />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
-
-            {/* Jobs Sub-Tab */}
-            <TabsContent value="jobs" className="mt-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Jobs</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {(contact as any).related_jobs && (contact as any).related_jobs.length > 0 ? (
-                    <div className="space-y-3">
-                      {(contact as any).related_jobs.map((job: any) => (
-                        <div key={job.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                          <Link
-                            href={`/jobs/${job.id}`}
-                            className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                          >
-                            {job.title || `Job #${job.id}`}
-                            <ExternalLink className="h-3 w-3" />
-                          </Link>
-                          {job.status && (
-                            <Badge variant="secondary" className="mt-2">
-                              {job.status}
-                            </Badge>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground text-center py-8">
-                      No jobs associated with this contact.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Purchase Orders Sub-Tab */}
-            {contact["is_supplier?"] && (
-              <TabsContent value="purchase-orders" className="mt-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Purchase Orders</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {(contact as any).purchase_orders && (contact as any).purchase_orders.length > 0 ? (
-                      <div className="space-y-3">
-                        {(contact as any).purchase_orders.map((po: any) => (
-                          <div key={po.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="font-semibold">PO #{po.po_number || po.id}</div>
-                                {po.job_title && (
-                                  <div className="text-sm text-muted-foreground mt-1">
-                                    Job: {po.job_title}
-                                  </div>
-                                )}
-                                {po.total && (
-                                  <div className="text-sm font-medium mt-2">
-                                    Total: ${po.total.toLocaleString()}
-                                  </div>
-                                )}
-                              </div>
-                              {po.status && (
-                                <Badge variant="secondary">{po.status}</Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground text-center py-8">
-                        No purchase orders for this supplier.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            )}
-          </Tabs>
+          <ContactFinancialTab
+            contact={contact}
+            activeFinancialSubTab={activeFinancialSubTab}
+            handleFinancialSubTabChange={handleFinancialSubTabChange}
+            setContact={setContact}
+            setSelectedInvoiceId={setSelectedInvoiceId}
+            setShowInvoiceDetail={setShowInvoiceDetail}
+            handleViewInvoiceDetail={handleViewInvoiceDetail}
+          />
         </TabsContent>
 
         {/* Communications Tab */}
@@ -4789,212 +2397,24 @@ export default function ContactDetailPage() {
 
         {/* Cases Tab */}
         <TabsContent value="cases" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Case Involvement History
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loadingCaseRelationships ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : caseRelationships && caseRelationships.length > 0 ? (
-                <div className="space-y-4">
-                  {caseRelationships.map((rel: CaseRelationship) => (
-                    <div key={rel.id} className="border rounded-lg p-4 hover:bg-muted/50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <Link
-                            href={`/cases/${rel.case_id}`}
-                            className="font-semibold text-blue-600 hover:underline flex items-center gap-1"
-                          >
-                            {rel.case_number}: {rel.case_title}
-                            <ExternalLink className="h-3 w-3" />
-                          </Link>
-                          <div className="mt-2 space-y-1 text-sm">
-                            {rel.relationship_type && (
-                              <div>
-                                <strong>Relationship:</strong> {rel.formatted_relationship_type || rel.relationship_type}
-                              </div>
-                            )}
-                            {rel.alignment && (
-                              <div className="flex items-center gap-2">
-                                <strong>Alignment:</strong>
-                                <Badge
-                                  variant={
-                                    rel.alignment === 'friendly' ? 'default' :
-                                    rel.alignment === 'opposing' ? 'destructive' :
-                                    'secondary'
-                                  }
-                                >
-                                  {rel.alignment}
-                                </Badge>
-                              </div>
-                            )}
-                            {rel.role && (
-                              <div><strong>Role:</strong> {rel.role}</div>
-                            )}
-                            {rel.reason && (
-                              <div>
-                                <strong>Reason:</strong> {rel.reason}
-                              </div>
-                            )}
-                            {rel.notes && (
-                              <div className="text-muted-foreground">
-                                <strong>Notes:</strong> {rel.notes}
-                              </div>
-                            )}
-                            {rel.is_primary && (
-                              <Badge variant="outline" className="mt-1">Primary Contact</Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-xs text-muted-foreground text-right">
-                          {rel.added_at && (
-                            <>
-                              Added {new Date(rel.added_at).toLocaleDateString()}<br/>
-                              {rel.added_by && `by ${rel.added_by}`}
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-center py-8">
-                  This contact has not been linked to any cases yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+          <ContactCasesTab
+            caseRelationships={caseRelationships}
+            loadingCaseRelationships={loadingCaseRelationships}
+          />
         </TabsContent>
 
         {/* Emails Tab - Using TeeemTableView */}
         <TabsContent value="emails" className="mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              <span className="font-medium">Emails</span>
-              {emailsPagination && (
-                <Badge variant="secondary">{emailsPagination.total}</Badge>
-              )}
-            </div>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showAllInThread}
-                onChange={(e) => setShowAllInThread(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              Show all in thread
-            </label>
-          </div>
-          {loadingEmails ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader />
-            </div>
-          ) : emails.length === 0 ? (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-muted-foreground text-center py-8">
-                  No emails found for {contact.email}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <TeeemTableView
-                tableName="Contact Emails"
-                preloadedViews={[]}
-                columns={[
-                  {
-                    key: "direction",
-                    label: "Direction",
-                    column_type: "choice",
-                    width: 80,
-                    choices: ["From", "To", "CC"],
-                    filterable: true,
-                  },
-                  {
-                    key: "subject",
-                    label: "Subject",
-                    column_type: "text",
-                    width: 350,
-                    filterable: true,
-                  },
-                  {
-                    key: "from_or_to",
-                    label: "From/To",
-                    column_type: "text",
-                    width: 250,
-                    filterable: true,
-                  },
-                  {
-                    key: "received_at",
-                    label: "Date",
-                    column_type: "date_and_time",
-                    width: 150,
-                    sortable: true,
-                  },
-                  {
-                    key: "attachments",
-                    label: "Files",
-                    column_type: "whole_number",
-                    width: 70,
-                    filterable: true,
-                  },
-                ]}
-                entries={emails.map((email) => {
-                  const contactEmailLower = contact.email?.toLowerCase() || "";
-                  const isFrom = email.from_email?.toLowerCase() === contactEmailLower;
-                  const isCc = email.cc_emails?.some(e => e.toLowerCase() === contactEmailLower);
-                  return {
-                    id: email.id,
-                    direction: isFrom ? "From" : isCc ? "CC" : "To",
-                    subject: email.subject || "(no subject)",
-                    from_or_to: isFrom
-                      ? email.to_emails?.join(", ") || "-"
-                      : email.display_from || email.from_email,
-                    received_at: email.received_at,
-                    attachments: email.has_attachments ? (email.attachment_count || 1) : 0,
-                    // Include original email fields for Email to Contacts extraction feature
-                    from_email: email.from_email,
-                    to_emails: email.to_emails,
-                    cc_emails: email.cc_emails,
-                  };
-                })}
-                viewOnly={true}
-              />
-              {/* Pagination */}
-              {emailsPagination && emailsPagination.total_pages > 1 && (
-                <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={emailsPage === 1}
-                    onClick={() => loadEmails(emailsPage - 1)}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {emailsPage} of {emailsPagination.total_pages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={emailsPage >= emailsPagination.total_pages}
-                    onClick={() => loadEmails(emailsPage + 1)}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+          <ContactEmailsTab
+            emails={emails}
+            loadingEmails={loadingEmails}
+            emailsPagination={emailsPagination}
+            emailsPage={emailsPage}
+            showAllInThread={showAllInThread}
+            setShowAllInThread={setShowAllInThread}
+            loadEmails={loadEmails}
+            contactEmail={contact.email}
+          />
         </TabsContent>
 
         {/* Price Book Tab */}
@@ -5039,157 +2459,10 @@ export default function ContactDetailPage() {
 
         {/* Directorships Tab */}
         <TabsContent value="directorships" className="mt-6">
-          <div className="space-y-6">
-            {/* Current Directorships */}
-            {directorships.filter(d => d.is_current).length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    Current Directorships
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {directorships
-                      .filter(d => d.is_current)
-                      .sort((a, b) => new Date(b.appointment_date || 0).getTime() - new Date(a.appointment_date || 0).getTime())
-                      .map((dir) => (
-                        <div key={dir.id} className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Link
-                                href={`/corporate/companies/${dir.company_id}`}
-                                className="text-lg font-semibold hover:underline flex items-center gap-2"
-                              >
-                                <Building2 className="h-4 w-4" />
-                                {dir.company_name}
-                              </Link>
-                              <Badge variant="default" className="bg-green-600">
-                                Current
-                              </Badge>
-                              <Badge variant="outline">
-                                {dir.formatted_position}
-                              </Badge>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                              {dir.company_acn && (
-                                <div>
-                                  <span className="font-medium">ACN:</span> {dir.company_acn}
-                                </div>
-                              )}
-                              {dir.company_abn && (
-                                <div>
-                                  <span className="font-medium">ABN:</span> {dir.company_abn}
-                                </div>
-                              )}
-                              {dir.appointment_date && (
-                                <div>
-                                  <span className="font-medium">Appointed:</span>{" "}
-                                  {new Date(dir.appointment_date).toLocaleDateString()}
-                                </div>
-                              )}
-                              {dir.company_group_name && (
-                                <div>
-                                  <span className="font-medium">Group:</span> {dir.company_group_name}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Historical Directorships */}
-            {directorships.filter(d => !d.is_current).length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                    Historical Directorships
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {directorships
-                      .filter(d => !d.is_current)
-                      .sort((a, b) => new Date(b.resignation_date || b.appointment_date || 0).getTime() - new Date(a.resignation_date || a.appointment_date || 0).getTime())
-                      .map((dir) => (
-                        <div key={dir.id} className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center gap-2">
-                              <Link
-                                href={`/corporate/companies/${dir.company_id}`}
-                                className="text-lg font-semibold hover:underline flex items-center gap-2 text-muted-foreground"
-                              >
-                                <Building2 className="h-4 w-4" />
-                                {dir.company_name}
-                              </Link>
-                              <Badge variant="secondary">
-                                Historical
-                              </Badge>
-                              <Badge variant="outline">
-                                {dir.formatted_position}
-                              </Badge>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                              {dir.company_acn && (
-                                <div>
-                                  <span className="font-medium">ACN:</span> {dir.company_acn}
-                                </div>
-                              )}
-                              {dir.company_abn && (
-                                <div>
-                                  <span className="font-medium">ABN:</span> {dir.company_abn}
-                                </div>
-                              )}
-                              {dir.appointment_date && (
-                                <div>
-                                  <span className="font-medium">Appointed:</span>{" "}
-                                  {new Date(dir.appointment_date).toLocaleDateString()}
-                                </div>
-                              )}
-                              {dir.resignation_date && (
-                                <div>
-                                  <span className="font-medium">Resigned:</span>{" "}
-                                  {new Date(dir.resignation_date).toLocaleDateString()}
-                                </div>
-                              )}
-                              {dir.company_group_name && (
-                                <div className="col-span-2">
-                                  <span className="font-medium">Group:</span> {dir.company_group_name}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {loadingDirectorships && (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {!loadingDirectorships && directorships.length === 0 && (
-              <Card>
-                <CardContent className="pt-6">
-                  <p className="text-muted-foreground text-center py-8">
-                    No directorships found for this contact.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          <ContactDirectorshipsTab
+            directorships={directorships}
+            loadingDirectorships={loadingDirectorships}
+          />
         </TabsContent>
 
         {/* Xero Invoice Detail Modal */}

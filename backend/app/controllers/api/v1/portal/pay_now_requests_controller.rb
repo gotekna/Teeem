@@ -188,7 +188,7 @@ module Api
                                           id: PayNowRequest.where(
                                             contact: current_contact,
                                             status: %w[pending approved]
-                                          ).select(:purchase_order_id)
+                                          ).distinct.pluck(:purchase_order_id)
                                         )
                                         .includes(:construction, :payments)
                                         .order(completed_at: :desc)

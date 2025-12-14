@@ -19,7 +19,7 @@ namespace :foundation_views do
       foundation_had_changes = false
 
       views.each do |view|
-        view_columns = view.columns['visible']&.keys || []
+        view_columns = view.columns["visible"]&.keys || []
         missing = all_columns - view_columns
         extra = view_columns - all_columns
 
@@ -31,18 +31,18 @@ namespace :foundation_views do
           synced_foundations += 1
         end
 
-        type = view.is_global ? 'Global' : 'Personal'
+        type = view.is_global ? "Global" : "Personal"
         puts "  Syncing view: #{view.name} (#{type})"
 
         # Add missing columns (default to hidden)
         if missing.any?
           puts "    Adding #{missing.count} missing columns: #{missing.join(', ')}"
           missing.each do |col|
-            view.columns['visible'][col] = false
+            view.columns["visible"][col] = false
             # Add to end of order array if not present
-            unless view.columns['order']&.include?(col)
-              view.columns['order'] ||= []
-              view.columns['order'] << col
+            unless view.columns["order"]&.include?(col)
+              view.columns["order"] ||= []
+              view.columns["order"] << col
             end
           end
           added_columns += missing.count
@@ -52,9 +52,9 @@ namespace :foundation_views do
         if extra.any?
           puts "    Removing #{extra.count} extra columns: #{extra.join(', ')}"
           extra.each do |col|
-            view.columns['visible'].delete(col)
-            view.columns['order']&.delete(col)
-            view.columns['widths']&.delete(col)
+            view.columns["visible"].delete(col)
+            view.columns["order"]&.delete(col)
+            view.columns["widths"]&.delete(col)
           end
           removed_columns += extra.count
         end
@@ -75,7 +75,7 @@ namespace :foundation_views do
   end
 
   desc "Sync views for a specific foundation by name"
-  task :sync_foundation, [:foundation_name] => :environment do |t, args|
+  task :sync_foundation, [ :foundation_name ] => :environment do |t, args|
     foundation_name = args[:foundation_name]
 
     if foundation_name.blank?
@@ -113,13 +113,13 @@ namespace :foundation_views do
     removed_columns = 0
 
     views.each do |view|
-      view_columns = view.columns['visible']&.keys || []
+      view_columns = view.columns["visible"]&.keys || []
       missing = all_columns - view_columns
       extra = view_columns - all_columns
 
       next if missing.empty? && extra.empty?
 
-      type = view.is_global ? 'Global' : 'Personal'
+      type = view.is_global ? "Global" : "Personal"
       puts "View: #{view.name} (#{type}, ID: #{view.id})"
 
       # Add missing columns (default to hidden)
@@ -127,10 +127,10 @@ namespace :foundation_views do
         puts "  Adding #{missing.count} missing columns:"
         missing.each { |col| puts "    + #{col}" }
         missing.each do |col|
-          view.columns['visible'][col] = false
-          unless view.columns['order']&.include?(col)
-            view.columns['order'] ||= []
-            view.columns['order'] << col
+          view.columns["visible"][col] = false
+          unless view.columns["order"]&.include?(col)
+            view.columns["order"] ||= []
+            view.columns["order"] << col
           end
         end
         added_columns += missing.count
@@ -141,9 +141,9 @@ namespace :foundation_views do
         puts "  Removing #{extra.count} extra columns:"
         extra.each { |col| puts "    - #{col}" }
         extra.each do |col|
-          view.columns['visible'].delete(col)
-          view.columns['order']&.delete(col)
-          view.columns['widths']&.delete(col)
+          view.columns["visible"].delete(col)
+          view.columns["order"]&.delete(col)
+          view.columns["widths"]&.delete(col)
         end
         removed_columns += extra.count
       end
@@ -175,7 +175,7 @@ namespace :foundation_views do
       next if views.empty?
 
       mismatched_views = views.select do |view|
-        view_columns = view.columns['visible']&.keys || []
+        view_columns = view.columns["visible"]&.keys || []
         view_columns.count != all_columns.count
       end
 

@@ -1,6 +1,10 @@
 module Api
   module V1
     class ContactsController < ApplicationController
+      # SSoT: Extract related functionality into concerns to reduce file size
+      include Contacts::PortalUserManagement
+      include Contacts::XeroSync
+
       before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies, :coworkers ]
       before_action :require_corporate_permission, only: [ :directorships, :shareholdings, :trust_roles, :ownership_chain ]
 
@@ -98,12 +102,11 @@ module Api
         director_fields = params[:is_director] == "true" ? [ :place_of_birth, :birth_state, :birth_country, :residential_address ] : []
 
         contacts_json = @contacts.as_json(
-          only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :is_active, :address, :lgas, :xero_id, :xero_synced, :sync_with_xero, :total_purchase_orders_count, :total_purchase_orders_value, :entity_type, :is_family_member, :is_potential_director, :company_group_id, :is_team_contact ] + director_fields,
           include: {
-            portal_user: { only: [ :id, :email, :portal_type, :active ] },
-            corporate_group: { only: [ :id, :name ] }
+            portal_user: {},
+            corporate_group: {}
           },
-          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count ]
+          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count, :xero_linked_count, :xero_customer?, :xero_supplier? ]
         )
 
         # Add company and job counts for all contacts
@@ -157,30 +160,14 @@ module Api
       def show
         # If this contact is a supplier, include their supplier-specific data
         contact_json = @contact.as_json(
-          only: [
-            :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website,
-            :tax_number, :xero_id, :xero_synced, :sync_with_xero,
-            :created_at, :updated_at,
-            :roles, :is_active, :address, :lgas,
-            :entity_type, :primary_company_id, :company_name_or_trust,
-            # Family/Director flags
-            :is_family_member, :is_potential_director, :company_group_id, :is_team_contact,
-            # Xero fields
-            :bank_bsb, :bank_account_number, :bank_account_name,
-            :default_purchase_account, :default_sales_account,
-            :bill_due_day, :bill_due_type, :sales_due_day, :sales_due_type,
-            :xero_contact_number, :xero_contact_status, :xero_account_number, :default_discount,
-            # Director details fields
-            :place_of_birth, :birth_state, :birth_country, :residential_address
-          ],
           include: {
-            contact_emails: { only: [ :id, :email, :is_primary, :label, :position ] },
-            contact_phones: { only: [ :id, :phone_number, :phone_type, :is_primary, :label, :position ] },
-            contact_persons: { only: [ :id, :first_name, :last_name, :email, :mobile, :role, :include_in_emails, :is_primary, :xero_contact_person_id ] },
-            contact_addresses: { only: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country, :attention_to, :is_primary ] },
-            contact_groups: { only: [ :id, :name, :status, :xero_contact_group_id ] },
-            portal_user: { only: [ :id, :email, :portal_type, :active, :last_login_at, :created_at ] },
-            corporate_group: { only: [ :id, :name ] }
+            contact_emails: {},
+            contact_phones: {},
+            contact_persons: {},
+            contact_addresses: {},
+            contact_groups: {},
+            portal_user: {},
+            corporate_group: {}
           },
           methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :is_director?, :director_companies, :display_name ]
         )
@@ -211,12 +198,10 @@ module Api
               .sort_by { |ph| [ (ph.date_effective || Time.at(0)).to_time, (ph.created_at || Time.at(0)).to_time ] }
               .reverse
               .map do |ph|
-                ph.as_json(only: [ :id, :old_price, :new_price, :date_effective, :lga, :change_reason, :user_name, :created_at ])
+                ph.as_json
               end
 
-            item.as_json(
-              only: [ :id, :item_code, :item_name, :category, :current_price, :unit, :price_last_updated_at ]
-            ).merge(
+            item.as_json.merge(
               is_default_supplier: item.default_supplier_id == @contact.id,
               price_histories: price_histories
             )
@@ -318,7 +303,7 @@ module Api
           .map do |jc|
             {
               job_id: jc.job_id,
-              job_title: jc.job.title,
+              job_title: jc.job.name,
               location: jc.job.location,
               role: jc.role,
               primary: jc.primary,
@@ -406,6 +391,13 @@ module Api
           contact_json[:linked_company] = linked_company_data
         end
 
+        # SSoT: Add Xero link summary (derived from contact_external_links)
+        contact_json[:xero_link_summary] = @contact.xero_link_summary
+        contact_json[:xero_linked_count] = @contact.xero_linked_count
+        contact_json[:xero_tenant_names] = @contact.xero_tenant_names
+        contact_json[:xero_customer] = @contact.xero_customer?
+        contact_json[:xero_supplier] = @contact.xero_supplier?
+
         # SSoT: Filter confidential fields based on user permissions
         contact_json = filter_confidential_fields(contact_json)
 
@@ -443,7 +435,6 @@ module Api
           render json: {
             success: true,
             contact: @contact.as_json(
-              only: [ :id, :display_name, :first_name, :middle_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles, :rating, :response_rate, :avg_response_time, :is_active, :supplier_code, :address, :notes, :lgas, :is_team_contact, :is_family_member ],
               methods: [ :is_employee?, :is_sales?, :is_land_agent? ]
             )
           }
@@ -595,95 +586,8 @@ module Api
         }, status: :internal_server_error
       end
 
-      # POST /api/v1/contacts/:id/link_to_xero_tenant
-      # Manually link a contact to a specific Xero contact in a specific tenant
-      def link_to_xero_tenant
-        tenant_id = params[:tenant_id]
-        xero_contact_id = params[:xero_contact_id]
-
-        unless tenant_id.present? && xero_contact_id.present?
-          return render json: {
-            success: false,
-            error: "tenant_id and xero_contact_id are required"
-          }, status: :bad_request
-        end
-
-        # Check if already linked to this tenant
-        existing_link = @contact.xero_links.find_by(tenant_id: tenant_id)
-        if existing_link
-          return render json: {
-            success: false,
-            error: "Contact is already linked to this Xero organization",
-            existing_link_id: existing_link.id
-          }, status: :unprocessable_entity
-        end
-
-        # Verify the Xero contact exists
-        client = XeroApiClient.new
-        result = client.get("Contacts/#{xero_contact_id}", tenant_id: tenant_id)
-
-        unless result[:success]
-          return render json: {
-            success: false,
-            error: "Failed to verify Xero contact: #{result[:error]}"
-          }, status: :unprocessable_entity
-        end
-
-        xero_contact = result[:data]["Contacts"]&.first
-
-        unless xero_contact
-          return render json: {
-            success: false,
-            error: "Xero contact not found"
-          }, status: :not_found
-        end
-
-        # Get sync config for tenant name
-        config = SyncConfiguration.find_by(xero_tenant_id: tenant_id)
-
-        # Create the link
-        link = @contact.xero_links.create!(
-          source: "xero",
-          tenant_id: tenant_id,
-          tenant_name: config&.xero_tenant_name || xero_contact["Name"] || "Unknown",
-          external_contact_id: xero_contact_id,
-          sync_enabled: true,
-          sync_direction: "bidirectional",
-          match_type: "manual",
-          needs_review: false,
-          last_synced_at: Time.current
-        )
-
-        # Optionally sync data from Xero
-        begin
-          sync_service = XeroContactSyncService.new(tenant_id: tenant_id)
-          sync_service.send(:sync_matched_contact, @contact, xero_contact, link)
-        rescue StandardError => e
-          Rails.logger.error("Failed to sync after manual link: #{e.message}")
-        end
-
-        render json: {
-          success: true,
-          message: "Contact linked to Xero successfully",
-          xero_link: {
-            id: link.id,
-            tenant_id: link.tenant_id,
-            tenant_name: link.tenant_name,
-            external_contact_id: link.external_contact_id,
-            xero_contact_name: xero_contact["Name"]
-          }
-        }
-      rescue ActiveRecord::RecordInvalid => e
-        render json: {
-          success: false,
-          errors: e.record.errors.full_messages
-        }, status: :unprocessable_entity
-      rescue StandardError => e
-        render json: {
-          success: false,
-          error: "Failed to link contact: #{e.message}"
-        }, status: :internal_server_error
-      end
+      # Xero Sync methods extracted to: concerns/contacts/xero_sync.rb
+      # Methods: link_to_xero_tenant, link_xero_contact, sync_from_xero, sync_to_xero
 
       # POST /api/v1/contacts/:id/reorder_employees
       # Updates the display_order of employees for a company contact
@@ -1503,7 +1407,23 @@ module Api
             target_contact.update(mobile_phone: source.mobile_phone) if target_contact.mobile_phone.blank? && source.mobile_phone.present?
             target_contact.update(office_phone: source.office_phone) if target_contact.office_phone.blank? && source.office_phone.present?
             target_contact.update(website: source.website) if target_contact.website.blank? && source.website.present?
-            target_contact.update(address: source.address) if target_contact.address.blank? && source.address.present?
+            # Merge addresses from contact_addresses (SSoT)
+            if target_contact.contact_addresses.empty? && source.contact_addresses.any?
+              source.contact_addresses.each do |addr|
+                target_contact.contact_addresses.create!(
+                  address_type: addr.address_type,
+                  line1: addr.line1,
+                  line2: addr.line2,
+                  line3: addr.line3,
+                  line4: addr.line4,
+                  city: addr.city,
+                  region: addr.region,
+                  postal_code: addr.postal_code,
+                  country: addr.country,
+                  is_primary: addr.is_primary
+                )
+              end
+            end
 
             # Merge supplier-specific fields (if both are suppliers)
             if source.is_supplier? && target_contact.is_supplier?
@@ -1630,9 +1550,7 @@ module Api
         render json: {
           success: true,
           message: "Successfully merged #{source_contacts.count} contact(s) into #{target_contact.display_name}",
-          contact: target_contact.as_json(
-            only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone, :website, :roles ]
-          )
+          contact: target_contact.as_json
         }
       rescue ActiveRecord::RecordNotFound => e
         render json: {
@@ -1855,355 +1773,9 @@ module Api
         }
       end
 
-      # POST /api/v1/contacts/:id/link_xero_contact
-      # Manually link a TEEEM contact to a Xero contact
-      def link_xero_contact
-        xero_id = params[:xero_id]
-
-        if xero_id.blank?
-          return render json: {
-            success: false,
-            error: "xero_id is required"
-          }, status: :bad_request
-        end
-
-        begin
-          # Fetch the Xero contact to verify it exists and get its details
-          client = XeroApiClient.new
-          result = client.get("Contacts/#{xero_id}")
-
-          unless result[:success]
-            return render json: {
-              success: false,
-              error: "Failed to fetch Xero contact"
-            }, status: :unprocessable_entity
-          end
-
-          xero_contact = result[:data]["Contacts"]&.first
-
-          unless xero_contact
-            return render json: {
-              success: false,
-              error: "Xero contact not found"
-            }, status: :not_found
-          end
-
-          # Update the contact with the Xero ID and sync timestamp
-          @contact.update!(
-            xero_id: xero_contact["ContactID"],
-            last_synced_at: Time.current,
-            xero_sync_error: nil,
-            sync_with_xero: true
-          )
-
-          # Log the manual link activity
-          ContactActivity.create!(
-            contact: @contact,
-            activity_type: "linked_to_xero",
-            description: "Manually linked to Xero contact: #{xero_contact['Name']}",
-            metadata: {
-              xero_contact_id: xero_contact["ContactID"],
-              xero_contact_name: xero_contact["Name"],
-              linked_via: "manual"
-            },
-            performed_by: @contact,
-            occurred_at: Time.current
-          )
-
-          render json: {
-            success: true,
-            message: "Successfully linked contact to Xero: #{xero_contact['Name']}",
-            contact: @contact.as_json(
-              only: [ :id, :display_name, :xero_id, :last_synced_at, :sync_with_xero ]
-            ),
-            xero_contact: {
-              xero_id: xero_contact["ContactID"],
-              name: xero_contact["Name"],
-              email: xero_contact["EmailAddress"],
-              tax_number: xero_contact["TaxNumber"]
-            }
-          }
-        rescue ActiveRecord::RecordInvalid => e
-          render json: {
-            success: false,
-            error: "Failed to link contact: #{e.message}"
-          }, status: :unprocessable_entity
-        rescue => e
-          Rails.logger.error("Link Xero contact error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to link contact: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/contacts/:id/sync_from_xero
-      # Sync a contact from Xero (pull data from Xero into TEEEM)
-      def sync_from_xero
-        tenant_id = params[:tenant_id]
-
-        # Find the xero link to sync from
-        link = if tenant_id.present?
-          @contact.xero_links.find_by(tenant_id: tenant_id)
-        else
-          @contact.xero_links.first
-        end
-
-        # Fall back to legacy xero_id if no link found
-        if link.nil? && @contact.xero_id.present?
-          # Create a temporary sync using the legacy xero_id
-          return sync_from_xero_legacy
-        end
-
-        unless link
-          return render json: {
-            success: false,
-            error: "Contact is not linked to any Xero organization"
-          }, status: :unprocessable_entity
-        end
-
-        begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
-          result = sync_service.sync_from_xero(link)
-
-          if result[:success]
-            render json: {
-              success: true,
-              message: "Contact synced from Xero successfully",
-              contact: result[:contact].as_json(
-                only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
-                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name,
-                       :accounts_payable_outstanding, :accounts_receivable_outstanding ]
-              )
-            }
-          else
-            render json: {
-              success: false,
-              error: result[:error] || "Sync failed"
-            }, status: :unprocessable_entity
-          end
-        rescue XeroApiClient::AuthenticationError => e
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero. Please reconnect."
-          }, status: :unauthorized
-        rescue => e
-          Rails.logger.error("Sync from Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-          render json: {
-            success: false,
-            error: "Sync failed: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # Legacy sync using xero_id field (for contacts not yet migrated to xero_links)
-      def sync_from_xero_legacy
-        client = XeroApiClient.new
-        result = client.get("Contacts/#{@contact.xero_id}")
-
-        unless result[:success]
-          return render json: {
-            success: false,
-            error: "Failed to fetch contact from Xero"
-          }, status: :unprocessable_entity
-        end
-
-        xero_contact = result[:data]["Contacts"]&.first
-
-        unless xero_contact
-          return render json: {
-            success: false,
-            error: "Contact not found in Xero"
-          }, status: :not_found
-        end
-
-        # Update basic contact info from Xero
-        updates = {}
-        updates[:email] = xero_contact["EmailAddress"] if xero_contact["EmailAddress"].present?
-        updates[:tax_number] = xero_contact["TaxNumber"] if xero_contact["TaxNumber"].present?
-        updates[:last_synced_at] = Time.current
-        updates[:xero_sync_error] = nil
-
-        # Update phone numbers from Xero
-        phones = xero_contact["Phones"] || []
-        mobile = phones.find { |p| p["PhoneType"] == "MOBILE" }
-        office = phones.find { |p| p["PhoneType"] == "DEFAULT" }
-        updates[:mobile_phone] = mobile["PhoneNumber"] if mobile&.dig("PhoneNumber").present?
-        updates[:office_phone] = office["PhoneNumber"] if office&.dig("PhoneNumber").present?
-
-        # Update financial balances
-        if xero_contact["Balances"]
-          ap = xero_contact.dig("Balances", "AccountsPayable")
-          ar = xero_contact.dig("Balances", "AccountsReceivable")
-          updates[:accounts_payable_outstanding] = ap["Outstanding"] if ap
-          updates[:accounts_payable_overdue] = ap["Overdue"] if ap
-          updates[:accounts_receivable_outstanding] = ar["Outstanding"] if ar
-          updates[:accounts_receivable_overdue] = ar["Overdue"] if ar
-        end
-
-        @contact.update!(updates)
-
-        # Sync addresses from Xero (two-way sync - TEEEM is source of truth)
-        sync_addresses_from_xero(xero_contact["Addresses"])
-
-        render json: {
-          success: true,
-          message: "Contact synced from Xero successfully (legacy)",
-          contact: @contact.reload.as_json(
-            only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
-                   :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                   :tax_number, :accounts_payable_outstanding, :accounts_receivable_outstanding ],
-            include: { contact_addresses: { only: [ :id, :address_type, :line1, :line2, :line3, :line4, :city, :region, :postal_code, :country ] } }
-          )
-        }
-      rescue => e
-        Rails.logger.error("Legacy sync from Xero error: #{e.message}")
-        render json: {
-          success: false,
-          error: "Sync failed: #{e.message}"
-        }, status: :internal_server_error
-      end
-
-      # POST /api/v1/contacts/:id/sync_to_xero
-      # Push contact changes from TEEEM to Xero
-      def sync_to_xero
-        tenant_id = params[:tenant_id]
-
-        # Find the xero link to sync to
-        link = if tenant_id.present?
-          @contact.xero_links.find_by(tenant_id: tenant_id)
-        else
-          @contact.xero_links.first
-        end
-
-        unless link&.external_contact_id.present?
-          return render json: {
-            success: false,
-            error: "Contact is not linked to any Xero organization"
-          }, status: :unprocessable_entity
-        end
-
-        begin
-          sync_service = XeroContactSyncService.new(tenant_id: link.tenant_id)
-          result = sync_service.sync_to_xero(@contact, link)
-
-          if result[:success]
-            render json: {
-              success: true,
-              message: "Contact pushed to Xero successfully",
-              contact: @contact.reload.as_json(
-                only: [ :id, :display_name, :first_name, :last_name, :email, :mobile_phone, :office_phone,
-                       :xero_id, :last_synced_at, :sync_with_xero, :xero_sync_error,
-                       :tax_number, :bank_bsb, :bank_account_number, :bank_account_name ]
-              )
-            }
-          else
-            render json: {
-              success: false,
-              error: result[:error] || "Failed to push contact to Xero"
-            }, status: :unprocessable_entity
-          end
-        rescue XeroApiClient::AuthenticationError => e
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero. Please reconnect."
-          }, status: :unauthorized
-        rescue => e
-          Rails.logger.error("Sync to Xero error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-          render json: {
-            success: false,
-            error: "Sync failed: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/contacts/:id/portal_user
-      def create_portal_user
-        portal_type = params[:portal_type] || "supplier"
-        email = params[:email]
-        password = params[:password]
-
-        if email.blank? || password.blank?
-          return render json: {
-            success: false,
-            error: "Email and password are required"
-          }, status: :unprocessable_entity
-        end
-
-        begin
-          @contact.enable_portal!(portal_type, email: email, password: password)
-
-          # Note: Password should be displayed to user immediately in the UI
-          # and then securely transmitted separately (e.g., via email)
-          # We no longer return it in the API response for security
-          render json: {
-            success: true,
-            portal_user: @contact.portal_user.as_json(only: [ :id, :email, :portal_type, :active, :created_at ]),
-            message: "Portal access enabled successfully. Password has been set."
-          }
-        rescue => e
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
-        end
-      end
-
-      # PATCH /api/v1/contacts/:id/portal_user
-      def update_portal_user
-        portal_user = @contact.portal_user
-
-        unless portal_user
-          return render json: {
-            success: false,
-            error: "No portal user exists for this contact"
-          }, status: :not_found
-        end
-
-        update_params = {}
-        update_params[:email] = params[:email] if params[:email].present?
-        update_params[:password] = params[:password] if params[:password].present?
-        update_params[:portal_type] = params[:portal_type] if params[:portal_type].present?
-        update_params[:active] = params[:active] unless params[:active].nil?
-
-        if portal_user.update(update_params)
-          response_data = {
-            success: true,
-            portal_user: portal_user.as_json(only: [ :id, :email, :portal_type, :active, :created_at ])
-          }
-          # Add message if password was changed
-          if params[:password].present?
-            response_data[:message] = "Portal user updated successfully. Password has been changed."
-          end
-          render json: response_data
-        else
-          render json: {
-            success: false,
-            errors: portal_user.errors.full_messages
-          }, status: :unprocessable_entity
-        end
-      end
-
-      # DELETE /api/v1/contacts/:id/portal_user
-      def delete_portal_user
-        portal_user = @contact.portal_user
-
-        unless portal_user
-          return render json: {
-            success: false,
-            error: "No portal user exists for this contact"
-          }, status: :not_found
-        end
-
-        portal_user.destroy
-        @contact.update(portal_enabled: false)
-
-        render json: {
-          success: true,
-          message: "Portal user deleted successfully"
-        }
-      end
+      # Portal User Management methods extracted to:
+      # concerns/contacts/portal_user_management.rb
+      # Methods: create_portal_user, update_portal_user, delete_portal_user
 
       # GET /api/v1/contacts/:id/internal_messages
       def internal_messages
@@ -2261,7 +1833,7 @@ module Api
               appointment_date: d.appointment_date,
               resignation_date: d.resignation_date,
               is_current: d.is_current,
-              director_id: @contact.director_id,
+              contact_id: d.contact_id,
               created_at: d.created_at,
               updated_at: d.updated_at
             }
@@ -2421,7 +1993,6 @@ module Api
         # Find contacts with similar display_name (case insensitive, ignoring extra whitespace)
         # Group by normalized name
         contacts_by_name = Contact.all
-          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| normalize_name(c.display_name) }
 
         contacts_by_name.each do |normalized_name, contacts|
@@ -2440,7 +2011,6 @@ module Api
         contacts_by_first_last = Contact.all
           .where.not(first_name: [ nil, "" ])
           .where.not(last_name: [ nil, "" ])
-          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| "#{normalize_name(c.first_name)}|#{normalize_name(c.last_name)}" }
 
         contacts_by_first_last.each do |name_key, contacts|
@@ -2464,7 +2034,6 @@ module Api
         # Check for same email (different contacts with same email)
         contacts_by_email = Contact.all
           .where.not(email: [ nil, "" ])
-          .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :roles, :xero_id)
           .group_by { |c| c.email&.downcase&.strip }
 
         contacts_by_email.each do |email, contacts|
@@ -2603,7 +2172,6 @@ module Api
         valid_types = Contact::ENTITY_TYPES
         invalid = Contact.where.not(entity_type: valid_types)
           .or(Contact.where(entity_type: nil))
-          .select(:id, :display_name, :entity_type, :is_active, :xero_id)
 
         render json: {
           success: true,
@@ -2629,7 +2197,6 @@ module Api
       def price_only_with_xero
         violations = Contact.where(entity_type: "price_only")
           .where.not(xero_id: nil)
-          .select(:id, :display_name, :xero_id, :xero_contact_types, :is_active)
 
         render json: {
           success: true,
@@ -2655,7 +2222,6 @@ module Api
       def company_with_first_name
         violations = Contact.where(entity_type: [ "company", "trust", "price_only" ])
           .where("first_name IS NOT NULL OR last_name IS NOT NULL")
-          .select(:id, :display_name, :entity_type, :first_name, :last_name, :company_name_or_trust, :is_active)
 
         render json: {
           success: true,
@@ -2683,7 +2249,6 @@ module Api
       def person_without_name
         violations = Contact.where(entity_type: [ "person", "sole_trader" ])
           .where("first_name IS NULL OR first_name = ''")
-          .select(:id, :display_name, :entity_type, :first_name, :last_name, :is_active)
 
         render json: {
           success: true,
@@ -2711,8 +2276,7 @@ module Api
         begin
           # Exclude price_only - they're just pricebook placeholders
           violations = Contact.where.not(entity_type: "price_only")
-            .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = '')")
-            .select(:id, :display_name, :entity_type, :mobile_phone, :email, :is_active)
+            .where("(mobile_phone IS NULL OR mobile_phone = '') AND (email IS NULL OR email = ''")
 
           render json: {
             success: true,
@@ -3410,7 +2974,305 @@ module Api
         }, status: :internal_server_error
       end
 
+      # ========================================
+      # QUALITY REVIEW ENDPOINTS
+      # ========================================
+
+      # GET /api/v1/contacts/quality_reviews
+      # Returns the review queue with filtering options
+      def quality_reviews
+        reviews = ContactQualityReview.includes(:contact, :suggested_company)
+                                      .order(confidence_score: :desc, created_at: :desc)
+
+        # Filter by status (default: pending)
+        status = params[:status] || "pending"
+        reviews = reviews.where(status: status) unless status == "all"
+
+        # Filter by issue_type if provided
+        reviews = reviews.by_issue_type(params[:issue_type]) if params[:issue_type].present?
+
+        # Pagination
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 50).to_i
+        total_count = reviews.count
+        reviews = reviews.offset((page - 1) * per_page).limit(per_page)
+
+        render json: {
+          success: true,
+          data: reviews.map { |r| format_quality_review(r) },
+          total_count: total_count,
+          page: page,
+          per_page: per_page,
+          by_issue_type: ContactQualityReview.where(status: status == "all" ? ContactQualityReview::STATUSES : status)
+                                             .group(:issue_type)
+                                             .count,
+          by_status: ContactQualityReview.group(:status).count
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/quality_scan
+      # Run the detection scan and populate review queue
+      def quality_scan
+        # Run scan synchronously for now (could be background job for large datasets)
+        scan_results = run_quality_scan
+
+        render json: {
+          success: true,
+          message: "Quality scan completed",
+          results: scan_results
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contact_quality_reviews/:id/approve
+      # Approve and execute the recommended action
+      def approve_quality_review
+        review = ContactQualityReview.find(params[:id])
+
+        if review.reviewed?
+          return render json: {
+            success: false,
+            error: "Review has already been processed"
+          }, status: :unprocessable_entity
+        end
+
+        ActiveRecord::Base.transaction do
+          # Execute the action
+          ContactQualityActionService.new(review).execute!
+
+          # Mark as approved
+          review.approve!(current_user, notes: params[:notes])
+        end
+
+        render json: {
+          success: true,
+          data: format_quality_review(review.reload)
+        }
+      rescue ContactQualityActionService::ActionError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contact_quality_reviews/:id/reject
+      # Reject the review (no action taken)
+      def reject_quality_review
+        review = ContactQualityReview.find(params[:id])
+
+        if review.reviewed?
+          return render json: {
+            success: false,
+            error: "Review has already been processed"
+          }, status: :unprocessable_entity
+        end
+
+        review.reject!(current_user, notes: params[:notes])
+
+        render json: {
+          success: true,
+          data: format_quality_review(review)
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contact_quality_reviews/:id/skip
+      # Skip the review for now
+      def skip_quality_review
+        review = ContactQualityReview.find(params[:id])
+
+        if review.reviewed?
+          return render json: {
+            success: false,
+            error: "Review has already been processed"
+          }, status: :unprocessable_entity
+        end
+
+        review.skip!(current_user, notes: params[:notes])
+
+        render json: {
+          success: true,
+          data: format_quality_review(review)
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contact_quality_reviews/bulk_approve
+      # Approve multiple high-confidence reviews
+      def bulk_approve_quality_reviews
+        review_ids = params[:review_ids]
+        min_confidence = (params[:min_confidence] || 80).to_i
+
+        unless review_ids.is_a?(Array) && review_ids.any?
+          return render json: {
+            success: false,
+            error: "review_ids array is required"
+          }, status: :bad_request
+        end
+
+        results = { approved: 0, failed: 0, errors: [] }
+
+        ContactQualityReview.where(id: review_ids, status: "pending")
+                           .where("confidence_score >= ?", min_confidence)
+                           .find_each do |review|
+          begin
+            ActiveRecord::Base.transaction do
+              ContactQualityActionService.new(review).execute!
+              review.approve!(current_user, notes: "Bulk approved")
+            end
+            results[:approved] += 1
+          rescue => e
+            results[:failed] += 1
+            results[:errors] << { review_id: review.id, error: e.message }
+          end
+        end
+
+        render json: {
+          success: true,
+          results: results
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/contacts/:id/verify_abn
+      # Verify ABN via ABR and update contact
+      def verify_abn
+        contact = Contact.find(params[:id])
+
+        if contact.tax_number.blank?
+          return render json: {
+            success: false,
+            error: "Contact has no ABN/tax number"
+          }, status: :unprocessable_entity
+        end
+
+        result = contact.verify_abn!
+
+        render json: {
+          success: true,
+          data: {
+            abn: contact.tax_number,
+            abn_formatted: AbrApiService.format(contact.tax_number),
+            entity_name: result[:entity_name],
+            entity_type: result[:entity_type_description],
+            entity_type_code: result[:entity_type_code],
+            gst_registered: result[:gst_registered],
+            valid: result[:valid],
+            active: result[:active]
+          }
+        }
+      rescue AbrApiService::AbrError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # GET /api/v1/contacts/:id/analyze_quality
+      # Analyze a single contact for quality issues
+      def analyze_quality
+        contact = Contact.find(params[:id])
+        service = ContactDataQualityService.new(contact)
+        analysis = service.analyze
+
+        render json: {
+          success: true,
+          data: analysis
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       private
+
+      # Format a quality review for API response
+      def format_quality_review(review)
+        {
+          id: review.id,
+          contact_id: review.contact_id,
+          contact: {
+            id: review.contact.id,
+            display_name: review.contact.display_name,
+            email: review.contact.email,
+            entity_type: review.contact.entity_type,
+            tax_number: review.contact.tax_number
+          },
+          suggested_company: review.suggested_company ? {
+            id: review.suggested_company.id,
+            display_name: review.suggested_company.display_name,
+            email: review.suggested_company.email,
+            entity_type: review.suggested_company.entity_type
+          } : nil,
+          issue_type: review.issue_type,
+          issue_type_label: review.issue_type_label,
+          status: review.status,
+          recommended_action: review.recommended_action,
+          recommended_action_label: review.recommended_action_label,
+          confidence_score: review.confidence_score,
+          email_domain: review.email_domain,
+          derived_company_name: review.derived_company_name,
+          abr_data: review.abr_data,
+          analysis_data: review.analysis_data,
+          review_notes: review.review_notes,
+          reviewed_by_id: review.reviewed_by_id,
+          reviewed_at: review.reviewed_at,
+          created_at: review.created_at,
+          updated_at: review.updated_at
+        }
+      end
+
+      # Run the quality scan and populate review queue
+      def run_quality_scan
+        results = { scanned: 0, issues_found: 0, by_issue_type: {} }
+
+        # Clear stale pending reviews (older than 30 days)
+        ContactQualityReview.pending.where("created_at < ?", 30.days.ago).destroy_all
+
+        Contact.find_each do |contact|
+          results[:scanned] += 1
+
+          begin
+            service = ContactDataQualityService.new(contact)
+            analysis = service.analyze
+
+            if analysis[:recommended_action] != :no_action && analysis[:issues].any?
+              issue_type = analysis[:issues].first[:type] || "unknown"
+
+              review = ContactQualityReview.find_or_initialize_by(
+                contact: contact,
+                issue_type: issue_type
+              )
+
+              # Only update if pending or new
+              if review.new_record? || review.status == "pending"
+                review.assign_attributes(
+                  suggested_company_id: analysis[:existing_company_match]&.id,
+                  recommended_action: analysis[:recommended_action].to_s,
+                  confidence_score: analysis[:confidence],
+                  analysis_data: analysis,
+                  abr_data: analysis[:abr_data],
+                  email_domain: analysis[:domain_analysis]&.dig(:domain),
+                  derived_company_name: analysis[:domain_analysis]&.dig(:derived_company_name),
+                  status: "pending"
+                )
+                review.save!
+
+                results[:issues_found] += 1
+                results[:by_issue_type][issue_type] ||= 0
+                results[:by_issue_type][issue_type] += 1
+              end
+            end
+          rescue StandardError => e
+            Rails.logger.error "Quality scan error for contact #{contact.id}: #{e.message}"
+          end
+        end
+
+        results
+      end
 
       # SSoT: Require corporate permission to access director/shareholder data
       def require_corporate_permission
@@ -3650,7 +3512,6 @@ module Api
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
         contacts_by_name = Contact.all
-          .select(:id, :display_name)
           .group_by { |c| normalize_name(c.display_name) }
 
         duplicate_ids = []
@@ -3742,61 +3603,7 @@ module Api
         render json: { success: false, error: "Contact not found" }, status: :not_found
       end
 
-      # Sync addresses from Xero to TEEEM (two-way sync)
-      # TEEEM is source of truth - only create/update if TEEEM doesn't have the address type
-      def sync_addresses_from_xero(xero_addresses)
-        Rails.logger.info("sync_addresses_from_xero called with: #{xero_addresses.inspect}")
-        return unless xero_addresses.is_a?(Array)
-
-        xero_addresses.each do |xero_addr|
-          address_type = xero_addr["AddressType"]
-          Rails.logger.info("Processing address type: #{address_type}, data: #{xero_addr.inspect}")
-          next unless address_type.present? && ContactAddress::ADDRESS_TYPES.include?(address_type)
-
-          # Check if TEEEM already has this address type
-          existing = @contact.contact_addresses.find_by(address_type: address_type)
-
-          if existing
-            Rails.logger.info("Existing address found: line1=#{existing.line1}, city=#{existing.city}")
-            # TEEEM has this address - only update if TEEEM address is empty
-            if existing.line1.blank? && existing.city.blank?
-              existing.update!(
-                line1: xero_addr["AddressLine1"],
-                line2: xero_addr["AddressLine2"],
-                line3: xero_addr["AddressLine3"],
-                line4: xero_addr["AddressLine4"],
-                city: xero_addr["City"],
-                region: xero_addr["Region"],
-                postal_code: xero_addr["PostalCode"],
-                country: xero_addr["Country"]
-              )
-              Rails.logger.info("Updated empty #{address_type} address for contact #{@contact.id} from Xero")
-            else
-              Rails.logger.info("Skipping update - TEEEM has data for #{address_type}")
-            end
-          else
-            Rails.logger.info("No existing address for #{address_type}, checking Xero data: AddressLine1=#{xero_addr['AddressLine1']}, City=#{xero_addr['City']}")
-            # TEEEM doesn't have this address type - create it from Xero
-            # Only create if Xero has actual address data
-            if xero_addr["AddressLine1"].present? || xero_addr["City"].present?
-              new_addr = @contact.contact_addresses.create!(
-                address_type: address_type,
-                line1: xero_addr["AddressLine1"],
-                line2: xero_addr["AddressLine2"],
-                line3: xero_addr["AddressLine3"],
-                line4: xero_addr["AddressLine4"],
-                city: xero_addr["City"],
-                region: xero_addr["Region"],
-                postal_code: xero_addr["PostalCode"],
-                country: xero_addr["Country"]
-              )
-              Rails.logger.info("Created #{address_type} address for contact #{@contact.id} from Xero: #{new_addr.inspect}")
-            else
-              Rails.logger.info("Skipping create - Xero has no data for #{address_type}")
-            end
-          end
-        end
-      end
+      # sync_addresses_from_xero extracted to: concerns/contacts/xero_sync.rb
 
       def handle_contact_groups
         # Clear existing group memberships

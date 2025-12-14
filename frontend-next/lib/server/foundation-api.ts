@@ -44,6 +44,8 @@ interface TableColumn {
   choices?: string[];
   lookup_foundation_id?: number;
   lookup_display_column?: string;
+  system?: boolean;
+  editable?: boolean;
 }
 
 interface TableRow {
@@ -59,8 +61,9 @@ interface FoundationData {
   error: string | null;
 }
 
-// System columns to hide from table views
-const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+// System columns that are auto-generated (visible but not editable)
+// Per GOLD_STANDARD_TABLE.md: System columns MUST be visible with yellow highlight
+const SYSTEM_COLUMNS = ['id', 'created_at', 'updated_at', 'deleted_at'];
 
 /**
  * Get auth token from cookies for server-side requests
@@ -108,7 +111,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     const foundationData = await foundationRes.json();
     const foundation = foundationData.foundation as Foundation;
 
-    // Fetch records
+    // Fetch records (associations are eager-loaded on backend for performance)
     const recordsRes = await fetch(
       `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=2000`,
       {
@@ -162,8 +165,8 @@ function transformColumns(foundation: Foundation): TableColumn[] {
   ];
 
   foundation.columns.forEach((col: ApiColumn) => {
-    // Skip system columns
-    if (SYSTEM_COLUMNS.includes(col.column_name)) return;
+    // Check if this is a system column (visible but not editable)
+    const isSystemColumn = SYSTEM_COLUMNS.includes(col.column_name);
 
     tableColumns.push({
       id: col.id,
@@ -178,6 +181,9 @@ function transformColumns(foundation: Foundation): TableColumn[] {
       choices: col.available_choices,
       lookup_foundation_id: col.lookup_foundation_id,
       lookup_display_column: col.lookup_display_column,
+      // System columns are visible but not editable (per GOLD_STANDARD_TABLE.md)
+      system: isSystemColumn,
+      editable: !isSystemColumn,
     });
   });
 

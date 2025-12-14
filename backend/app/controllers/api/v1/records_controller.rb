@@ -8,16 +8,7 @@ module Api
         # Sanitize and validate pagination parameters to prevent DoS
         page = [ (params[:page] || 1).to_i, 1 ].max
         per_page = [ (params[:per_page] || 50).to_i, 1 ].max
-
-        # Support minimal fields for fast initial loading
-        fields_mode = params[:fields] # 'minimal' or nil (full)
-
-        # For minimal mode, allow loading all records at once (it's lightweight)
-        if fields_mode == "minimal"
-          per_page = [ per_page, 20000 ].min  # Allow up to 20K items in minimal mode
-        else
-          per_page = [ per_page, 10000 ].min  # Cap at 10000 to prevent DoS
-        end
+        per_page = [ per_page, 10000 ].min  # Cap at 10000 to prevent DoS
 
         search = params[:search]
         search_all = params[:search_all] == "true" # Search all text columns instead of just searchable ones
@@ -27,14 +18,18 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
-        # Include associations for system tables to prevent N+1 queries
-        if @foundation.table_type == "system"
-          query = apply_system_table_includes(query, model)
-        end
+        # SSoT: Auto-eager-load ALL associations for ANY table to prevent N+1 queries
+        # This works for both system tables and user-created tables
+        query = apply_eager_loading(query, model)
 
         # Exclude soft-deleted records if the table has a 'deleted' column
         if model.column_names.include?("deleted")
           query = query.where(deleted: [ false, nil ])
+        end
+
+        # Exclude archived contacts (is_active=false) unless explicitly requested
+        if model.table_name == "contacts" && params[:include_archived] != "true"
+          query = query.where(is_active: [ true, nil ])
         end
 
         # Apply duplicates_only filter for Contacts
@@ -44,29 +39,28 @@ module Api
         end
 
         # Apply search filter with fuzzy matching support (pg_trgm)
+        # SSoT: Foundation column `searchable: true` is the source of truth for ALL tables
         if search.present?
-          searchable_columns = if @foundation.table_type == "system"
-            if search_all
-              # Search all text columns from the model (slower but comprehensive)
-              # Exclude array columns (e.g., roles) as ILIKE doesn't work on arrays
+          searchable_columns = if search_all
+            # Search ALL text columns (comprehensive but slower)
+            if @foundation.table_type == "system"
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name)
             else
-              # For system tables, use a predefined list of key searchable columns (fast)
-              # These are the columns users typically want to search
-              system_searchable = {
-                "contacts" => %w[display_name first_name last_name email company_name_or_trust mobile_phone office_phone notes],
-                "constructions" => %w[name description address status],
-                "jobs" => %w[title location ted_number]
-              }
-              table_name = model.table_name
-              system_searchable[table_name] || model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)
+              text_types = %w[single_line_text multiple_lines_text email phone url]
+              @foundation.columns.where(column_type: text_types).pluck(:column_name)
             end
-          elsif search_all
-            # Search all text-like columns when search_all is enabled
-            text_types = %w[single_line_text multiple_lines_text email phone url]
-            @foundation.columns.where(column_type: text_types).pluck(:column_name)
           else
-            @foundation.columns.where(searchable: true).pluck(:column_name)
+            # SSoT: Use foundation's searchable column definitions (works for ALL tables)
+            foundation_searchable = @foundation.columns.where(searchable: true).pluck(:column_name)
+
+            if foundation_searchable.any?
+              foundation_searchable
+            elsif @foundation.table_type == "system"
+              # Fallback for system tables without column definitions: auto-detect text columns
+              model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)
+            else
+              []
+            end
           end
           if searchable_columns.any?
             # Build search conditions: exact ILIKE OR fuzzy similarity (pg_trgm)
@@ -74,15 +68,33 @@ module Api
             sanitized_search = ActiveRecord::Base.connection.quote(search)
             conn = ActiveRecord::Base.connection
 
+            # Get column type information to handle non-text columns
+            column_types = model.columns.each_with_object({}) { |c, h| h[c.name] = c.type }
+
             # ILIKE conditions for exact substring matches
             # Security: Quote column names to prevent SQL injection
-            ilike_conditions = searchable_columns.map { |col| "#{conn.quote_column_name(col)} ILIKE :search" }.join(" OR ")
+            # Cast non-text columns to TEXT to support searching numeric/date columns
+            ilike_conditions = searchable_columns.map do |col|
+              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+              else
+                conn.quote_column_name(col)
+              end
+              "#{column_sql} ILIKE :search"
+            end.join(" OR ")
 
             # Fuzzy word_similarity conditions (matches search term against words in text)
             # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
             # Only apply to first few columns to keep it fast
             fuzzy_columns = searchable_columns.first(3)
-            fuzzy_conditions = fuzzy_columns.map { |col| "word_similarity(#{sanitized_search}, COALESCE(#{conn.quote_column_name(col)}, '')) > 0.4" }.join(" OR ")
+            fuzzy_conditions = fuzzy_columns.map do |col|
+              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+              else
+                conn.quote_column_name(col)
+              end
+              "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
+            end.join(" OR ")
 
             # Combine: match if ILIKE OR fuzzy match
             combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
@@ -109,15 +121,15 @@ module Api
           query = query.order(created_at: :desc)
         end
 
-        # Get count before applying select (to avoid COUNT() column issues)
+        # Get count before pagination
         total_count = query.count
 
-        # For minimal mode, select only essential columns for faster queries
-        # IMPORTANT: Apply select AFTER count to avoid PostgreSQL COUNT() errors
-        if fields_mode == "minimal"
-          essential_columns = determine_essential_columns(@foundation, params[:view_id])
-          query = query.select(*essential_columns) if essential_columns.any?
-        end
+        # NOTE: We removed the fields=minimal SELECT hack here.
+        # It was breaking features (cascading filters, column selection, associations).
+        # Performance is achieved through:
+        # 1. Eager loading associations (apply_eager_loading - auto-derived from model)
+        # 2. Proper pagination
+        # See: Ultra philosophy - load what the UI needs, optimize HOW we load it
 
         # Paginate
         records = query.offset((page - 1) * per_page).limit(per_page)
@@ -133,9 +145,7 @@ module Api
             per_page: per_page,
             total_count: total_count,
             total_pages: (total_count.to_f / per_page).ceil
-          },
-          fields_mode: fields_mode || "full", # Indicate which mode was used
-          progressive_loading: fields_mode == "minimal" # Flag for frontend
+          }
         }
       rescue => e
         render json: { error: e.message }, status: :internal_server_error
@@ -208,13 +218,13 @@ module Api
         record = model.find(params[:id])
 
         # For contacts, check if it has related records
-        # If no records, hard delete. If has records, soft delete (archive).
+        # If no records, hard delete. If has records, soft delete (archive via is_active=false).
         if model.table_name == "contacts"
           has_records = contact_has_records?(record)
 
           if has_records
-            # Soft delete - archive the contact (can be recovered)
-            record.update!(deleted: true)
+            # Soft delete - archive the contact (set is_active=false, can be recovered)
+            record.update!(is_active: false)
           else
             # Hard delete - no related records, safe to remove completely
             record.destroy!
@@ -420,56 +430,6 @@ module Api
         render json: { error: "Foundation not found" }, status: :not_found
       end
 
-      # PHASE 2 & 3: Determine essential columns for minimal loading
-      # Supports view-based selection (Phase 3) and smart defaults (Phase 2)
-      def determine_essential_columns(foundation, view_id = nil)
-        essential = []
-
-        # PHASE 3: Use saved view's visible columns if provided
-        if view_id.present?
-          view = FoundationView.find_by(id: view_id, foundation_id: foundation.id)
-          if view && view.visible_columns.present?
-            Rails.logger.info "[Progressive Loading] Using view #{view.name} visible columns: #{view.visible_columns.inspect}"
-
-            # Get actual column names from the database table
-            model = foundation.dynamic_model
-            valid_column_names = model.column_names
-
-            # Filter out:
-            # 1. UI-only pseudo-columns (select, actions)
-            # 2. Columns that don't exist in the database (e.g., renamed columns)
-            db_columns = view.visible_columns.reject do |col|
-              [ "select", "actions" ].include?(col) || !valid_column_names.include?(col)
-            end
-
-            Rails.logger.info "[Progressive Loading] Validated columns: #{db_columns.inspect}" if db_columns.size != view.visible_columns.size
-            return [ :id, :created_at, :updated_at ] + db_columns.map(&:to_sym)
-          end
-        end
-
-        # PHASE 2: Smart defaults based on column metadata
-        if foundation.table_type == "system"
-          # For system foundations, use model introspection
-          model = foundation.dynamic_model
-          # Get first 5 non-system columns
-          essential = model.column_names
-            .reject { |col| [ "created_at", "updated_at", "id" ].include?(col) }
-            .first(5)
-            .map(&:to_sym)
-        else
-          # For user foundations, use column metadata
-          essential = foundation.columns
-            .where("is_title = ? OR position <= ?", true, 4)
-            .order(:position)
-            .limit(5)
-            .pluck(:column_name)
-            .map(&:to_sym)
-        end
-
-        # Always include id and timestamps (required for record operations)
-        [ :id, :created_at, :updated_at ] + essential
-      end
-
       def record_params
         # Get all column names for this foundation
         columns = @foundation.columns
@@ -550,7 +510,9 @@ module Api
 
         # For system foundations, return all model attributes directly
         if @foundation.table_type == "system"
-          record.attributes.each do |key, value|
+          # Get only the columns that were actually loaded (not full schema)
+          loaded_columns = record.attributes.keys
+          loaded_columns.each do |key|
             next if [ "id", "created_at", "updated_at" ].include?(key)
             # Use send to go through model accessors (which may have safe decryption wrappers)
             begin
@@ -560,15 +522,23 @@ module Api
             rescue ActiveRecord::Encryption::Errors::Decryption => e
               Rails.logger.warn "Decryption failed for #{record.class.name}##{record.id}.#{key}: #{e.message}"
               json[key] = nil
+            rescue ActiveModel::MissingAttributeError
+              # Column wasn't loaded - skip silently
+              next
             rescue => e
               Rails.logger.warn "Error reading #{record.class.name}##{record.id}.#{key}: #{e.message}"
-              json[key] = value
+              json[key] = record.attributes[key]
             end
           end
 
           # Expand _id columns to include display value for lookup columns
           # e.g., job_type_id => { id: 1, display: "Residential" }
-          record.attributes.keys.select { |k| k.to_s.end_with?("_id") && k != "id" }.each do |id_column|
+          # IMPORTANT: Only expand _id columns that were actually loaded
+          loaded_id_columns = loaded_columns.select { |k| k.to_s.end_with?("_id") && k != "id" }
+          loaded_id_columns.each do |id_column|
+            # Skip if the _id column wasn't loaded or has no value
+            next unless json.key?(id_column) && json[id_column].present?
+
             association_name = id_column.to_s.sub(/_id$/, "")
             if record.respond_to?(association_name)
               begin
@@ -578,6 +548,9 @@ module Api
                   display_value = DisplayValueResolver.resolve(related)
                   json[id_column] = { id: json[id_column], display: display_value }
                 end
+              rescue ActiveModel::MissingAttributeError
+                # Column wasn't loaded - skip expansion
+                next
               rescue => e
                 Rails.logger.warn "Error expanding #{association_name}: #{e.message}"
               end
@@ -625,7 +598,9 @@ module Api
 
           # Add computed columns for contacts (employees_count for companies, display_name for team contacts)
           if record.class.name == "Contact"
-            json[:employees_count] = record.employees_count  # Cached column (counter_cache)
+            # SSoT: employees_count is now kept in sync by ContactRelationship callbacks
+            # See ContactRelationship#update_company_employees_count
+            json[:employees_count] = record.employees_count
             json[:display_name] = record.display_name  # Computed: includes company name for team contacts
           end
 
@@ -755,7 +730,6 @@ module Api
       # Find all contact IDs that are possible duplicates (share normalized name with another contact)
       def find_duplicate_contact_ids
         contacts_by_name = Contact.where(deleted: [ false, nil ])
-          .select(:id, :display_name)
           .group_by { |c| normalize_contact_name(c.display_name) }
 
         duplicate_ids = []
@@ -772,15 +746,21 @@ module Api
         name.to_s.downcase.gsub(/\s+/, " ").strip
       end
 
-      # Apply eager loading for system table associations to prevent N+1 queries
-      def apply_system_table_includes(query, model)
-        case model.name
-        when "Job"
-          query.includes(:job_type, :job_status, :job_stage)
-        when "Contact"
-          query.includes(:corporate_group, :primary_company)
-        when "Company"
-          query.includes(:corporate_group, :parent_company)
+      # SSoT: Auto-derive associations from model reflections
+      # No manual maintenance needed - Rails reflection system finds all belongs_to associations
+      # Works for ALL tables (system and user-created)
+      def apply_eager_loading(query, model)
+        associations = []
+
+        # Method 1: Get associations from model's belongs_to reflections (most reliable)
+        # This uses Rails' built-in reflection system to find all belongs_to associations
+        model.reflect_on_all_associations(:belongs_to).each do |reflection|
+          associations << reflection.name
+        end
+
+        # Apply eager loading if we found associations
+        if associations.any?
+          query.includes(*associations)
         else
           query
         end

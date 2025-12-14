@@ -27,6 +27,7 @@ export interface Column {
   lookup_foundation_id?: number;
   lookup_display_column?: string;
   available_choices?: { id: number; value: string }[] | string[];
+  searchable?: boolean;
 }
 
 interface ColumnsCacheEntry {

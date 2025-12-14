@@ -1,6 +1,7 @@
 class ExternalInvoice < ApplicationRecord
   belongs_to :contact, optional: true
   belongs_to :job, optional: true
+  belongs_to :warehouse_contact, optional: true
 
   # Documents attached to this invoice (PDF attachments from Xero, etc.)
   has_many :corporate_company_documents, as: :documentable, dependent: :nullify

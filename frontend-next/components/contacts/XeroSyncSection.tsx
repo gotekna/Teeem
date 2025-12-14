@@ -24,10 +24,11 @@ import {
   AlertDescription,
 } from "@/components/ui/alert";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { LinkXeroContactModal } from "./LinkXeroContactModal";
 import type {
@@ -598,50 +599,47 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Contact Fields */}
-            <Collapsible
-              open={expandedSections["contact"]}
-              onOpenChange={() => toggleSection("contact")}
+            <Accordion
+              type="single"
+              collapsible
+              value={expandedSections["contact"] ? "contact" : ""}
+              onValueChange={(v) => setExpandedSections(prev => ({ ...prev, contact: v === "contact" }))}
             >
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-3">
+              <AccordionItem value="contact" className="border-none">
+                <AccordionTrigger className="w-full justify-between p-3 hover:bg-accent hover:no-underline rounded-md">
                   <span className="font-medium">Contact Information</span>
-                  {expandedSections["contact"] ? (
-                    <ChevronDown className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4" />
-                  )}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-2 pt-2">
-                {fieldMappings.map((mapping, index) => (
-                  <div
-                    key={index}
-                    className={`grid grid-cols-[1fr,auto,1fr] gap-4 p-3 rounded-lg ${
-                      mapping.isDifferent ? "bg-yellow-50 dark:bg-yellow-900/10" : "bg-muted/50"
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">
-                        TEEEM ({mapping.teeemField})
-                      </p>
-                      <p className="text-sm">{mapping.teeemValue ? String(mapping.teeemValue) : <span className="text-muted-foreground italic">empty</span>}</p>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-2 pt-2">
+                  {fieldMappings.map((mapping, index) => (
+                    <div
+                      key={index}
+                      className={`grid grid-cols-[1fr,auto,1fr] gap-4 p-3 rounded-lg ${
+                        mapping.isDifferent ? "bg-yellow-50 dark:bg-yellow-900/10" : "bg-muted/50"
+                      }`}
+                    >
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium">
+                          TEEEM ({mapping.teeemField})
+                        </p>
+                        <p className="text-sm">{mapping.teeemValue ? String(mapping.teeemValue) : <span className="text-muted-foreground italic">empty</span>}</p>
+                      </div>
+                      <div className="flex items-center">
+                        {mapping.direction === "bidirectional" && <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />}
+                        {mapping.direction === "import" && <ArrowLeft className="h-4 w-4 text-blue-500" />}
+                        {mapping.direction === "export" && <ArrowRight className="h-4 w-4 text-green-500" />}
+                        {mapping.direction === "none" && <XCircle className="h-4 w-4 text-muted-foreground" />}
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium">
+                          Xero ({mapping.xeroField})
+                        </p>
+                        <p className="text-sm">{mapping.xeroValue ? String(mapping.xeroValue) : <span className="text-muted-foreground italic">empty</span>}</p>
+                      </div>
                     </div>
-                    <div className="flex items-center">
-                      {mapping.direction === "bidirectional" && <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />}
-                      {mapping.direction === "import" && <ArrowLeft className="h-4 w-4 text-blue-500" />}
-                      {mapping.direction === "export" && <ArrowRight className="h-4 w-4 text-green-500" />}
-                      {mapping.direction === "none" && <XCircle className="h-4 w-4 text-muted-foreground" />}
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium">
-                        Xero ({mapping.xeroField})
-                      </p>
-                      <p className="text-sm">{mapping.xeroValue ? String(mapping.xeroValue) : <span className="text-muted-foreground italic">empty</span>}</p>
-                    </div>
-                  </div>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
+                  ))}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </CardContent>
         </Card>
       )}

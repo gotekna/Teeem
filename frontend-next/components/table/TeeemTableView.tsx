@@ -98,7 +98,9 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { getColumnPriority, COLUMN_PRIORITY_CONFIG } from "@/lib/column-priority";
+import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
+import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
+import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -181,6 +183,8 @@ import {
   type TeeemTableViewProps,
   type VisibleColumnsState,
   type ColumnWidthsState,
+  type GroupEntry,
+  type GroupedEntries,
   getSortDirectionLabel,
   STATUS_COLORS,
   SEVERITY_COLORS,
@@ -393,20 +397,20 @@ const FILTER_OPERATOR_LABELS: Record<string, string> = {
 interface VirtualizedGroupTableProps {
   fullKey: string;
   depth: number;
-  rows: any[];
+  rows: TableRowType[];
   selectedRows: Set<number | string>;
-  visibleColumnsInOrder: any[];
+  visibleColumnsInOrder: TableColumn[];
   columnWidths: Record<string, number>;
   rowIdToGlobalIndex: Map<number | string, number>;  // Pre-computed map for O(1) lookup
   getStickyColumnStyles: (key: string, isHeader: boolean) => React.CSSProperties;
-  isSystemGeneratedColumn: (column: any) => boolean;
+  isSystemGeneratedColumn: (column: TableColumn) => boolean;
   SYSTEM_COLUMN_BG: string;
   getToggleCallback: (id: number | string) => () => void;
   handleSelectMouseDown: (rowId: number | string, rowIndex: number, e: React.MouseEvent) => void;
   handleRowMouseEnter: (rowId: number | string, rowIndex: number) => void;
-  onRowClick?: (row: any) => void;
-  onRowDoubleClick?: (row: any) => void;
-  renderCellValue: (row: any, column: any) => React.ReactNode;
+  onRowClick?: (row: TableRowType) => void;
+  onRowDoubleClick?: (row: TableRowType) => void;
+  renderCellValue: (row: TableRowType, column: TableColumn) => React.ReactNode;
   renderTableHeader: () => React.ReactNode;
   isEditMode: boolean;
 }
@@ -626,13 +630,76 @@ export default function TeeemTableView({
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
 
+  // ============================================================================
+  // AUTO-FETCH COLUMNS FROM FOUNDATION API (SSoT ENFORCEMENT)
+  // When foundationIdNumeric is set, columns MUST come from Foundation API
+  // This makes it IMPOSSIBLE to be out of sync with Foundation schema
+  // ============================================================================
+  const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
+  const [columnsLoading, setColumnsLoading] = useState(false);
+
+  // Auto-fetch columns when foundationIdNumeric is set
+  useEffect(() => {
+    if (!foundationIdNumeric) {
+      setFoundationColumns(null);
+      return;
+    }
+
+    const fetchColumns = async () => {
+      setColumnsLoading(true);
+      try {
+        const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(
+          `/api/v1/foundations/${foundationIdNumeric}`
+        );
+        const dbColumns = response?.foundation?.columns || [];
+        const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, foundationIdNumeric);
+        setFoundationColumns(teeemColumns);
+
+        // SSoT VIOLATION WARNING: Alert if parent passed hardcoded columns that differ
+        if (columns && columns.length > 0 && teeemColumns.length > 0) {
+          const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+          const foundationKeys = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
+
+          if (propKeys.length !== foundationKeys.length) {
+            // Find the difference
+            const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
+            const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
+
+            console.warn(
+              `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
+              `but Foundation #${foundationIdNumeric} has ${foundationKeys.length} columns. ` +
+              `Using Foundation columns (SSoT).`
+            );
+            if (inPropsNotFoundation.length > 0) {
+              console.warn(`[TeeemTableView] In PROPS but not Foundation:`, inPropsNotFoundation);
+            }
+            if (inFoundationNotProps.length > 0) {
+              console.warn(`[TeeemTableView] In FOUNDATION but not Props:`, inFoundationNotProps);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[TeeemTableView] Failed to fetch columns for Foundation #${foundationIdNumeric}:`, error);
+        // Fall back to props if fetch fails
+        setFoundationColumns(null);
+      } finally {
+        setColumnsLoading(false);
+      }
+    };
+
+    fetchColumns();
+  }, [foundationIdNumeric, columns]);
+
+  // Use Foundation columns when available (SSoT), otherwise fall back to props
+  const effectiveColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
-    if (!columns) return DEFAULT_COLUMNS;
+    if (!effectiveColumns) return DEFAULT_COLUMNS;
     // Ensure select and actions columns are included
-    const hasSelect = columns.some(c => c.key === 'select');
-    const hasActions = columns.some(c => c.key === 'actions');
-    const result = [...columns];
+    const hasSelect = effectiveColumns.some(c => c.key === 'select');
+    const hasActions = effectiveColumns.some(c => c.key === 'actions');
+    const result = [...effectiveColumns];
     if (!hasSelect) {
       result.unshift({ key: "select", label: "", resizable: false, sortable: false, filterable: false, width: 40 });
     }
@@ -640,7 +707,7 @@ export default function TeeemTableView({
       result.push({ key: "actions", label: "Actions", resizable: false, sortable: false, filterable: false, width: 180 });
     }
     return result;
-  }, [columns]);
+  }, [effectiveColumns]);
 
   // Detect if table has email columns for Email to Contacts extraction feature
   // Check both column definitions AND actual data structure
@@ -693,6 +760,17 @@ export default function TeeemTableView({
     [COLUMNS]
   );
 
+  // Get default searchable columns from foundation schema (SSoT)
+  const getDefaultSearchableColumns = useCallback(
+    () =>
+      COLUMNS.reduce((acc, col) => {
+        // Use the searchable flag from foundation schema, default to false
+        acc[col.key] = col.searchable ?? false;
+        return acc;
+      }, {} as Record<string, boolean>),
+    [COLUMNS]
+  );
+
   // ============================================================================
   // STATE - Migrating to atoms for SSoT compliance
   // ============================================================================
@@ -707,6 +785,14 @@ export default function TeeemTableView({
   const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
   const [columnOrder, setColumnOrder] = useAtom(currentColumnOrderAtom);
   const [visibleColumns, setVisibleColumns] = useAtom(currentVisibleColumnsAtom);
+
+  // Searchable columns state - controls which columns are included in search for this view
+  const [searchableColumns, setSearchableColumns] = useState<Record<string, boolean>>(() => getDefaultSearchableColumns());
+
+  // Sync searchable columns when COLUMNS changes (foundation schema is SSoT)
+  useEffect(() => {
+    setSearchableColumns(getDefaultSearchableColumns());
+  }, [getDefaultSearchableColumns]);
 
   // Sync column order and visibility when COLUMNS changes (e.g., select/actions added)
   useEffect(() => {
@@ -729,7 +815,11 @@ export default function TeeemTableView({
       const newKeys = COLUMNS.map(c => c.key);
       const updates: VisibleColumnsState = { ...prev };
       newKeys.forEach(k => {
-        if (!(k in updates)) updates[k] = true;
+        if (!(k in updates)) {
+          // System display columns (id, created_at, updated_at) are hidden by default
+          // but can be shown via column selector
+          updates[k] = !SYSTEM_DISPLAY_COLUMNS.includes(k);
+        }
       });
       return updates;
     });
@@ -795,6 +885,9 @@ export default function TeeemTableView({
   // Merge modal state managed by atoms (SSoT)
   const [showMergeModal, setShowMergeModal] = useAtom(showMergeModalAtom);
   const [mergeSelectedIds, setMergeSelectedIds] = useAtom(mergeSelectedIdsAtom);
+
+  // Optimistic delete IDs - for instant UI feedback after merge
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string | number>>(new Set());
 
   // Filter panel state managed by atom (SSoT)
   const [filterPanelOpen, setFilterPanelOpen] = useAtom(filterPanelOpenAtom);
@@ -1089,6 +1182,13 @@ export default function TeeemTableView({
     });
   }, [entries]);
 
+  // Clear pending deletes when entries refresh (the deleted rows are now gone from server)
+  React.useEffect(() => {
+    if (pendingDeleteIds.size > 0) {
+      setPendingDeleteIds(new Set());
+    }
+  }, [entries]);
+
   const toggleSelectAll = useCallback(() => {
     // In grouped view, select only visible/expanded rows
     if (groupedEntries) {
@@ -1151,11 +1251,16 @@ export default function TeeemTableView({
     }
   }, [onBulkMerge, enableMerge, foundationIdNumeric]);
 
-  // Called when merge completes successfully
-  const handleMergeComplete = useCallback(() => {
+  // Called when merge completes successfully - optimistically hides merged rows
+  const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
+    // Optimistically hide deleted rows immediately
+    setPendingDeleteIds(new Set(deletedIds));
+
+    // Clear selections
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
-    // Refresh data
+
+    // Refresh data from server (will eventually sync state)
     if (onRefresh) {
       onRefresh();
     }
@@ -1460,7 +1565,7 @@ export default function TeeemTableView({
           console.error('[Bulk Update] Errors:', response?.errors);
 
           // Check if this is an entity_type validation error
-          const hasEntityTypeErrors = response?.errors && response.errors.some((err: any) =>
+          const hasEntityTypeErrors = response?.errors && response.errors.some((err: { id: number | string; errors: string[] }) =>
             err.errors && err.errors.some((msg: string) =>
               msg.toLowerCase().includes('first name') ||
               msg.toLowerCase().includes('full name') ||
@@ -1475,7 +1580,7 @@ export default function TeeemTableView({
 
           if (response?.errors && response.errors.length > 0) {
             errorMessage += '\n\nValidation errors:\n';
-            response.errors.slice(0, 3).forEach((err: any) => {
+            response.errors.slice(0, 3).forEach((err: { id: number | string; errors: string[] }) => {
               errorMessage += `\n• Record ${err.id}: ${err.errors.join(', ')}`;
             });
             if (response.errors.length > 3) {
@@ -1817,6 +1922,11 @@ export default function TeeemTableView({
     const startTime = performance.now();
     let result = [...entries];
 
+    // Optimistically hide pending deletes (merged records)
+    if (pendingDeleteIds.size > 0) {
+      result = result.filter((entry) => !pendingDeleteIds.has(entry.id as string | number));
+    }
+
     // Apply search filter (client-side if no server search)
     // Uses fuzzy matching to handle typos like "coasal" -> "coastal"
     if (search && !onServerSearch) {
@@ -1927,6 +2037,7 @@ export default function TeeemTableView({
     interGroupLogic,
     sortColumns,
     evaluateFilter,
+    pendingDeleteIds,
   ]);
 
   // Limit displayed rows for performance (initial render shows INITIAL_ROW_LIMIT rows)
@@ -2027,6 +2138,11 @@ export default function TeeemTableView({
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
     if (value === null || value === undefined) return "No Value";
+    // Handle arrays - join as comma-separated string
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "—";
+      return value.map(item => String(item)).join(", ");
+    }
     if (typeof value === "object") {
       const obj = value as Record<string, unknown>;
       return String(obj.display || obj.display_value || obj.name || obj.id || "No Value");
@@ -2041,12 +2157,32 @@ export default function TeeemTableView({
   };
 
   // Group entries hierarchically if grouping is enabled (supports nested group columns)
+  // Groups are sorted by customOrder if available for the group column
   const groupedEntries = useMemo((): Record<string, NestedGroup> | null => {
     if (groupByColumns.length === 0) {
       return null;
     }
 
-    const startTime = performance.now();
+    // Helper to get customOrder for a column from sortColumns
+    const getCustomOrderForColumn = (columnName: string): string[] | undefined => {
+      const sortConfig = sortColumns.find(s => s.column === columnName);
+      return sortConfig?.customOrder;
+    };
+
+    // Helper to sort group keys by customOrder
+    const sortGroupKeys = (keys: string[], customOrder: string[] | undefined): string[] => {
+      if (!customOrder || customOrder.length === 0) {
+        return keys; // No custom order, keep insertion order
+      }
+      return [...keys].sort((a, b) => {
+        const aIndex = customOrder.indexOf(a);
+        const bIndex = customOrder.indexOf(b);
+        // Items not in customOrder go to the end
+        const aPos = aIndex === -1 ? customOrder.length + keys.indexOf(a) : aIndex;
+        const bPos = bIndex === -1 ? customOrder.length + keys.indexOf(b) : bIndex;
+        return aPos - bPos;
+      });
+    };
 
     const buildNestedGroups = (
       entries: TableRowType[],
@@ -2058,14 +2194,24 @@ export default function TeeemTableView({
       }
 
       const currentCol = columns[depth];
-      const groups: Record<string, NestedGroup> = {};
+      const unsortedGroups: Record<string, NestedGroup> = {};
 
       for (const entry of entries) {
         const groupKey = getDisplayValue(entry[currentCol]);
-        if (!groups[groupKey]) {
-          groups[groupKey] = { rows: [] };
+        if (!unsortedGroups[groupKey]) {
+          unsortedGroups[groupKey] = { rows: [] };
         }
-        groups[groupKey].rows.push(entry);
+        unsortedGroups[groupKey].rows.push(entry);
+      }
+
+      // Sort group keys by customOrder if available for this column
+      const customOrder = getCustomOrderForColumn(currentCol);
+      const sortedKeys = sortGroupKeys(Object.keys(unsortedGroups), customOrder);
+
+      // Rebuild groups object with sorted keys (maintains order)
+      const groups: Record<string, NestedGroup> = {};
+      for (const key of sortedKeys) {
+        groups[key] = unsortedGroups[key];
       }
 
       // If there are more columns, recursively build subgroups
@@ -2080,7 +2226,7 @@ export default function TeeemTableView({
 
     const result = buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
     return result;
-  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue]);
+  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns]);
 
   // Expand/collapse all group handlers (must be after groupedEntries)
   const expandAllGroups = useCallback(() => {
@@ -2119,7 +2265,7 @@ export default function TeeemTableView({
 
     if (groupedEntries) {
       const collectVisibleRows = (
-        groups: Record<string, { rows: any[]; subgroups?: any }>,
+        groups: GroupedEntries,
         parentKey: string = ""
       ) => {
         Object.entries(groups).forEach(([groupKey, group]) => {
@@ -2178,10 +2324,19 @@ export default function TeeemTableView({
 
   // Get visible columns in order
   const visibleColumnsInOrder = useMemo(() => {
-    const startTime = performance.now();
+    // If visibleColumns is empty (initial state), treat all non-system columns as visible
+    // This prevents hydration mismatch between server (empty) and client (populated)
+    const isVisibilityInitialized = Object.keys(visibleColumns).length > 0;
+
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
-      .filter((key) => visibleColumns[key] === true)
+      .filter((key) => {
+        if (!isVisibilityInitialized) {
+          // Not initialized yet - show all except system columns
+          return !SYSTEM_DISPLAY_COLUMNS.includes(key);
+        }
+        return visibleColumns[key] === true;
+      })
       .map((key) => COLUMNS.find((c) => c.key === key))
       .filter((col): col is TableColumn => col !== undefined);
 
@@ -2289,93 +2444,62 @@ export default function TeeemTableView({
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
   // Calculate TEEEM Smart widths based on column priority
+  // Excel-style: measures ALL columns to fit content, then distributes extra space by priority
+  // Algorithm: MEASURE → CONSTRAIN → EXPAND
   const calculateSmartFitWidths = useCallback(() => {
     const newWidths: ColumnWidthsState = {};
-    const HEADER_PADDING = 28;
-    const CELL_PADDING = 24;
+    const columnPriorities: Record<string, ColumnPriority> = {};
 
-    // Create canvas for measurement (only for essential columns)
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    // Helper to get display text for measurement
+    const getDisplayText = (value: unknown, columnType?: string): string => {
+      if (value === null || value === undefined) return '-';
 
-    const headerFont = '600 14px ui-sans-serif, system-ui, sans-serif';
-    const cellFont = '14px ui-sans-serif, system-ui, sans-serif';
-
-    // Helper function to get type-based default width
-    const getTypeBasedWidth = (col: TableColumn): number => {
-      const type = col.column_type?.toLowerCase() || 'text';
-      switch (type) {
-        case 'id': return 60;
-        case 'boolean': return 80;
-        case 'date': return 100;
-        case 'date_time':
-        case 'datetime': return 150;
-        case 'currency':
-        case 'percentage':
-        case 'number':
-        case 'decimal':
-        case 'whole_number': return 100;
-        case 'phone':
-        case 'mobile': return 120;
-        case 'email':
-        case 'url': return 200;
-        case 'choice':
-        case 'lookup':
-        case 'relation': return 150;
-        case 'multiple_lookups': return 200;
-        case 'text':
-        case 'single_line_text': return 150;
-        case 'multiple_lines_text':
-        case 'textarea': return 250;
-        default: return 150;
+      if (typeof value === 'object') {
+        const obj = value as { display_value?: string; display?: string; name?: string };
+        return obj.display_value || obj.display || obj.name || String(value);
       }
+
+      // Format numbers for accurate measurement
+      if (columnType === 'currency' && typeof value === 'number') {
+        return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+      }
+      if (columnType === 'percentage' && typeof value === 'number') {
+        return `${value.toFixed(1)}%`;
+      }
+      if (columnType === 'date' && value) {
+        return new Date(value as string).toLocaleDateString();
+      }
+
+      return String(value);
     };
 
-    // Helper to measure column width using canvas
+    // Helper to measure column width using cached canvas
     const measureColumnWidth = (col: TableColumn): number => {
-      if (!ctx) return getTypeBasedWidth(col);
-
-      ctx.font = headerFont;
+      // Measure header
       const headerText = col.label || col.key;
-      let maxWidth = ctx.measureText(headerText).width + HEADER_PADDING;
+      let maxWidth = measureText(headerText, TABLE_FONTS.header) + TABLE_PADDING.header;
 
-      ctx.font = cellFont;
+      // Measure content (sample first 100 rows)
       const sampleRows = filteredAndSortedEntries.slice(0, 100);
       sampleRows.forEach(row => {
-        const value = row[col.key];
-        let displayText = '';
-
-        if (value === null || value === undefined) {
-          displayText = '-';
-        } else if (typeof value === 'object') {
-          const obj = value as { display?: string; name?: string };
-          displayText = obj.display || obj.name || String(value);
-        } else {
-          displayText = String(value);
-        }
-
-        if (col.column_type === 'currency' && typeof value === 'number') {
-          displayText = `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-        } else if (col.column_type === 'percentage' && typeof value === 'number') {
-          displayText = `${value.toFixed(1)}%`;
-        }
-
-        const contentWidth = ctx.measureText(displayText).width + CELL_PADDING;
+        const displayText = getDisplayText(row[col.key], col.column_type);
+        const contentWidth = measureText(displayText, TABLE_FONTS.cell) + TABLE_PADDING.cell;
         maxWidth = Math.max(maxWidth, contentWidth);
       });
 
       return Math.ceil(maxWidth);
     };
 
+    // PHASE 1: MEASURE - Calculate content-based widths for ALL columns
     visibleColumnsInOrder.forEach(col => {
-      // Get priority tier for this column
       const priority = getColumnPriority(col.key, col.column_type);
       const config = COLUMN_PRIORITY_CONFIG[priority];
+      columnPriorities[col.key] = priority;
 
       // Skip hidden columns
       if (priority === 'hidden') return;
 
-      // Special handling for select/actions
+      // Fixed widths for special columns
       if (col.key === 'select') {
         newWidths[col.key] = 40;
         return;
@@ -2385,44 +2509,16 @@ export default function TeeemTableView({
         return;
       }
 
-      // For essential: use full auto-fit calculation (canvas measurement)
-      if (priority === 'essential') {
-        const measuredWidth = measureColumnWidth(col);
-        newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
-        return;
-      }
+      // MEASURE ALL columns including technical (Excel-style fit to content)
+      const measuredWidth = measureColumnWidth(col);
 
-      // For technical: use minimal width (will truncate and show on hover)
-      if (priority === 'technical') {
-        newWidths[col.key] = config.minWidth;
-        return;
-      }
-
-      // For supporting: use type-based optimal width
-      if (priority === 'supporting') {
-        const typeWidth = getTypeBasedWidth(col);
-        newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, typeWidth));
-        return;
-      }
+      // PHASE 2: CONSTRAIN - Apply min/max limits based on priority
+      newWidths[col.key] = Math.max(config.minWidth, Math.min(config.maxWidth, measuredWidth));
     });
 
-    // Calculate total width of all columns
-    const totalColumnsWidth = Object.values(newWidths).reduce((sum, width) => sum + width, 0);
-
-    // Get available table width (subtract scrollbar width ~17px)
-    const tableWidth = tableContainerRef.current?.clientWidth || 0;
-    const availableWidth = tableWidth - 17; // Account for scrollbar
-
-    // If columns don't fill the page, expand them proportionally
-    if (totalColumnsWidth > 0 && availableWidth > totalColumnsWidth) {
-      const expansionRatio = availableWidth / totalColumnsWidth;
-
-      // Expand all columns proportionally to fill the page
-      Object.keys(newWidths).forEach(key => {
-        newWidths[key] = Math.floor(newWidths[key] * expansionRatio);
-      });
-    }
-
+    // Excel-style: NO expansion. Columns fit content exactly.
+    // If total width < screen, empty space on right (like Excel)
+    // If total width > screen, horizontal scroll (like Excel)
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
@@ -2441,19 +2537,27 @@ export default function TeeemTableView({
   }, [smartFit, autoFitColumns, calculateSmartFitWidths, calculateAutoFitWidths, visibleColumnsInOrder]);
 
   // Watch for container resize and recalculate widths when TEEEM Smart is enabled
+  // Debounced to prevent excessive recalculations during window drag
   useEffect(() => {
     if (!smartFit || !tableContainerRef.current) return;
 
+    let timeoutId: NodeJS.Timeout;
+
     const resizeObserver = new ResizeObserver(() => {
-      if (filteredAndSortedEntries.length > 0) {
-        const smartWidths = calculateSmartFitWidths();
-        setColumnWidths(smartWidths);
-      }
+      // Debounce: wait 150ms after last resize event
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        if (filteredAndSortedEntries.length > 0) {
+          const smartWidths = calculateSmartFitWidths();
+          setColumnWidths(smartWidths);
+        }
+      }, 150);
     });
 
     resizeObserver.observe(tableContainerRef.current);
 
     return () => {
+      clearTimeout(timeoutId);
       resizeObserver.disconnect();
     };
   }, [smartFit, calculateSmartFitWidths, filteredAndSortedEntries]);
@@ -2713,11 +2817,10 @@ export default function TeeemTableView({
           // Fall through to normal rendering
         } else {
           // Show the value with a subtle indicator it's not editable
-          // Use getDisplayValue to handle objects (e.g., lookup values)
-          const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
+          // Use registry for display, wrapped in italic styling
           return (
-            <span className="text-muted-foreground italic text-[11px]" title={isComputed ? "Computed column" : "System column - not editable"}>
-              {displayValue}
+            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
+              {renderCellWithRegistry(value, column, entry, "display")}
             </span>
           );
         }
@@ -2726,11 +2829,9 @@ export default function TeeemTableView({
       // Global edit mode - show clickable cells that start row editing on click
       // Cells stay as lightweight text until clicked
       if (isEditMode && isColumnEditable) {
-        // Use getDisplayValue to handle objects (e.g., lookup values)
-        const displayValue = value == null || value === "" ? "-" : getDisplayValue(value);
         return (
           <div
-            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px] text-[11px]"
+            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
             onClick={(e) => {
               e.stopPropagation();
               // Start editing this row when cell is clicked
@@ -2738,182 +2839,18 @@ export default function TeeemTableView({
             }}
             title="Click to edit"
           >
-            {displayValue}
+            {renderCellWithRegistry(value, column, entry, "display")}
           </div>
         );
       }
 
-      // Handle searchable_text - read-only search terms display
-      if (column.column_type === "searchable_text" && value) {
-        return (
-          <span className="font-mono text-xs text-muted-foreground italic">
-            🔍 {String(value).slice(0, 30)}...
-          </span>
-        );
-      }
-
-      // Handle action_buttons - render configured buttons
-      if (column.column_type === "action_buttons" && value) {
-        try {
-          const config = typeof value === 'string' ? JSON.parse(value) : value;
-          const buttons = config.buttons || [];
-          return (
-            <div className="flex gap-1">
-              {buttons.slice(0, 3).map((btn: { label: string; action: string }, idx: number) => (
-                <Button key={idx} variant="outline" size="sm" className="h-6 text-xs px-2">
-                  {btn.label}
-                </Button>
-              ))}
-            </div>
-          );
-        } catch {
-          return <span className="text-muted-foreground">-</span>;
-        }
-      }
-
-      // Handle Australian types with formatted display
-      // ABN: XX XXX XXX XXX (11 digits)
-      if (column.column_type === "abn" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        const formatted = digits.length === 11
-          ? `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)} ${digits.slice(8,11)}`
-          : String(value);
-        return <span className="font-mono text-[11px]">{formatted}</span>;
-      }
-
-      // ACN: XXX XXX XXX (9 digits)
-      if (column.column_type === "acn" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        const formatted = digits.length === 9
-          ? `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`
-          : String(value);
-        return <span className="font-mono text-[11px]">{formatted}</span>;
-      }
-
-      // BSB: XXX-XXX (6 digits)
-      if (column.column_type === "bsb" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        const formatted = digits.length === 6
-          ? `${digits.slice(0,3)}-${digits.slice(3,6)}`
-          : String(value);
-        return <span className="font-mono text-[11px]">{formatted}</span>;
-      }
-
-      // Bank Account: up to 9 digits
-      if (column.column_type === "bank_account" && value) {
-        return <span className="font-mono text-[11px]">{String(value)}</span>;
-      }
-
-      // Postcode: 4 digits
-      if (column.column_type === "postcode" && value) {
-        return <span className="font-mono text-[11px]">{String(value).padStart(4, '0').slice(0,4)}</span>;
-      }
-
-      // TFN: XXX XXX XXX (9 digits) - show masked for security
-      if (column.column_type === "tfn" && value) {
-        const digits = String(value).replace(/\D/g, '');
-        // Show masked: XXX XXX XXX -> *** *** XXX
-        const masked = digits.length === 9
-          ? `*** *** ${digits.slice(6,9)}`
-          : '*** *** ***';
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="font-mono text-muted-foreground cursor-help text-[11px]">{masked}</span>
-              </TooltipTrigger>
-              <TooltipContent>
-                <span className="text-[11px]">TFN hidden for security</span>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      // Email: clickable mailto link
-      if (column.column_type === "email" && value) {
-        return (
-          <a
-            href={`mailto:${value}`}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
-            onClick={(e) => e.stopPropagation()}
-            title={`Send email to ${value}`}
-          >
-            {String(value)}
-          </a>
-        );
-      }
-
-      // Phone/Mobile: clickable tel link
-      if ((column.column_type === "phone" || column.column_type === "mobile") && value) {
-        // Remove non-numeric characters for tel: link
-        const phoneNumber = String(value).replace(/[^\d+]/g, '');
-        return (
-          <a
-            href={`tel:${phoneNumber}`}
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]"
-            onClick={(e) => e.stopPropagation()}
-            title={`Call ${value}`}
-          >
-            {String(value)}
-          </a>
-        );
-      }
-
-      // URL/Website: clickable external link
-      if ((column.column_type === "url" || column.column_type === "website") && value) {
-        const url = String(value);
-        // Add https:// if no protocol specified
-        const href = url.match(/^https?:\/\//) ? url : `https://${url}`;
-        return (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1 text-[11px]"
-            onClick={(e) => e.stopPropagation()}
-            title={`Open ${url}`}
-          >
-            {url}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        );
-      }
-
-      // Default: render as string with priority-based truncation
-      // Handle null/undefined values - show empty string instead of "null"/"undefined"
-      if (value == null || value === "") {
-        return <span className="text-muted-foreground text-[11px]">—</span>;
-      }
-
-      // Extract display value (handles objects like lookup values)
-      // For objects like {id: 123, name: "Company"}, this extracts "Company"
-      const strValue = getDisplayValue(value);
-
-      // Get priority for smart truncation
-      const priority = getColumnPriority(column.key, column.column_type);
-      const config = COLUMN_PRIORITY_CONFIG[priority];
-
-      // Apply priority-based truncation
-      if (config.truncateAt !== null && strValue.length > config.truncateAt) {
-        return (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="truncate block text-[11px]">
-                  {strValue.slice(0, config.truncateAt)}...
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-md">
-                <p className="whitespace-pre-wrap text-[11px]">{strValue}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
-      }
-
-      // For essential/supporting: show full text with CSS truncation if needed
-      return <span className="truncate block text-[11px]">{strValue}</span>;
+      // ========================================================================
+      // DISPLAY MODE - Use ColumnRenderer Registry (SSoT)
+      // ========================================================================
+      // All column types are now handled by the centralized registry.
+      // See: components/table/core/column-renderer/ColumnRenderer.tsx
+      // See: components/table/core/column-renderer/CellDisplay.tsx
+      return renderCellWithRegistry(value, column, entry, "display");
     };
 
   // ============================================================================
@@ -4185,6 +4122,8 @@ export default function TeeemTableView({
         COLUMNS={COLUMNS}
         visibleColumns={visibleColumns}
         setVisibleColumns={setVisibleColumns}
+        searchableColumns={searchableColumns}
+        setSearchableColumns={setSearchableColumns}
         columnWidths={columnWidths}
         setColumnWidths={setColumnWidths}
         getSortedColumnsForModal={getSortedColumnsForModal}

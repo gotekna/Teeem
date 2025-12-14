@@ -17,9 +17,11 @@ interface SortableColumnRowProps {
   id: string;
   column: TableColumn;
   isVisible: boolean;
+  isSearchable: boolean;
   index: number;
   totalVisible: number;
   onToggleVisibility: () => void;
+  onToggleSearchable?: () => void;
   onReorder: (newPosition: number) => void;
   columnWidth: number;
   onWidthChange: (width: number) => void;
@@ -33,9 +35,11 @@ export function SortableColumnRow({
   id,
   column,
   isVisible,
+  isSearchable,
   index,
   totalVisible,
   onToggleVisibility,
+  onToggleSearchable,
   onReorder,
   columnWidth,
   onWidthChange,
@@ -151,6 +155,14 @@ export function SortableColumnRow({
         <Checkbox
           checked={isVisible}
           onCheckedChange={() => onToggleVisibility()}
+        />
+      </TableCell>
+      {/* Searchable Checkbox */}
+      <TableCell className="w-12">
+        <Checkbox
+          checked={isSearchable}
+          onCheckedChange={() => onToggleSearchable?.()}
+          disabled={!onToggleSearchable}
         />
       </TableCell>
       {/* Column Name */}

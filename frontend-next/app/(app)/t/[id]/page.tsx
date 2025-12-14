@@ -8,7 +8,7 @@ import { TeeemTableView } from "@/components/table";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { api } from "@/lib/api";
 import { slugifyJobTitle, slugifyContactName, slugifyPricebookCode } from "@/lib/url-utils";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Plus, ArrowLeft } from "lucide-react";
 
 // Table ID to route mapping for legacy compatibility
@@ -168,7 +168,7 @@ export default function TablePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

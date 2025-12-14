@@ -292,11 +292,23 @@ class XeroApiClient
       }
     end
 
-    # Count credentials by status to show aggregate health
+    # Count credentials by ACTUAL status (not just DB column)
+    # A credential is only "connected" if status="connected" AND token not expired
     total = all_credentials.count
-    connected_count = all_credentials.where(status: "connected").count
-    degraded_count = all_credentials.where(status: "degraded").count
-    disconnected_count = all_credentials.where(status: "disconnected").count
+    connected_count = 0
+    degraded_count = 0
+    disconnected_count = 0
+
+    all_credentials.each do |cred|
+      if cred.status == "disconnected" || cred.poisoned?
+        disconnected_count += 1
+      elsif cred.status == "connected" && !cred.expired?
+        connected_count += 1
+      else
+        # status="connected" but expired, OR status="degraded"
+        degraded_count += 1
+      end
+    end
 
     # Check for any corrupted credentials
     all_credentials.each do |credential|
@@ -577,6 +589,28 @@ class XeroApiClient
     raise e
   rescue StandardError => e
     Rails.logger.error("[Xero] Error fetching PDF for quote #{quote_id}: #{e.message}")
+    { success: false, error: e.message }
+  end
+
+  # Get a credit note as a PDF
+  # @param credit_note_id [String] - The Xero CreditNote GUID
+  # @param options [Hash] - :tenant_id to specify which tenant
+  def get_credit_note_pdf(credit_note_id, options = {})
+    endpoint = "CreditNotes/#{credit_note_id}"
+
+    result = make_binary_request(:get, endpoint, options.merge(accept: "application/pdf"))
+
+    if result[:success]
+      result[:filename] ||= "CreditNote-#{credit_note_id[0..7]}.pdf"
+      result[:mime_type] = "application/pdf"
+    end
+
+    result
+  rescue RateLimitError => e
+    # Re-raise rate limit errors so caller can implement backoff
+    raise e
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching PDF for credit note #{credit_note_id}: #{e.message}")
     { success: false, error: e.message }
   end
 

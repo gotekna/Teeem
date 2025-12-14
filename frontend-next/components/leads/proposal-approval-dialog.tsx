@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Search,
   X,
@@ -333,7 +333,7 @@ export function ProposalApprovalDialog({
                 autoFocus
               />
             </div>
-            {searching && <Loader className="h-4 w-4" />}
+            {searching && <Spinner className="h-4 w-4" />}
             {searchResults.length > 0 && (
               <div className="border rounded-md max-h-48 overflow-y-auto">
                 {searchResults.map((contact) => (

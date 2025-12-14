@@ -8,7 +8,7 @@ module Api
         # Optimize includes based on fields parameter
         # Support: 'minimal', 'full', or comma-separated field names
         # Also support ?include_risk=false to skip expensive risk calculations
-        include_risk_data = params[:include_risk] != "false" && params[:fields] != "minimal"
+        include_risk_data = params[:include_risk] != "false"  # ALLOWED: risk data flag, not column limiting
 
         if include_risk_data
           @items = PricebookItem.includes(:supplier, :default_supplier, :price_histories).active
@@ -155,11 +155,10 @@ module Api
       def show
         item_json = @item.as_json(
           include: {
-            supplier: { only: [ :id, :display_name, :email, :mobile_phone, :office_phone, :rating ] },
-            default_supplier: { only: [ :id, :display_name ] },
+            supplier: {},
+            default_supplier: {},
             price_histories: {
-              only: [ :id, :old_price, :new_price, :change_reason, :created_at, :date_effective ],
-              include: { supplier: { only: [ :id, :display_name ] } }
+              include: { supplier: {} }
             }
           }
         )
@@ -209,7 +208,7 @@ module Api
       # GET /api/v1/pricebook/:id/history
       def history
         histories = @item.price_histories.recent.includes(:supplier)
-        render json: histories.as_json(include: { supplier: { only: [ :id, :display_name ], methods: [] } }).map { |h|
+        render json: histories.as_json(include: { supplier: {} }).map { |h|
           h["supplier"]["name"] = h["supplier"]["display_name"] if h["supplier"]
           h
         }
@@ -833,12 +832,9 @@ module Api
       # Minimal JSON for fast loading - skips expensive risk calculations
       def item_minimal_json(item)
         item_json = item.as_json(
-          only: [ :id, :item_code, :item_name, :category, :current_price, :unit_of_measure,
-                 :brand, :notes, :gst_code, :is_active, :needs_pricing_review,
-                 :created_at, :updated_at, :image_url ],
           include: {
-            supplier: { only: [ :id, :display_name ] },
-            default_supplier: { only: [ :id, :display_name ] }
+            supplier: {},
+            default_supplier: {}
           }
         )
 
@@ -855,10 +851,10 @@ module Api
 
       def item_with_risk_data(item)
         item_json = item.as_json(include: {
-          supplier: { only: [ :id, :display_name ] },
-          default_supplier: { only: [ :id, :display_name ] },
+          supplier: {},
+          default_supplier: {},
           price_histories: {
-            include: { supplier: { only: [ :id, :display_name ] } },
+            include: { supplier: {} },
             methods: []
           }
         })
@@ -902,7 +898,7 @@ module Api
       end
 
       def item_with_image_data(item)
-        item_json = item.as_json(include: { supplier: { only: [ :id, :display_name ] } })
+        item_json = item.as_json(include: { supplier: {} })
 
         # Map display_name to name for backwards compatibility
         if item_json["supplier"]

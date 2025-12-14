@@ -50,10 +50,17 @@ class XeroAttachmentSyncService
     end
 
     # Determine endpoint based on invoice type
-    entity_type = external_invoice.quote? ? "Quotes" : "Invoices"
+    entity_type = case external_invoice.invoice_type
+    when "quote" then "Quotes"
+    when "credit_note" then "CreditNotes"
+    else "Invoices"
+    end
 
-    pdf_result = if external_invoice.quote?
+    pdf_result = case external_invoice.invoice_type
+    when "quote"
                    xero_client.get_quote_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
+    when "credit_note"
+                   xero_client.get_credit_note_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
     else
                    xero_client.get_invoice_pdf(external_invoice.external_id, tenant_id: external_invoice.tenant_id)
     end

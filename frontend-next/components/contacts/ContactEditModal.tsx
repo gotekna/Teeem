@@ -46,6 +46,19 @@ interface ContactPerson {
   _destroy?: boolean;
 }
 
+interface ContactAddress {
+  id?: number;
+  address_type: 'STREET' | 'POBOX' | 'DELIVERY';
+  line1: string;
+  line2: string | null;
+  city: string;
+  region: string;
+  postal_code: string;
+  country: string;
+  is_primary: boolean;
+  _destroy?: boolean;
+}
+
 interface Contact {
   id: number;
   display_name: string;
@@ -56,7 +69,7 @@ interface Contact {
   office_phone: string | null;
   website: string | null;
   tax_number: string | null;
-  address: string | null;
+  address: string | null; // Legacy - deprecated, use contact_addresses
   notes: string | null;
   is_active: boolean;
   is_family_member: boolean;
@@ -66,6 +79,7 @@ interface Contact {
   primary_company_id?: number | null;
   primary_company?: { id: number; name: string } | null;
   contact_persons?: ContactPerson[];
+  contact_addresses?: ContactAddress[]; // SSoT for addresses
   employees?: Array<{ id: number; display_name: string; email: string | null }>;
 }
 
@@ -120,6 +134,15 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const [searchingEmployees, setSearchingEmployees] = React.useState(false);
   const [employees, setEmployees] = React.useState<Array<{ id: number; display_name: string; email: string | null }>>([]);
 
+  // Helper to get primary street address from contact_addresses (SSoT)
+  const getPrimaryAddress = (addresses?: ContactAddress[]): string => {
+    const primary = addresses?.find(a => a.address_type === 'STREET' && !a._destroy);
+    if (!primary) return "";
+    // Format as single line for simple editing
+    const parts = [primary.line1, primary.line2, primary.city, primary.region, primary.postal_code].filter(Boolean);
+    return parts.join(", ");
+  };
+
   // Initialize form data when contact changes
   React.useEffect(() => {
     if (contact) {
@@ -131,7 +154,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
         office_phone: contact.office_phone || "",
         website: contact.website || "",
         tax_number: contact.tax_number || "",
-        address: contact.address || "",
+        address: getPrimaryAddress(contact.contact_addresses) || contact.address || "", // SSoT: prefer contact_addresses
         notes: contact.notes || "",
         is_active: contact.is_active,
         is_family_member: contact.is_family_member,
@@ -340,11 +363,36 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       // Build display_name from first_name and last_name
       const display_name = [formData.first_name, formData.last_name].filter(Boolean).join(" ") || "Unknown";
 
+      // SSoT: Build contact_addresses_attributes from address field
+      // Find existing STREET address to update, or create new one
+      const existingStreet = contact.contact_addresses?.find(a => a.address_type === 'STREET' && !a._destroy);
+      const contact_addresses_attributes: Array<Record<string, unknown>> = [];
+
+      if (formData.address.trim()) {
+        // If there's an address value, update or create STREET address
+        contact_addresses_attributes.push({
+          id: existingStreet?.id, // Will update if exists, create if undefined
+          address_type: 'STREET',
+          line1: formData.address.trim(),
+          is_primary: true,
+        });
+      } else if (existingStreet?.id) {
+        // If address cleared and one existed, mark for deletion
+        contact_addresses_attributes.push({
+          id: existingStreet.id,
+          _destroy: true,
+        });
+      }
+
+      // Destructure to exclude legacy address field
+      const { address: _unusedAddress, ...restFormData } = formData;
+
       await api.patch(`/api/v1/contacts/${contact.id}`, {
         contact: {
-          ...formData,
+          ...restFormData,
           display_name,
           contact_persons_attributes: contactPersons.filter(cp => !cp._destroy || cp.id), // Include marked for deletion if has ID
+          contact_addresses_attributes,
         },
       });
 
@@ -596,16 +644,8 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                 />
               </div>
 
-              <div className="space-y-2 mt-4">
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  placeholder="Full address"
-                  rows={3}
-                />
-              </div>
+              {/* Address: Edit via the structured Address section on the contact detail page */}
+              {/* SSoT: contact_addresses table is the source of truth for addresses */}
             </div>
           </TabsContent>
 

@@ -40,7 +40,7 @@ class CreateBillPaymentBatches < ActiveRecord::Migration[8.0]
 
     add_index :bill_payment_batches, :batch_reference, unique: true
     add_index :bill_payment_batches, :status
-    add_index :bill_payment_batches, [:corporate_company_id, :status]
+    add_index :bill_payment_batches, [ :corporate_company_id, :status ]
     add_index :bill_payment_batches, :payment_date
     add_foreign_key :bill_payment_batches, :bpmn_process_instances, column: :bpmn_process_instance_id
   end

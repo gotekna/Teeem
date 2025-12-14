@@ -10,7 +10,7 @@ class CreateEmailBlacklistItems < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :email_blacklist_items, [:pattern, :pattern_type], unique: true
+    add_index :email_blacklist_items, [ :pattern, :pattern_type ], unique: true
     add_index :email_blacklist_items, :active
 
     # Seed with existing hardcoded patterns

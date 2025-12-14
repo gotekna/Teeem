@@ -3,29 +3,32 @@
 # XeroHealthMonitorJob - Self-healing health checks for Xero integration
 #
 # This job runs periodically (every 15 minutes) to:
-# 1. SELF-HEAL stalled syncs (trigger jobs when next_sync_at is overdue)
-# 2. Detect stale syncs (no activity in expected time window)
-# 3. Check for excessive failed jobs in the queue
-# 4. Monitor credentials at risk of 60-day inactivity expiry
-# 5. Attempt auto-recovery for degraded credentials
-# 6. Create/resolve alerts based on health status
+# 1. CLEAN UP orphaned jobs that block self-healing
+# 2. SELF-HEAL stalled syncs (trigger jobs when next_sync_at is overdue)
+# 3. Detect stale syncs (no activity in expected time window)
+# 4. Check for excessive failed jobs in the queue
+# 5. Monitor credentials at risk of 60-day inactivity expiry
+# 6. Attempt auto-recovery for degraded credentials
+# 7. Create/resolve alerts based on health status
 #
 # Run via solid_queue recurring schedule
 class XeroHealthMonitorJob < ApplicationJob
   queue_as :default
 
   # Expected sync intervals (if no sync in this time, it's stale)
+  # SSoT: Must match XeroSyncStatus::SYNC_TYPES ("pdfs" not "attachments")
   EXPECTED_INTERVALS = {
     "invoices" => 1.hour,
     "contacts" => 1.hour,
     "bank_transactions" => 8.hours,
-    "attachments" => 4.hours
+    "pdfs" => 4.hours
   }.freeze
 
   # Maximum failed jobs before alerting
   MAX_FAILED_JOBS_THRESHOLD = 50
 
   # Sync type to job class mapping for self-healing
+  # SSoT: Keys must match XeroSyncStatus::SYNC_TYPES
   SYNC_TYPE_TO_JOB = {
     "invoices" => "XeroInvoiceSyncJob",
     "contacts" => "XeroContactSyncJob",
@@ -39,6 +42,9 @@ class XeroHealthMonitorJob < ApplicationJob
   # Maximum time a sync can be "in_progress" before we consider it stuck
   MAX_IN_PROGRESS_DURATION = 30.minutes
 
+  # Maximum age for a pending job before considering it orphaned
+  MAX_PENDING_JOB_AGE = 2.hours
+
   def perform
     Rails.logger.info "[XeroHealthMonitor] Starting health check"
 
@@ -51,8 +57,12 @@ class XeroHealthMonitorJob < ApplicationJob
     begin
       issues_found = 0
       healed = 0
+      orphans_cleaned = 0
 
-      # SELF-HEAL FIRST - trigger any overdue syncs
+      # CLEAN UP ORPHANED JOBS FIRST - these block self-healing!
+      orphans_cleaned = cleanup_orphaned_jobs
+
+      # SELF-HEAL - trigger any overdue syncs
       healed = self_heal_stalled_syncs
 
       issues_found += check_stale_syncs
@@ -63,7 +73,7 @@ class XeroHealthMonitorJob < ApplicationJob
 
       # Log summary
       summary = XeroTokenManager.health_summary
-      Rails.logger.info "[XeroHealthMonitor] Complete. Issues: #{issues_found}, Self-healed: #{healed}. " \
+      Rails.logger.info "[XeroHealthMonitor] Complete. Orphans cleaned: #{orphans_cleaned}, Self-healed: #{healed}, Issues: #{issues_found}. " \
                        "Health: #{summary[:connected]} connected, #{summary[:degraded]} degraded, " \
                        "#{summary[:disconnected]} disconnected, #{summary[:circuit_open]} circuit open"
 
@@ -76,6 +86,44 @@ class XeroHealthMonitorJob < ApplicationJob
   end
 
   private
+
+  # CLEANUP: Remove orphaned jobs that block self-healing
+  # An orphaned job exists in solid_queue_jobs but has no execution record
+  # (not scheduled, not claimed, not ready). These jobs will NEVER run but
+  # block self-heal from creating new jobs.
+  def cleanup_orphaned_jobs
+    cleaned = 0
+    orphan_threshold = Time.current - MAX_PENDING_JOB_AGE
+
+    # Check each Xero job class for orphans
+    SYNC_TYPE_TO_JOB.values.uniq.each do |job_class_name|
+      # Find old pending jobs for this class
+      old_pending_jobs = SolidQueue::Job
+        .where(finished_at: nil)
+        .where(class_name: job_class_name)
+        .where("created_at < ?", orphan_threshold)
+
+      old_pending_jobs.find_each do |job|
+        # Check if job has any execution record
+        has_scheduled = SolidQueue::ScheduledExecution.exists?(job_id: job.id)
+        has_claimed = SolidQueue::ClaimedExecution.exists?(job_id: job.id)
+        has_ready = SolidQueue::ReadyExecution.exists?(job_id: job.id)
+
+        if !has_scheduled && !has_claimed && !has_ready
+          # This job is orphaned - delete it
+          Rails.logger.warn "[XeroHealthMonitor] Deleting orphaned job: #{job_class_name} (ID: #{job.id}, created: #{job.created_at})"
+          job.destroy
+          cleaned += 1
+        end
+      end
+    end
+
+    Rails.logger.info "[XeroHealthMonitor] Cleaned up #{cleaned} orphaned jobs" if cleaned > 0
+    cleaned
+  rescue StandardError => e
+    Rails.logger.error "[XeroHealthMonitor] Error cleaning orphaned jobs: #{e.message}"
+    0
+  end
 
   # SELF-HEAL: Check for stalled syncs and trigger them automatically
   # This is the key self-healing mechanism that prevents sync outages
@@ -212,24 +260,34 @@ class XeroHealthMonitorJob < ApplicationJob
     disconnected
   end
 
-  # Attempt to recover degraded credentials
+  # Attempt to recover degraded OR expired credentials
   def attempt_degraded_recovery
     recovered = 0
 
-    XeroCredential.where(status: "degraded").find_each do |credential|
-      # If refresh_failure_count is low, try refreshing again
+    # Find credentials that need token refresh:
+    # 1. status="degraded" (explicit degraded state)
+    # 2. status="connected" but token expired (needs proactive refresh)
+    credentials_to_refresh = XeroCredential.all.select do |cred|
+      cred.status == "degraded" || (cred.status == "connected" && cred.expired?)
+    end
+
+    credentials_to_refresh.each do |credential|
+      # If refresh_failure_count is high, skip (avoid hammering failed refreshes)
       next if credential.refresh_failure_count >= XeroTokenManager::MAX_REFRESH_ATTEMPTS
 
-      Rails.logger.info "[XeroHealthMonitor] Attempting recovery for degraded credential: #{credential.tenant_name}"
+      reason = credential.expired? ? "token expired" : "degraded status"
+      Rails.logger.info "[XeroHealthMonitor] Attempting token refresh for #{credential.tenant_name} (#{reason})"
 
       result = XeroTokenManager.refresh_credential(credential)
 
       if result[:success]
-        Rails.logger.info "[XeroHealthMonitor] Recovered credential: #{credential.tenant_name}"
+        Rails.logger.info "[XeroHealthMonitor] Refreshed token for: #{credential.tenant_name}"
         recovered += 1
 
         # Trigger sync restart to resume syncing after recovery
         XeroTokenManager.trigger_sync_restart(reason: "health_monitor_recovery")
+      else
+        Rails.logger.warn "[XeroHealthMonitor] Failed to refresh #{credential.tenant_name}: #{result[:error]}"
       end
     end
 

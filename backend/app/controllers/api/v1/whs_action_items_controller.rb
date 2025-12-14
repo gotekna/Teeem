@@ -164,12 +164,11 @@ class Api::V1::WHSActionItemsController < ApplicationController
   def serialization_includes
     {
       actionable: {
-        only: [ :id, :type ],
         methods: [ :source_description ]
       },
-      assigned_to_user: { only: [ :id, :name, :email ] },
-      created_by: { only: [ :id, :name, :email ] },
-      project_task: { only: [ :id, :name, :status, :planned_end_date ] }
+      assigned_to_user: {},
+      created_by: {},
+      project_task: {}
     }
   end
 end

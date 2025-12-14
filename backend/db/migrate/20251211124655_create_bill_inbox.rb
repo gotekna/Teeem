@@ -64,9 +64,9 @@ class CreateBillInbox < ActiveRecord::Migration[8.0]
 
     add_index :bill_inboxes, :status
     add_index :bill_inboxes, :match_status
-    add_index :bill_inboxes, [:corporate_company_id, :status]
+    add_index :bill_inboxes, [ :corporate_company_id, :status ]
     add_index :bill_inboxes, :email_message_id, unique: true, where: "email_message_id IS NOT NULL"
-    add_index :bill_inboxes, [:supplier_id, :invoice_number], unique: true, where: "invoice_number IS NOT NULL"
+    add_index :bill_inboxes, [ :supplier_id, :invoice_number ], unique: true, where: "invoice_number IS NOT NULL"
     add_foreign_key :bill_inboxes, :corporate_companies, column: :detected_company_id
     add_foreign_key :bill_inboxes, :email_warehouse, column: :email_warehouse_id
     add_foreign_key :bill_inboxes, :bpmn_process_instances, column: :bpmn_process_instance_id

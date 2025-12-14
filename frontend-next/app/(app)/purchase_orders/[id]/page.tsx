@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Table,
   TableBody,
@@ -543,7 +543,7 @@ export default function PurchaseOrderDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -716,7 +716,7 @@ export default function PurchaseOrderDetailPage() {
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    <Spinner className="h-4 w-4 mr-2 animate-spin" />
                     Saving...
                   </>
                 ) : (

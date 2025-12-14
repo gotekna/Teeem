@@ -149,18 +149,18 @@ class Api::V1::MeetingsController < ApplicationController
 
   def serialization_includes
     {
-      construction: { only: [ :id, :name ] },
-      created_by: { only: [ :id, :name, :email ] },
+      construction: {},
+      created_by: {},
       meeting_participants: {
         include: {
-          user: { only: [ :id, :name, :email ] },
-          contact: { only: [ :id, :name, :email ] }
+          user: {},
+          contact: {}
         }
       },
       meeting_agenda_items: {
         include: {
-          presenter: { only: [ :id, :name ] },
-          created_task: { only: [ :id, :title, :status ] }
+          presenter: {},
+          created_task: {}
         }
       }
     }

@@ -21,7 +21,7 @@ module Api
         render json: {
           rain_logs: @rain_logs.as_json(
             include: {
-              created_by_user: { only: [ :id, :name, :email ] }
+              created_by_user: {}
             }
           )
         }
@@ -32,7 +32,7 @@ module Api
         render json: {
           rain_log: @rain_log.as_json(
             include: {
-              created_by_user: { only: [ :id, :name, :email ] }
+              created_by_user: {}
             }
           )
         }
@@ -53,7 +53,7 @@ module Api
           render json: {
             rain_log: @rain_log.as_json(
               include: {
-                created_by_user: { only: [ :id, :name, :email ] }
+                created_by_user: {}
               }
             )
           }, status: :created
@@ -73,7 +73,7 @@ module Api
           render json: {
             rain_log: @rain_log.reload.as_json(
               include: {
-                created_by_user: { only: [ :id, :name, :email ] }
+                created_by_user: {}
               }
             )
           }
@@ -196,7 +196,7 @@ module Api
             success: true,
             message: "Rain log created for #{date}",
             rain_log_created: true,
-            rain_log: rain_log.as_json(include: { created_by_user: { only: [ :id, :name ] } })
+            rain_log: rain_log.as_json(include: { created_by_user: {} })
           }, status: :created
 
         rescue WeatherApiClient::Error => e

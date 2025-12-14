@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import Link from "next/link";
 
 export default function SignupPage() {
@@ -75,7 +75,7 @@ export default function SignupPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader />
+        <Spinner />
       </div>
     );
   }

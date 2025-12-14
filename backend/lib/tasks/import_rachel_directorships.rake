@@ -1,10 +1,10 @@
 namespace :directorships do
   desc "Import Rachel Harder directorships from Excel spreadsheet"
   task import_rachel: :environment do
-    require 'roo'
-    require 'date'
+    require "roo"
+    require "date"
 
-    file_path = Rails.root.join('../Rachels Directorships.xlsx')
+    file_path = Rails.root.join("../Rachels Directorships.xlsx")
 
     unless File.exist?(file_path)
       puts "❌ Error: Excel file not found at #{file_path}"
@@ -28,7 +28,7 @@ namespace :directorships do
 
     # Open Excel file
     xlsx = Roo::Spreadsheet.open(file_path.to_s)
-    sheet = xlsx.sheet('Rachel Directorship')
+    sheet = xlsx.sheet("Rachel Directorship")
 
     puts "✓ Opened Excel file: #{file_path.basename}"
     puts "  Sheet: Rachel Directorship"
@@ -52,13 +52,13 @@ namespace :directorships do
 
       # Try to find director appointment date (column D or E)
       director_start = nil
-      [row[3], row[4]].each do |cell|
+      [ row[3], row[4] ].each do |cell|
         if cell.is_a?(DateTime)
           director_start = cell.to_date
           break
         elsif cell.is_a?(String) && cell =~ /\d{1,2}\/\d{1,2}\/\d{4}/
           begin
-            director_start = Date.strptime(cell, '%d/%m/%Y')
+            director_start = Date.strptime(cell, "%d/%m/%Y")
             break
           rescue
             # Try other format
@@ -68,13 +68,13 @@ namespace :directorships do
 
       # Try to find resignation date (columns F, G, H)
       resignation_date = nil
-      [row[5], row[6], row[7]].each do |cell|
+      [ row[5], row[6], row[7] ].each do |cell|
         if cell.is_a?(DateTime)
           resignation_date = cell.to_date
           break
         elsif cell.is_a?(String) && cell =~ /\d{1,2}\/\d{1,2}\/\d{4}/
           begin
-            resignation_date = Date.strptime(cell, '%d/%m/%Y')
+            resignation_date = Date.strptime(cell, "%d/%m/%Y")
             break
           rescue
             # Skip
@@ -90,7 +90,7 @@ namespace :directorships do
         appointment_date: director_start || Date.today, # Default to today if no date
         resignation_date: resignation_date,
         is_current: is_current,
-        position: 'director', # Assume director role
+        position: "director", # Assume director role
         purpose: row[8]&.to_s&.strip, # Column I = Purpose
         group: row[9]&.to_s&.strip    # Column J = Part of Group
       }
@@ -142,8 +142,8 @@ namespace :directorships do
 
           corp_company = CorporateCompany.create!(
             name: dir_data[:company_name],
-            status: dir_data[:is_current] ? 'active' : 'struck_off',
-            entity_type: 'company',
+            status: dir_data[:is_current] ? "active" : "struck_off",
+            entity_type: "company",
             code: "RH-#{dir_data[:company_name].gsub(/[^A-Z0-9]/i, '')[0..8].upcase}",
             purpose: dir_data[:purpose],
             company_group_id: company_group_id

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -76,7 +76,7 @@ export function OnlineUsersSidebar({
             <div className="px-1 pb-1 space-y-0.5">
               {loading ? (
                 <div className="flex items-center justify-center py-2">
-                  <Loader />
+                  <Spinner />
                 </div>
               ) : (
                 sortedOnlineUsers.map((user) => (
@@ -133,7 +133,7 @@ export function OnlineUsersSidebar({
           <div className="px-3 pb-3 space-y-1">
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <Loader />
+                <Spinner />
               </div>
             ) : (
               sortedOnlineUsers.map((user) => (

@@ -164,7 +164,7 @@ module Api
         render json: {
           message: "Director onboarding approved",
           request: serialize_request(@request, full: true),
-          contact: @request.contact.as_json(only: [ :id, :display_name, :email ])
+          contact: @request.contact.as_json
         }
       rescue ActiveRecord::RecordInvalid => e
         render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
@@ -353,8 +353,8 @@ module Api
             consent_given_at: request.consent_given_at,
             consent_ip_address: request.consent_ip_address,
             review_notes: request.review_notes,
-            reviewed_by: request.reviewed_by&.as_json(only: [ :id, :name, :email ]),
-            invited_by: request.invited_by&.as_json(only: [ :id, :name, :email ]),
+            reviewed_by: request.reviewed_by&.as_json(),
+            invited_by: request.invited_by&.as_json(),
             contact_id: request.contact_id
           )
         end

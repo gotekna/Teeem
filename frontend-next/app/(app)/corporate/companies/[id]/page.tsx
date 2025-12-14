@@ -1021,7 +1021,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
     <div className="space-y-4">
       <TeeemTableView
         entries={entries}
-        columns={columns}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         foundationId="bank_accounts"
         foundationIdNumeric={350}
         tableName="Bank Accounts"
@@ -2971,7 +2971,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
         foundationIdNumeric={357}
         tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
         entries={documents}
-        columns={columns}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
         onRowClick={handleSingleClick}

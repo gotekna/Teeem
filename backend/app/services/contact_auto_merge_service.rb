@@ -124,7 +124,7 @@ class ContactAutoMergeService
     score += 5 if contact.mobile_phone.present?
     score += 5 if contact.office_phone.present?
     score += 3 if contact.website.present?
-    score += 3 if contact.address.present?
+    score += 3 if contact.contact_addresses.any?
     score += 2 if contact.notes.present?
     score += 2 if contact.rating.to_i > 0
     score += contact.roles.to_a.size * 2 # More roles = more data
@@ -147,7 +147,23 @@ class ContactAutoMergeService
         target.update!(mobile_phone: source.mobile_phone) if target.mobile_phone.blank? && source.mobile_phone.present?
         target.update!(office_phone: source.office_phone) if target.office_phone.blank? && source.office_phone.present?
         target.update!(website: source.website) if target.website.blank? && source.website.present?
-        target.update!(address: source.address) if target.address.blank? && source.address.present?
+        # Merge addresses from contact_addresses (SSoT)
+        if target.contact_addresses.empty? && source.contact_addresses.any?
+          source.contact_addresses.each do |addr|
+            target.contact_addresses.create!(
+              address_type: addr.address_type,
+              line1: addr.line1,
+              line2: addr.line2,
+              line3: addr.line3,
+              line4: addr.line4,
+              city: addr.city,
+              region: addr.region,
+              postal_code: addr.postal_code,
+              country: addr.country,
+              is_primary: addr.is_primary
+            )
+          end
+        end
 
         # Keep Xero connection if target doesn't have one but source does
         if target.xero_id.blank? && source.xero_id.present?

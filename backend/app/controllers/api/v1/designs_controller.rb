@@ -27,7 +27,7 @@ module Api
           success: true,
           designs: @designs.as_json(
             include: {
-              constructions: { only: [ :id, :title ] }
+              constructions: {}
             }
           )
         }
@@ -39,7 +39,7 @@ module Api
           success: true,
           design: @design.as_json(
             include: {
-              constructions: { only: [ :id, :title, :status ] }
+              constructions: {}
             }
           )
         }

@@ -100,7 +100,7 @@ class Api::V1::WHSInductionTemplatesController < ApplicationController
 
   def serialization_includes
     {
-      created_by: { only: [ :id, :name, :email ] }
+      created_by: {}
     }
   end
 end

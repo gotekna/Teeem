@@ -9,22 +9,27 @@ class XeroDuplicateFixService
 
     # Only check contacts that have Xero links (duplicates from Xero sync)
     # This dramatically reduces the search space
-    xero_contact_ids = ContactExternalLink.where(source: 'xero').distinct.pluck(:contact_id)
+    xero_contact_ids = ContactExternalLink.where(source: "xero").distinct.pluck(:contact_id)
 
     # Find contacts with duplicate display names (normalized)
+    # Exclude contacts with " - " pattern (e.g., "Accounts Team - Survey Mark Pty Ltd")
+    # These are intentionally separate team/department contacts for different companies
     duplicate_names = Contact.where(is_active: true)
                              .where(id: xero_contact_ids)
+                             .where("display_name NOT LIKE '% - %'")  # Exclude "Team - Company" pattern
                              .select("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) as normalized_name, COUNT(*) as count")
                              .group("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g')))")
                              .having("COUNT(*) > 1")
-                             .where.not(display_name: [nil, ""])
+                             .where.not(display_name: [ nil, "" ])
 
     duplicate_names.each do |dup|
       normalized = dup.normalized_name
 
       # Get all contacts with this normalized name
+      # Also exclude "Team - Company" pattern contacts
       contacts = Contact.where(is_active: true)
                        .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized)
+                       .where("display_name NOT LIKE '% - %'")
                        .includes(:xero_links, :jobs, :purchase_orders, :case_contacts)
 
       next if contacts.count < 2
@@ -103,11 +108,11 @@ class XeroDuplicateFixService
   def merge_group(group_id, target_contact_id)
     target = Contact.find(target_contact_id)
 
-    # Find all contacts in this group (same normalized name)
-    normalized_name = group_id.parameterize == group_id ? group_id.gsub('-', ' ') : group_id
-
+    # Find all contacts in this group by matching against target's normalized name
+    # This ensures we use the same normalization as find_duplicate_groups
+    # Don't try to reverse parameterize - special chars like & get lost
     contacts = Contact.where(is_active: true)
-                     .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized_name)
+                     .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = LOWER(TRIM(REGEXP_REPLACE(?, '\\s+', ' ', 'g')))", target.display_name)
                      .where.not(id: target_contact_id)
 
     deleted_ids = []
@@ -116,7 +121,7 @@ class XeroDuplicateFixService
     ActiveRecord::Base.transaction do
       contacts.each do |source|
         # 1. Move Xero links to target
-        merge_xero_links(target, [source])
+        merge_xero_links(target, [ source ])
 
         # 2. Transfer relationships
         transfer_relationships(target, source)
@@ -124,7 +129,12 @@ class XeroDuplicateFixService
         # 3. Merge contact data (fill missing fields on target)
         merge_contact_data(target, source)
 
-        # 4. Hard-delete source contact
+        # 4. Reload source to clear association caches (critical for destroy!)
+        #    After update_all transfers, Rails cache still shows old associations
+        #    This prevents dependent: :restrict_with_error from false-triggering
+        source.reload
+
+        # 5. Hard-delete source contact
         deleted_ids << source.id
         source.destroy!
 
@@ -267,14 +277,42 @@ class XeroDuplicateFixService
     # Fill missing website
     target.website = source.website if target.website.blank? && source.website.present?
 
-    # Fill missing address
-    target.address = source.address if target.address.blank? && source.address.present?
+    # Fill missing address from contact_addresses (SSoT)
+    if target.contact_addresses.empty? && source.contact_addresses.any?
+      source.contact_addresses.each do |addr|
+        target.contact_addresses.build(
+          address_type: addr.address_type,
+          line1: addr.line1,
+          line2: addr.line2,
+          line3: addr.line3,
+          line4: addr.line4,
+          city: addr.city,
+          region: addr.region,
+          postal_code: addr.postal_code,
+          country: addr.country,
+          is_primary: addr.is_primary
+        )
+      end
+    end
 
     # Merge roles (union)
-    if source.roles.present?
-      target.roles = (Array(target.roles) + Array(source.roles)).uniq
+    # Handle roles stored as JSON strings (e.g., "[]" or "[\"role1\"]")
+    source_roles = parse_roles(source.roles)
+    target_roles = parse_roles(target.roles)
+    if source_roles.any?
+      target.roles = (target_roles + source_roles).uniq
     end
 
     # Don't save here - let merge_group handle it
+  end
+
+  # Parse roles that might be stored as JSON string or array
+  def parse_roles(roles)
+    return [] if roles.blank?
+    return roles if roles.is_a?(Array)
+    return JSON.parse(roles) if roles.is_a?(String) && roles.start_with?('[')
+    []
+  rescue JSON::ParserError
+    []
   end
 end

@@ -28,6 +28,7 @@ export interface TableColumn {
   editable?: boolean; // Whether the column can be edited (default: true)
   system?: boolean; // System column like id, created_at, updated_at (default: false)
   defaultHidden?: boolean; // Whether the column is hidden by default (default: false)
+  searchable?: boolean; // Whether this column is included in search (from foundation schema)
 }
 
 // Row data - generic record with id
@@ -68,6 +69,7 @@ export interface SavedView {
   filterGroups?: FilterGroup[];
   interGroupLogic?: "AND" | "OR";
   visibleColumns?: Record<string, boolean>;
+  searchableColumns?: Record<string, boolean>; // Which columns to include in search for this view
   columnOrder?: string[];
   columnWidths?: Record<string, number>;
   sortColumns?: SortColumn[];
@@ -164,6 +166,14 @@ export type VisibleColumnsState = Record<string, boolean>;
 
 // Column widths state
 export type ColumnWidthsState = Record<string, number>;
+
+// Grouped entries structure for multi-level grouping
+export interface GroupEntry {
+  rows: TableRow[];
+  subgroups?: Record<string, GroupEntry>;
+}
+
+export type GroupedEntries = Record<string, GroupEntry>;
 
 // Get sort direction label based on column type
 export const getSortDirectionLabel = (columnType: string | undefined, direction: "asc" | "desc"): string => {

@@ -12,7 +12,8 @@ module Api
         enquiry_stages = JobStage.where(job_status_id: enquiry_status&.id).order(:position)
 
         # Get all jobs with Enquiry status
-        jobs = Job.includes(:job_type, :job_status, :job_stage, job_contacts: :contact)
+        # SSoT: Use Job.with_contacts scope for standard includes
+        jobs = Job.with_contacts
                   .where(job_status_id: enquiry_status&.id)
                   .order(created_at: :desc)
 
@@ -96,7 +97,8 @@ module Api
       # GET /api/v1/jobs?status=Active
       # GET /api/v1/jobs?contact_id=123
       def index
-        @jobs = Job.includes(:job_type, :job_status, :job_stage).all
+        # SSoT: Use Job.with_lookups scope for standard includes
+        @jobs = Job.with_lookups
 
         # Filter by contact_id if provided - only return jobs where this contact is a client
         # (not representative, broker, etc. - only actual client role)
@@ -136,24 +138,23 @@ module Api
         page = params[:page]&.to_i || 1
         per_page = params[:per_page]&.to_i || 500
 
-        # Get total count before limiting results to avoid separate COUNT query
+        # Get total count before limiting results
         total_count = @jobs.count
         total_pages = (total_count.to_f / per_page).ceil
 
+        # Return all columns - no column limiting
         @jobs = @jobs.order(created_at: :desc)
-                                       .limit(per_page)
-                                       .offset((page - 1) * per_page)
-
-        # Include job_type and job_status in response
-        jobs_with_associations = @jobs.map do |job|
-          job.as_json.merge(
-            job_type: job.job_type&.as_json(only: [ :id, :name, :icon ]),
-            job_status: job.job_status&.as_json(only: [ :id, :name, :color ])
-          )
-        end
+                     .limit(per_page)
+                     .offset((page - 1) * per_page)
 
         render json: {
-          jobs: jobs_with_associations,
+          jobs: @jobs.as_json(
+            include: {
+              job_type: {},
+              job_status: {},
+              job_stage: {}
+            }
+          ),
           pagination: {
             current_page: page,
             total_pages: total_pages,
@@ -168,10 +169,10 @@ module Api
         # Include contacts with their relationships in the response
         job_json = @job.as_json
 
-        # Include job_type, job_status, and job_stage associations
-        job_json[:job_type] = @job.job_type&.as_json(only: [ :id, :name, :icon ])
-        job_json[:job_status] = @job.job_status&.as_json(only: [ :id, :name, :color ])
-        job_json[:job_stage] = @job.job_stage&.as_json(only: [ :id, :name ])
+        # Include job_type, job_status, and job_stage associations - all columns
+        job_json[:job_type] = @job.job_type&.as_json
+        job_json[:job_status] = @job.job_status&.as_json
+        job_json[:job_stage] = @job.job_stage&.as_json
 
         job_json[:contacts] = @job.job_contacts
                                                      .includes(contact: :outgoing_relationships)
@@ -185,9 +186,7 @@ module Api
             contact_id: cc.contact_id,
             primary: cc.primary,
             role: cc.role,
-            contact: cc.contact.as_json(
-              only: [ :id, :first_name, :last_name, :display_name, :company_name, :email, :mobile_phone, :office_phone ]
-            ),
+            contact: cc.contact.as_json,
             relationships_count: cc.contact.outgoing_relationships.count
           }
         end.compact
@@ -267,7 +266,7 @@ module Api
                                   .order(created_at: :desc)
 
         render json: @messages.as_json(
-          include: { user: { only: [ :id, :name, :email ] } },
+          include: { user: {} },
           methods: :formatted_timestamp
         )
       end
@@ -300,8 +299,8 @@ module Api
         render json: {
           sms_messages: messages.as_json(
             include: {
-              contact: { only: [ :id, :display_name, :mobile_phone ] },
-              user: { only: [ :id, :name, :email ] }
+              contact: {},
+              user: {}
             }
           )
         }
@@ -351,7 +350,7 @@ module Api
         )
           render json: {
             success: true,
-            job: @job.as_json(only: [ :id, :title, :xero_tracking_option_id, :xero_tracking_option_name ])
+            job: @job.as_json
           }
         else
           render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity

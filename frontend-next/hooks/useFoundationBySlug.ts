@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
-
-// System columns to hide from table views
-const SYSTEM_COLUMNS = ['created_at', 'updated_at', 'deleted_at'];
+import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
 
 /**
  * Extended return type with server-side search support
@@ -41,6 +39,7 @@ interface ApiColumn {
   lookup_display_column?: string;
   required?: boolean;
   is_unique?: boolean;
+  searchable?: boolean;
 }
 
 /**
@@ -144,6 +143,7 @@ export function useFoundationBySlug(
       const viewsCached = cachedViews && (now - cachedViews.timestamp) < VIEWS_CACHE_TTL;
 
       // Start both requests in parallel
+      // Load full records (associations are eager-loaded on backend for performance)
       const recordsPromise = api.get<RecordsResponse>(
         `/api/v1/foundations/${foundationObj.id}/records`,
         { params: { per_page: perPage } }
@@ -239,8 +239,8 @@ export function useFoundationBySlug(
     ];
 
     foundation.columns.forEach((col: ApiColumn) => {
-      // Skip system columns
-      if (SYSTEM_COLUMNS.includes(col.column_name)) return;
+      // Skip system columns (SSoT: uses same logic as column-utils.ts)
+      if (isSystemOrHiddenColumn(col.column_name)) return;
 
       tableColumns.push({
         id: col.id,
@@ -255,6 +255,7 @@ export function useFoundationBySlug(
         choices: col.available_choices,
         lookup_foundation_id: col.lookup_foundation_id,
         lookup_display_column: col.lookup_display_column,
+        searchable: col.searchable ?? false,
       });
     });
 

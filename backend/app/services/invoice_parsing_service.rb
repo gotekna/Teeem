@@ -60,7 +60,7 @@ class InvoiceParsingService
 
     if @bill.content_type == "application/pdf"
       # Write to temp file for PDF::Reader
-      Tempfile.create(["invoice", ".pdf"], binmode: true) do |temp_file|
+      Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |temp_file|
         temp_file.write(content)
         temp_file.rewind
         reader = PDF::Reader.new(temp_file.path)
@@ -76,7 +76,7 @@ class InvoiceParsingService
   def pdf_to_image
     content = @bill.invoice_file.download
 
-    Tempfile.create(["invoice", ".pdf"], binmode: true) do |pdf_file|
+    Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |pdf_file|
       pdf_file.write(content)
       pdf_file.rewind
 

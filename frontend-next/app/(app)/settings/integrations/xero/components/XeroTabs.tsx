@@ -23,10 +23,11 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import {
   Loader2,
   Check,
@@ -996,72 +997,84 @@ function ContactsGroupedTable({
           <div className="max-h-[700px] overflow-y-auto">
             {/* Normal Contacts Group */}
             {normalContacts.length > 0 && (
-              <Collapsible open={normalOpen} onOpenChange={setNormalOpen}>
-                <CollapsibleTrigger
-                  showIcon={false}
-                  className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors"
-                >
-                  {normalOpen ? (
-                    <ChevronDown className="h-5 w-5" />
-                  ) : (
-                    <ChevronRight className="h-5 w-5" />
-                  )}
-                  <span className="font-medium">Active Contacts</span>
-                  <Badge variant="secondary" className="ml-2">
-                    {normalContacts.length}
-                  </Badge>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <Table>
-                    <TableHeaders />
-                    <TableBody>
-                      {normalContacts.map((contact) => (
-                        <ContactRow
-                          key={contact.id}
-                          contact={contact}
-                          onClick={() => handleContactClick(contact.id)}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CollapsibleContent>
-              </Collapsible>
+              <Accordion
+                type="single"
+                collapsible
+                value={normalOpen ? "normal" : ""}
+                onValueChange={(v) => setNormalOpen(v === "normal")}
+              >
+                <AccordionItem value="normal" className="border-none">
+                  <AccordionTrigger
+                    className="flex items-center gap-2 px-4 py-3 bg-muted/50 border-b cursor-pointer hover:bg-muted/70 transition-colors hover:no-underline [&>svg]:hidden"
+                  >
+                    {normalOpen ? (
+                      <ChevronDown className="h-5 w-5" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5" />
+                    )}
+                    <span className="font-medium">Active Contacts</span>
+                    <Badge variant="secondary" className="ml-2">
+                      {normalContacts.length}
+                    </Badge>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <Table>
+                      <TableHeaders />
+                      <TableBody>
+                        {normalContacts.map((contact) => (
+                          <ContactRow
+                            key={contact.id}
+                            contact={contact}
+                            onClick={() => handleContactClick(contact.id)}
+                          />
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
 
             {/* Flagged Contacts Group (Price Only + Person with Company) */}
             {flaggedContacts.length > 0 && (
-              <Collapsible open={flaggedOpen} onOpenChange={setFlaggedOpen}>
-                <CollapsibleTrigger
-                  showIcon={false}
-                  className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
-                >
-                  {flaggedOpen ? (
-                    <ChevronDown className="h-5 w-5 text-red-600" />
-                  ) : (
-                    <ChevronRight className="h-5 w-5 text-red-600" />
-                  )}
-                  <span className="font-medium text-red-700 dark:text-red-400">
-                    Flagged Contacts (Price Only / Person with Company)
-                  </span>
-                  <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-300">
-                    {flaggedContacts.length}
-                  </Badge>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <Table>
-                    <TableHeaders />
-                    <TableBody>
-                      {flaggedContacts.map((contact) => (
-                        <ContactRow
-                          key={contact.id}
-                          contact={contact}
-                          onClick={() => handleContactClick(contact.id)}
-                        />
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CollapsibleContent>
-              </Collapsible>
+              <Accordion
+                type="single"
+                collapsible
+                value={flaggedOpen ? "flagged" : ""}
+                onValueChange={(v) => setFlaggedOpen(v === "flagged")}
+              >
+                <AccordionItem value="flagged" className="border-none">
+                  <AccordionTrigger
+                    className="flex items-center gap-2 px-4 py-3 bg-red-50 dark:bg-red-900/20 border-b cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors hover:no-underline [&>svg]:hidden"
+                  >
+                    {flaggedOpen ? (
+                      <ChevronDown className="h-5 w-5 text-red-600" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-red-600" />
+                    )}
+                    <span className="font-medium text-red-700 dark:text-red-400">
+                      Flagged Contacts (Price Only / Person with Company)
+                    </span>
+                    <Badge variant="outline" className="ml-2 bg-red-100 text-red-700 border-red-300">
+                      {flaggedContacts.length}
+                    </Badge>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <Table>
+                      <TableHeaders />
+                      <TableBody>
+                        {flaggedContacts.map((contact) => (
+                          <ContactRow
+                            key={contact.id}
+                            contact={contact}
+                            onClick={() => handleContactClick(contact.id)}
+                          />
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
           </div>
         )}

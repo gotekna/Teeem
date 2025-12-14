@@ -1,0 +1,50 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "244cbfa5641d385c945c5269e6048b1b1fdb665be6792807d4ac8da33e82e253",
+      "note": "Case contact role - business relationship type, not privilege escalation"
+    },
+    {
+      "fingerprint": "304c6e23282ba90054fa3df50989580e88e3abd824409a01157a90e2c917e176",
+      "note": "E-signature signer role - document role, not privilege escalation"
+    },
+    {
+      "fingerprint": "3767395b8ce6c84c7305413d764781b1d82018bafd22894e9ab01ce99005d596",
+      "note": "File path from ImportSession model, originally sanitized on upload"
+    },
+    {
+      "fingerprint": "4a6fb5f089d19e6e63e62ac8eeb0e036e9adf4d6ba8606a6e8a8c3c8e546a27c",
+      "note": "Uses quote_column_name() and validates columns against Foundation schema"
+    },
+    {
+      "fingerprint": "50ce553f343ab75b1771c550460053c3c2bb70902ecfce77dae8c06924b6f468",
+      "note": "VIEW_CHECKS constant whitelist - view names are hardcoded"
+    },
+    {
+      "fingerprint": "6778086d5b9f4e2315f05cf9aa7961f71e1dc10e5bf4541b159a419b352f75e0",
+      "note": "Uses permit() for updates and Integer() for task_ids - properly sanitized"
+    },
+    {
+      "fingerprint": "6edd0e8e3e49a3f35b1930bb38e3098f6f5b0c9c7cdc6c6a5cba4dbd5373539a",
+      "note": "Contact person role - organization role, not privilege escalation"
+    },
+    {
+      "fingerprint": "df1cf0fd61a4d21dbbedfcb7aab4ec7d20b0cbd16e6d3711b891461529538a0b",
+      "note": "ALLOWED_VIEWS constant whitelist validates view_name"
+    },
+    {
+      "fingerprint": "e07fc7fc284979378ecd11b76ce52437d4bc5055b186f3ecba4a42e50f77b284",
+      "note": "Admin-only params, protected by current_user.admin? check"
+    },
+    {
+      "fingerprint": "f26ba3b10b600a4213bb9cb4ec63b08a9d1b588e5ce2ea8b0138215642a1378f",
+      "note": "Uses Integer() validation + Open3.capture3 with separated args"
+    },
+    {
+      "fingerprint": "f55834d41ac36c3ff36a141baeb374329a8fb1879acf29736ad159b47c24bd6c",
+      "note": "Job contact role - business relationship type, not privilege escalation"
+    }
+  ],
+  "updated": "2025-12-13",
+  "brakeman_version": "7.1.1"
+}

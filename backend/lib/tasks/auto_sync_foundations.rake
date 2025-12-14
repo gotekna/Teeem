@@ -19,6 +19,15 @@ namespace :foundation do
     puts "\n🔄 Auto-syncing Foundation metadata after migration..."
 
     begin
+      # Foundations to skip (require manual review)
+      skip_foundations = [
+        "Trinity Bible",
+        "Trinity Teacher",
+        "Trinity Lexicon",
+        "User Management",
+        "Gold Standard Reference"
+      ]
+
       # Quick check for out-of-sync foundations
       issues = find_foundation_sync_issues
 
@@ -36,11 +45,17 @@ namespace :foundation do
 
           next if orphans.empty? && missing.empty?
 
+          # Skip special foundations that require manual review
+          if skip_foundations.include?(foundation.name)
+            puts "  ⏭️  Skipping #{foundation.name} (requires manual review)"
+            next
+          end
+
           puts "  🔧 Syncing #{foundation.name}..."
 
           # Add orphaned columns
           orphans.each do |col_name|
-            next if col_name.in?(['id', 'created_at', 'updated_at'])
+            next if col_name.in?([ "id", "created_at", "updated_at" ])
 
             db_col = ActiveRecord::Base.connection.columns(foundation.database_table_name).find { |c| c.name == col_name }
             next unless db_col
@@ -56,8 +71,11 @@ namespace :foundation do
             )
           end
 
-          # Remove stale columns
+          # Remove stale columns (but NEVER system columns)
           missing.each do |col_name|
+            # CRITICAL: Never delete system columns
+            next if col_name.in?([ "id", "created_at", "updated_at" ])
+
             col = foundation.columns.find_by(column_name: col_name)
             col&.destroy
           end

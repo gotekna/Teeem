@@ -1,345 +1,731 @@
-# /t - Trinity Comprehensive Code Review
+# /t - Code Review
 
-**Shortcut:** `/t` or `review` or `audit`
+**Shortcut:** `/t`
 
-Performs a full codebase audit across security, SSoT compliance, code quality, and UI/UX standards.
+A focused code review aligned with CLAUDE.md philosophy. Checks the things that matter.
 
-## What This Command Does
+## What This Checks (8 Categories)
 
-The `/t` command runs a comprehensive code review checking 12 categories:
+| # | Category | Why It Matters |
+|---|----------|----------------|
+| 1 | **SSoT Violations** | The core philosophy - find duplicates |
+| 2 | **Sync Risk Patterns** | Code that will get out of sync with source of truth |
+| 3 | **Standard Components** | THE ONE component for each use case |
+| 4 | **Gold Standard** | 31 valid column types |
+| 5 | **SSoT Model Auditor** | Find NoMethodError time bombs |
+| 6 | **Security** | Always important |
+| 7 | **Performance** | PERF-001 to PERF-006 anti-patterns |
+| 8 | **Code Quality** | Bug patterns, dead code, over-engineering |
 
-1. **Security Scan** - Brakeman + manual review for vulnerabilities
-2. **SSoT Violations** - Duplicate definitions, conflicting sources, Foundation sync
-3. **SSoT Prevention System** - Verify 5-layer auto-sync system is installed (NEW)
-4. **UI/UX Compliance** - Chapter 19/20 standards adherence
-5. **Code Quality** - Redundant code, bottlenecks, oversized files
-6. **Database Schema Health** - Missing indexes, foreign keys
-7. **Test Coverage Gaps** - Models/controllers without specs
-8. **API Consistency** - Authentication, pagination, response format
-9. **Performance Red Flags** - N+1 queries, missing eager loading
-10. **Documentation Freshness** - Stale docs, old TODOs
-11. **TeeemTableView Compliance** - foundationIdNumeric, Gold Standard column types
-12. **Frontend Performance** - Lazy loading, eager fetches, redundant API calls
+## Execution
 
-## Execution Protocol
+### Step 1: SSoT Violations
 
-### Step 1: Run Automated Scans (Parallel)
-
-Execute these commands in parallel to gather initial data:
+**The most important check. Find things defined in multiple places.**
 
 ```bash
-# Security scan
-cd backend && bundle exec brakeman -q --no-pager 2>/dev/null || echo "Brakeman not available"
+# Duplicate constant definitions
+grep -rn "COLUMN_TYPE" backend/app --include="*.rb" | grep -v "COLUMN_TYPE_MAP\|COLUMN_SQL_TYPE" | head -10
 
-# Backend linting
-cd backend && bundle exec rubocop --format simple 2>/dev/null || echo "Rubocop not available"
+# Duplicate route definitions
+grep -rn "resources :" backend/config/routes.rb | sort | uniq -d
 
-# Frontend linting
-cd frontend-next && npm run lint 2>/dev/null || echo "ESLint not available"
+# Multiple deployment methods (we fixed this!)
+ls .claude/commands/ | grep -E "^(d|fd|l|lp)\.md$"
+
+# Missing system columns (id, created_at, updated_at) in foundations
+echo "=== Checking for missing system columns ==="
+cd backend && bin/rails runner "
+  system_columns = %w[id created_at updated_at]
+  foundations_missing = []
+
+  Foundation.find_each do |f|
+    existing = f.columns.where(column_name: system_columns).pluck(:column_name)
+    missing = system_columns - existing
+    if missing.any?
+      foundations_missing << { id: f.id, name: f.name, missing: missing }
+    end
+  end
+
+  if foundations_missing.any?
+    puts '❌ FOUND: Foundations missing system columns:'
+    foundations_missing.each do |f|
+      puts \"  Foundation #{f[:id]} (#{f[:name]}): missing #{f[:missing].join(', ')}\"
+    end
+  else
+    puts '✅ All foundations have system columns (id, created_at, updated_at)'
+  end
+"
+
+# Custom header buttons instead of leftActions (Gold Standard pattern)
+echo ""
+echo "=== Checking for custom header buttons (should use leftActions) ==="
+
+# Pattern 1: Pages without leftActions (original check)
+echo "--- Files with Add buttons but no leftActions ---"
+for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
+  if ! grep -q "leftActions" "$file"; then
+    # Check if file has Plus/Add buttons that might be in custom header
+    if grep -q "Plus.*Add\|Add.*Item\|New.*Button" "$file"; then
+      echo "  ⚠️  $file - has Add button but no leftActions"
+    fi
+  fi
+done
+
+# Pattern 2: Standalone Export/Import buttons in header (should be in TeeemTableView dropdown)
+echo ""
+echo "--- Custom Export/Import buttons (should use TeeemTableView's built-in) ---"
+grep -rn "Button.*Export\|Button.*Import" frontend-next/app/\(app\) --include="*.tsx" 2>/dev/null | \
+  grep -v "leftActions\|TeeemTableView" | \
+  grep "variant.*outline\|variant.*default" | \
+  head -10
+
+# Pattern 3: Add buttons in page header instead of leftActions
+echo ""
+echo "--- Add buttons in page header (should use leftActions) ---"
+grep -rn "<div.*justify-between" frontend-next/app/\(app\) --include="*.tsx" -A 20 2>/dev/null | \
+  grep -B 5 "Plus.*Add\|Add.*Item" | \
+  grep -v "leftActions" | \
+  head -15
 ```
 
-### Step 2: SSoT Validation
+**Expected:**
+- Only `/l` and `/lp` for deployment (SSoT)
+- No duplicate constants
+- No duplicate routes
+- All foundations have system columns (id, created_at, updated_at)
+- All tables use `leftActions` for Add buttons (Gold Standard pattern)
 
-**Foundation Schema Sync Check:**
+### Step 2: Sync Risk Patterns (NEW - Catches Manual Lists)
 
-Check that database schema columns match Foundation metadata (prevents SSoT violations):
+**Find code that manually lists things that should be auto-derived from a source of truth.**
+
+This catches mistakes like:
+- `case model.name when "Job"... when "Contact"...` (should use Rails reflections)
+- Hardcoded table lists (should query Foundation or schema)
+- Manual association lists (should use `reflect_on_all_associations`)
 
 ```bash
-# Check all Foundation tables for sync issues
-cd backend && bin/rails foundation:check
+echo "=== SYNC RISK: Manual Model/Table Lists ==="
+
+# Pattern 1: case statements on model.name or model.class.name
+# These almost always should use reflection instead
+echo ""
+echo "--- Case statements on model names (should use reflection) ---"
+grep -rn "case.*model\\.name\|when.*\"Job\"\|when.*\"Contact\"\|when.*\"PricebookItem\"" backend/app --include="*.rb" | grep -v "#.*case" | head -10
+
+# Pattern 2: Hardcoded arrays of table/model names
+echo ""
+echo "--- Hardcoded model/table arrays (should query schema) ---"
+grep -rn "%w\[.*Job.*Contact\|%w\[.*jobs.*contacts\|\[.*\"Job\".*\"Contact\"" backend/app --include="*.rb" | head -10
+
+# Pattern 3: Manual association includes (should use reflect_on_all_associations)
+echo ""
+echo "--- Manual includes lists (should auto-derive from model) ---"
+grep -rn "includes(.*:job_type.*:job_status\|includes(.*:supplier.*:category" backend/app --include="*.rb" | head -10
+
+# Pattern 4: Manual column lists that duplicate schema
+echo ""
+echo "--- Hardcoded column lists (should query model.column_names) ---"
+grep -rn "select(:id.*:name.*:status\|pluck(:id.*:name" backend/app --include="*.rb" | grep -v "\.select\s*{" | head -10
+
+# Pattern 5: system_searchable or similar manual mappings
+echo ""
+echo "--- Manual table-specific mappings (SSoT risk) ---"
+grep -rn "\"contacts\".*=>\|\"jobs\".*=>\|\"pricebook" backend/app/controllers --include="*.rb" | head -10
 ```
 
-**Expected Output (GOOD):**
-```
-✅ All Foundation columns are in sync!
+**What to do when found:**
+1. Ask: "Is there a source of truth for this data?"
+2. If YES → Refactor to read from that source
+3. Common sources:
+   - Model associations → `Model.reflect_on_all_associations`
+   - Table columns → `Model.column_names`
+   - Foundation columns → `foundation.columns`
+   - All tables → `Foundation.all` or `ActiveRecord::Base.connection.tables`
+
+**Example fix (what we just did):**
+```ruby
+# ❌ BAD: Manual list that will get out of sync
+case model.name
+when "Job"
+  query.includes(:job_type, :job_status)
+when "Contact"
+  query.includes(:corporate_group)
+end
+
+# ✅ GOOD: Auto-derive from model (SSoT)
+associations = model.reflect_on_all_associations(:belongs_to).map(&:name)
+query.includes(*associations)
 ```
 
-**Problem Output:**
-```
-⚠️ X foundation(s) with column sync issues
-  - Y orphaned columns (in DB, not in Foundation metadata)
-  - Z missing columns (in Foundation metadata, not in DB)
-```
+**Expected:** Zero manual lists that duplicate model/schema information
 
-**If issues found:**
-- Log as SSoT violation in report
-- Recommend: `rails foundation:sync` to auto-fix
-- Check if caused by recent migration
+### Step 3: Standard Component Usage
 
-**Foundation Sync Prevention System Check (NEW):**
+**Check files use THE ONE component per CLAUDE.md:**
 
-Verify all 5 prevention layers are installed and working:
+| Need | THE ONE | Never Use |
+|------|---------|-----------|
+| Data Table | `TeeemTableView` | `data-table.tsx` |
+| Searchable Select | `ComboboxDropdown` | `combobox.tsx` |
+| Multi-Select | `MultipleSelector` | `multi-select-combobox.tsx` |
+| Loading | `Spinner` | `loader.tsx` |
+| Side Panel | `Sheet` | `drawer.tsx` |
+| Collapsible | `Accordion` | `collapsible.tsx` |
 
 ```bash
-# Layer 1: Post-migration auto-sync hook
-test -f backend/lib/tasks/auto_sync_foundations.rake && echo "✅ Auto-sync hook installed" || echo "❌ Missing: auto_sync_foundations.rake"
-
-# Layer 2: CI/CD health check
-test -f backend/lib/tasks/foundation_health_check.rake && echo "✅ CI/CD health check installed" || echo "❌ Missing: foundation_health_check.rake"
-
-# Layer 3: Daily monitoring job
-test -f backend/app/jobs/foundation_sync_monitor_job.rb && echo "✅ Monitoring job installed" || echo "❌ Missing: foundation_sync_monitor_job.rb"
-
-# Layer 4: Deployment auto-sync
-grep -q "deploy:prepare" backend/Procfile && echo "✅ Deployment hook configured" || echo "❌ Procfile not configured for auto-sync"
-
-# Layer 5: Recurring schedule configured
-grep -q "foundation_sync_monitor" backend/config/recurring.yml && echo "✅ Daily monitoring scheduled" || echo "❌ Not scheduled in recurring.yml"
-
-# Bonus: Verify deploy.rake exists
-test -f backend/lib/tasks/deploy.rake && echo "✅ Deploy tasks installed" || echo "❌ Missing: deploy.rake"
+# Check for deprecated component imports
+grep -rn "from.*data-table" frontend-next/app --include="*.tsx" | head -5
+grep -rn "from.*combobox['\"]" frontend-next/app --include="*.tsx" | grep -v "combobox-dropdown" | head -5
+grep -rn "from.*multi-select-combobox" frontend-next/app --include="*.tsx" | head -5
+grep -rn "from.*loader" frontend-next/app --include="*.tsx" | head -5
+grep -rn "from.*drawer" frontend-next/app --include="*.tsx" | head -5
+grep -rn "from.*collapsible" frontend-next/app --include="*.tsx" | head -5
 ```
 
-**Expected Output (ALL GREEN):**
-```
-✅ Auto-sync hook installed
-✅ CI/CD health check installed
-✅ Monitoring job installed
-✅ Deployment hook configured
-✅ Daily monitoring scheduled
-✅ Deploy tasks installed
-```
+**Expected:** Zero matches (all using THE ONE)
 
-**If any missing:**
-- Log as CRITICAL SSoT violation
-- System vulnerable to column drift
-- Run setup from: `backend/FOUNDATION_SYNC_PREVENTION.md`
+### Step 4: Gold Standard Column Types
 
-**FoundationView Sync Check:**
-
-Check that all FoundationViews are synchronized with their Foundation's columns:
+**Validate all columns use one of the 31 valid types:**
 
 ```bash
-# Check if any views need syncing (dry run)
-cd backend && bin/rails foundation_views:check
+# Check for invalid column types
+cd backend && bin/rails runner "
+  valid_types = Column::COLUMN_TYPE_MAP.keys
+  invalid = Column.where.not(column_type: valid_types)
+  if invalid.any?
+    puts 'INVALID COLUMN TYPES:'
+    invalid.group(:column_type).count.each { |t, c| puts \"  #{t}: #{c} columns\" }
+  else
+    puts 'All columns use valid Gold Standard types'
+  end
+"
 ```
 
-**Expected Output (GOOD):**
-```
-✓ All foundations are in sync!
-```
+### Step 5: SSoT Model Auditor
 
-**Problem Output:**
-```
-Found X foundations that need syncing:
-  Foundation Name
-    Mismatched views: Y/Z
-```
-
-**If issues found:**
-- Log as SSoT violation in report
-- Recommend: `rails foundation_views:sync_all` to auto-fix
-- This prevents "can't see all columns in View Manager" bugs
-- Auto-sync now prevents this (see Column model callbacks)
-
-**Column Type SSoT Check (31 types):**
-
-1. Read `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` - extract all 31 column types
-2. Read `backend/app/models/column.rb` - extract COLUMN_SQL_TYPE_MAP (should have 31 types)
-3. Read `frontend-next/lib/column-types.ts` - extract column definitions
-4. Compare and flag any mismatches
-
-**Valid Column Types (31 total):**
-```
-Text (6):         single_line_text, multiple_lines_text, email, phone, mobile, url
-Numbers (4):      number, whole_number, currency, percentage
-Dates (2):        date, date_and_time
-Special (4):      gps_coordinates, color_picker, file_upload, action_buttons
-Selection (2):    boolean, choice
-Relationships (3):lookup, multiple_lookups, user
-Computed (1):     computed
-Advanced (3):     structured_data, array_of_items, searchable_text
-Australian (6):   abn, acn, bsb, bank_account, postcode, tfn
-```
-
-**Duplicate Definition Check:**
-- Search for constants defined in multiple files
-- Search for same route defined multiple ways
-- Search for duplicate environment variable usage
-
-### Step 3: Code Quality Analysis
-
-**Oversized Files (>500 lines):**
-```bash
-find backend/app -name "*.rb" -exec wc -l {} + | sort -rn | head -20
-find frontend-next -name "*.tsx" -exec wc -l {} + | sort -rn | head -20
-```
-
-**Pattern Violations:**
-Check for known bug patterns from code-guardian.md:
-- PATTERN-001: Empty array assignment bugs
-- PATTERN-002: Race conditions in async operations
-- PATTERN-003: Infinite loop in data fetching
-- PATTERN-004: Deprecated component usage
-- PATTERN-005: setState in useEffect (cascading renders)
-
-**ESLint Check for PATTERN-005:**
-```bash
-# Check for react-hooks/set-state-in-effect violations
-cd frontend-next && npm run lint 2>&1 | grep "set-state-in-effect"
-```
-
-### Step 4: Frontend Performance Audit
-
-**Check for performance anti-patterns using performance-auditor.md rules:**
-
-**PERF-001: Loading ALL Records on Mount**
-```bash
-# Find pages loading all records on mount
-grep -r "useEffect.*\[\]" frontend-next/app --include="*.tsx" -A 10 | grep -E "api\.(get|post).*\/api\/v1\/\w+['\"]"
-```
-
-**PERF-002: Missing Lazy Loading for Modals**
-```bash
-# Find modal/dialog pages without lazy loading
-grep -r "Modal\|Dialog\|Popover" frontend-next/app --include="*.tsx" -l | xargs grep -l "useEffect.*\[\]"
-```
-
-**PERF-003: Detail Pages Calling "All" Endpoints**
-```bash
-# Check [id] pages for calls to non-ID endpoints
-find frontend-next/app -path "*\[*\]*" -name "*.tsx" | xargs grep -l "api.get.*\/api\/v1\/\w\+['\"])"
-```
-
-**PERF-004: Missing Fetch Guards**
-```bash
-# Find useEffect with modal deps but no guards
-grep -r "useEffect.*modalOpen\|dialogOpen\|showDialog" frontend-next/app --include="*.tsx" -A 5 | grep -v "length.*0\|\.current"
-```
-
-**High-Priority Pages to Audit:**
-- `app/(app)/jobs/[id]/page.tsx`
-- `app/(app)/contacts/[id]/page.tsx`
-- `app/(app)/corporate/companies/[id]/page.tsx`
-- `app/(app)/pricebook/[code]/page.tsx`
-- `app/(app)/chat/page.tsx`
-- `app/(app)/dashboard/page.tsx`
-
-### Step 5: UI/UX Compliance
-
-**TeeemTableView Check:**
-- Find tables with `foundationId` but missing `foundationIdNumeric`
-- Tables without `foundationIdNumeric` don't get: Import/Export, Schema Editor, Filters, GlobalViewsManager
+**Find NoMethodError time bombs - method calls on models that don't exist:**
 
 ```bash
-# Find potential violations
-grep -r 'foundationId=' frontend-next --include="*.tsx" | grep -v 'foundationIdNumeric'
+# Run the SSoT Model Auditor
+cd backend && bin/rails ssot:audit
 ```
 
-**Column Type Validation:**
-- Check all columns in database use one of the 31 valid Gold Standard types
-- Flag any columns with invalid/undocumented types:
-```bash
-# Quick check via Rails runner
-cd backend && bin/rails runner "invalid = Column.where.not(column_type: Column::COLUMN_TYPE_MAP.keys); puts invalid.any? ? 'INVALID TYPES FOUND: ' + invalid.pluck(:column_type).uniq.join(', ') : 'All columns valid'"
-```
+**What it checks:**
+- Scans controllers, services, jobs, models, mailers
+- Finds method calls like `job.title` when the method is actually `job.name`
+- Suggests similar methods that likely match intent
+- Prevents runtime NoMethodError crashes
 
-### Step 6: Database Schema Health
+**Expected:** 0 issues found
 
-```bash
-# Check for tables without indexes on foreign keys
-cd backend && bin/rails runner "puts 'Checking foreign key indexes...'"
-
-# Check for pending migrations
-cd backend && bin/rails db:migrate:status
-```
-
-### Step 7: Test Coverage
+### Step 6: Security Scan
 
 ```bash
-# Find models without specs
-cd backend && for model in app/models/*.rb; do spec="spec/models/$(basename $model .rb)_spec.rb"; [ ! -f "$spec" ] && echo "Missing: $spec"; done 2>/dev/null
-
-# Find controllers without specs
-cd backend && for ctrl in app/controllers/api/v1/*.rb; do spec="spec/requests/api/v1/$(basename $ctrl .rb | sed 's/_controller//')_spec.rb"; [ ! -f "$spec" ] && echo "Missing: $spec"; done 2>/dev/null
+# Quick security check
+cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -30 || echo "Brakeman not available"
 ```
 
-### Step 8: Generate Report
+### Step 7: Performance Auditor (Masterpiece Level)
 
-Compile all findings into standardized format:
+**CRITICAL: Slow UI = bad product. Take whatever time needed to guarantee great performance.**
+
+This is a comprehensive audit covering frontend, backend, and network performance.
+
+---
+
+#### PART A: Frontend Performance
+
+##### A1. Page Load Analysis - The 5 Main Tables
+
+**The 5 Core Tables:** Jobs, Contacts, Pricebook, Price Histories, Corporate Companies
+
+For EACH page in this list, analyze what loads on mount:
+
+```bash
+# The 5 main table pages to audit
+PAGES=(
+  "frontend-next/app/(app)/jobs/page.tsx"
+  "frontend-next/app/(app)/contacts/page.tsx"
+  "frontend-next/app/(app)/pricebook/page.tsx"
+  "frontend-next/app/(app)/pricebook/price-history/page.tsx"
+  "frontend-next/app/(app)/corporate/companies/page.tsx"
+)
+
+for page in "${PAGES[@]}"; do
+  echo "=== Analyzing: $page ==="
+  if [ -f "$page" ]; then
+    # Count useEffect hooks
+    echo "useEffect count: $(grep -c 'useEffect' $page 2>/dev/null || echo 0)"
+    # Show what loads on mount
+    echo "On-mount fetches:"
+    grep -A 15 "useEffect" $page 2>/dev/null | grep -E "fetch|api\.|\.get\(|\.post\(" | head -5
+    echo ""
+  fi
+done
+```
+
+##### A2. Modal/Dialog Lazy Loading Audit
+
+```bash
+# Find ALL files with modals
+echo "=== Files with Modals/Dialogs ==="
+MODAL_FILES=$(grep -rln "Modal\|Dialog\|Sheet\|Popover" frontend-next/app/\(app\) --include="*.tsx")
+
+for file in $MODAL_FILES; do
+  echo ""
+  echo "--- $file ---"
+
+  # Check if data loads on mount that should be lazy
+  HAS_MOUNT_EFFECT=$(grep -c "useEffect.*\[\s*\]" $file 2>/dev/null || echo 0)
+  HAS_LAZY_GUARD=$(grep -c "modalOpen\|isOpen\|dialogOpen" $file 2>/dev/null || echo 0)
+
+  if [ "$HAS_MOUNT_EFFECT" -gt 0 ] && [ "$HAS_LAZY_GUARD" -eq 0 ]; then
+    echo "⚠️  WARNING: Has mount effect but no modal state guard"
+    echo "   Likely loading modal data on page mount instead of when opened"
+  elif [ "$HAS_MOUNT_EFFECT" -gt 0 ]; then
+    echo "   Has $HAS_MOUNT_EFFECT mount effects - verify they're necessary"
+  else
+    echo "   ✅ No suspicious mount effects"
+  fi
+done
+```
+
+##### A3. useEffect Dependency Audit
+
+```bash
+# Find ALL useEffect hooks and categorize them
+echo "=== useEffect Audit ==="
+
+# Empty deps (run once on mount) - REVIEW EACH
+echo ""
+echo "--- Empty deps [] (run on mount) ---"
+grep -rn "useEffect.*\[\s*\]" frontend-next/app/\(app\) --include="*.tsx" | head -30
+
+# Missing deps (potential infinite loops)
+echo ""
+echo "--- Potential missing deps (useEffect without array) ---"
+grep -rn "useEffect.*=>" frontend-next/app/\(app\) --include="*.tsx" | grep -v "\[" | head -20
+```
+
+##### A4. Bundle/Import Analysis
+
+```bash
+# Find heavy imports that might bloat bundle
+echo "=== Heavy Imports Check ==="
+
+# Large libraries that should be lazy loaded
+grep -rn "import.*from.*lodash['\"]" frontend-next/app --include="*.tsx" | head -10
+grep -rn "import.*from.*moment['\"]" frontend-next/app --include="*.tsx" | head -10
+grep -rn "import.*from.*date-fns['\"]" frontend-next/app --include="*.tsx" | head -10
+
+# Check for barrel imports (slow)
+echo ""
+echo "--- Barrel imports (import from index) ---"
+grep -rn "from ['\"]@/components['\"]" frontend-next/app --include="*.tsx" | head -10
+grep -rn "from ['\"]@/lib['\"]" frontend-next/app --include="*.tsx" | head -10
+```
+
+---
+
+#### PART B: Backend Performance
+
+##### B1. N+1 Query Detection
+
+```bash
+cd backend && bin/rails runner "
+puts '=== N+1 Query Risk Analysis ==='
+puts ''
+
+# Check controllers for includes/preload usage
+controllers = Dir.glob('app/controllers/**/*.rb')
+controllers.each do |file|
+  content = File.read(file)
+
+  # Find .all or .where without includes
+  if content.match?(/\\.all(?!.*includes)/) || content.match?(/\\.where(?!.*includes)/)
+    has_includes = content.include?('.includes(') || content.include?('.preload(')
+    has_iteration = content.include?('.each') || content.include?('.map')
+
+    if has_iteration && !has_includes
+      puts \"⚠️  #{file}\"
+      puts '   Has iteration without eager loading - potential N+1'
+    end
+  end
+end
+
+puts ''
+puts '=== The 5 Main Tables - Eager Loading Check ==='
+# The 5 core tables: Jobs, Contacts, Pricebook, Price Histories, Corporate
+%w[jobs contacts pricebook_items price_histories corporate_companies].each do |resource|
+  controller = \"app/controllers/api/v1/#{resource}_controller.rb\"
+  if File.exist?(controller)
+    content = File.read(controller)
+    has_includes = content.include?('.includes(')
+    puts \"#{resource}: #{has_includes ? '✅ Has includes' : '⚠️  No includes found'}\"
+  else
+    puts \"#{resource}: ⚠️  Controller not found\"
+  end
+end
+"
+```
+
+##### B2. Missing Database Indexes
+
+```bash
+cd backend && bin/rails runner "
+puts '=== Missing Index Analysis ==='
+puts ''
+
+# Check for foreign keys without indexes
+ActiveRecord::Base.connection.tables.each do |table|
+  next if %w[schema_migrations ar_internal_metadata].include?(table)
+
+  columns = ActiveRecord::Base.connection.columns(table)
+  indexes = ActiveRecord::Base.connection.indexes(table).map(&:columns).flatten
+
+  fk_columns = columns.select { |c| c.name.end_with?('_id') }
+  missing = fk_columns.reject { |c| indexes.include?(c.name) }
+
+  if missing.any?
+    puts \"#{table}:\"
+    missing.each { |c| puts \"  ⚠️  #{c.name} - no index\" }
+  end
+end
+"
+```
+
+##### B3. API Response Size Analysis
+
+```bash
+cd backend && bin/rails runner "
+puts '=== API Payload Size Analysis ==='
+puts ''
+puts 'The 5 Main Tables - checking payload sizes...'
+puts ''
+
+# The 5 core tables with their max column limits
+models = {
+  'Job' => { max_list: 15, max_detail: 50 },
+  'Contact' => { max_list: 12, max_detail: 40 },
+  'PricebookItem' => { max_list: 12, max_detail: 35 },
+  'PriceHistory' => { max_list: 10, max_detail: 25 },
+  'CorporateCompany' => { max_list: 12, max_detail: 30 }
+}
+
+models.each do |model_name, limits|
+  klass = model_name.constantize rescue nil
+  next unless klass
+
+  record = klass.first
+  next unless record
+
+  cols = record.as_json.keys
+  col_count = cols.count
+
+  # Estimate payload size (rough: 50 bytes per column average)
+  estimated_bytes = col_count * 50
+
+  status = col_count > limits[:max_list] ? '⚠️  BLOATED for list view' : '✅'
+
+  puts \"#{model_name}:\"
+  puts \"  Columns: #{col_count} (list max: #{limits[:max_list]}, detail max: #{limits[:max_detail]})\"
+  puts \"  Est. size per record: ~#{estimated_bytes} bytes\"
+  puts \"  Status: #{status}\"
+
+  if col_count > limits[:max_list]
+    puts \"  Columns returned: #{cols.sort.join(', ')}\"
+  end
+  puts ''
+end
+"
+```
+
+##### B4. Slow Query Log Check
+
+```bash
+# Check for slow queries in recent logs
+echo "=== Recent Slow Queries (>100ms) ==="
+if [ -f "backend/log/development.log" ]; then
+  grep -E "([0-9]{3,}ms)" backend/log/development.log | tail -20
+else
+  echo "No development log found"
+fi
+```
+
+---
+
+#### PART C: Network Performance
+
+##### C1. API Call Count Per Page
+
+```bash
+echo "=== API Calls Per Page ==="
+
+# For each major page, count distinct API endpoints called
+for page in frontend-next/app/\(app\)/*/page.tsx; do
+  if [ -f "$page" ]; then
+    name=$(dirname $page | xargs basename)
+    api_calls=$(grep -oE "api\.(get|post|put|delete|patch)\(['\"][^'\"]+['\"]" $page 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    fetch_calls=$(grep -oE "fetch\(['\"][^'\"]+['\"]" $page 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    total=$((api_calls + fetch_calls))
+
+    status="✅"
+    if [ "$total" -gt 5 ]; then
+      status="⚠️  HIGH"
+    elif [ "$total" -gt 3 ]; then
+      status="🟡 MEDIUM"
+    fi
+
+    echo "$name: $total API calls $status"
+  fi
+done
+```
+
+##### C2. Foundation API Optimization Check
+
+```bash
+echo "=== Foundation API Optimization ==="
+echo ""
+
+# Check that eager loading is being used (SSoT approach)
+echo "--- Backend: Auto eager loading check ---"
+grep -rn "apply_eager_loading\|reflect_on_all_associations" backend/app/controllers --include="*.rb" | head -5
+
+echo ""
+echo "--- Foundation API usage ---"
+grep -rn "useFoundationBySlug\|/api/v1/foundations" frontend-next/app --include="*.tsx" | head -10
+```
+
+##### C3. Caching Analysis
+
+```bash
+echo "=== Caching Patterns ==="
+
+# Check for React Query / SWR usage
+echo "--- Data fetching library usage ---"
+grep -rn "useQuery\|useSWR\|useInfiniteQuery" frontend-next/app --include="*.tsx" | wc -l | xargs echo "Query hooks found:"
+
+# Check for manual caching
+echo ""
+echo "--- Manual cache patterns ---"
+grep -rn "useRef.*cache\|localStorage\|sessionStorage" frontend-next/app --include="*.tsx" | head -10
+```
+
+---
+
+#### PART D: Real Performance Measurements
+
+##### D1. API Response Time Test
+
+```bash
+echo "=== API Response Times (Local) ==="
+
+# Test key endpoints (requires local server running)
+ENDPOINTS=(
+  "/api/v1/jobs"
+  "/api/v1/contacts"
+  "/api/v1/purchase_orders"
+  "/api/v1/corporate_companies"
+)
+
+for endpoint in "${ENDPOINTS[@]}"; do
+  echo -n "$endpoint: "
+  time_ms=$(curl -s -o /dev/null -w "%{time_total}" "http://localhost:3001$endpoint" 2>/dev/null | awk '{printf "%.0f", $1 * 1000}')
+
+  if [ -n "$time_ms" ]; then
+    if [ "$time_ms" -gt 1000 ]; then
+      echo "${time_ms}ms ⚠️  SLOW (>1s)"
+    elif [ "$time_ms" -gt 500 ]; then
+      echo "${time_ms}ms 🟡 MEDIUM (>500ms)"
+    else
+      echo "${time_ms}ms ✅"
+    fi
+  else
+    echo "Server not running"
+    break
+  fi
+done
+```
+
+##### D2. Payload Size Test
+
+```bash
+echo "=== Actual Payload Sizes ==="
+
+for endpoint in "/api/v1/jobs" "/api/v1/contacts" "/api/v1/purchase_orders"; do
+  echo -n "$endpoint: "
+  size=$(curl -s "http://localhost:3001$endpoint" 2>/dev/null | wc -c | tr -d ' ')
+
+  if [ -n "$size" ] && [ "$size" -gt 0 ]; then
+    size_kb=$((size / 1024))
+    if [ "$size_kb" -gt 100 ]; then
+      echo "${size_kb}KB ⚠️  LARGE (>100KB)"
+    elif [ "$size_kb" -gt 50 ]; then
+      echo "${size_kb}KB 🟡 MEDIUM (>50KB)"
+    else
+      echo "${size_kb}KB ✅"
+    fi
+  else
+    echo "Server not running"
+    break
+  fi
+done
+```
+
+---
+
+#### PERFORMANCE AUDIT SUMMARY
+
+After running all checks, provide:
 
 ```
-════════════════════════════════════════════════════════════════
-                    TEEEM CODE REVIEW REPORT
-                    [Brisbane Time]
-════════════════════════════════════════════════════════════════
-
-SUMMARY (12 Categories)
-───────────────────────
-[PASS/WARN/FAIL] 1. Security:              X issues
-[PASS/WARN/FAIL] 2. SSoT:                  X issues
-[PASS/WARN/FAIL] 3. SSoT Prevention:       X issues (NEW - 5 layers)
-[PASS/WARN/FAIL] 4. UI/UX:                 X issues
-[PASS/WARN/FAIL] 5. Code Quality:          X issues
-[PASS/WARN/FAIL] 6. DB Schema:             X issues
-[PASS/WARN/FAIL] 7. Test Coverage:         X issues
-[PASS/WARN/FAIL] 8. API Consistency:       X issues
-[PASS/WARN/FAIL] 9. Backend Performance:   X issues
-[PASS/WARN/FAIL] 10. Documentation:        X issues
-[PASS/WARN/FAIL] 11. TeeemTableView:       X issues
-[PASS/WARN/FAIL] 12. Frontend Perf:        X issues (PERF-001 to 005)
-
-Total: X issues (Y critical, Z warnings)
-
-[DETAILED FINDINGS BY CATEGORY...]
-
-PRIORITY FIXES
-──────────────
-1. [Highest priority item]
-2. [Second priority item]
-...
-
-════════════════════════════════════════════════════════════════
+╔════════════════════════════════════════════════════════════════════╗
+║              PERFORMANCE AUDIT - MASTERPIECE CHECK                  ║
+╠════════════════════════════════════════════════════════════════════╣
+║  PART A: Frontend                                                   ║
+║    A1. Page Load Analysis:        [X pages reviewed]       [STATUS] ║
+║    A2. Modal Lazy Loading:        [X/Y properly lazy]      [STATUS] ║
+║    A3. useEffect Dependencies:    [X issues found]         [STATUS] ║
+║    A4. Bundle/Import Analysis:    [X heavy imports]        [STATUS] ║
+╠════════════════════════════════════════════════════════════════════╣
+║  PART B: Backend                                                    ║
+║    B1. N+1 Query Risk:            [X controllers flagged]  [STATUS] ║
+║    B2. Missing Indexes:           [X missing]              [STATUS] ║
+║    B3. API Payload Sizes:         [X bloated endpoints]    [STATUS] ║
+║    B4. Slow Queries:              [X found in logs]        [STATUS] ║
+╠════════════════════════════════════════════════════════════════════╣
+║  PART C: Network                                                    ║
+║    C1. API Calls Per Page:        [max X calls]            [STATUS] ║
+║    C2. Foundation Optimization:   [fields=minimal usage]   [STATUS] ║
+║    C3. Caching Patterns:          [query hooks count]      [STATUS] ║
+╠════════════════════════════════════════════════════════════════════╣
+║  PART D: Measurements                                               ║
+║    D1. API Response Times:        [slowest: Xms]           [STATUS] ║
+║    D2. Payload Sizes:             [largest: XKB]           [STATUS] ║
+╠════════════════════════════════════════════════════════════════════╣
+║  OVERALL: [MASTERPIECE / NEEDS WORK]                                ║
+║  Priority Fixes: [List top 3 issues]                                ║
+╚════════════════════════════════════════════════════════════════════╝
 ```
 
-## Arguments (Optional)
+**Masterpiece Criteria (ALL must pass):**
+- ✅ Every high-traffic page loads <3 API calls on mount
+- ✅ All modals lazy load their data
+- ✅ No useEffect hooks with missing/wrong dependencies
+- ✅ No N+1 queries in controllers (auto eager loading via SSoT)
+- ✅ All foreign keys have indexes
+- ✅ Associations auto-derived from model reflections (not manual lists)
+- ✅ API response times <500ms
+- ✅ Payload sizes <50KB for list views
 
-| Command | Scope |
-|---------|-------|
-| `/t` | Full codebase review |
-| `/t backend` | Backend only |
-| `/t frontend` | Frontend only |
-| `/t security` | Security scan only |
-| `/t ssot` | SSoT validation only |
-| `/t quick` | Summary only, skip details |
+### Step 8: Code Quality (Bug Patterns, Dead Code, Over-Engineering)
 
-## Performance Target
+**Quick automated checks from Code Guardian:**
 
-**Full Review:** ~60-90 seconds
-- Parallel scans: ~10s
-- SSoT validation: ~15s
-- Code quality: ~20s
-- UI/UX checks: ~15s
-- Report generation: ~5s
+| Pattern | What It Catches |
+|---------|-----------------|
+| BUG-001 | Empty array assignment (data loss) |
+| BUG-002 | useEffect without deps (infinite loops) |
+| BUG-003 | setState in useEffect (cascading renders) |
+| DEAD-001 | Commented-out code blocks |
+| DEAD-002 | Unused imports |
+| OVER-001 | God objects (files > 500 lines) |
 
-## Related Agents
+```bash
+# BUG-001: Empty array assignment (data loss risk)
+grep -rn "= \[\]" frontend-next/app --include="*.tsx" | grep -v "useState\|const.*=.*\[\].*||" | head -5
 
-This command leverages checks from:
-- `foundation-schema-sync.md` - Database ↔ Foundation metadata sync validation
-- `foundation-view-sync.md` - FoundationView ↔ Foundation columns sync validation (NEW)
-- `gold-standard-sst.md` - Column type SSoT (31 types)
-- `code-guardian.md` - Pattern detection (5 patterns)
-- `performance-auditor.md` - Frontend performance (PERF-001 to 005)
-- `ui-table-auditor.md` - Table compliance (including foundationIdNumeric)
-- `ui-compliance-auditor.md` - Frontend standards
-- `architecture-guardian.md` - SOLID principles
-- `ssot-agent.md` - SSoT validation
+# BUG-002: useEffect with empty function body or missing return
+grep -rn "useEffect.*=>" frontend-next/app --include="*.tsx" | grep -v "cleanup\|return" | head -5
 
-## Important Notes
+# DEAD-001: Large commented blocks (3+ consecutive // lines)
+grep -rn "^[[:space:]]*//.*$" frontend-next/app --include="*.tsx" -A2 | grep -E "^[^:]+:[0-9]+-[[:space:]]*//|^--$" | head -10
 
-- Does NOT auto-fix issues (report only)
-- Does NOT log to Lexicon automatically
-- Run `/t` before major commits for quality gate
-- Use specific arguments for faster targeted reviews
+# OVER-001: God objects (files > 500 lines)
+find frontend-next/app -name "*.tsx" -exec wc -l {} \; | awk '$1 > 500 {print $1, $2}' | sort -rn | head -5
+find backend/app -name "*.rb" -exec wc -l {} \; | awk '$1 > 500 {print $1, $2}' | sort -rn | head -5
+```
 
-## Post-Review: Updating Agents
+**Expected:** No data-loss patterns, no god objects over 500 lines
 
-If new patterns are discovered during review:
+## Report Format
 
-1. Ask: "Found X new patterns. Update agents? [Y/N]"
-2. If Y, update relevant agent files with:
-   - Pattern name and description
-   - Detection method (grep pattern or manual check)
-   - Severity level (critical/warning/info)
-   - Suggested fix template
-3. Add to `TEEEM_DOCS/DETECTION_RULES.md` for centralized tracking
+```
+════════════════════════════════════════
+     TEEEM CODE REVIEW
+     [Brisbane Time]
+════════════════════════════════════════
+
+1. SSoT Violations:     [PASS/X issues]
+2. Sync Risk Patterns:  [PASS/X issues]  ← NEW: Catches manual lists
+3. Standard Components: [PASS/X issues]
+4. Gold Standard:       [PASS/X issues]
+5. Model Auditor:       [PASS/X issues]
+6. Security:            [PASS/X issues]
+7. Performance:         [PASS/X issues]
+8. Code Quality:        [PASS/X issues]
+
+────────────────────────────────────────
+Total: X issues to fix
+════════════════════════════════════════
+
+[DETAILS IF ISSUES FOUND]
+```
+
+## Quick Options
+
+| Command | Scope | Time |
+|---------|-------|------|
+| `/t` | Full review (all 8 checks) | ~10-15 min |
+| `/t ssot` | SSoT violations only | ~10 sec |
+| `/t sync` | **Sync Risk Patterns** - catches manual lists that should be auto-derived | ~15 sec |
+| `/t ui` | Standard components only | ~10 sec |
+| `/t gold` | Gold Standard only | ~10 sec |
+| `/t model` | Model Auditor only | ~15 sec |
+| `/t sec` | Security only | ~10 sec |
+| `/t perf` | **Performance Masterpiece Audit** (4 parts, 13 checks) | ~5-10 min |
+| `/t code` | Code Quality only (bug patterns, dead code) | ~30 sec |
+| `/t deep` | **Code Guardian** - Deep dive with manual review | ~20-30 min |
+
+### `/t deep` - Code Guardian (Ultrathink Mode)
+
+When you want to ensure code is **masterpiece quality**, run `/t deep`. This spawns the Code Guardian agent which does a thorough 8-point audit:
+
+| # | Check | What It Catches |
+|---|-------|-----------------|
+| 1 | SSoT Violations | Duplicates, multiple ways to do same thing |
+| 2 | Standard Components | Wrong component usage per CLAUDE.md |
+| 3 | Clean Architecture | SOLID principles, god objects, circular deps |
+| 4 | Bug Patterns | Empty arrays, race conditions, infinite loops |
+| 5 | Over-Engineering | Features not requested, premature abstractions |
+| 6 | Dead Code | Unused vars, commented code, backwards-compat hacks |
+| 7 | Performance | N+1 queries, unnecessary fetches |
+| 8 | Security | OWASP top 10 vulnerabilities |
+
+**When to use `/t deep`:**
+- Before major releases
+- After large features land
+- Weekly codebase health check
+- When something "feels" messy
+
+## Philosophy
+
+This command embodies the Ultrathink principle: **"Simplify ruthlessly."**
+
+**Standard mode (`/t`)** - 8 checks that matter:
+1. SSoT violations break the codebase philosophy
+2. Sync risk patterns create future bugs (manual lists that should be auto-derived)
+3. Wrong components create maintenance debt
+4. Invalid column types break the data model
+5. Missing model methods cause runtime crashes
+6. Security issues risk the business
+7. Performance anti-patterns slow users down
+8. Code quality catches bugs before production
+
+**Deep mode (`/t deep`)** - Full Code Guardian:
+- When you need to verify code is a **masterpiece**
+- Manual review of architecture and patterns
+- "Elegance is achieved not when there's nothing left to add, but when there's nothing left to take away"

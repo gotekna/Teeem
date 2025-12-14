@@ -61,8 +61,8 @@ class XeroBankTransactionSyncJob < ApplicationJob
         sleep(0.5)
       end
 
-      # Update sync status
-      update_sync_status(result)
+      # Update sync status (global and per-tenant)
+      update_sync_status(result, tenant_id)
 
     rescue StandardError => e
       Rails.logger.error("XeroBankTransactionSyncJob failed: #{e.message}")
@@ -91,6 +91,13 @@ class XeroBankTransactionSyncJob < ApplicationJob
     # Extract line item descriptions
     line_items = txn["LineItems"] || []
 
+    # Resolve xero_contact_id to warehouse_contact_id (SSoT for contact linking)
+    xero_contact_id = txn.dig("Contact", "ContactID")
+    warehouse_contact = nil
+    if xero_contact_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: xero_contact_id, tenant_id: tenant_id)
+    end
+
     # Build attributes
     attrs = {
       tenant_id: tenant_id,
@@ -103,7 +110,8 @@ class XeroBankTransactionSyncJob < ApplicationJob
       reference: txn["Reference"],
       status: txn["Status"],
       is_reconciled: txn["IsReconciled"] || false,
-      xero_contact_id: txn.dig("Contact", "ContactID"),
+      xero_contact_id: xero_contact_id,
+      warehouse_contact_id: warehouse_contact&.id,
       contact_name: txn.dig("Contact", "Name"),
       sub_total: txn["SubTotal"],
       total_tax: txn["TotalTax"],
@@ -149,14 +157,43 @@ class XeroBankTransactionSyncJob < ApplicationJob
     nil
   end
 
-  def update_sync_status(result)
-    status = XeroSyncStatus.find_or_initialize_by(sync_type: "bank_transactions")
-    status.update!(
-      last_synced_at: Time.current,
-      next_sync_at: 6.hours.from_now, # Sync every 6 hours
-      status: result[:errors].empty? ? "success" : "partial",
-      records_synced: result[:created] + result[:updated],
-      last_error: result[:errors].first
-    )
+  def update_sync_status(result, tenant_id = nil)
+    records_synced = result[:created] + result[:updated]
+
+    if result[:errors].empty?
+      # Update global status
+      XeroSyncStatus.complete_sync!(
+        "bank_transactions",
+        tenant_id: nil,
+        records_synced: records_synced,
+        next_sync_at: 6.hours.from_now
+      )
+
+      # Also update per-tenant status (for self-healing to work)
+      if tenant_id.present?
+        XeroSyncStatus.complete_sync!(
+          "bank_transactions",
+          tenant_id: tenant_id,
+          records_synced: records_synced,
+          next_sync_at: 6.hours.from_now
+        )
+      end
+    else
+      # Update global status with error
+      XeroSyncStatus.fail_sync!(
+        "bank_transactions",
+        tenant_id: nil,
+        error: result[:errors].first
+      )
+
+      # Also update per-tenant status
+      if tenant_id.present?
+        XeroSyncStatus.fail_sync!(
+          "bank_transactions",
+          tenant_id: tenant_id,
+          error: result[:errors].first
+        )
+      end
+    end
   end
 end

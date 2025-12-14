@@ -48,7 +48,7 @@ module Bpmn
           contact_id = @config["contact_id"] || @variables["contact_id"]
           if contact_id
             contact = Contact.find_by(id: contact_id)
-            recipients = [contact.email] if contact&.email.present?
+            recipients = [ contact.email ] if contact&.email.present?
           end
         end
 

@@ -111,7 +111,7 @@ module Api
           is_default: template.is_default,
           is_active: template.is_active,
           row_count: template.row_count,
-          created_by: template.created_by&.slice(:id, :first_name, :last_name),
+          created_by: template.created_by&.as_json,
           created_at: template.created_at,
           updated_at: template.updated_at
         }

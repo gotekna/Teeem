@@ -1,7 +1,20 @@
 module Api
   module V1
     class BpmnProcessInstancesController < ApplicationController
-      before_action :set_instance, only: [:show, :cancel, :suspend, :resume]
+      # Whitelist of allowed subject types for BPMN workflows
+      # Add new models here when they include BpmnTriggerable
+      ALLOWED_SUBJECT_TYPES = %w[
+        Job
+        Contact
+        Construction
+        Case
+        SmTask
+        PurchaseOrder
+        Estimate
+        QuoteRequest
+      ].freeze
+
+      before_action :set_instance, only: [ :show, :cancel, :suspend, :resume ]
 
       def index
         @instances = BpmnProcessInstance
@@ -44,6 +57,8 @@ module Api
         )
 
         render json: { success: true, instance: serialize_instance(@instance) }, status: :created
+      rescue ArgumentError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue Bpmn::EngineService::ProcessError => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue ActiveRecord::RecordNotFound => e
@@ -74,6 +89,10 @@ module Api
           success: true,
           instances: @instances.map { |i| serialize_instance(i) }
         }
+      rescue ArgumentError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: e.message }, status: :not_found
       end
 
       private
@@ -83,7 +102,13 @@ module Api
       end
 
       def find_subject
-        subject_type = params[:subject_type].constantize
+        subject_type_name = params[:subject_type].to_s
+
+        unless ALLOWED_SUBJECT_TYPES.include?(subject_type_name)
+          raise ArgumentError, "Invalid subject_type: #{subject_type_name}. Allowed types: #{ALLOWED_SUBJECT_TYPES.join(', ')}"
+        end
+
+        subject_type = subject_type_name.constantize
         subject_type.find(params[:subject_id])
       end
 

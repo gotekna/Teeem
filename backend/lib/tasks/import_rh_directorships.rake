@@ -1,13 +1,13 @@
 namespace :directorships do
   desc "Import Robert Harder directorships from ASIC Excel extract"
   task import_robert_harder: :environment do
-    require 'roo'
-    require 'date'
+    require "roo"
+    require "date"
 
-    file_path = Rails.root.join('../Copy of Robert Harder Directorship.xlsx')
+    file_path = Rails.root.join("../Copy of Robert Harder Directorship.xlsx")
 
     unless File.exist?(file_path)
-      puts "❌ Error: Excel file not found at #{file_path.to_s}"
+      puts "❌ Error: Excel file not found at #{file_path}"
       exit 1
     end
 
@@ -28,7 +28,7 @@ namespace :directorships do
 
     # Open Excel file
     xlsx = Roo::Spreadsheet.open(file_path.to_s)
-    sheet = xlsx.sheet('HARDER')
+    sheet = xlsx.sheet("HARDER")
 
     puts "✓ Opened Excel file: #{file_path.basename}"
     puts "  Sheet: HARDER"
@@ -75,8 +75,8 @@ namespace :directorships do
       end
 
       # Detect company status
-      if current_company && cell_value.start_with?('Company Status:')
-        status = cell_value.sub('Company Status:', '').strip
+      if current_company && cell_value.start_with?("Company Status:")
+        status = cell_value.sub("Company Status:", "").strip
         current_company[:status] = status
         next
       end
@@ -94,14 +94,14 @@ namespace :directorships do
 
       # Detect appointment/ceased dates
       if current_company && !current_company[:directorships].empty? &&
-         cell_value.include?('Appointment Date:')
+         cell_value.include?("Appointment Date:")
 
         last_dir = current_company[:directorships].last
 
         # Parse appointment date
         if appt_match = cell_value.match(/Appointment Date:\s*(\d{2}\/\d{2}\/\d{4})/)
           begin
-            last_dir[:appointment_date] = Date.strptime(appt_match[1], '%d/%m/%Y')
+            last_dir[:appointment_date] = Date.strptime(appt_match[1], "%d/%m/%Y")
           rescue ArgumentError
             puts "⚠️  Invalid appointment date: #{appt_match[1]}"
           end
@@ -110,7 +110,7 @@ namespace :directorships do
         # Parse ceased date
         if ceased_match = cell_value.match(/Ceased Date:\s*(\d{2}\/\d{2}\/\d{4})/)
           begin
-            last_dir[:resignation_date] = Date.strptime(ceased_match[1], '%d/%m/%Y')
+            last_dir[:resignation_date] = Date.strptime(ceased_match[1], "%d/%m/%Y")
             last_dir[:is_current] = false
           rescue ArgumentError
             puts "⚠️  Invalid ceased date: #{ceased_match[1]}"
@@ -156,7 +156,7 @@ namespace :directorships do
       next unless company_data[:acn] # Skip if no ACN
 
       # Find or create company
-      acn_normalized = company_data[:acn].gsub(/\s+/, '')
+      acn_normalized = company_data[:acn].gsub(/\s+/, "")
 
       corp_company = CorporateCompany.find_by("REPLACE(acn, ' ', '') = ?", acn_normalized)
 
@@ -167,19 +167,19 @@ namespace :directorships do
         # Create new company
         # Map ASIC status to our status values
         status_map = {
-          'Registered' => 'active',
-          'Deregistered' => 'struck_off',
-          'Strike-off action in progress' => 'struck_off',
-          'Under external administration and/or controller appointed' => 'in_liquidation'
+          "Registered" => "active",
+          "Deregistered" => "struck_off",
+          "Strike-off action in progress" => "struck_off",
+          "Under external administration and/or controller appointed" => "in_liquidation"
         }
-        our_status = status_map[company_data[:status]] || 'struck_off'
+        our_status = status_map[company_data[:status]] || "struck_off"
 
         corp_company = CorporateCompany.create!(
           name: company_data[:name] || "Company ACN #{company_data[:acn]}",
           acn: company_data[:acn],
           abn: company_data[:abn],
           status: our_status,
-          entity_type: 'company',
+          entity_type: "company",
           code: "RH-#{acn_normalized}", # External company code with full ACN
           purpose: "Imported from Robert Harder ASIC extract"
         )
@@ -197,8 +197,8 @@ namespace :directorships do
             .map { |d| d[:position] }
             .uniq
 
-          if positions.sort == ['director', 'secretary']
-            'director_secretary'
+          if positions.sort == [ "director", "secretary" ]
+            "director_secretary"
           else
             dir[:position]
           end
@@ -207,11 +207,11 @@ namespace :directorships do
         end
 
         # Skip duplicates (e.g., if director and secretary are listed separately but we already created director_secretary)
-        next if position == 'secretary' &&
+        next if position == "secretary" &&
                 CorporateCompanyDirector.exists?(
                   contact_id: robert_harder.id,
                   company_id: corp_company.id,
-                  position: 'director_secretary',
+                  position: "director_secretary",
                   appointment_date: dir[:appointment_date]
                 )
 

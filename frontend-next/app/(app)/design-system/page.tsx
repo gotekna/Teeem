@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
@@ -641,7 +641,7 @@ export default function DesignSystemPage() {
             </CardHeader>
             <CardContent className="flex items-center gap-8">
               <div className="flex flex-col items-center gap-2">
-                <Loader />
+                <Spinner />
                 <span className="text-xs text-muted-foreground">Default</span>
               </div>
               <div className="flex flex-col items-center gap-2">

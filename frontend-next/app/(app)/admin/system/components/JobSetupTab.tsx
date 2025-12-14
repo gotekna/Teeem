@@ -1,6 +1,25 @@
 "use client";
 
 import * as React from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +41,19 @@ import {
   Briefcase,
   ListChecks,
   Layers,
+  MapPin,
+  Search,
+  Filter,
+  Building,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -51,6 +82,177 @@ interface JobStage {
   active: boolean;
 }
 
+interface Suburb {
+  id: number;
+  name: string;
+  postcode: string;
+  state: string;
+  council: string | null;
+  position: number;
+  is_active: boolean;
+}
+
+const STATES = ["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"];
+
+const SEQ_COUNCILS = [
+  "Brisbane City Council",
+  "Gold Coast City Council",
+  "Logan City Council",
+  "Moreton Bay Regional Council",
+  "Redland City Council",
+  "Ipswich City Council",
+  "Sunshine Coast Council",
+  "Noosa Shire Council",
+  "Scenic Rim Regional Council",
+  "Lockyer Valley Regional Council",
+  "Somerset Regional Council",
+  "Toowoomba Regional Council",
+];
+
+// Individual sortable item component
+function SortableItem<T extends { id: number; name: string; color?: string; position: number }>({
+  item,
+  index,
+  totalItems,
+  onEdit,
+  onDelete,
+  onPositionChange,
+}: {
+  item: T;
+  index: number;
+  totalItems: number;
+  onEdit: (item: T) => void;
+  onDelete: (id: number) => void;
+  onPositionChange: (newPosition: number) => void;
+}) {
+  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
+  const [positionValue, setPositionValue] = React.useState(String(index + 1));
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  React.useEffect(() => {
+    if (isEditingPosition && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingPosition]);
+
+  React.useEffect(() => {
+    setPositionValue(String(index + 1));
+  }, [index]);
+
+  const handlePositionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPositionValue(String(index + 1));
+    setIsEditingPosition(true);
+  };
+
+  const handlePositionSubmit = () => {
+    const newPos = parseInt(positionValue, 10);
+    if (!isNaN(newPos) && newPos >= 1 && newPos <= totalItems && newPos !== index + 1) {
+      onPositionChange(newPos);
+    }
+    setIsEditingPosition(false);
+    setPositionValue(String(index + 1));
+  };
+
+  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handlePositionSubmit();
+    } else if (e.key === "Escape") {
+      setIsEditingPosition(false);
+      setPositionValue(String(index + 1));
+    }
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 rounded-md border bg-background transition-all relative",
+        isDragging && "opacity-50 shadow-lg scale-[1.02] z-50 border-primary bg-primary/5",
+        isOver && !isDragging && "border-t-4 border-t-primary pt-4 mt-1"
+      )}
+    >
+      {/* Drag handle with position number */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        {isEditingPosition ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={positionValue}
+            onChange={(e) => setPositionValue(e.target.value)}
+            onBlur={handlePositionSubmit}
+            onKeyDown={handlePositionKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="w-6 h-5 text-[10px] font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        ) : (
+          <button
+            onClick={handlePositionClick}
+            className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
+            title="Click to change position"
+          >
+            {index + 1}
+          </button>
+        )}
+      </div>
+
+      {/* Color indicator */}
+      {item.color && (
+        <div
+          className="w-3 h-3 rounded-full shrink-0"
+          style={{ backgroundColor: item.color }}
+        />
+      )}
+
+      {/* Item name */}
+      <span className="flex-1 text-sm truncate">{item.name}</span>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => onEdit(item)}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={() => onDelete(item.id)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Main sortable list with DndContext
 function SortableList<T extends { id: number; name: string; color?: string; position: number }>({
   items,
   title,
@@ -70,31 +272,59 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
   onReorder: (items: T[]) => void;
   loading: boolean;
 }) {
-  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [activeId, setActiveId] = React.useState<number | null>(null);
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const sortedItems = React.useMemo(
+    () => [...items].sort((a, b) => a.position - b.position),
+    [items]
+  );
+
+  const activeItem = activeId ? sortedItems.find((item) => item.id === activeId) : null;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as number);
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
 
-    const newItems = [...items];
-    const [removed] = newItems.splice(draggedIndex, 1);
-    newItems.splice(index, 0, removed);
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedItems.findIndex((item) => item.id === active.id);
+      const newIndex = sortedItems.findIndex((item) => item.id === over.id);
 
-    // Update positions
+      const newItems = arrayMove(sortedItems, oldIndex, newIndex);
+      // Update positions
+      newItems.forEach((item, i) => {
+        item.position = i + 1;
+      });
+      onReorder(newItems);
+    }
+  };
+
+  const handlePositionChange = (itemId: number, newPosition: number) => {
+    const currentIndex = sortedItems.findIndex((item) => item.id === itemId);
+    if (currentIndex === -1) return;
+
+    const newIndex = newPosition - 1;
+    if (newIndex < 0 || newIndex >= sortedItems.length) return;
+
+    const newItems = arrayMove(sortedItems, currentIndex, newIndex);
     newItems.forEach((item, i) => {
       item.position = i + 1;
     });
-
     onReorder(newItems);
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
   };
 
   return (
@@ -121,50 +351,48 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
             No items yet. Click Add to create one.
           </div>
         ) : (
-          <div className="space-y-1">
-            {[...items]
-              .sort((a, b) => a.position - b.position)
-              .map((item, index) => (
-                <div
-                  key={item.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className={cn(
-                    "flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/50 cursor-move",
-                    draggedIndex === index && "opacity-50"
-                  )}
-                >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortedItems.map((item) => item.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-1">
+                {sortedItems.map((item, index) => (
+                  <SortableItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    totalItems={sortedItems.length}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onPositionChange={(newPos) => handlePositionChange(item.id, newPos)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+            <DragOverlay>
+              {activeItem ? (
+                <div className="flex items-center gap-2 p-2 rounded-md border bg-background shadow-lg scale-[1.02] border-primary">
                   <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  {item.color && (
+                  <div className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-primary/20 text-primary rounded">
+                    {sortedItems.findIndex((i) => i.id === activeItem.id) + 1}
+                  </div>
+                  {activeItem.color && (
                     <div
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: item.color }}
+                      style={{ backgroundColor: activeItem.color }}
                     />
                   )}
-                  <span className="flex-1 text-sm">{item.name}</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onEdit(item)}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => onDelete(item.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <span className="flex-1 text-sm">{activeItem.name}</span>
                 </div>
-              ))}
-          </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </CardContent>
     </Card>
@@ -188,6 +416,22 @@ export function JobSetupTab() {
     color: "#3B82F6",
   });
 
+  // Suburbs state
+  const [suburbs, setSuburbs] = React.useState<Suburb[]>([]);
+  const [suburbsLoading, setSuburbsLoading] = React.useState(true);
+  const [suburbSearch, setSuburbSearch] = React.useState("");
+  const [suburbStateFilter, setSuburbStateFilter] = React.useState<string>("all");
+  const [suburbCouncilFilter, setSuburbCouncilFilter] = React.useState<string>("all");
+  const [showSuburbDialog, setShowSuburbDialog] = React.useState(false);
+  const [editingSuburb, setEditingSuburb] = React.useState<Suburb | null>(null);
+  const [suburbSaving, setSuburbSaving] = React.useState(false);
+  const [suburbFormData, setSuburbFormData] = React.useState({
+    name: "",
+    postcode: "",
+    state: "QLD",
+    council: "",
+  });
+
   const COLORS = [
     "#3B82F6", // Blue
     "#10B981", // Green
@@ -203,6 +447,7 @@ export function JobSetupTab() {
 
   React.useEffect(() => {
     loadData();
+    loadSuburbs();
   }, []);
 
   const loadData = async () => {
@@ -240,6 +485,102 @@ export function JobSetupTab() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSuburbs = async () => {
+    try {
+      const response = await api.get<{ suburbs: Suburb[] }>("/api/v1/suburbs");
+      setSuburbs(response.suburbs || []);
+    } catch (error) {
+      console.error("Failed to load suburbs:", error);
+    } finally {
+      setSuburbsLoading(false);
+    }
+  };
+
+  // Suburb stats
+  const suburbStats = React.useMemo(() => {
+    const byState: Record<string, number> = {};
+    suburbs.forEach((s) => {
+      byState[s.state] = (byState[s.state] || 0) + 1;
+    });
+    return {
+      total: suburbs.length,
+      withCouncil: suburbs.filter((s) => s.council).length,
+      byState,
+    };
+  }, [suburbs]);
+
+  // Filter suburbs
+  const filteredSuburbs = React.useMemo(() => {
+    return suburbs.filter((suburb) => {
+      if (suburbSearch) {
+        const query = suburbSearch.toLowerCase();
+        if (
+          !suburb.name.toLowerCase().includes(query) &&
+          !suburb.postcode.includes(query)
+        ) {
+          return false;
+        }
+      }
+      if (suburbStateFilter !== "all" && suburb.state !== suburbStateFilter) {
+        return false;
+      }
+      if (suburbCouncilFilter === "with-council" && !suburb.council) {
+        return false;
+      }
+      if (suburbCouncilFilter === "without-council" && suburb.council) {
+        return false;
+      }
+      if (
+        suburbCouncilFilter !== "all" &&
+        suburbCouncilFilter !== "with-council" &&
+        suburbCouncilFilter !== "without-council" &&
+        suburb.council !== suburbCouncilFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [suburbs, suburbSearch, suburbStateFilter, suburbCouncilFilter]);
+
+  // Get unique councils for filter
+  const uniqueCouncils = React.useMemo(() => {
+    const councils = new Set<string>();
+    suburbs.forEach((s) => {
+      if (s.council) councils.add(s.council);
+    });
+    return Array.from(councils).sort();
+  }, [suburbs]);
+
+  const handleEditSuburbClick = (suburb: Suburb) => {
+    setEditingSuburb(suburb);
+    setSuburbFormData({
+      name: suburb.name,
+      postcode: suburb.postcode,
+      state: suburb.state,
+      council: suburb.council || "",
+    });
+    setShowSuburbDialog(true);
+  };
+
+  const handleSaveSuburb = async () => {
+    if (!editingSuburb) return;
+
+    setSuburbSaving(true);
+    try {
+      await api.patch(`/api/v1/suburbs/${editingSuburb.id}`, {
+        suburb: suburbFormData,
+      });
+      toast({ title: "Success", description: "Suburb updated successfully" });
+      setShowSuburbDialog(false);
+      loadSuburbs();
+    } catch (error) {
+      console.error("Failed to save:", error);
+      toast({ title: "Error", description: "Failed to save suburb", variant: "destructive" });
+    } finally {
+      setSuburbSaving(false);
     }
   };
 
@@ -318,18 +659,27 @@ export function JobSetupTab() {
       stage: "/api/v1/job_stages/reorder",
     };
 
-    // Update local state immediately
+    // Backend expects different param names for each type
+    const paramKeys = {
+      type: "job_type_ids",
+      status: "job_status_ids",
+      stage: "job_stage_ids",
+    };
+
+    // Update local state immediately (optimistic update)
     if (type === "type") setJobTypes(items as JobType[]);
     if (type === "status") setJobStatuses(items as JobStatus[]);
     if (type === "stage") setJobStages(items as JobStage[]);
 
     try {
       await api.post(endpoints[type], {
-        order: items.map((item) => item.id),
+        [paramKeys[type]]: items.map((item) => item.id),
       });
+      toast({ title: "Order saved", description: "Position order has been updated" });
     } catch (error) {
       console.error("Failed to reorder:", error);
-      // Reload on error
+      toast({ title: "Error", description: "Failed to save order", variant: "destructive" });
+      // Reload on error to restore correct state
       loadData();
     }
   };
@@ -380,6 +730,229 @@ export function JobSetupTab() {
           loading={loading}
         />
       </div>
+
+      {/* Suburbs Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Suburbs Lookup</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {suburbStats.total} suburbs
+              </Badge>
+              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20">
+                {suburbStats.withCouncil} with council
+              </Badge>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Manage suburb data for auto-fill on job addresses
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search suburb or postcode..."
+                  value={suburbSearch}
+                  onChange={(e) => setSuburbSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="w-full sm:w-32">
+              <Select value={suburbStateFilter} onValueChange={setSuburbStateFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="State" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All States</SelectItem>
+                  {STATES.map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state} ({suburbStats.byState[state] || 0})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-48">
+              <Select value={suburbCouncilFilter} onValueChange={setSuburbCouncilFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Council" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="with-council">With Council</SelectItem>
+                  <SelectItem value="without-council">Without Council</SelectItem>
+                  {uniqueCouncils.map((council) => (
+                    <SelectItem key={council} value={council}>
+                      {council}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Suburbs Table */}
+          {suburbsLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredSuburbs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No suburbs found matching your filters.
+            </div>
+          ) : (
+            <div className="max-h-[400px] overflow-y-auto border rounded-md">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-background border-b">
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="p-2 font-medium">Suburb</th>
+                    <th className="p-2 font-medium">Postcode</th>
+                    <th className="p-2 font-medium">State</th>
+                    <th className="p-2 font-medium">Council</th>
+                    <th className="p-2 font-medium w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredSuburbs.slice(0, 100).map((suburb) => (
+                    <tr key={suburb.id} className="hover:bg-muted/50">
+                      <td className="p-2 text-sm font-medium">{suburb.name}</td>
+                      <td className="p-2 text-sm text-muted-foreground">{suburb.postcode}</td>
+                      <td className="p-2">
+                        <Badge variant="outline" className="text-xs">
+                          {suburb.state}
+                        </Badge>
+                      </td>
+                      <td className="p-2 text-sm">
+                        {suburb.council ? (
+                          <span className="text-green-600 dark:text-green-400">{suburb.council}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEditSuburbClick(suburb)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredSuburbs.length > 100 && (
+                <p className="text-center text-sm text-muted-foreground py-4">
+                  Showing first 100 of {filteredSuburbs.length} results. Use search to narrow down.
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Suburb Dialog */}
+      <Dialog open={showSuburbDialog} onOpenChange={setShowSuburbDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Suburb</DialogTitle>
+            <DialogDescription>
+              Update suburb details. Council is used for auto-fill on job addresses.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="suburb-name">Suburb Name</Label>
+                <Input
+                  id="suburb-name"
+                  value={suburbFormData.name}
+                  onChange={(e) => setSuburbFormData({ ...suburbFormData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="suburb-postcode">Postcode</Label>
+                <Input
+                  id="suburb-postcode"
+                  value={suburbFormData.postcode}
+                  onChange={(e) => setSuburbFormData({ ...suburbFormData, postcode: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="suburb-state">State</Label>
+              <Select
+                value={suburbFormData.state}
+                onValueChange={(value) => setSuburbFormData({ ...suburbFormData, state: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATES.map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="suburb-council">Council</Label>
+              <Select
+                value={suburbFormData.council || "none"}
+                onValueChange={(value) => setSuburbFormData({ ...suburbFormData, council: value === "none" ? "" : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select council" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Council</SelectItem>
+                  {SEQ_COUNCILS.map((council) => (
+                    <SelectItem key={council} value={council}>
+                      {council}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Or type a custom council name:
+              </p>
+              <Input
+                placeholder="Custom council name"
+                value={suburbFormData.council}
+                onChange={(e) => setSuburbFormData({ ...suburbFormData, council: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSuburbDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveSuburb} disabled={suburbSaving}>
+              {suburbSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>

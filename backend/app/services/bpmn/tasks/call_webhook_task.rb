@@ -5,7 +5,7 @@ module Bpmn
         url = get_config("url", interpolate_value: true)
         method = (@config["method"] || "POST").upcase
         headers = @config["headers"] || {}
-        
+
         raise "No URL specified" if url.blank?
 
         log_info("Calling webhook: #{method} #{url}")
@@ -40,7 +40,7 @@ module Bpmn
         return nil if @config["body"].blank?
 
         body_config = @config["body"]
-        
+
         if body_config.is_a?(Hash)
           # Interpolate all string values
           interpolate_hash(body_config).to_json
@@ -72,19 +72,19 @@ module Bpmn
         http.read_timeout = 60
 
         request = case method
-                  when "GET"
+        when "GET"
                     Net::HTTP::Get.new(uri.request_uri)
-                  when "POST"
+        when "POST"
                     Net::HTTP::Post.new(uri.request_uri)
-                  when "PUT"
+        when "PUT"
                     Net::HTTP::Put.new(uri.request_uri)
-                  when "PATCH"
+        when "PATCH"
                     Net::HTTP::Patch.new(uri.request_uri)
-                  when "DELETE"
+        when "DELETE"
                     Net::HTTP::Delete.new(uri.request_uri)
-                  else
+        else
                     raise "Unsupported HTTP method: #{method}"
-                  end
+        end
 
         # Set headers
         request["Content-Type"] = "application/json"

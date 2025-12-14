@@ -37,9 +37,7 @@ module Api
         render json: {
           folder_template: @folder_template.as_json(
             include: {
-              folder_template_items: {
-                only: [ :id, :name, :level, :order, :parent_id, :description ]
-              }
+              folder_template_items: {}
             },
             methods: [ :folder_hierarchy ]
           )

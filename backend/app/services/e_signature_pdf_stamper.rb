@@ -126,14 +126,14 @@ class ESignaturePdfStamper
     canvas.fill_color("666666")
 
     y = FOOTER_HEIGHT - 15
-    canvas.text("Document: #{@request.title}", at: [MARGIN, y])
-    canvas.text("Request: #{@request.request_number}", at: [MARGIN, y - 12])
-    canvas.text("Page #{page_number} of #{total_pages}", at: [box.width - MARGIN - 60, y])
+    canvas.text("Document: #{@request.title}", at: [ MARGIN, y ])
+    canvas.text("Request: #{@request.request_number}", at: [ MARGIN, y - 12 ])
+    canvas.text("Page #{page_number} of #{total_pages}", at: [ box.width - MARGIN - 60, y ])
 
     # Add status indicator
     status_color = @request.status == "completed" ? "22c55e" : "f59e0b"
     canvas.fill_color(status_color)
-    canvas.text(@request.status.upcase, at: [box.width - MARGIN - 60, y - 12])
+    canvas.text(@request.status.upcase, at: [ box.width - MARGIN - 60, y - 12 ])
   end
 
   def add_signature_annotation(document, page, signature_data, signature_type, signer, x, y)
@@ -152,7 +152,7 @@ class ESignaturePdfStamper
         image_bytes = Base64.decode64(image_data)
 
         # Create temp file and add to PDF
-        Tempfile.create(["sig", ".png"]) do |temp|
+        Tempfile.create([ "sig", ".png" ]) do |temp|
           temp.binmode
           temp.write(image_bytes)
           temp.rewind
@@ -160,7 +160,7 @@ class ESignaturePdfStamper
           image = document.images.add(temp.path)
           canvas.image(
             image,
-            at: [x + 5, y + 5],
+            at: [ x + 5, y + 5 ],
             width: SIGNATURE_WIDTH - 10,
             height: SIGNATURE_HEIGHT - 20
           )
@@ -170,21 +170,21 @@ class ESignaturePdfStamper
         # Fall back to text
         canvas.font("Helvetica", size: 12)
         canvas.fill_color("000000")
-        canvas.text(signer.name, at: [x + 10, y + SIGNATURE_HEIGHT - 25])
+        canvas.text(signer.name, at: [ x + 10, y + SIGNATURE_HEIGHT - 25 ])
       end
     else
       # Text signature
       canvas.font("Helvetica", size: 12)
       canvas.fill_color("000000")
-      canvas.text(signer.name, at: [x + 10, y + SIGNATURE_HEIGHT - 25])
+      canvas.text(signer.name, at: [ x + 10, y + SIGNATURE_HEIGHT - 25 ])
     end
 
     # Add signature metadata below
     canvas.font("Helvetica", size: 6)
     canvas.fill_color("666666")
-    canvas.text("Signed by: #{signer.name}", at: [x + 5, y - 8])
-    canvas.text("Date: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [x + 5, y - 15])
-    canvas.text("IP: #{signer.ip_address}", at: [x + 5, y - 22])
+    canvas.text("Signed by: #{signer.name}", at: [ x + 5, y - 8 ])
+    canvas.text("Date: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [ x + 5, y - 15 ])
+    canvas.text("IP: #{signer.ip_address}", at: [ x + 5, y - 22 ])
   end
 
   def add_certificate_page(document)
@@ -196,65 +196,65 @@ class ESignaturePdfStamper
     # Title
     canvas.font("Helvetica-Bold", size: 24)
     canvas.fill_color("000000")
-    canvas.text("Certificate of Completion", at: [box.width / 2 - 100, box.height - 80])
+    canvas.text("Certificate of Completion", at: [ box.width / 2 - 100, box.height - 80 ])
 
     # Certificate number
     cert = @request.certificate
     if cert
       canvas.font("Helvetica", size: 10)
       canvas.fill_color("666666")
-      canvas.text("Certificate #: #{cert.certificate_number}", at: [MARGIN, box.height - 120])
+      canvas.text("Certificate #: #{cert.certificate_number}", at: [ MARGIN, box.height - 120 ])
     end
 
     # Document info
     y = box.height - 160
     canvas.font("Helvetica-Bold", size: 12)
     canvas.fill_color("000000")
-    canvas.text("Document Details", at: [MARGIN, y])
+    canvas.text("Document Details", at: [ MARGIN, y ])
 
     canvas.font("Helvetica", size: 10)
     y -= 20
-    canvas.text("Title: #{@request.title}", at: [MARGIN, y])
+    canvas.text("Title: #{@request.title}", at: [ MARGIN, y ])
     y -= 15
-    canvas.text("Request Number: #{@request.request_number}", at: [MARGIN, y])
+    canvas.text("Request Number: #{@request.request_number}", at: [ MARGIN, y ])
     y -= 15
-    canvas.text("Created: #{@request.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [MARGIN, y])
+    canvas.text("Created: #{@request.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [ MARGIN, y ])
     y -= 15
-    canvas.text("Completed: #{@request.completed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [MARGIN, y])
+    canvas.text("Completed: #{@request.completed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')}", at: [ MARGIN, y ])
 
     # Document hashes
     y -= 30
     canvas.font("Helvetica-Bold", size: 12)
-    canvas.text("Document Integrity", at: [MARGIN, y])
+    canvas.text("Document Integrity", at: [ MARGIN, y ])
 
     canvas.font("Courier", size: 8)
     y -= 20
-    canvas.text("Original Hash (SHA-256):", at: [MARGIN, y])
+    canvas.text("Original Hash (SHA-256):", at: [ MARGIN, y ])
     y -= 12
-    canvas.text(@request.original_document_hash || "N/A", at: [MARGIN, y])
+    canvas.text(@request.original_document_hash || "N/A", at: [ MARGIN, y ])
     y -= 15
-    canvas.text("Signed Hash (SHA-256):", at: [MARGIN, y])
+    canvas.text("Signed Hash (SHA-256):", at: [ MARGIN, y ])
     y -= 12
-    canvas.text(@request.signed_document_hash || "N/A", at: [MARGIN, y])
+    canvas.text(@request.signed_document_hash || "N/A", at: [ MARGIN, y ])
 
     # Signers list
     y -= 30
     canvas.font("Helvetica-Bold", size: 12)
-    canvas.text("Signatories", at: [MARGIN, y])
+    canvas.text("Signatories", at: [ MARGIN, y ])
 
     canvas.font("Helvetica", size: 10)
     @request.signers.signed.order(:signing_order).each do |signer|
       y -= 20
       canvas.text(
         "#{signer.name} (#{signer.email}) - #{signer.role || 'Signer'}",
-        at: [MARGIN, y]
+        at: [ MARGIN, y ]
       )
       y -= 12
       canvas.font("Helvetica", size: 8)
       canvas.fill_color("666666")
       canvas.text(
         "Signed: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')} | IP: #{signer.ip_address}",
-        at: [MARGIN + 20, y]
+        at: [ MARGIN + 20, y ]
       )
       canvas.fill_color("000000")
       canvas.font("Helvetica", size: 10)
@@ -266,17 +266,17 @@ class ESignaturePdfStamper
     canvas.fill_color("666666")
     canvas.text(
       "This document was electronically signed using TEEEM E-Signature. Electronic signatures are legally binding",
-      at: [MARGIN, y]
+      at: [ MARGIN, y ]
     )
     y -= 10
     canvas.text(
       "under the Electronic Signatures in Global and National Commerce Act (E-SIGN), the Uniform Electronic",
-      at: [MARGIN, y]
+      at: [ MARGIN, y ]
     )
     y -= 10
     canvas.text(
       "Transactions Act (UETA), and equivalent legislation in applicable jurisdictions.",
-      at: [MARGIN, y]
+      at: [ MARGIN, y ]
     )
 
     # Verification URL
@@ -285,7 +285,7 @@ class ESignaturePdfStamper
     canvas.fill_color("0066cc")
     canvas.text(
       "Verify this document at: #{Rails.application.routes.url_helpers.root_url}verify/#{cert&.certificate_number}",
-      at: [MARGIN, y]
+      at: [ MARGIN, y ]
     )
   end
 end

@@ -23,7 +23,7 @@ module Api
         render json: {
           success: true,
           job_claims: @job_claims.as_json(
-            only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+            
             methods: [ :payment_percentage, :outstanding_amount ]
           )
         }
@@ -34,11 +34,11 @@ module Api
         render json: {
           success: true,
           job_claim: @job_claim.as_json(
-            only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+            
             methods: [ :payment_percentage, :outstanding_amount ],
             include: {
-              job: { only: [ :id, :title ] },
-              contact: { only: [ :id, :display_name, :email ] }
+              job: {},
+              contact: {}
             }
           )
         }
@@ -52,7 +52,7 @@ module Api
           render json: {
             success: true,
             job_claim: @job_claim.as_json(
-              only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+              
               methods: [ :payment_percentage, :outstanding_amount ]
             )
           }, status: :created
@@ -70,7 +70,7 @@ module Api
           render json: {
             success: true,
             job_claim: @job_claim.as_json(
-              only: [ :id, :job_id, :invoice_number, :description, :amount, :amount_paid, :amount_due, :status, :date, :due_date, :xero_invoice_id, :xero_contact_id, :contact_name, :contact_id, :created_at, :updated_at ],
+              
               methods: [ :payment_percentage, :outstanding_amount ]
             )
           }
@@ -159,7 +159,7 @@ module Api
 
           if job_claim.save
             created_count += 1
-            created_claims << job_claim.as_json(only: [ :id, :job_id, :invoice_number, :amount, :status ])
+            created_claims << job_claim.as_json
           else
             errors << { index: index, invoice_number: claim_data[:invoice_number], error: job_claim.errors.full_messages.join(", ") }
           end

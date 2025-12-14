@@ -5,14 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import {
   Plus,
-  Download,
-  Upload,
   DollarSign,
   Package,
   AlertTriangle,
@@ -103,10 +101,15 @@ export default function PriceBookPage() {
     }
   };
 
+  // Handle add item - MUST be before early return to avoid hook count mismatch
+  const handleAddItem = useCallback(() => {
+    router.push('/pricebook/new');
+  }, [router]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -120,20 +123,6 @@ export default function PriceBookPage() {
           <p className="text-sm text-muted-foreground mt-1">
             {stats.total.toLocaleString()} items across {stats.categoriesCount} categories
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline">
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
         </div>
       </div>
 
@@ -222,6 +211,12 @@ export default function PriceBookPage() {
               onRowUpdate={handleRowUpdate}
               onServerSearch={serverSearch}
               serverSearchLoading={isSearching}
+              leftActions={
+                <Button variant="default" size="sm" onClick={handleAddItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              }
             />
           </TabsContent>
         ))}

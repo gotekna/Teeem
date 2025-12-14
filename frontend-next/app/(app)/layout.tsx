@@ -8,7 +8,7 @@ import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -25,7 +25,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -57,7 +57,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Main Content - below header, beside sidebar */}
       <main className="sidebar-content-area pt-12 h-full overflow-auto transition-all duration-300 ease-in-out">
-        <div className="min-h-full py-6 px-4 flex flex-col">{children}</div>
+        <div className="h-full py-6 px-4 flex flex-col">{children}</div>
       </main>
 
       {/* Floating Help Button (for pages without header visible on mobile) */}

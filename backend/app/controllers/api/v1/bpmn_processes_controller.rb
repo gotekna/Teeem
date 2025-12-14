@@ -1,7 +1,7 @@
 module Api
   module V1
     class BpmnProcessesController < ApplicationController
-      before_action :set_process, only: [:show, :update, :destroy, :publish, :unpublish, :duplicate, :validate]
+      before_action :set_process, only: [ :show, :update, :destroy, :publish, :unpublish, :duplicate, :validate ]
 
       def index
         @processes = BpmnProcess.includes(:bpmn_nodes, :bpmn_edges, :bpmn_triggers)
@@ -97,9 +97,9 @@ module Api
 
         xml_content = if params[:file].present?
                         params[:file].read
-                      else
+        else
                         params[:xml_content]
-                      end
+        end
 
         importer = CompozaBpmnImporter.new(
           xml_content,

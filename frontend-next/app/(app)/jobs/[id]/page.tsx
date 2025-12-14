@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -87,6 +88,8 @@ interface Job {
   live_profit: number;
   profit_percentage: number;
   certifier_job_no?: string;
+  xero_tracking_option_id?: string;
+  xero_tracking_option_name?: string;
   start_date?: string;
   location?: string;
   latitude?: number;
@@ -333,6 +336,15 @@ function ContractValueCard({
   );
 }
 
+// Suburb search interface
+interface SuburbSearchResult {
+  id: number;
+  name: string;
+  postcode: string;
+  state: string;
+  council: string | null;
+}
+
 // Editable Address Details Card
 function AddressDetailsCard({
   job,
@@ -347,6 +359,7 @@ function AddressDetailsCard({
     suburb?: string;
     postcode?: string;
     state?: string;
+    council?: string;
   }) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
@@ -359,7 +372,71 @@ function AddressDetailsCard({
     suburb: job.suburb || "",
     postcode: job.postcode || "",
     state: job.state || "",
+    council: job.council || "",
   });
+
+  // Suburb search state
+  const [suburbSearchQuery, setSuburbSearchQuery] = React.useState("");
+  const [suburbSearchResults, setSuburbSearchResults] = React.useState<SuburbSearchResult[]>([]);
+  const [suburbSearchLoading, setSuburbSearchLoading] = React.useState(false);
+  const [showSuburbDropdown, setShowSuburbDropdown] = React.useState(false);
+  const suburbInputRef = React.useRef<HTMLInputElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Search suburbs when query changes
+  React.useEffect(() => {
+    const searchSuburbs = async () => {
+      if (suburbSearchQuery.length < 2) {
+        setSuburbSearchResults([]);
+        return;
+      }
+
+      setSuburbSearchLoading(true);
+      try {
+        const response = await api.get<{ suburbs: SuburbSearchResult[] }>(
+          `/api/v1/suburbs/search?q=${encodeURIComponent(suburbSearchQuery)}`
+        );
+        setSuburbSearchResults(response.suburbs || []);
+      } catch (error) {
+        console.error("Failed to search suburbs:", error);
+        setSuburbSearchResults([]);
+      } finally {
+        setSuburbSearchLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchSuburbs, 300);
+    return () => clearTimeout(timeoutId);
+  }, [suburbSearchQuery]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        suburbInputRef.current &&
+        !suburbInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuburbDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSuburbSelect = (suburb: SuburbSearchResult) => {
+    setEditForm({
+      ...editForm,
+      suburb: suburb.name,
+      postcode: suburb.postcode,
+      state: suburb.state,
+      council: suburb.council || "",
+    });
+    setSuburbSearchQuery("");
+    setShowSuburbDropdown(false);
+  };
 
   // Sync form when job prop changes
   React.useEffect(() => {
@@ -372,6 +449,7 @@ function AddressDetailsCard({
         suburb: job.suburb || "",
         postcode: job.postcode || "",
         state: job.state || "",
+        council: job.council || "",
       });
     }
   }, [job, isEditing]);
@@ -392,6 +470,7 @@ function AddressDetailsCard({
         suburb: job.suburb || "",
         postcode: job.postcode || "",
         state: job.state || "",
+        council: job.council || "",
       });
     } finally {
       setSaving(false);
@@ -407,7 +486,10 @@ function AddressDetailsCard({
       suburb: job.suburb || "",
       postcode: job.postcode || "",
       state: job.state || "",
+      council: job.council || "",
     });
+    setSuburbSearchQuery("");
+    setShowSuburbDropdown(false);
     setIsEditing(false);
   };
 
@@ -504,16 +586,79 @@ function AddressDetailsCard({
           </div>
         </div>
 
-        <div>
+        <div className="relative">
           <Label htmlFor="suburb">Suburb</Label>
-          <Input
-            id="suburb"
-            value={editForm.suburb}
-            onChange={(e) => setEditForm({ ...editForm, suburb: e.target.value })}
-            readOnly={!isEditing}
-            placeholder="Enter suburb"
-            className={!isEditing ? "bg-muted/50" : ""}
-          />
+          {isEditing ? (
+            <div className="relative">
+              <Input
+                ref={suburbInputRef}
+                id="suburb"
+                value={suburbSearchQuery || editForm.suburb}
+                onChange={(e) => {
+                  setSuburbSearchQuery(e.target.value);
+                  setShowSuburbDropdown(true);
+                  // Also update the form directly if typing
+                  setEditForm({ ...editForm, suburb: e.target.value });
+                }}
+                onFocus={() => {
+                  if (suburbSearchQuery.length >= 2 || editForm.suburb.length >= 2) {
+                    setShowSuburbDropdown(true);
+                  }
+                }}
+                placeholder="Search suburb or postcode..."
+                autoComplete="off"
+              />
+              {/* Suburb search dropdown */}
+              {showSuburbDropdown && (suburbSearchResults.length > 0 || suburbSearchLoading) && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto"
+                >
+                  {suburbSearchLoading ? (
+                    <div className="p-3 text-center text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                      Searching...
+                    </div>
+                  ) : (
+                    suburbSearchResults.map((suburb) => (
+                      <button
+                        key={suburb.id}
+                        type="button"
+                        onClick={() => handleSuburbSelect(suburb)}
+                        className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between text-sm"
+                      >
+                        <span>
+                          <span className="font-medium">{suburb.name}</span>
+                          <span className="text-muted-foreground ml-2">{suburb.postcode}</span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {suburb.state}
+                          {suburb.council && (
+                            <span className="ml-1 text-green-600 dark:text-green-400">
+                              ({suburb.council.replace(" Council", "").replace(" Regional", "").replace(" City", "")})
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <Input
+              id="suburb"
+              value={editForm.suburb}
+              readOnly
+              placeholder="Enter suburb"
+              className="bg-muted/50"
+            />
+          )}
+          {isEditing && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Type to search suburbs - selecting will auto-fill postcode, state and council
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -546,14 +691,17 @@ function AddressDetailsCard({
           <Label htmlFor="council">Council</Label>
           <Input
             id="council"
-            value={job.council || ""}
-            readOnly
-            placeholder="Auto-generated from postcode/suburb"
-            className="bg-muted/50"
+            value={editForm.council || ""}
+            onChange={(e) => setEditForm({ ...editForm, council: e.target.value })}
+            readOnly={!isEditing}
+            placeholder={isEditing ? "Auto-filled from suburb or enter manually" : "Select a suburb to auto-fill"}
+            className={!isEditing ? "bg-muted/50" : ""}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Council is automatically generated when you save
-          </p>
+          {isEditing && editForm.council && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              Auto-filled from suburb lookup
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -578,6 +726,12 @@ export default function JobDetailPage() {
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
   const [lookupLoading, setLookupLoading] = React.useState(false);
+
+  // Xero tracking category state
+  const [xeroTrackingOptions, setXeroTrackingOptions] = React.useState<{id: string, name: string}[]>([]);
+  const [currentXeroOption, setCurrentXeroOption] = React.useState<{id: string, name: string} | null>(null);
+  const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
+  const [linkingXero, setLinkingXero] = React.useState(false);
 
   // Get tab from URL or default to "overview"
   const tabFromUrl = searchParams.get("tab") || "overview";
@@ -621,11 +775,51 @@ export default function JobDetailPage() {
     }
   }, []);
 
+  // Load Xero tracking options for this job
+  const loadXeroTrackingOptions = React.useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        tracking_options: {id: string, name: string}[];
+        current_option: {id: string, name: string} | null;
+        suggested_match: {id: string, name: string} | null;
+      }>(`/api/v1/jobs/${jobId}/xero_tracking_options`);
+
+      if (response?.success) {
+        setXeroTrackingOptions(response.tracking_options || []);
+        setCurrentXeroOption(response.current_option);
+        setSuggestedXeroMatch(response.suggested_match);
+      }
+    } catch (error) {
+      console.error("Failed to load Xero tracking options:", error);
+    }
+  }, [jobId]);
+
+  // Link job to Xero tracking option
+  const handleLinkXero = async (optionId: string, optionName: string) => {
+    if (!job) return;
+    setLinkingXero(true);
+    try {
+      await api.post(`/api/v1/jobs/${job.id}/link_xero_tracking`, {
+        tracking_option_id: optionId,
+        tracking_option_name: optionName,
+      });
+      setCurrentXeroOption({ id: optionId, name: optionName });
+      setJob({ ...job, xero_tracking_option_id: optionId, xero_tracking_option_name: optionName });
+    } catch (error) {
+      console.error("Failed to link Xero tracking:", error);
+    } finally {
+      setLinkingXero(false);
+    }
+  };
+
   React.useEffect(() => {
     if (jobId) {
       loadJob();
+      loadXeroTrackingOptions();
     }
-  }, [jobId, loadJob]);
+  }, [jobId, loadJob, loadXeroTrackingOptions]);
 
   // Start editing - populate form with current values and load lookup data
   const startEditing = async () => {
@@ -841,21 +1035,12 @@ export default function JobDetailPage() {
                           <span className="text-muted-foreground">{job.job_type?.name || "Loading..."}</span>
                         </div>
                       ) : (
-                        <Select
-                          value={editForm.job_type_id?.toString() || ""}
-                          onValueChange={(value) => setEditForm({ ...editForm, job_type_id: parseInt(value) })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={job.job_type?.name || "Select job type"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {jobTypes.map((type) => (
-                              <SelectItem key={type.id} value={type.id.toString()}>
-                                {type.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ComboboxDropdown
+                          items={jobTypes.map((type) => ({ id: type.id.toString(), label: type.name }))}
+                          selectedItem={editForm.job_type_id ? { id: editForm.job_type_id.toString(), label: jobTypes.find(t => t.id === editForm.job_type_id)?.name || "" } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, job_type_id: parseInt(item.id) })}
+                          placeholder="Search job types..."
+                        />
                       )
                     ) : (
                       <Input value={job.job_type?.name || "-"} readOnly />
@@ -870,21 +1055,12 @@ export default function JobDetailPage() {
                           <span className="text-muted-foreground">{job.job_status?.name || "Loading..."}</span>
                         </div>
                       ) : (
-                        <Select
-                          value={editForm.job_status_id?.toString() || ""}
-                          onValueChange={(value) => setEditForm({ ...editForm, job_status_id: parseInt(value) })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={job.job_status?.name || "Select status"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {jobStatuses.map((status) => (
-                              <SelectItem key={status.id} value={status.id.toString()}>
-                                {status.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ComboboxDropdown
+                          items={jobStatuses.map((status) => ({ id: status.id.toString(), label: status.name }))}
+                          selectedItem={editForm.job_status_id ? { id: editForm.job_status_id.toString(), label: jobStatuses.find(s => s.id === editForm.job_status_id)?.name || "" } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, job_status_id: parseInt(item.id) })}
+                          placeholder="Search statuses..."
+                        />
                       )
                     ) : (
                       <Input value={job.job_status?.name || "-"} readOnly />
@@ -899,6 +1075,25 @@ export default function JobDetailPage() {
                       />
                     ) : (
                       <Input value={job.certifier_job_no || ""} readOnly />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Xero Job Category</Label>
+                    {xeroTrackingOptions.length > 0 ? (
+                      <ComboboxDropdown
+                        items={xeroTrackingOptions.map((opt) => ({ id: opt.id, label: opt.name }))}
+                        selectedItem={currentXeroOption ? { id: currentXeroOption.id, label: currentXeroOption.name } : undefined}
+                        onSelect={(item) => handleLinkXero(item.id, item.label)}
+                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Select Xero job..."}
+                        disabled={linkingXero}
+                      />
+                    ) : (
+                      <Input value={currentXeroOption?.name || "Loading..."} readOnly />
+                    )}
+                    {!currentXeroOption && suggestedXeroMatch && (
+                      <p className="text-xs text-muted-foreground">
+                        Suggested match: {suggestedXeroMatch.name}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -939,6 +1134,7 @@ export default function JobDetailPage() {
                       suburb: addressData.suburb,
                       postcode: addressData.postcode,
                       state: addressData.state,
+                      council: addressData.council,
                     },
                   });
 

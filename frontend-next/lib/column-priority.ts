@@ -28,24 +28,27 @@ export const COLUMN_PRIORITY_CONFIG: Record<ColumnPriority, ColumnPriorityConfig
       /^(phone|fax)$/i,
       /^(amount|price|cost|total)$/i,
       /^(quantity|count|number)$/i,
+      /^xero_(?!id$)/i, // Xero columns (except xero_id) are business data
+      /^sync_with_/i, // Sync status columns
     ],
     minWidth: 100,
-    maxWidth: 200,
-    truncateAt: null, // Show full if fits
+    maxWidth: 300, // Increased from 250 for better content fit
+    truncateAt: null,
   },
 
-  // Tier 3: Technical/System
+  // Tier 3: Technical/System (UUIDs, timestamps, etc.)
+  // Note: These columns are still measured for content - minWidth is fallback, maxWidth is cap
   technical: {
     patterns: [
       /^id$/i,
       /_(id|uuid|guid)$/i,
-      /^xero_/i,
+      /^xero_id$/i, // UUID
       /^(created_at|updated_at)$/i,
       /^(created_by|updated_by)$/i,
     ],
     minWidth: 60,
-    maxWidth: 80,
-    truncateAt: 10, // Show first 10 chars + "..."
+    maxWidth: 200, // Increased from 120 to fit UUIDs
+    truncateAt: null, // Removed truncation - let content measurement decide
   },
 
   // Tier 4: Hidden by default

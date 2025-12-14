@@ -28,7 +28,12 @@ class ContactPhone < ApplicationRecord
   private
 
   def only_one_primary_per_contact
-    if is_primary && ContactPhone.where(contact_id: contact_id, is_primary: true).where.not(id: id).exists?
+    # Only validate if is_primary is being set to true (new record or changed)
+    return unless is_primary
+    return unless new_record? || is_primary_changed?
+
+    # Check if another phone is already primary
+    if ContactPhone.where(contact_id: contact_id, is_primary: true).where.not(id: id).exists?
       errors.add(:is_primary, "contact already has a primary phone")
     end
   end

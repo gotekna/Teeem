@@ -1,23 +1,29 @@
 /**
- * Cell Display Functions
+ * Cell Display Functions - SSoT for all 31 column types
  *
- * Display (read-only) rendering for all 31 column types.
- * Extracted from the massive renderCellValue function.
+ * Display (read-only) rendering for all column types.
+ * This is THE SINGLE SOURCE OF TRUTH for how values are displayed in tables.
  *
  * Each function takes a value and column definition, returns a React node.
+ * Consistent styling: text-[11px] base size, dark mode support.
  */
 
 import React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Circle } from "lucide-react";
-import type { TableColumn, TableRow } from "../../types";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
+import type { TableColumn } from "../../types";
+
+// Consistent link styling
+const LINK_CLASSES = "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
 
 /**
- * Format empty/null values consistently
+ * Format empty/null values consistently - returns em-dash
  */
-function formatEmpty(): string {
-  return "";
+export function formatEmpty(): React.ReactNode {
+  return <span className="text-muted-foreground text-[11px]">—</span>;
 }
 
 /**
@@ -25,7 +31,7 @@ function formatEmpty(): string {
  */
 export function displaySingleLineText(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  return String(value);
+  return <span className="text-[11px]">{String(value)}</span>;
 }
 
 /**
@@ -35,7 +41,8 @@ export function displayMultipleLinesText(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
   const text = String(value);
   // Show first 100 chars with ellipsis if longer
-  return text.length > 100 ? `${text.substring(0, 100)}...` : text;
+  const display = text.length > 100 ? `${text.substring(0, 100)}...` : text;
+  return <span className="text-[11px]">{display}</span>;
 }
 
 /**
@@ -45,43 +52,74 @@ export function displayEmail(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
   const email = String(value);
   return (
-    <a href={`mailto:${email}`} className="text-blue-600 hover:underline" onClick={(e) => e.stopPropagation()}>
+    <a
+      href={`mailto:${email}`}
+      className={LINK_CLASSES}
+      onClick={(e) => e.stopPropagation()}
+      title={`Send email to ${email}`}
+    >
       {email}
     </a>
   );
 }
 
 /**
- * Display phone number
+ * Display phone number with tel: link
  */
 export function displayPhone(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  return String(value);
+  const phone = String(value);
+  const phoneNumber = phone.replace(/[^\d+]/g, '');
+  return (
+    <a
+      href={`tel:${phoneNumber}`}
+      className={LINK_CLASSES}
+      onClick={(e) => e.stopPropagation()}
+      title={`Call ${phone}`}
+    >
+      {phone}
+    </a>
+  );
 }
 
 /**
- * Display mobile number
+ * Display mobile number with tel: link
  */
 export function displayMobile(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  return String(value);
+  const mobile = String(value);
+  const phoneNumber = mobile.replace(/[^\d+]/g, '');
+  return (
+    <a
+      href={`tel:${phoneNumber}`}
+      className={LINK_CLASSES}
+      onClick={(e) => e.stopPropagation()}
+      title={`Call ${mobile}`}
+    >
+      {mobile}
+    </a>
+  );
 }
 
 /**
- * Display URL with link
+ * Display URL with external link
  */
 export function displayUrl(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
   const url = String(value);
+  // Add https:// if no protocol specified
+  const href = url.match(/^https?:\/\//) ? url : `https://${url}`;
   return (
     <a
-      href={url}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-600 hover:underline"
+      className={`${LINK_CLASSES} inline-flex items-center gap-1`}
       onClick={(e) => e.stopPropagation()}
+      title={`Open ${url}`}
     >
       {url}
+      <ExternalLink className="h-3 w-3" />
     </a>
   );
 }
@@ -91,10 +129,9 @@ export function displayUrl(value: unknown): React.ReactNode {
  */
 export function displayNumber(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  if (typeof value === "number") {
-    return value.toLocaleString("en-US");
-  }
-  return String(value);
+  const num = typeof value === "number" ? value : parseFloat(String(value));
+  if (isNaN(num)) return <span className="text-[11px]">{String(value)}</span>;
+  return <span className="text-[11px] tabular-nums">{num.toLocaleString("en-AU")}</span>;
 }
 
 /**
@@ -102,10 +139,9 @@ export function displayNumber(value: unknown): React.ReactNode {
  */
 export function displayWholeNumber(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  if (typeof value === "number") {
-    return Math.floor(value).toLocaleString("en-US");
-  }
-  return String(value);
+  const num = typeof value === "number" ? value : parseInt(String(value), 10);
+  if (isNaN(num)) return <span className="text-[11px]">{String(value)}</span>;
+  return <span className="text-[11px] tabular-nums">{Math.floor(num).toLocaleString("en-AU")}</span>;
 }
 
 /**
@@ -113,10 +149,13 @@ export function displayWholeNumber(value: unknown): React.ReactNode {
  */
 export function displayCurrency(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  if (typeof value === "number") {
-    return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  }
-  return String(value);
+  const num = typeof value === "number" ? value : parseFloat(String(value));
+  if (isNaN(num)) return <span className="text-[11px]">{String(value)}</span>;
+  return (
+    <span className="text-[11px] tabular-nums">
+      ${num.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
+  );
 }
 
 /**
@@ -124,10 +163,9 @@ export function displayCurrency(value: unknown): React.ReactNode {
  */
 export function displayPercentage(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  if (typeof value === "number") {
-    return `${value}%`;
-  }
-  return String(value);
+  const num = typeof value === "number" ? value : parseFloat(String(value));
+  if (isNaN(num)) return <span className="text-[11px]">{String(value)}</span>;
+  return <span className="text-[11px] tabular-nums">{num}%</span>;
 }
 
 /**
@@ -138,10 +176,10 @@ export function displayDate(value: unknown): React.ReactNode {
 
   try {
     const date = new Date(String(value));
-    if (isNaN(date.getTime())) return String(value);
-    return format(date, "dd/MM/yyyy");
+    if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
+    return <span className="text-[11px]">{format(date, "dd/MM/yyyy")}</span>;
   } catch {
-    return String(value);
+    return <span className="text-[11px]">{String(value)}</span>;
   }
 }
 
@@ -153,28 +191,28 @@ export function displayDateTime(value: unknown): React.ReactNode {
 
   try {
     const date = new Date(String(value));
-    if (isNaN(date.getTime())) return String(value);
-    return format(date, "dd/MM/yyyy HH:mm");
+    if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
+    return <span className="text-[11px]">{format(date, "dd/MM/yyyy HH:mm")}</span>;
   } catch {
-    return String(value);
+    return <span className="text-[11px]">{String(value)}</span>;
   }
 }
 
 /**
- * Display boolean as Yes/No or checkmark
+ * Display boolean as checkmark icon
  */
 export function displayBoolean(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
 
-  const boolValue = value === true || value === "true";
+  const boolValue = value === true || value === "true" || value === 1;
   return (
     <span className="flex items-center gap-1">
       {boolValue ? (
-        <CheckCircle2 className="h-4 w-4 text-green-600" />
+        <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
       ) : (
-        <Circle className="h-4 w-4 text-gray-300" />
+        <Circle className="h-3.5 w-3.5 text-gray-300 dark:text-gray-600" />
       )}
-      <span className="text-xs text-muted-foreground">{boolValue ? "Yes" : "No"}</span>
+      <span className="text-[11px] text-muted-foreground">{boolValue ? "Yes" : "No"}</span>
     </span>
   );
 }
@@ -184,7 +222,7 @@ export function displayBoolean(value: unknown): React.ReactNode {
  */
 export function displayChoice(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  return <Badge variant="secondary">{String(value)}</Badge>;
+  return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{String(value)}</Badge>;
 }
 
 /**
@@ -194,41 +232,30 @@ export function displayChoice(value: unknown): React.ReactNode {
 export function displayLookup(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
 
-  // Handle object with display_value
-  if (typeof value === "object" && value !== null && "display_value" in value) {
-    return String((value as { display_value: unknown }).display_value);
-  }
+  let displayText = "";
 
-  // Handle object with display
-  if (typeof value === "object" && value !== null && "display" in value) {
-    return String((value as { display: unknown }).display);
-  }
-
-  // Handle object with name property (fallback for full objects)
-  if (typeof value === "object" && value !== null && "name" in value) {
-    return String((value as { name: unknown }).name);
-  }
-
-  // Handle object with display_name property (for Contact lookups)
-  if (typeof value === "object" && value !== null && "display_name" in value) {
-    return String((value as { display_name: unknown }).display_name);
-  }
-
-  // If it's still an object, log a warning and show [Unknown]
+  // Handle object with various display properties
   if (typeof value === "object" && value !== null) {
-    console.warn("[displayLookup] Received object without display/name/display_name property:", value);
-    return "[Unknown]";
+    const obj = value as Record<string, unknown>;
+    displayText = String(
+      obj.display_value || obj.display || obj.name || obj.display_name || obj.id || ""
+    );
+    if (!displayText) {
+      console.warn("[displayLookup] Object without display property:", value);
+      return formatEmpty();
+    }
+  } else {
+    displayText = String(value);
   }
 
-  return String(value);
+  return <span className="text-[11px]">{displayText}</span>;
 }
 
 /**
- * Display multiple lookups as comma-separated badges
+ * Display multiple lookups as badges
  */
 export function displayMultipleLookups(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
-
   if (!Array.isArray(value) || value.length === 0) return formatEmpty();
 
   return (
@@ -237,19 +264,14 @@ export function displayMultipleLookups(value: unknown): React.ReactNode {
         let displayText = "";
 
         if (typeof item === "object" && item !== null) {
-          if ("display_value" in item) {
-            displayText = String(item.display_value);
-          } else if ("display" in item) {
-            displayText = String(item.display);
-          } else {
-            displayText = JSON.stringify(item);
-          }
+          const obj = item as Record<string, unknown>;
+          displayText = String(obj.display_value || obj.display || obj.name || obj.id || "");
         } else {
           displayText = String(item);
         }
 
         return (
-          <Badge key={idx} variant="secondary" className="text-xs">
+          <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
             {displayText}
           </Badge>
         );
@@ -263,7 +285,7 @@ export function displayMultipleLookups(value: unknown): React.ReactNode {
  */
 export function displayGpsCoordinates(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  return String(value);
+  return <span className="font-mono text-[11px]">{String(value)}</span>;
 }
 
 /**
@@ -276,10 +298,10 @@ export function displayColorPicker(value: unknown): React.ReactNode {
   return (
     <div className="flex items-center gap-2">
       <div
-        className="w-6 h-6 rounded border border-gray-300"
+        className="w-4 h-4 rounded border border-gray-300 dark:border-gray-600"
         style={{ backgroundColor: color }}
       />
-      <span className="text-xs font-mono">{color}</span>
+      <span className="text-[11px] font-mono">{color}</span>
     </div>
   );
 }
@@ -298,7 +320,7 @@ export function displayFileUpload(value: unknown): React.ReactNode {
       href={filePath}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-blue-600 hover:underline text-sm"
+      className={LINK_CLASSES}
       onClick={(e) => e.stopPropagation()}
     >
       {fileName}
@@ -314,33 +336,81 @@ export function displayStructuredData(value: unknown): React.ReactNode {
 
   try {
     const jsonStr = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+    const preview = jsonStr.length > 50 ? jsonStr.substring(0, 50) + "..." : jsonStr;
     return (
-      <pre className="text-xs font-mono bg-muted p-1 rounded max-w-xs overflow-x-auto">
-        {jsonStr}
-      </pre>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <pre className="text-[10px] font-mono bg-muted px-1 py-0.5 rounded max-w-[150px] overflow-hidden truncate cursor-help">
+              {preview}
+            </pre>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-md">
+            <pre className="text-[11px] font-mono whitespace-pre-wrap">{jsonStr}</pre>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   } catch {
-    return String(value);
+    return <span className="text-[11px]">{String(value)}</span>;
   }
 }
 
 /**
- * Display array of items as comma-separated badges
+ * Display array of items as badges
  */
 export function displayArrayOfItems(value: unknown): React.ReactNode {
   if (value === null || value === undefined) return formatEmpty();
-
   if (!Array.isArray(value) || value.length === 0) return formatEmpty();
 
   return (
     <div className="flex flex-wrap gap-1">
       {value.map((item, idx) => (
-        <Badge key={idx} variant="outline" className="text-xs">
+        <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
           {String(item)}
         </Badge>
       ))}
     </div>
   );
+}
+
+/**
+ * Display searchable text (read-only search terms)
+ */
+export function displaySearchableText(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  const text = String(value);
+  const preview = text.length > 30 ? text.slice(0, 30) + "..." : text;
+  return (
+    <span className="font-mono text-[10px] text-muted-foreground italic">
+      🔍 {preview}
+    </span>
+  );
+}
+
+/**
+ * Display action buttons
+ */
+export function displayActionButtons(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+
+  try {
+    const config = typeof value === "string" ? JSON.parse(value) : value;
+    const buttons = (config as { buttons?: Array<{ label: string; action: string }> }).buttons || [];
+    if (buttons.length === 0) return formatEmpty();
+
+    return (
+      <div className="flex gap-1">
+        {buttons.slice(0, 3).map((btn, idx) => (
+          <Button key={idx} variant="outline" size="sm" className="h-5 text-[10px] px-2">
+            {btn.label}
+          </Button>
+        ))}
+      </div>
+    );
+  } catch {
+    return formatEmpty();
+  }
 }
 
 /**
@@ -360,7 +430,91 @@ export function displayComputed(value: unknown, column: TableColumn): React.Reac
     return displayNumber(value);
   }
 
-  return String(value);
+  if (computedType === "percentage") {
+    return displayPercentage(value);
+  }
+
+  return <span className="text-[11px]">{String(value)}</span>;
+}
+
+// ============================================================================
+// AUSTRALIAN IDENTIFIERS
+// ============================================================================
+
+/**
+ * Display ABN: XX XXX XXX XXX (11 digits)
+ */
+export function displayAbn(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  const digits = String(value).replace(/\D/g, '');
+  const formatted = digits.length === 11
+    ? `${digits.slice(0,2)} ${digits.slice(2,5)} ${digits.slice(5,8)} ${digits.slice(8,11)}`
+    : String(value);
+  return <span className="font-mono text-[11px]">{formatted}</span>;
+}
+
+/**
+ * Display ACN: XXX XXX XXX (9 digits)
+ */
+export function displayAcn(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  const digits = String(value).replace(/\D/g, '');
+  const formatted = digits.length === 9
+    ? `${digits.slice(0,3)} ${digits.slice(3,6)} ${digits.slice(6,9)}`
+    : String(value);
+  return <span className="font-mono text-[11px]">{formatted}</span>;
+}
+
+/**
+ * Display BSB: XXX-XXX (6 digits)
+ */
+export function displayBsb(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  const digits = String(value).replace(/\D/g, '');
+  const formatted = digits.length === 6
+    ? `${digits.slice(0,3)}-${digits.slice(3,6)}`
+    : String(value);
+  return <span className="font-mono text-[11px]">{formatted}</span>;
+}
+
+/**
+ * Display Bank Account: up to 9 digits
+ */
+export function displayBankAccount(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  return <span className="font-mono text-[11px]">{String(value)}</span>;
+}
+
+/**
+ * Display Postcode: 4 digits
+ */
+export function displayPostcode(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  const formatted = String(value).padStart(4, '0').slice(0, 4);
+  return <span className="font-mono text-[11px]">{formatted}</span>;
+}
+
+/**
+ * Display TFN: masked for security (*** *** XXX)
+ */
+export function displayTfn(value: unknown): React.ReactNode {
+  if (value === null || value === undefined || value === "") return formatEmpty();
+  const digits = String(value).replace(/\D/g, '');
+  const masked = digits.length === 9
+    ? `*** *** ${digits.slice(6,9)}`
+    : '*** *** ***';
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="font-mono text-muted-foreground cursor-help text-[11px]">{masked}</span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <span className="text-[11px]">TFN hidden for security</span>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 }
 
 /**
@@ -371,17 +525,23 @@ export function displayDefault(value: unknown): React.ReactNode {
 
   // Handle arrays
   if (Array.isArray(value)) {
-    return value.join(", ");
+    if (value.length === 0) return formatEmpty();
+    return <span className="text-[11px]">{value.join(", ")}</span>;
   }
 
-  // Handle objects
+  // Handle objects - try to extract display value
   if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const displayValue = obj.display_value || obj.display || obj.name || obj.display_name;
+    if (displayValue) {
+      return <span className="text-[11px]">{String(displayValue)}</span>;
+    }
     try {
-      return JSON.stringify(value);
+      return <span className="text-[11px]">{JSON.stringify(value)}</span>;
     } catch {
-      return "[Object]";
+      return <span className="text-[11px]">[Object]</span>;
     }
   }
 
-  return String(value);
+  return <span className="text-[11px]">{String(value)}</span>;
 }

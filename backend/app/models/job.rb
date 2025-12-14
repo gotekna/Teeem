@@ -6,6 +6,11 @@ class Job < ApplicationRecord
   include BpmnTriggerable
   bpmn_status_trigger :job_status_id
 
+  # SSoT: Standard includes - define once, use everywhere
+  # Use Job.with_lookups for list views, Job.with_contacts for detail views
+  scope :with_lookups, -> { includes(:job_type, :job_status, :job_stage) }
+  scope :with_contacts, -> { includes(:job_type, :job_status, :job_stage, job_contacts: :contact) }
+
   # Associations
   has_many :purchase_orders, dependent: :destroy
   has_many :job_claims, dependent: :destroy
@@ -45,6 +50,32 @@ class Job < ApplicationRecord
     failed: "failed"
   }, prefix: :folders, default: :not_requested
 
+  # Alias title to name for backwards compatibility
+  # Many parts of the codebase reference job.title but the column is 'name'
+  alias_attribute :title, :name
+
+  # Address method for backwards compatibility
+  # Combines address components into a single string (same as name)
+  def address
+    name
+  end
+
+  # Status method for backwards compatibility (used in document templates)
+  # Returns the job_status name
+  def status
+    job_status&.name
+  end
+
+  # Job number for document templates (uses ID with padding)
+  def job_number
+    id&.to_s&.rjust(4, "0")
+  end
+
+  # Description placeholder for document templates
+  def description
+    nil
+  end
+
   # Validations
   validates :name, presence: true
   validates :site_supervisor_name, presence: true, unless: -> { imported_from_xero? || enquiry_status? }
@@ -69,11 +100,12 @@ class Job < ApplicationRecord
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
   after_create :log_job_created
+  after_commit :sync_xero_tracking_option, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
 
   # Scopes
-  scope :active, -> { joins(:job_status).where(job_statuses: { name: "Active Job" }) }
+  scope :active, -> { joins(:job_status).where(job_status: { name: "Active Job" }) }
 
   # Archival scopes (Sprint 8: Scale Preparation)
   scope :archived, -> { where.not(archived_at: nil) }
@@ -259,7 +291,7 @@ class Job < ApplicationRecord
     parts << abbreviate_state(state) if state.present?
 
     if parts.any?
-      self.name = parts.join(' ')
+      self.name = parts.join(" ")
     elsif new_record?
       # Generate placeholder for new records without address
       self.name = "New Job (Pending Address)"
@@ -307,14 +339,14 @@ class Job < ApplicationRecord
   def abbreviate_state(state_value)
     return nil if state_value.blank?
     state_map = {
-      'queensland' => 'QLD',
-      'new south wales' => 'NSW',
-      'victoria' => 'VIC',
-      'south australia' => 'SA',
-      'western australia' => 'WA',
-      'tasmania' => 'TAS',
-      'northern territory' => 'NT',
-      'australian capital territory' => 'ACT'
+      "queensland" => "QLD",
+      "new south wales" => "NSW",
+      "victoria" => "VIC",
+      "south australia" => "SA",
+      "western australia" => "WA",
+      "tasmania" => "TAS",
+      "northern territory" => "NT",
+      "australian capital territory" => "ACT"
     }
     state_map[state_value.downcase] || state_value.upcase
   end
@@ -408,6 +440,19 @@ class Job < ApplicationRecord
     JobActivity.log_job_created(self, user: Current.user)
   rescue StandardError => e
     Rails.logger.error "Failed to log job creation activity: #{e.message}"
+  end
+
+  def sync_xero_tracking_option
+    # Skip if already linked to Xero
+    return if xero_tracking_option_id.present?
+
+    # Skip if job is imported from Xero (already has tracking)
+    return if imported_from_xero?
+
+    # Create tracking option in Xero in background
+    XeroTrackingSyncJob.perform_later(id)
+  rescue StandardError => e
+    Rails.logger.error "Failed to queue Xero tracking sync for job ##{id}: #{e.message}"
   end
 
   def track_status_and_stage_changes

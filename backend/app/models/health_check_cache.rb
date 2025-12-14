@@ -25,10 +25,10 @@ class HealthCheckCache < ApplicationRecord
 
   def self.cache_foundation_health(foundation_id, results)
     cache = get_or_create(foundation_id: foundation_id, check_type: "foundation")
+    # Note: overall_health and total_issues are stored in results jsonb
+    # Separate columns were removed as they caused schema mismatch in production
     cache.update!(
       results: results,
-      overall_health: results[:overall_health],
-      total_issues: results[:total_issues],
       last_run_at: Time.current
     )
     cache
@@ -36,10 +36,9 @@ class HealthCheckCache < ApplicationRecord
 
   def self.cache_system_health(results)
     cache = get_or_create(foundation_id: nil, check_type: "system")
+    # Note: overall_health and total_issues are stored in results jsonb
     cache.update!(
       results: results,
-      overall_health: results[:overall_health],
-      total_issues: results.dig(:summary, :total_issues) || 0,
       last_run_at: Time.current
     )
     cache

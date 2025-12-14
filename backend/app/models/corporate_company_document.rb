@@ -12,11 +12,17 @@ class CorporateCompanyDocument < ApplicationRecord
   belongs_to :documentable, polymorphic: true, optional: true
 
   # Activity log for tracking changes
-  has_many :document_activities, dependent: :destroy
+  # Note: foreign_key is :company_document_id (legacy name from before table rename)
+  has_many :document_activities, foreign_key: :company_document_id, dependent: :destroy
 
   # Case links
-  has_many :case_documents, dependent: :destroy
+  # Note: foreign_key is :company_document_id (legacy name from before table rename)
+  has_many :case_documents, foreign_key: :company_document_id, dependent: :destroy
   has_many :cases, through: :case_documents, source: :case_record
+
+  # Verification feedback
+  # Note: foreign_key is :company_document_id (legacy name from before table rename)
+  has_many :document_verification_feedbacks, foreign_key: :company_document_id, dependent: :destroy
 
   # Duplicate tracking
   has_many :duplicate_reviews_as_existing, class_name: "DocumentDuplicateReview", foreign_key: :existing_document_id, dependent: :destroy

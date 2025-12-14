@@ -6,6 +6,12 @@ class ContactAddress < ApplicationRecord
   validates :address_type, inclusion: { in: ADDRESS_TYPES }, allow_nil: true
   validate :only_one_primary_per_contact, if: :is_primary?
 
+  # SSoT: contact_addresses IS the source of truth for all address data.
+  # Legacy columns on contacts table have been removed.
+  # Clear parent contact's address cache when addresses change.
+  after_save :clear_contact_address_cache
+  after_destroy :clear_contact_address_cache
+
   scope :primary, -> { where(is_primary: true) }
   scope :secondary, -> { where(is_primary: false) }
   scope :street, -> { where(address_type: "STREET") }
@@ -41,5 +47,10 @@ class ContactAddress < ApplicationRecord
     if contact && contact.contact_addresses.where(is_primary: true).where.not(id: id).exists?
       errors.add(:is_primary, "can only have one primary address")
     end
+  end
+
+  # Clear parent contact's cached address lookup
+  def clear_contact_address_cache
+    contact&.clear_address_cache!
   end
 end

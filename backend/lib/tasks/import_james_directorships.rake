@@ -1,10 +1,10 @@
 namespace :directorships do
   desc "Import James Harder directorships from ASIC PDF extract"
   task import_james: :environment do
-    require 'pdf-reader'
-    require 'date'
+    require "pdf-reader"
+    require "date"
 
-    file_path = Rails.root.join('../James Harder Directorships.pdf')
+    file_path = Rails.root.join("../James Harder Directorships.pdf")
 
     unless File.exist?(file_path)
       puts "❌ Error: PDF file not found at #{file_path}"
@@ -51,9 +51,9 @@ namespace :directorships do
         position = $1.strip
         # Map ASIC types to our position types
         position_map = {
-          /Director/ => 'director',
-          /Secretary/ => 'secretary',
-          /Public Officer/ => 'public_officer'
+          /Director/ => "director",
+          /Secretary/ => "secretary",
+          /Public Officer/ => "public_officer"
         }
 
         mapped_position = nil
@@ -65,14 +65,14 @@ namespace :directorships do
         end
 
         current_entry = {
-          position: mapped_position || 'director',
+          position: mapped_position || "director",
           is_current: position =~ /Current/i
         }
       elsif current_entry
         # Parse dates
         if line =~ /Appointment Date\s*:\s*(\d{2}\/\d{2}\/\d{4})/
           begin
-            current_entry[:appointment_date] = Date.strptime($1, '%d/%m/%Y')
+            current_entry[:appointment_date] = Date.strptime($1, "%d/%m/%Y")
           rescue ArgumentError
             puts "⚠️  Invalid appointment date: #{$1}"
           end
@@ -80,7 +80,7 @@ namespace :directorships do
 
         if line =~ /Ceased Date\s*:\s*(\d{2}\/\d{2}\/\d{4})/
           begin
-            current_entry[:resignation_date] = Date.strptime($1, '%d/%m/%Y')
+            current_entry[:resignation_date] = Date.strptime($1, "%d/%m/%Y")
             current_entry[:is_current] = false
           rescue ArgumentError
             puts "⚠️  Invalid ceased date: #{$1}"
@@ -138,7 +138,7 @@ namespace :directorships do
     directorships.each_with_index do |dir_data, index|
       # Find or create company
       corp_company = if dir_data[:acn]
-        acn_normalized = dir_data[:acn].gsub(/\s+/, '')
+        acn_normalized = dir_data[:acn].gsub(/\s+/, "")
         CorporateCompany.find_by("REPLACE(acn, ' ', '') = ?", acn_normalized)
       else
         CorporateCompany.find_by(name: dir_data[:company_name])
@@ -153,8 +153,8 @@ namespace :directorships do
           corp_company = CorporateCompany.create!(
             name: dir_data[:company_name],
             acn: dir_data[:acn],
-            status: dir_data[:is_current] ? 'active' : 'struck_off',
-            entity_type: 'company',
+            status: dir_data[:is_current] ? "active" : "struck_off",
+            entity_type: "company",
             code: dir_data[:acn] ? "JH-#{dir_data[:acn].gsub(/\s+/, '')}" : nil,
             purpose: "Imported from James Harder ASIC extract"
           )

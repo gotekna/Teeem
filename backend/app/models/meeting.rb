@@ -1,6 +1,7 @@
 class Meeting < ApplicationRecord
   # Associations
   belongs_to :job, optional: true
+  alias_method :construction, :job  # Backwards compatibility
   belongs_to :created_by, class_name: "User"
   belongs_to :meeting_type
   has_many :meeting_participants, dependent: :destroy

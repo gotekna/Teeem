@@ -36,8 +36,8 @@ class Email < ApplicationRecord
   def as_json(options = {})
     super(options.merge(
       include: {
-        job: { only: [ :id, :title ] },
-        user: { only: [ :id, :email, :name ] }
+        job: {},
+        user: {}
       },
       methods: [ :formatted_received_at, :short_subject ]
     ))

@@ -160,16 +160,101 @@ rm -rf "$DEPLOY_DIR"
 
 ### Step 8 - Report Status
 
-**Show Brisbane time:**
+**Get version numbers and show deploy status:**
+
+```bash
+# Get current versions
+BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
+FRONTEND_VERSION=$(cat frontend-next/package.json | jq -r '.version' 2>/dev/null || echo "unknown")
+HEROKU_RELEASE=$(heroku releases --app teeemlive -n 1 2>/dev/null | tail -1 | awk '{print $1}')
+BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
+
+# Check what's required
+BACKEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^backend/" && echo "REQUIRED" || echo "not required")
+FRONTEND_REQUIRED=$(git diff --name-only HEAD~1 HEAD | grep -q "^frontend" && echo "REQUIRED" || echo "not required")
+```
+
+**Output format:**
 ```
 ========================================
 DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
-Backend: v[XXX] or "No changes - skipped"
-Frontend: Auto-deployed via Vercel
-Heroku: v[XXX] or "Skipped"
+----------------------------------------
+Backend:  v[XXX] - [REQUIRED/not required]
+Frontend: v[XXX] - [REQUIRED/not required]
+Heroku:   [vXXX] - [deployed/skipped]
 ========================================
 ```
+
+### Step 9 - Post-Deploy Verification (Backend only)
+
+**If backend was deployed, verify critical systems are healthy:**
+
+```bash
+# Wait for dyno to restart
+sleep 10
+
+# 1. Check recurring tasks are registered
+heroku run rails runner "
+  tasks = SolidQueue::RecurringTask.pluck(:key)
+  critical = ['xero_health_monitor', 'refresh_integration_tokens', 'daily_health_check']
+  missing = critical - tasks
+  if missing.any?
+    puts '❌ MISSING RECURRING TASKS: ' + missing.join(', ')
+    exit 1
+  else
+    puts '✅ Recurring tasks OK (' + tasks.count.to_s + ' registered)'
+  end
+" --app teeemlive
+
+# 2. Check recent health monitor ran successfully
+heroku run rails runner "
+  last = XeroSyncEvent.where(sync_type: 'health_check').order(created_at: :desc).first
+  if last.nil?
+    puts '⚠️  No health monitor runs found'
+  elsif last.event_type == 'completed'
+    puts '✅ Health monitor OK (last: ' + last.created_at.in_time_zone('Australia/Brisbane').strftime('%H:%M') + ')'
+  else
+    puts '❌ Health monitor failed: ' + (last.error_message || 'unknown')
+  end
+" --app teeemlive
+
+# 3. Check Xero credentials status
+heroku run rails runner "
+  total = XeroCredential.count
+  expired = XeroCredential.all.count { |c| c.expired? }
+  if expired > 0
+    puts '⚠️  Xero: ' + expired.to_s + '/' + total.to_s + ' tokens expired (will auto-refresh)'
+  else
+    puts '✅ Xero: ' + total.to_s + ' credentials, all tokens valid'
+  end
+" --app teeemlive
+
+# 4. Check Xero sync health (are syncs running? check ALL tenants)
+heroku run rails runner "
+  stale_threshold = 60.minutes.ago
+  stale_count = 0
+  total = 0
+  XeroSyncStatus.where(sync_type: 'invoices').where.not(tenant_id: nil).each do |s|
+    total += 1
+    if s.last_synced_at.nil? || s.last_synced_at < stale_threshold
+      stale_count += 1
+    end
+  end
+  if stale_count > 0
+    puts '❌ STALE SYNCS: ' + stale_count.to_s + '/' + total.to_s + ' tenants not synced in 60min'
+    puts '   Run: heroku run rails runner \"XeroHealthMonitorJob.perform_now\" --app teeemlive'
+  else
+    puts '✅ Xero syncs OK (' + total.to_s + ' tenants all synced within 60min)'
+  end
+" --app teeemlive
+```
+
+**If any check fails:**
+- Recurring tasks missing → Check `config/recurring.yml` syntax
+- Health monitor failed → Check logs: `heroku logs --app teeemlive -n 100 | grep -i health`
+- Tokens expired → Will auto-refresh on next health monitor run (every 15 min)
+- Stale syncs → Run health monitor manually to trigger self-heal
 
 ## Error Handling
 

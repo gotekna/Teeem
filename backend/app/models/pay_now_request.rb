@@ -217,18 +217,11 @@ class PayNowRequest < ApplicationRecord
     super(options.merge(
       include: {
         purchase_order: {
-          only: [ :id, :purchase_order_number, :total, :status ],
           methods: [ :supplier_name ]
         },
-        contact: {
-          only: [ :id, :display_name, :email ]
-        },
-        reviewed_by_supervisor: {
-          only: [ :id, :first_name, :last_name, :email ]
-        },
-        payment: {
-          only: [ :id, :amount, :payment_date, :reference_number ]
-        }
+        contact: {},
+        reviewed_by_supervisor: {},
+        payment: {}
       },
       methods: [
         :formatted_original_amount,

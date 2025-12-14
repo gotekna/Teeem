@@ -12,7 +12,7 @@ description: |
   ║  Apply Updates:         Confirmed & applied         [PASS]║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Focus: Sync table settings to Gold Standard template     ║
-  ║  Bible Rule: #19.37 Column Types SSoT                     ║
+  ║  SSoT: CLAUDE.md + GOLD_STANDARD_TABLE.md                 ║
   ╠═══════════════════════════════════════════════════════════╣
   ║  Est. Tokens:           ~7,000                            ║
   ╚═══════════════════════════════════════════════════════════╝
@@ -260,7 +260,7 @@ In-memory table indicators:
 - Never apply changes without user confirmation
 - If table has no Gold Standard template, report and suggest creating one
 - Log all changes made for audit trail
-- Respect table-specific exceptions documented in Trinity
+- Respect table-specific exceptions documented in CLAUDE.md
 
 ## Final Summary Output (REQUIRED)
 

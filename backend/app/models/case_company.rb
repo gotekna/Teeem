@@ -3,6 +3,9 @@ class CaseCompany < ApplicationRecord
   belongs_to :case_record, foreign_key: :case_id, class_name: "CaseRecord"
   belongs_to :corporate_company, foreign_key: "company_id"
 
+  # Alias company to corporate_company for backwards compatibility
+  alias_method :company, :corporate_company
+
   validates :case_id, uniqueness: { scope: :company_id }
   validates :role, inclusion: {
     in: %w[subject co_primary related_entity counterparty],

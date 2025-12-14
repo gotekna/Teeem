@@ -33,13 +33,13 @@ module Bpmn
                      extra_data: build_extra_data,
                      destination_folder: destination_folder
                    )
-                 else
+        else
                    generator.generate(
                      job: job,
                      contact: contact,
                      extra_data: build_extra_data
                    )
-                 end
+        end
 
         # Create JobDocument record if configured
         if @config["attach_to_job"] && job && result[:uploaded_files]&.any?
@@ -198,13 +198,13 @@ module Bpmn
                       when "contact" then resolve_contact
                       else @variables[part]
                       end
-                    elsif current.respond_to?(part)
+          elsif current.respond_to?(part)
                       current.send(part)
-                    elsif current.is_a?(Hash)
+          elsif current.is_a?(Hash)
                       current[part] || current[part.to_sym]
-                    else
+          else
                       nil
-                    end
+          end
           break if current.nil?
         end
 

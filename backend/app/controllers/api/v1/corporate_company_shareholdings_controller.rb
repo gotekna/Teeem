@@ -206,7 +206,7 @@ module Api
       def shareholding_summary
         {
           total_shares: @company.corporate_company_shareholdings.sum(:number_of_shares),
-          shareholders_count: @company.corporate_company_shareholdings.select(:shareholder_id).distinct.count,
+          shareholders_count: @company.corporate_company_shareholdings.distinct.count(:shareholder_id),
           by_class: @company.corporate_company_shareholdings
                             .group(:share_class)
                             .sum(:number_of_shares)

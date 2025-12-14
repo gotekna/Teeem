@@ -113,6 +113,9 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
 
+      # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
+      # Services are pure business logic; Jobs own status tracking
+
       {
         success: true,
         tenant_id: tenant_id,
@@ -281,6 +284,13 @@ class ExternalInvoiceSyncService
 
     is_new = invoice.new_record?
 
+    # Resolve external_contact_id to warehouse_contact_id (SSoT for contact linking)
+    external_contact_id = invoice_data.dig("Contact", "ContactID")
+    warehouse_contact = nil
+    if external_contact_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: external_contact_id, tenant_id: tenant_id)
+    end
+
     # Map Xero data to our normalized format
     invoice.assign_attributes(
       invoice_number: invoice_data["InvoiceNumber"],
@@ -296,7 +306,8 @@ class ExternalInvoiceSyncService
       amount_due: invoice_data["AmountDue"],
       amount_paid: invoice_data["AmountPaid"],
       currency_code: invoice_data["CurrencyCode"] || "AUD",
-      external_contact_id: invoice_data.dig("Contact", "ContactID"),
+      external_contact_id: external_contact_id,
+      warehouse_contact_id: warehouse_contact&.id,
       contact_name: invoice_data.dig("Contact", "Name"),
       line_items: invoice_data["LineItems"] || [],
       payments: extract_payments(invoice_data),
@@ -393,7 +404,20 @@ class ExternalInvoiceSyncService
   def link_to_contact(invoice)
     return if invoice.external_contact_id.blank?
 
-    # First try: Find via ContactExternalLink (newer approach)
+    # First try: Find via WarehouseContact (SSoT for Xero contact linking)
+    warehouse_contact = WarehouseContact.find_by(
+      xero_id: invoice.external_contact_id,
+      tenant_id: @tenant_id
+    )
+
+    if warehouse_contact&.contact
+      invoice.update!(contact: warehouse_contact.contact)
+      @stats[:linked_to_contacts] += 1
+      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{warehouse_contact.contact.display_name} via warehouse contact")
+      return
+    end
+
+    # Fallback: Check ContactExternalLink (for backwards compatibility during migration)
     link = ContactExternalLink.find_by(
       source: @source,
       tenant_id: @tenant_id,
@@ -402,22 +426,15 @@ class ExternalInvoiceSyncService
 
     if link&.contact
       invoice.update!(contact: link.contact)
+      # Also update the WarehouseContact link if it exists but wasn't linked
+      warehouse_contact&.update!(contact_id: link.contact_id) if warehouse_contact && warehouse_contact.contact_id.nil?
       @stats[:linked_to_contacts] += 1
-      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name} via external link")
-      return
-    end
-
-    # Fallback: Find contact directly by xero_id on Contact model
-    contact = Contact.find_by(xero_id: invoice.external_contact_id)
-    if contact
-      invoice.update!(contact: contact)
-      @stats[:linked_to_contacts] += 1
-      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{contact.display_name} via xero_id")
+      Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{link.contact.display_name} via external link (legacy)")
       return
     end
 
     # Auto-create contact if not found (new Xero contact)
-    contact = auto_create_contact_from_xero(invoice)
+    contact = auto_create_contact_from_xero(invoice, warehouse_contact)
     if contact
       invoice.update!(contact: contact)
       @stats[:linked_to_contacts] += 1
@@ -427,8 +444,18 @@ class ExternalInvoiceSyncService
   end
 
   # Auto-create a TEEEM contact from Xero contact data embedded in invoice
-  def auto_create_contact_from_xero(invoice)
+  # BUG FIX: Added duplicate detection to prevent creating duplicate contacts
+  # IMPROVED: Added fuzzy matching for similar names across Xero orgs
+  def auto_create_contact_from_xero(invoice, warehouse_contact = nil)
     return nil if invoice.contact_name.blank?
+
+    # Check for existing contact using smart matching BEFORE creating
+    existing_contact, match_type = find_matching_contact(invoice.contact_name)
+    if existing_contact
+      Rails.logger.info("Found existing contact #{existing_contact.id} for '#{invoice.contact_name}' via #{match_type} - linking instead of creating")
+      link_existing_contact(existing_contact, invoice, warehouse_contact)
+      return existing_contact
+    end
 
     Rails.logger.info("Auto-creating contact for Xero contact: #{invoice.contact_name}")
 
@@ -437,11 +464,25 @@ class ExternalInvoiceSyncService
         display_name: invoice.contact_name,
         company_name_or_trust: invoice.contact_name,
         entity_type: "company",
-        xero_id: invoice.external_contact_id,
         sync_with_xero: true
       )
 
       if contact.save
+        # Link WarehouseContact to the new TEEEM Contact (SSoT)
+        if warehouse_contact
+          warehouse_contact.link_to_contact!(contact, match_type: "auto_created", confidence: 1.0)
+          Rails.logger.info("Linked WarehouseContact #{warehouse_contact.id} to new contact #{contact.id}")
+        elsif invoice.external_contact_id.present?
+          # If warehouse_contact doesn't exist yet, create ContactExternalLink for backwards compat
+          ContactExternalLink.find_or_create_by!(
+            contact: contact,
+            source: @source,
+            tenant_id: @tenant_id,
+            external_contact_id: invoice.external_contact_id
+          )
+          Rails.logger.info("Created ContactExternalLink for contact #{contact.id} (legacy)")
+        end
+
         Rails.logger.info("Successfully created contact #{contact.id}: #{contact.display_name}")
         contact
       else
@@ -451,6 +492,123 @@ class ExternalInvoiceSyncService
     rescue StandardError => e
       Rails.logger.error("Error auto-creating contact for #{invoice.contact_name}: #{e.message}")
       nil
+    end
+  end
+
+  # Smart contact matching with multiple strategies
+  # Returns [contact, match_type] or [nil, nil]
+  # Multi-word suffixes first, then single words (order matters!)
+  BUSINESS_SUFFIXES = [
+    "pty ltd", "pty. ltd.", "pty. ltd", "pty ltd.",
+    "inc.", "inc",
+    "corp.", "corp",
+    "ltd.", "ltd",
+    "pty.", "pty",
+    "corporation", "limited", "company", "co.",
+    "trust", "atf", "abn", "acn",
+    "trading", "t/a", "ta",
+    "australia", "au", "nsw", "qld", "vic", "sa", "wa", "nt", "tas", "act",
+    "holdings", "group", "services", "solutions", "enterprises"
+  ].freeze
+
+  def find_matching_contact(name)
+    return [nil, nil] if name.blank?
+
+    normalized = normalize_name(name)
+    base_name = extract_base_name(name)
+
+    # Strategy 1: Exact match (fastest)
+    contact = Contact.where("LOWER(TRIM(display_name)) = ?", normalized).first
+    return [contact, "exact_match"] if contact
+
+    # Strategy 2: Normalized match (removes Pty Ltd, Inc, etc.)
+    if base_name != normalized && base_name.length >= 4
+      contact = Contact.where("LOWER(TRIM(display_name)) = ?", base_name).first
+      return [contact, "normalized_match"] if contact
+
+      # Also check if existing contact's base name matches
+      contact = Contact.find_by_sql([
+        "SELECT * FROM contacts WHERE ? = #{extract_base_name_sql('display_name')} LIMIT 1",
+        base_name
+      ]).first
+      return [contact, "normalized_match"] if contact
+    end
+
+    # Strategy 3: Prefix match - new name starts with existing contact name
+    # e.g., "7 Eleven 4120" should match "7 Eleven"
+    # Only for names >= 6 chars to avoid false positives
+    if normalized.length >= 6
+      contact = Contact.where(
+        "LENGTH(TRIM(display_name)) >= 4 AND ? LIKE LOWER(TRIM(display_name)) || '%'",
+        normalized
+      ).order(Arel.sql("LENGTH(display_name) DESC")).first
+      return [contact, "prefix_match"] if contact
+    end
+
+    # Strategy 4: Reverse prefix - existing contact starts with new name
+    # e.g., "7 Eleven" should match "7 Eleven 4120" (if 4120 exists first)
+    if normalized.length >= 4
+      contact = Contact.where(
+        "LOWER(TRIM(display_name)) LIKE ? || '%' AND LENGTH(TRIM(display_name)) >= ?",
+        normalized, normalized.length
+      ).order(:created_at).first
+      return [contact, "reverse_prefix_match"] if contact
+    end
+
+    [nil, nil]
+  end
+
+  # Normalize name to lowercase, trimmed
+  def normalize_name(name)
+    name.to_s.downcase.strip
+  end
+
+  # Extract base name by removing common business suffixes and numbers
+  def extract_base_name(name)
+    base = normalize_name(name)
+
+    # Remove trailing numbers (e.g., "7 Eleven 4120" -> "7 Eleven")
+    base = base.gsub(/\s+\d+\s*$/, "")
+
+    # Remove common business suffixes (iterate multiple times for nested suffixes)
+    2.times do
+      BUSINESS_SUFFIXES.each do |suffix|
+        escaped = Regexp.escape(suffix)
+        base = base.gsub(/\s+#{escaped}\s*$/i, "")
+        base = base.gsub(/\s+\(#{escaped}\)\s*$/i, "")
+      end
+    end
+
+    # Remove trailing punctuation and whitespace
+    base = base.gsub(/[\s\-\.,]+$/, "").strip
+
+    base
+  end
+
+  # SQL expression to extract base name (for matching against existing contacts)
+  def extract_base_name_sql(column)
+    # Remove trailing numbers and common suffixes in SQL
+    # This is a simplified version - removes trailing numbers only
+    "REGEXP_REPLACE(LOWER(TRIM(#{column})), '\\s+\\d+\\s*$', '', 'g')"
+  end
+
+  # Link an existing contact to WarehouseContact/ExternalLink (used when duplicate detected)
+  def link_existing_contact(contact, invoice, warehouse_contact)
+    if warehouse_contact && warehouse_contact.contact_id.nil?
+      warehouse_contact.link_to_contact!(contact, match_type: "matched_by_name", confidence: 0.95)
+      Rails.logger.info("Linked WarehouseContact #{warehouse_contact.id} to existing contact #{contact.id}")
+    elsif invoice.external_contact_id.present?
+      # Create ContactExternalLink if it doesn't exist
+      link = ContactExternalLink.find_or_initialize_by(
+        source: @source,
+        tenant_id: @tenant_id,
+        external_contact_id: invoice.external_contact_id
+      )
+      if link.new_record? || link.contact_id.nil?
+        link.contact = contact
+        link.save!
+        Rails.logger.info("Created/updated ContactExternalLink for existing contact #{contact.id}")
+      end
     end
   end
 
@@ -559,6 +717,9 @@ class ExternalInvoiceSyncService
       process_invoice(invoice_data, tenant_id)
     end
 
+    # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
+    # Services are pure business logic; Jobs own status tracking
+
     {
       success: true,
       tenant_id: tenant_id,
@@ -621,6 +782,13 @@ class ExternalInvoiceSyncService
 
     is_new = record.new_record?
 
+    # Resolve external_contact_id to warehouse_contact_id (SSoT for contact linking)
+    external_contact_id = cn_data.dig("Contact", "ContactID")
+    warehouse_contact = nil
+    if external_contact_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: external_contact_id, tenant_id: tenant_id)
+    end
+
     record.assign_attributes(
       invoice_number: cn_data["CreditNoteNumber"],
       reference: cn_data["Reference"],
@@ -634,7 +802,8 @@ class ExternalInvoiceSyncService
       amount_due: cn_data["RemainingCredit"],
       amount_paid: (cn_data["Total"] || 0) - (cn_data["RemainingCredit"] || 0),
       currency_code: cn_data["CurrencyCode"] || "AUD",
-      external_contact_id: cn_data.dig("Contact", "ContactID"),
+      external_contact_id: external_contact_id,
+      warehouse_contact_id: warehouse_contact&.id,
       contact_name: cn_data.dig("Contact", "Name"),
       line_items: cn_data["LineItems"] || [],
       payments: [],
@@ -703,6 +872,13 @@ class ExternalInvoiceSyncService
 
     is_new = record.new_record?
 
+    # Resolve external_contact_id to warehouse_contact_id (SSoT for contact linking)
+    external_contact_id = quote_data.dig("Contact", "ContactID")
+    warehouse_contact = nil
+    if external_contact_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: external_contact_id, tenant_id: tenant_id)
+    end
+
     record.assign_attributes(
       invoice_number: quote_data["QuoteNumber"],
       reference: quote_data["Reference"] || quote_data["Title"],
@@ -716,7 +892,8 @@ class ExternalInvoiceSyncService
       amount_due: quote_data["Total"],
       amount_paid: 0,
       currency_code: quote_data["CurrencyCode"] || "AUD",
-      external_contact_id: quote_data.dig("Contact", "ContactID"),
+      external_contact_id: external_contact_id,
+      warehouse_contact_id: warehouse_contact&.id,
       contact_name: quote_data.dig("Contact", "Name"),
       line_items: quote_data["LineItems"] || [],
       payments: [],

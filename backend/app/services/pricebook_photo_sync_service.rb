@@ -29,7 +29,7 @@ class PricebookPhotoSyncService
 
     # Get SharePoint site and drive
     sites = @client.get_all_sites
-    teeem_site = sites.find { |s| s[:display_name]&.include?('TEEEM') || s[:name]&.include?('teeem') }
+    teeem_site = sites.find { |s| s[:display_name]&.include?("TEEEM") || s[:name]&.include?("teeem") }
     raise SyncError, "TEEEM site not found" unless teeem_site
 
     drives = @client.get_site_drives(teeem_site[:id])
@@ -38,12 +38,12 @@ class PricebookPhotoSyncService
 
     # Get warehousing folder
     root_items = @client.list_drive_items(main_drive[:id])
-    warehousing = root_items.find { |item| item[:is_folder] && item[:name]&.downcase&.include?('warehous') }
+    warehousing = root_items.find { |item| item[:is_folder] && item[:name]&.downcase&.include?("warehous") }
     raise SyncError, "Warehousing folder not found" unless warehousing
 
     # Get pricebook photos folder
     warehousing_contents = @client.list_drive_items(main_drive[:id], folder_id: warehousing[:id])
-    pricebook_folder = warehousing_contents.find { |item| item[:is_folder] && item[:name]&.downcase&.include?('pricebook') }
+    pricebook_folder = warehousing_contents.find { |item| item[:is_folder] && item[:name]&.downcase&.include?("pricebook") }
     raise SyncError, "Pricebook Photos folder not found" unless pricebook_folder
 
     # Get all files (fetch up to 500)
@@ -79,7 +79,7 @@ class PricebookPhotoSyncService
 
         if match_result[:matched]
           @stats[:photos_matched] += 1
-          @stats[:matches] << match_result.merge(file_type: 'photo')
+          @stats[:matches] << match_result.merge(file_type: "photo")
 
           unless dry_run
             item = match_result[:item]
@@ -108,7 +108,7 @@ class PricebookPhotoSyncService
 
         if match_result[:matched]
           @stats[:qr_matched] += 1
-          @stats[:matches] << match_result.merge(file_type: 'qr_code')
+          @stats[:matches] << match_result.merge(file_type: "qr_code")
 
           unless dry_run
             item = match_result[:item]
@@ -139,7 +139,7 @@ class PricebookPhotoSyncService
   def match_photo_to_item(photo, pricebook_items)
     filename = photo[:name]
     # Remove file extension
-    name_without_ext = filename.gsub(/\.(png|jpg|jpeg|gif|webp)$/i, '')
+    name_without_ext = filename.gsub(/\.(png|jpg|jpeg|gif|webp)$/i, "")
 
     # Strategy 1: Try exact item_code match
     item = pricebook_items[name_without_ext]
@@ -211,9 +211,9 @@ class PricebookPhotoSyncService
 
     # Remove file extension and QR-related keywords
     clean_name = filename
-      .gsub(/\.(png|jpg|jpeg|gif|webp)$/i, '')
-      .gsub(/\b(qr|code)\b/i, '')  # Remove "QR" and "Code" words
-      .gsub(/[-_\s]+/, ' ')         # Normalize separators to spaces
+      .gsub(/\.(png|jpg|jpeg|gif|webp)$/i, "")
+      .gsub(/\b(qr|code)\b/i, "")  # Remove "QR" and "Code" words
+      .gsub(/[-_\s]+/, " ")         # Normalize separators to spaces
       .strip
 
     # Strategy 1: Try exact item_code match on cleaned name
@@ -229,10 +229,10 @@ class PricebookPhotoSyncService
     end
 
     # Strategy 2: Try matching against each item code by removing spaces/dashes
-    normalized_clean_name = clean_name.gsub(/[\s_-]/, '').upcase
+    normalized_clean_name = clean_name.gsub(/[\s_-]/, "").upcase
 
     pricebook_items.each do |code, item|
-      normalized_code = code.gsub(/[\s_-]/, '').upcase
+      normalized_code = code.gsub(/[\s_-]/, "").upcase
 
       if normalized_clean_name == normalized_code
         return {
@@ -289,7 +289,7 @@ class PricebookPhotoSyncService
   def normalize_name(name)
     name
       .downcase
-      .gsub(/[^\w\s-]/, ' ')  # Replace special chars with space
+      .gsub(/[^\w\s-]/, " ")  # Replace special chars with space
       .split(/[\s_-]+/)       # Split on whitespace, underscore, dash
       .reject { |w| w.length < 3 }  # Remove short words
       .reject { |w| %w[the with for and from qr code].include?(w) }  # Remove common words and QR-related terms

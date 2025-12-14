@@ -31,7 +31,7 @@ class CreateBpmnWorkflowSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bpmn_nodes, [:bpmn_process_id, :node_key], unique: true
+    add_index :bpmn_nodes, [ :bpmn_process_id, :node_key ], unique: true
     add_index :bpmn_nodes, :node_type
 
     # 3. BPMN Edges (sequence flows)
@@ -48,7 +48,7 @@ class CreateBpmnWorkflowSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bpmn_edges, [:bpmn_process_id, :edge_key], unique: true
+    add_index :bpmn_edges, [ :bpmn_process_id, :edge_key ], unique: true
     # Note: source_node_id and target_node_id indexes created automatically by t.references
 
     # 4. BPMN Process Instances (running workflows)
@@ -66,7 +66,7 @@ class CreateBpmnWorkflowSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bpmn_process_instances, [:subject_type, :subject_id]
+    add_index :bpmn_process_instances, [ :subject_type, :subject_id ]
     add_index :bpmn_process_instances, :status
 
     # 5. BPMN Tokens (execution state for parallel branches)
@@ -104,7 +104,7 @@ class CreateBpmnWorkflowSystem < ActiveRecord::Migration[8.0]
     end
 
     add_index :bpmn_task_instances, :status
-    add_index :bpmn_task_instances, [:assigned_to_type, :assigned_to_id]
+    add_index :bpmn_task_instances, [ :assigned_to_type, :assigned_to_id ]
 
     # 7. BPMN Triggers
     create_table :bpmn_triggers do |t|
@@ -117,7 +117,7 @@ class CreateBpmnWorkflowSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :bpmn_triggers, [:bpmn_process_id, :trigger_type]
+    add_index :bpmn_triggers, [ :bpmn_process_id, :trigger_type ]
     add_index :bpmn_triggers, :is_active
   end
 end

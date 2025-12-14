@@ -35,6 +35,10 @@ class CorporateCompany < ApplicationRecord
   has_many :corporate_company_activities, foreign_key: "company_id", dependent: :destroy
   has_one :corporate_company_xero_connection, foreign_key: "company_id", dependent: :destroy
 
+  # SSoT Aliases - Backwards compatibility (shorter names)
+  alias_method :company_activities, :corporate_company_activities
+  alias_method :company_xero_connection, :corporate_company_xero_connection
+
   # New corporate associations
   has_many :corporate_company_shareholdings, foreign_key: "company_id", dependent: :destroy
   has_many :shareholders, through: :corporate_company_shareholdings, source: :shareholder

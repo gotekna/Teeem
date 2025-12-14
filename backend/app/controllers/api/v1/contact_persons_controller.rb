@@ -10,11 +10,7 @@ module Api
 
         render json: {
           success: true,
-          contact_persons: @contact_persons.as_json(only: [
-            :id, :first_name, :last_name, :email, :mobile, :role,
-            :include_in_emails, :is_primary, :xero_contact_person_id,
-            :created_at, :updated_at
-          ])
+          contact_persons: @contact_persons.as_json
         }
       end
 
@@ -25,11 +21,7 @@ module Api
         if @contact_person.save
           render json: {
             success: true,
-            contact_person: @contact_person.as_json(only: [
-              :id, :first_name, :last_name, :email, :mobile, :role,
-              :include_in_emails, :is_primary, :xero_contact_person_id,
-              :created_at, :updated_at
-            ])
+            contact_person: @contact_person.as_json
           }, status: :created
         else
           render json: {
@@ -44,11 +36,7 @@ module Api
         if @contact_person.update(contact_person_params)
           render json: {
             success: true,
-            contact_person: @contact_person.as_json(only: [
-              :id, :first_name, :last_name, :email, :mobile, :role,
-              :include_in_emails, :is_primary, :xero_contact_person_id,
-              :created_at, :updated_at
-            ])
+            contact_person: @contact_person.as_json
           }
         else
           render json: {

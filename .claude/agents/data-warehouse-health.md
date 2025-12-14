@@ -10,6 +10,7 @@ description: |
   ║  Email-Contact Match:     33% from, 79% to/cc      [INFO] ║
   ║  Contact Enrichment:      Signature mining ready   [INFO] ║
   ║  Storage Health:          No orphan blobs          [PASS] ║
+  ║  PDF/Doc Speed:           Fast open times          [PASS] ║
   ║  SSoT Architecture:       Direction/Owner tracking [NEW]  ║
   ║  AI Summaries:            Summarization status     [NEW]  ║
   ║  Spam Management:         Spam detection/deletion  [NEW]  ║
@@ -164,6 +165,100 @@ SELECT 'Content types', content_type, COUNT(*) FROM active_storage_blobs
   GROUP BY content_type ORDER BY COUNT(*) DESC LIMIT 5;
 ```
 
+### Step 5.1: PDF/Document Speed Audit (NEW)
+
+**Target: PDFs open in <2 seconds**
+
+#### DOC-SPEED-001: Large File Detection
+```sql
+-- Find oversized PDFs (>10MB = slow to open)
+SELECT 'Large PDFs (>10MB)', COUNT(*) FROM active_storage_blobs
+  WHERE content_type = 'application/pdf' AND byte_size > 10485760;
+
+-- Top 10 largest documents
+SELECT filename, ROUND(byte_size/1024.0/1024.0, 2) as mb, content_type
+  FROM active_storage_blobs
+  WHERE content_type LIKE '%pdf%' OR content_type LIKE '%document%'
+  ORDER BY byte_size DESC LIMIT 10;
+
+-- Average PDF size
+SELECT 'Avg PDF size (MB)', ROUND(AVG(byte_size)/1024.0/1024.0, 2)
+  FROM active_storage_blobs WHERE content_type = 'application/pdf';
+```
+
+#### DOC-SPEED-002: Missing Thumbnails/Previews
+```sql
+-- Documents without preview (requires preview for fast display)
+SELECT 'Docs without preview', COUNT(*) FROM company_documents cd
+  WHERE cd.preview_image_url IS NULL
+    AND cd.document_type IN ('pdf', 'image', 'invoice', 'quote');
+
+-- PDFs that could have thumbnails but don't
+SELECT 'PDFs needing thumbnail', COUNT(*) FROM active_storage_blobs b
+  JOIN active_storage_attachments a ON b.id = a.blob_id
+  WHERE b.content_type = 'application/pdf'
+    AND NOT EXISTS (
+      SELECT 1 FROM active_storage_attachments a2
+      WHERE a2.record_id = a.record_id
+        AND a2.name = 'preview'
+    );
+```
+
+#### DOC-SPEED-003: Remote Storage Latency
+```sql
+-- Documents stored on SharePoint (may be slower)
+SELECT 'Docs on SharePoint', COUNT(*) FROM company_documents
+  WHERE sharepoint_file_id IS NOT NULL;
+
+-- Documents on local storage (faster)
+SELECT 'Docs on local/S3', COUNT(*) FROM company_documents cd
+  JOIN active_storage_attachments a ON a.record_type = 'CompanyDocument' AND a.record_id = cd.id
+  WHERE cd.sharepoint_file_id IS NULL;
+```
+
+#### DOC-SPEED-004: API Endpoint Speed (Manual Check)
+```bash
+# Test PDF fetch time from API
+time curl -s "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/company_documents/[ID]" > /dev/null
+
+# Should be < 500ms for metadata
+# PDF download depends on file size
+```
+
+#### DOC-SPEED-005: Browser PDF Rendering
+Frontend checks for slow PDF rendering:
+
+```tsx
+// ❌ SLOW - Load entire PDF before display
+<iframe src={pdfUrl} />
+
+// ✅ FAST - Use PDF.js with lazy page loading
+<PDFViewer
+  url={pdfUrl}
+  loadingMode="lazy"    // Only load visible pages
+  cachePages={true}     // Cache rendered pages
+/>
+```
+
+#### PDF Speed Recommendations
+
+| Issue | Impact | Fix |
+|-------|--------|-----|
+| PDF > 10MB | 5-10s load | Compress or split large PDFs |
+| No thumbnail | Slow list view | Generate preview on upload |
+| SharePoint-only | Network latency | Cache locally after first view |
+| No lazy loading | Full PDF in memory | Use PDF.js with page-level loading |
+| No CDN | Slow download | Serve via CloudFront/CDN |
+
+#### PDF Performance Audit Commands
+```bash
+# Count large PDFs in production
+heroku run rails runner "puts ActiveStorage::Blob.where('content_type = ? AND byte_size > ?', 'application/pdf', 10.megabytes).count" --app teeemlive
+
+# Find slowest-loading documents (by size)
+heroku run rails runner "ActiveStorage::Blob.where(content_type: 'application/pdf').order(byte_size: :desc).limit(5).each { |b| puts \"#{b.filename}: #{(b.byte_size/1024.0/1024.0).round(2)} MB\" }" --app teeemlive
+```
+
 ### Step 5.5: SSoT Architecture Health (NEW)
 
 ```sql
@@ -301,6 +396,11 @@ SELECT 'Attachments synced to SharePoint', COUNT(*) FROM email_attachments WHERE
 ║  Doc orphan company:      0                            [PASS]  ║
 ║  Contact dupe email:      0                            [PASS]  ║
 ║  Orphan blobs:            0                            [PASS]  ║
+╠════════════════════════════════════════════════════════════════╣
+║  📄 PDF/DOC SPEED                                              ║
+║  Large PDFs (>10MB):      X                            [PASS]  ║
+║  Missing thumbnails:      X                            [PASS]  ║
+║  Avg PDF size:            X.X MB                       [INFO]  ║
 ╠════════════════════════════════════════════════════════════════╣
 ║  📧 EMAIL-CONTACT LINKAGE                                      ║
 ║  From known contacts:     XX% (XX,XXX / XX,XXX)        [GOOD]  ║

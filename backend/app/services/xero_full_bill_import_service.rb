@@ -269,7 +269,16 @@ class XeroFullBillImportService
     xero_id = xero_contact["ContactID"]
     return nil unless xero_id
 
-    # Try to find by xero_id first
+    # Get tenant_id from current Xero credential
+    tenant_id = XeroCredential.current&.tenant_id
+
+    # Try to find via WarehouseContact first (SSoT for Xero contact linking)
+    if tenant_id.present?
+      warehouse_contact = WarehouseContact.find_by(xero_id: xero_id, tenant_id: tenant_id)
+      return warehouse_contact.contact if warehouse_contact&.contact
+    end
+
+    # Fallback: Try to find by Contact.xero_id (legacy, deprecated)
     contact = Contact.find_by(xero_id: xero_id)
     return contact if contact
 

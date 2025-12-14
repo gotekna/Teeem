@@ -16,12 +16,14 @@ clear_solid_queue_finished_jobs:
   schedule: every hour at minute 12
 
 # ============================================
-# TOKEN REFRESH (every 30 minutes)
+# TOKEN REFRESH (every 15 minutes)
+# Proactively refresh OAuth tokens before expiry
+# Uses 15-minute buffer to catch expirations early
 # ============================================
 refresh_integration_tokens:
   class: RefreshIntegrationTokensJob
   queue: default
-  schedule: every 30 minutes
+  schedule: every 15 minutes
 
 # ============================================
 # EMAIL SYNC (every 10-15 minutes)

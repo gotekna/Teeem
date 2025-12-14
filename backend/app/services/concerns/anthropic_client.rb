@@ -65,7 +65,7 @@ module AnthropicClient
     parameters = {
       model: model || default_claude_model,
       max_tokens: max_tokens || default_max_tokens,
-      messages: [{ role: "user", content: content }]
+      messages: [ { role: "user", content: content } ]
     }
 
     parameters[:system] = system if system.present?

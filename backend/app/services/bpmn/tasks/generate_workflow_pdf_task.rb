@@ -6,14 +6,14 @@ module Bpmn
     #
     class GenerateWorkflowPdfTask < BaseTask
       def execute
-        require 'hexapdf'
+        require "hexapdf"
 
         log_info("Generating workflow PDF summary")
 
         # Get all completed tasks in this workflow
         instance = @token.bpmn_process_instance
         tasks = BpmnTaskInstance.where(bpmn_token_id: instance.bpmn_tokens.pluck(:id))
-                                .where(status: 'completed')
+                                .where(status: "completed")
                                 .order(:completed_at)
 
         # Collect all form data
@@ -53,46 +53,46 @@ module Bpmn
 
         HexaPDF::Composer.create(path.to_s) do |composer|
           # Title
-          composer.text("CONTRACT SUMMARY", font_size: 24, margin: [0, 0, 5, 0])
-          composer.text(job.name, font_size: 14, margin: [0, 0, 20, 0])
+          composer.text("CONTRACT SUMMARY", font_size: 24, margin: [ 0, 0, 5, 0 ])
+          composer.text(job.name, font_size: 14, margin: [ 0, 0, 20, 0 ])
 
           # Status
-          composer.text("STATUS: #{instance.status.upcase}", font_size: 12, margin: [0, 0, 5, 0])
-          composer.text("Generated: #{Time.current.strftime('%d %B %Y at %I:%M %p')}", font_size: 10, margin: [0, 0, 20, 0])
+          composer.text("STATUS: #{instance.status.upcase}", font_size: 12, margin: [ 0, 0, 5, 0 ])
+          composer.text("Generated: #{Time.current.strftime('%d %B %Y at %I:%M %p')}", font_size: 10, margin: [ 0, 0, 20, 0 ])
 
           # Workflow Info
-          composer.text("WORKFLOW DETAILS", font_size: 14, margin: [0, 0, 10, 0])
-          composer.text("Process: #{process.name}", font_size: 11, margin: [0, 0, 5, 0])
-          composer.text("Started: #{instance.started_at&.strftime('%d %B %Y at %I:%M %p')}", font_size: 11, margin: [0, 0, 5, 0])
-          composer.text("Instance ID: #{instance.id}", font_size: 11, margin: [0, 0, 20, 0])
+          composer.text("WORKFLOW DETAILS", font_size: 14, margin: [ 0, 0, 10, 0 ])
+          composer.text("Process: #{process.name}", font_size: 11, margin: [ 0, 0, 5, 0 ])
+          composer.text("Started: #{instance.started_at&.strftime('%d %B %Y at %I:%M %p')}", font_size: 11, margin: [ 0, 0, 5, 0 ])
+          composer.text("Instance ID: #{instance.id}", font_size: 11, margin: [ 0, 0, 20, 0 ])
 
           # Contract Details
-          if form_data['contract_price'] || form_data['deposit_amount']
-            composer.text("CONTRACT DETAILS", font_size: 14, margin: [0, 0, 10, 0])
-            composer.text("Contract Price: $#{form_data['contract_price']}", font_size: 12, margin: [0, 0, 5, 0]) if form_data['contract_price']
-            composer.text("Deposit Amount: $#{form_data['deposit_amount']}", font_size: 11, margin: [0, 0, 5, 0]) if form_data['deposit_amount']
-            composer.text("Contract Date: #{form_data['contract_date']}", font_size: 11, margin: [0, 0, 5, 0]) if form_data['contract_date']
-            composer.text("Build Period: #{form_data['build_period_days']} days", font_size: 11, margin: [0, 0, 5, 0]) if form_data['build_period_days']
-            composer.text("Special Conditions: #{form_data['special_conditions']}", font_size: 11, margin: [0, 0, 20, 0]) if form_data['special_conditions']
+          if form_data["contract_price"] || form_data["deposit_amount"]
+            composer.text("CONTRACT DETAILS", font_size: 14, margin: [ 0, 0, 10, 0 ])
+            composer.text("Contract Price: $#{form_data['contract_price']}", font_size: 12, margin: [ 0, 0, 5, 0 ]) if form_data["contract_price"]
+            composer.text("Deposit Amount: $#{form_data['deposit_amount']}", font_size: 11, margin: [ 0, 0, 5, 0 ]) if form_data["deposit_amount"]
+            composer.text("Contract Date: #{form_data['contract_date']}", font_size: 11, margin: [ 0, 0, 5, 0 ]) if form_data["contract_date"]
+            composer.text("Build Period: #{form_data['build_period_days']} days", font_size: 11, margin: [ 0, 0, 5, 0 ]) if form_data["build_period_days"]
+            composer.text("Special Conditions: #{form_data['special_conditions']}", font_size: 11, margin: [ 0, 0, 20, 0 ]) if form_data["special_conditions"]
           end
 
           # Client Details
-          if form_data['client_name'] || form_data['client_email']
-            composer.text("CLIENT DETAILS", font_size: 14, margin: [0, 0, 10, 0])
-            composer.text("Name: #{form_data['client_name']}", font_size: 11, margin: [0, 0, 5, 0]) if form_data['client_name']
-            composer.text("Email: #{form_data['client_email']}", font_size: 11, margin: [0, 0, 5, 0]) if form_data['client_email']
-            composer.text("Phone: #{form_data['client_phone']}", font_size: 11, margin: [0, 0, 5, 0]) if form_data['client_phone']
-            composer.text("Address: #{form_data['client_address']}", font_size: 11, margin: [0, 0, 20, 0]) if form_data['client_address']
+          if form_data["client_name"] || form_data["client_email"]
+            composer.text("CLIENT DETAILS", font_size: 14, margin: [ 0, 0, 10, 0 ])
+            composer.text("Name: #{form_data['client_name']}", font_size: 11, margin: [ 0, 0, 5, 0 ]) if form_data["client_name"]
+            composer.text("Email: #{form_data['client_email']}", font_size: 11, margin: [ 0, 0, 5, 0 ]) if form_data["client_email"]
+            composer.text("Phone: #{form_data['client_phone']}", font_size: 11, margin: [ 0, 0, 5, 0 ]) if form_data["client_phone"]
+            composer.text("Address: #{form_data['client_address']}", font_size: 11, margin: [ 0, 0, 20, 0 ]) if form_data["client_address"]
           end
 
           # Approval
-          if form_data['approval_notes']
-            composer.text("APPROVAL", font_size: 14, margin: [0, 0, 10, 0])
-            composer.text("Notes: #{form_data['approval_notes']}", font_size: 11, margin: [0, 0, 20, 0])
+          if form_data["approval_notes"]
+            composer.text("APPROVAL", font_size: 14, margin: [ 0, 0, 10, 0 ])
+            composer.text("Notes: #{form_data['approval_notes']}", font_size: 11, margin: [ 0, 0, 20, 0 ])
           end
 
           # Footer
-          composer.text("", margin: [0, 0, 30, 0])
+          composer.text("", margin: [ 0, 0, 30, 0 ])
           composer.text("This document was generated by TEEEM Workflow System", font_size: 9)
         end
       end

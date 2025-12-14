@@ -467,13 +467,14 @@ module HealthChecks
     def check_duplicate_xero_ids
       # Find xero_ids that appear more than once
       duplicate_xero_ids = Contact.all
-                                 .where.not(xero_id: [nil, ""])
+                                 .where.not(xero_id: [ nil, "" ])
                                  .group(:xero_id)
                                  .having("COUNT(*) > 1")
                                  .pluck(:xero_id)
 
       items = duplicate_xero_ids.map do |xero_id|
-        contacts = Contact.where(xero_id: xero_id).select(:id, :display_name, :xero_id)
+        # Load all columns - display_name method needs is_team_contact, entity_type, etc.
+        contacts = Contact.where(xero_id: xero_id).includes(:primary_company)
         {
           id: contacts.first.id,
           display: "Xero ID #{xero_id[0..7]}... shared by: #{contacts.map(&:display_name).join(', ')}",
@@ -540,6 +541,159 @@ module HealthChecks
         icon: "link-off",
         action_path: nil,
         check_name: "relationship_type_violations"
+      )
+    end
+
+    # === DATA QUALITY CHECKS ===
+    # These checks identify contacts that may be misclassified or need company links
+
+    # Person contacts with business email prefixes (admin@, info@, sales@, etc.)
+    def check_person_business_email
+      business_prefixes = %w[admin info sales accounts office reception support contact enquiries billing finance hr operations]
+      personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com bigpond.com optusnet.com.au]
+
+      # Build SQL conditions for business prefixes
+      prefix_conditions = business_prefixes.map { |p| "email ILIKE '#{p}@%'" }.join(" OR ")
+      domain_exclusions = personal_domains.map { |d| "'#{d}'" }.join(", ")
+
+      contacts = Contact.where(entity_type: "person")
+                        .where("email IS NOT NULL AND email != ''")
+                        .where("(#{prefix_conditions})")
+                        .where("NOT (LOWER(SPLIT_PART(email, '@', 2)) IN (#{domain_exclusions}))")
+                        .select(:id, :display_name, :email, :entity_type, :primary_company_id)
+                        .limit(50)
+
+      build_result(
+        name: "Persons with Business Email Addresses",
+        description: "Person contacts using business email prefixes (admin@, info@, sales@) - may be employees or should be companies.",
+        severity: :warning,
+        items: contacts,
+        icon: "user-search",
+        action_path: "/contacts/quality-review?filter=admin_email_pattern",
+        check_name: "person_business_email"
+      )
+    end
+
+    # Person contacts linked to multiple Xero tenants - unusual for individuals
+    def check_person_multiple_xero_tenants
+      contacts = Contact.where(entity_type: "person")
+                        .joins(:contact_external_links)
+                        .where(contact_external_links: { source: "xero" })
+                        .group("contacts.id")
+                        .having("COUNT(DISTINCT contact_external_links.tenant_id) > 1")
+                        .select("contacts.id, contacts.display_name, contacts.email, contacts.entity_type, COUNT(DISTINCT contact_external_links.tenant_id) as xero_tenant_count")
+                        .limit(50)
+
+      items = contacts.map do |c|
+        {
+          id: c.id,
+          display: "#{c.display_name} - #{c.xero_tenant_count} Xero tenants",
+          display_name: c.display_name,
+          email: c.email,
+          entity_type: c.entity_type,
+          xero_tenant_count: c.xero_tenant_count
+        }
+      end
+
+      build_result(
+        name: "Persons with Multiple Xero Tenants",
+        description: "Person contacts linked to multiple Xero companies - may be employees or key contacts that should be linked to companies.",
+        severity: :info,
+        items: items,
+        icon: "users",
+        action_path: "/contacts/quality-review?filter=multiple_xero_links",
+        check_name: "person_multiple_xero_tenants"
+      )
+    end
+
+    # Company contacts without typical company attributes (no ABN, person-like name)
+    def check_company_person_like
+      # Company without ABN AND has first/last name AND name doesn't have company indicators
+      contacts = Contact.where(entity_type: "company")
+                        .where("(tax_number IS NULL OR tax_number = '')")
+                        .where("first_name IS NOT NULL AND first_name != ''")
+                        .where("last_name IS NOT NULL AND last_name != ''")
+                        .where("LOWER(COALESCE(company_name_or_trust, display_name)) NOT SIMILAR TO '%(pty|ltd|limited|holdings|group|trust|inc|corp|services|consulting)%'")
+                        .select(:id, :display_name, :first_name, :last_name, :company_name_or_trust, :entity_type, :tax_number)
+                        .limit(50)
+
+      build_result(
+        name: "Companies with Person-like Attributes",
+        description: "Company contacts that have first/last name fields set, no ABN, and no typical company name indicators - may actually be persons.",
+        severity: :warning,
+        items: contacts,
+        icon: "building-user",
+        action_path: "/contacts/quality-review?filter=misclassified_company",
+        check_name: "company_person_like"
+      )
+    end
+
+    # ABN entity type mismatch - ABR shows different entity type than TEEEM
+    def check_abn_entity_type_mismatch
+      # Contacts where ABN has been verified and entity type doesn't match
+      person_as_company = Contact.where(entity_type: "person")
+                                 .where(abn_valid: true)
+                                 .where("abn_entity_type IS NOT NULL")
+                                 .where("LOWER(abn_entity_type) SIMILAR TO '%(company|trust|partnership)%'")
+                                 .select(:id, :display_name, :entity_type, :abn_entity_type, :tax_number)
+
+      company_as_person = Contact.where(entity_type: %w[company trust])
+                                 .where(abn_valid: true)
+                                 .where("abn_entity_type IS NOT NULL")
+                                 .where("LOWER(abn_entity_type) SIMILAR TO '%(individual|sole trader)%'")
+                                 .select(:id, :display_name, :entity_type, :abn_entity_type, :tax_number)
+
+      all_mismatches = (person_as_company + company_as_person).first(50)
+
+      items = all_mismatches.map do |c|
+        {
+          id: c.id,
+          display: "#{c.display_name} - TEEEM: #{c.entity_type}, ABR: #{c.abn_entity_type}",
+          display_name: c.display_name,
+          entity_type: c.entity_type,
+          abn_entity_type: c.abn_entity_type,
+          tax_number: c.tax_number
+        }
+      end
+
+      build_result(
+        name: "ABN Entity Type Mismatch",
+        description: "Contacts where the ABR entity type doesn't match TEEEM entity type - needs correction.",
+        severity: :critical,
+        items: items,
+        icon: "file-warning",
+        action_path: "/contacts/quality-review?filter=abn_mismatch",
+        check_name: "abn_entity_type_mismatch"
+      )
+    end
+
+    # Pending quality reviews that need action
+    def check_pending_quality_reviews
+      reviews = ContactQualityReview.pending
+                                    .includes(:contact)
+                                    .order(confidence_score: :desc)
+                                    .limit(50)
+
+      items = reviews.map do |r|
+        {
+          id: r.contact_id,
+          display: "#{r.contact.display_name} - #{r.issue_type_label} (#{r.confidence_score}% confidence)",
+          display_name: r.contact.display_name,
+          issue_type: r.issue_type,
+          recommended_action: r.recommended_action,
+          confidence_score: r.confidence_score,
+          review_id: r.id
+        }
+      end
+
+      build_result(
+        name: "Pending Quality Reviews",
+        description: "Contact quality issues detected by automated scan that need human review.",
+        severity: :info,
+        items: items,
+        icon: "clipboard-check",
+        action_path: "/contacts/quality-review",
+        check_name: "pending_quality_reviews"
       )
     end
 

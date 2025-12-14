@@ -171,8 +171,8 @@ namespace :asic do
     puts "=" * 80
     puts
 
-    ENV['COMPANY_ID'] = company_id.to_s
-    Rake::Task['asic:sync_directorships'].invoke
+    ENV["COMPANY_ID"] = company_id.to_s
+    Rake::Task["asic:sync_directorships"].invoke
   end
 
   desc "Download instructions for ASIC extracts"
@@ -224,7 +224,7 @@ namespace :asic do
 
   def find_asic_extract_file(company)
     # Look for extract files in designated folder
-    extract_dir = Rails.root.join('tmp', 'asic_extracts')
+    extract_dir = Rails.root.join("tmp", "asic_extracts")
     FileUtils.mkdir_p(extract_dir) unless Dir.exist?(extract_dir)
 
     # Try various file naming patterns
@@ -250,7 +250,7 @@ namespace :asic do
     # Split name into first/last
     name_parts = name.split(/\s+/)
     first_name = name_parts.first
-    last_name = name_parts[1..-1]&.join(' ')
+    last_name = name_parts[1..-1]&.join(" ")
 
     # Search for existing contact
     contact = Contact.where("LOWER(first_name) = ? AND LOWER(last_name) = ?",
@@ -265,7 +265,7 @@ namespace :asic do
         first_name: first_name,
         last_name: last_name,
         display_name: name,
-        contact_type: 'individual',
+        contact_type: "individual",
         notes: "Auto-created from ASIC directorship sync"
       )
     rescue StandardError => e
@@ -275,29 +275,29 @@ namespace :asic do
   end
 
   def map_position(position_text)
-    return 'director' if position_text.blank?
+    return "director" if position_text.blank?
 
     position_lower = position_text.downcase
 
     # Map common ASIC position descriptions to our enum
-    if position_lower.include?('director') && position_lower.include?('secretary')
-      'director_secretary'
-    elsif position_lower.include?('director') && position_lower.include?('public')
-      'director_public_officer'
-    elsif position_lower.include?('secretary') && position_lower.include?('public')
-      'secretary_public_officer'
-    elsif position_lower.include?('director') && position_lower.include?('secretary') && position_lower.include?('public')
-      'director_secretary_public_officer'
-    elsif position_lower.include?('chairman') || position_lower.include?('chair')
-      'chairman'
-    elsif position_lower.include?('secretary')
-      'secretary'
-    elsif position_lower.include?('public officer')
-      'public_officer'
-    elsif position_lower.include?('director')
-      'director'
+    if position_lower.include?("director") && position_lower.include?("secretary")
+      "director_secretary"
+    elsif position_lower.include?("director") && position_lower.include?("public")
+      "director_public_officer"
+    elsif position_lower.include?("secretary") && position_lower.include?("public")
+      "secretary_public_officer"
+    elsif position_lower.include?("director") && position_lower.include?("secretary") && position_lower.include?("public")
+      "director_secretary_public_officer"
+    elsif position_lower.include?("chairman") || position_lower.include?("chair")
+      "chairman"
+    elsif position_lower.include?("secretary")
+      "secretary"
+    elsif position_lower.include?("public officer")
+      "public_officer"
+    elsif position_lower.include?("director")
+      "director"
     else
-      'director' # Default
+      "director" # Default
     end
   end
 end

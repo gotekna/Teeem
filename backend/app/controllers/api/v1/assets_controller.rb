@@ -38,9 +38,9 @@ module Api
         end
 
         # Build include hash based on what tables exist
-        include_hash = { corporate_company: { only: [ :id, :name ] } }
+        include_hash = { corporate_company: {} }
         if has_insurance_table
-          include_hash[:asset_insurance] = { only: [ :id, :renewal_date, :status ], methods: [ :days_until_renewal ] }
+          include_hash[:asset_insurance] = { methods: [ :days_until_renewal ] }
         end
 
         render json: {
@@ -58,7 +58,7 @@ module Api
           success: true,
           asset: @asset.as_json(
             include: {
-              corporate_company: { only: [ :id, :name ] },
+              corporate_company: {},
               asset_insurance: {
                 methods: [ :days_until_renewal, :expired?, :expiring_soon? ]
               }
@@ -134,7 +134,7 @@ module Api
         render json: {
           success: true,
           service_history: services.as_json(
-            include: { user: { only: [ :id, :name, :email ] } },
+            include: { user: {} },
             methods: [ :display_name, :formatted_service_type, :days_since_service ]
           )
         }
@@ -221,9 +221,9 @@ module Api
           success: true,
           documents: documents.as_json(
             include: {
-              corporate_company: { only: [ :id, :name, :code ] },
-              user: { only: [ :id, :name, :email ] },
-              document_type_record: { only: [ :id, :name, :folder ] }
+              corporate_company: {},
+              user: {},
+              document_type_record: {}
             },
             methods: [ :formatted_document_type, :file_size_mb ]
           )

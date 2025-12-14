@@ -106,8 +106,8 @@ module SelfHealing
   end
 
   def fix_phone_format
-    # Fix phone
-    if respond_to?(:phone) && phone.present?
+    # Fix phone (only if setter exists - some models have phone as read-only alias)
+    if respond_to?(:phone=) && respond_to?(:phone) && phone.present?
       formatted = format_australian_phone(phone)
       if formatted != phone
         @self_healing_original_values[:phone] = phone
@@ -116,8 +116,8 @@ module SelfHealing
       end
     end
 
-    # Fix mobile
-    if respond_to?(:mobile) && mobile.present?
+    # Fix mobile (only if setter exists - some models have mobile as read-only alias)
+    if respond_to?(:mobile=) && respond_to?(:mobile) && mobile.present?
       formatted = format_australian_phone(mobile)
       if formatted != mobile
         @self_healing_original_values[:mobile] = mobile
@@ -126,7 +126,7 @@ module SelfHealing
       end
     end
 
-    # Fix mobile_phone (Contact model)
+    # Fix mobile_phone (Contact model - actual column, always has setter)
     if respond_to?(:mobile_phone) && mobile_phone.present?
       formatted = format_australian_phone(mobile_phone)
       if formatted != mobile_phone

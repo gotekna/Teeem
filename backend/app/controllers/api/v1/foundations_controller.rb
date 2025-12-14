@@ -467,10 +467,45 @@ module Api
         }
 
         if include_columns
+          # System columns that exist on every table (Rails auto-columns)
+          # These are returned so frontend can show them in column selector
+          system_columns = [
+            {
+              id: "system_id",
+              name: "ID",
+              column_name: "id",
+              column_type: "auto_number",
+              column_group: "System",
+              system: true,
+              editable: false,
+              position: -3
+            },
+            {
+              id: "system_created_at",
+              name: "Created At",
+              column_name: "created_at",
+              column_type: "created_time",
+              column_group: "System",
+              system: true,
+              editable: false,
+              position: -2
+            },
+            {
+              id: "system_updated_at",
+              name: "Updated At",
+              column_name: "updated_at",
+              column_type: "modified_time",
+              column_group: "System",
+              system: true,
+              editable: false,
+              position: -1
+            }
+          ]
+
           # Use defined columns if they exist, otherwise auto-detect for system foundations
           if foundation.columns.any?
             # Use explicitly defined columns from the columns table
-            json[:columns] = foundation.columns.order(:position).map do |col|
+            user_columns = foundation.columns.order(:position).map do |col|
               column_data = {
                 id: col.id,
                 name: col.name,
@@ -521,12 +556,15 @@ module Api
 
               column_data
             end
+
+            # Combine system columns + user columns
+            json[:columns] = system_columns + user_columns
           elsif foundation.table_type == "system"
             # Fallback: auto-detect columns from model schema for system foundations without defined columns
-            json[:columns] = system_foundation_columns
+            json[:columns] = system_columns + system_foundation_columns
           else
-            # No columns defined for non-system foundation
-            json[:columns] = []
+            # No user columns defined - just return system columns
+            json[:columns] = system_columns
           end
         end
 

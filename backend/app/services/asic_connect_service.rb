@@ -1,13 +1,13 @@
-require 'net/http'
-require 'nokogiri'
-require 'json'
+require "net/http"
+require "nokogiri"
+require "json"
 
 class AsicConnectService
   # ASIC Connect portal URL
-  ASIC_CONNECT_URL = 'https://connectonline.asic.gov.au'
+  ASIC_CONNECT_URL = "https://connectonline.asic.gov.au"
 
   # ASIC Registry Search (public, no login required)
-  ASIC_REGISTRY_URL = 'https://connectonline.asic.gov.au/RegistrySearch/faces/landing/SearchRegisters.jspx'
+  ASIC_REGISTRY_URL = "https://connectonline.asic.gov.au/RegistrySearch/faces/landing/SearchRegisters.jspx"
 
   def initialize(company)
     @company = company
@@ -64,9 +64,9 @@ class AsicConnectService
     extension = File.extname(file_path).downcase
 
     case extension
-    when '.pdf'
+    when ".pdf"
       parse_pdf_extract(file_path)
-    when '.xlsx', '.xls'
+    when ".xlsx", ".xls"
       parse_excel_extract(file_path)
     else
       { success: false, error: "Unsupported file type: #{extension}" }
@@ -95,7 +95,7 @@ class AsicConnectService
   end
 
   def parse_pdf_extract(file_path)
-    require 'pdf-reader'
+    require "pdf-reader"
 
     begin
       reader = PDF::Reader.new(file_path)
@@ -106,7 +106,7 @@ class AsicConnectService
       {
         success: true,
         directors: directors,
-        source: 'pdf_extract'
+        source: "pdf_extract"
       }
     rescue StandardError => e
       {
@@ -117,7 +117,7 @@ class AsicConnectService
   end
 
   def parse_excel_extract(file_path)
-    require 'roo'
+    require "roo"
 
     begin
       xlsx = Roo::Spreadsheet.open(file_path)
@@ -128,7 +128,7 @@ class AsicConnectService
       {
         success: true,
         directors: directors,
-        source: 'excel_extract'
+        source: "excel_extract"
       }
     rescue StandardError => e
       {

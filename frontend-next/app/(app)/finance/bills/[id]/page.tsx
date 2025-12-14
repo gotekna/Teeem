@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -476,7 +476,7 @@ export default function BillDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader />
+        <Spinner />
       </div>
     );
   }
@@ -1596,7 +1596,7 @@ export default function BillDetailPage() {
           <CardContent className="p-2 h-full">
             {pdfLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30 h-full">
-                <Loader />
+                <Spinner />
                 <p className="text-sm text-muted-foreground mt-4">Loading invoice...</p>
               </div>
             ) : pdfBlobUrl && !pdfError ? (

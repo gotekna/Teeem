@@ -38,7 +38,7 @@ class FoundationViewSyncService
     # @param column_name [String, nil] Optional specific column to add/remove
     # @return [Hash] Summary of changes
     def sync_view(view, all_columns, column_name: nil)
-      view_columns = view.columns['visible']&.keys || []
+      view_columns = view.columns["visible"]&.keys || []
 
       # If a specific column is provided, only add/remove that one
       if column_name.present?
@@ -80,12 +80,12 @@ class FoundationViewSyncService
 
     # Add a column to a view's configuration (defaults to hidden)
     def add_column_to_view(view, column_name)
-      view.columns['visible'] ||= {}
-      view.columns['visible'][column_name] = false
+      view.columns["visible"] ||= {}
+      view.columns["visible"][column_name] = false
 
       # Add to end of order array if not present
-      view.columns['order'] ||= []
-      view.columns['order'] << column_name unless view.columns['order'].include?(column_name)
+      view.columns["order"] ||= []
+      view.columns["order"] << column_name unless view.columns["order"].include?(column_name)
 
       # Save immediately if this is a single-column operation
       view.save!(validate: false) if view.changed?
@@ -93,9 +93,9 @@ class FoundationViewSyncService
 
     # Remove a column from a view's configuration
     def remove_column_from_view(view, column_name)
-      view.columns['visible']&.delete(column_name)
-      view.columns['order']&.delete(column_name)
-      view.columns['widths']&.delete(column_name)
+      view.columns["visible"]&.delete(column_name)
+      view.columns["order"]&.delete(column_name)
+      view.columns["widths"]&.delete(column_name)
 
       # Save immediately if this is a single-column operation
       view.save!(validate: false) if view.changed?

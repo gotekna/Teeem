@@ -1,8 +1,21 @@
 module Api
   module V1
     class BpmnTriggersController < ApplicationController
+      # Whitelist of allowed subject types for BPMN workflows
+      # Add new models here when they include BpmnTriggerable
+      ALLOWED_SUBJECT_TYPES = %w[
+        Job
+        Contact
+        Construction
+        Case
+        SmTask
+        PurchaseOrder
+        Estimate
+        QuoteRequest
+      ].freeze
+
       before_action :set_process
-      before_action :set_trigger, only: [:show, :update, :destroy, :activate, :deactivate, :fire]
+      before_action :set_trigger, only: [ :show, :update, :destroy, :activate, :deactivate, :fire ]
 
       def index
         @triggers = @process.bpmn_triggers.order(:created_at)
@@ -56,22 +69,28 @@ module Api
       # POST /api/v1/bpmn_processes/:bpmn_process_id/bpmn_triggers/:id/fire
       # Manually fire a trigger to start a workflow
       def fire
-        subject_type = params[:subject_type]
+        subject_type_name = params[:subject_type].to_s
         subject_id = params[:subject_id]
         variables = params[:variables] || {}
 
-        unless subject_type.present? && subject_id.present?
+        unless subject_type_name.present? && subject_id.present?
           return render json: {
             success: false,
             error: "subject_type and subject_id are required"
           }, status: :unprocessable_entity
         end
 
-        # Resolve the subject
+        # Validate subject_type against whitelist to prevent RCE
+        unless ALLOWED_SUBJECT_TYPES.include?(subject_type_name)
+          return render json: {
+            success: false,
+            error: "Invalid subject_type: #{subject_type_name}. Allowed types: #{ALLOWED_SUBJECT_TYPES.join(', ')}"
+          }, status: :unprocessable_entity
+        end
+
+        # Resolve the subject (safe - subject_type is whitelisted)
         begin
-          subject = subject_type.constantize.find(subject_id)
-        rescue NameError
-          return render json: { success: false, error: "Invalid subject_type" }, status: :unprocessable_entity
+          subject = subject_type_name.constantize.find(subject_id)
         rescue ActiveRecord::RecordNotFound
           return render json: { success: false, error: "Subject not found" }, status: :not_found
         end

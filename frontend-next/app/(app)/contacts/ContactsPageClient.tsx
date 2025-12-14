@@ -349,9 +349,9 @@ export default function ContactsPageClient({
   );
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -371,32 +371,34 @@ export default function ContactsPageClient({
       </div>
 
       {/* Contacts View - Table or Relational based on saved view setting */}
-      {currentView?.view_type === "relational" ? (
-        showExplorer ? (
-          <ContactRelationshipsExplorer />
+      <div className="flex-1 min-h-0">
+        {currentView?.view_type === "relational" ? (
+          showExplorer ? (
+            <ContactRelationshipsExplorer />
+          ) : (
+            <ContactsRelationalView contacts={records as unknown as Contact[]} />
+          )
         ) : (
-          <ContactsRelationalView contacts={records as unknown as Contact[]} />
-        )
-      ) : (
-        <TeeemTableView
-          entries={records}
-          columns={columns}
-          foundationId="contacts"
-          foundationIdNumeric={foundation?.id}
-          tableName={foundation?.name || "Contacts"}
-          enableExport={true}
-          enableImport={true}
-          onDataHealthIssueClick={handleDataHealthIssueClick}
-          onRefresh={refresh}
-          onRowClick={handleRowClick}
-          onRowDoubleClick={handleRowDoubleClick}
-          onRowUpdate={handleRowUpdate}
-          onDelete={handleDelete}
-          onBulkDelete={handleBulkDelete}
-          leftActions={leftActions}
-          onViewChange={handleViewChange}
-        />
-      )}
+          <TeeemTableView
+            entries={records}
+            columns={columns}
+            foundationId="contacts"
+            foundationIdNumeric={foundation?.id}
+            tableName={foundation?.name || "Contacts"}
+            enableExport={true}
+            enableImport={true}
+            onDataHealthIssueClick={handleDataHealthIssueClick}
+            onRefresh={refresh}
+            onRowClick={handleRowClick}
+            onRowDoubleClick={handleRowDoubleClick}
+            onRowUpdate={handleRowUpdate}
+            onDelete={handleDelete}
+            onBulkDelete={handleBulkDelete}
+            leftActions={leftActions}
+            onViewChange={handleViewChange}
+          />
+        )}
+      </div>
 
       {/* Merge Modal */}
       <MergeContactsModal

@@ -11,7 +11,7 @@ class CreateHealthCheckCache < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :health_check_caches, [:foundation_id, :check_type], unique: true, name: 'index_health_cache_on_foundation_and_type'
+    add_index :health_check_caches, [ :foundation_id, :check_type ], unique: true, name: 'index_health_cache_on_foundation_and_type'
     add_index :health_check_caches, :check_type
     add_index :health_check_caches, :last_run_at
   end

@@ -24,6 +24,10 @@ export interface VisibleColumnsState {
   [key: string]: boolean;
 }
 
+export interface SearchableColumnsState {
+  [key: string]: boolean;
+}
+
 export interface EditColumnsModalProps {
   /** Whether modal is open */
   open: boolean;
@@ -39,6 +43,12 @@ export interface EditColumnsModalProps {
 
   /** Set visible columns */
   setVisibleColumns: React.Dispatch<React.SetStateAction<VisibleColumnsState>>;
+
+  /** Searchable columns state (for view-level search scope) */
+  searchableColumns: SearchableColumnsState;
+
+  /** Set searchable columns */
+  setSearchableColumns: React.Dispatch<React.SetStateAction<SearchableColumnsState>>;
 
   /** Column widths */
   columnWidths: Record<string, number>;
@@ -83,6 +93,8 @@ export function EditColumnsModal({
   COLUMNS,
   visibleColumns,
   setVisibleColumns,
+  searchableColumns,
+  setSearchableColumns,
   columnWidths,
   setColumnWidths,
   getSortedColumnsForModal,
@@ -116,6 +128,7 @@ export function EditColumnsModal({
                 <TableRow>
                   <TableHead className="w-16">Order</TableHead>
                   <TableHead className="w-12">Show</TableHead>
+                  <TableHead className="w-12">Search</TableHead>
                   <TableHead className="w-44">Column Name</TableHead>
                   <TableHead className="w-32">SQL Type</TableHead>
                   <TableHead className="w-32">Display Type</TableHead>
@@ -143,10 +156,17 @@ export function EditColumnsModal({
                           id={col.key}
                           column={col}
                           isVisible={isVisible}
+                          isSearchable={searchableColumns[col.key] === true}
                           index={visibleIndex}
                           totalVisible={totalVisible}
                           onToggleVisibility={() =>
                             setVisibleColumns((prev) => ({
+                              ...prev,
+                              [col.key]: !prev[col.key],
+                            }))
+                          }
+                          onToggleSearchable={() =>
+                            setSearchableColumns((prev) => ({
                               ...prev,
                               [col.key]: !prev[col.key],
                             }))

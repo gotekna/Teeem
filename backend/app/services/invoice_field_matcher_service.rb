@@ -98,7 +98,7 @@ class InvoiceFieldMatcherService
   end
 
   def build_search_candidates(value, field_name)
-    candidates = [value.to_s]
+    candidates = [ value.to_s ]
 
     case field_name
     when "supplier_abn", "billing_company_abn"
@@ -133,7 +133,7 @@ class InvoiceFieldMatcherService
       candidates.each do |candidate|
         # Try exact match first
         if word[:text] == candidate
-          return build_match_result(word, [word], candidate, 1.0, true)
+          return build_match_result(word, [ word ], candidate, 1.0, true)
         end
 
         # Try fuzzy matching (contains, starts with, etc.)
@@ -157,8 +157,8 @@ class InvoiceFieldMatcherService
   end
 
   def get_surrounding_words(center_idx, radius)
-    start_idx = [0, center_idx - radius].max
-    end_idx = [center_idx + radius, @ocr_result[:words].length - 1].min
+    start_idx = [ 0, center_idx - radius ].max
+    end_idx = [ center_idx + radius, @ocr_result[:words].length - 1 ].min
 
     @ocr_result[:words][start_idx..end_idx]
   end
@@ -203,9 +203,9 @@ class InvoiceFieldMatcherService
 
     # Simple containment check
     if str1.length > str2.length
-      return str1.include?(str2) ? 0.8 : 0.0
+      str1.include?(str2) ? 0.8 : 0.0
     else
-      return str2.include?(str1) ? 0.8 : 0.0
+      str2.include?(str1) ? 0.8 : 0.0
     end
   end
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Popover,
   PopoverContent,
@@ -226,7 +226,7 @@ export function EntityChat({
       >
         {loading ? (
           <div className="flex items-center justify-center flex-1 py-4">
-            <Loader />
+            <Spinner />
           </div>
         ) : messages.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground py-4">
@@ -317,7 +317,7 @@ export function EntityChat({
                               <div className="max-h-32 overflow-y-auto space-y-0.5">
                                 {jobsLoading ? (
                                   <div className="flex justify-center py-2">
-                                    <Loader />
+                                    <Spinner />
                                   </div>
                                 ) : filteredJobs.length === 0 ? (
                                   <p className="text-xs text-muted-foreground text-center py-2">

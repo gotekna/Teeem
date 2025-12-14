@@ -51,7 +51,7 @@ class OcrExtractionService
 
     images = []
 
-    Tempfile.create(["invoice", ".pdf"], binmode: true) do |pdf_file|
+    Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |pdf_file|
       pdf_file.write(content)
       pdf_file.rewind
 
@@ -68,13 +68,13 @@ class OcrExtractionService
       if num_pages > 1
         # Split multi-page PDF
         image.pages.each_with_index do |page, idx|
-          page_file = Tempfile.new(["page_#{idx}", ".png"], binmode: true)
+          page_file = Tempfile.new([ "page_#{idx}", ".png" ], binmode: true)
           page.write(page_file.path)
           images << page_file.path
         end
       else
         # Single page
-        page_file = Tempfile.new(["page_0", ".png"], binmode: true)
+        page_file = Tempfile.new([ "page_0", ".png" ], binmode: true)
         image.write(page_file.path)
         images << page_file.path
       end

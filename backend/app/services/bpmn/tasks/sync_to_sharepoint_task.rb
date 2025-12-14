@@ -4,7 +4,7 @@ module Bpmn
       def execute
         source = @config["source"]
         destination_path = get_config("destination_path", interpolate_value: true)
-        
+
         log_info("Syncing to SharePoint: #{destination_path}")
 
         # Get OneDrive service

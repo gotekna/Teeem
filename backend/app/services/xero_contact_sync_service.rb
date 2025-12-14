@@ -111,6 +111,9 @@ class XeroContactSyncService
 
       Rails.logger.info("Xero contact sync for tenant #{tenant_id} completed: #{@stats.inspect}")
 
+      # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
+      # Services are pure business logic; Jobs own status tracking
+
       {
         success: true,
         tenant_id: tenant_id,
@@ -573,7 +576,9 @@ class XeroContactSyncService
   def update_teeem_from_xero(teeem_contact, xero_contact, link = nil)
     updates = {}
 
-    # Also update legacy xero_id field for backwards compatibility
+    # DEPRECATED: Legacy xero_id field - use WarehouseContact.xero_id instead
+    # Keeping for backwards compatibility during migration period
+    # TODO: Remove after Phase 5 migration is verified complete
     updates[:xero_id] = xero_contact["ContactID"] if teeem_contact.xero_id.blank?
 
     # Get field mappings from sync config
@@ -963,7 +968,9 @@ class XeroContactSyncService
           last_synced_at: @sync_timestamp
         )
 
-        # Update legacy xero_id field for first link
+        # DEPRECATED: Legacy xero_id field - use WarehouseContact.xero_id instead
+        # Keeping for backwards compatibility during migration period
+        # TODO: Remove after Phase 5 migration is verified complete
         if teeem_contact.xero_id.blank?
           teeem_contact.update!(xero_id: created_contact["ContactID"])
         end
@@ -1063,7 +1070,38 @@ class XeroContactSyncService
       payload[:BankAccountDetails] = bank_parts.join(", ")
     end
 
+    # Addresses - sync from contact_addresses table (SSoT)
+    addresses = build_xero_addresses(teeem_contact)
+    payload[:Addresses] = addresses if addresses.any?
+
     payload
+  end
+
+  # Build Xero Addresses array from contact_addresses table
+  def build_xero_addresses(teeem_contact)
+    addresses = []
+
+    teeem_contact.contact_addresses.each do |addr|
+      next unless addr.address_type.present?
+
+      xero_addr = {
+        AddressType: addr.address_type
+      }
+
+      # Only include non-blank fields
+      xero_addr[:AddressLine1] = addr.line1 if addr.line1.present?
+      xero_addr[:AddressLine2] = addr.line2 if addr.line2.present?
+      xero_addr[:AddressLine3] = addr.line3 if addr.line3.present?
+      xero_addr[:AddressLine4] = addr.line4 if addr.line4.present?
+      xero_addr[:City] = addr.city if addr.city.present?
+      xero_addr[:Region] = addr.region if addr.region.present?
+      xero_addr[:PostalCode] = addr.postal_code if addr.postal_code.present?
+      xero_addr[:Country] = addr.country if addr.country.present?
+
+      addresses << xero_addr
+    end
+
+    addresses
   end
 
   def extract_xero_email(xero_contact)
@@ -1148,6 +1186,25 @@ class XeroContactSyncService
     COMPANY_INDICATORS.any? { |pattern| name.match?(pattern) }
   end
 
+  # Check if a person name matches or is too similar to the company name
+  # This prevents creating duplicate person contacts when Xero has company name in FirstName field
+  def person_name_matches_company?(person_name, company_name)
+    return false if person_name.blank? || company_name.blank?
+
+    person_normalized = person_name.downcase.gsub(/[^a-z0-9]/, "")
+    company_normalized = company_name.downcase.gsub(/[^a-z0-9]/, "")
+
+    # Exact match after normalization
+    return true if person_normalized == company_normalized
+
+    # Check if person name contains the company name or vice versa
+    return true if person_normalized.include?(company_normalized) && company_normalized.length > 5
+    return true if company_normalized.include?(person_normalized) && person_normalized.length > 5
+
+    # Check if person name looks like a company name (has company indicators)
+    COMPANY_INDICATORS.any? { |pattern| person_name.match?(pattern) }
+  end
+
   def sync_contact_persons(teeem_contact, xero_contact)
     is_company = xero_contact_is_company?(xero_contact)
     main_first_name = xero_contact["FirstName"].to_s.strip
@@ -1158,18 +1215,25 @@ class XeroContactSyncService
 
     primary_person_contact = nil
     if is_company && main_first_name.present?
-      main_person = {
-        "FirstName" => main_first_name,
-        "LastName" => main_last_name,
-        "EmailAddress" => main_email,
-        "IncludeInEmails" => true
-      }
-      Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
-      primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
+      # Skip creating person contact if the person name looks like the company name
+      # This prevents duplicates when Xero has company name in the FirstName field
+      person_full_name = "#{main_first_name} #{main_last_name}".strip
+      company_name = teeem_contact.display_name.to_s.strip
 
-      if primary_person_contact && teeem_contact.director_id != primary_person_contact.id
-        teeem_contact.update!(director_id: primary_person_contact.id)
+      if person_name_matches_company?(person_full_name, company_name)
+        Rails.logger.info("Skipping person contact creation for #{teeem_contact.display_name} - person name '#{person_full_name}' matches company name")
+      else
+        main_person = {
+          "FirstName" => main_first_name,
+          "LastName" => main_last_name,
+          "EmailAddress" => main_email,
+          "IncludeInEmails" => true
+        }
+        Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
+        primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
       end
+
+      # director_id column was removed - primary person is tracked via primary_company_id on the person contact
     end
 
     return if xero_persons.empty?
@@ -1266,9 +1330,7 @@ class XeroContactSyncService
       @stats[:created_in_teeem] += 1
     end
 
-    if is_primary && company_contact.director_id != person_contact.id
-      company_contact.update!(director_id: person_contact.id)
-    end
+    # director_id column was removed - primary person is tracked via primary_company_id on the person contact
 
     person_contact
   rescue StandardError => e

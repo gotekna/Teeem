@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader } from "@/components/ui/loader";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Select,
   SelectContent,
@@ -328,7 +328,7 @@ export default function PaymentBatchesPage() {
       {/* Batches Table */}
       {loading ? (
         <div className="flex items-center justify-center min-h-[300px]">
-          <Loader />
+          <Spinner />
         </div>
       ) : filteredBatches.length === 0 ? (
         <Card>

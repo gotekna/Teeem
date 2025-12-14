@@ -28,10 +28,10 @@ class ChatMessage < ApplicationRecord
   def as_json(options = {})
     super(options.merge(
       include: {
-        user: { only: [ :id, :email, :name ] },
-        job: { only: [ :id, :title ] },
-        contact: { only: [ :id, :display_name ] },
-        legal_case: { only: [ :id, :case_number, :title ] }
+        user: {},
+        job: {},
+        contact: {},
+        legal_case: {}
       },
       methods: [ :formatted_timestamp ]
     ))

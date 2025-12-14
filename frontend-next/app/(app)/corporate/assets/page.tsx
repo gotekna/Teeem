@@ -71,7 +71,7 @@ export default function AssetsPage() {
         foundationIdNumeric={foundationId || 0}
         tableName="Assets"
         entries={assets}
-        columns={columns}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         onEdit={handleEdit}
         onDelete={handleDeleteWithConfirm}
         onBulkDelete={handleBulkDeleteWithConfirm}

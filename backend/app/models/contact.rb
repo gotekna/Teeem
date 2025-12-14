@@ -111,6 +111,100 @@ class Contact < ApplicationRecord
   ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
   EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
 
+  # Alias name to display_name for backwards compatibility
+  # Many parts of the codebase reference contact.name but the column is 'display_name'
+  alias_attribute :name, :display_name
+
+  # Full name method for person contacts
+  def full_name
+    [first_name, middle_name, last_name].compact.reject(&:blank?).join(" ").presence || display_name
+  end
+
+  # Phone aliases for document templates
+  def phone
+    mobile_phone.presence || office_phone
+  end
+
+  def mobile
+    mobile_phone
+  end
+
+  # Company name alias for document templates
+  def company_name
+    company_name_or_trust
+  end
+
+  # ABN alias (tax_number is the column)
+  def abn
+    tax_number
+  end
+
+  def abn=(value)
+    self.tax_number = value
+  end
+
+  # ============================================
+  # SSoT: Address Helper Methods
+  # ============================================
+  # contact_addresses table is the SSoT for all address data.
+  # These helper methods read from the SSoT table and provide
+  # a uniform interface for document templates and display.
+  # Legacy columns (address, city, state, postcode) have been removed.
+
+  # Primary address lookup (cached per request)
+  def primary_street_address
+    @primary_street_address ||= contact_addresses.find_by(address_type: "STREET") ||
+                                 contact_addresses.find_by(is_primary: true) ||
+                                 contact_addresses.first
+  end
+
+  # Clear cached address (call after modifying contact_addresses)
+  def clear_address_cache!
+    @primary_street_address = nil
+  end
+
+  # Suburb/city - locality name
+  def suburb
+    primary_street_address&.city
+  end
+
+  def city
+    primary_street_address&.city
+  end
+
+  # State/region
+  def state
+    primary_street_address&.region
+  end
+
+  # Postal code
+  def postcode
+    primary_street_address&.postal_code
+  end
+
+  # Multi-line address text (for legacy compatibility)
+  def address
+    primary_street_address&.multi_line
+  end
+
+  # Address helpers for document templates
+  def address_line_1
+    primary_street_address&.line1
+  end
+
+  def address_line_2
+    lines = [
+      primary_street_address&.line2,
+      primary_street_address&.line3,
+      primary_street_address&.line4
+    ].compact.reject(&:blank?)
+    lines.any? ? lines.join(", ") : nil
+  end
+
+  def full_address
+    primary_street_address&.display_address
+  end
+
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
   # These fields should only be updated via Xero sync, not manual edits
   XERO_READ_ONLY_FIELDS = %w[
@@ -338,6 +432,20 @@ class Contact < ApplicationRecord
     companies.uniq
   end
 
+  # SSoT: Get employees from ContactRelationship (people who work for this company)
+  # This is the inverse of employers - incoming relationships where type is employee_of
+  def relationship_employees
+    incoming_relationships
+      .where(relationship_type: "employee_of", is_active: true)
+      .includes(:source_contact)
+      .map(&:source_contact)
+  end
+
+  # SSoT: Count employees from relationships (overrides counter_cache which may be stale)
+  def relationship_employees_count
+    incoming_relationships.where(relationship_type: "employee_of", is_active: true).count
+  end
+
   def directors_of
     outgoing_relationships
       .where(relationship_type: "director_of")
@@ -532,15 +640,58 @@ class Contact < ApplicationRecord
     accounting_integration.present? && accounting_integration.connected?
   end
 
-  # Xero sync helpers
+  # ============================================
+  # SSoT: Xero Sync Helpers
+  # ============================================
+  # contact_external_links table is the SSoT for all Xero connections.
+  # A contact can be linked to MULTIPLE Xero tenants (companies).
+  # The legacy contacts.xero_id column is deprecated - use xero_links instead.
+
+  # Virtual xero_id - returns the first/primary Xero link's external_contact_id
+  # This provides backwards compatibility while the SSoT is xero_links
+  def primary_xero_id
+    @primary_xero_id ||= xero_links.enabled.order(:created_at).first&.external_contact_id
+  end
+
+  # SSoT: Is this contact synced to ANY Xero tenant?
   def synced_to_xero?
     xero_links.enabled.any?
   end
 
+  # Alias for backwards compatibility
+  def xero_synced?
+    synced_to_xero?
+  end
+
+  # Count of Xero tenants this contact is linked to
+  def xero_linked_count
+    xero_links.enabled.count
+  end
+
+  # All Xero tenant IDs this contact is linked to
   def xero_tenants
     xero_links.enabled.pluck(:tenant_id)
   end
 
+  # All Xero tenant names this contact is linked to
+  def xero_tenant_names
+    xero_links.enabled.pluck(:tenant_name).compact
+  end
+
+  # Xero link summary for UI display
+  # Returns: { linked_count: 3, total_tenants: 8, tenant_names: ["Company A", "Company B"] }
+  def xero_link_summary
+    links = xero_links.enabled
+    {
+      linked_count: links.count,
+      tenant_names: links.pluck(:tenant_name).compact,
+      has_sync_errors: links.with_errors.any?,
+      has_conflicts: links.with_conflicts.any?,
+      last_synced_at: links.maximum(:last_synced_at)
+    }
+  end
+
+  # Get link for a specific Xero tenant
   def xero_link_for_tenant(tenant_id)
     xero_links.find_by(tenant_id: tenant_id)
   end
@@ -551,6 +702,22 @@ class Contact < ApplicationRecord
 
   def has_xero_errors?
     xero_links.with_errors.any?
+  end
+
+  # Xero contact type summary (aggregated from xero_contact_types array)
+  # Returns: "Customer" or "Supplier" or "Customer, Supplier" or nil
+  def xero_type_display
+    return nil if xero_contact_types.blank?
+    xero_contact_types.join(", ")
+  end
+
+  # Boolean helpers for Xero contact types
+  def xero_customer?
+    xero_contact_types&.include?("Customer")
+  end
+
+  def xero_supplier?
+    xero_contact_types&.include?("Supplier")
   end
 
   # ABN validation helpers
@@ -820,8 +987,13 @@ class Contact < ApplicationRecord
     end
   end
 
+  # SSoT: Update xero_synced based on contact_external_links (not legacy xero_id)
+  # This callback keeps the legacy xero_synced column in sync for backwards compatibility
+  # Note: xero_synced column should eventually be removed - use synced_to_xero? method instead
   def update_xero_synced_status
-    self.xero_synced = xero_id.present?
+    # Use the xero_links association which is the SSoT
+    # Also check the legacy xero_id for backwards compatibility during migration
+    self.xero_synced = xero_links.enabled.exists? || xero_id.present?
   end
 
   # Auto-generate display_name from first_name + last_name for person contacts

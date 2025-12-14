@@ -64,10 +64,11 @@ import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface ColumnType {
   columnName: string;
@@ -216,28 +217,46 @@ function GoldStandardDataTab() {
   const [viewingEntry, setViewingEntry] = React.useState<TableRowType | null>(null);
 
   // Initialize visible fields and order when columns load
+  // Per GOLD_STANDARD_TABLE.md: System columns (id, created_at, updated_at) MUST be visible
   React.useEffect(() => {
     if (rawColumns.length > 0 && visibleFields.size === 0) {
-      // Default: show common field types
+      // Default: show common field types INCLUDING system columns
       const defaultVisibleTypes = ['short_text', 'long_text', 'number', 'whole_number', 'currency', 'date', 'boolean', 'email', 'dropdown', 'percentage'];
-      const nonSystemCols = rawColumns.filter(col => !['id', 'created_at', 'updated_at'].includes(col.column_name));
+      const systemColumns = ['id', 'created_at', 'updated_at'];
 
-      const visibleCols = nonSystemCols.filter(col => defaultVisibleTypes.includes(col.column_type));
-      const hiddenCols = nonSystemCols.filter(col => !defaultVisibleTypes.includes(col.column_type));
+      // Include ALL columns (system columns are visible but not editable)
+      const allCols = rawColumns;
+
+      const visibleCols = allCols.filter(col =>
+        defaultVisibleTypes.includes(col.column_type) || systemColumns.includes(col.column_name)
+      );
+      const hiddenCols = allCols.filter(col =>
+        !defaultVisibleTypes.includes(col.column_type) && !systemColumns.includes(col.column_name)
+      );
 
       setVisibleFields(new Set(visibleCols.map(col => col.column_name)));
 
-      // Initialize field order: visible fields 1-N, hidden fields 100+
+      // Initialize field order: system columns first, then visible, then hidden
       const initialOrder: Record<string, number> = {};
-      visibleCols.forEach((col, idx) => {
-        initialOrder[col.column_name] = idx + 1;
+      let orderIdx = 1;
+
+      // System columns get priority positions
+      allCols.filter(col => systemColumns.includes(col.column_name)).forEach((col) => {
+        initialOrder[col.column_name] = orderIdx++;
       });
+
+      // Then visible non-system columns
+      visibleCols.filter(col => !systemColumns.includes(col.column_name)).forEach((col) => {
+        initialOrder[col.column_name] = orderIdx++;
+      });
+
+      // Hidden columns get high order numbers
       hiddenCols.forEach((col, idx) => {
         initialOrder[col.column_name] = 100 + idx;
       });
       setFieldOrder(initialOrder);
     }
-     
+
   }, [rawColumns]);
 
   const updateFieldOrder = (columnName: string, newOrder: number) => {
@@ -918,24 +937,31 @@ function GoldStandardDataTab() {
             ))}
           </div>
 
-          {/* Hidden Fields - Collapsible */}
+          {/* Hidden Fields - Accordion */}
           {getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length > 0 && (
-            <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
-              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                  {getSortedColumns()
-                    .filter((col) => !visibleFields.has(col.column_name))
-                    .map((col) => (
-                    <div key={col.column_name}>
-                      {renderFormField(col)}
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            <Accordion
+              type="single"
+              collapsible
+              value={showMoreFields ? "hidden-fields" : ""}
+              onValueChange={(v) => setShowMoreFields(v === "hidden-fields")}
+            >
+              <AccordionItem value="hidden-fields" className="border-none">
+                <AccordionTrigger className="text-muted-foreground hover:text-foreground py-0 hover:no-underline">
+                  Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
+                    {getSortedColumns()
+                      .filter((col) => !visibleFields.has(col.column_name))
+                      .map((col) => (
+                      <div key={col.column_name}>
+                        {renderFormField(col)}
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           )}
 
           {visibleFields.size === 0 && !showMoreFields && (
@@ -1045,24 +1071,31 @@ function GoldStandardDataTab() {
             ))}
           </div>
 
-          {/* Hidden Fields - Collapsible */}
+          {/* Hidden Fields - Accordion */}
           {getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length > 0 && (
-            <Collapsible open={showMoreFields} onOpenChange={setShowMoreFields}>
-              <CollapsibleTrigger className="text-muted-foreground hover:text-foreground">
-                {showMoreFields ? "Hide" : "Show"} Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
-                  {getSortedColumns()
-                    .filter((col) => !visibleFields.has(col.column_name))
-                    .map((col) => (
-                    <div key={col.column_name}>
-                      {renderFormField(col)}
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            <Accordion
+              type="single"
+              collapsible
+              value={showMoreFields ? "hidden-fields-edit" : ""}
+              onValueChange={(v) => setShowMoreFields(v === "hidden-fields-edit")}
+            >
+              <AccordionItem value="hidden-fields-edit" className="border-none">
+                <AccordionTrigger className="text-muted-foreground hover:text-foreground py-0 hover:no-underline">
+                  Hidden Fields ({getSortedColumns().filter((col) => !visibleFields.has(col.column_name)).length})
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-2">
+                    {getSortedColumns()
+                      .filter((col) => !visibleFields.has(col.column_name))
+                      .map((col) => (
+                      <div key={col.column_name}>
+                        {renderFormField(col)}
+                      </div>
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           )}
 
           {visibleFields.size === 0 && !showMoreFields && (

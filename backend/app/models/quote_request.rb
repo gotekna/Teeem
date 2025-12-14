@@ -1,6 +1,7 @@
 class QuoteRequest < ApplicationRecord
   # Associations
   belongs_to :job
+  alias_method :construction, :job  # Backwards compatibility
   belongs_to :created_by, class_name: "User"
   belongs_to :selected_quote_response, class_name: "QuoteResponse", optional: true
   has_many :quote_responses, dependent: :destroy

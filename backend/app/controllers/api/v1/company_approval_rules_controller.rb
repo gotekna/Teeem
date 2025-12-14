@@ -23,16 +23,16 @@ module Api
         rules = rules.order(priority: :asc, created_at: :desc)
 
         render json: rules.as_json(include: {
-          corporate_company: { only: [ :id, :name, :code ] },
-          bpmn_process: { only: [ :id, :name ] }
+          corporate_company: {},
+          bpmn_process: {}
         })
       end
 
       # GET /api/v1/company_approval_rules/:id
       def show
         render json: @rule.as_json(include: {
-          corporate_company: { only: [ :id, :name, :code ] },
-          bpmn_process: { only: [ :id, :name ] }
+          corporate_company: {},
+          bpmn_process: {}
         })
       end
 
