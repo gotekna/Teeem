@@ -25,8 +25,8 @@ export const TABLE_IDS = {
   get TASKS() { return getTableIds().TASKS; },
   get PRICEBOOK() { return getTableIds().PRICEBOOK; },
   get CONTACTS() { return getTableIds().CONTACTS; },
-  get COMPANIES() { return getTableIds().COMPANIES; },
   get FEATURES_TRACKING() { return getTableIds().FEATURES_TRACKING; },
+  // COMPANIES removed - Foundation 353 doesn't exist. Use /corporate routes directly.
 } as const;
 
 // Table names for URL slugs - dynamically resolved
