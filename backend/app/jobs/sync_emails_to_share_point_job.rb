@@ -5,7 +5,7 @@
 #
 # This job:
 # 1. Syncs all emails from the org's users to EmailWarehouse using OrgEmailSyncJob
-# 2. Uploads email attachments to SharePoint in folder structure: /Email Attachments/{org_name}/{year}/{month}/
+# 2. Uploads email attachments to SharePoint in folder structure: /emails/attachments/{org_name}/{year}/{month}/
 # 3. Uploads email messages (.eml) to SharePoint in folder structure: /Emails/{org_name}/{year}/{month}/
 
 class SyncEmailsToSharePointJob < ApplicationJob
@@ -103,6 +103,12 @@ class SyncEmailsToSharePointJob < ApplicationJob
         attachments.each do |attachment_data|
           # Only process file attachments (skip inline/embedded)
           next unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
+
+          # Skip signature images (inline images with signature-like names, or tiny images)
+          if skip_signature_image?(attachment_data)
+            Rails.logger.info "[SyncToSharePoint] Skipping signature image: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+            next
+          end
 
           outlook_attachment_id = attachment_data["id"]
           filename = attachment_data["name"]
@@ -203,7 +209,7 @@ class SyncEmailsToSharePointJob < ApplicationJob
     # Use TEEEM's SharePoint credential for upload
     teeem_client = MicrosoftAppGraphClient.new(sp_config[:credential])
 
-    # Build folder path: /Email Attachments/{org_name}/{year}/{month}
+    # Build folder path: /emails/attachments/{org_name}/{year}/{month}
     folder_path = build_folder_path(email_date)
 
     # Build filename: {content_hash}_{original_filename}
@@ -242,7 +248,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def build_folder_path(email_date)
     year = email_date.year
     month = email_date.strftime("%m")
-    "Documents/Emails/Attachments/#{@credential.name}/#{year}/#{month}"
+    org_name = @credential.name.gsub(/[<>:"\/\\|?*]/, "_")
+    "Emails/Attachments/#{org_name}/#{year}/#{month}"
   end
 
   def sync_emails_to_sharepoint
@@ -313,10 +320,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def upload_email_to_sharepoint(teeem_client, email, mime_content)
     sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
 
-    # Build folder path: Documents/Emails/eml/{org_name}/{year}/{month}
+    # Build folder path: Emails/eml/{org_name}/{year}/{month}
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    folder_path = "Documents/Emails/eml/#{@credential.name}/#{year}/#{month}"
+    folder_path = "Emails/eml/#{@credential.name}/#{year}/#{month}"
 
     # Build filename: {email_id}.eml
     filename = "#{email.id}.eml"
@@ -348,5 +355,39 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def sanitize_filename(filename)
     # Remove or replace invalid SharePoint characters: <>:"/\|?*
     filename.gsub(/[<>:"\/\\|?*]/, "_")
+  end
+
+  # Skip signature/embedded images that aren't real attachments
+  # Rules:
+  # 1. Inline images with signature-like filenames (image001.png, image002.jpg, etc.)
+  # 2. Very small images (< 10KB) that are likely icons/logos
+  # 3. Images with GUID-like filenames (often Outlook Content-IDs)
+  def skip_signature_image?(attachment_data)
+    filename = attachment_data["name"].to_s.downcase
+    is_inline = attachment_data["isInline"] == true
+    file_size = attachment_data["size"].to_i
+    content_type = attachment_data["contentType"].to_s.downcase
+
+    # Only apply these rules to images
+    return false unless content_type.start_with?("image/")
+
+    # Rule 1: Inline images with signature-like patterns
+    signature_patterns = [
+      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
+      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames (Outlook CIDs)
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
+      /^cid:/i,                              # Content-ID references
+    ]
+
+    if is_inline && signature_patterns.any? { |pattern| filename.match?(pattern) }
+      return true
+    end
+
+    # Rule 2: Very small INLINE images (< 10KB) are likely icons/social media buttons
+    if is_inline && file_size < 10_000
+      return true
+    end
+
+    false
   end
 end
