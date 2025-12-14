@@ -64,6 +64,8 @@ import {
   Phone,
   ChevronRight,
   Download,
+  Copy,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -362,6 +364,81 @@ interface TrustRolesData {
 //   );
 // }
 
+// Copyable Field Component - click to copy with visual feedback
+function CopyableField({ label, value, subtext }: { label: string; value: string | null | undefined; subtext?: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  if (!value) return null;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  return (
+    <div>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-2 group">
+        <p className="text-sm font-medium">{value}</p>
+        <button
+          onClick={handleCopy}
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded"
+          title={`Copy ${label}`}
+        >
+          {copied ? (
+            <Check className="h-3 w-3 text-green-500" />
+          ) : (
+            <Copy className="h-3 w-3 text-muted-foreground" />
+          )}
+        </button>
+      </div>
+      {subtext && <p className="text-xs text-muted-foreground mt-1">{subtext}</p>}
+    </div>
+  );
+}
+
+// Copyable Contact Item - for email/phone with link + copy
+function CopyableContactItem({ icon, value, href }: { icon: React.ReactNode; value: string; href: string }) {
+  const [copied, setCopied] = React.useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5 group">
+      <a href={href} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
+        {icon}
+        <span className="truncate">{value}</span>
+      </a>
+      <button
+        onClick={handleCopy}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-muted rounded"
+        title="Copy"
+      >
+        {copied ? (
+          <Check className="h-3 w-3 text-green-500" />
+        ) : (
+          <Copy className="h-3 w-3 text-muted-foreground" />
+        )}
+      </button>
+    </div>
+  );
+}
+
 // Information Sub-Tab
 function InformationTab({ company }: { company: Company }) {
   return (
@@ -369,8 +446,7 @@ function InformationTab({ company }: { company: Company }) {
       <h3 className="text-lg font-medium">Company Information</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
         <div>
-          <p className="text-sm text-muted-foreground">Legal Name</p>
-          <p className="text-sm font-medium">{company.name}</p>
+          <CopyableField label="Legal Name" value={company.name} />
           {company.previous_names && (
             <p className="text-xs text-muted-foreground mt-1">Previously: {company.previous_names}</p>
           )}
@@ -378,28 +454,29 @@ function InformationTab({ company }: { company: Company }) {
             <p className="text-xs text-muted-foreground mt-1">Trading as: {company.business_names}</p>
           )}
         </div>
-        {company.date_incorporated && (
-          <div>
-            <p className="text-sm text-muted-foreground">Date Incorporated</p>
-            <p className="text-sm font-medium">{format(new Date(company.date_incorporated), "dd/MM/yyyy")}</p>
-          </div>
-        )}
-        {company.registered_office_address && (
-          <div>
-            <p className="text-sm text-muted-foreground">Registered Office</p>
-            <p className="text-sm font-medium">{company.registered_office_address}</p>
-          </div>
-        )}
-        {company.principal_place_of_business && (
-          <div>
-            <p className="text-sm text-muted-foreground">Principal Place of Business</p>
-            <p className="text-sm font-medium">{company.principal_place_of_business}</p>
-          </div>
-        )}
+        <CopyableField
+          label="Date Incorporated"
+          value={company.date_incorporated ? format(new Date(company.date_incorporated), "dd/MM/yyyy") : null}
+        />
+        <CopyableField
+          label="ACN"
+          value={company.formatted_acn || company.acn}
+        />
+        <CopyableField
+          label="ABN"
+          value={company.formatted_abn || company.abn}
+        />
+        <CopyableField
+          label="Registered Office"
+          value={company.registered_office_address}
+        />
+        <CopyableField
+          label="Principal Place of Business"
+          value={company.principal_place_of_business}
+        />
         {company.purpose && (
           <div className="md:col-span-2">
-            <p className="text-sm text-muted-foreground">Purpose</p>
-            <p className="text-sm font-medium">{company.purpose}</p>
+            <CopyableField label="Purpose" value={company.purpose} />
           </div>
         )}
       </div>
@@ -424,16 +501,18 @@ function InformationTab({ company }: { company: Company }) {
                 {(director.contact?.email || director.contact?.mobile_phone) && (
                   <div className="space-y-1 text-xs">
                     {director.contact?.email && (
-                      <a href={`mailto:${director.contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                        <Mail className="h-3 w-3" />
-                        <span className="truncate">{director.contact.email}</span>
-                      </a>
+                      <CopyableContactItem
+                        icon={<Mail className="h-3 w-3" />}
+                        value={director.contact.email}
+                        href={`mailto:${director.contact.email}`}
+                      />
                     )}
                     {director.contact?.mobile_phone && (
-                      <a href={`tel:${director.contact.mobile_phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                        <Phone className="h-3 w-3" />
-                        <span>{director.contact.mobile_phone}</span>
-                      </a>
+                      <CopyableContactItem
+                        icon={<Phone className="h-3 w-3" />}
+                        value={director.contact.mobile_phone}
+                        href={`tel:${director.contact.mobile_phone}`}
+                      />
                     )}
                   </div>
                 )}
