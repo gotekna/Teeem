@@ -50,7 +50,7 @@ class MicrosoftAppGraphClient
     params = {
       "$top" => top,
       "$orderby" => "receivedDateTime DESC",
-      "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,internetMessageId,conversationId,isRead"
+      "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance"
     }
 
     params["$skip"] = skip if skip
@@ -139,7 +139,7 @@ class MicrosoftAppGraphClient
       # Initial delta request
       endpoint = "/users/#{CGI.escape(user_identifier)}/mailFolders/#{folder}/messages/delta"
       params = {
-        "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,hasAttachments,bodyPreview,internetMessageId,conversationId,isRead"
+        "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance"
       }
       response = get(endpoint, params)
     end
@@ -457,7 +457,7 @@ class MicrosoftAppGraphClient
   # ===== SharePoint Upload Methods =====
 
   # Upload file content to SharePoint (small files < 4MB)
-  # parent_folder_path: e.g., "Email Attachments/Tekna/2024/12"
+  # parent_folder_path: e.g., "emails/attachments/Tekna/2024/12"
   # filename: e.g., "a3d8f9c7_Invoice.pdf"
   # content: binary content
   def upload_file_content(site_id, drive_id, parent_folder_path, filename, content)
@@ -484,22 +484,29 @@ class MicrosoftAppGraphClient
   # Create upload session for large files (>= 4MB)
   def create_upload_session(site_id, drive_id, parent_folder_path, filename)
     folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
-    encoded_filename = CGI.escape(filename)
+
+    # Sanitize filename for SharePoint: remove characters that cause issues
+    # SharePoint doesn't like: " * : < > ? / \ |
+    # Also replace + and = which cause URL encoding mismatches
+    safe_filename = filename.gsub(/[<>:"\/\\|?*+=]/, "_").gsub(/_{2,}/, "_")
+    encoded_filename = CGI.escape(safe_filename)
 
     endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{folder_id}:/#{encoded_filename}:/createUploadSession"
 
     post(endpoint, {
       item: {
         "@microsoft.graph.conflictBehavior": "rename",
-        name: filename
+        name: safe_filename  # Must match the URL-decoded filename
       }
     })
   end
 
   # Upload large file in chunks
+  # Returns the file metadata from the final response (id, name, webUrl, size)
   def upload_large_file(upload_url, content, chunk_size = 320 * 1024)
     total_size = content.bytesize
     offset = 0
+    final_result = nil
 
     while offset < total_size
       chunk_end = [ offset + chunk_size, total_size ].min - 1
@@ -521,13 +528,30 @@ class MicrosoftAppGraphClient
           error_msg = error_body.dig("error", "message") || "HTTP #{response.status.code}"
           raise ApiError, "#{response.status.code} - Upload chunk failed: #{error_msg}"
         end
+
+        # The final chunk response contains the file metadata
+        if chunk_end + 1 >= total_size
+          final_result = JSON.parse(response.body.to_s) rescue nil
+        end
       end
 
       offset = chunk_end + 1
     end
 
     Rails.logger.info "[MicrosoftAppGraph] Large file upload completed: #{total_size} bytes"
-    { success: true, size: total_size }
+
+    # Return file metadata in same format as upload_file_content
+    if final_result && final_result["id"]
+      {
+        id: final_result["id"],
+        name: final_result["name"],
+        web_url: final_result["webUrl"],
+        size: final_result["size"]
+      }
+    else
+      # Fallback if we couldn't parse the response
+      { success: true, size: total_size }
+    end
   end
 
   # Ensure folder path exists, create if needed

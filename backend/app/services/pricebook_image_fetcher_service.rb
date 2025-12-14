@@ -188,11 +188,20 @@ class PricebookImageFetcherService
 
   # Use Claude AI to select the best image
   def select_best_image(item, image_urls)
-    return image_urls.first unless ANTHROPIC_API_KEY.present? && image_urls.length > 1
+    # Filter out blocked domains first
+    blocked_domains = ['aldertapware.com.au']
+    filtered_urls = image_urls.reject do |url|
+      blocked_domains.any? { |domain| url.include?(domain) }
+    end
+
+    # If all URLs are blocked, use original list as fallback
+    urls_to_use = filtered_urls.any? ? filtered_urls : image_urls
+
+    return urls_to_use.first unless ANTHROPIC_API_KEY.present? && urls_to_use.length > 1
 
     begin
       # Limit to first 5 images for cost
-      candidates = image_urls.first(5).map do |url|
+      candidates = urls_to_use.first(5).map do |url|
         {
           type: "image",
           source: {
@@ -242,15 +251,15 @@ class PricebookImageFetcherService
         selection = response["content"].first["text"].to_i
         if selection > 0 && selection <= candidates.length
           Rails.logger.info "[ImageFetcher] Claude selected image #{selection}"
-          return image_urls[selection - 1]
+          return urls_to_use[selection - 1]
         end
       end
 
       Rails.logger.warn "[ImageFetcher] Claude didn't select, using first image"
-      image_urls.first
+      urls_to_use.first
     rescue StandardError => e
       Rails.logger.error "[ImageFetcher] Claude selection failed: #{e.message}"
-      image_urls.first
+      urls_to_use.first
     end
   end
 

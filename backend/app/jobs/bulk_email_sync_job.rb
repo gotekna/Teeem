@@ -65,11 +65,13 @@ class BulkEmailSyncJob < ApplicationJob
       end
 
       # Phase 3: Upload email .eml files to SharePoint
-      unless @progress["phase3_complete"]
-        sync_emails_to_sharepoint
-        @progress["phase3_complete"] = true
-        save_progress!
-      end
+      # DISABLED: EML upload is too slow and not needed for now
+      # unless @progress["phase3_complete"]
+      #   sync_emails_to_sharepoint
+      #   @progress["phase3_complete"] = true
+      #   save_progress!
+      # end
+      @progress["phase3_complete"] = true  # Skip phase 3
 
       # Mark complete
       @progress["status"] = "completed"
@@ -269,15 +271,20 @@ class BulkEmailSyncJob < ApplicationJob
     folder_path = "emails/attachments/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
-    safe_filename = filename.gsub(/[<>:"\/\\|?*]/, "_")
+    # Sanitize filename: remove SharePoint-incompatible chars AND chars that cause URL encoding issues
+    safe_filename = filename.gsub(/[<>:"\/\\|?*+=]/, "_").gsub(/_{2,}/, "_")
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
-    if file_size >= 4 * 1024 * 1024
+    result = if file_size >= 4 * 1024 * 1024
       session = teeem_client.create_upload_session(sp_config[:site_id], sp_config[:drive_id], folder_path, final_filename)
       teeem_client.upload_large_file(session["uploadUrl"], content)
     else
       teeem_client.upload_file_content(sp_config[:site_id], sp_config[:drive_id], folder_path, final_filename, content)
     end
+
+    # Ensure path is always set (large file upload may not include it)
+    result[:path] ||= "#{folder_path}/#{final_filename}"
+    result
   end
 
   # Phase 3: Upload email .eml files to SharePoint
@@ -349,6 +356,9 @@ class BulkEmailSyncJob < ApplicationJob
     else
       teeem_client.upload_file_content(sp_config[:site_id], sp_config[:drive_id], folder_path, filename, mime_content)
     end
+
+    # Ensure path is always set (large file upload may not include it)
+    result[:path] ||= "#{folder_path}/#{filename}"
 
     email.update!(
       sharepoint_email_file_id: result[:id],
