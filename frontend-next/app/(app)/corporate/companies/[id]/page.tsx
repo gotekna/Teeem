@@ -64,9 +64,8 @@ import {
   Phone,
   ChevronRight,
   Download,
-  Copy,
-  Check,
 } from "lucide-react";
+import { CopyableField, CopyableLink } from "@/components/ui/copyable";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format, isValid } from "date-fns";
@@ -364,81 +363,6 @@ interface TrustRolesData {
 //   );
 // }
 
-// Copyable Field Component - click to copy with visual feedback
-function CopyableField({ label, value, subtext }: { label: string; value: string | null | undefined; subtext?: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  if (!value) return null;
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
-  return (
-    <div>
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <div className="flex items-center gap-2 group">
-        <p className="text-sm font-medium">{value}</p>
-        <button
-          onClick={handleCopy}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-muted rounded"
-          title={`Copy ${label}`}
-        >
-          {copied ? (
-            <Check className="h-3 w-3 text-green-500" />
-          ) : (
-            <Copy className="h-3 w-3 text-muted-foreground" />
-          )}
-        </button>
-      </div>
-      {subtext && <p className="text-xs text-muted-foreground mt-1">{subtext}</p>}
-    </div>
-  );
-}
-
-// Copyable Contact Item - for email/phone with link + copy
-function CopyableContactItem({ icon, value, href }: { icon: React.ReactNode; value: string; href: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
-  return (
-    <div className="flex items-center gap-1.5 group">
-      <a href={href} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-        {icon}
-        <span className="truncate">{value}</span>
-      </a>
-      <button
-        onClick={handleCopy}
-        className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-muted rounded"
-        title="Copy"
-      >
-        {copied ? (
-          <Check className="h-3 w-3 text-green-500" />
-        ) : (
-          <Copy className="h-3 w-3 text-muted-foreground" />
-        )}
-      </button>
-    </div>
-  );
-}
-
 // Information Sub-Tab
 function InformationTab({ company }: { company: Company }) {
   return (
@@ -501,14 +425,14 @@ function InformationTab({ company }: { company: Company }) {
                 {(director.contact?.email || director.contact?.mobile_phone) && (
                   <div className="space-y-1 text-xs">
                     {director.contact?.email && (
-                      <CopyableContactItem
+                      <CopyableLink
                         icon={<Mail className="h-3 w-3" />}
                         value={director.contact.email}
                         href={`mailto:${director.contact.email}`}
                       />
                     )}
                     {director.contact?.mobile_phone && (
-                      <CopyableContactItem
+                      <CopyableLink
                         icon={<Phone className="h-3 w-3" />}
                         value={director.contact.mobile_phone}
                         href={`tel:${director.contact.mobile_phone}`}
