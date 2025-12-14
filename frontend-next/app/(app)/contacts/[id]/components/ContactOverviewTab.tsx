@@ -673,25 +673,6 @@ function BasicInfoCard({
           </div>
         )}
 
-        {/* Xero Link Status */}
-        {contact.xero_id && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500" />
-                <span className="text-sm font-medium">Linked to Xero</span>
-              </div>
-              {contact.xero_invoice_count && (
-                <Badge variant="secondary">{contact.xero_invoice_count} invoices</Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Xero ID: {contact.xero_id}
-              {contact.xero_contact_number && ` • Contact #${contact.xero_contact_number}`}
-            </p>
-          </div>
-        )}
-
         {/* Raw Data Section - Collapsible */}
         <details className="mt-4 pt-4 border-t">
           <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">

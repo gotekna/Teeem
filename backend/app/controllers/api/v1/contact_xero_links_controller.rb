@@ -207,6 +207,13 @@ module Api
       def serialize_xero_link(link)
         config = SyncConfiguration.find_by(xero_tenant_id: link.tenant_id)
 
+        # Count invoices for this contact from this Xero tenant
+        invoice_count = ExternalInvoice.where(
+          contact_id: link.contact_id,
+          tenant_id: link.tenant_id,
+          source: "xero"
+        ).count
+
         {
           id: link.id,
           contact_id: link.contact_id,
@@ -228,6 +235,8 @@ module Api
           conflict_count: link.conflict_fields.keys.count,
           badge_color: config&.badge_color || "blue",
           accounting_system: config&.accounting_system || link.source,
+          # Invoice count from this tenant
+          invoice_count: invoice_count,
           # Review fields
           needs_review: link.needs_review,
           match_type: link.match_type,

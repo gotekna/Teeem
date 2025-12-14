@@ -26,6 +26,7 @@ interface XeroLink {
   xero_tenant_id: string;
   xero_tenant_name: string;
   xero_contact_id: string;
+  invoice_count?: number;
 }
 
 interface XeroTenant {
@@ -164,7 +165,8 @@ export function ContactHeader({
                   </div>
                   <div className="space-y-1">
                     {[...allTenants].sort((a, b) => a.tenant_name.localeCompare(b.tenant_name)).map((tenant) => {
-                      const linked = isLinked(tenant.tenant_id);
+                      const link = xeroLinks.find(l => l.xero_tenant_id === tenant.tenant_id);
+                      const linked = !!link;
                       const pushing = pushingToTenant === tenant.tenant_id;
                       return (
                         <div
@@ -182,6 +184,11 @@ export function ContactHeader({
                             <span className={linked ? "text-green-700 dark:text-green-300" : ""}>
                               {tenant.tenant_name}
                             </span>
+                            {linked && link?.invoice_count !== undefined && link.invoice_count > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                ({link.invoice_count})
+                              </span>
+                            )}
                           </div>
                           {!linked && (
                             <Button
