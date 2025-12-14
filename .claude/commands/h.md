@@ -10,14 +10,14 @@ Pull the production database (teeemlive) to local environment.
 │  Heroku PostgreSQL  │
 └──────────┬──────────┘
            │
-           │ Step 1: Capture backup (quick)
+           │ Step 1: Get latest backup (fast)
            ▼
 ┌─────────────────────┐
-│   Heroku Backup     │
+│   Heroku S3 Backup  │
 │   (~145MB)          │
 └──────────┬──────────┘
            │
-           │ Step 2: Download via curl
+           │ Step 2: aria2c parallel download
            ▼
 ┌─────────────────────┐
 │       LOCAL         │
@@ -25,19 +25,28 @@ Pull the production database (teeemlive) to local environment.
 └─────────────────────┘
 ```
 
+## Why This Method (SSoT)
+
+| Method | Issue | Status |
+|--------|-------|--------|
+| `pg:pull` | Saturates prod DB connections | ❌ Avoid |
+| `heroku pg:backups:download` | CLI truncates large files | ❌ Avoid |
+| `curl` | Single connection, very slow from AU | ❌ Avoid |
+| **`aria2c`** | Parallel chunks, resume-capable | ✅ SSoT |
+
 ## Auto-Execute
 
 ```bash
 # Step 1: Kill existing local connections
 psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
 
-# Step 2: Capture fresh backup from production
+# Step 2: Get backup URL (use existing backup, don't capture new one unless stale)
 cd /Users/robertharder/GitHub/teeem/backend
-heroku pg:backups:capture --app teeemlive
-
-# Step 3: Download backup via curl (more reliable than heroku CLI)
 BACKUP_URL=$(heroku pg:backups:url --app teeemlive)
-curl -o latest.dump -L --retry 3 --retry-delay 5 "$BACKUP_URL"
+
+# Step 3: Download with aria2c (16 parallel connections, resume-capable)
+rm -f latest.dump
+aria2c -x 16 -s 16 --file-allocation=none -o latest.dump "$BACKUP_URL"
 echo "Downloaded: $(ls -lh latest.dump | awk '{print $5}')"
 
 # Step 4: Restore to local
@@ -68,15 +77,16 @@ echo "✅ Database synced and servers restarted"
 | Step | From | To | Method |
 |------|------|-----|--------|
 | 1 | - | - | Kill local connections |
-| 2 | teeemlive | Heroku backup | `pg:backups:capture` (quick, no connection hold) |
-| 3 | Heroku backup | local file | `curl` with retries |
+| 2 | teeemlive | S3 URL | `pg:backups:url` |
+| 3 | S3 | local file | `aria2c -x 16` (parallel, resume-capable) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
 | 6 | - | - | Verify data counts |
 | 7 | - | localhost:3000 + 3001 | Restart servers |
 
-## Why This Method
+## Notes
 
-- **pg:backups:capture** - Quick snapshot, doesn't hold DB connections
-- **curl with retries** - More reliable than `heroku pg:backups:download`
-- **pg:pull** - Avoided because it saturates production DB connections
+- **aria2c required**: `brew install aria2` (one-time)
+- **Skip capture**: Uses existing backup. Heroku auto-captures daily. Only run `pg:backups:capture` if you need today's data.
+- **Resume downloads**: If download fails, re-run aria2c and it resumes from where it left off
+- **Australia latency**: Downloads may take 15-30 min due to US S3 → Australia network distance

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 interface MergeModalProps {
   open: boolean;
@@ -24,7 +25,7 @@ interface MergeModalProps {
   displayColumn?: string; // Which column to show as the record title
   secondaryColumns?: string[]; // Additional columns to show as details
   entityName?: string; // e.g., "Job", "Contact", "Record"
-  onMergeComplete: () => void;
+  onMergeComplete: (deletedIds: (string | number)[]) => void; // Pass back which IDs were deleted
 }
 
 /**
@@ -75,12 +76,15 @@ export function MergeModal({
         { secondary_ids: secondaryIds }
       );
 
-      // Close modal and refresh data
+      // Show success toast
+      toast.success(`Merged ${secondaryIds.length + 1} ${entityName.toLowerCase()}s`);
+
+      // Close modal and pass deleted IDs for optimistic update
       onOpenChange(false);
-      onMergeComplete();
+      onMergeComplete(secondaryIds);
     } catch (error) {
       console.error("Failed to merge records:", error);
-      alert(`Failed to merge ${entityName.toLowerCase()}s. Please try again.`);
+      toast.error(`Failed to merge ${entityName.toLowerCase()}s. Please try again.`);
     } finally {
       setMerging(false);
     }
@@ -89,7 +93,7 @@ export function MergeModal({
   // Get display value for a record
   const getDisplayValue = (record: Record<string, unknown>): string => {
     // Try the specified display column first
-    let value = record[displayColumn];
+    const value = record[displayColumn];
     if (value && typeof value === "object" && "display" in value) {
       return String((value as { display: string }).display);
     }

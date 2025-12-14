@@ -885,6 +885,9 @@ export default function TeeemTableView({
   const [showMergeModal, setShowMergeModal] = useAtom(showMergeModalAtom);
   const [mergeSelectedIds, setMergeSelectedIds] = useAtom(mergeSelectedIdsAtom);
 
+  // Optimistic delete IDs - for instant UI feedback after merge
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<string | number>>(new Set());
+
   // Filter panel state managed by atom (SSoT)
   const [filterPanelOpen, setFilterPanelOpen] = useAtom(filterPanelOpenAtom);
 
@@ -1178,6 +1181,13 @@ export default function TeeemTableView({
     });
   }, [entries]);
 
+  // Clear pending deletes when entries refresh (the deleted rows are now gone from server)
+  React.useEffect(() => {
+    if (pendingDeleteIds.size > 0) {
+      setPendingDeleteIds(new Set());
+    }
+  }, [entries]);
+
   const toggleSelectAll = useCallback(() => {
     // In grouped view, select only visible/expanded rows
     if (groupedEntries) {
@@ -1240,11 +1250,16 @@ export default function TeeemTableView({
     }
   }, [onBulkMerge, enableMerge, foundationIdNumeric]);
 
-  // Called when merge completes successfully
-  const handleMergeComplete = useCallback(() => {
+  // Called when merge completes successfully - optimistically hides merged rows
+  const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
+    // Optimistically hide deleted rows immediately
+    setPendingDeleteIds(new Set(deletedIds));
+
+    // Clear selections
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
-    // Refresh data
+
+    // Refresh data from server (will eventually sync state)
     if (onRefresh) {
       onRefresh();
     }
@@ -1906,6 +1921,11 @@ export default function TeeemTableView({
     const startTime = performance.now();
     let result = [...entries];
 
+    // Optimistically hide pending deletes (merged records)
+    if (pendingDeleteIds.size > 0) {
+      result = result.filter((entry) => !pendingDeleteIds.has(entry.id as string | number));
+    }
+
     // Apply search filter (client-side if no server search)
     // Uses fuzzy matching to handle typos like "coasal" -> "coastal"
     if (search && !onServerSearch) {
@@ -2016,6 +2036,7 @@ export default function TeeemTableView({
     interGroupLogic,
     sortColumns,
     evaluateFilter,
+    pendingDeleteIds,
   ]);
 
   // Limit displayed rows for performance (initial render shows INITIAL_ROW_LIMIT rows)
