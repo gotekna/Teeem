@@ -445,15 +445,14 @@ class ExternalInvoiceSyncService
 
   # Auto-create a TEEEM contact from Xero contact data embedded in invoice
   # BUG FIX: Added duplicate detection to prevent creating duplicate contacts
+  # IMPROVED: Added fuzzy matching for similar names across Xero orgs
   def auto_create_contact_from_xero(invoice, warehouse_contact = nil)
     return nil if invoice.contact_name.blank?
 
-    normalized_name = invoice.contact_name.downcase.strip
-
-    # Check for existing contact by normalized name BEFORE creating
-    existing_contact = Contact.where("LOWER(TRIM(display_name)) = ?", normalized_name).first
+    # Check for existing contact using smart matching BEFORE creating
+    existing_contact, match_type = find_matching_contact(invoice.contact_name)
     if existing_contact
-      Rails.logger.info("Found existing contact #{existing_contact.id} for '#{invoice.contact_name}' - linking instead of creating")
+      Rails.logger.info("Found existing contact #{existing_contact.id} for '#{invoice.contact_name}' via #{match_type} - linking instead of creating")
       link_existing_contact(existing_contact, invoice, warehouse_contact)
       return existing_contact
     end
@@ -494,6 +493,103 @@ class ExternalInvoiceSyncService
       Rails.logger.error("Error auto-creating contact for #{invoice.contact_name}: #{e.message}")
       nil
     end
+  end
+
+  # Smart contact matching with multiple strategies
+  # Returns [contact, match_type] or [nil, nil]
+  # Multi-word suffixes first, then single words (order matters!)
+  BUSINESS_SUFFIXES = [
+    "pty ltd", "pty. ltd.", "pty. ltd", "pty ltd.",
+    "inc.", "inc",
+    "corp.", "corp",
+    "ltd.", "ltd",
+    "pty.", "pty",
+    "corporation", "limited", "company", "co.",
+    "trust", "atf", "abn", "acn",
+    "trading", "t/a", "ta",
+    "australia", "au", "nsw", "qld", "vic", "sa", "wa", "nt", "tas", "act",
+    "holdings", "group", "services", "solutions", "enterprises"
+  ].freeze
+
+  def find_matching_contact(name)
+    return [nil, nil] if name.blank?
+
+    normalized = normalize_name(name)
+    base_name = extract_base_name(name)
+
+    # Strategy 1: Exact match (fastest)
+    contact = Contact.where("LOWER(TRIM(display_name)) = ?", normalized).first
+    return [contact, "exact_match"] if contact
+
+    # Strategy 2: Normalized match (removes Pty Ltd, Inc, etc.)
+    if base_name != normalized && base_name.length >= 4
+      contact = Contact.where("LOWER(TRIM(display_name)) = ?", base_name).first
+      return [contact, "normalized_match"] if contact
+
+      # Also check if existing contact's base name matches
+      contact = Contact.find_by_sql([
+        "SELECT * FROM contacts WHERE ? = #{extract_base_name_sql('display_name')} LIMIT 1",
+        base_name
+      ]).first
+      return [contact, "normalized_match"] if contact
+    end
+
+    # Strategy 3: Prefix match - new name starts with existing contact name
+    # e.g., "7 Eleven 4120" should match "7 Eleven"
+    # Only for names >= 6 chars to avoid false positives
+    if normalized.length >= 6
+      contact = Contact.where(
+        "LENGTH(TRIM(display_name)) >= 4 AND ? LIKE LOWER(TRIM(display_name)) || '%'",
+        normalized
+      ).order(Arel.sql("LENGTH(display_name) DESC")).first
+      return [contact, "prefix_match"] if contact
+    end
+
+    # Strategy 4: Reverse prefix - existing contact starts with new name
+    # e.g., "7 Eleven" should match "7 Eleven 4120" (if 4120 exists first)
+    if normalized.length >= 4
+      contact = Contact.where(
+        "LOWER(TRIM(display_name)) LIKE ? || '%' AND LENGTH(TRIM(display_name)) >= ?",
+        normalized, normalized.length
+      ).order(:created_at).first
+      return [contact, "reverse_prefix_match"] if contact
+    end
+
+    [nil, nil]
+  end
+
+  # Normalize name to lowercase, trimmed
+  def normalize_name(name)
+    name.to_s.downcase.strip
+  end
+
+  # Extract base name by removing common business suffixes and numbers
+  def extract_base_name(name)
+    base = normalize_name(name)
+
+    # Remove trailing numbers (e.g., "7 Eleven 4120" -> "7 Eleven")
+    base = base.gsub(/\s+\d+\s*$/, "")
+
+    # Remove common business suffixes (iterate multiple times for nested suffixes)
+    2.times do
+      BUSINESS_SUFFIXES.each do |suffix|
+        escaped = Regexp.escape(suffix)
+        base = base.gsub(/\s+#{escaped}\s*$/i, "")
+        base = base.gsub(/\s+\(#{escaped}\)\s*$/i, "")
+      end
+    end
+
+    # Remove trailing punctuation and whitespace
+    base = base.gsub(/[\s\-\.,]+$/, "").strip
+
+    base
+  end
+
+  # SQL expression to extract base name (for matching against existing contacts)
+  def extract_base_name_sql(column)
+    # Remove trailing numbers and common suffixes in SQL
+    # This is a simplified version - removes trailing numbers only
+    "REGEXP_REPLACE(LOWER(TRIM(#{column})), '\\s+\\d+\\s*$', '', 'g')"
   end
 
   # Link an existing contact to WarehouseContact/ExternalLink (used when duplicate detected)
