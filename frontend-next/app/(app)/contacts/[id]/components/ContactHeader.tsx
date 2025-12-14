@@ -107,8 +107,10 @@ export function ContactHeader({
     setPushingToTenant(tenantId);
     try {
       await api.post(`/api/v1/contacts/${contact.id}/xero_links`, {
-        xero_tenant_id: tenantId,
-        xero_tenant_name: tenantName,
+        xero_link: {
+          tenant_id: tenantId,
+          tenant_name: tenantName,
+        }
       });
       // Reload links to show the new connection
       await loadXeroLinks();
