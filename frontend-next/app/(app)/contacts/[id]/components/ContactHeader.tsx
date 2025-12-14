@@ -162,8 +162,8 @@ export function ContactHeader({
                   <div className="text-xs font-medium text-muted-foreground mb-2">
                     Xero Organizations ({xeroLinks.length}/{allTenants.length} linked)
                   </div>
-                  <div className="space-y-1 max-h-80 overflow-y-auto">
-                    {allTenants.map((tenant) => {
+                  <div className="space-y-1">
+                    {[...allTenants].sort((a, b) => a.tenant_name.localeCompare(b.tenant_name)).map((tenant) => {
                       const linked = isLinked(tenant.tenant_id);
                       const pushing = pushingToTenant === tenant.tenant_id;
                       return (

@@ -1530,6 +1530,138 @@ function AddressCard({
     }, 300);
   };
 
+  // State abbreviation map for correcting full names to abbreviations
+  const stateAbbreviations: Record<string, string> = {
+    "queensland": "QLD",
+    "new south wales": "NSW",
+    "victoria": "VIC",
+    "south australia": "SA",
+    "western australia": "WA",
+    "tasmania": "TAS",
+    "northern territory": "NT",
+    "australian capital territory": "ACT",
+  };
+
+  // Normalize state to abbreviation
+  const normalizeState = (state: string | undefined): string | undefined => {
+    if (!state) return undefined;
+    const trimmed = state.trim();
+    // If already an abbreviation, return uppercase
+    if (trimmed.length <= 3) return trimmed.toUpperCase();
+    // Try to find full name match
+    return stateAbbreviations[trimmed.toLowerCase()] || trimmed;
+  };
+
+  // Comprehensive address validation and auto-fill
+  // Handles: suburb lookup, postcode lookup, state correction, mismatch detection
+  const validateAndCorrectAddress = async () => {
+    const currentCity = streetAddress.city?.trim();
+    const currentPostcode = streetAddress.postal_code?.trim();
+    const currentRegion = streetAddress.region?.trim();
+
+    // Normalize state format first (e.g., "Queensland" → "QLD")
+    const normalizedRegion = normalizeState(currentRegion);
+    let needsUpdate = normalizedRegion !== currentRegion;
+
+    let updates: Partial<ContactAddress> = {};
+    if (needsUpdate && normalizedRegion) {
+      updates.region = normalizedRegion;
+    }
+
+    try {
+      // Strategy 1: If suburb is filled, look it up to fill/correct state and postcode
+      if (currentCity && currentCity.length >= 2) {
+        const response = await api.get<{ suburbs: Suburb[] }>(
+          `/api/v1/suburbs/search?q=${encodeURIComponent(currentCity)}`
+        );
+        const suburbs = response.suburbs || [];
+
+        // Find exact match by name (case-insensitive)
+        const exactMatch = suburbs.find(
+          (s) => s.name.toLowerCase() === currentCity.toLowerCase()
+        );
+
+        if (exactMatch) {
+          // If postcode also filled, prefer the suburb that matches both
+          if (currentPostcode) {
+            const postcodeMatch = suburbs.find(
+              (s) =>
+                s.name.toLowerCase() === currentCity.toLowerCase() &&
+                s.postcode === currentPostcode
+            );
+            if (postcodeMatch) {
+              // Perfect match - use this suburb's state
+              if (!normalizedRegion || normalizedRegion !== postcodeMatch.state) {
+                updates.region = postcodeMatch.state;
+                needsUpdate = true;
+              }
+            } else {
+              // Suburb found but postcode doesn't match - correct to suburb's postcode
+              updates.region = exactMatch.state;
+              updates.postal_code = exactMatch.postcode;
+              needsUpdate = true;
+            }
+          } else {
+            // No postcode - fill from suburb
+            updates.region = exactMatch.state;
+            updates.postal_code = exactMatch.postcode;
+            needsUpdate = true;
+          }
+        }
+      }
+      // Strategy 2: If postcode is filled but no suburb, look up by postcode
+      else if (currentPostcode && currentPostcode.length === 4 && !currentCity) {
+        const response = await api.get<{ suburbs: Suburb[] }>(
+          `/api/v1/suburbs/search?q=${encodeURIComponent(currentPostcode)}`
+        );
+        const suburbs = response.suburbs || [];
+
+        // Filter to exact postcode matches
+        const postcodeMatches = suburbs.filter(s => s.postcode === currentPostcode);
+
+        if (postcodeMatches.length === 1) {
+          // Only one suburb for this postcode - auto-fill it
+          updates.city = postcodeMatches[0].name;
+          updates.region = postcodeMatches[0].state;
+          needsUpdate = true;
+        } else if (postcodeMatches.length > 1) {
+          // Multiple suburbs - at least fill the state (they'll all be the same)
+          if (!normalizedRegion) {
+            updates.region = postcodeMatches[0].state;
+            needsUpdate = true;
+          }
+        }
+      }
+
+      // Apply updates if needed
+      if (needsUpdate && Object.keys(updates).length > 0) {
+        const addresses = contact.contact_addresses || [];
+        const existingIndex = addresses.findIndex(
+          (a) => a.address_type === "STREET" && !a._destroy
+        );
+
+        const updatedAddress: ContactAddress = {
+          ...getStreetAddress(),
+          ...updates,
+        };
+
+        let updatedAddresses: ContactAddress[];
+        if (existingIndex >= 0) {
+          updatedAddresses = addresses.map((addr, idx) =>
+            idx === existingIndex ? { ...addr, ...updatedAddress } : addr
+          );
+        } else {
+          updatedAddresses = [...addresses, updatedAddress];
+        }
+
+        setContact({ ...contact, contact_addresses: updatedAddresses });
+        setHasChanges(true);
+      }
+    } catch (error) {
+      console.error("Failed to validate/correct address:", error);
+    }
+  };
+
   // Select suburb
   const handleSelectSuburb = (suburb: Suburb) => {
     const addresses = contact.contact_addresses || [];
@@ -1627,7 +1759,9 @@ function AddressCard({
                 }}
                 onBlur={() => {
                   // Delay to allow click on dropdown item
-                  setTimeout(() => {
+                  setTimeout(async () => {
+                    // Validate and correct address (handles browser autocomplete, mismatches, etc.)
+                    await validateAndCorrectAddress();
                     handleAutoSave();
                   }, 200);
                 }}
@@ -1692,7 +1826,11 @@ function AddressCard({
               id="postcode"
               value={streetAddress.postal_code}
               onChange={(e) => updateAddressField("postal_code", e.target.value)}
-              onBlur={handleAutoSave}
+              onBlur={async () => {
+                // Validate and correct address (can auto-fill suburb/state from postcode)
+                await validateAndCorrectAddress();
+                handleAutoSave();
+              }}
               placeholder="4000"
               maxLength={4}
             />
