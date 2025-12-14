@@ -326,6 +326,10 @@ export interface Contact {
   website: string | null;
   tax_number: string | null;
   address: string | null;
+  // Legacy address fields (SSoT is contact_addresses, these are for backwards compatibility)
+  city: string | null;      // Suburb in Australian context
+  state: string | null;     // State/Region
+  postcode: string | null;  // Postal code
   notes: string | null;
   is_active: boolean;
   // Multiple emails, phones, and addresses

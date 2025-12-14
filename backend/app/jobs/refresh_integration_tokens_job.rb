@@ -50,10 +50,11 @@ class RefreshIntegrationTokensJob < ApplicationJob
   end
 
   def refresh_onedrive_tokens
-    # Find credentials expiring in the next 15 minutes
+    # Find credentials expiring in the next 20 minutes
+    # Buffer must be > job interval (15 min) to prevent timing gaps
     OrganizationOneDriveCredential.active.each do |credential|
       next unless credential.token_expires_at.present?
-      next unless credential.token_expires_at <= 15.minutes.from_now
+      next unless credential.token_expires_at <= 20.minutes.from_now
 
       Rails.logger.info "[TokenRefresh] Refreshing OneDrive token expiring at #{credential.token_expires_at}"
 

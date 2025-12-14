@@ -18,8 +18,14 @@ class UserMicrosoftToken < ApplicationRecord
   validates :user_id, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
+  # Refresh tokens 20 minutes BEFORE they expire (proactive, not reactive)
+  # Microsoft access tokens typically expire after 60 minutes
+  # Buffer MUST be larger than job interval (15 min) to prevent timing gaps
+  # Example: Token expires 07:30, job at 07:15 checks 07:30 < 07:35 = true ✓
+  REFRESH_BUFFER = 20.minutes
+
   scope :connected, -> { where(status: "connected") }
-  scope :needs_refresh, -> { where("token_expires_at < ?", 15.minutes.from_now) }
+  scope :needs_refresh, -> { where("token_expires_at < ?", REFRESH_BUFFER.from_now) }
   scope :with_errors, -> { where(status: "error") }
   scope :alive, -> { where(refresh_token_dead: false) }
   scope :dead, -> { where(refresh_token_dead: true) }
@@ -34,9 +40,9 @@ class UserMicrosoftToken < ApplicationRecord
     "invalid_grant" # Generic dead token error
   ].freeze
 
-  # Check if token needs refresh (15 min buffer for proactive refresh)
+  # Check if token needs refresh (20 min buffer for proactive refresh)
   def needs_refresh?
-    token_expires_at.nil? || token_expires_at < 15.minutes.from_now
+    token_expires_at.nil? || token_expires_at < REFRESH_BUFFER.from_now
   end
 
   # Alias for compatibility with MicrosoftGraphClient which expects token_expired?

@@ -2138,6 +2138,11 @@ export default function TeeemTableView({
   // Helper to extract display value from a cell (handles objects with display/name properties)
   const getDisplayValue = useCallback((value: unknown): string => {
     if (value === null || value === undefined) return "No Value";
+    // Handle arrays - join as comma-separated string
+    if (Array.isArray(value)) {
+      if (value.length === 0) return "—";
+      return value.map(item => String(item)).join(", ");
+    }
     if (typeof value === "object") {
       const obj = value as Record<string, unknown>;
       return String(obj.display || obj.display_value || obj.name || obj.id || "No Value");
@@ -2976,6 +2981,22 @@ export default function TeeemTableView({
             {url}
             <ExternalLink className="h-3 w-3" />
           </a>
+        );
+      }
+
+      // Array of items: render as badges (e.g., xero_contact_types: ["Customer", "Supplier"])
+      if (column.column_type === "array_of_items") {
+        if (!Array.isArray(value) || value.length === 0) {
+          return <span className="text-muted-foreground text-[11px]">—</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-1">
+            {value.map((item, idx) => (
+              <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+                {String(item)}
+              </Badge>
+            ))}
+          </div>
         );
       }
 

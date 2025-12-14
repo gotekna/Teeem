@@ -19,7 +19,6 @@ import {
   Plus,
   Link2,
   Scale,
-  Code,
   GripVertical,
   Star,
   Search,
@@ -672,19 +671,6 @@ function BasicInfoCard({
             />
           </div>
         )}
-
-        {/* Raw Data Section - Collapsible */}
-        <details className="mt-4 pt-4 border-t">
-          <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
-            <Code className="h-4 w-4" />
-            Raw Data (Debug)
-          </summary>
-          <div className="mt-3 p-3 bg-muted rounded-md overflow-auto max-h-96">
-            <pre className="text-xs whitespace-pre-wrap break-all font-mono">
-              {JSON.stringify(contact, null, 2)}
-            </pre>
-          </div>
-        </details>
       </CardContent>
     </Card>
   );
@@ -1423,25 +1409,35 @@ function AddressCard({
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // Get the primary STREET address or create a new one
+  // Falls back to legacy address fields (address, city, state, postcode) if no STREET address exists
   const getStreetAddress = (): ContactAddress => {
     const existing = contact.contact_addresses?.find(
       (a) => a.address_type === "STREET" && !a._destroy
     );
-    return (
-      existing || {
-        address_type: "STREET",
-        line1: "",
-        line2: null,
-        line3: null,
-        line4: null,
-        city: "",
-        region: "",
-        postal_code: "",
-        country: "Australia",
-        attention_to: null,
-        is_primary: true,
-      }
-    );
+
+    if (existing) {
+      return existing;
+    }
+
+    // SSoT fallback: If no STREET address exists but legacy fields have data,
+    // create a virtual address object from them (for display and editing)
+    // When saved, this will create a proper contact_addresses record
+    const legacyLine1 = contact.address?.split("\n")[0] || "";
+    const legacyLine2 = contact.address?.split("\n").slice(1).join("\n") || null;
+
+    return {
+      address_type: "STREET",
+      line1: legacyLine1,
+      line2: legacyLine2,
+      line3: null,
+      line4: null,
+      city: contact.city || "",
+      region: contact.state || "",
+      postal_code: contact.postcode || "",
+      country: "Australia",
+      attention_to: null,
+      is_primary: true,
+    };
   };
 
   const streetAddress = getStreetAddress();

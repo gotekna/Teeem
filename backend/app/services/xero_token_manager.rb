@@ -21,9 +21,11 @@
 # SAME refresh token for up to 30 minutes. This makes the system much more resilient.
 #
 class XeroTokenManager
-  # Refresh tokens 15 minutes BEFORE they expire (proactive, not reactive)
-  # Xero access tokens expire after 30 minutes, so 15 min buffer is ideal
-  REFRESH_BUFFER = 15.minutes
+  # Refresh tokens 20 minutes BEFORE they expire (proactive, not reactive)
+  # Xero access tokens expire after 30 minutes
+  # Buffer MUST be larger than job interval (15 min) to prevent gaps
+  # Example: Token expires 07:30, job at 07:15 checks 07:30 < 07:35 = true ✓
+  REFRESH_BUFFER = 20.minutes
 
   # After 3 consecutive refresh failures, mark credential as disconnected
   MAX_REFRESH_ATTEMPTS = 3
