@@ -5,6 +5,7 @@ class RefreshIntegrationTokensJob < ApplicationJob
 
   def perform
     refresh_user_microsoft_tokens
+    refresh_user_outlook_tokens  # SSoT fix: was missing, caused Rachel's token to expire
     refresh_onedrive_tokens
     refresh_xero_tokens
   end
@@ -46,6 +47,26 @@ class RefreshIntegrationTokensJob < ApplicationJob
     dead_count = UserMicrosoftToken.dead.count
     if dead_count > 0
       Rails.logger.warn "[TokenRefresh] #{dead_count} Microsoft token(s) require user re-authentication"
+    end
+  end
+
+  # Refresh UserOutlookCredential tokens (for Outlook email access)
+  # SSoT fix: This was missing, causing tokens like Rachel's to expire without auto-refresh
+  def refresh_user_outlook_tokens
+    # Find credentials expiring in the next 20 minutes
+    # Buffer must be > job interval (15 min) to prevent timing gaps
+    UserOutlookCredential.where("expires_at <= ?", 20.minutes.from_now).find_each do |credential|
+      Rails.logger.info "[TokenRefresh] Refreshing UserOutlookCredential for #{credential.email || credential.user_id} expiring at #{credential.expires_at}"
+
+      begin
+        if credential.refresh!
+          Rails.logger.info "[TokenRefresh] UserOutlookCredential refreshed successfully for #{credential.email || credential.user_id}"
+        else
+          Rails.logger.warn "[TokenRefresh] UserOutlookCredential refresh failed for #{credential.email || credential.user_id}"
+        end
+      rescue StandardError => e
+        Rails.logger.error "[TokenRefresh] Failed to refresh UserOutlookCredential for #{credential.email || credential.user_id}: #{e.message}"
+      end
     end
   end
 
