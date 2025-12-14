@@ -88,11 +88,24 @@ export function MergeModal({
 
   // Get display value for a record
   const getDisplayValue = (record: Record<string, unknown>): string => {
-    const value = record[displayColumn];
+    // Try the specified display column first
+    let value = record[displayColumn];
     if (value && typeof value === "object" && "display" in value) {
       return String((value as { display: string }).display);
     }
-    return String(value || `${entityName} #${record.id}`);
+    if (value) return String(value);
+
+    // Fallback: try common name columns
+    const nameColumns = ["display_name", "name", "title", "label"];
+    for (const col of nameColumns) {
+      const fallback = record[col];
+      if (fallback && typeof fallback === "object" && "display" in fallback) {
+        return String((fallback as { display: string }).display);
+      }
+      if (fallback) return String(fallback);
+    }
+
+    return `${entityName} #${record.id}`;
   };
 
   // Get secondary info for a record
@@ -142,11 +155,12 @@ export function MergeModal({
               return (
                 <div
                   key={recordId}
-                  className={`flex items-center space-x-3 p-3 rounded-lg border ${
+                  className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer ${
                     primaryId === recordId
                       ? "border-primary bg-primary/5"
                       : "border-border hover:bg-muted/50"
                   }`}
+                  onClick={() => setPrimaryId(recordId)}
                 >
                   <RadioGroupItem
                     value={String(recordId)}
