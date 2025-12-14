@@ -1,6 +1,25 @@
 "use client";
 
 import * as React from "react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +70,150 @@ interface JobStage {
   active: boolean;
 }
 
+// Individual sortable item component
+function SortableItem<T extends { id: number; name: string; color?: string; position: number }>({
+  item,
+  index,
+  totalItems,
+  onEdit,
+  onDelete,
+  onPositionChange,
+}: {
+  item: T;
+  index: number;
+  totalItems: number;
+  onEdit: (item: T) => void;
+  onDelete: (id: number) => void;
+  onPositionChange: (newPosition: number) => void;
+}) {
+  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
+  const [positionValue, setPositionValue] = React.useState(String(index + 1));
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+    isOver,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  React.useEffect(() => {
+    if (isEditingPosition && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingPosition]);
+
+  React.useEffect(() => {
+    setPositionValue(String(index + 1));
+  }, [index]);
+
+  const handlePositionClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPositionValue(String(index + 1));
+    setIsEditingPosition(true);
+  };
+
+  const handlePositionSubmit = () => {
+    const newPos = parseInt(positionValue, 10);
+    if (!isNaN(newPos) && newPos >= 1 && newPos <= totalItems && newPos !== index + 1) {
+      onPositionChange(newPos);
+    }
+    setIsEditingPosition(false);
+    setPositionValue(String(index + 1));
+  };
+
+  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handlePositionSubmit();
+    } else if (e.key === "Escape") {
+      setIsEditingPosition(false);
+      setPositionValue(String(index + 1));
+    }
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 rounded-md border bg-background transition-all relative",
+        isDragging && "opacity-50 shadow-lg scale-[1.02] z-50 border-primary bg-primary/5",
+        isOver && !isDragging && "border-t-4 border-t-primary pt-4 mt-1"
+      )}
+    >
+      {/* Drag handle with position number */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        {isEditingPosition ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={positionValue}
+            onChange={(e) => setPositionValue(e.target.value)}
+            onBlur={handlePositionSubmit}
+            onKeyDown={handlePositionKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="w-6 h-5 text-[10px] font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        ) : (
+          <button
+            onClick={handlePositionClick}
+            className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
+            title="Click to change position"
+          >
+            {index + 1}
+          </button>
+        )}
+      </div>
+
+      {/* Color indicator */}
+      {item.color && (
+        <div
+          className="w-3 h-3 rounded-full shrink-0"
+          style={{ backgroundColor: item.color }}
+        />
+      )}
+
+      {/* Item name */}
+      <span className="flex-1 text-sm truncate">{item.name}</span>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          onClick={() => onEdit(item)}
+        >
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={() => onDelete(item.id)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// Main sortable list with DndContext
 function SortableList<T extends { id: number; name: string; color?: string; position: number }>({
   items,
   title,
@@ -70,31 +233,59 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
   onReorder: (items: T[]) => void;
   loading: boolean;
 }) {
-  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [activeId, setActiveId] = React.useState<number | null>(null);
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const sortedItems = React.useMemo(
+    () => [...items].sort((a, b) => a.position - b.position),
+    [items]
+  );
+
+  const activeItem = activeId ? sortedItems.find((item) => item.id === activeId) : null;
+
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id as number);
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
 
-    const newItems = [...items];
-    const [removed] = newItems.splice(draggedIndex, 1);
-    newItems.splice(index, 0, removed);
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedItems.findIndex((item) => item.id === active.id);
+      const newIndex = sortedItems.findIndex((item) => item.id === over.id);
 
-    // Update positions
+      const newItems = arrayMove(sortedItems, oldIndex, newIndex);
+      // Update positions
+      newItems.forEach((item, i) => {
+        item.position = i + 1;
+      });
+      onReorder(newItems);
+    }
+  };
+
+  const handlePositionChange = (itemId: number, newPosition: number) => {
+    const currentIndex = sortedItems.findIndex((item) => item.id === itemId);
+    if (currentIndex === -1) return;
+
+    const newIndex = newPosition - 1;
+    if (newIndex < 0 || newIndex >= sortedItems.length) return;
+
+    const newItems = arrayMove(sortedItems, currentIndex, newIndex);
     newItems.forEach((item, i) => {
       item.position = i + 1;
     });
-
     onReorder(newItems);
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
   };
 
   return (
@@ -121,50 +312,48 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
             No items yet. Click Add to create one.
           </div>
         ) : (
-          <div className="space-y-1">
-            {[...items]
-              .sort((a, b) => a.position - b.position)
-              .map((item, index) => (
-                <div
-                  key={item.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className={cn(
-                    "flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/50 cursor-move",
-                    draggedIndex === index && "opacity-50"
-                  )}
-                >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={sortedItems.map((item) => item.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-1">
+                {sortedItems.map((item, index) => (
+                  <SortableItem
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    totalItems={sortedItems.length}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onPositionChange={(newPos) => handlePositionChange(item.id, newPos)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+            <DragOverlay>
+              {activeItem ? (
+                <div className="flex items-center gap-2 p-2 rounded-md border bg-background shadow-lg scale-[1.02] border-primary">
                   <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  {item.color && (
+                  <div className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-primary/20 text-primary rounded">
+                    {sortedItems.findIndex((i) => i.id === activeItem.id) + 1}
+                  </div>
+                  {activeItem.color && (
                     <div
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: item.color }}
+                      style={{ backgroundColor: activeItem.color }}
                     />
                   )}
-                  <span className="flex-1 text-sm">{item.name}</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => onEdit(item)}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => onDelete(item.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <span className="flex-1 text-sm">{activeItem.name}</span>
                 </div>
-              ))}
-          </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </CardContent>
     </Card>
@@ -318,18 +507,27 @@ export function JobSetupTab() {
       stage: "/api/v1/job_stages/reorder",
     };
 
-    // Update local state immediately
+    // Backend expects different param names for each type
+    const paramKeys = {
+      type: "job_type_ids",
+      status: "job_status_ids",
+      stage: "job_stage_ids",
+    };
+
+    // Update local state immediately (optimistic update)
     if (type === "type") setJobTypes(items as JobType[]);
     if (type === "status") setJobStatuses(items as JobStatus[]);
     if (type === "stage") setJobStages(items as JobStage[]);
 
     try {
       await api.post(endpoints[type], {
-        order: items.map((item) => item.id),
+        [paramKeys[type]]: items.map((item) => item.id),
       });
+      toast({ title: "Order saved", description: "Position order has been updated" });
     } catch (error) {
       console.error("Failed to reorder:", error);
-      // Reload on error
+      toast({ title: "Error", description: "Failed to save order", variant: "destructive" });
+      // Reload on error to restore correct state
       loadData();
     }
   };

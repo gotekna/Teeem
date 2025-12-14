@@ -1,17 +1,42 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   ArrowLeft,
   Globe,
   Trash2,
   ShieldCheck,
+  ChevronDown,
+  Check,
+  Loader2,
+  Plus,
 } from "lucide-react";
+import { api } from "@/lib/api";
+
+interface XeroLink {
+  id: number;
+  xero_tenant_id: string;
+  xero_tenant_name: string;
+  xero_contact_id: string;
+}
+
+interface XeroTenant {
+  tenant_id: string;
+  tenant_name: string;
+  tenant_type: string;
+}
 
 export interface ContactHeaderProps {
   contact: {
+    id: number;
     display_name: string;
     company_name: string | null;
     position: string | null;
@@ -35,6 +60,68 @@ export function ContactHeader({
   onEnrichFromWeb,
   enrichingFromWeb,
 }: ContactHeaderProps) {
+  const [xeroLinks, setXeroLinks] = useState<XeroLink[]>([]);
+  const [allTenants, setAllTenants] = useState<XeroTenant[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
+  const [pushingToTenant, setPushingToTenant] = useState<string | null>(null);
+
+  // Load Xero links and all tenants when contact changes
+  useEffect(() => {
+    if (contact?.id) {
+      loadXeroLinks();
+      loadAllTenants();
+    }
+  }, [contact?.id]);
+
+  const loadXeroLinks = async () => {
+    setLoadingLinks(true);
+    try {
+      const response = await api.get<{ success: boolean; xero_links: XeroLink[] }>(
+        `/api/v1/contacts/${contact.id}/xero_links`
+      );
+      if (response?.success && response.xero_links) {
+        setXeroLinks(response.xero_links);
+      }
+    } catch (err) {
+      console.error("Failed to load Xero links:", err);
+    } finally {
+      setLoadingLinks(false);
+    }
+  };
+
+  const loadAllTenants = async () => {
+    try {
+      const response = await api.get<{ success: boolean; tenants: XeroTenant[] }>(
+        "/api/v1/xero/tenants"
+      );
+      if (response?.success && response.tenants) {
+        setAllTenants(response.tenants);
+      }
+    } catch (err) {
+      console.error("Failed to load Xero tenants:", err);
+    }
+  };
+
+  const handlePushToXero = async (tenantId: string, tenantName: string) => {
+    setPushingToTenant(tenantId);
+    try {
+      await api.post(`/api/v1/contacts/${contact.id}/xero_links`, {
+        xero_tenant_id: tenantId,
+        xero_tenant_name: tenantName,
+      });
+      // Reload links to show the new connection
+      await loadXeroLinks();
+    } catch (err) {
+      console.error("Failed to push to Xero:", err);
+    } finally {
+      setPushingToTenant(null);
+    }
+  };
+
+  // Check if a tenant is linked
+  const isLinked = (tenantId: string) =>
+    xeroLinks.some(link => link.xero_tenant_id === tenantId);
+
   return (
     <div className="flex items-start justify-between">
       <div className="flex items-start gap-4">
@@ -62,11 +149,64 @@ export function ContactHeader({
                 Family
               </Badge>
             )}
-            {contact.xero_contact_id && (
-              <Badge variant="outline" className="gap-1">
-                <ShieldCheck className="h-3 w-3" />
-                Xero Linked
-              </Badge>
+            {allTenants.length > 0 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Badge variant="outline" className="gap-1 cursor-pointer hover:bg-accent">
+                    <ShieldCheck className="h-3 w-3" />
+                    {xeroLinks.length}/{allTenants.length} Xero
+                    <ChevronDown className="h-3 w-3" />
+                  </Badge>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" align="start">
+                  <div className="text-xs font-medium text-muted-foreground mb-2">
+                    Xero Organizations ({xeroLinks.length}/{allTenants.length} linked)
+                  </div>
+                  <div className="space-y-1 max-h-80 overflow-y-auto">
+                    {allTenants.map((tenant) => {
+                      const linked = isLinked(tenant.tenant_id);
+                      const pushing = pushingToTenant === tenant.tenant_id;
+                      return (
+                        <div
+                          key={tenant.tenant_id}
+                          className={`flex items-center justify-between text-sm py-1.5 px-2 rounded ${
+                            linked ? "bg-green-50 dark:bg-green-900/20" : "hover:bg-accent"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            {linked ? (
+                              <Check className="h-4 w-4 text-green-600" />
+                            ) : (
+                              <div className="h-4 w-4" />
+                            )}
+                            <span className={linked ? "text-green-700 dark:text-green-300" : ""}>
+                              {tenant.tenant_name}
+                            </span>
+                          </div>
+                          {!linked && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => handlePushToXero(tenant.tenant_id, tenant.tenant_name)}
+                              disabled={pushing}
+                            >
+                              {pushing ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <>
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Push
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           {contact.company_name && (
