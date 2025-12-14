@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 
 /**
  * Table ID mappings from the API
+ * NOTE: Only includes Foundation-based tables. Corporate entities (Companies, Assets)
+ * use Rails models directly and are NOT included here.
  */
 export interface TableIdMappings {
   GOLD_STANDARD: number;
@@ -11,7 +13,6 @@ export interface TableIdMappings {
   TASKS: number;
   PRICEBOOK: number;
   CONTACTS: number;
-  COMPANIES: number;
   FEATURES_TRACKING: number;
 }
 
@@ -39,13 +40,13 @@ let cachedTableSlugs: Record<number, string> | null = null;
 let fetchPromise: Promise<TableIdMappings> | null = null;
 
 // Default fallback values (these should match the database)
+// NOTE: COMPANIES removed - Foundation 353 doesn't exist. Use CorporateCompany Rails model.
 const DEFAULT_TABLE_IDS: TableIdMappings = {
   GOLD_STANDARD: 1,
   JOBS: 204,
   TASKS: 218,
   PRICEBOOK: 205,
   CONTACTS: 214,
-  COMPANIES: 353,
   FEATURES_TRACKING: 375,
 };
 
@@ -73,7 +74,6 @@ async function fetchTableIds(): Promise<TableIdMappings> {
         TASKS: data.TABLE_IDS.TASKS ?? DEFAULT_TABLE_IDS.TASKS,
         PRICEBOOK: data.TABLE_IDS.PRICEBOOK ?? DEFAULT_TABLE_IDS.PRICEBOOK,
         CONTACTS: data.TABLE_IDS.CONTACTS ?? DEFAULT_TABLE_IDS.CONTACTS,
-        COMPANIES: data.TABLE_IDS.COMPANIES ?? DEFAULT_TABLE_IDS.COMPANIES,
         FEATURES_TRACKING: data.TABLE_IDS.FEATURES_TRACKING ?? DEFAULT_TABLE_IDS.FEATURES_TRACKING,
       };
 
@@ -134,14 +134,14 @@ export function useTableIds(): {
     if (cachedTableSlugs && cachedTableSlugs[tableId]) {
       return cachedTableSlugs[tableId];
     }
-    // Fallback to known mappings
+    // Fallback to known mappings (Foundation-based tables only)
+    // NOTE: Companies (353) removed - uses CorporateCompany Rails model, not Foundation
     const fallbackSlugs: Record<number, string> = {
       1: 'gold-standard',
       204: 'jobs',
       218: 'tasks',
       205: 'pricebook',
       214: 'contacts',
-      353: 'companies',
       375: 'features-tracking',
     };
     return fallbackSlugs[tableId] || `table-${tableId}`;
@@ -165,13 +165,13 @@ export function getTableSlug(tableId: number): string {
   if (cachedTableSlugs && cachedTableSlugs[tableId]) {
     return cachedTableSlugs[tableId];
   }
+  // Fallback to known mappings (Foundation-based tables only)
   const fallbackSlugs: Record<number, string> = {
     1: 'gold-standard',
     204: 'jobs',
     218: 'tasks',
     205: 'pricebook',
     214: 'contacts',
-    353: 'companies',
     375: 'features-tracking',
   };
   return fallbackSlugs[tableId] || `table-${tableId}`;

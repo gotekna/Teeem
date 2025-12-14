@@ -253,6 +253,7 @@ export function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 transition-colors relative group",
                 active
@@ -359,6 +360,7 @@ export function Sidebar() {
             <div className="flex flex-col gap-1">
               <Link
                 href="/profile"
+                prefetch={false}
                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
               >
                 <Users className="h-4 w-4" />
@@ -366,6 +368,7 @@ export function Sidebar() {
               </Link>
               <Link
                 href="/settings"
+                prefetch={false}
                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
               >
                 <Settings className="h-4 w-4" />

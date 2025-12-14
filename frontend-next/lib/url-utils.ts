@@ -40,12 +40,14 @@ export const TABLE_SLUGS: Record<number, string> = new Proxy({} as Record<number
 });
 
 // Legacy route mappings (for backwards compatibility)
+// NOTE: 353 is a route hint for corporate, but Foundation 353 doesn't exist.
+// Corporate uses Rails models (CorporateCompany) directly.
 export const TABLE_ROUTES: Record<number, string> = {
   1: "admin/system",
   204: "jobs",
   205: "pricebook",
   214: "contacts",
-  353: "corporate",
+  // 353: "corporate", // Removed - Foundation 353 doesn't exist
   375: "dashboard",
 };
 
