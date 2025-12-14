@@ -391,6 +391,13 @@ module Api
           contact_json[:linked_company] = linked_company_data
         end
 
+        # SSoT: Add Xero link summary (derived from contact_external_links)
+        contact_json[:xero_link_summary] = @contact.xero_link_summary
+        contact_json[:xero_linked_count] = @contact.xero_linked_count
+        contact_json[:xero_tenant_names] = @contact.xero_tenant_names
+        contact_json[:xero_customer] = @contact.xero_customer?
+        contact_json[:xero_supplier] = @contact.xero_supplier?
+
         # SSoT: Filter confidential fields based on user permissions
         contact_json = filter_confidential_fields(contact_json)
 
@@ -1400,7 +1407,23 @@ module Api
             target_contact.update(mobile_phone: source.mobile_phone) if target_contact.mobile_phone.blank? && source.mobile_phone.present?
             target_contact.update(office_phone: source.office_phone) if target_contact.office_phone.blank? && source.office_phone.present?
             target_contact.update(website: source.website) if target_contact.website.blank? && source.website.present?
-            target_contact.update(address: source.address) if target_contact.address.blank? && source.address.present?
+            # Merge addresses from contact_addresses (SSoT)
+            if target_contact.contact_addresses.empty? && source.contact_addresses.any?
+              source.contact_addresses.each do |addr|
+                target_contact.contact_addresses.create!(
+                  address_type: addr.address_type,
+                  line1: addr.line1,
+                  line2: addr.line2,
+                  line3: addr.line3,
+                  line4: addr.line4,
+                  city: addr.city,
+                  region: addr.region,
+                  postal_code: addr.postal_code,
+                  country: addr.country,
+                  is_primary: addr.is_primary
+                )
+              end
+            end
 
             # Merge supplier-specific fields (if both are suppliers)
             if source.is_supplier? && target_contact.is_supplier?

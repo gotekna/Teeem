@@ -1281,7 +1281,7 @@ export default function ContactDetailPage() {
         mobile_phone: contact.mobile_phone || "",
         office_phone: contact.office_phone || "",
         website: contact.website || "",
-        address: contact.address || "",
+        address: "", // SSoT: address editing is via contact_addresses in ContactOverviewTab
         notes: contact.notes || "",
         is_active: contact.is_active ?? true,
         is_family_member: contact.is_family_member ?? false,
@@ -1896,9 +1896,31 @@ export default function ContactDetailPage() {
       const primaryMobile = contact.contact_phones?.find(p => p.phone_type === 'mobile' && p.is_primary && !p._destroy);
       const primaryOffice = contact.contact_phones?.find(p => p.phone_type === 'office' && p.is_primary && !p._destroy);
 
+      // SSoT: Prepare contact_addresses_attributes from contact object
+      const contact_addresses_attributes = (contact.contact_addresses || [])
+        .filter(a => a.id || (!a.id && !a._destroy)) // Keep if has ID or is new and not destroyed
+        .map(a => ({
+          id: a.id,
+          address_type: a.address_type,
+          line1: a.line1,
+          line2: a.line2,
+          line3: a.line3,
+          line4: a.line4,
+          city: a.city,
+          region: a.region,
+          postal_code: a.postal_code,
+          country: a.country,
+          attention_to: a.attention_to,
+          is_primary: a.is_primary,
+          _destroy: a._destroy
+        }));
+
+      // Exclude legacy address field from formData
+      const { address: _unusedAddress, ...restFormData } = formData;
+
       await api.patch(`/api/v1/contacts/${contact.id}`, {
         contact: {
-          ...formData,
+          ...restFormData,
           display_name,
           is_team_contact, // Override formData value with validated value
           // Keep legacy fields in sync for backwards compatibility
@@ -1906,7 +1928,8 @@ export default function ContactDetailPage() {
           mobile_phone: primaryMobile?.phone_number || formData.mobile_phone,
           office_phone: primaryOffice?.phone_number || formData.office_phone,
           contact_emails_attributes,
-          contact_phones_attributes
+          contact_phones_attributes,
+          contact_addresses_attributes
         },
       });
       setHasChanges(false);

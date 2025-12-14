@@ -220,9 +220,17 @@ export default function NewContactPage() {
         email: formData.email || null,
         mobile_phone: formData.mobile_phone || null,
         office_phone: formData.office_phone || null,
-        address: formData.address || null,
         notes: formData.notes || null,
       };
+
+      // SSoT: Create contact_addresses_attributes if address is provided
+      if (formData.address?.trim()) {
+        contactPayload.contact_addresses_attributes = [{
+          address_type: 'STREET',
+          line1: formData.address.trim(),
+          is_primary: true,
+        }];
+      }
 
       // Add entity-specific fields based on SSoT helpers
       if (useFirstLastName) {

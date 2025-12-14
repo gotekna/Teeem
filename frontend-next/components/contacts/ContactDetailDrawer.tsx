@@ -46,6 +46,18 @@ interface ContactGroup {
   name: string;
 }
 
+interface ContactAddress {
+  id: number;
+  address_type: 'STREET' | 'POBOX' | 'DELIVERY';
+  line1: string;
+  line2: string | null;
+  city: string;
+  region: string;
+  postal_code: string;
+  country: string;
+  is_primary: boolean;
+}
+
 interface Contact {
   id: number;
   display_name: string;
@@ -56,7 +68,7 @@ interface Contact {
   office_phone: string | null;
   website: string | null;
   tax_number: string | null;
-  address: string | null;
+  address: string | null; // Legacy - deprecated, use contact_addresses
   notes: string | null;
   is_active: boolean;
   "is_supplier?": boolean;
@@ -68,6 +80,7 @@ interface Contact {
   updated_at: string;
   contact_persons: ContactPerson[];
   contact_groups: ContactGroup[];
+  contact_addresses?: ContactAddress[]; // SSoT for addresses
   jobs_count: number;
   purchase_orders_count: number;
   quotes_count: number;
@@ -263,15 +276,22 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                       </div>
                     )}
 
-                    {contact.address && (
-                      <div className="flex items-start gap-3">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <div>
-                          <p className="text-xs text-muted-foreground">Address</p>
-                          <p className="text-sm">{contact.address}</p>
+                    {/* SSoT: Display primary street address from contact_addresses */}
+                    {(() => {
+                      const primaryAddr = contact.contact_addresses?.find(a => a.address_type === 'STREET');
+                      const displayAddress = primaryAddr
+                        ? [primaryAddr.line1, primaryAddr.line2, primaryAddr.city, primaryAddr.region, primaryAddr.postal_code].filter(Boolean).join(", ")
+                        : contact.address; // Fallback to legacy
+                      return displayAddress && (
+                        <div className="flex items-start gap-3">
+                          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Address</p>
+                            <p className="text-sm">{displayAddress}</p>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {contact.tax_number && (
                       <div className="flex items-center gap-3">

@@ -640,15 +640,58 @@ class Contact < ApplicationRecord
     accounting_integration.present? && accounting_integration.connected?
   end
 
-  # Xero sync helpers
+  # ============================================
+  # SSoT: Xero Sync Helpers
+  # ============================================
+  # contact_external_links table is the SSoT for all Xero connections.
+  # A contact can be linked to MULTIPLE Xero tenants (companies).
+  # The legacy contacts.xero_id column is deprecated - use xero_links instead.
+
+  # Virtual xero_id - returns the first/primary Xero link's external_contact_id
+  # This provides backwards compatibility while the SSoT is xero_links
+  def primary_xero_id
+    @primary_xero_id ||= xero_links.enabled.order(:created_at).first&.external_contact_id
+  end
+
+  # SSoT: Is this contact synced to ANY Xero tenant?
   def synced_to_xero?
     xero_links.enabled.any?
   end
 
+  # Alias for backwards compatibility
+  def xero_synced?
+    synced_to_xero?
+  end
+
+  # Count of Xero tenants this contact is linked to
+  def xero_linked_count
+    xero_links.enabled.count
+  end
+
+  # All Xero tenant IDs this contact is linked to
   def xero_tenants
     xero_links.enabled.pluck(:tenant_id)
   end
 
+  # All Xero tenant names this contact is linked to
+  def xero_tenant_names
+    xero_links.enabled.pluck(:tenant_name).compact
+  end
+
+  # Xero link summary for UI display
+  # Returns: { linked_count: 3, total_tenants: 8, tenant_names: ["Company A", "Company B"] }
+  def xero_link_summary
+    links = xero_links.enabled
+    {
+      linked_count: links.count,
+      tenant_names: links.pluck(:tenant_name).compact,
+      has_sync_errors: links.with_errors.any?,
+      has_conflicts: links.with_conflicts.any?,
+      last_synced_at: links.maximum(:last_synced_at)
+    }
+  end
+
+  # Get link for a specific Xero tenant
   def xero_link_for_tenant(tenant_id)
     xero_links.find_by(tenant_id: tenant_id)
   end
@@ -659,6 +702,22 @@ class Contact < ApplicationRecord
 
   def has_xero_errors?
     xero_links.with_errors.any?
+  end
+
+  # Xero contact type summary (aggregated from xero_contact_types array)
+  # Returns: "Customer" or "Supplier" or "Customer, Supplier" or nil
+  def xero_type_display
+    return nil if xero_contact_types.blank?
+    xero_contact_types.join(", ")
+  end
+
+  # Boolean helpers for Xero contact types
+  def xero_customer?
+    xero_contact_types&.include?("Customer")
+  end
+
+  def xero_supplier?
+    xero_contact_types&.include?("Supplier")
   end
 
   # ABN validation helpers
@@ -928,8 +987,13 @@ class Contact < ApplicationRecord
     end
   end
 
+  # SSoT: Update xero_synced based on contact_external_links (not legacy xero_id)
+  # This callback keeps the legacy xero_synced column in sync for backwards compatibility
+  # Note: xero_synced column should eventually be removed - use synced_to_xero? method instead
   def update_xero_synced_status
-    self.xero_synced = xero_id.present?
+    # Use the xero_links association which is the SSoT
+    # Also check the legacy xero_id for backwards compatibility during migration
+    self.xero_synced = xero_links.enabled.exists? || xero_id.present?
   end
 
   # Auto-generate display_name from first_name + last_name for person contacts

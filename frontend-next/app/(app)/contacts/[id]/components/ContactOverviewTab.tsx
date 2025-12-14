@@ -1424,8 +1424,8 @@ function AddressCard({
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
-  // Get the primary STREET address or create a new one
-  // Falls back to legacy address fields (address, city, state, postcode) if no STREET address exists
+  // Get the primary STREET address or create an empty one
+  // SSoT: contact_addresses is the source of truth
   const getStreetAddress = (): ContactAddress => {
     const existing = contact.contact_addresses?.find(
       (a) => a.address_type === "STREET" && !a._destroy
@@ -1435,21 +1435,16 @@ function AddressCard({
       return existing;
     }
 
-    // SSoT fallback: If no STREET address exists but legacy fields have data,
-    // create a virtual address object from them (for display and editing)
-    // When saved, this will create a proper contact_addresses record
-    const legacyLine1 = contact.address?.split("\n")[0] || "";
-    const legacyLine2 = contact.address?.split("\n").slice(1).join("\n") || null;
-
+    // Return empty address for new entry
     return {
       address_type: "STREET",
-      line1: legacyLine1,
-      line2: legacyLine2,
+      line1: "",
+      line2: null,
       line3: null,
       line4: null,
-      city: contact.city || "",
-      region: contact.state || "",
-      postal_code: contact.postcode || "",
+      city: "",
+      region: "",
+      postal_code: "",
       country: "Australia",
       attention_to: null,
       is_primary: true,
