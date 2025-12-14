@@ -106,7 +106,7 @@ module Api
             portal_user: {},
             corporate_group: {}
           },
-          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count ]
+          methods: [ :is_customer?, :is_supplier?, :is_sales?, :is_land_agent?, :display_name, :is_director?, :company_group_memberships_count, :xero_linked_count, :xero_customer?, :xero_supplier? ]
         )
 
         # Add company and job counts for all contacts

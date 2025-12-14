@@ -47,6 +47,12 @@ export interface ContactHeaderProps {
     xero_contact_id: string | null;
     email: string | null;
     website: string | null;
+    // SSoT: Xero data from contact_external_links
+    xero_linked_count?: number;
+    xero_tenant_names?: string[];
+    xero_customer?: boolean;
+    xero_supplier?: boolean;
+    xero_contact_types?: string[];
   };
   onBack: () => void;
   onDelete: () => void;
@@ -137,13 +143,27 @@ export function ContactHeader({
             <h1 className="text-2xl font-bold tracking-tight font-serif">
               {contact.display_name}
             </h1>
-            {contact["is_supplier?"] && (
+            {/* Xero Customer/Supplier badges (from Xero sync) */}
+            {contact.xero_customer && (
+              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                <ShieldCheck className="h-3 w-3 mr-1" />
+                Xero Customer
+              </Badge>
+            )}
+            {contact.xero_supplier && (
               <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                <ShieldCheck className="h-3 w-3 mr-1" />
+                Xero Supplier
+              </Badge>
+            )}
+            {/* TEEEM-based badges (from transactions) */}
+            {contact["is_supplier?"] && !contact.xero_supplier && (
+              <Badge variant="outline" className="text-purple-700 dark:text-purple-300">
                 Supplier
               </Badge>
             )}
-            {contact["is_customer?"] && (
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+            {contact["is_customer?"] && !contact.xero_customer && (
+              <Badge variant="outline" className="text-blue-700 dark:text-blue-300">
                 Customer
               </Badge>
             )}
