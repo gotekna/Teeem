@@ -165,6 +165,7 @@ rm -rf "$DEPLOY_DIR"
 ```bash
 # Get current versions
 BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")
+FRONTEND_VERSION=$(cat frontend-next/package.json | jq -r '.version' 2>/dev/null || echo "unknown")
 HEROKU_RELEASE=$(heroku releases --app teeemlive -n 1 2>/dev/null | tail -1 | awk '{print $1}')
 BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 
@@ -180,7 +181,7 @@ DEPLOYED: HH:MM DD/MM (Brisbane)
 Commit: [hash] - [message]
 ----------------------------------------
 Backend:  v[XXX] - [REQUIRED/not required]
-Frontend: Auto via Vercel - [REQUIRED/not required]
+Frontend: v[XXX] - [REQUIRED/not required]
 Heroku:   [vXXX] - [deployed/skipped]
 ========================================
 ```
