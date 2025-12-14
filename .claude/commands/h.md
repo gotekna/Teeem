@@ -48,10 +48,8 @@ pg_restore --verbose --clean --no-acl --no-owner -d teeem_development latest.dum
 # Step 3b: Ensure system foundations exist (safety net)
 bin/rails teeem:create_system_foundations 2>&1 | tail -5
 
-# Step 3c: Show login credentials (copied from production)
-echo ""
-echo "🔑 LOCAL LOGIN CREDENTIALS (from production):"
-bin/rails runner "u = User.find_by(email: 'robert@tekna.com.au'); puts \"   Email: #{u&.email}\"; puts \"   Password: [same as production]\""
+# Step 3c: Verify data pulled correctly
+bin/rails runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
 
 # Step 4: Clean up
 rm -f latest.dump
@@ -78,6 +76,6 @@ echo "✅ Database synced and servers restarted"
 | 2 | Heroku backup | local file | `pg:backups:download` |
 | 3 | local file | teeem_development | `pg_restore` + `db:migrate` |
 | 3b | - | foundations | `teeem:create_system_foundations` (safety net) |
-| 3c | - | - | Show login credentials reminder |
+| 3c | - | - | Verify data counts (Users, Foundations, Jobs, Contacts) |
 | 4 | - | - | Clean up dump file |
 | 5 | - | localhost:3000 + 3001 | Restart Next.js + Rails |
