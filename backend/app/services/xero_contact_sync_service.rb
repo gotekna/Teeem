@@ -1155,6 +1155,25 @@ class XeroContactSyncService
     COMPANY_INDICATORS.any? { |pattern| name.match?(pattern) }
   end
 
+  # Check if a person name matches or is too similar to the company name
+  # This prevents creating duplicate person contacts when Xero has company name in FirstName field
+  def person_name_matches_company?(person_name, company_name)
+    return false if person_name.blank? || company_name.blank?
+
+    person_normalized = person_name.downcase.gsub(/[^a-z0-9]/, "")
+    company_normalized = company_name.downcase.gsub(/[^a-z0-9]/, "")
+
+    # Exact match after normalization
+    return true if person_normalized == company_normalized
+
+    # Check if person name contains the company name or vice versa
+    return true if person_normalized.include?(company_normalized) && company_normalized.length > 5
+    return true if company_normalized.include?(person_normalized) && person_normalized.length > 5
+
+    # Check if person name looks like a company name (has company indicators)
+    COMPANY_INDICATORS.any? { |pattern| person_name.match?(pattern) }
+  end
+
   def sync_contact_persons(teeem_contact, xero_contact)
     is_company = xero_contact_is_company?(xero_contact)
     main_first_name = xero_contact["FirstName"].to_s.strip
@@ -1165,14 +1184,23 @@ class XeroContactSyncService
 
     primary_person_contact = nil
     if is_company && main_first_name.present?
-      main_person = {
-        "FirstName" => main_first_name,
-        "LastName" => main_last_name,
-        "EmailAddress" => main_email,
-        "IncludeInEmails" => true
-      }
-      Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
-      primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
+      # Skip creating person contact if the person name looks like the company name
+      # This prevents duplicates when Xero has company name in the FirstName field
+      person_full_name = "#{main_first_name} #{main_last_name}".strip
+      company_name = teeem_contact.display_name.to_s.strip
+
+      if person_name_matches_company?(person_full_name, company_name)
+        Rails.logger.info("Skipping person contact creation for #{teeem_contact.display_name} - person name '#{person_full_name}' matches company name")
+      else
+        main_person = {
+          "FirstName" => main_first_name,
+          "LastName" => main_last_name,
+          "EmailAddress" => main_email,
+          "IncludeInEmails" => true
+        }
+        Rails.logger.info("Creating primary person contact #{main_first_name} #{main_last_name} for company #{teeem_contact.display_name}")
+        primary_person_contact = create_or_update_contact_person_as_contact(teeem_contact, main_person, true)
+      end
 
       # director_id column was removed - primary person is tracked via primary_company_id on the person contact
     end
