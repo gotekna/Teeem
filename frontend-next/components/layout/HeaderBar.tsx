@@ -167,7 +167,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
       // Check user's Microsoft 365 connection status
       // TEEEM Rule: Microsoft must ALWAYS be connected - self-heal via auto-reconnect hook
       try {
-        const microsoftResponse = await api.get<{
+        let microsoftResponse = await api.get<{
           connected?: boolean;
           needs_reconnect?: boolean;
           needs_refresh?: boolean;
@@ -183,6 +183,23 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         // Check for consent errors that need re-auth (AADSTS65001)
         const needsConsent = microsoftResponse?.sync_error?.includes('AADSTS65001') ||
                             microsoftResponse?.sync_error?.includes('has not consented');
+
+        // SELF-HEAL: If needs_reconnect but token isn't dead, try explicit refresh first
+        // This prevents showing orange for transient failures
+        if (microsoftResponse?.needs_reconnect && !microsoftResponse?.refresh_token_dead && !needsConsent) {
+          console.info('[Microsoft] Token needs reconnect but not dead - attempting self-heal refresh...');
+          try {
+            const refreshResult = await api.post<{ success: boolean; expires_at?: string }>("/api/v1/microsoft/refresh");
+            if (refreshResult?.success) {
+              console.info('[Microsoft] Self-heal refresh succeeded - rechecking status');
+              // Re-fetch status after successful refresh
+              microsoftResponse = await api.get<typeof microsoftResponse>("/api/v1/microsoft/status");
+            }
+          } catch (refreshError) {
+            console.debug('[Microsoft] Self-heal refresh failed:', refreshError);
+            // Continue with original response - will show orange if needed
+          }
+        }
 
         if (microsoftResponse?.connected === true && !microsoftResponse?.needs_reconnect) {
           // Fully connected and healthy
