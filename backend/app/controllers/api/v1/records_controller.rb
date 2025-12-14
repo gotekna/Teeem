@@ -27,6 +27,11 @@ module Api
           query = query.where(deleted: [ false, nil ])
         end
 
+        # Exclude archived contacts (is_active=false) unless explicitly requested
+        if model.table_name == "contacts" && params[:include_archived] != "true"
+          query = query.where(is_active: [ true, nil ])
+        end
+
         # Apply duplicates_only filter for Contacts
         if params[:duplicates_only] == "true" && model.table_name == "contacts"
           duplicate_ids = find_duplicate_contact_ids
@@ -213,13 +218,13 @@ module Api
         record = model.find(params[:id])
 
         # For contacts, check if it has related records
-        # If no records, hard delete. If has records, soft delete (archive).
+        # If no records, hard delete. If has records, soft delete (archive via is_active=false).
         if model.table_name == "contacts"
           has_records = contact_has_records?(record)
 
           if has_records
-            # Soft delete - archive the contact (can be recovered)
-            record.update!(deleted: true)
+            # Soft delete - archive the contact (set is_active=false, can be recovered)
+            record.update!(is_active: false)
           else
             # Hard delete - no related records, safe to remove completely
             record.destroy!
