@@ -577,7 +577,7 @@ module HealthChecks
     # Person contacts linked to multiple Xero tenants - unusual for individuals
     def check_person_multiple_xero_tenants
       contacts = Contact.where(entity_type: "person")
-                        .joins(:contact_external_links)
+                        .joins(:external_links)
                         .where(contact_external_links: { source: "xero" })
                         .group("contacts.id")
                         .having("COUNT(DISTINCT contact_external_links.tenant_id) > 1")

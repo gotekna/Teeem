@@ -116,21 +116,12 @@ class ContactDataQualityService
   def check_abn_entity_mismatch
     return unless @contact.tax_number.present?
 
-    # Use cached ABN data if available, otherwise lookup
-    if @contact.abn_verified_at.present? && @contact.abn_entity_type.present?
-      @abr_data = {
-        entity_type_description: @contact.abn_entity_type,
-        entity_name: @contact.abn_entity_name,
-        gst_registered: @contact.abn_gst_registered,
-        valid: @contact.abn_valid
-      }
-    else
-      begin
-        @abr_data = @abr_service.lookup(@contact.tax_number)
-      rescue AbrApiService::AbrError => e
-        Rails.logger.warn "ABN lookup failed for contact #{@contact.id}: #{e.message}"
-        return
-      end
+    # Lookup ABN via ABR API
+    begin
+      @abr_data = @abr_service.lookup(@contact.tax_number)
+    rescue AbrApiService::AbrError => e
+      Rails.logger.warn "ABN lookup failed for contact #{@contact.id}: #{e.message}"
+      return
     end
 
     abr_entity_type = @abr_data[:entity_type_description]&.downcase || ""
@@ -211,7 +202,7 @@ class ContactDataQualityService
   def check_multiple_xero_links
     return unless @contact.entity_type == "person"
 
-    xero_tenant_count = @contact.contact_external_links
+    xero_tenant_count = @contact.external_links
                                 .where(source: "xero")
                                 .select("DISTINCT tenant_id")
                                 .count

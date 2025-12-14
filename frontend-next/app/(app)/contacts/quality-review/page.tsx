@@ -210,7 +210,7 @@ function ReviewCard({
             <span className="font-medium">
               {String(review.abr_data.entity_name || "")}
             </span>
-            {review.abr_data.entity_type_description && (
+            {Boolean(review.abr_data.entity_type_description) && (
               <span className="text-muted-foreground"> ({String(review.abr_data.entity_type_description)})</span>
             )}
           </div>
