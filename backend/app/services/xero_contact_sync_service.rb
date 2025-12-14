@@ -1070,7 +1070,38 @@ class XeroContactSyncService
       payload[:BankAccountDetails] = bank_parts.join(", ")
     end
 
+    # Addresses - sync from contact_addresses table (SSoT)
+    addresses = build_xero_addresses(teeem_contact)
+    payload[:Addresses] = addresses if addresses.any?
+
     payload
+  end
+
+  # Build Xero Addresses array from contact_addresses table
+  def build_xero_addresses(teeem_contact)
+    addresses = []
+
+    teeem_contact.contact_addresses.each do |addr|
+      next unless addr.address_type.present?
+
+      xero_addr = {
+        AddressType: addr.address_type
+      }
+
+      # Only include non-blank fields
+      xero_addr[:AddressLine1] = addr.line1 if addr.line1.present?
+      xero_addr[:AddressLine2] = addr.line2 if addr.line2.present?
+      xero_addr[:AddressLine3] = addr.line3 if addr.line3.present?
+      xero_addr[:AddressLine4] = addr.line4 if addr.line4.present?
+      xero_addr[:City] = addr.city if addr.city.present?
+      xero_addr[:Region] = addr.region if addr.region.present?
+      xero_addr[:PostalCode] = addr.postal_code if addr.postal_code.present?
+      xero_addr[:Country] = addr.country if addr.country.present?
+
+      addresses << xero_addr
+    end
+
+    addresses
   end
 
   def extract_xero_email(xero_contact)

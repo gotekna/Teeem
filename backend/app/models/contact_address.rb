@@ -6,6 +6,11 @@ class ContactAddress < ApplicationRecord
   validates :address_type, inclusion: { in: ADDRESS_TYPES }, allow_nil: true
   validate :only_one_primary_per_contact, if: :is_primary?
 
+  # SSoT: Sync contact_addresses → legacy contact fields
+  # When address changes, update the parent contact's legacy address fields
+  after_save :sync_to_contact_legacy_fields
+  after_destroy :sync_to_contact_legacy_fields
+
   scope :primary, -> { where(is_primary: true) }
   scope :secondary, -> { where(is_primary: false) }
   scope :street, -> { where(address_type: "STREET") }
@@ -41,5 +46,12 @@ class ContactAddress < ApplicationRecord
     if contact && contact.contact_addresses.where(is_primary: true).where.not(id: id).exists?
       errors.add(:is_primary, "can only have one primary address")
     end
+  end
+
+  # SSoT: Trigger sync of legacy fields on parent contact
+  def sync_to_contact_legacy_fields
+    return unless contact.present?
+
+    contact.sync_legacy_address_fields_from_contact_addresses
   end
 end

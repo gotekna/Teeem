@@ -596,16 +596,8 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
                 />
               </div>
 
-              <div className="space-y-2 mt-4">
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  placeholder="Full address"
-                  rows={3}
-                />
-              </div>
+              {/* Address: Edit via the structured Address section on the contact detail page */}
+              {/* SSoT: contact_addresses table is the source of truth for addresses */}
             </div>
           </TabsContent>
 

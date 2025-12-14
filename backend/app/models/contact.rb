@@ -162,6 +162,38 @@ class Contact < ApplicationRecord
     [address, city, state, postcode].compact.reject(&:blank?).join(", ")
   end
 
+  # SSoT: Sync from contact_addresses table → legacy address fields
+  # contact_addresses is the SSoT, this keeps legacy fields in sync for:
+  # - Document templates (which use address_line_1, address_line_2, suburb, state, postcode)
+  # - Backwards compatibility with existing code
+  def sync_legacy_address_fields_from_contact_addresses
+    # Get the STREET address (primary source) or first available address
+    street_addr = contact_addresses.reload.find_by(address_type: "STREET")
+    street_addr ||= contact_addresses.first
+
+    if street_addr.present?
+      # Build multi-line address for legacy 'address' field
+      # This is what document templates parse with address_line_1 and address_line_2
+      new_address = street_addr.multi_line
+
+      # Update legacy fields without triggering callbacks (to avoid infinite loop)
+      update_columns(
+        address: new_address,
+        city: street_addr.city,
+        state: street_addr.region,
+        postcode: street_addr.postal_code
+      )
+    else
+      # No contact_addresses - clear legacy fields
+      update_columns(
+        address: nil,
+        city: nil,
+        state: nil,
+        postcode: nil
+      )
+    end
+  end
+
   # Xero-synced accounting fields - READ ONLY in TEEEM (synced from Xero)
   # These fields should only be updated via Xero sync, not manual edits
   XERO_READ_ONLY_FIELDS = %w[

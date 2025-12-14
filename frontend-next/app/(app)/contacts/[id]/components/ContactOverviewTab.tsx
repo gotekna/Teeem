@@ -1013,18 +1013,13 @@ function ContactDetailsCard({
           handleAutoSave={handleAutoSave}
         />
 
-        {/* Website and Address - only show if NOT part of a company */}
+        {/* Website - only show if NOT part of a company */}
+        {/* Note: Address is now managed via the structured Address card below (SSoT) */}
         {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="website">Website</Label>
-              <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="address">Address</Label>
-              <Textarea id="address" value={formData.address} onChange={(e) => handleInputChange("address", e.target.value)} onBlur={handleAutoSave} placeholder="Full address" rows={2} />
-            </div>
-          </>
+          <div className="space-y-2">
+            <Label htmlFor="website">Website</Label>
+            <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" />
+          </div>
         )}
 
         {/* Company Contact Details - Show when person/sole_trader has a primary company */}
