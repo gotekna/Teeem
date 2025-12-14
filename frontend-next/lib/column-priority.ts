@@ -28,9 +28,11 @@ export const COLUMN_PRIORITY_CONFIG: Record<ColumnPriority, ColumnPriorityConfig
       /^(phone|fax)$/i,
       /^(amount|price|cost|total)$/i,
       /^(quantity|count|number)$/i,
+      /^xero_(?!id$)/i, // Xero columns (except xero_id) are business data
+      /^sync_with_/i, // Sync status columns
     ],
     minWidth: 100,
-    maxWidth: 200,
+    maxWidth: 250,
     truncateAt: null, // Show full if fits
   },
 
@@ -39,12 +41,12 @@ export const COLUMN_PRIORITY_CONFIG: Record<ColumnPriority, ColumnPriorityConfig
     patterns: [
       /^id$/i,
       /_(id|uuid|guid)$/i,
-      /^xero_/i,
+      /^xero_id$/i, // Only xero_id is technical (UUID), other xero_ columns are business data
       /^(created_at|updated_at)$/i,
       /^(created_by|updated_by)$/i,
     ],
     minWidth: 60,
-    maxWidth: 80,
+    maxWidth: 120,
     truncateAt: 10, // Show first 10 chars + "..."
   },
 

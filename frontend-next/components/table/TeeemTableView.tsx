@@ -2322,10 +2322,6 @@ export default function TeeemTableView({
     // This prevents hydration mismatch between server (empty) and client (populated)
     const isVisibilityInitialized = Object.keys(visibleColumns).length > 0;
 
-    // Debug logging
-    const visibleCount = Object.values(visibleColumns).filter(v => v === true).length;
-    console.log('[visibleColumnsInOrder] isInitialized:', isVisibilityInitialized, 'visibleCount:', visibleCount, 'columnOrder:', columnOrder.length);
-
     // Start with columns from columnOrder that are visible
     const orderedVisible = columnOrder
       .filter((key) => {
@@ -2351,8 +2347,6 @@ export default function TeeemTableView({
     if (actionsCol && !hasActionsInOrder) {
       orderedVisible.push(actionsCol);
     }
-
-    console.log('[visibleColumnsInOrder] Final result:', orderedVisible.length, 'columns shown:', orderedVisible.map(c => c.key).slice(0, 5).join(', '), '...');
 
     return orderedVisible;
   }, [columnOrder, visibleColumns, COLUMNS]);
