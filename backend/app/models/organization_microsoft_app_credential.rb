@@ -194,6 +194,6 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   end
 
   def attachment_root_path
-    "Email Attachments/#{name}"
+    "emails/attachments/#{name.gsub(/[<>:"\/\\|?*]/, '_')}"
   end
 end

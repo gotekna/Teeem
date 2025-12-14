@@ -457,7 +457,7 @@ class MicrosoftAppGraphClient
   # ===== SharePoint Upload Methods =====
 
   # Upload file content to SharePoint (small files < 4MB)
-  # parent_folder_path: e.g., "Email Attachments/Tekna/2024/12"
+  # parent_folder_path: e.g., "emails/attachments/Tekna/2024/12"
   # filename: e.g., "a3d8f9c7_Invoice.pdf"
   # content: binary content
   def upload_file_content(site_id, drive_id, parent_folder_path, filename, content)
