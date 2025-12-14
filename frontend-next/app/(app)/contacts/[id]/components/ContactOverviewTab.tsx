@@ -1814,7 +1814,7 @@ function AddressCard({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Start typing a suburb name to auto-fill postcode and state. This address syncs with Xero.
+          Start typing a suburb name to auto-fill postcode and state.
         </p>
       </CardContent>
     </Card>
@@ -2446,10 +2446,6 @@ function BusinessTaxCard({
           {isPerson(formData.entity_type) && !fieldErrors.tax_number && (
             <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
           )}
-        </div>
-        <div className="flex items-center justify-between py-2">
-          <div><Label>Sync with Xero</Label><p className="text-xs text-muted-foreground">Keep synced with Xero</p></div>
-          <Switch checked={formData.sync_with_xero} onCheckedChange={(c) => { handleInputChange("sync_with_xero", c); handleAutoSave(); }} />
         </div>
         {contact.linked_company && (
           <Link href={`/corporate/companies/${contact.linked_company.id}`}>

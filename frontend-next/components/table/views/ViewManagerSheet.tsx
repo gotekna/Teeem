@@ -336,6 +336,8 @@ export function ViewManagerSheet({
     setActiveViewId(view.id);
     loadViewIntoEditor(view);
     setIsEditing(false);
+    // Also apply the view to the table immediately (better UX - click = use)
+    onApplyView?.(view);
   };
 
   const handleEditView = (view: SavedView) => {

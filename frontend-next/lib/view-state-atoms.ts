@@ -228,7 +228,11 @@ export const applyViewAtom = atom(
 
     // Column configuration
     if (view.visibleColumns) {
+      const visibleCount = Object.values(view.visibleColumns).filter(v => v === true).length;
+      console.log('[applyViewAtom] Setting visibleColumns:', visibleCount, 'visible of', Object.keys(view.visibleColumns).length, 'total');
       set(currentVisibleColumnsAtom, view.visibleColumns);
+    } else {
+      console.log('[applyViewAtom] No visibleColumns in view:', view.name || view.id);
     }
     if (view.columnOrder) {
       console.log('[applyViewAtom] Setting columnOrder:', view.columnOrder);
