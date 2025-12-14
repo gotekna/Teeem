@@ -35,6 +35,22 @@ export interface ContactPhone {
   _destroy?: boolean;
 }
 
+export interface ContactAddress {
+  id?: number;
+  address_type: 'STREET' | 'POBOX' | 'DELIVERY';
+  line1: string;
+  line2: string | null;
+  line3: string | null;
+  line4: string | null;
+  city: string; // Suburb in Australian context
+  region: string; // State
+  postal_code: string;
+  country: string;
+  attention_to: string | null;
+  is_primary: boolean;
+  _destroy?: boolean;
+}
+
 export interface DirectorCompany {
   id: number;
   company_id: number;
@@ -312,9 +328,10 @@ export interface Contact {
   address: string | null;
   notes: string | null;
   is_active: boolean;
-  // Multiple emails and phones
+  // Multiple emails, phones, and addresses
   contact_emails?: ContactEmail[];
   contact_phones?: ContactPhone[];
+  contact_addresses?: ContactAddress[];
   "is_supplier?": boolean;
   "is_customer?": boolean;
   "is_director?": boolean;

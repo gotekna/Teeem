@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import {
   Mail,
@@ -21,7 +22,11 @@ import {
   Code,
   GripVertical,
   Star,
+  Search,
+  Loader2,
+  Home,
 } from "lucide-react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +74,7 @@ import type {
   Contact,
   ContactEmail,
   ContactPhone,
+  ContactAddress,
   ContactRelationship,
   RelationshipTypeMetadata,
 } from "../types";
@@ -296,6 +302,14 @@ export function ContactOverviewTab({
             handleAutoSave={handleAutoSave}
           />
         </div>
+
+        {/* Address Card */}
+        <AddressCard
+          contact={contact}
+          setContact={setContact}
+          setHasChanges={setHasChanges}
+          handleAutoSave={handleAutoSave}
+        />
 
         {/* Associated People Card - for company/trust entity types */}
         {canHaveEmployees(formData.entity_type) && contact.employees && contact.employees.length > 0 && (
@@ -1397,6 +1411,299 @@ function CompanyContactInfo({ contact }: { contact: Contact }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ================================
+// Address Card
+// ================================
+
+interface Suburb {
+  id: number;
+  name: string;
+  postcode: string;
+  state: string;
+  council: string | null;
+}
+
+interface AddressCardProps {
+  contact: Contact;
+  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
+  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
+  handleAutoSave: () => void;
+}
+
+function AddressCard({
+  contact,
+  setContact,
+  setHasChanges,
+  handleAutoSave,
+}: AddressCardProps) {
+  const [suburbSearch, setSuburbSearch] = React.useState("");
+  const [suburbResults, setSuburbResults] = React.useState<Suburb[]>([]);
+  const [searchingSuburb, setSearchingSuburb] = React.useState(false);
+  const [showSuburbDropdown, setShowSuburbDropdown] = React.useState(false);
+  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Get the primary STREET address or create a new one
+  const getStreetAddress = (): ContactAddress => {
+    const existing = contact.contact_addresses?.find(
+      (a) => a.address_type === "STREET" && !a._destroy
+    );
+    return (
+      existing || {
+        address_type: "STREET",
+        line1: "",
+        line2: null,
+        line3: null,
+        line4: null,
+        city: "",
+        region: "",
+        postal_code: "",
+        country: "Australia",
+        attention_to: null,
+        is_primary: true,
+      }
+    );
+  };
+
+  const streetAddress = getStreetAddress();
+
+  // Update address field
+  const updateAddressField = (field: keyof ContactAddress, value: string) => {
+    const addresses = contact.contact_addresses || [];
+    const existingIndex = addresses.findIndex(
+      (a) => a.address_type === "STREET" && !a._destroy
+    );
+
+    let updatedAddresses: ContactAddress[];
+    if (existingIndex >= 0) {
+      updatedAddresses = addresses.map((addr, idx) =>
+        idx === existingIndex ? { ...addr, [field]: value } : addr
+      );
+    } else {
+      // Create new address
+      const newAddress: ContactAddress = {
+        ...getStreetAddress(),
+        [field]: value,
+      };
+      updatedAddresses = [...addresses, newAddress];
+    }
+
+    setContact({ ...contact, contact_addresses: updatedAddresses });
+    setHasChanges(true);
+  };
+
+  // Search suburbs
+  const searchSuburbs = async (query: string) => {
+    if (query.length < 2) {
+      setSuburbResults([]);
+      return;
+    }
+
+    setSearchingSuburb(true);
+    try {
+      const response = await api.get<{ suburbs: Suburb[] }>(
+        `/api/v1/suburbs/search?q=${encodeURIComponent(query)}`
+      );
+      setSuburbResults(response.suburbs || []);
+    } catch (error) {
+      console.error("Failed to search suburbs:", error);
+      setSuburbResults([]);
+    } finally {
+      setSearchingSuburb(false);
+    }
+  };
+
+  // Debounced suburb search
+  const handleSuburbSearchChange = (value: string) => {
+    setSuburbSearch(value);
+    updateAddressField("city", value);
+
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      searchSuburbs(value);
+    }, 300);
+  };
+
+  // Select suburb
+  const handleSelectSuburb = (suburb: Suburb) => {
+    const addresses = contact.contact_addresses || [];
+    const existingIndex = addresses.findIndex(
+      (a) => a.address_type === "STREET" && !a._destroy
+    );
+
+    const updatedAddress: ContactAddress = {
+      ...getStreetAddress(),
+      city: suburb.name,
+      region: suburb.state,
+      postal_code: suburb.postcode,
+    };
+
+    let updatedAddresses: ContactAddress[];
+    if (existingIndex >= 0) {
+      updatedAddresses = addresses.map((addr, idx) =>
+        idx === existingIndex ? { ...addr, ...updatedAddress } : addr
+      );
+    } else {
+      updatedAddresses = [...addresses, updatedAddress];
+    }
+
+    setContact({ ...contact, contact_addresses: updatedAddresses });
+    setSuburbSearch(suburb.name);
+    setHasChanges(true);
+    setShowSuburbDropdown(false);
+    setSuburbResults([]);
+    handleAutoSave();
+  };
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowSuburbDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Home className="h-5 w-5" />
+          Address
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Street Address */}
+        <div className="space-y-2">
+          <Label htmlFor="street_address">Street Address</Label>
+          <Input
+            id="street_address"
+            value={streetAddress.line1}
+            onChange={(e) => updateAddressField("line1", e.target.value)}
+            onBlur={handleAutoSave}
+            placeholder="e.g. 123 Main Street"
+          />
+        </div>
+
+        {/* Address Line 2 */}
+        <div className="space-y-2">
+          <Label htmlFor="address_line2">Address Line 2 (Optional)</Label>
+          <Input
+            id="address_line2"
+            value={streetAddress.line2 || ""}
+            onChange={(e) => updateAddressField("line2", e.target.value)}
+            onBlur={handleAutoSave}
+            placeholder="e.g. Unit 5, Level 2"
+          />
+        </div>
+
+        {/* Suburb with auto-complete */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2 relative" ref={dropdownRef}>
+            <Label htmlFor="suburb">Suburb</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                id="suburb"
+                value={suburbSearch || streetAddress.city}
+                onChange={(e) => handleSuburbSearchChange(e.target.value)}
+                onFocus={() => {
+                  setShowSuburbDropdown(true);
+                  if (streetAddress.city) {
+                    setSuburbSearch(streetAddress.city);
+                  }
+                }}
+                onBlur={() => {
+                  // Delay to allow click on dropdown item
+                  setTimeout(() => {
+                    handleAutoSave();
+                  }, 200);
+                }}
+                placeholder="Search suburb..."
+                className="pl-9"
+              />
+              {searchingSuburb && (
+                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+
+            {/* Suburb dropdown */}
+            {showSuburbDropdown && suburbResults.length > 0 && (
+              <div className="absolute z-50 w-full mt-1 max-h-60 overflow-auto bg-background border rounded-md shadow-lg">
+                {suburbResults.map((suburb) => (
+                  <button
+                    key={suburb.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex justify-between items-center"
+                    onClick={() => handleSelectSuburb(suburb)}
+                  >
+                    <span className="font-medium">{suburb.name}</span>
+                    <span className="text-muted-foreground text-xs">
+                      {suburb.postcode} {suburb.state}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* State */}
+          <div className="space-y-2">
+            <Label htmlFor="state">State</Label>
+            <Select
+              value={streetAddress.region}
+              onValueChange={(value) => {
+                updateAddressField("region", value);
+                handleAutoSave();
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select state" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="QLD">QLD</SelectItem>
+                <SelectItem value="NSW">NSW</SelectItem>
+                <SelectItem value="VIC">VIC</SelectItem>
+                <SelectItem value="SA">SA</SelectItem>
+                <SelectItem value="WA">WA</SelectItem>
+                <SelectItem value="TAS">TAS</SelectItem>
+                <SelectItem value="NT">NT</SelectItem>
+                <SelectItem value="ACT">ACT</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Postcode */}
+          <div className="space-y-2">
+            <Label htmlFor="postcode">Postcode</Label>
+            <Input
+              id="postcode"
+              value={streetAddress.postal_code}
+              onChange={(e) => updateAddressField("postal_code", e.target.value)}
+              onBlur={handleAutoSave}
+              placeholder="4000"
+              maxLength={4}
+            />
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Start typing a suburb name to auto-fill postcode and state. This address syncs with Xero.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
