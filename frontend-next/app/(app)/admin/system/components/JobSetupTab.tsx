@@ -41,7 +41,19 @@ import {
   Briefcase,
   ListChecks,
   Layers,
+  MapPin,
+  Search,
+  Filter,
+  Building,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -69,6 +81,33 @@ interface JobStage {
   position: number;
   active: boolean;
 }
+
+interface Suburb {
+  id: number;
+  name: string;
+  postcode: string;
+  state: string;
+  council: string | null;
+  position: number;
+  is_active: boolean;
+}
+
+const STATES = ["QLD", "NSW", "VIC", "SA", "WA", "TAS", "NT", "ACT"];
+
+const SEQ_COUNCILS = [
+  "Brisbane City Council",
+  "Gold Coast City Council",
+  "Logan City Council",
+  "Moreton Bay Regional Council",
+  "Redland City Council",
+  "Ipswich City Council",
+  "Sunshine Coast Council",
+  "Noosa Shire Council",
+  "Scenic Rim Regional Council",
+  "Lockyer Valley Regional Council",
+  "Somerset Regional Council",
+  "Toowoomba Regional Council",
+];
 
 // Individual sortable item component
 function SortableItem<T extends { id: number; name: string; color?: string; position: number }>({
@@ -377,6 +416,22 @@ export function JobSetupTab() {
     color: "#3B82F6",
   });
 
+  // Suburbs state
+  const [suburbs, setSuburbs] = React.useState<Suburb[]>([]);
+  const [suburbsLoading, setSuburbsLoading] = React.useState(true);
+  const [suburbSearch, setSuburbSearch] = React.useState("");
+  const [suburbStateFilter, setSuburbStateFilter] = React.useState<string>("all");
+  const [suburbCouncilFilter, setSuburbCouncilFilter] = React.useState<string>("all");
+  const [showSuburbDialog, setShowSuburbDialog] = React.useState(false);
+  const [editingSuburb, setEditingSuburb] = React.useState<Suburb | null>(null);
+  const [suburbSaving, setSuburbSaving] = React.useState(false);
+  const [suburbFormData, setSuburbFormData] = React.useState({
+    name: "",
+    postcode: "",
+    state: "QLD",
+    council: "",
+  });
+
   const COLORS = [
     "#3B82F6", // Blue
     "#10B981", // Green
@@ -392,6 +447,7 @@ export function JobSetupTab() {
 
   React.useEffect(() => {
     loadData();
+    loadSuburbs();
   }, []);
 
   const loadData = async () => {
@@ -429,6 +485,102 @@ export function JobSetupTab() {
       ]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSuburbs = async () => {
+    try {
+      const response = await api.get<{ suburbs: Suburb[] }>("/api/v1/suburbs");
+      setSuburbs(response.suburbs || []);
+    } catch (error) {
+      console.error("Failed to load suburbs:", error);
+    } finally {
+      setSuburbsLoading(false);
+    }
+  };
+
+  // Suburb stats
+  const suburbStats = React.useMemo(() => {
+    const byState: Record<string, number> = {};
+    suburbs.forEach((s) => {
+      byState[s.state] = (byState[s.state] || 0) + 1;
+    });
+    return {
+      total: suburbs.length,
+      withCouncil: suburbs.filter((s) => s.council).length,
+      byState,
+    };
+  }, [suburbs]);
+
+  // Filter suburbs
+  const filteredSuburbs = React.useMemo(() => {
+    return suburbs.filter((suburb) => {
+      if (suburbSearch) {
+        const query = suburbSearch.toLowerCase();
+        if (
+          !suburb.name.toLowerCase().includes(query) &&
+          !suburb.postcode.includes(query)
+        ) {
+          return false;
+        }
+      }
+      if (suburbStateFilter !== "all" && suburb.state !== suburbStateFilter) {
+        return false;
+      }
+      if (suburbCouncilFilter === "with-council" && !suburb.council) {
+        return false;
+      }
+      if (suburbCouncilFilter === "without-council" && suburb.council) {
+        return false;
+      }
+      if (
+        suburbCouncilFilter !== "all" &&
+        suburbCouncilFilter !== "with-council" &&
+        suburbCouncilFilter !== "without-council" &&
+        suburb.council !== suburbCouncilFilter
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [suburbs, suburbSearch, suburbStateFilter, suburbCouncilFilter]);
+
+  // Get unique councils for filter
+  const uniqueCouncils = React.useMemo(() => {
+    const councils = new Set<string>();
+    suburbs.forEach((s) => {
+      if (s.council) councils.add(s.council);
+    });
+    return Array.from(councils).sort();
+  }, [suburbs]);
+
+  const handleEditSuburbClick = (suburb: Suburb) => {
+    setEditingSuburb(suburb);
+    setSuburbFormData({
+      name: suburb.name,
+      postcode: suburb.postcode,
+      state: suburb.state,
+      council: suburb.council || "",
+    });
+    setShowSuburbDialog(true);
+  };
+
+  const handleSaveSuburb = async () => {
+    if (!editingSuburb) return;
+
+    setSuburbSaving(true);
+    try {
+      await api.patch(`/api/v1/suburbs/${editingSuburb.id}`, {
+        suburb: suburbFormData,
+      });
+      toast({ title: "Success", description: "Suburb updated successfully" });
+      setShowSuburbDialog(false);
+      loadSuburbs();
+    } catch (error) {
+      console.error("Failed to save:", error);
+      toast({ title: "Error", description: "Failed to save suburb", variant: "destructive" });
+    } finally {
+      setSuburbSaving(false);
     }
   };
 
@@ -578,6 +730,229 @@ export function JobSetupTab() {
           loading={loading}
         />
       </div>
+
+      {/* Suburbs Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Suburbs Lookup</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-xs">
+                {suburbStats.total} suburbs
+              </Badge>
+              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-900/20">
+                {suburbStats.withCouncil} with council
+              </Badge>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Manage suburb data for auto-fill on job addresses
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search suburb or postcode..."
+                  value={suburbSearch}
+                  onChange={(e) => setSuburbSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+            </div>
+            <div className="w-full sm:w-32">
+              <Select value={suburbStateFilter} onValueChange={setSuburbStateFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="State" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All States</SelectItem>
+                  {STATES.map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state} ({suburbStats.byState[state] || 0})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-full sm:w-48">
+              <Select value={suburbCouncilFilter} onValueChange={setSuburbCouncilFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Council" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="with-council">With Council</SelectItem>
+                  <SelectItem value="without-council">Without Council</SelectItem>
+                  {uniqueCouncils.map((council) => (
+                    <SelectItem key={council} value={council}>
+                      {council}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Suburbs Table */}
+          {suburbsLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredSuburbs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No suburbs found matching your filters.
+            </div>
+          ) : (
+            <div className="max-h-[400px] overflow-y-auto border rounded-md">
+              <table className="w-full">
+                <thead className="sticky top-0 bg-background border-b">
+                  <tr className="text-left text-xs text-muted-foreground">
+                    <th className="p-2 font-medium">Suburb</th>
+                    <th className="p-2 font-medium">Postcode</th>
+                    <th className="p-2 font-medium">State</th>
+                    <th className="p-2 font-medium">Council</th>
+                    <th className="p-2 font-medium w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredSuburbs.slice(0, 100).map((suburb) => (
+                    <tr key={suburb.id} className="hover:bg-muted/50">
+                      <td className="p-2 text-sm font-medium">{suburb.name}</td>
+                      <td className="p-2 text-sm text-muted-foreground">{suburb.postcode}</td>
+                      <td className="p-2">
+                        <Badge variant="outline" className="text-xs">
+                          {suburb.state}
+                        </Badge>
+                      </td>
+                      <td className="p-2 text-sm">
+                        {suburb.council ? (
+                          <span className="text-green-600 dark:text-green-400">{suburb.council}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleEditSuburbClick(suburb)}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filteredSuburbs.length > 100 && (
+                <p className="text-center text-sm text-muted-foreground py-4">
+                  Showing first 100 of {filteredSuburbs.length} results. Use search to narrow down.
+                </p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Suburb Dialog */}
+      <Dialog open={showSuburbDialog} onOpenChange={setShowSuburbDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Suburb</DialogTitle>
+            <DialogDescription>
+              Update suburb details. Council is used for auto-fill on job addresses.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="suburb-name">Suburb Name</Label>
+                <Input
+                  id="suburb-name"
+                  value={suburbFormData.name}
+                  onChange={(e) => setSuburbFormData({ ...suburbFormData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="suburb-postcode">Postcode</Label>
+                <Input
+                  id="suburb-postcode"
+                  value={suburbFormData.postcode}
+                  onChange={(e) => setSuburbFormData({ ...suburbFormData, postcode: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="suburb-state">State</Label>
+              <Select
+                value={suburbFormData.state}
+                onValueChange={(value) => setSuburbFormData({ ...suburbFormData, state: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {STATES.map((state) => (
+                    <SelectItem key={state} value={state}>
+                      {state}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="suburb-council">Council</Label>
+              <Select
+                value={suburbFormData.council || "none"}
+                onValueChange={(value) => setSuburbFormData({ ...suburbFormData, council: value === "none" ? "" : value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select council" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Council</SelectItem>
+                  {SEQ_COUNCILS.map((council) => (
+                    <SelectItem key={council} value={council}>
+                      {council}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Or type a custom council name:
+              </p>
+              <Input
+                placeholder="Custom council name"
+                value={suburbFormData.council}
+                onChange={(e) => setSuburbFormData({ ...suburbFormData, council: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSuburbDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveSuburb} disabled={suburbSaving}>
+              {suburbSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
