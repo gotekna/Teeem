@@ -304,7 +304,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   return (
     <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
       {/* Logo - always visible */}
-      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
+      <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
           t
         </div>
@@ -339,7 +339,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </button>
 
           {/* Chat Icon */}
-          <Link
+          <Link prefetch={false}
             href="/chat"
             className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
           >
@@ -356,7 +356,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Training Icon */}
-          <Link
+          <Link prefetch={false}
             href="/training"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title="Training Sessions"
@@ -366,7 +366,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Workflow Tasks */}
-          <Link
+          <Link prefetch={false}
             href="/tasks?tab=workflow"
             className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
@@ -384,7 +384,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Notifications */}
-          <Link
+          <Link prefetch={false}
             href="/notifications"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title="Notifications"
@@ -394,7 +394,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Office 365 Status */}
-          <Link
+          <Link prefetch={false}
             href="/settings/integrations/microsoft"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
@@ -417,7 +417,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Xero Status */}
-          <Link
+          <Link prefetch={false}
             href="/settings/integrations/xero"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
@@ -440,7 +440,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Data Warehouse */}
-          <Link
+          <Link prefetch={false}
             href="/data-warehouse"
             className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
             title="Data Warehouse"
@@ -450,7 +450,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* System Health - link to full page */}
-          <Link
+          <Link prefetch={false}
             href="/system-health"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md transition-colors"
             title="System Health"
@@ -513,13 +513,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                 </>
               )}
               <DropdownMenuItem asChild>
-                <Link href="/profile" className="flex items-center">
+                <Link prefetch={false} href="/profile" className="flex items-center">
                   <User className="mr-2 h-4 w-4" />
                   Your profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/settings" className="flex items-center">
+                <Link prefetch={false} href="/settings" className="flex items-center">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>

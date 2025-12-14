@@ -233,7 +233,7 @@ export function Sidebar() {
       {/* Logo - only on mobile sheet */}
       {mobile && (
         <div className="h-[70px] flex items-center border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+          <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
             <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center shrink-0">
               t
             </div>
@@ -402,7 +402,7 @@ export function Sidebar() {
     <>
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background z-50 flex items-center px-4 justify-between">
-        <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+        <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
           <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center">
             t
           </div>
