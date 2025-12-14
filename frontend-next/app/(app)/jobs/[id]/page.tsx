@@ -88,6 +88,8 @@ interface Job {
   live_profit: number;
   profit_percentage: number;
   certifier_job_no?: string;
+  xero_tracking_option_id?: string;
+  xero_tracking_option_name?: string;
   start_date?: string;
   location?: string;
   latitude?: number;
@@ -334,6 +336,15 @@ function ContractValueCard({
   );
 }
 
+// Suburb search interface
+interface SuburbSearchResult {
+  id: number;
+  name: string;
+  postcode: string;
+  state: string;
+  council: string | null;
+}
+
 // Editable Address Details Card
 function AddressDetailsCard({
   job,
@@ -348,6 +359,7 @@ function AddressDetailsCard({
     suburb?: string;
     postcode?: string;
     state?: string;
+    council?: string;
   }) => Promise<void>;
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
@@ -360,7 +372,71 @@ function AddressDetailsCard({
     suburb: job.suburb || "",
     postcode: job.postcode || "",
     state: job.state || "",
+    council: job.council || "",
   });
+
+  // Suburb search state
+  const [suburbSearchQuery, setSuburbSearchQuery] = React.useState("");
+  const [suburbSearchResults, setSuburbSearchResults] = React.useState<SuburbSearchResult[]>([]);
+  const [suburbSearchLoading, setSuburbSearchLoading] = React.useState(false);
+  const [showSuburbDropdown, setShowSuburbDropdown] = React.useState(false);
+  const suburbInputRef = React.useRef<HTMLInputElement>(null);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Search suburbs when query changes
+  React.useEffect(() => {
+    const searchSuburbs = async () => {
+      if (suburbSearchQuery.length < 2) {
+        setSuburbSearchResults([]);
+        return;
+      }
+
+      setSuburbSearchLoading(true);
+      try {
+        const response = await api.get<{ suburbs: SuburbSearchResult[] }>(
+          `/api/v1/suburbs/search?q=${encodeURIComponent(suburbSearchQuery)}`
+        );
+        setSuburbSearchResults(response.suburbs || []);
+      } catch (error) {
+        console.error("Failed to search suburbs:", error);
+        setSuburbSearchResults([]);
+      } finally {
+        setSuburbSearchLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchSuburbs, 300);
+    return () => clearTimeout(timeoutId);
+  }, [suburbSearchQuery]);
+
+  // Close dropdown when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node) &&
+        suburbInputRef.current &&
+        !suburbInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuburbDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleSuburbSelect = (suburb: SuburbSearchResult) => {
+    setEditForm({
+      ...editForm,
+      suburb: suburb.name,
+      postcode: suburb.postcode,
+      state: suburb.state,
+      council: suburb.council || "",
+    });
+    setSuburbSearchQuery("");
+    setShowSuburbDropdown(false);
+  };
 
   // Sync form when job prop changes
   React.useEffect(() => {
@@ -580,6 +656,12 @@ export default function JobDetailPage() {
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
   const [lookupLoading, setLookupLoading] = React.useState(false);
 
+  // Xero tracking category state
+  const [xeroTrackingOptions, setXeroTrackingOptions] = React.useState<{id: string, name: string}[]>([]);
+  const [currentXeroOption, setCurrentXeroOption] = React.useState<{id: string, name: string} | null>(null);
+  const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
+  const [linkingXero, setLinkingXero] = React.useState(false);
+
   // Get tab from URL or default to "overview"
   const tabFromUrl = searchParams.get("tab") || "overview";
   const [activeTab, setActiveTab] = React.useState(tabFromUrl);
@@ -622,11 +704,51 @@ export default function JobDetailPage() {
     }
   }, []);
 
+  // Load Xero tracking options for this job
+  const loadXeroTrackingOptions = React.useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        tracking_options: {id: string, name: string}[];
+        current_option: {id: string, name: string} | null;
+        suggested_match: {id: string, name: string} | null;
+      }>(`/api/v1/jobs/${jobId}/xero_tracking_options`);
+
+      if (response?.success) {
+        setXeroTrackingOptions(response.tracking_options || []);
+        setCurrentXeroOption(response.current_option);
+        setSuggestedXeroMatch(response.suggested_match);
+      }
+    } catch (error) {
+      console.error("Failed to load Xero tracking options:", error);
+    }
+  }, [jobId]);
+
+  // Link job to Xero tracking option
+  const handleLinkXero = async (optionId: string, optionName: string) => {
+    if (!job) return;
+    setLinkingXero(true);
+    try {
+      await api.post(`/api/v1/jobs/${job.id}/link_xero_tracking`, {
+        tracking_option_id: optionId,
+        tracking_option_name: optionName,
+      });
+      setCurrentXeroOption({ id: optionId, name: optionName });
+      setJob({ ...job, xero_tracking_option_id: optionId, xero_tracking_option_name: optionName });
+    } catch (error) {
+      console.error("Failed to link Xero tracking:", error);
+    } finally {
+      setLinkingXero(false);
+    }
+  };
+
   React.useEffect(() => {
     if (jobId) {
       loadJob();
+      loadXeroTrackingOptions();
     }
-  }, [jobId, loadJob]);
+  }, [jobId, loadJob, loadXeroTrackingOptions]);
 
   // Start editing - populate form with current values and load lookup data
   const startEditing = async () => {
@@ -882,6 +1004,25 @@ export default function JobDetailPage() {
                       />
                     ) : (
                       <Input value={job.certifier_job_no || ""} readOnly />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Xero Job Category</Label>
+                    {xeroTrackingOptions.length > 0 ? (
+                      <ComboboxDropdown
+                        items={xeroTrackingOptions.map((opt) => ({ id: opt.id, label: opt.name }))}
+                        selectedItem={currentXeroOption ? { id: currentXeroOption.id, label: currentXeroOption.name } : undefined}
+                        onSelect={(item) => handleLinkXero(item.id, item.label)}
+                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Select Xero job..."}
+                        disabled={linkingXero}
+                      />
+                    ) : (
+                      <Input value={currentXeroOption?.name || "Loading..."} readOnly />
+                    )}
+                    {!currentXeroOption && suggestedXeroMatch && (
+                      <p className="text-xs text-muted-foreground">
+                        Suggested match: {suggestedXeroMatch.name}
+                      </p>
                     )}
                   </div>
                 </div>

@@ -105,6 +105,15 @@ Rails.application.routes.draw do
         end
       end
 
+      # Suburbs lookup
+      resources :suburbs do
+        collection do
+          get :search
+          post :reorder
+          post :bulk_update_council
+        end
+      end
+
       # Junction table routes
       resources :job_type_statuses, only: [ :destroy ]
 

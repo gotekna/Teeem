@@ -100,6 +100,7 @@ class Job < ApplicationRecord
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
   after_create :log_job_created
+  after_commit :sync_xero_tracking_option, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
 
@@ -439,6 +440,19 @@ class Job < ApplicationRecord
     JobActivity.log_job_created(self, user: Current.user)
   rescue StandardError => e
     Rails.logger.error "Failed to log job creation activity: #{e.message}"
+  end
+
+  def sync_xero_tracking_option
+    # Skip if already linked to Xero
+    return if xero_tracking_option_id.present?
+
+    # Skip if job is imported from Xero (already has tracking)
+    return if imported_from_xero?
+
+    # Create tracking option in Xero in background
+    XeroTrackingSyncJob.perform_later(id)
+  rescue StandardError => e
+    Rails.logger.error "Failed to queue Xero tracking sync for job ##{id}: #{e.message}"
   end
 
   def track_status_and_stage_changes
