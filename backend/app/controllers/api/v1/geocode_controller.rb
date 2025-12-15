@@ -40,23 +40,38 @@ class Api::V1::GeocodeController < ApplicationController
 
     suggestions = Array(data["features"]).map do |feature|
       context = feature["context"] || []
+      feature_id = feature["id"].to_s
+      feature_text = feature["text"] || ""
 
-      suburb = context.find { |c| c["id"].to_s.start_with?("place", "locality") }&.dig("text")
+      # Detect if this is a place/locality (suburb) search vs an address search
+      is_place_or_locality = feature_id.start_with?("place", "locality")
+
+      # For suburb/place searches: the feature text IS the suburb, not a street
+      # For address searches: get suburb from context
+      if is_place_or_locality
+        suburb = feature_text
+        street_full = ""
+        street_name = nil
+        street_type = nil
+      else
+        suburb = context.find { |c| c["id"].to_s.start_with?("place", "locality") }&.dig("text")
+        street_full = feature_text
+        street_name, street_type = parse_street_name_and_type(street_full)
+      end
+
       state = context.find { |c| c["id"].to_s.start_with?("region") }&.dig("text")
       postcode = context.find { |c| c["id"].to_s.start_with?("postcode") }&.dig("text")
-
-      street_full = feature["text"] || ""
-      street_name, street_type = parse_street_name_and_type(street_full)
 
       {
         id: feature["id"],
         placeName: feature["place_name"],
         center: feature["center"], # [longitude, latitude]
+        resultType: is_place_or_locality ? "place" : "address",
         address: {
           houseNumber: feature["address"] || "",
           street: street_full,
-          streetName: street_name,
-          streetType: street_type,
+          streetName: street_name || "",
+          streetType: street_type || "",
           suburb: suburb || "",
           state: abbreviate_state(state) || "",
           postcode: postcode || ""

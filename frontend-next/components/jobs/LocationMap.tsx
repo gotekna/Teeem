@@ -72,6 +72,14 @@ interface AddressSuggestion {
   };
 }
 
+interface SuburbSearchResult {
+  id: number;
+  name: string;
+  postcode: string;
+  state: string;
+  council: string | null;
+}
+
 // Helper to format address for job title
 const formatAddressForTitle = (
   lotNumber: string,
@@ -124,6 +132,13 @@ export function LocationMap({
   location,
   latitude,
   longitude,
+  lotNumber,
+  streetNumber,
+  streetName,
+  streetType,
+  suburb,
+  postcode,
+  state,
   onLocationUpdate,
 }: LocationMapProps) {
   const [mapPosition, setMapPosition] = useState<[number, number] | null>(null);
@@ -150,6 +165,14 @@ export function LocationMap({
   const [formPostcode, setFormPostcode] = useState("");
   const [formState, setFormState] = useState("");
   const [originalLocation, setOriginalLocation] = useState("");
+
+  // Suburb search state
+  const [suburbSearchQuery, setSuburbSearchQuery] = useState("");
+  const [suburbSearchResults, setSuburbSearchResults] = useState<SuburbSearchResult[]>([]);
+  const [suburbSearchLoading, setSuburbSearchLoading] = useState(false);
+  const [showSuburbDropdown, setShowSuburbDropdown] = useState(false);
+  const suburbInputRef = useRef<HTMLInputElement>(null);
+  const suburbDropdownRef = useRef<HTMLDivElement>(null);
 
   // Default to Brisbane if no location
   const DEFAULT_POSITION: [number, number] = [-27.4698, 153.0251];
@@ -201,6 +224,49 @@ export function LocationMap({
       }
     };
   }, [searchAddress]);
+
+  // Debounced suburb search
+  useEffect(() => {
+    const searchSuburbs = async () => {
+      if (suburbSearchQuery.length < 2) {
+        setSuburbSearchResults([]);
+        return;
+      }
+
+      setSuburbSearchLoading(true);
+      try {
+        const response = await api.get<{ suburbs: SuburbSearchResult[] }>(
+          `/api/v1/suburbs/search?q=${encodeURIComponent(suburbSearchQuery)}`
+        );
+        setSuburbSearchResults(response.suburbs || []);
+      } catch (error) {
+        console.error("Failed to search suburbs:", error);
+        setSuburbSearchResults([]);
+      } finally {
+        setSuburbSearchLoading(false);
+      }
+    };
+
+    const timeoutId = setTimeout(searchSuburbs, 300);
+    return () => clearTimeout(timeoutId);
+  }, [suburbSearchQuery]);
+
+  // Close suburb dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        suburbDropdownRef.current &&
+        !suburbDropdownRef.current.contains(event.target as Node) &&
+        suburbInputRef.current &&
+        !suburbInputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuburbDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const searchForAddress = async (query: string) => {
     setSearching(true);
@@ -291,8 +357,30 @@ export function LocationMap({
     setIsEditMode(true);
     setTempPosition(mapPosition);
     setSearchAddress("");
-    setShowAddressForm(false);
-    resetForm();
+
+    // Check if we have existing job address data
+    const hasExistingData = lotNumber || streetNumber || streetName || suburb;
+
+    if (hasExistingData) {
+      // Pre-fill form with existing job data
+      setFormLotNumber(lotNumber || "");
+      setFormStreetNumber(streetNumber || "");
+      setFormStreetName(streetName || "");
+      setFormStreetType(streetType || "");
+      setFormSuburb(suburb || "");
+      setFormPostcode(postcode || "");
+      setFormState(state || "");
+      setOriginalLocation(location || "");
+      setSuburbSearchQuery("");
+      setSuburbSearchResults([]);
+      setShowSuburbDropdown(false);
+      setShowAddressForm(true);
+    } else {
+      // No existing data, show search form
+      setShowAddressForm(false);
+      resetForm();
+    }
+
     setDialogOpen(true);
   };
 
@@ -305,6 +393,17 @@ export function LocationMap({
     setFormPostcode("");
     setFormState("");
     setOriginalLocation("");
+    setSuburbSearchQuery("");
+    setSuburbSearchResults([]);
+    setShowSuburbDropdown(false);
+  };
+
+  const handleSuburbSelect = (suburb: SuburbSearchResult) => {
+    setFormSuburb(suburb.name);
+    setFormPostcode(suburb.postcode);
+    setFormState(suburb.state);
+    setSuburbSearchQuery("");
+    setShowSuburbDropdown(false);
   };
 
   const handleCancelEdit = () => {
@@ -486,7 +585,7 @@ export function LocationMap({
               <>
                 <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    Search for an address or suburb below. If the street doesn&apos;t exist yet (new estate), search for the suburb and manually enter the address details.
+                    Search for an address or suburb below, or click on the map to place a pin and enter the address manually.
                   </p>
                 </div>
 
@@ -517,6 +616,16 @@ export function LocationMap({
                       ))}
                     </div>
                   )}
+                </div>
+
+                <div className="flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddressForm(true)}
+                  >
+                    Skip Search &amp; Enter Manually
+                  </Button>
                 </div>
               </>
             )}
@@ -590,14 +699,61 @@ export function LocationMap({
                   </div>
                 </div>
 
-                <div>
+                <div className="relative">
                   <Label className="text-xs">Suburb <span className="text-red-500">*</span></Label>
                   <Input
-                    value={formSuburb}
-                    onChange={(e) => setFormSuburb(e.target.value)}
-                    placeholder="e.g., Tingalpa"
+                    ref={suburbInputRef}
+                    value={suburbSearchQuery || formSuburb}
+                    onChange={(e) => {
+                      setSuburbSearchQuery(e.target.value);
+                      setShowSuburbDropdown(true);
+                      setFormSuburb(e.target.value);
+                    }}
+                    onFocus={() => {
+                      if (suburbSearchQuery.length >= 2 || formSuburb.length >= 2) {
+                        setShowSuburbDropdown(true);
+                      }
+                    }}
+                    placeholder="Search suburb or postcode..."
+                    autoComplete="off"
                     className="mt-1"
                   />
+                  {/* Suburb search dropdown */}
+                  {showSuburbDropdown && (suburbSearchResults.length > 0 || suburbSearchLoading) && (
+                    <div
+                      ref={suburbDropdownRef}
+                      className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto"
+                    >
+                      {suburbSearchLoading ? (
+                        <div className="p-3 text-center text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                          Searching...
+                        </div>
+                      ) : (
+                        suburbSearchResults.map((suburb) => (
+                          <button
+                            key={suburb.id}
+                            type="button"
+                            onClick={() => handleSuburbSelect(suburb)}
+                            className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between text-sm"
+                          >
+                            <span>
+                              <span className="font-medium">{suburb.name}</span>
+                              <span className="text-muted-foreground ml-2">{suburb.postcode}</span>
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {suburb.state}
+                              {suburb.council && (
+                                <span className="ml-1 text-green-600 dark:text-green-400">
+                                  ({suburb.council.replace(" Council", "").replace(" Regional", "").replace(" City", "")})
+                                </span>
+                              )}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
