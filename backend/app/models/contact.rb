@@ -134,14 +134,8 @@ class Contact < ApplicationRecord
     company_name_or_trust
   end
 
-  # ABN alias (tax_number is the column)
-  def abn
-    tax_number
-  end
-
-  def abn=(value)
-    self.tax_number = value
-  end
+  # ABN is now the actual column (renamed from tax_number)
+  # ACN column also added for Australian Company Number
 
   # ============================================
   # SSoT: Address Helper Methods
@@ -263,7 +257,7 @@ class Contact < ApplicationRecord
 
   # SSoT: Sync Contact → CorporateCompany for standard contact fields
   # One-way sync: Contact is SSoT for name, email, phone, bank details
-  # Two-way sync for ABN: Contact.tax_number ↔ CorporateCompany.abn
+  # Two-way sync for ABN: Contact.abn ↔ CorporateCompany.abn
   after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
 
   # Scopes
@@ -726,20 +720,20 @@ class Contact < ApplicationRecord
   end
 
   def abn_needs_verification?
-    tax_number.present? && abn_verified_at.nil?
+    abn.present? && abn_verified_at.nil?
   end
 
   def formatted_abn
-    return nil if tax_number.blank?
-    AbrApiService.format(tax_number)
+    return nil if abn.blank?
+    AbrApiService.format(abn)
   end
 
   # Verify ABN against ABR API
   def verify_abn!
-    return if tax_number.blank?
+    return if abn.blank?
 
     service = AbrApiService.new
-    result = service.lookup(tax_number)
+    result = service.lookup(abn)
 
     # Use update_columns to bypass validations (we only update ABN fields)
     update_columns(
@@ -767,8 +761,8 @@ class Contact < ApplicationRecord
 
   # Check ABN format only (no API call)
   def abn_format_valid?
-    return false if tax_number.blank?
-    AbrApiService.valid_format?(tax_number)
+    return false if abn.blank?
+    AbrApiService.valid_format?(abn)
   end
 
   # Check if contact can be deleted (for Xero sync)

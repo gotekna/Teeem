@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_15_093000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_15_220404) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1213,7 +1213,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_15_093000) do
   end
 
   create_table "contacts", force: :cascade do |t|
-    t.string "tax_number"
+    t.string "abn"
     t.string "xero_id"
     t.string "email"
     t.string "office_phone"
@@ -1283,7 +1283,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_15_093000) do
     t.string "abn_entity_type"
     t.boolean "abn_gst_registered"
     t.datetime "abn_verified_at"
+    t.string "acn", limit: 11
+    t.boolean "acn_valid"
+    t.datetime "acn_verified_at"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
+    t.index ["acn"], name: "index_contacts_on_acn"
+    t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
     t.index ["email"], name: "index_contacts_on_email"
     t.index ["is_active"], name: "index_contacts_on_is_active"
