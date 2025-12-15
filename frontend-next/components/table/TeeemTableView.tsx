@@ -2128,10 +2128,21 @@ export default function TeeemTableView({
             const aPos = aIndex === -1 ? customOrder.length : aIndex;
             const bPos = bIndex === -1 ? customOrder.length : bIndex;
             comparison = aPos - bPos;
-          } else if (typeof aVal === "number" && typeof bVal === "number") {
-            comparison = aVal - bVal;
           } else {
-            comparison = aDisplay.localeCompare(bDisplay);
+            // Check if column is an Australian identifier type that needs numeric sorting
+            const columnMeta = COLUMNS.find(c => c.key === column);
+            const australianIdTypes = ['abn', 'acn', 'bsb', 'tfn', 'postcode'];
+
+            if (columnMeta && australianIdTypes.includes(columnMeta.column_type || '')) {
+              // Strip non-digits and compare numerically for Australian identifiers
+              const aNum = parseInt(String(aVal).replace(/\D/g, ''), 10);
+              const bNum = parseInt(String(bVal).replace(/\D/g, ''), 10);
+              comparison = aNum - bNum;
+            } else if (typeof aVal === "number" && typeof bVal === "number") {
+              comparison = aVal - bVal;
+            } else {
+              comparison = aDisplay.localeCompare(bDisplay);
+            }
           }
 
           if (comparison !== 0) {

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_15_085454) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_15_085455) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4484,6 +4484,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_15_085454) do
     t.string "poisoned_reason"
   end
 
+  create_table "xero_duplicate_groups", force: :cascade do |t|
+    t.string "group_key", null: false
+    t.string "match_type", null: false
+    t.decimal "confidence_score", precision: 5, scale: 2
+    t.string "status", default: "pending"
+    t.integer "merge_target_id"
+    t.datetime "reviewed_at"
+    t.string "reviewed_by"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["group_key"], name: "index_xero_duplicate_groups_on_group_key", unique: true
+    t.index ["status"], name: "index_xero_duplicate_groups_on_status"
+  end
+
+  create_table "xero_duplicate_items", force: :cascade do |t|
+    t.bigint "duplicate_group_id", null: false
+    t.bigint "contact_id", null: false
+    t.boolean "is_merge_target", default: false
+    t.jsonb "data_snapshot"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_xero_duplicate_items_on_contact_id"
+    t.index ["duplicate_group_id", "contact_id"], name: "idx_on_duplicate_group_id_contact_id_22d95f474a", unique: true
+    t.index ["duplicate_group_id"], name: "index_xero_duplicate_items_on_duplicate_group_id"
+  end
+
   create_table "xero_sync_events", id: false, force: :cascade do |t|
     t.bigserial "id", null: false
     t.bigint "xero_credential_id"
@@ -4533,4 +4559,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_15_085454) do
   add_foreign_key "contact_quality_reviews", "contacts"
   add_foreign_key "contact_quality_reviews", "contacts", column: "suggested_company_id"
   add_foreign_key "contact_quality_reviews", "users", column: "reviewed_by_id"
+  add_foreign_key "xero_duplicate_items", "contacts"
+  add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
 end

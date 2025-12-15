@@ -1211,6 +1211,14 @@ Rails.application.routes.draw do
       get "xero/health", to: "xero_alerts#health"
       get "xero/rate_limits", to: "xero_alerts#rate_limits"
 
+      # Xero Duplicate Detection & Merge
+      get "xero_duplicates/pending", to: "xero_duplicates#pending"
+      get "xero_duplicates/for_contact/:contact_id", to: "xero_duplicates#for_contact"
+      post "xero_duplicates/scan", to: "xero_duplicates#scan"
+      post "xero_duplicates/:id/approve", to: "xero_duplicates#approve"
+      post "xero_duplicates/:id/reject", to: "xero_duplicates#reject"
+      post "xero_duplicates/:id/select_target", to: "xero_duplicates#select_target"
+
       # Sync Configurations (per-Xero-org settings for contact sync)
       resources :sync_configurations, param: :xero_tenant_id, only: [ :index, :show, :update ] do
         member do
