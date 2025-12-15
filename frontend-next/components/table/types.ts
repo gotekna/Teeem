@@ -90,6 +90,7 @@ export interface TeeemTableViewProps {
   // Data
   entries: TableRow[];
   columns?: TableColumn[] | null;
+  totalCount?: number | null; // Total records in database (for pagination display)
 
   // Table identity
   foundationId?: string;

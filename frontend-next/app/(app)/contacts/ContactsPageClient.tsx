@@ -199,19 +199,6 @@ export default function ContactsPageClient({
     }
   }, [refresh]);
 
-  // Auto-load more records in background after initial render
-  useEffect(() => {
-    if (!foundation || !hasMore || isLoadingMore) return;
-
-    // Wait 2 seconds after mount, then start loading more in background
-    const timer = setTimeout(() => {
-      console.log('[ContactsPageClient] Auto-loading more records in background...');
-      loadMore();
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [foundation]); // Only run once on mount
-
   const handleMergeComplete = () => {
     setSelectedForMerge([]);
     refresh();
@@ -452,6 +439,7 @@ export default function ContactsPageClient({
           <TeeemTableView
             entries={records}
             columns={columns}
+            totalCount={totalCount}
             foundationId="contacts"
             foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || "Contacts"}

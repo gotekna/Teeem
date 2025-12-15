@@ -561,6 +561,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
 export default function TeeemTableView({
   entries = [],
   columns = null,
+  totalCount = null,
   foundationId = "default",
   foundationIdNumeric = null,
   tableName = "Table",
@@ -4167,7 +4168,7 @@ export default function TeeemTableView({
         <div className="flex items-center gap-3 text-[11px]">
           {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
           <span>
-            Showing {filteredAndSortedEntries.length} of {entries.length} records
+            Showing {filteredAndSortedEntries.length} of {totalCount ?? entries.length} records
           </span>
         </div>
       </div>
