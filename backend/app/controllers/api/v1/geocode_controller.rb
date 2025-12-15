@@ -23,7 +23,7 @@ class Api::V1::GeocodeController < ApplicationController
       access_token: mapbox_token,
       country: "au",
       limit: 8,
-      types: "address,place"
+      types: "address,place,locality"
     }
 
     url = "https://api.mapbox.com/geocoding/v5/mapbox.places/#{URI.encode_www_form_component(search_query)}.json?#{params_hash.to_query}"

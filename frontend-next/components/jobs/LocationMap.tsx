@@ -326,6 +326,38 @@ export function LocationMap({
     }
   };
 
+  // Parse street address into name and type
+  const parseStreetAddress = (street: string): { streetName: string; streetType: string } => {
+    const streetTypeMap: Record<string, string> = {
+      'street': 'Street', 'st': 'St',
+      'road': 'Road', 'rd': 'Rd',
+      'avenue': 'Avenue', 'ave': 'Ave',
+      'court': 'Court', 'ct': 'Ct',
+      'drive': 'Drive', 'dr': 'Dr',
+      'lane': 'Lane', 'ln': 'Ln',
+      'place': 'Place', 'pl': 'Pl',
+      'crescent': 'Crescent', 'cres': 'Cres',
+      'terrace': 'Terrace', 'tce': 'Tce',
+      'circuit': 'Circuit', 'cct': 'Cct',
+      'boulevard': 'Boulevard', 'blvd': 'Blvd',
+      'parade': 'Parade',
+      'way': 'Way',
+      'close': 'Close',
+      'grove': 'Grove',
+      'highway': 'Highway', 'hwy': 'Hwy',
+      'esplanade': 'Esplanade',
+    };
+
+    const streetLower = street.toLowerCase();
+    for (const [type, displayType] of Object.entries(streetTypeMap)) {
+      if (streetLower.endsWith(' ' + type)) {
+        const name = street.slice(0, -(type.length + 1)).trim();
+        return { streetName: name, streetType: displayType };
+      }
+    }
+    return { streetName: street, streetType: '' };
+  };
+
   // Handle lot number submission
   const handleLotNumberSubmit = () => {
     // Must have at least lot number OR street number
@@ -364,12 +396,17 @@ export function LocationMap({
       return;
     }
 
-    // Update pending save data
+    // Parse the street address to extract name and type
+    const { streetName: parsedStreetName, streetType: parsedStreetType } = parseStreetAddress(street);
+
+    // Update pending save data with parsed street info
     setPendingSaveData({
       ...pendingSaveData,
       lotNumber: lotNumber.trim(),
       streetNumber: streetNumber.trim(),
       street: street,
+      streetName: parsedStreetName,
+      streetType: parsedStreetType,
     });
 
     // Close prompt
@@ -466,6 +503,13 @@ export function LocationMap({
           latitude: savedPosition[0],
           longitude: savedPosition[1],
           location: newLocation,
+          lot_number: pendingSaveData?.lotNumber || undefined,
+          street_number: pendingSaveData?.streetNumber || undefined,
+          street_name: pendingSaveData?.streetName || undefined,
+          street_type: pendingSaveData?.streetType || undefined,
+          suburb: pendingSaveData?.suburb || undefined,
+          postcode: pendingSaveData?.postcode || undefined,
+          state: pendingSaveData?.state || undefined,
         });
       }
     } catch (err) {
@@ -573,7 +617,7 @@ export function LocationMap({
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                Search for an address below, then click on the map to adjust the pin position.
+                Search for an address or suburb below. If the street doesn&apos;t exist yet (new estate), search for the suburb and manually enter the address details.
               </p>
             </div>
 
