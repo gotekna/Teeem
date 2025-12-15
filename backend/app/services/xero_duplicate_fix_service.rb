@@ -40,7 +40,7 @@ class XeroDuplicateFixService
           id: contact.id,
           display_name: contact.display_name,
           email: contact.email,
-          tax_number: contact.tax_number,
+          tax_number: contact.abn,
           mobile_phone: contact.mobile_phone,
           office_phone: contact.office_phone,
           created_at: contact.created_at,
@@ -88,7 +88,7 @@ class XeroDuplicateFixService
 
     # Contact info completeness
     score += 10 if contact.email.present?
-    score += 10 if contact.tax_number.present?
+    score += 10 if contact.abn.present?
     score += 5 if contact.mobile_phone.present?
     score += 5 if contact.office_phone.present?
     score += 3 if contact.website.present?
@@ -272,7 +272,7 @@ class XeroDuplicateFixService
     target.office_phone = source.office_phone if target.office_phone.blank? && source.office_phone.present?
 
     # Fill missing tax number (ABN)
-    target.tax_number = source.tax_number if target.tax_number.blank? && source.tax_number.present?
+    target.abn = source.abn if target.abn.blank? && source.abn.present?
 
     # Fill missing website
     target.website = source.website if target.website.blank? && source.website.present?

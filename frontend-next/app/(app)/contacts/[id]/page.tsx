@@ -606,7 +606,8 @@ export default function ContactDetailPage() {
     residential_address: "",
     drivers_licence: "",
     passport_number: "",
-    tax_number: "",
+    abn: "",
+    acn: "",
     sync_with_xero: false,
   });
   const [saving, setSaving] = useState(false);
@@ -1295,7 +1296,8 @@ export default function ContactDetailPage() {
         residential_address: contact.residential_address || "",
         drivers_licence: contact.drivers_licence || "",
         passport_number: contact.passport_number || "",
-        tax_number: contact.tax_number || "",
+        abn: contact.abn || "",
+        acn: contact.acn || "",
         sync_with_xero: contact.sync_with_xero ?? false,
       });
       setHasChanges(false);

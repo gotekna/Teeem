@@ -13,7 +13,7 @@ interface PendingXeroLink {
   contact_id: number;
   contact_name: string;
   contact_email?: string;
-  contact_tax_number?: string;
+  contact_abn?: string;
   tenant_id: string;
   tenant_name: string;
   external_contact_id: string;
@@ -178,9 +178,9 @@ export function PendingXeroReviewPanel({ onReviewComplete }: PendingXeroReviewPa
                   {link.contact_email && (
                     <p className="text-sm text-muted-foreground">{link.contact_email}</p>
                   )}
-                  {link.contact_tax_number && (
+                  {link.contact_abn && (
                     <p className="text-xs text-muted-foreground font-mono">
-                      ABN: {link.contact_tax_number}
+                      ABN: {link.contact_abn}
                     </p>
                   )}
                 </div>

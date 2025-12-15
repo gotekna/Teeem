@@ -67,7 +67,7 @@ interface BillInbox {
   supplier: {
     id: number;
     display_name: string;
-    tax_number: string;
+    abn: string;
   } | null;
   matched_purchase_order: {
     id: number;

@@ -198,12 +198,12 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
             <div>
               <p className="text-xs text-muted-foreground">ABN / TFN</p>
               <p className="text-sm font-medium font-mono">
-                {contact.tax_number === "[RESTRICTED]" ? (
+                {contact.abn === "[RESTRICTED]" ? (
                   <span className="text-amber-600 flex items-center gap-1">
                     <Lock className="h-3 w-3" /> Restricted
                   </span>
-                ) : contact.tax_number ? (
-                  formatABN(contact.tax_number)
+                ) : contact.abn ? (
+                  formatABN(contact.abn)
                 ) : (
                   <span className="text-muted-foreground">Not set</span>
                 )}
@@ -211,7 +211,7 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
             </div>
 
             {/* ABN Verification Status */}
-            {contact.tax_number && contact.tax_number !== "[RESTRICTED]" && contact.tax_number.replace(/\D/g, "").length === 11 && (
+            {contact.abn && contact.abn !== "[RESTRICTED]" && contact.abn.replace(/\D/g, "").length === 11 && (
               <div className="pt-3 border-t">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-xs text-muted-foreground">ABN Verification</p>

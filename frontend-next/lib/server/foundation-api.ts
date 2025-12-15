@@ -58,6 +58,7 @@ interface FoundationData {
   columns: TableColumn[];
   records: TableRow[];
   totalCount: number | null;
+  hasMore: boolean;
   error: string | null;
 }
 
@@ -90,6 +91,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
       columns: [],
       records: [],
       totalCount: null,
+      hasMore: false,
       error: 'Not authenticated',
     };
   }
@@ -112,8 +114,10 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     const foundation = foundationData.foundation as Foundation;
 
     // Fetch records (associations are eager-loaded on backend for performance)
+    // Use cursor-based pagination: initial load is 100 records for instant page load
+    // More records will be loaded in background by ContactsPageClient
     const recordsRes = await fetch(
-      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=2000`,
+      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?limit=100`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -129,17 +133,21 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
 
     const recordsData = await recordsRes.json();
     const records = (recordsData.records || []) as TableRow[];
-    const totalCount = recordsData.pagination?.total_count ?? records.length;
+    // total_count is at top level for cursor pagination, inside pagination for offset pagination
+    const totalCount = recordsData.total_count ?? recordsData.pagination?.total_count ?? null;
+    // has_more indicates if there are more records to load
+    const hasMore = recordsData.has_more ?? (records.length === 100); // Default to true if we got a full page
 
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);
 
-    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length);
+    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length, '- hasMore:', hasMore);
     return {
       foundation,
       columns,
       records,
       totalCount,
+      hasMore,
       error: null,
     };
   } catch (err) {
@@ -149,6 +157,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
       columns: [],
       records: [],
       totalCount: null,
+      hasMore: false,
       error: err instanceof Error ? err.message : 'Failed to load data',
     };
   }

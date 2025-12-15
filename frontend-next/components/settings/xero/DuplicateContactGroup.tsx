@@ -221,7 +221,7 @@ function ContactCard({ contact, isRecommended, isSelected, borderColor, onSelect
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">ABN:</span>
-            <span className="font-mono text-xs">{contact.tax_number || "—"}</span>
+            <span className="font-mono text-xs">{contact.abn || "—"}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Phone:</span>

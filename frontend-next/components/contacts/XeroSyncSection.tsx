@@ -48,7 +48,7 @@ interface Contact {
   mobile_phone?: string | null;
   office_phone?: string | null;
   company_name_or_trust?: string | null;
-  tax_number?: string | null;
+  abn?: string | null;
   entity_type: string | null;
   xero_contact_id?: string | null;
   sync_with_xero?: boolean;
@@ -350,9 +350,9 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         xeroValue: xeroContactData.EmailAddress,
       },
       {
-        teeemField: "tax_number",
+        teeemField: "abn",
         xeroField: "TaxNumber",
-        teeemValue: contact.tax_number,
+        teeemValue: contact.abn,
         xeroValue: xeroContactData.TaxNumber,
       },
     ];

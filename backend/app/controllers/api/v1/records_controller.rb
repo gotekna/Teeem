@@ -6,8 +6,10 @@ module Api
       # GET /api/v1/foundations/:foundation_id/records
       def index
         # Sanitize and validate pagination parameters to prevent DoS
+        # Support both 'limit' (new cursor pagination) and 'per_page' (legacy offset pagination)
         page = [ (params[:page] || 1).to_i, 1 ].max
-        per_page = [ (params[:per_page] || 50).to_i, 1 ].max
+        limit_or_per_page = params[:limit]&.to_i || params[:per_page]&.to_i || 50
+        per_page = [ limit_or_per_page, 1 ].max
         per_page = [ per_page, 10000 ].min  # Cap at 10000 to prevent DoS
 
         search = params[:search]
@@ -21,6 +23,11 @@ module Api
         # SSoT: Auto-eager-load ALL associations for ANY table to prevent N+1 queries
         # This works for both system tables and user-created tables
         query = apply_eager_loading(query, model)
+
+        # CRITICAL: Add distinct to prevent duplicates caused by JOINs from eager loading
+        # When a record has multiple associations (e.g., Contact with multiple external_links),
+        # includes() creates LEFT OUTER JOINs that produce duplicate rows
+        query = query.distinct
 
         # Exclude soft-deleted records if the table has a 'deleted' column
         if model.column_names.include?("deleted")
@@ -54,7 +61,9 @@ module Api
             foundation_searchable = @foundation.columns.where(searchable: true).pluck(:column_name)
 
             if foundation_searchable.any?
-              foundation_searchable
+              # Filter out array columns to prevent ILIKE errors
+              array_columns = model.columns.select(&:array).map(&:name)
+              foundation_searchable.reject { |col| array_columns.include?(col) }
             elsif @foundation.table_type == "system"
               # Fallback for system tables without column definitions: auto-detect text columns
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)
@@ -63,10 +72,12 @@ module Api
             end
           end
           if searchable_columns.any?
-            # Build search conditions: exact ILIKE OR fuzzy similarity (pg_trgm)
-            # Fuzzy search catches typos like "coasal" -> "coastal"
+            # Build search conditions: ILIKE (default) OR fuzzy similarity (opt-in with ?fuzzy=true)
+            # Default: Fast ILIKE substring matching
+            # Fuzzy: Slower word_similarity matching for typo tolerance
             sanitized_search = ActiveRecord::Base.connection.quote(search)
             conn = ActiveRecord::Base.connection
+            enable_fuzzy = params[:fuzzy] == "true"
 
             # Get column type information to handle non-text columns
             column_types = model.columns.each_with_object({}) { |c, h| h[c.name] = c.type }
@@ -85,20 +96,129 @@ module Api
 
             # Fuzzy word_similarity conditions (matches search term against words in text)
             # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
-            # Only apply to first few columns to keep it fast
-            fuzzy_columns = searchable_columns.first(3)
-            fuzzy_conditions = fuzzy_columns.map do |col|
-              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
-                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
-              else
-                conn.quote_column_name(col)
-              end
-              "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
-            end.join(" OR ")
+            # Only enabled with ?fuzzy=true parameter to avoid performance issues on large tables
+            if enable_fuzzy
+              fuzzy_columns = searchable_columns.first(3)
+              fuzzy_conditions = fuzzy_columns.map do |col|
+                column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+                  "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+                else
+                  conn.quote_column_name(col)
+                end
+                "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
+              end.join(" OR ")
 
-            # Combine: match if ILIKE OR fuzzy match
-            combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
-            query = query.where(combined_conditions, search: "%#{search}%")
+              # Combine: match if ILIKE OR fuzzy match
+              combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
+              query = query.where(combined_conditions, search: "%#{search}%")
+            else
+              # Default: ILIKE only (fast)
+              query = query.where(ilike_conditions, search: "%#{search}%")
+            end
+          end
+        end
+
+        # Apply cascade filters (sent from frontend view state)
+        # Filters format: [{ column: "status", operator: "=", value: "Active", groupId: "group1" }, ...]
+        # Groups format: [{ id: "group1", logic: "AND" }, ...]
+        # Inter-group logic: "AND" or "OR"
+        if params[:filters].present?
+          begin
+            filters = JSON.parse(params[:filters])
+            filter_groups = params[:filter_groups].present? ? JSON.parse(params[:filter_groups]) : []
+            inter_group_logic = params[:inter_group_logic] || "AND"
+
+            # Group filters by groupId
+            filters_by_group = filters.group_by { |f| f["groupId"] || "default" }
+
+            # Build group conditions
+            group_conditions = filters_by_group.map do |group_id, group_filters|
+              # Get group logic (AND/OR within group)
+              group = filter_groups.find { |g| g["id"] == group_id }
+              group_logic = group&.dig("logic") || "AND"
+
+              # Build conditions for this group
+              filter_conditions = group_filters.map do |filter|
+                column = filter["column"]
+                operator = filter["operator"]
+                value = filter["value"]
+
+                # Validate column exists
+                valid_columns = if @foundation.table_type == "system"
+                  model.column_names
+                else
+                  @foundation.columns.pluck(:column_name)
+                end
+
+                next nil unless valid_columns.include?(column)
+
+                # Build SQL condition based on operator
+                conn = ActiveRecord::Base.connection
+                quoted_column = conn.quote_column_name(column)
+
+                case operator
+                when "="
+                  ["#{quoted_column} = ?", value]
+                when "!="
+                  ["#{quoted_column} != ? OR #{quoted_column} IS NULL", value]
+                when ">"
+                  ["#{quoted_column} > ?", value]
+                when "<"
+                  ["#{quoted_column} < ?", value]
+                when ">="
+                  ["#{quoted_column} >= ?", value]
+                when "<="
+                  ["#{quoted_column} <= ?", value]
+                when "contains"
+                  ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                when "not_contains"
+                  ["#{quoted_column} NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                when "starts_with"
+                  ["#{quoted_column} ILIKE ?", "#{value}%"]
+                when "ends_with"
+                  ["#{quoted_column} ILIKE ?", "%#{value}"]
+                when "is_empty"
+                  ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                when "is_not_empty"
+                  ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                else
+                  nil
+                end
+              end.compact
+
+              # Combine conditions within group
+              if filter_conditions.any?
+                if group_logic == "AND"
+                  # Combine with AND
+                  sql = filter_conditions.map(&:first).join(" AND ")
+                  bind_values = filter_conditions.flat_map { |c| c[1..-1] }
+                  [sql, *bind_values]
+                else
+                  # Combine with OR
+                  sql = "(" + filter_conditions.map(&:first).join(" OR ") + ")"
+                  bind_values = filter_conditions.flat_map { |c| c[1..-1] }
+                  [sql, *bind_values]
+                end
+              else
+                nil
+              end
+            end.compact
+
+            # Combine groups with inter-group logic
+            if group_conditions.any?
+              if inter_group_logic == "AND"
+                group_conditions.each do |condition|
+                  query = query.where(condition)
+                end
+              else
+                # OR logic between groups
+                or_sql = group_conditions.map { |c| "(#{c.first})" }.join(" OR ")
+                or_bind_values = group_conditions.flat_map { |c| c[1..-1] }
+                query = query.where(or_sql, *or_bind_values)
+              end
+            end
+          rescue JSON::ParserError => e
+            Rails.logger.error "Failed to parse filter params: #{e.message}"
           end
         end
 
@@ -121,32 +241,95 @@ module Api
           query = query.order(created_at: :desc)
         end
 
-        # Get count before pagination
-        total_count = query.count
+        # Get count before pagination (skip if using cursor pagination for performance)
+        total_count = params[:cursor].present? ? nil : query.count
 
         # NOTE: We removed the fields=minimal SELECT hack here.
         # It was breaking features (cascading filters, column selection, associations).
         # Performance is achieved through:
         # 1. Eager loading associations (apply_eager_loading - auto-derived from model)
-        # 2. Proper pagination
+        # 2. Proper pagination (offset OR cursor-based)
         # See: Ultra philosophy - load what the UI needs, optimize HOW we load it
 
-        # Paginate
-        records = query.offset((page - 1) * per_page).limit(per_page)
+        # Paginate: Use cursor-based for infinite scroll, offset for traditional pagination
+        if params[:cursor].present? || params[:limit].present?
+          # Cursor-based pagination (for infinite scroll)
+          # Format: cursor is the ID of the last record from previous page
+          cursor_id = params[:cursor]&.to_i || 0
+          limit = [params[:limit]&.to_i || 50, 100].min # Default 50, max 100 per request
+
+          # CRITICAL: When using cursor pagination, we MUST sort by the cursor field (id)
+          # to ensure consistent pagination. Sorting by created_at with id cursor causes
+          # records to be skipped because id and created_at are not monotonically aligned.
+          query = query.reorder(id: :desc)
+
+          # Fetch records after cursor (id < cursor to go backwards through IDs)
+          if cursor_id > 0
+            records = query.where("#{model.table_name}.id < ?", cursor_id).limit(limit + 1)
+          else
+            records = query.limit(limit + 1)
+          end
+
+          # Check if there are more records (fetch limit+1, return limit)
+          has_more = records.length > limit
+          records = records.first(limit) if has_more
+        else
+          # Traditional offset pagination (backwards compatible)
+          records = query.offset((page - 1) * per_page).limit(per_page)
+        end
 
         # Build lookup cache to prevent N+1 queries (only for user foundations with lookup columns)
         lookup_cache = @foundation.table_type == "system" ? {} : build_lookup_cache(records)
 
-        render json: {
+        # Serialize records to JSON
+        serialized_records = records.map { |r| record_to_json(r, lookup_cache) }
+
+        # DEBUG: Log if we're finding duplicates in the query result
+        record_ids = records.map(&:id)
+        duplicate_ids = record_ids.select { |id| record_ids.count(id) > 1 }.uniq
+        if duplicate_ids.any?
+          Rails.logger.error "[DUPLICATE BUG] Found #{duplicate_ids.count} duplicate IDs in query result: #{duplicate_ids.first(10).inspect}"
+          Rails.logger.error "[DUPLICATE BUG] Foundation: #{@foundation.slug}, Total records: #{records.count}, Unique: #{record_ids.uniq.count}"
+        end
+
+        # CRITICAL: Deduplicate by ID (belt-and-suspenders approach)
+        # This ensures no duplicate IDs appear in the response regardless of query issues
+        unique_records = serialized_records.uniq { |r| r[:id] || r["id"] }
+
+        # DEBUG: Log deduplication results
+        if serialized_records.count != unique_records.count
+          Rails.logger.error "[DUPLICATE BUG] Deduplication removed #{serialized_records.count - unique_records.count} duplicate records"
+        end
+
+        # Response format: cursor pagination includes has_more + next_cursor
+        response = {
           success: true,
-          records: records.map { |r| record_to_json(r, lookup_cache) },
-          pagination: {
+          records: unique_records
+        }
+
+        if params[:cursor].present?
+          # Cursor pagination response (loading more)
+          response[:has_more] = has_more
+          # CRITICAL: Use last record from unique_records, not original records (after deduplication)
+          response[:next_cursor] = unique_records.last&.dig(:id) || unique_records.last&.dig("id")
+          # Don't include total_count on subsequent requests (performance optimization)
+        elsif params[:limit].present?
+          # Cursor pagination response (first request - includes total_count for UX)
+          response[:has_more] = has_more || (records.length == limit)
+          # CRITICAL: Use last record from unique_records, not original records (after deduplication)
+          response[:next_cursor] = unique_records.last&.dig(:id) || unique_records.last&.dig("id")
+          response[:total_count] = total_count # Include total_count on first request
+        else
+          # Traditional offset pagination response (backwards compatible)
+          response[:pagination] = {
             page: page,
             per_page: per_page,
             total_count: total_count,
             total_pages: (total_count.to_f / per_page).ceil
           }
-        }
+        end
+
+        render json: response
       rescue => e
         render json: { error: e.message }, status: :internal_server_error
       end

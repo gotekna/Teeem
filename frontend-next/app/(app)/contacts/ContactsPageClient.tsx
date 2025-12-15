@@ -4,6 +4,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
@@ -15,6 +16,11 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
+import {
+  currentFiltersAtom,
+  currentFilterGroupsAtom,
+  currentInterGroupLogicAtom,
+} from "@/lib/view-state-atoms";
 
 interface Contact {
   id: number;
@@ -55,6 +61,7 @@ interface ContactsPageClientProps {
   initialColumns: TableColumn[];
   initialRecords: TTableRow[];
   initialTotalCount: number | null;
+  initialHasMore: boolean;
   initialError: string | null;
 }
 
@@ -62,25 +69,49 @@ export default function ContactsPageClient({
   initialFoundation,
   initialColumns,
   initialRecords,
+  initialTotalCount,
+  initialHasMore,
   initialError,
 }: ContactsPageClientProps) {
   const router = useRouter();
   const { toast } = useToast();
 
+  // Helper function to deduplicate records by ID (belt-and-suspenders approach)
+  const deduplicateRecords = useCallback((recs: TTableRow[]) => {
+    const seen = new Set<number | string>();
+    const unique = recs.filter(r => {
+      if (seen.has(r.id)) {
+        console.warn(`[ContactsPageClient] Removed duplicate record ID: ${r.id}`);
+        return false;
+      }
+      seen.add(r.id);
+      return true;
+    });
+
+    if (unique.length !== recs.length) {
+      console.error(`[ContactsPageClient] ⚠️ DUPLICATES DETECTED: Removed ${recs.length - unique.length} duplicate records`);
+    }
+
+    return unique;
+  }, []);
+
   // Use initial data from server - no loading state needed on first render!
   const [foundation] = useState(initialFoundation);
   const [columns] = useState(initialColumns);
 
-  // Initialize records only once, then ignore server props to prevent SSR overwrites
-  const initialRecordsRef = useRef(initialRecords);
-  const [records, setRecords] = useState(() => initialRecordsRef.current);
-
-  // CRITICAL: Don't update records from props after initial mount
-  // This prevents SSR from overwriting optimistic deletes
-  useEffect(() => {
-    // Only use the initial records on first mount
-    // After that, ignore any props changes from SSR
-  }, []);
+  // Use SSR data as initial state, then infinite scroll will load more
+  // Deduplicate initial records as a safety measure
+  const [records, setRecords] = useState(() => {
+    const seen = new Set<number | string>();
+    return (initialRecords || []).filter(r => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+  });
+  const [totalCount, setTotalCount] = useState(initialTotalCount);
+  const [hasMore, setHasMore] = useState(initialHasMore); // Use server-provided hasMore flag
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
@@ -88,13 +119,208 @@ export default function ContactsPageClient({
   // Track current view to determine display mode
   const [currentView, setCurrentView] = useState<any>(null);
   const [showExplorer, setShowExplorer] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Track if we've already started auto-loading (to prevent double-load)
+  const hasStartedAutoLoad = useRef(false);
+
+  // Search: AbortController for cancelling pending requests (prevents race conditions)
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  // Search: Cache original data to restore when search is cleared
+  const preSearchDataRef = useRef<{ records: TTableRow[]; totalCount: number | null; hasMore: boolean } | null>(null);
 
   // Handler for when the active view changes in View Manager
   const handleViewChange = useCallback((view: any) => {
     setCurrentView(view);
   }, []);
 
-  // Refresh function to reload data
+  // Read current filters from Jotai atoms
+  const currentFilters = useAtomValue(currentFiltersAtom);
+  const currentFilterGroups = useAtomValue(currentFilterGroupsAtom);
+  const currentInterGroupLogic = useAtomValue(currentInterGroupLogicAtom);
+
+  // Server-side search - searches within the current filtered view (SSoT approach)
+  // Sends both search term AND view filters to backend for combined SQL query
+  // Features: request cancellation, pre-search data caching, instant restore on clear
+  const handleServerSearch = useCallback(async (searchTerm: string) => {
+    if (!foundation) return;
+
+    // Cancel any pending search request (prevents race conditions)
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+
+    // If clearing search, restore cached pre-search data instantly (no API call needed)
+    if (!searchTerm || searchTerm.trim() === "") {
+      if (preSearchDataRef.current) {
+        setRecords(preSearchDataRef.current.records);
+        setTotalCount(preSearchDataRef.current.totalCount);
+        setHasMore(preSearchDataRef.current.hasMore);
+        preSearchDataRef.current = null; // Clear cache after restore
+      }
+      setIsSearching(false);
+      return;
+    }
+
+    // Cache current data before first search (so we can restore on clear)
+    if (!preSearchDataRef.current) {
+      preSearchDataRef.current = { records, totalCount, hasMore };
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
+
+    setIsSearching(true);
+
+    try {
+      // Build params with search + current view filters (SSoT: backend does filtering + search)
+      const params: Record<string, string | number> = {
+        search: searchTerm,
+        limit: 100  // Return first 100 search results
+      };
+
+      // Include view filters if present (so search only searches within current view)
+      if (currentFilters.length > 0) {
+        params.filters = JSON.stringify(currentFilters);
+        params.filter_groups = JSON.stringify(currentFilterGroups);
+        params.inter_group_logic = currentInterGroupLogic;
+      }
+
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number, total_count?: number }>(
+        `/api/v1/foundations/${foundation.id}/records`,
+        { params, signal: abortController.signal }
+      );
+
+      // Only update if this request wasn't aborted
+      if (!abortController.signal.aborted) {
+        setRecords(deduplicateRecords(response.records || []));
+        setHasMore(response.has_more ?? false);
+        if (response.total_count !== undefined) {
+          setTotalCount(response.total_count);
+        }
+      }
+    } catch (error) {
+      // Ignore abort errors (expected when user types quickly)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
+      console.error("[ContactsPageClient] Search failed:", error);
+    } finally {
+      // Only clear loading if this is still the current request
+      if (searchAbortControllerRef.current === abortController) {
+        setIsSearching(false);
+      }
+    }
+  }, [foundation, records, totalCount, hasMore, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic]);
+
+  // Load more records (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (!foundation || !hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+
+    try {
+      const lastRecord = records[records.length - 1];
+      const cursor = lastRecord?.id;
+
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
+        `/api/v1/foundations/${foundation.id}/records`,
+        {
+          params: {
+            cursor,
+            limit: 100  // Fetch 100 more records
+          }
+        }
+      );
+
+      // Append new records to existing ones (with deduplication)
+      setRecords(prev => deduplicateRecords([...prev, ...(response.records || [])]));
+      setHasMore(response.has_more ?? false);
+    } catch (error) {
+      console.error("[ContactsPageClient] Failed to load more:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [foundation, records, hasMore, isLoadingMore, deduplicateRecords]);
+
+  // Load ALL remaining records (loops until hasMore is false)
+  const loadAll = useCallback(async () => {
+    if (!foundation || !hasMore || isLoadingMore) {
+      console.log('[ContactsPageClient] loadAll aborted:', { foundation: !!foundation, hasMore, isLoadingMore });
+      return;
+    }
+
+    console.log('[ContactsPageClient] 🔄 Starting loadAll - Initial records:', records.length);
+    setIsLoadingMore(true);
+    let keepLoading = true;
+    let currentRecords = records;
+    let iteration = 0;
+
+    try {
+      while (keepLoading) {
+        iteration++;
+        const lastRecord = currentRecords[currentRecords.length - 1];
+        const cursor = lastRecord?.id;
+
+        console.log(`[ContactsPageClient] 📥 Iteration ${iteration}: Fetching with cursor=${cursor}, current total: ${currentRecords.length}`);
+
+        const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
+          `/api/v1/foundations/${foundation.id}/records`,
+          {
+            params: {
+              cursor,
+              limit: 100
+            }
+          }
+        );
+
+        const newRecords = response.records || [];
+        console.log(`[ContactsPageClient] 📦 Iteration ${iteration}: Received ${newRecords.length} records, has_more=${response.has_more}`);
+
+        // CRITICAL: Deduplicate after appending to prevent duplicate IDs in UI
+        const beforeDedup = currentRecords.length + newRecords.length;
+        currentRecords = deduplicateRecords([...currentRecords, ...newRecords]);
+        console.log(`[ContactsPageClient] 🔍 Iteration ${iteration}: After dedup: ${currentRecords.length} (removed ${beforeDedup - currentRecords.length} duplicates)`);
+
+        setRecords(currentRecords);
+
+        keepLoading = response.has_more ?? false;
+        setHasMore(keepLoading);
+
+        if (!keepLoading) {
+          console.log(`[ContactsPageClient] ✅ LoadAll complete: Loaded ${currentRecords.length} total records (expected ~1216)`);
+        }
+
+        // Small delay to avoid hammering the API
+        if (keepLoading) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      toast({
+        title: "All contacts loaded",
+        description: `Loaded ${currentRecords.length} total contacts`,
+      });
+    } catch (error) {
+      console.error("[ContactsPageClient] ❌ Failed to load all:", error);
+      console.error("[ContactsPageClient] ❌ Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        iteration,
+        currentRecordsCount: currentRecords.length,
+        error
+      });
+      toast({
+        title: "Load failed",
+        description: `Failed after loading ${currentRecords.length} contacts`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [foundation, records, hasMore, isLoadingMore, toast, deduplicateRecords]);
+
+  // Refresh function to reload data (resets to first page)
   const refresh = useCallback(async () => {
     console.log('[ContactsPageClient] Refresh called');
     if (!foundation) {
@@ -104,36 +330,34 @@ export default function ContactsPageClient({
 
     try {
       console.log('[ContactsPageClient] Fetching records from API...');
-      console.log('[ContactsPageClient] Foundation ID:', foundation.id);
-      console.log('[ContactsPageClient] Current records count:', records.length);
 
       // Small delay to ensure backend transaction commits
       await new Promise(resolve => setTimeout(resolve, 200));
 
       const timestamp = Date.now();
-      console.log('[ContactsPageClient] Cache buster timestamp:', timestamp);
 
-      const response = await api.get<{ records: TTableRow[] }>(
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, total_count?: number }>(
         `/api/v1/foundations/${foundation.id}/records`,
         {
           params: {
-            per_page: 10000,  // Fetch all records (increased from 500)
+            limit: 100,        // Initial load: first 100 records (FAST!)
             _t: timestamp      // Cache buster to ensure fresh data
           },
           dedupe: false        // Disable request deduplication to force fresh data
         }
       );
-      console.log('[ContactsPageClient] API response received');
-      console.log('[ContactsPageClient] New records count:', response.records?.length || 0);
-      console.log('[ContactsPageClient] First 5 record IDs:', response.records?.slice(0, 5).map(r => r.id) || []);
-      console.log('[ContactsPageClient] Setting records...');
-      setRecords(response.records || []);
-      console.log('[ContactsPageClient] Records state updated');
+
+      setRecords(deduplicateRecords(response.records || []));
+      setHasMore(response.has_more ?? true);
+      // Update total count if provided (first request includes it)
+      if (response.total_count !== undefined) {
+        setTotalCount(response.total_count);
+      }
       console.log('[ContactsPageClient] Refresh complete!');
     } catch (error) {
       console.error("[ContactsPageClient] Failed to refresh:", error);
     }
-  }, [foundation]);
+  }, [foundation, deduplicateRecords]);
 
   // Check if we need to refresh after returning from detail page
   useEffect(() => {
@@ -144,18 +368,37 @@ export default function ContactsPageClient({
     }
   }, [refresh]);
 
-  const handleMergeComplete = () => {
+  // DISABLED: Auto-load was loading 1,178 contacts on every page load (wasteful!)
+  // Now user clicks "Load All" button when they want to load everything
+  // useEffect(() => {
+  //   if (hasStartedAutoLoad.current || currentFilters.length > 0) return;
+  //   if (!foundation || !hasMore) return;
+  //   hasStartedAutoLoad.current = true;
+  //   const timer = setTimeout(() => loadAll(), 500);
+  //   return () => clearTimeout(timer);
+  // }, [foundation]);
+
+  const handleMergeComplete = useCallback((mergedContactIds: number[], primaryContactId: number) => {
+    console.log('[ContactsPageClient] Merge complete - removing contacts:', mergedContactIds);
     setSelectedForMerge([]);
-    refresh();
-  };
 
-  // Handle row click - navigate to contact detail
-  const handleRowClick = useCallback((row: TTableRow) => {
-    const contact = row as unknown as Contact;
-    router.push(`/contacts/${contact.id}`);
-  }, [router]);
+    // Optimistically remove merged contacts from state (no need to reload all 1,178 contacts!)
+    setRecords(prev => prev.filter(r => !mergedContactIds.includes(Number(r.id))));
 
-  // Handle row double-click
+    // Update total count
+    if (totalCount !== null) {
+      setTotalCount(totalCount - mergedContactIds.length);
+    }
+
+    toast({
+      title: "Contacts merged",
+      description: `${mergedContactIds.length} contact(s) merged successfully`,
+    });
+  }, [totalCount, toast]);
+
+  // Handle row double-click - navigate to contact detail
+  // NOTE: Single-click is disabled to allow row selection and inline editing
+  // Double-click is the standard way to open a record in a table
   const handleRowDoubleClick = useCallback((row: TTableRow) => {
     const contact = row as unknown as Contact;
     router.push(`/contacts/${contact.id}`);
@@ -355,7 +598,9 @@ export default function ContactsPageClient({
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {records.length.toLocaleString()} contacts
+            {totalCount !== null
+              ? `${totalCount.toLocaleString()} contacts`
+              : `${records.length.toLocaleString()}+ contacts`}
           </p>
         </div>
         {currentView?.view_type === "relational" && (
@@ -382,6 +627,7 @@ export default function ContactsPageClient({
           <TeeemTableView
             entries={records}
             columns={columns}
+            totalCount={totalCount}
             foundationId="contacts"
             foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || "Contacts"}
@@ -389,13 +635,18 @@ export default function ContactsPageClient({
             enableImport={true}
             onDataHealthIssueClick={handleDataHealthIssueClick}
             onRefresh={refresh}
-            onRowClick={handleRowClick}
             onRowDoubleClick={handleRowDoubleClick}
             onRowUpdate={handleRowUpdate}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
             leftActions={leftActions}
             onViewChange={handleViewChange}
+            onServerSearch={handleServerSearch}
+            serverSearchLoading={isSearching}
+            loadingMore={isLoadingMore}
+            onLoadMore={loadMore}
+            onLoadAll={loadAll}
+            hasMore={hasMore}
           />
         )}
       </div>

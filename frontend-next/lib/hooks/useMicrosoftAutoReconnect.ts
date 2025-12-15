@@ -75,7 +75,8 @@ export function useMicrosoftAutoReconnect(
   const [isReconnecting, setIsReconnecting] = useState(false);
   const attemptCountRef = useRef(0);
   const popupRef = useRef<Window | null>(null);
-  const hasTriedAutoReconnectRef = useRef(false);
+  const lastAttemptTimeRef = useRef<number>(0);
+  const RATE_LIMIT_MS = 5 * 60 * 1000; // 5 minutes between auto-reconnect attempts
 
   // Update status and notify
   const updateStatus = useCallback(
@@ -93,7 +94,6 @@ export function useMicrosoftAutoReconnect(
       if (event.data?.type !== "microsoft-oauth-callback") return;
 
       setIsReconnecting(false);
-      hasTriedAutoReconnectRef.current = false; // Reset for future attempts
 
       if (event.data.success) {
         attemptCountRef.current = 0;
@@ -137,7 +137,14 @@ export function useMicrosoftAutoReconnect(
   // Attempt auto-reconnect via popup
   const attemptAutoReconnect = useCallback(async () => {
     if (isReconnecting) return;
-    if (attemptCountRef.current >= maxAttempts) return;
+
+    // Rate limiting: Don't attempt if we tried recently (within last 5 minutes)
+    const now = Date.now();
+    const timeSinceLastAttempt = now - lastAttemptTimeRef.current;
+    if (timeSinceLastAttempt < RATE_LIMIT_MS) {
+      console.info(`[MicrosoftAutoReconnect] Rate limited - last attempt ${Math.round(timeSinceLastAttempt / 1000)}s ago`);
+      return;
+    }
 
     try {
       // Get auth URL from backend
@@ -149,6 +156,7 @@ export function useMicrosoftAutoReconnect(
       }
 
       setIsReconnecting(true);
+      lastAttemptTimeRef.current = now; // Record attempt time
       attemptCountRef.current++;
       onReconnectStart?.();
 
@@ -199,9 +207,9 @@ export function useMicrosoftAutoReconnect(
 
   // Manual trigger for reconnect
   const triggerReconnect = useCallback(async () => {
-    // Reset attempt count for manual trigger
+    // Reset rate limit for manual trigger (allow immediate retry)
     attemptCountRef.current = 0;
-    hasTriedAutoReconnectRef.current = false;
+    lastAttemptTimeRef.current = 0;
     await attemptAutoReconnect();
   }, [attemptAutoReconnect]);
 
@@ -217,18 +225,14 @@ export function useMicrosoftAutoReconnect(
       // 2. refresh_token_dead is true (not a transient error)
       // 3. can_auto_reconnect is true (backend has OAuth configured)
       // 4. Not already reconnecting
-      // 5. Haven't exceeded max attempts
-      // 6. Haven't already tried auto-reconnect this session
+      // 5. Rate limit allows retry (checked inside attemptAutoReconnect)
       if (
         currentStatus?.needs_reconnect &&
         currentStatus?.refresh_token_dead &&
         currentStatus?.can_auto_reconnect &&
-        !isReconnecting &&
-        attemptCountRef.current < maxAttempts &&
-        !hasTriedAutoReconnectRef.current
+        !isReconnecting
       ) {
         console.info("[MicrosoftAutoReconnect] Auto-reconnecting...");
-        hasTriedAutoReconnectRef.current = true;
         attemptAutoReconnect();
       }
     };
@@ -236,9 +240,12 @@ export function useMicrosoftAutoReconnect(
     // Initial check
     checkAndAutoReconnect();
 
-    // Note: We don't poll here - HeaderBar handles polling for status.
-    // This hook only triggers auto-reconnect on initial load if needed.
-  }, [enabled, maxAttempts, isReconnecting, refreshStatus, attemptAutoReconnect]);
+    // CONTINUOUS HEALING: Poll every 30 seconds to catch issues proactively
+    // This ensures we heal BEFORE the user ever sees orange
+    const interval = setInterval(checkAndAutoReconnect, 30000);
+
+    return () => clearInterval(interval);
+  }, [enabled, isReconnecting, refreshStatus, attemptAutoReconnect]);
 
   return {
     isReconnecting,

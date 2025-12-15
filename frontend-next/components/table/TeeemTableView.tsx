@@ -561,6 +561,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
 export default function TeeemTableView({
   entries = [],
   columns = null,
+  totalCount = null,
   foundationId = "default",
   foundationIdNumeric = null,
   tableName = "Table",
@@ -605,6 +606,9 @@ export default function TeeemTableView({
   serverSearchLoading = false,
   onViewApiParamsChange,
   loadingMore = false,
+  onLoadMore,
+  onLoadAll,
+  hasMore: serverHasMore = false,
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -637,6 +641,22 @@ export default function TeeemTableView({
   // ============================================================================
   const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
   const [columnsLoading, setColumnsLoading] = useState(false);
+
+  // ============================================================================
+  // AUTO-FETCH RECORDS WITH INFINITE SCROLL (GOLD STANDARD)
+  // When foundationIdNumeric is set AND entries prop is empty/not provided,
+  // TeeemTableView manages its own data fetching with cursor-based pagination
+  // ============================================================================
+  const [autoFetchedRecords, setAutoFetchedRecords] = useState<TableRowType[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // CRITICAL: Determine auto-fetch mode ONCE on mount, not on every render
+  // This prevents mode-switching when search returns 0 results (entries.length === 0)
+  // The mode is: "use auto-fetch if we were NOT given initial data"
+  const initialEntriesProvidedRef = useRef(entries.length > 0);
+  const useAutoFetch = foundationIdNumeric && !initialEntriesProvidedRef.current;
 
   // Auto-fetch columns when foundationIdNumeric is set
   useEffect(() => {
@@ -690,8 +710,86 @@ export default function TeeemTableView({
     fetchColumns();
   }, [foundationIdNumeric, columns]);
 
+  // Auto-fetch records when foundationIdNumeric is set AND entries not provided
+  useEffect(() => {
+    if (!useAutoFetch) return;
+
+    const fetchInitialRecords = async () => {
+      setIsLoadingMore(true);
+      try {
+        const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+          `/api/v1/foundations/${foundationIdNumeric}/records`,
+          { params: { limit: 100 } }
+        );
+        setAutoFetchedRecords(response.records || []);
+        setHasMore(response.has_more ?? true);
+      } catch (error) {
+        console.error(`[TeeemTableView] Failed to fetch records for Foundation #${foundationIdNumeric}:`, error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    };
+
+    fetchInitialRecords();
+  }, [useAutoFetch, foundationIdNumeric]);
+
+  // Auto-load more records in background after initial render
+  useEffect(() => {
+    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      if (!hasMore || isLoadingMore) return;
+
+      const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
+      const cursor = lastRecord?.id;
+
+      setIsLoadingMore(true);
+      try {
+        const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+          `/api/v1/foundations/${foundationIdNumeric}/records`,
+          { params: { cursor, limit: 100 } }
+        );
+        setAutoFetchedRecords(prev => [...prev, ...(response.records || [])]);
+        setHasMore(response.has_more ?? false);
+      } catch (error) {
+        console.error(`[TeeemTableView] Failed to load more records:`, error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    }, 2000); // Wait 2 seconds before auto-loading more
+
+    return () => clearTimeout(timer);
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, foundationIdNumeric]);
+
+  // Server-side search for auto-fetch mode
+  const handleAutoFetchSearch = useCallback(async (searchTerm: string) => {
+    if (!useAutoFetch) return;
+
+    setIsSearching(true);
+    try {
+      const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+        `/api/v1/foundations/${foundationIdNumeric}/records`,
+        { params: { search: searchTerm, limit: 100 } }
+      );
+      setAutoFetchedRecords(response.records || []);
+      setHasMore(response.has_more ?? false);
+    } catch (error) {
+      console.error(`[TeeemTableView] Search failed:`, error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [useAutoFetch, foundationIdNumeric]);
+
   // Use Foundation columns when available (SSoT), otherwise fall back to props
   const effectiveColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+
+  // Use auto-fetched records when in auto-fetch mode, otherwise use entries prop
+  const effectiveEntries = useAutoFetch ? autoFetchedRecords : entries;
+
+  // Use auto-fetch search handler when in auto-fetch mode, otherwise use provided handler
+  const effectiveOnServerSearch = useAutoFetch ? handleAutoFetchSearch : onServerSearch;
+  const effectiveServerSearchLoading = useAutoFetch ? isSearching : serverSearchLoading;
+  const effectiveLoadingMore = useAutoFetch ? isLoadingMore : loadingMore;
 
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
@@ -721,8 +819,8 @@ export default function TeeemTableView({
     if (hasEmailColumn) return true;
 
     // Check if any entry has email-related fields in the data
-    if (entries && entries.length > 0) {
-      const firstEntry = entries[0];
+    if (effectiveEntries && effectiveEntries.length > 0) {
+      const firstEntry = effectiveEntries[0];
       const hasEmailFields =
         'from_email' in firstEntry ||
         'to_emails' in firstEntry ||
@@ -733,7 +831,7 @@ export default function TeeemTableView({
     }
 
     return false;
-  }, [COLUMNS, entries]);
+  }, [COLUMNS, effectiveEntries]);
 
   // Sticky columns configuration - columns that stay fixed on horizontal scroll
   // Order matters: select first (leftmost), then id, then name
@@ -927,6 +1025,9 @@ export default function TeeemTableView({
   // Email to Contacts modal state (local state)
   const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
 
+  // ABN search state
+  const [isFindingAbns, setIsFindingAbns] = useState(false);
+
   // Drag-to-select state (using refs to avoid re-renders)
   const dragStateRef = useRef<{
     isDragging: boolean;
@@ -940,6 +1041,28 @@ export default function TeeemTableView({
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
+  // ============================================================================
+  // INFINITE SCROLL - Detect when user scrolls near bottom and trigger onLoadMore
+  // ============================================================================
+  useEffect(() => {
+    if (!onLoadMore || loadingMore) return;
+
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Trigger when within 300px of bottom
+      const nearBottom = scrollTop + clientHeight >= scrollHeight - 300;
+
+      if (nearBottom && !loadingMore) {
+        onLoadMore();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [onLoadMore, loadingMore]);
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);
@@ -949,6 +1072,30 @@ export default function TeeemTableView({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Handle Find Missing ABNs button click
+  const handleFindMissingAbns = useCallback(async () => {
+    setIsFindingAbns(true);
+    try {
+      const response = await api.post("/api/v1/contacts/find_missing_abns") as { data: { found?: number; not_found?: number; multiple_matches?: number } };
+      toast({
+        title: "ABN Search Started",
+        description: `Searching for missing ABNs in the background. Found: ${response.data.found || 0}, Not found: ${response.data.not_found || 0}, Multiple matches: ${response.data.multiple_matches || 0}`,
+      });
+      // Refresh the table to show updated ABNs
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (error: any) {
+      toast({
+        title: "ABN Search Failed",
+        description: error.response?.data?.error || "Failed to start ABN search",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFindingAbns(false);
+    }
+  }, [toast, onRefresh]);
 
   // Handle column drag end for reordering
   const handleColumnDragEnd = useCallback((event: DragEndEvent) => {
@@ -1032,21 +1179,21 @@ export default function TeeemTableView({
   const handleSearchFromInput = useCallback(
     (value: string) => {
       setSearch(value);
-      if (onServerSearch) {
-        onServerSearch(value, searchAllColumns);
+      if (effectiveOnServerSearch) {
+        effectiveOnServerSearch(value, searchAllColumns);
       }
     },
-    [onServerSearch, searchAllColumns]
+    [effectiveOnServerSearch, searchAllColumns]
   );
 
   const handleSearchAllChange = useCallback(
     (checked: boolean) => {
       setSearchAllColumns(checked);
-      if (onServerSearch && search) {
+      if (effectiveOnServerSearch && search && onServerSearch) {
         onServerSearch(search, checked);
       }
     },
-    [onServerSearch, search]
+    [onServerSearch, search, effectiveOnServerSearch]
   );
 
   // Column resize handler
@@ -1173,7 +1320,7 @@ export default function TeeemTableView({
 
   // Clear callback cache when rows change to prevent memory leaks
   React.useEffect(() => {
-    const currentIds = new Set(entries.map(e => e.id));
+    const currentIds = new Set(effectiveEntries.map(e => e.id));
     const cachedIds = Array.from(toggleCallbacksRef.current.keys());
     cachedIds.forEach(id => {
       if (!currentIds.has(id)) {
@@ -1380,7 +1527,7 @@ export default function TeeemTableView({
   const startMultiEditing = useCallback((rowIds: (number | string)[]) => {
     const newEditingData: Record<string | number, Record<string, unknown>> = {};
     rowIds.forEach(id => {
-      const row = entries.find(e => e.id === id);
+      const row = effectiveEntries.find(e => e.id === id);
       if (row) {
         newEditingData[id] = { ...row };
       }
@@ -1453,7 +1600,7 @@ export default function TeeemTableView({
       const rowsToUpdate: Array<{ rowId: number | string; changes: Record<string, unknown> }> = [];
 
       for (const rowId of editingRowIds) {
-        const originalRow = entries.find((e) => e.id === rowId);
+        const originalRow = effectiveEntries.find((e) => e.id === rowId);
         const rowData = editingData[rowId];
         if (!originalRow || !rowData) continue;
 
@@ -1918,9 +2065,10 @@ export default function TeeemTableView({
   );
 
   // Filter and sort entries
+  // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
     const startTime = performance.now();
-    let result = [...entries];
+    let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
     if (pendingDeleteIds.size > 0) {
@@ -1941,8 +2089,11 @@ export default function TeeemTableView({
       });
     }
 
-    // Apply cascade filters
-    if (safeFilters.length > 0) {
+    // Apply cascade filters (skip if server search is active - SSoT: backend handles filtering)
+    // When server search is active (onServerSearch exists AND search term present),
+    // the backend applies both filters + search in a single SQL query
+    const skipClientFilters = onServerSearch && search;
+    if (safeFilters.length > 0 && !skipClientFilters) {
       // Pre-compute filter groups ONCE outside the row loop (performance optimization)
       const filtersByGroup = safeFilters.reduce((acc, filter) => {
         const groupId = filter.groupId || "default";
@@ -2011,10 +2162,21 @@ export default function TeeemTableView({
             const aPos = aIndex === -1 ? customOrder.length : aIndex;
             const bPos = bIndex === -1 ? customOrder.length : bIndex;
             comparison = aPos - bPos;
-          } else if (typeof aVal === "number" && typeof bVal === "number") {
-            comparison = aVal - bVal;
           } else {
-            comparison = aDisplay.localeCompare(bDisplay);
+            // Check if column is an Australian identifier type that needs numeric sorting
+            const columnMeta = COLUMNS.find(c => c.key === column);
+            const australianIdTypes = ['abn', 'acn', 'bsb', 'tfn', 'postcode'];
+
+            if (columnMeta && australianIdTypes.includes(columnMeta.column_type || '')) {
+              // Strip non-digits and compare numerically for Australian identifiers
+              const aNum = parseInt(String(aVal).replace(/\D/g, ''), 10);
+              const bNum = parseInt(String(bVal).replace(/\D/g, ''), 10);
+              comparison = aNum - bNum;
+            } else if (typeof aVal === "number" && typeof bVal === "number") {
+              comparison = aVal - bVal;
+            } else {
+              comparison = aDisplay.localeCompare(bDisplay);
+            }
           }
 
           if (comparison !== 0) {
@@ -2026,9 +2188,9 @@ export default function TeeemTableView({
     }
 
     return result;
-     
+
   }, [
-    entries,
+    effectiveEntries,
     search,
     onServerSearch,
     COLUMNS,
@@ -3318,7 +3480,14 @@ export default function TeeemTableView({
                 colSpan={visibleColumnsInOrder.length}
                 className="h-24 text-center text-muted-foreground"
               >
-                No records found.
+                {serverSearchLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <span>Searching...</span>
+                  </div>
+                ) : (
+                  "No records found."
+                )}
               </TableCell>
             </TableRow>
           ) : (
@@ -3654,6 +3823,16 @@ export default function TeeemTableView({
                     <UserPlus className="h-4 w-4 mr-2" />
                     Extract Contacts from Emails
                   </DropdownMenuItem>
+                  {(foundationId === "contacts" || foundationIdNumeric === 214) && (
+                    <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
+                      {isFindingAbns ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4 mr-2" />
+                      )}
+                      Find Missing ABNs
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
 
@@ -4015,6 +4194,21 @@ export default function TeeemTableView({
         </div>
       )}
 
+      {/* Load All button - shows when there are more records to load from server */}
+      {!loadingMore && serverHasMore && onLoadAll && (
+        <div className="flex items-center justify-center p-2 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLoadAll}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length} remaining)` : 'Remaining Records'}
+          </Button>
+        </div>
+      )}
+
       {/* Table - scrollable container with max height so scrollbar stays visible */}
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
       <div
@@ -4041,7 +4235,7 @@ export default function TeeemTableView({
         <div className="flex items-center gap-3 text-[11px]">
           {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
           <span>
-            Showing {filteredAndSortedEntries.length} of {entries.length} records
+            Showing {filteredAndSortedEntries.length} of {totalCount ?? entries.length} records
           </span>
         </div>
       </div>

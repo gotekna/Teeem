@@ -120,6 +120,128 @@ namespace :contacts do
       end
     end
 
+    desc "Find missing ABNs by searching company names"
+    task find_missing: :environment do
+      unless ENV["ABR_GUID"].present?
+        puts "ERROR: ABR_GUID environment variable not set."
+        puts "Register at https://abr.business.gov.au/RegisterAgreement.aspx to get your GUID"
+        exit 1
+      end
+
+      puts "Finding missing ABNs by company name..."
+      puts ""
+
+      # Get contacts without ABNs (excluding individuals)
+      contacts_without_abn = Contact.where(tax_number: [ nil, "" ])
+                                   .where.not(display_name: [ nil, "" ])
+
+      total = contacts_without_abn.count
+      puts "Found #{total} contacts without ABN"
+
+      if total == 0
+        puts "All contacts have ABNs!"
+        exit 0
+      end
+
+      found = 0
+      not_found = 0
+      multiple_matches = 0
+      skipped = 0
+      api_errors = 0
+
+      service = AbrApiService.new
+
+      contacts_without_abn.find_each.with_index do |contact, index|
+        # Skip if display_name looks like a person's name
+        if contact.display_name.match?(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
+          skipped += 1
+          puts "#{index + 1}/#{total}: #{contact.display_name} - SKIPPED (individual name)"
+          next
+        end
+
+        begin
+          results = service.search_by_name(contact.display_name)
+
+          if results.empty?
+            not_found += 1
+            puts "#{index + 1}/#{total}: #{contact.display_name} - NOT FOUND"
+          elsif results.length == 1
+            # Single match - high confidence
+            match = results.first
+            contact.update!(tax_number: match[:abn])
+            found += 1
+            puts "#{index + 1}/#{total}: #{contact.display_name} - FOUND: #{match[:abn_formatted]} (#{match[:name]})"
+
+            # Auto-verify the new ABN
+            sleep(0.5)
+            contact.verify_abn! rescue nil
+          else
+            # Multiple matches - show top 3
+            multiple_matches += 1
+            puts "#{index + 1}/#{total}: #{contact.display_name} - MULTIPLE MATCHES (#{results.length}):"
+            results.first(3).each do |match|
+              puts "  - #{match[:abn_formatted]}: #{match[:name]} (score: #{match[:score]})"
+            end
+          end
+        rescue AbrApiService::ApiError => e
+          api_errors += 1
+          puts "#{index + 1}/#{total}: #{contact.display_name} - API ERROR: #{e.message}"
+        end
+
+        # Rate limiting
+        sleep(0.5)
+      end
+
+      puts "\n=== Search Complete ==="
+      puts "Found and updated: #{found}"
+      puts "Not found: #{not_found}"
+      puts "Multiple matches (manual review needed): #{multiple_matches}"
+      puts "Skipped (individuals): #{skipped}"
+      puts "API errors: #{api_errors}"
+
+      if multiple_matches > 0
+        puts "\nNote: Contacts with multiple matches need manual review."
+        puts "Check the output above for suggested ABNs."
+      end
+    end
+
+    desc "Search for ABN by company name (interactive)"
+    task :search, [ :name ] => :environment do |t, args|
+      unless args[:name]
+        puts "Usage: rake contacts:abn:search['Company Name']"
+        puts "Example: rake contacts:abn:search['Australian Taxation Office']"
+        exit 1
+      end
+
+      unless ENV["ABR_GUID"].present?
+        puts "ERROR: ABR_GUID environment variable not set."
+        exit 1
+      end
+
+      service = AbrApiService.new
+      puts "Searching for: #{args[:name]}"
+      puts ""
+
+      begin
+        results = service.search_by_name(args[:name])
+
+        if results.empty?
+          puts "No results found"
+        else
+          puts "=== Search Results (#{results.length}) ==="
+          results.each_with_index do |match, index|
+            puts "\n#{index + 1}. #{match[:name]}"
+            puts "   ABN: #{match[:abn_formatted]}"
+            puts "   Trading Names: #{match[:trading_names].join(', ')}" if match[:trading_names].any?
+            puts "   Location: #{match[:state]} #{match[:postcode]}" if match[:state].present?
+            puts "   Relevance Score: #{match[:score]}"
+          end
+        end
+      rescue AbrApiService::AbrError => e
+        puts "ERROR: #{e.message}"
+      end
+    end
+
     desc "Test ABN lookup (single ABN)"
     task :test, [ :abn ] => :environment do |t, args|
       unless args[:abn]

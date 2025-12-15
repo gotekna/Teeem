@@ -125,11 +125,7 @@ class ContactQualityActionService
         company_name_or_trust: company_name,
         display_name: company_name,
         email_domains: [@review.email_domain].compact,
-        tax_number: @review.abr_data&.dig("abn"),
-        abn_entity_name: @review.abr_data&.dig("entity_name"),
-        abn_entity_type: @review.abr_data&.dig("entity_type_description"),
-        abn_valid: @review.abr_data&.dig("valid"),
-        abn_verified_at: @review.abr_data.present? ? Time.current : nil
+        tax_number: @review.abr_data&.dig("abn")
       )
 
       # Create employee_of relationship
@@ -195,15 +191,8 @@ class ContactQualityActionService
   end
 
   def update_abn_fields
-    return unless @review.abr_data.present?
-
-    @contact.update!(
-      abn_entity_name: @review.abr_data["entity_name"],
-      abn_entity_type: @review.abr_data["entity_type_description"],
-      abn_gst_registered: @review.abr_data["gst_registered"],
-      abn_valid: @review.abr_data["valid"],
-      abn_verified_at: Time.current
-    )
+    # ABN cache columns not implemented yet - skip for now
+    # Future: Add abn_entity_name, abn_entity_type, abn_valid, abn_verified_at columns to contacts
   end
 
   def parse_person_name(name)

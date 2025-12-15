@@ -81,9 +81,8 @@ function TablePageContent() {
       } else {
         console.warn("[TablePage] Pricebook item missing item_code:", row);
       }
-    } else if (tableId === TABLE_IDS.COMPANIES) {
-      router.push(`/companies/${row.id}`);
     } else {
+      // Companies use /corporate routes, not Foundation-based [slug] pages
       console.log("[TablePage] No detail page for table:", tableId);
     }
   };
@@ -142,9 +141,7 @@ function TablePageContent() {
       case TABLE_IDS.CONTACTS:
         router.push(`/contacts/${row.id}`);
         break;
-      case TABLE_IDS.COMPANIES:
-        router.push(`/companies/${row.id}`);
-        break;
+      // Companies use /corporate routes, not Foundation-based [slug] pages
       default:
         // For other tables, use the slug-based URL with item ID
         router.push(`/${cleanSlug}/${row.id}`);

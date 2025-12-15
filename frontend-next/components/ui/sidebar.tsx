@@ -33,6 +33,7 @@ import {
   Scale,
   History,
   Workflow,
+  Loader2,
 } from "lucide-react";
 import {
   Persona,
@@ -96,6 +97,7 @@ export function Sidebar() {
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
   const [deployedAt, setDeployedAt] = useState<string | null>(null);
+  const [loadingHref, setLoadingHref] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -103,6 +105,11 @@ export function Sidebar() {
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
+
+  // Clear loading state when navigation completes (pathname changes)
+  useEffect(() => {
+    setLoadingHref(null);
+  }, [pathname]);
 
   // Load persona from localStorage on mount
   useEffect(() => {
@@ -233,7 +240,7 @@ export function Sidebar() {
       {/* Logo - only on mobile sheet */}
       {mobile && (
         <div className="h-[70px] flex items-center border-b border-border px-4">
-          <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+          <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
             <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center shrink-0">
               t
             </div>
@@ -248,11 +255,14 @@ export function Sidebar() {
           const Icon = item.icon;
           const active = isActive(item.href);
           const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
+          const isLoading = loadingHref === item.href;
 
           return (
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
+              onClick={() => !active && setLoadingHref(item.href)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 transition-colors relative group",
                 active
@@ -261,7 +271,11 @@ export function Sidebar() {
               )}
             >
               <div className="relative shrink-0">
-                <Icon size={16} />
+                {isLoading ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <Icon size={16} />
+                )}
                 {badgeCount > 0 && !isExpanded && !mobile && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {badgeCount > 9 ? "9+" : badgeCount}
@@ -271,7 +285,8 @@ export function Sidebar() {
               <span
                 className={cn(
                   "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
-                  isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
+                  isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+                  isLoading && "opacity-50"
                 )}
               >
                 {item.name}
@@ -359,6 +374,7 @@ export function Sidebar() {
             <div className="flex flex-col gap-1">
               <Link
                 href="/profile"
+                prefetch={false}
                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
               >
                 <Users className="h-4 w-4" />
@@ -366,6 +382,7 @@ export function Sidebar() {
               </Link>
               <Link
                 href="/settings"
+                prefetch={false}
                 className="flex items-center gap-2 px-3 py-2 text-sm rounded-md hover:bg-secondary transition-colors"
               >
                 <Settings className="h-4 w-4" />
@@ -402,7 +419,7 @@ export function Sidebar() {
     <>
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background z-50 flex items-center px-4 justify-between">
-        <Link href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+        <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
           <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center">
             t
           </div>

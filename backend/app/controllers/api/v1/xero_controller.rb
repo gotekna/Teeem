@@ -1426,7 +1426,7 @@ module Api
           # ============================================
           # STAGE 1: Invoice DATA Sync (Xero -> Database)
           # ============================================
-          base_scope = tenant_id.present? ? ExternalInvoice.where(tenant_id: tenant_id) : ExternalInvoice
+          base_scope = tenant_id.present? ? ExternalInvoice.active.where(tenant_id: tenant_id) : ExternalInvoice.active
           total_invoices_in_db = base_scope.count
           invoices_with_contacts = base_scope.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
@@ -1651,8 +1651,8 @@ module Api
           # Stage 3 blocker info
           stage3_blocker = if sharepoint_pending > 0
             {
-              reason: "Waiting for PDF downloads",
-              detail: "SharePoint uploads happen automatically when PDFs are downloaded",
+              reason: "Uploading to SharePoint",
+              detail: "#{sharepoint_pending} PDFs queued for SharePoint upload",
               pending_count: sharepoint_pending
             }
           else

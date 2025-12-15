@@ -114,13 +114,13 @@ class XeroContactValidator
   end
 
   def validate_tax_number_format
-    return if contact.tax_number.blank?
+    return if contact.abn.blank?
 
     # ABN/ACN validation using existing AbrApiService
-    unless AbrApiService.valid_format?(contact.tax_number)
+    unless AbrApiService.valid_format?(contact.abn)
       @errors << {
-        field: :tax_number,
-        message: "Tax number (ABN/ACN) format is invalid: #{contact.tax_number}"
+        field: :abn,
+        message: "Tax number (ABN/ACN) format is invalid: #{contact.abn}"
       }
     end
   end

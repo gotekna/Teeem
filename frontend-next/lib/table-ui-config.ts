@@ -5,13 +5,14 @@
  * This is separate from the Foundation data which comes from the API.
  */
 
-// Hardcoded table IDs (these are stable in production)
+// Hardcoded table IDs (Foundation-based tables only)
+// NOTE: COMPANIES (353) removed - Foundation doesn't exist.
+// Corporate uses CorporateCompany Rails model directly.
 const HARDCODED_TABLE_IDS = {
   GOLD_STANDARD: 1,
   JOBS: 204,
   PRICEBOOK: 205,
   CONTACTS: 214,
-  COMPANIES: 353,
   FEATURES_TRACKING: 428,
 };
 
@@ -95,11 +96,8 @@ export const TABLE_UI_CONFIG: Record<number, TableUIConfig> = {
     enableSchemaEditor: true,
   },
 
-  // Companies
-  [HARDCODED_TABLE_IDS.COMPANIES]: {
-    enableExport: true,
-    rowClickBehavior: 'view',
-  },
+  // Companies - removed, uses CorporateCompany Rails model not Foundation
+  // Config for corporate is in use-corporate-table.ts
 
   // Features Tracking
   [HARDCODED_TABLE_IDS.FEATURES_TRACKING]: {

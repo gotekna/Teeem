@@ -73,6 +73,13 @@ xero_bank_transaction_sync:
   queue: low
   schedule: every 6 hours at minute 30
 
+# Cleanup stale Xero external links (7+ days old)
+# Removes links to archived/deleted Xero contacts after grace period
+cleanup_stale_xero_links:
+  class: CleanupStaleXeroLinksJob
+  queue: low
+  schedule: at 3am every day
+
 # ============================================
 # DATA WAREHOUSE RECURRING JOBS
 # ============================================
@@ -95,6 +102,14 @@ warehouse_xero_attachments:
   queue: low
   args: [null, { limit: 50 }]
   schedule: every 2 hours at minute 45
+
+# Upload Xero PDFs to SharePoint - runs 30 min after PDF download
+# This keeps Stage 3 (SharePoint) in sync with Stage 2 (ActiveStorage)
+warehouse_sharepoint_upload:
+  class: XeroSharepointUploadBackfillJob
+  queue: low
+  args: [{ limit: 100, dry_run: false }]
+  schedule: every 2 hours at minute 15
 
 # SSoT Health Monitor - DISABLED (job removed, depends on unmigrated table)
 # xero_sync_health_monitor:

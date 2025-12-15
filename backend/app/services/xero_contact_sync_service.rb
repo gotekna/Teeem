@@ -223,8 +223,8 @@ class XeroContactSyncService
 
     # Build lookup maps for efficient matching
     teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
-    teeem_by_tax_number = teeem_contacts.select { |c| c.tax_number.present? }
-                                          .group_by(&:tax_number)
+    teeem_by_tax_number = teeem_contacts.select { |c| c.abn.present? }
+                                          .group_by(&:abn)
     teeem_by_email = teeem_contacts.select { |c| c.email.present? }
                                      .index_by { |c| c.email.downcase.strip }
 
@@ -560,6 +560,9 @@ class XeroContactSyncService
       @stats[:links_updated] += 1
     end
 
+    # Mark link as verified (contact exists and is active in Xero)
+    link.mark_verified! unless needs_review
+
     link
   end
 
@@ -619,8 +622,8 @@ class XeroContactSyncService
       updates[:email] = xero_email if xero_email.present?
     end
 
-    if importable_fields.include?("tax_number")
-      updates[:tax_number] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
+    if importable_fields.include?("abn")
+      updates[:abn] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
     end
 
     if importable_fields.include?("mobile_phone") || importable_fields.include?("office_phone")
@@ -1049,7 +1052,7 @@ class XeroContactSyncService
     payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?
     payload[:LastName] = teeem_contact.last_name if teeem_contact.last_name.present?
     payload[:EmailAddress] = teeem_contact.email if teeem_contact.email.present?
-    payload[:TaxNumber] = teeem_contact.tax_number if teeem_contact.tax_number.present?
+    payload[:TaxNumber] = teeem_contact.abn if teeem_contact.abn.present?
 
     # Add phone numbers
     phones = []
@@ -1352,26 +1355,23 @@ class XeroContactSyncService
 
     Rails.logger.info("Found #{count} orphaned xero_links for tenant #{tenant_id}")
 
-    # Handle based on cleanup options
-    cleanup_options = @sync_config&.cleanup_options || SyncConfiguration::DEFAULT_CLEANUP_OPTIONS
-
+    # Mark all orphaned links as not_found (SSoT: track stale links instead of immediate deletion)
     orphaned_links.find_each do |link|
       begin
         contact = link.contact
-        if cleanup_options["unlink_deleted_xero_contacts"]
-          Rails.logger.info("Unlinking orphaned contact: #{contact&.display_name} (xero_id: #{link.external_contact_id})")
-          link.destroy!
-          @stats[:deleted_from_teeem] += 1
-        else
-          # Mark as having an error instead of deleting
-          link.update!(sync_error: "Contact no longer exists in Xero")
-        end
+        Rails.logger.info("Marking as stale: #{contact&.display_name} (xero_id: #{link.external_contact_id})")
+        link.mark_stale!('not_found')
+        link.update!(sync_error: "Contact no longer exists in Xero")
+        @stats[:deleted_from_teeem] += 1
       rescue StandardError => e
-        error_msg = "Failed to handle orphaned link #{link.id}: #{e.message}"
+        error_msg = "Failed to mark orphaned link #{link.id} as stale: #{e.message}"
         Rails.logger.error(error_msg)
         @stats[:errors] << error_msg
       end
     end
+
+    # Note: Actual cleanup/deletion is handled by CleanupStaleXeroLinksJob
+    # This allows links to be marked as stale without immediate deletion
   end
 
   # Legacy method for backwards compatibility

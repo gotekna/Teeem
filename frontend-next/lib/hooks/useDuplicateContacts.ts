@@ -17,7 +17,7 @@ export interface DuplicateContact {
   id: number;
   display_name: string;
   email: string | null;
-  tax_number: string | null;
+  abn: string | null;
   mobile_phone: string | null;
   office_phone: string | null;
   created_at: string;

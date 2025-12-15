@@ -63,8 +63,8 @@ function ContactsTableSkeleton() {
 export default async function ContactsPage() {
   console.log('🔴🔴🔴 ContactsPage SERVER COMPONENT RUNNING 🔴🔴🔴');
   // Fetch data on the server - this runs before any HTML is sent to client
-  const { foundation, columns, records, totalCount, error } = await fetchFoundationBySlug("contacts");
-  console.log('🔴🔴🔴 ContactsPage SSR result:', { hasFoundation: !!foundation, recordCount: records?.length, error });
+  const { foundation, columns, records, totalCount, hasMore, error } = await fetchFoundationBySlug("contacts");
+  console.log('🔴🔴🔴 ContactsPage SSR result:', { hasFoundation: !!foundation, recordCount: records?.length, hasMore, error });
 
   return (
     <Suspense fallback={<ContactsTableSkeleton />}>
@@ -73,6 +73,7 @@ export default async function ContactsPage() {
         initialColumns={columns}
         initialRecords={records}
         initialTotalCount={totalCount}
+        initialHasMore={hasMore}
         initialError={error}
       />
     </Suspense>

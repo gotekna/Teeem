@@ -35,6 +35,7 @@ interface RequestOptions {
 interface GetOptions extends RequestOptions {
   params?: Record<string, string | number | boolean>;
   onDownloadProgress?: (event: DownloadProgressEvent) => void;
+  signal?: AbortSignal; // For request cancellation
 }
 
 interface DeleteOptions extends RequestOptions {
@@ -115,15 +116,22 @@ const handleErrorResponse = async (response: Response): Promise<never> => {
 };
 
 /**
- * Creates a fetch request with timeout
+ * Creates a fetch request with timeout and optional external abort signal
  */
 const fetchWithTimeout = async (
   url: string,
   options: RequestInit,
-  timeout: number
+  timeout: number,
+  externalSignal?: AbortSignal
 ): Promise<Response> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  // If external signal is provided, abort when it aborts
+  const externalAbortHandler = () => controller.abort();
+  if (externalSignal) {
+    externalSignal.addEventListener('abort', externalAbortHandler);
+  }
 
   try {
     const response = await fetch(url, {
@@ -133,6 +141,11 @@ const fetchWithTimeout = async (
     return response;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
+      // Distinguish between timeout abort and external abort
+      if (externalSignal?.aborted) {
+        // Re-throw as AbortError so caller can identify it
+        throw error;
+      }
       const timeoutError: ApiError = new Error(`Request timeout after ${timeout}ms`);
       timeoutError.isTimeout = true;
       timeoutError.isRetryable = true;
@@ -141,6 +154,9 @@ const fetchWithTimeout = async (
     throw error;
   } finally {
     clearTimeout(timeoutId);
+    if (externalSignal) {
+      externalSignal.removeEventListener('abort', externalAbortHandler);
+    }
   }
 };
 
@@ -213,7 +229,7 @@ const getRequestKey = (method: string, url: string, body?: unknown): string => {
 
 export const api = {
   async get<T = unknown>(endpoint: string, options: GetOptions = {}): Promise<T> {
-    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, ...restOptions } = options;
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, signal, ...restOptions } = options;
 
     let url = `${API_URL}${endpoint}`;
 
@@ -244,8 +260,8 @@ export const api = {
           method: 'GET',
           headers,
           credentials: 'include',
-        }, timeout),
-        retries
+        }, timeout, signal),
+        signal ? 0 : retries  // Don't retry if caller wants to control cancellation
       );
 
       if (!response.ok) {

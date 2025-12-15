@@ -39,10 +39,12 @@ module Api
           @contacts = @contacts.where(is_potential_director: true)
         end
 
-        # Search by name or email (includes company name for team contacts)
+        # Search by name or email (includes company name for team contacts and employer name for employees)
         if params[:search].present?
           search_term = "%#{params[:search]}%"
-          @contacts = @contacts.left_outer_joins(:primary_company).where(
+
+          # Find contacts that match the search term directly
+          direct_matches = @contacts.left_outer_joins(:primary_company).where(
             "contacts.display_name ILIKE :q OR
              contacts.email ILIKE :q OR
              contacts.first_name ILIKE :q OR
@@ -50,6 +52,29 @@ module Api
              (contacts.is_team_contact = true AND companies_contacts.display_name ILIKE :q)",
             q: search_term
           )
+
+          # Find companies that match the search term
+          matching_company_ids = Contact.where("display_name ILIKE ?", search_term)
+                                       .where(entity_type: %w[company trust sole_trader])
+                                       .pluck(:id)
+
+          if matching_company_ids.any?
+            # Find employees of those companies (via primary_company_id OR via relationships)
+            employee_relationship_ids = ContactRelationship
+              .active
+              .where(relationship_type: "employee_of")
+              .where(related_contact_id: matching_company_ids)
+              .pluck(:contact_id)
+
+            employee_primary_company_ids = Contact.where(primary_company_id: matching_company_ids).pluck(:id)
+
+            employee_ids = (employee_relationship_ids + employee_primary_company_ids).uniq
+
+            # Combine direct matches with employees of matching companies
+            @contacts = @contacts.where(id: direct_matches.pluck(:id) + matching_company_ids + employee_ids)
+          else
+            @contacts = direct_matches
+          end
         end
 
         # Filter by role (updated from deprecated contact_types to roles)
@@ -1516,6 +1541,37 @@ module Api
             # Transfer primary_company_id if source has one and target doesn't
             if source.primary_company_id.present? && target_contact.primary_company_id.blank?
               target_contact.update(primary_company_id: source.primary_company_id)
+            end
+
+            # Transfer Xero links (contact_external_links)
+            source.xero_links.each do |xero_link|
+              # Check if target already has a link to this Xero tenant
+              existing = target_contact.xero_links.find_by(
+                tenant_id: xero_link.tenant_id,
+                source: xero_link.source
+              )
+
+              if existing
+                # Check if they point to different Xero contacts
+                if xero_link.external_contact_id != existing.external_contact_id
+                  # Different Xero contact IDs - one is stale, transfer it and mark as stale
+                  # This prevents the stale Xero contact from being recreated during next sync
+                  xero_link.mark_stale!('not_found')
+                  xero_link.update!(
+                    contact_id: target_id,
+                    sync_error: "Contact merged - duplicate Xero link marked as stale"
+                  )
+                  Rails.logger.info "[ContactMerge] Transferred stale Xero link: #{xero_link.external_contact_id}"
+                else
+                  # Same Xero contact ID - true duplicate, safe to delete
+                  Rails.logger.info "[ContactMerge] Deleting duplicate Xero link to #{xero_link.tenant_name}"
+                  xero_link.destroy
+                end
+              else
+                # Transfer this Xero link to target
+                xero_link.update(contact_id: target_id)
+                Rails.logger.info "[ContactMerge] Transferred Xero link to #{xero_link.tenant_name}"
+              end
             end
 
             # Transfer job associations
@@ -3187,6 +3243,28 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/find_missing_abns
+      # Find and populate missing ABNs by searching company names via ABR API
+      def find_missing_abns
+        unless ENV["ABR_GUID"].present?
+          render json: {
+            success: false,
+            error: "ABR_GUID environment variable not set. Register at https://abr.business.gov.au"
+          }, status: :service_unavailable
+          return
+        end
+
+        # Run the task in the background using Solid Queue
+        FindMissingAbnsJob.perform_later
+
+        render json: {
+          success: true,
+          message: "ABN search started in background. This may take several minutes."
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       private
 
       # Format a quality review for API response
@@ -3342,6 +3420,35 @@ module Api
 
           # Update the relationship to point to primary
           rel.update!(related_contact_id: primary.id)
+        end
+
+        # Transfer Xero links from duplicate to primary
+        duplicate.xero_links.each do |xero_link|
+          # Check if primary already has a link to this Xero tenant
+          existing = primary.xero_links.find_by(
+            tenant_id: xero_link.tenant_id,
+            source: xero_link.source
+          )
+
+          if existing
+            # Check if they point to different Xero contacts
+            if xero_link.external_contact_id != existing.external_contact_id
+              # Different Xero contact IDs - one is stale, transfer it and mark as stale
+              xero_link.mark_stale!('not_found')
+              xero_link.update!(
+                contact_id: primary.id,
+                sync_error: "Contact merged - duplicate Xero link marked as stale"
+              )
+              Rails.logger.info("[ContactMerge] Transferred stale Xero link: #{xero_link.external_contact_id}")
+            else
+              # Same Xero contact ID - true duplicate, safe to skip (will be destroyed with contact)
+              Rails.logger.info("[ContactMerge] Skipping duplicate Xero link to #{xero_link.tenant_name}")
+            end
+          else
+            # Transfer this Xero link to primary
+            xero_link.update!(contact_id: primary.id)
+            Rails.logger.info("[ContactMerge] Transferred Xero link to #{xero_link.tenant_name}")
+          end
         end
 
         # Soft delete the duplicate contact

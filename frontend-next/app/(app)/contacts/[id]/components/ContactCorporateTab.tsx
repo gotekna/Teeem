@@ -200,12 +200,12 @@ function IdentitySubTab({ contact }: { contact: Contact }) {
             <div>
               <p className="text-xs text-muted-foreground">Tax File Number</p>
               <p className="text-sm font-medium font-mono">
-                {contact.tax_number === "[RESTRICTED]" ? (
+                {contact.abn === "[RESTRICTED]" ? (
                   <span className="text-amber-600 flex items-center gap-1">
                     <Lock className="h-3 w-3" /> Restricted
                   </span>
-                ) : contact.tax_number ? (
-                  contact.tax_number
+                ) : contact.abn ? (
+                  contact.abn
                 ) : (
                   <span className="text-muted-foreground">Not set</span>
                 )}

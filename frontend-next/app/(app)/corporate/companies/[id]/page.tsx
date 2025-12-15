@@ -65,6 +65,7 @@ import {
   ChevronRight,
   Download,
 } from "lucide-react";
+import { CopyableField, CopyableLink } from "@/components/ui/copyable";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { format, isValid } from "date-fns";
@@ -181,6 +182,11 @@ interface Company {
   tfn?: string;
   entity_type?: string;
   contact_id?: number; // SSoT: Link to Contact record
+  contact?: {
+    abn?: string;
+    abn_valid?: boolean;
+    abn_entity_name?: string;
+  };
   status?: string;
   date_incorporated?: string;
   purpose?: string;
@@ -369,8 +375,7 @@ function InformationTab({ company }: { company: Company }) {
       <h3 className="text-lg font-medium">Company Information</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
         <div>
-          <p className="text-sm text-muted-foreground">Legal Name</p>
-          <p className="text-sm font-medium">{company.name}</p>
+          <CopyableField label="Legal Name" value={company.name} />
           {company.previous_names && (
             <p className="text-xs text-muted-foreground mt-1">Previously: {company.previous_names}</p>
           )}
@@ -378,28 +383,53 @@ function InformationTab({ company }: { company: Company }) {
             <p className="text-xs text-muted-foreground mt-1">Trading as: {company.business_names}</p>
           )}
         </div>
-        {company.date_incorporated && (
-          <div>
-            <p className="text-sm text-muted-foreground">Date Incorporated</p>
-            <p className="text-sm font-medium">{format(new Date(company.date_incorporated), "dd/MM/yyyy")}</p>
+        <CopyableField
+          label="Date Incorporated"
+          value={company.date_incorporated ? format(new Date(company.date_incorporated), "dd/MM/yyyy") : null}
+        />
+        <CopyableField
+          label="ACN"
+          value={company.formatted_acn || company.acn}
+        />
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <CopyableField
+              label="ABN"
+              value={company.formatted_abn || company.abn}
+            />
+            {company.contact && company.contact.abn && (
+              <>
+                {company.contact.abn_valid ? (
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Verified
+                  </Badge>
+                ) : company.contact.abn_valid === false ? (
+                  <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Invalid
+                  </Badge>
+                ) : null}
+              </>
+            )}
           </div>
-        )}
-        {company.registered_office_address && (
-          <div>
-            <p className="text-sm text-muted-foreground">Registered Office</p>
-            <p className="text-sm font-medium">{company.registered_office_address}</p>
-          </div>
-        )}
-        {company.principal_place_of_business && (
-          <div>
-            <p className="text-sm text-muted-foreground">Principal Place of Business</p>
-            <p className="text-sm font-medium">{company.principal_place_of_business}</p>
-          </div>
-        )}
+          {company.contact?.abn_entity_name && (
+            <p className="text-xs text-muted-foreground ml-0">
+              {company.contact.abn_entity_name}
+            </p>
+          )}
+        </div>
+        <CopyableField
+          label="Registered Office"
+          value={company.registered_office_address}
+        />
+        <CopyableField
+          label="Principal Place of Business"
+          value={company.principal_place_of_business}
+        />
         {company.purpose && (
           <div className="md:col-span-2">
-            <p className="text-sm text-muted-foreground">Purpose</p>
-            <p className="text-sm font-medium">{company.purpose}</p>
+            <CopyableField label="Purpose" value={company.purpose} />
           </div>
         )}
       </div>
@@ -424,16 +454,18 @@ function InformationTab({ company }: { company: Company }) {
                 {(director.contact?.email || director.contact?.mobile_phone) && (
                   <div className="space-y-1 text-xs">
                     {director.contact?.email && (
-                      <a href={`mailto:${director.contact.email}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                        <Mail className="h-3 w-3" />
-                        <span className="truncate">{director.contact.email}</span>
-                      </a>
+                      <CopyableLink
+                        icon={<Mail className="h-3 w-3" />}
+                        value={director.contact.email}
+                        href={`mailto:${director.contact.email}`}
+                      />
                     )}
                     {director.contact?.mobile_phone && (
-                      <a href={`tel:${director.contact.mobile_phone}`} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                        <Phone className="h-3 w-3" />
-                        <span>{director.contact.mobile_phone}</span>
-                      </a>
+                      <CopyableLink
+                        icon={<Phone className="h-3 w-3" />}
+                        value={director.contact.mobile_phone}
+                        href={`tel:${director.contact.mobile_phone}`}
+                      />
                     )}
                   </div>
                 )}

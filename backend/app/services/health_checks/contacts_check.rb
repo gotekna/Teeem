@@ -66,7 +66,6 @@ module HealthChecks
       contacts = Contact.all
                        .where.not(entity_type: "price_only")
                        .where("(email IS NULL OR email = '') AND (mobile_phone IS NULL OR mobile_phone = '') AND (office_phone IS NULL OR office_phone = '')")
-                       .select(:id, :display_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Contacts Missing Contact Info",
@@ -83,7 +82,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: "person")
                        .where("first_name IS NULL OR first_name = ''")
-                       .select(:id, :display_name, :first_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Contacts Missing First Name",
@@ -100,7 +98,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: "company")
                        .where("display_name IS NULL OR display_name = ''")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company Contacts Missing Full Name",
@@ -118,7 +115,6 @@ module HealthChecks
       valid_types = Contact::ENTITY_TYPES + [ nil ]
       contacts = Contact.all
                        .where.not(entity_type: valid_types)
-                       .select(:id, :display_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Contacts with Invalid Entity Type",
@@ -136,7 +132,6 @@ module HealthChecks
       contacts = Contact.all
                        .where.not(website: [ nil, "" ])
                        .where.not("website LIKE 'http://%' OR website LIKE 'https://%'")
-                       .select(:id, :display_name, :website, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Contacts with Invalid Website URL",
@@ -161,7 +156,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: "person")
                        .where("(first_name IS NOT NULL AND LENGTH(first_name) > 1 AND first_name = UPPER(first_name) AND first_name != LOWER(first_name)) OR (last_name IS NOT NULL AND LENGTH(last_name) > 1 AND last_name = UPPER(last_name) AND last_name != LOWER(last_name))")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Names in ALL CAPS",
@@ -182,7 +176,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: "person")
                        .where("(first_name IS NOT NULL AND first_name != '' AND first_name = LOWER(first_name) AND first_name ~ '[a-z]') OR (last_name IS NOT NULL AND last_name != '' AND last_name = LOWER(last_name) AND last_name ~ '[a-z]')")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Names in lowercase",
@@ -201,7 +194,6 @@ module HealthChecks
     def check_email_as_name
       contacts = Contact.all
                        .where("first_name LIKE '%@%' OR last_name LIKE '%@%'")
-                       .select(:id, :display_name, :first_name, :last_name, :email, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Email Used as Name",
@@ -220,7 +212,6 @@ module HealthChecks
                        .where(entity_type: "person")
                        .where("first_name IS NOT NULL AND first_name != ''")
                        .where("last_name IS NULL OR last_name = ''")
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Person Missing Last Name",
@@ -238,7 +229,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(is_team_contact: true)
                        .where(primary_company_id: nil)
-                       .select(:id, :display_name, :first_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Team Contact Missing Company",
@@ -256,7 +246,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: [ "company", "trust" ])
                        .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
-                       .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company/Trust Missing Business Name",
@@ -274,7 +263,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: "sole_trader")
                        .where("company_name_or_trust IS NULL OR company_name_or_trust = ''")
-                       .select(:id, :display_name, :first_name, :last_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Sole Trader Missing Business Name",
@@ -296,7 +284,6 @@ module HealthChecks
       contacts = Contact.all
                        .where.not(email: [ nil, "" ])
                        .where("email != LOWER(email)")
-                       .select(:id, :display_name, :email, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Emails with Uppercase",
@@ -318,7 +305,6 @@ module HealthChecks
       contacts = Contact.all
                        .where.not(mobile_phone: [ nil, "" ])
                        .where("mobile_phone !~ '^[0-9]{2} [0-9]{4} [0-9]{4}$' AND mobile_phone !~ '^\\+61 [0-9] [0-9]{4} [0-9]{4}$'")
-                       .select(:id, :display_name, :mobile_phone, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Unformatted Phone Numbers",
@@ -342,7 +328,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: [ "company", "trust" ])
                        .where("website IS NULL OR website = ''")
-                       .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Company Missing Website",
@@ -359,8 +344,7 @@ module HealthChecks
     def check_company_missing_abn
       contacts = Contact.all
                        .where(entity_type: [ "company", "trust", "sole_trader" ])
-                       .where("tax_number IS NULL OR tax_number = ''")
-                       .select(:id, :display_name, :company_name_or_trust, :entity_type, :is_team_contact, :primary_company_id)
+                       .where("abn IS NULL OR abn = ''")
 
       build_result(
         name: "Company Missing ABN",
@@ -378,7 +362,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(entity_type: [ "company", "trust", "price_only" ])
                        .where("first_name IS NOT NULL AND first_name != '' OR middle_name IS NOT NULL AND middle_name != '' OR last_name IS NOT NULL AND last_name != ''")
-                       .select(:id, :display_name, :first_name, :middle_name, :last_name, :entity_type, :is_team_contact, :primary_company_id)
 
       build_result(
         name: "Non-Person with Person Fields",
@@ -432,7 +415,6 @@ module HealthChecks
     def check_self_referencing_contacts
       contacts = Contact.all
                        .where("primary_company_id = id")
-                       .select(:id, :display_name, :entity_type, :primary_company_id)
 
       build_result(
         name: "Self-Referencing Contacts",
@@ -450,7 +432,6 @@ module HealthChecks
       contacts = Contact.all
                        .joins("JOIN contacts pc ON contacts.primary_company_id = pc.id")
                        .where("pc.entity_type NOT IN ('company', 'trust', 'sole_trader')")
-                       .select("contacts.id, contacts.display_name, contacts.entity_type, contacts.primary_company_id")
 
       build_result(
         name: "Invalid Primary Company Type",
@@ -500,7 +481,6 @@ module HealthChecks
       contacts = Contact.all
                        .where(is_team_contact: true)
                        .where(primary_company_id: nil)
-                       .select(:id, :display_name, :entity_type, :email, :is_team_contact)
 
       build_result(
         name: "Team Contacts Without Company",
@@ -560,7 +540,6 @@ module HealthChecks
                         .where("email IS NOT NULL AND email != ''")
                         .where("(#{prefix_conditions})")
                         .where("NOT (LOWER(SPLIT_PART(email, '@', 2)) IN (#{domain_exclusions}))")
-                        .select(:id, :display_name, :email, :entity_type, :primary_company_id)
                         .limit(50)
 
       build_result(
@@ -577,11 +556,11 @@ module HealthChecks
     # Person contacts linked to multiple Xero tenants - unusual for individuals
     def check_person_multiple_xero_tenants
       contacts = Contact.where(entity_type: "person")
-                        .joins(:contact_external_links)
+                        .joins(:external_links)
                         .where(contact_external_links: { source: "xero" })
                         .group("contacts.id")
                         .having("COUNT(DISTINCT contact_external_links.tenant_id) > 1")
-                        .select("contacts.id, contacts.display_name, contacts.email, contacts.entity_type, COUNT(DISTINCT contact_external_links.tenant_id) as xero_tenant_count")
+                        .select("contacts.*, COUNT(DISTINCT contact_external_links.tenant_id) as xero_tenant_count")
                         .limit(50)
 
       items = contacts.map do |c|
@@ -610,11 +589,10 @@ module HealthChecks
     def check_company_person_like
       # Company without ABN AND has first/last name AND name doesn't have company indicators
       contacts = Contact.where(entity_type: "company")
-                        .where("(tax_number IS NULL OR tax_number = '')")
+                        .where("(abn IS NULL OR abn = '')")
                         .where("first_name IS NOT NULL AND first_name != ''")
                         .where("last_name IS NOT NULL AND last_name != ''")
                         .where("LOWER(COALESCE(company_name_or_trust, display_name)) NOT SIMILAR TO '%(pty|ltd|limited|holdings|group|trust|inc|corp|services|consulting)%'")
-                        .select(:id, :display_name, :first_name, :last_name, :company_name_or_trust, :entity_type, :tax_number)
                         .limit(50)
 
       build_result(
@@ -635,13 +613,11 @@ module HealthChecks
                                  .where(abn_valid: true)
                                  .where("abn_entity_type IS NOT NULL")
                                  .where("LOWER(abn_entity_type) SIMILAR TO '%(company|trust|partnership)%'")
-                                 .select(:id, :display_name, :entity_type, :abn_entity_type, :tax_number)
 
       company_as_person = Contact.where(entity_type: %w[company trust])
                                  .where(abn_valid: true)
                                  .where("abn_entity_type IS NOT NULL")
                                  .where("LOWER(abn_entity_type) SIMILAR TO '%(individual|sole trader)%'")
-                                 .select(:id, :display_name, :entity_type, :abn_entity_type, :tax_number)
 
       all_mismatches = (person_as_company + company_as_person).first(50)
 
@@ -652,7 +628,7 @@ module HealthChecks
           display_name: c.display_name,
           entity_type: c.entity_type,
           abn_entity_type: c.abn_entity_type,
-          tax_number: c.tax_number
+          abn: c.abn
         }
       end
 
@@ -732,13 +708,11 @@ module HealthChecks
       groups = []
       seen_ids = Set.new
 
-      # Include all fields needed by the merge modal
-      # Note: Use SQL subqueries for counts instead of loading associations (performance optimization)
+      # Load all columns (no column limiting per CLAUDE.md policy) + SQL subqueries for counts
+      # Note: Use SQL subqueries for counts instead of loading associations (prevents timeout on 1400+ contacts)
       contacts = Contact.all
                        .select(
-                         :id, :display_name, :first_name, :middle_name, :last_name,
-                         :email, :mobile_phone, :office_phone, :xero_id,
-                         :entity_type, :is_team_contact, :primary_company_id,
+                         "contacts.*",
                          # Use SQL to count without loading associations (prevents timeout on 1400+ contacts)
                          "(SELECT COUNT(*) FROM job_contacts WHERE job_contacts.contact_id = contacts.id) AS jobs_count",
                          "(SELECT COUNT(*) FROM purchase_orders WHERE purchase_orders.supplier_id = contacts.id) AS purchase_orders_count"

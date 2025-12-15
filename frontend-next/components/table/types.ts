@@ -90,6 +90,7 @@ export interface TeeemTableViewProps {
   // Data
   entries: TableRow[];
   columns?: TableColumn[] | null;
+  totalCount?: number | null; // Total records in database (for pagination display)
 
   // Table identity
   foundationId?: string;
@@ -148,6 +149,9 @@ export interface TeeemTableViewProps {
   serverSearchLoading?: boolean;
   onViewApiParamsChange?: (params: Record<string, unknown> | null) => void;
   loadingMore?: boolean;
+  onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom
+  onLoadAll?: () => void; // Load all remaining records button callback
+  hasMore?: boolean; // Whether there are more records to load from server
 
   // Data Health widget
   showDataHealth?: boolean;

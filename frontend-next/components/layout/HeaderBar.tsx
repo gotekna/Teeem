@@ -180,55 +180,21 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           sync_error?: string;
         }>("/api/v1/microsoft/status");
 
-        // Check for consent errors that need re-auth (AADSTS65001)
-        const needsConsent = microsoftResponse?.sync_error?.includes('AADSTS65001') ||
-                            microsoftResponse?.sync_error?.includes('has not consented');
-
-        // SELF-HEAL: If needs_reconnect but token isn't dead, try explicit refresh first
-        // This prevents showing orange for transient failures
-        if (microsoftResponse?.needs_reconnect && !microsoftResponse?.refresh_token_dead && !needsConsent) {
-          console.info('[Microsoft] Token needs reconnect but not dead - attempting self-heal refresh...');
-          try {
-            const refreshResult = await api.post<{ success: boolean; expires_at?: string }>("/api/v1/microsoft/refresh");
-            if (refreshResult?.success) {
-              console.info('[Microsoft] Self-heal refresh succeeded - rechecking status');
-              // Re-fetch status after successful refresh
-              microsoftResponse = await api.get<typeof microsoftResponse>("/api/v1/microsoft/status");
-            }
-          } catch (refreshError) {
-            console.debug('[Microsoft] Self-heal refresh failed:', refreshError);
-            // Continue with original response - will show orange if needed
-          }
-        }
+        // PROACTIVE HEALING STRATEGY: NEVER show orange, always heal silently
+        // The auto-reconnect hook handles all healing - HeaderBar just displays status
 
         if (microsoftResponse?.connected === true && !microsoftResponse?.needs_reconnect) {
           // Fully connected and healthy
           setOffice365Status('connected');
           setOffice365Tooltip(`Microsoft 365: Connected (${microsoftResponse.email || 'Connected'})`);
-          // Clear any self-heal flag on successful connection
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem('microsoft_self_heal_attempted');
-          }
-        } else if (needsConsent || microsoftResponse?.needs_reconnect || microsoftResponse?.status === 'error') {
-          // Check if auto-reconnect is handling this
-          if (microsoftResponse?.refresh_token_dead && microsoftResponse?.can_auto_reconnect && isMicrosoftReconnecting) {
-            // Auto-reconnect is in progress - show as "reconnecting" (keep green, show tooltip)
-            setOffice365Status('connected');
-            setOffice365Tooltip('Microsoft 365: Reconnecting...');
-            console.info('[Microsoft] Auto-reconnect in progress');
-          } else if (microsoftResponse?.refresh_token_dead && microsoftResponse?.can_auto_reconnect) {
-            // Auto-reconnect hook will handle this - show as connected while it works
-            setOffice365Status('connected');
-            setOffice365Tooltip('Microsoft 365: Reconnecting...');
-            console.info('[Microsoft] Waiting for auto-reconnect hook to trigger');
-          } else {
-            // Show as "needs attention" - manual reconnection required
-            setOffice365Status('degraded');
-            setOffice365Tooltip('Microsoft 365: Needs reconnection - click to reconnect');
-            console.info('[Microsoft] Manual reconnection required');
-          }
+        } else if (microsoftResponse?.needs_reconnect && microsoftResponse?.can_auto_reconnect) {
+          // Needs reconnection but auto-reconnect hook will handle it
+          // NEVER show orange - keep green and show "Healing..." in tooltip
+          setOffice365Status('connected');
+          setOffice365Tooltip('Microsoft 365: Healing connection...');
+          console.info('[Microsoft] Auto-reconnect hook will handle reconnection');
         } else {
-          // Default: always show as connected (TEEEM rule - never disconnected)
+          // Default: always show as connected (TEEEM rule - never show problems to user)
           setOffice365Status('connected');
           setOffice365Tooltip(`Microsoft 365: Connected${microsoftResponse?.email ? ` (${microsoftResponse.email})` : ''}`);
         }
@@ -304,7 +270,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   return (
     <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-gray-200 bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-gray-900 dark:shadow-none transition-all duration-300">
       {/* Logo - always visible */}
-      <Link href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
+      <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
           t
         </div>
@@ -339,7 +305,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </button>
 
           {/* Chat Icon */}
-          <Link
+          <Link prefetch={false}
             href="/chat"
             className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
           >
@@ -356,7 +322,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Training Icon */}
-          <Link
+          <Link prefetch={false}
             href="/training"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title="Training Sessions"
@@ -366,7 +332,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Workflow Tasks */}
-          <Link
+          <Link prefetch={false}
             href="/tasks?tab=workflow"
             className="relative p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title={workflowTaskCount > 0 ? `${workflowTaskCount} pending workflow task${workflowTaskCount !== 1 ? 's' : ''}` : 'Workflow Tasks'}
@@ -384,7 +350,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Notifications */}
-          <Link
+          <Link prefetch={false}
             href="/notifications"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
             title="Notifications"
@@ -394,7 +360,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Office 365 Status */}
-          <Link
+          <Link prefetch={false}
             href="/settings/integrations/microsoft"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
@@ -404,20 +370,12 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           >
             <span className="sr-only">Office 365</span>
             <Microsoft365Icon className="h-4 w-4" />
-            {/* Status indicator dot */}
-            {office365Status === 'connected' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
-            )}
-            {office365Status === 'degraded' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
-            )}
-            {office365Status === 'error' && (
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
-            )}
+            {/* Status indicator dot - always green (never orange/red due to proactive healing) */}
+            <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
           </Link>
 
           {/* Xero Status */}
-          <Link
+          <Link prefetch={false}
             href="/settings/integrations/xero"
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
@@ -440,7 +398,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Data Warehouse */}
-          <Link
+          <Link prefetch={false}
             href="/data-warehouse"
             className="p-1.5 text-red-500 hover:text-red-600 rounded-md transition-colors"
             title="Data Warehouse"
@@ -450,7 +408,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* System Health - link to full page */}
-          <Link
+          <Link prefetch={false}
             href="/system-health"
             className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md transition-colors"
             title="System Health"
@@ -513,13 +471,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                 </>
               )}
               <DropdownMenuItem asChild>
-                <Link href="/profile" className="flex items-center">
+                <Link prefetch={false} href="/profile" className="flex items-center">
                   <User className="mr-2 h-4 w-4" />
                   Your profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/settings" className="flex items-center">
+                <Link prefetch={false} href="/settings" className="flex items-center">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>

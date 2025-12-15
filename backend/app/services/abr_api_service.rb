@@ -10,6 +10,7 @@
 #
 class AbrApiService
   ABR_BASE_URL = "https://abr.business.gov.au/abrxmlsearch/AbrXmlSearch.asmx".freeze
+  ABR_JSON_URL = "https://abr.business.gov.au/json".freeze
 
   class AbrError < StandardError; end
   class InvalidAbnFormat < AbrError; end
@@ -66,6 +67,40 @@ class AbrApiService
 
     # Valid if divisible by 89
     (sum % 89).zero?
+  end
+
+  # Search for ABN by company name
+  # Returns an array of matching businesses (could be multiple matches)
+  def search_by_name(name, state: nil, postcode: nil)
+    unless @guid.present?
+      raise ApiError, "ABR_GUID environment variable not set. Register at https://abr.business.gov.au"
+    end
+
+    # Use JSON API for name search (more reliable than XML SOAP)
+    uri = URI("#{ABR_JSON_URL}/MatchingNames.aspx")
+    params = {
+      name: name,
+      guid: @guid,
+      maxResults: 20
+    }
+    uri.query = URI.encode_www_form(params)
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    request = Net::HTTP::Get.new(uri.request_uri)
+    request["Accept"] = "application/json"
+
+    response = http.request(request)
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise ApiError, "ABR API returned #{response.code}: #{response.message}"
+    end
+
+    parse_json_name_search_response(response.body)
+  rescue Net::OpenTimeout, Net::ReadTimeout => e
+    raise ApiError, "ABR API timeout: #{e.message}"
+  rescue SocketError => e
+    raise ApiError, "ABR API connection error: #{e.message}"
   end
 
   # Bulk validate ABNs (for batch processing)
@@ -126,6 +161,75 @@ class AbrApiService
     raise ApiError, "ABR API timeout: #{e.message}"
   rescue SocketError => e
     raise ApiError, "ABR API connection error: #{e.message}"
+  end
+
+  def parse_json_name_search_response(json_body)
+    # Strip JSONP callback wrapper: callback({...})
+    json_content = json_body.sub(/^callback\(/, "").sub(/\)$/, "")
+    data = JSON.parse(json_content)
+
+    # Handle empty results
+    return [] if data["Names"].nil? || data["Names"].empty?
+
+    # Map results to standardized format
+    data["Names"].map do |business|
+      abn = business["Abn"]&.gsub(/\s/, "")
+      next if abn.nil?
+
+      {
+        abn: abn,
+        abn_formatted: self.class.format(abn),
+        name: business["Name"],
+        trading_names: [],
+        state: business["State"],
+        postcode: business["Postcode"],
+        score: business["Score"]&.to_i || 0
+      }
+    end.compact.sort_by { |b| -b[:score] } # Sort by relevance score descending
+  rescue JSON::ParserError => e
+    raise ApiError, "Failed to parse ABR JSON response: #{e.message}"
+  end
+
+  def parse_name_search_response(xml_body)
+    doc = Nokogiri::XML(xml_body)
+    doc.remove_namespaces!
+
+    # Check for exception
+    exception = doc.at_xpath("//response/exception/exceptionDescription")
+    if exception
+      raise ApiError, "ABR API error: #{exception.text}"
+    end
+
+    # Get all matching businesses
+    businesses = doc.xpath("//response/searchResultsList/searchResultsRecord")
+
+    return [] if businesses.empty?
+
+    businesses.map do |business|
+      abn_node = business.at_xpath("ABN/identifierValue")
+      abn = abn_node&.text&.gsub(/\s/, "")
+
+      name_node = business.at_xpath("mainName/organisationName") ||
+                  business.at_xpath("legalName/fullName")
+      name = name_node&.text
+
+      trading_names = business.xpath("mainTradingName/organisationName").map(&:text)
+
+      state_node = business.at_xpath("mainBusinessPhysicalAddress/stateCode")
+      postcode_node = business.at_xpath("mainBusinessPhysicalAddress/postcode")
+
+      {
+        abn: abn,
+        abn_formatted: self.class.format(abn),
+        name: name,
+        trading_names: trading_names,
+        state: state_node&.text,
+        postcode: postcode_node&.text,
+        score: business.at_xpath("score")&.text&.to_i || 0
+      }
+    end.compact.sort_by { |b| -b[:score] } # Sort by relevance score descending
+  rescue Nokogiri::XML::SyntaxError => e
+    raise ApiError, "Failed to parse ABR response: #{e.message}"
   end
 
   def parse_response(xml_body, abn)
