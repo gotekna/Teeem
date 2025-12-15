@@ -10,7 +10,7 @@ Pull the production database (teeemlive) to local environment.
 │  Heroku PostgreSQL  │
 └──────────┬──────────┘
            │
-           │ Step 1: Get latest backup (fast)
+           │ Step 1: Capture fresh backup
            ▼
 ┌─────────────────────┐
 │   Heroku S3 Backup  │
@@ -40,8 +40,10 @@ Pull the production database (teeemlive) to local environment.
 # Step 1: Kill existing local connections
 psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
 
-# Step 2: Get backup URL (use existing backup, don't capture new one unless stale)
+# Step 2: Capture fresh backup and get URL
 cd /Users/robertharder/GitHub/teeem/backend
+echo "📸 Capturing fresh backup from production..."
+heroku pg:backups:capture --app teeemlive 2>&1 | tail -5
 BACKUP_URL=$(heroku pg:backups:url --app teeemlive)
 
 # Step 3: Download with aria2c (16 parallel connections, resume-capable)
@@ -62,14 +64,16 @@ bin/rails teeem:create_system_foundations 2>&1 | tail -5
 # Step 6: Verify data pulled correctly
 bin/rails runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
 
-# Step 7: Restart local servers
+# Step 7: Restart local servers using screen (persistent)
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 lsof -ti:3001 | xargs kill -9 2>/dev/null || true
+screen -X -S backend quit 2>/dev/null || true
+screen -X -S frontend-next quit 2>/dev/null || true
 
-cd /Users/robertharder/GitHub/teeem/backend && bin/rails server -p 3001 &
-cd /Users/robertharder/GitHub/teeem/frontend-next && npm run dev &
+screen -dmS backend bash -c 'cd /Users/robertharder/GitHub/teeem/backend && /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3001'
+screen -dmS frontend-next bash -c 'cd /Users/robertharder/GitHub/teeem/frontend-next && npm run dev'
 
-echo "✅ Database synced and servers restarted"
+echo "✅ Database synced and servers restarted (screen sessions: backend, frontend-next)"
 ```
 
 ## Summary
@@ -77,16 +81,17 @@ echo "✅ Database synced and servers restarted"
 | Step | From | To | Method |
 |------|------|-----|--------|
 | 1 | - | - | Kill local connections |
-| 2 | teeemlive | S3 URL | `pg:backups:url` |
-| 3 | S3 | local file | `aria2c -x 16` (parallel, resume-capable) |
+| 2 | teeemlive | S3 | `pg:backups:capture` (fresh) |
+| 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
 | 6 | - | - | Verify data counts |
-| 7 | - | localhost:3000 + 3001 | Restart servers |
+| 7 | - | localhost:3000 + 3001 | Restart servers (screen) |
 
 ## Notes
 
 - **aria2c required**: `brew install aria2` (one-time)
-- **Skip capture**: Uses existing backup. Heroku auto-captures daily. Only run `pg:backups:capture` if you need today's data.
+- **Always fresh**: Captures a new backup before downloading to ensure current data
+- **Daily schedule**: Auto-backup at 2:00 AM Brisbane (configured Dec 2024)
 - **Resume downloads**: If download fails, re-run aria2c and it resumes from where it left off
-- **Australia latency**: Downloads may take 15-30 min due to US S3 → Australia network distance
+- **Australia latency**: Download takes ~30s with aria2c parallel connections

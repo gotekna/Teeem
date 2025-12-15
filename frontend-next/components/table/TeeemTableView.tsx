@@ -651,7 +651,12 @@ export default function TeeemTableView({
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
-  const useAutoFetch = foundationIdNumeric && entries.length === 0;
+
+  // CRITICAL: Determine auto-fetch mode ONCE on mount, not on every render
+  // This prevents mode-switching when search returns 0 results (entries.length === 0)
+  // The mode is: "use auto-fetch if we were NOT given initial data"
+  const initialEntriesProvidedRef = useRef(entries.length > 0);
+  const useAutoFetch = foundationIdNumeric && !initialEntriesProvidedRef.current;
 
   // Auto-fetch columns when foundationIdNumeric is set
   useEffect(() => {
@@ -2060,9 +2065,10 @@ export default function TeeemTableView({
   );
 
   // Filter and sort entries
+  // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
     const startTime = performance.now();
-    let result = [...entries];
+    let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
     if (pendingDeleteIds.size > 0) {
@@ -2182,9 +2188,9 @@ export default function TeeemTableView({
     }
 
     return result;
-     
+
   }, [
-    entries,
+    effectiveEntries,
     search,
     onServerSearch,
     COLUMNS,
@@ -3474,7 +3480,14 @@ export default function TeeemTableView({
                 colSpan={visibleColumnsInOrder.length}
                 className="h-24 text-center text-muted-foreground"
               >
-                No records found.
+                {serverSearchLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <span>Searching...</span>
+                  </div>
+                ) : (
+                  "No records found."
+                )}
               </TableCell>
             </TableRow>
           ) : (

@@ -76,8 +76,13 @@ class GenericMergeService
         ActiveRecord::Base.transaction(requires_new: true) do
           count = secondary.send(reflection.name).count
           if count > 0
-            # Update all related records to point to primary
-            secondary.send(reflection.name).update_all(foreign_key => primary.id)
+            # Special handling for ContactRelationship to validate entity types
+            if table_name == "contact_relationships"
+              transfer_contact_relationships_with_validation(secondary, reflection.name, foreign_key)
+            else
+              # Update all related records to point to primary
+              secondary.send(reflection.name).update_all(foreign_key => primary.id)
+            end
             Rails.logger.info "[Merge] Transferred #{count} #{reflection.name} (#{table_name}.#{foreign_key})"
           end
         end
@@ -173,6 +178,59 @@ class GenericMergeService
         end
       rescue StandardError => e
         Rails.logger.warn "[Merge] Could not transfer #{ref_table}.#{ref_column}: #{e.message}"
+      end
+    end
+  end
+
+  # Transfer ContactRelationships with entity type validation
+  # Prevents invalid employee_of relationships (e.g., company as employee)
+  def transfer_contact_relationships_with_validation(secondary, association_name, foreign_key)
+    secondary.send(association_name).find_each do |relationship|
+      # Determine which contact ID we're updating
+      new_contact = primary
+
+      # Check if relationship already exists on primary
+      if foreign_key == "source_contact_id"
+        existing = primary.outgoing_relationships.find_by(
+          related_contact_id: relationship.related_contact_id,
+          relationship_type: relationship.relationship_type
+        )
+      else
+        existing = primary.incoming_relationships.find_by(
+          source_contact_id: relationship.source_contact_id,
+          relationship_type: relationship.relationship_type
+        )
+      end
+
+      if existing
+        # Relationship already exists, destroy the duplicate
+        relationship.destroy
+        next
+      end
+
+      # Validate entity types for employee_of relationships
+      if relationship.relationship_type == "employee_of"
+        if foreign_key == "source_contact_id"
+          # Source is being changed - new source must be person/sole_trader
+          unless %w[person sole_trader].include?(new_contact.entity_type)
+            Rails.logger.warn "[Merge] Skipping invalid employee_of: #{new_contact.display_name} (#{new_contact.entity_type}) cannot be employee"
+            relationship.destroy
+            next
+          end
+        else
+          # Target is being changed - new target must be company/trust
+          unless %w[company trust].include?(new_contact.entity_type)
+            Rails.logger.warn "[Merge] Skipping invalid employee_of: #{new_contact.display_name} (#{new_contact.entity_type}) cannot be employer"
+            relationship.destroy
+            next
+          end
+        end
+      end
+
+      # Transfer using update (runs validations)
+      unless relationship.update(foreign_key => primary.id)
+        Rails.logger.warn "[Merge] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+        relationship.destroy
       end
     end
   end

@@ -195,7 +195,7 @@ class ContactAutoMergeService
         PurchaseOrder.where(supplier_id: source.id).update_all(supplier_id: target.id)
         PriceHistory.where(supplier_id: source.id).update_all(supplier_id: target.id)
 
-        # Transfer ContactRelationships (company/employee relationships)
+        # Transfer ContactRelationships (company/employee relationships) with validation
         # Outgoing relationships (source is the person, related_contact is the company)
         source.outgoing_relationships.each do |relationship|
           # Check if target already has this relationship
@@ -208,8 +208,20 @@ class ContactAutoMergeService
             # Relationship already exists, destroy the duplicate
             relationship.destroy
           else
-            # Transfer relationship to target
-            relationship.update(source_contact_id: target.id)
+            # Validate entity types for employee_of relationships
+            if relationship.relationship_type == "employee_of"
+              unless %w[person sole_trader].include?(target.entity_type)
+                Rails.logger.warn "[ContactAutoMerge] Skipping invalid employee_of: #{target.display_name} (#{target.entity_type}) cannot be employee"
+                relationship.destroy
+                next
+              end
+            end
+
+            # Transfer relationship to target (check return value)
+            unless relationship.update(source_contact_id: target.id)
+              Rails.logger.warn "[ContactAutoMerge] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+              relationship.destroy
+            end
           end
         end
 
@@ -225,8 +237,20 @@ class ContactAutoMergeService
             # Relationship already exists, destroy the duplicate
             relationship.destroy
           else
-            # Transfer relationship to target
-            relationship.update(related_contact_id: target.id)
+            # Validate entity types for employee_of relationships
+            if relationship.relationship_type == "employee_of"
+              unless %w[company trust].include?(target.entity_type)
+                Rails.logger.warn "[ContactAutoMerge] Skipping invalid employee_of: #{target.display_name} (#{target.entity_type}) cannot be employer"
+                relationship.destroy
+                next
+              end
+            end
+
+            # Transfer relationship to target (check return value)
+            unless relationship.update(related_contact_id: target.id)
+              Rails.logger.warn "[ContactAutoMerge] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+              relationship.destroy
+            end
           end
         end
 

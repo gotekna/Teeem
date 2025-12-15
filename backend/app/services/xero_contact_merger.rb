@@ -153,9 +153,9 @@ class XeroContactMerger
     # Transfer price histories
     duplicate.price_histories.update_all(supplier_id: target.id)
 
-    # Transfer relationships
-    duplicate.outgoing_relationships.update_all(contact_id: target.id)
-    duplicate.incoming_relationships.update_all(related_contact_id: target.id)
+    # Transfer relationships with validation
+    # Don't use update_all as it bypasses model validations
+    transfer_relationships_with_validation(target, duplicate)
 
     # Transfer employees (if duplicate was primary company)
     duplicate.employees.update_all(primary_company_id: target.id)
@@ -249,5 +249,67 @@ class XeroContactMerger
   rescue StandardError => e
     Rails.logger.error "[XeroContactMerger] Error archiving Xero contact: #{e.message}"
     raise
+  end
+
+  def transfer_relationships_with_validation(target, duplicate)
+    # Transfer outgoing relationships (duplicate is the source)
+    duplicate.outgoing_relationships.find_each do |relationship|
+      # Check if target already has this relationship
+      existing = target.outgoing_relationships.find_by(
+        related_contact_id: relationship.related_contact_id,
+        relationship_type: relationship.relationship_type
+      )
+
+      if existing
+        # Relationship already exists, destroy the duplicate
+        relationship.destroy
+      else
+        # Validate entity types before transferring
+        # For employee_of, source must be person/sole_trader
+        if relationship.relationship_type == "employee_of"
+          unless %w[person sole_trader].include?(target.entity_type)
+            Rails.logger.warn "[XeroContactMerger] Skipping invalid employee_of transfer: #{target.display_name} (#{target.entity_type}) cannot be employee"
+            relationship.destroy
+            next
+          end
+        end
+
+        # Transfer relationship to target using update (runs validations)
+        unless relationship.update(source_contact_id: target.id)
+          Rails.logger.warn "[XeroContactMerger] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+          relationship.destroy
+        end
+      end
+    end
+
+    # Transfer incoming relationships (duplicate is the related_contact/target)
+    duplicate.incoming_relationships.find_each do |relationship|
+      # Check if target already has this relationship
+      existing = target.incoming_relationships.find_by(
+        source_contact_id: relationship.source_contact_id,
+        relationship_type: relationship.relationship_type
+      )
+
+      if existing
+        # Relationship already exists, destroy the duplicate
+        relationship.destroy
+      else
+        # Validate entity types before transferring
+        # For employee_of, target must be company/trust
+        if relationship.relationship_type == "employee_of"
+          unless %w[company trust].include?(target.entity_type)
+            Rails.logger.warn "[XeroContactMerger] Skipping invalid employee_of transfer: #{target.display_name} (#{target.entity_type}) cannot be employer"
+            relationship.destroy
+            next
+          end
+        end
+
+        # Transfer relationship to target using update (runs validations)
+        unless relationship.update(related_contact_id: target.id)
+          Rails.logger.warn "[XeroContactMerger] Failed to transfer relationship #{relationship.id}: #{relationship.errors.full_messages.join(', ')}"
+          relationship.destroy
+        end
+      end
+    end
   end
 end
