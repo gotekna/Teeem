@@ -355,13 +355,9 @@ export default function ContactsPageClient({
     });
   }, [totalCount, toast]);
 
-  // Handle row click - navigate to contact detail
-  const handleRowClick = useCallback((row: TTableRow) => {
-    const contact = row as unknown as Contact;
-    router.push(`/contacts/${contact.id}`);
-  }, [router]);
-
-  // Handle row double-click
+  // Handle row double-click - navigate to contact detail
+  // NOTE: Single-click is disabled to allow row selection and inline editing
+  // Double-click is the standard way to open a record in a table
   const handleRowDoubleClick = useCallback((row: TTableRow) => {
     const contact = row as unknown as Contact;
     router.push(`/contacts/${contact.id}`);
@@ -598,7 +594,6 @@ export default function ContactsPageClient({
             enableImport={true}
             onDataHealthIssueClick={handleDataHealthIssueClick}
             onRefresh={refresh}
-            onRowClick={handleRowClick}
             onRowDoubleClick={handleRowDoubleClick}
             onRowUpdate={handleRowUpdate}
             onDelete={handleDelete}
