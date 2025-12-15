@@ -607,6 +607,8 @@ export default function TeeemTableView({
   onViewApiParamsChange,
   loadingMore = false,
   onLoadMore,
+  onLoadAll,
+  hasMore: serverHasMore = false,
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -4176,6 +4178,21 @@ export default function TeeemTableView({
           <span className="text-[11px] text-muted-foreground">
             Loading more records...
           </span>
+        </div>
+      )}
+
+      {/* Load All button - shows when there are more records to load from server */}
+      {!loadingMore && serverHasMore && onLoadAll && (
+        <div className="flex items-center justify-center p-2 border-t">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onLoadAll}
+            className="gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length} remaining)` : 'Remaining Records'}
+          </Button>
         </div>
       )}
 

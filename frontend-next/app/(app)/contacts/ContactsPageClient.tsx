@@ -327,32 +327,15 @@ export default function ContactsPageClient({
     }
   }, [refresh]);
 
-  // Auto-load all contacts in background after initial render
-  // CRITICAL: Only runs ONCE on mount, never again (even after merges/updates)
-  useEffect(() => {
-    // Never auto-load if already started, or if there are active filters
-    if (hasStartedAutoLoad.current || currentFilters.length > 0) {
-      console.log('[ContactsPageClient] Skipping auto-load:', {
-        alreadyStarted: hasStartedAutoLoad.current,
-        hasFilters: currentFilters.length > 0
-      });
-      return;
-    }
-
-    if (!foundation || !hasMore) return;
-
-    hasStartedAutoLoad.current = true;
-
-    // Small delay to let initial render complete
-    const timer = setTimeout(() => {
-      console.log('[ContactsPageClient] Auto-loading all contacts in background...');
-      loadAll();
-    }, 500);
-
-    return () => clearTimeout(timer);
-    // CRITICAL: Only depend on foundation (not loadAll!) to prevent re-runs after state changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [foundation]);
+  // DISABLED: Auto-load was loading 1,178 contacts on every page load (wasteful!)
+  // Now user clicks "Load All" button when they want to load everything
+  // useEffect(() => {
+  //   if (hasStartedAutoLoad.current || currentFilters.length > 0) return;
+  //   if (!foundation || !hasMore) return;
+  //   hasStartedAutoLoad.current = true;
+  //   const timer = setTimeout(() => loadAll(), 500);
+  //   return () => clearTimeout(timer);
+  // }, [foundation]);
 
   const handleMergeComplete = useCallback((mergedContactIds: number[], primaryContactId: number) => {
     console.log('[ContactsPageClient] Merge complete - removing contacts:', mergedContactIds);
@@ -626,6 +609,8 @@ export default function ContactsPageClient({
             serverSearchLoading={isSearching}
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
+            onLoadAll={loadAll}
+            hasMore={hasMore}
           />
         )}
       </div>
