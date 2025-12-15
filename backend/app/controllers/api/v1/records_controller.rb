@@ -24,6 +24,11 @@ module Api
         # This works for both system tables and user-created tables
         query = apply_eager_loading(query, model)
 
+        # CRITICAL: Add distinct to prevent duplicates caused by JOINs from eager loading
+        # When a record has multiple associations (e.g., Contact with multiple external_links),
+        # includes() creates LEFT OUTER JOINs that produce duplicate rows
+        query = query.distinct
+
         # Exclude soft-deleted records if the table has a 'deleted' column
         if model.column_names.include?("deleted")
           query = query.where(deleted: [ false, nil ])
