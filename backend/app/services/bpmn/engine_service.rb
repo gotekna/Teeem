@@ -122,6 +122,24 @@ module Bpmn
       end
 
       def execute_service_task(token)
+        # Check if task already exists and is completed
+        existing_task = BpmnTaskInstance.find_by(bpmn_token: token, bpmn_node: token.current_node)
+
+        if existing_task&.completed?
+          # Task is done, advance to next node
+          Rails.logger.info("BPMN: Service task already completed, advancing token ##{token.id}")
+          advance_from_simple_node(token)
+          return
+        end
+
+        if existing_task&.in_progress?
+          # Task is still running, just wait
+          token.wait!
+          Rails.logger.info("BPMN: Service task in progress, token ##{token.id} waiting")
+          return
+        end
+
+        # Execute the service task
         token.wait!
         BpmnServiceTaskJob.perform_later(token.id)
       end
