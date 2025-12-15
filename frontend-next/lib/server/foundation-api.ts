@@ -58,6 +58,7 @@ interface FoundationData {
   columns: TableColumn[];
   records: TableRow[];
   totalCount: number | null;
+  hasMore: boolean;
   error: string | null;
 }
 
@@ -90,6 +91,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
       columns: [],
       records: [],
       totalCount: null,
+      hasMore: false,
       error: 'Not authenticated',
     };
   }
@@ -133,16 +135,19 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     const records = (recordsData.records || []) as TableRow[];
     // total_count is at top level for cursor pagination, inside pagination for offset pagination
     const totalCount = recordsData.total_count ?? recordsData.pagination?.total_count ?? null;
+    // has_more indicates if there are more records to load
+    const hasMore = recordsData.has_more ?? (records.length === 100); // Default to true if we got a full page
 
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);
 
-    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length);
+    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length, '- hasMore:', hasMore);
     return {
       foundation,
       columns,
       records,
       totalCount,
+      hasMore,
       error: null,
     };
   } catch (err) {
@@ -152,6 +157,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
       columns: [],
       records: [],
       totalCount: null,
+      hasMore: false,
       error: err instanceof Error ? err.message : 'Failed to load data',
     };
   }

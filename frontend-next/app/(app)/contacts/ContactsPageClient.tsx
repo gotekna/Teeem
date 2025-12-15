@@ -55,6 +55,7 @@ interface ContactsPageClientProps {
   initialColumns: TableColumn[];
   initialRecords: TTableRow[];
   initialTotalCount: number | null;
+  initialHasMore: boolean;
   initialError: string | null;
 }
 
@@ -63,6 +64,7 @@ export default function ContactsPageClient({
   initialColumns,
   initialRecords,
   initialTotalCount,
+  initialHasMore,
   initialError,
 }: ContactsPageClientProps) {
   const router = useRouter();
@@ -75,7 +77,7 @@ export default function ContactsPageClient({
   // Use SSR data as initial state, then infinite scroll will load more
   const [records, setRecords] = useState(initialRecords);
   const [totalCount, setTotalCount] = useState(initialTotalCount);
-  const [hasMore, setHasMore] = useState(true); // Assume more records exist initially
+  const [hasMore, setHasMore] = useState(initialHasMore); // Use server-provided hasMore flag
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
