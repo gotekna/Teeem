@@ -103,13 +103,14 @@ warehouse_xero_attachments:
   args: [null, { limit: 50 }]
   schedule: every 2 hours at minute 45
 
-# Upload Xero PDFs to SharePoint - runs 30 min after PDF download
-# This keeps Stage 3 (SharePoint) in sync with Stage 2 (ActiveStorage)
+# Upload Xero PDFs to SharePoint - catches any that failed instant upload
+# SSoT: Instant upload happens in XeroAttachmentSyncService.upload_to_sharepoint
+# This backfill catches failures and runs frequently to stay near-live
 warehouse_sharepoint_upload:
   class: XeroSharepointUploadBackfillJob
   queue: low
-  args: [{ limit: 100, dry_run: false }]
-  schedule: every 2 hours at minute 15
+  args: [{ limit: 50, dry_run: false }]
+  schedule: every 30 minutes
 
 # SSoT Health Monitor - DISABLED (job removed, depends on unmigrated table)
 # xero_sync_health_monitor:

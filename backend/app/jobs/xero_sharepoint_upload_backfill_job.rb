@@ -20,12 +20,15 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
 
     Rails.logger.info("[XeroSharepointUploadBackfill] Starting backfill job (dry_run: #{dry_run}, limit: #{limit})")
 
-    # Find documents that need uploading
+    # Find PDF documents that need uploading
+    # SSoT: Only process PDFs (external_id LIKE 'xero:%:pdf'), not old attachment records
+    # This ensures we don't get stuck on 650+ orphaned attachments without files
     scope = CorporateCompanyDocument
       .where(source: "xero")
+      .where("external_id LIKE ?", "xero:%:pdf")  # Only PDFs, not attachments
       .where(onedrive_file_id: nil)
       .includes(:contact, :documentable)
-      .order(created_at: :asc)  # Oldest first
+      .order(created_at: :desc)  # Newest first - process recent PDFs quickly
 
     scope = scope.limit(limit) if limit.present?
 
