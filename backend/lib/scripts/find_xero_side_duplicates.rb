@@ -101,10 +101,10 @@ name_groups.each do |row|
       end
     end
 
+    puts "   💡 Solution: Merge/delete duplicate contacts in Xero (#{tenant_name}), then merge TEEEM contacts"
     puts ""
   end
 
-  puts "   💡 Solution: Merge/delete duplicate contacts in Xero (#{tenant_name}), then merge TEEEM contacts"
   puts ""
 end
 
