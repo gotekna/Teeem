@@ -188,12 +188,14 @@ module Api
         if params[:cursor].present?
           # Cursor pagination response (loading more)
           response[:has_more] = has_more
-          response[:next_cursor] = records.last&.id
+          # CRITICAL: Use last record from unique_records, not original records (after deduplication)
+          response[:next_cursor] = unique_records.last&.dig(:id) || unique_records.last&.dig("id")
           # Don't include total_count on subsequent requests (performance optimization)
         elsif params[:limit].present?
           # Cursor pagination response (first request - includes total_count for UX)
           response[:has_more] = has_more || (records.length == limit)
-          response[:next_cursor] = records.last&.id
+          # CRITICAL: Use last record from unique_records, not original records (after deduplication)
+          response[:next_cursor] = unique_records.last&.dig(:id) || unique_records.last&.dig("id")
           response[:total_count] = total_count # Include total_count on first request
         else
           # Traditional offset pagination response (backwards compatible)
