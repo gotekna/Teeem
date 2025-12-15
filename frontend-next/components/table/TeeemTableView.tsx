@@ -1046,7 +1046,7 @@ export default function TeeemTableView({
   const handleFindMissingAbns = useCallback(async () => {
     setIsFindingAbns(true);
     try {
-      const response = await api.post("/api/v1/contacts/find_missing_abns");
+      const response = await api.post("/api/v1/contacts/find_missing_abns") as { data: { found?: number; not_found?: number; multiple_matches?: number } };
       toast({
         title: "ABN Search Started",
         description: `Searching for missing ABNs in the background. Found: ${response.data.found || 0}, Not found: ${response.data.not_found || 0}, Multiple matches: ${response.data.multiple_matches || 0}`,

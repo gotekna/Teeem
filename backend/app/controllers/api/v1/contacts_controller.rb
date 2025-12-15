@@ -3187,6 +3187,28 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/contacts/find_missing_abns
+      # Find and populate missing ABNs by searching company names via ABR API
+      def find_missing_abns
+        unless ENV["ABR_GUID"].present?
+          render json: {
+            success: false,
+            error: "ABR_GUID environment variable not set. Register at https://abr.business.gov.au"
+          }, status: :service_unavailable
+          return
+        end
+
+        # Run the task in the background using Solid Queue
+        FindMissingAbnsJob.perform_later
+
+        render json: {
+          success: true,
+          message: "ABN search started in background. This may take several minutes."
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       private
 
       # Format a quality review for API response

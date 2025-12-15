@@ -405,6 +405,8 @@ Rails.application.routes.draw do
           # Data quality review endpoints
           get :quality_reviews      # List pending quality reviews
           post :quality_scan        # Run quality detection scan
+          # ABN verification
+          post :find_missing_abns   # Find and populate missing ABNs via ABR API
         end
         member do
           post :reorder_employees
