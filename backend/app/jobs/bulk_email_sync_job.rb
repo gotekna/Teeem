@@ -65,13 +65,11 @@ class BulkEmailSyncJob < ApplicationJob
       end
 
       # Phase 3: Upload email .eml files to SharePoint
-      # DISABLED: EML upload is too slow and not needed for now
-      # unless @progress["phase3_complete"]
-      #   sync_emails_to_sharepoint
-      #   @progress["phase3_complete"] = true
-      #   save_progress!
-      # end
-      @progress["phase3_complete"] = true  # Skip phase 3
+      unless @progress["phase3_complete"]
+        sync_emails_to_sharepoint
+        @progress["phase3_complete"] = true
+        save_progress!
+      end
 
       # Mark complete
       @progress["status"] = "completed"
