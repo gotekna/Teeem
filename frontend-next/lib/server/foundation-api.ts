@@ -131,7 +131,8 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
 
     const recordsData = await recordsRes.json();
     const records = (recordsData.records || []) as TableRow[];
-    const totalCount = recordsData.pagination?.total_count ?? recordsData.has_more ? null : records.length;
+    // total_count is at top level for cursor pagination, inside pagination for offset pagination
+    const totalCount = recordsData.total_count ?? recordsData.pagination?.total_count ?? null;
 
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);

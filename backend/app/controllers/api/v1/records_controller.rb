@@ -134,14 +134,18 @@ module Api
         # See: Ultra philosophy - load what the UI needs, optimize HOW we load it
 
         # Paginate: Use cursor-based for infinite scroll, offset for traditional pagination
-        if params[:cursor].present?
+        if params[:cursor].present? || params[:limit].present?
           # Cursor-based pagination (for infinite scroll)
           # Format: cursor is the ID of the last record from previous page
-          cursor_id = params[:cursor].to_i
+          cursor_id = params[:cursor]&.to_i || 0
           limit = [params[:limit]&.to_i || 50, 100].min # Default 50, max 100 per request
 
           # Fetch records after cursor
-          records = query.where("#{model.table_name}.id > ?", cursor_id).limit(limit + 1)
+          if cursor_id > 0
+            records = query.where("#{model.table_name}.id > ?", cursor_id).limit(limit + 1)
+          else
+            records = query.limit(limit + 1)
+          end
 
           # Check if there are more records (fetch limit+1, return limit)
           has_more = records.length > limit
@@ -161,11 +165,17 @@ module Api
         }
 
         if params[:cursor].present?
-          # Cursor pagination response
+          # Cursor pagination response (loading more)
           response[:has_more] = has_more
           response[:next_cursor] = records.last&.id
+          # Don't include total_count on subsequent requests (performance optimization)
+        elsif params[:limit].present?
+          # Cursor pagination response (first request - includes total_count for UX)
+          response[:has_more] = has_more || (records.length == limit)
+          response[:next_cursor] = records.last&.id
+          response[:total_count] = total_count # Include total_count on first request
         else
-          # Traditional pagination response (backwards compatible)
+          # Traditional offset pagination response (backwards compatible)
           response[:pagination] = {
             page: page,
             per_page: per_page,

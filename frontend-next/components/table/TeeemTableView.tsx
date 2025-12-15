@@ -1016,6 +1016,9 @@ export default function TeeemTableView({
   // Email to Contacts modal state (local state)
   const [showEmailToContactsModal, setShowEmailToContactsModal] = useState(false);
 
+  // ABN search state
+  const [isFindingAbns, setIsFindingAbns] = useState(false);
+
   // Drag-to-select state (using refs to avoid re-renders)
   const dragStateRef = useRef<{
     isDragging: boolean;
@@ -1038,6 +1041,30 @@ export default function TeeemTableView({
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Handle Find Missing ABNs button click
+  const handleFindMissingAbns = useCallback(async () => {
+    setIsFindingAbns(true);
+    try {
+      const response = await api.post("/api/v1/contacts/find_missing_abns");
+      toast({
+        title: "ABN Search Started",
+        description: `Searching for missing ABNs in the background. Found: ${response.data.found || 0}, Not found: ${response.data.not_found || 0}, Multiple matches: ${response.data.multiple_matches || 0}`,
+      });
+      // Refresh the table to show updated ABNs
+      if (onRefresh) {
+        onRefresh();
+      }
+    } catch (error: any) {
+      toast({
+        title: "ABN Search Failed",
+        description: error.response?.data?.error || "Failed to start ABN search",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFindingAbns(false);
+    }
+  }, [toast, onRefresh]);
 
   // Handle column drag end for reordering
   const handleColumnDragEnd = useCallback((event: DragEndEvent) => {
@@ -3743,6 +3770,16 @@ export default function TeeemTableView({
                     <UserPlus className="h-4 w-4 mr-2" />
                     Extract Contacts from Emails
                   </DropdownMenuItem>
+                  {(foundationId === "contacts" || foundationIdNumeric === 214) && (
+                    <DropdownMenuItem onClick={handleFindMissingAbns} disabled={isFindingAbns}>
+                      {isFindingAbns ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Search className="h-4 w-4 mr-2" />
+                      )}
+                      Find Missing ABNs
+                    </DropdownMenuItem>
+                  )}
                 </>
               )}
 

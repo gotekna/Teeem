@@ -62,6 +62,7 @@ export default function ContactsPageClient({
   initialFoundation,
   initialColumns,
   initialRecords,
+  initialTotalCount,
   initialError,
 }: ContactsPageClientProps) {
   const router = useRouter();
@@ -73,6 +74,7 @@ export default function ContactsPageClient({
 
   // Use SSR data as initial state, then infinite scroll will load more
   const [records, setRecords] = useState(initialRecords);
+  const [totalCount, setTotalCount] = useState(initialTotalCount);
   const [hasMore, setHasMore] = useState(true); // Assume more records exist initially
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -96,7 +98,7 @@ export default function ContactsPageClient({
     setIsSearching(true);
 
     try {
-      const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number, total_count?: number }>(
         `/api/v1/foundations/${foundation.id}/records`,
         {
           params: {
@@ -108,6 +110,10 @@ export default function ContactsPageClient({
 
       setRecords(response.records || []);
       setHasMore(response.has_more ?? false);
+      // Update total count if provided (first request includes it)
+      if (response.total_count !== undefined) {
+        setTotalCount(response.total_count);
+      }
     } catch (error) {
       console.error("[ContactsPageClient] Search failed:", error);
     } finally {
@@ -161,7 +167,7 @@ export default function ContactsPageClient({
 
       const timestamp = Date.now();
 
-      const response = await api.get<{ records: TTableRow[], has_more: boolean }>(
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, total_count?: number }>(
         `/api/v1/foundations/${foundation.id}/records`,
         {
           params: {
@@ -174,6 +180,10 @@ export default function ContactsPageClient({
 
       setRecords(response.records || []);
       setHasMore(response.has_more ?? true);
+      // Update total count if provided (first request includes it)
+      if (response.total_count !== undefined) {
+        setTotalCount(response.total_count);
+      }
       console.log('[ContactsPageClient] Refresh complete!');
     } catch (error) {
       console.error("[ContactsPageClient] Failed to refresh:", error);
@@ -413,7 +423,9 @@ export default function ContactsPageClient({
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {records.length.toLocaleString()} contacts
+            {totalCount !== null
+              ? `${totalCount.toLocaleString()} contacts`
+              : `${records.length.toLocaleString()}+ contacts`}
           </p>
         </div>
         {currentView?.view_type === "relational" && (
