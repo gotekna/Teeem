@@ -9,6 +9,11 @@ module Api
         column = @foundation.columns.build(column_params)
         column.position = @foundation.columns.maximum(:position).to_i + 1
 
+        # Auto-detect Australian column types if not explicitly set
+        if column.column_name.present? && column.column_type.blank?
+          column.column_type = auto_detect_australian_column_type(column.column_name)
+        end
+
         if column.save
           # Use add_column for existing foundations (preserves data)
           # Use create_database_table only for new foundations
@@ -58,11 +63,17 @@ module Api
         Rails.logger.info "🔴 COLUMN UPDATE - Before: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
         Rails.logger.info "📥 COLUMN UPDATE - Params received: #{column_params.inspect}"
 
-        # Track if structural changes are being made (require table rebuild)
-        structural_change = column_params[:column_name].present? && column_params[:column_name] != @column.column_name ||
-                           column_params[:column_type].present? && column_params[:column_type] != @column.column_type
+        # Auto-detect Australian column types if column_name changed and type not explicitly set
+        params_hash = column_params.to_h
+        if params_hash[:column_name].present? && params_hash[:column_type].blank?
+          params_hash[:column_type] = auto_detect_australian_column_type(params_hash[:column_name])
+        end
 
-        update_result = @column.update(column_params)
+        # Track if structural changes are being made (require table rebuild)
+        structural_change = params_hash[:column_name].present? && params_hash[:column_name] != @column.column_name ||
+                           params_hash[:column_type].present? && params_hash[:column_type] != @column.column_type
+
+        update_result = @column.update(params_hash)
         Rails.logger.info "📊 COLUMN UPDATE - Update result: #{update_result}"
         Rails.logger.info "🔵 COLUMN UPDATE - After: header_align=#{@column.header_align}, data_align=#{@column.data_align}"
         Rails.logger.info "❌ COLUMN UPDATE - Errors: #{@column.errors.full_messages.inspect}" unless update_result
@@ -753,6 +764,27 @@ module Api
         end
 
         warnings
+      end
+
+      # Auto-detect Australian column types based on column name (Gold Standard compliance)
+      # Returns the appropriate Gold Standard column type or "single_line_text" as fallback
+      def auto_detect_australian_column_type(column_name)
+        case column_name.to_s
+        when /^(tax_number|abn)$/i
+          "abn"
+        when /^(company_number|acn)$/i
+          "acn"
+        when /^(bank_bsb|bsb)$/i
+          "bsb"
+        when /^(bank_account_number|bank_account)$/i
+          "bank_account"
+        when /^postcode$/i
+          "postcode"
+        when /^tfn$/i
+          "tfn"
+        else
+          "single_line_text" # Default fallback
+        end
       end
     end
   end
