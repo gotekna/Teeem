@@ -33,6 +33,7 @@ import {
   Scale,
   History,
   Workflow,
+  Loader2,
 } from "lucide-react";
 import {
   Persona,
@@ -269,11 +270,12 @@ export function Sidebar() {
                   : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
               )}
             >
-              <div className={cn(
-                "relative shrink-0 transition-opacity",
-                isLoading && "animate-pulse"
-              )}>
-                <Icon size={16} className={cn(isLoading && "opacity-40")} />
+              <div className="relative shrink-0">
+                {isLoading ? (
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                ) : (
+                  <Icon size={16} />
+                )}
                 {badgeCount > 0 && !isExpanded && !mobile && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {badgeCount > 9 ? "9+" : badgeCount}
@@ -284,7 +286,7 @@ export function Sidebar() {
                 className={cn(
                   "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
                   isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-                  isLoading && "animate-pulse opacity-40"
+                  isLoading && "opacity-50"
                 )}
               >
                 {item.name}
