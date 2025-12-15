@@ -1552,9 +1552,21 @@ module Api
               )
 
               if existing
-                # Target already linked to this Xero tenant, keep target's link and delete source's
-                Rails.logger.info "[ContactMerge] Target already linked to #{xero_link.tenant_name}, keeping target's link"
-                xero_link.destroy
+                # Check if they point to different Xero contacts
+                if xero_link.external_contact_id != existing.external_contact_id
+                  # Different Xero contact IDs - one is stale, transfer it and mark as stale
+                  # This prevents the stale Xero contact from being recreated during next sync
+                  xero_link.mark_stale!('not_found')
+                  xero_link.update!(
+                    contact_id: target_id,
+                    sync_error: "Contact merged - duplicate Xero link marked as stale"
+                  )
+                  Rails.logger.info "[ContactMerge] Transferred stale Xero link: #{xero_link.external_contact_id}"
+                else
+                  # Same Xero contact ID - true duplicate, safe to delete
+                  Rails.logger.info "[ContactMerge] Deleting duplicate Xero link to #{xero_link.tenant_name}"
+                  xero_link.destroy
+                end
               else
                 # Transfer this Xero link to target
                 xero_link.update(contact_id: target_id)
@@ -3412,13 +3424,27 @@ module Api
 
         # Transfer Xero links from duplicate to primary
         duplicate.xero_links.each do |xero_link|
-          # Skip if primary already has a link to this Xero tenant
+          # Check if primary already has a link to this Xero tenant
           existing = primary.xero_links.find_by(
             tenant_id: xero_link.tenant_id,
             source: xero_link.source
           )
 
-          unless existing
+          if existing
+            # Check if they point to different Xero contacts
+            if xero_link.external_contact_id != existing.external_contact_id
+              # Different Xero contact IDs - one is stale, transfer it and mark as stale
+              xero_link.mark_stale!('not_found')
+              xero_link.update!(
+                contact_id: primary.id,
+                sync_error: "Contact merged - duplicate Xero link marked as stale"
+              )
+              Rails.logger.info("[ContactMerge] Transferred stale Xero link: #{xero_link.external_contact_id}")
+            else
+              # Same Xero contact ID - true duplicate, safe to skip (will be destroyed with contact)
+              Rails.logger.info("[ContactMerge] Skipping duplicate Xero link to #{xero_link.tenant_name}")
+            end
+          else
             # Transfer this Xero link to primary
             xero_link.update!(contact_id: primary.id)
             Rails.logger.info("[ContactMerge] Transferred Xero link to #{xero_link.tenant_name}")

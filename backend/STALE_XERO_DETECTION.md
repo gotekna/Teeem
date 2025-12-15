@@ -116,12 +116,37 @@ heroku run --app teeemlive "TENANT_ID=xxx rails runner lib/scripts/merge_all_dup
 - No audit trail
 - No grace period for temporary issues
 - Duplicates reappear after merge
+- Merge destroys external links → sync recreates contacts
 
 ### After (New System)
 - Stale links tracked, not immediately deleted
 - 7-day grace period for Xero issues
 - Full audit trail of status changes
 - Duplicates detected and prevented
+- Merge transfers stale links → sync won't recreate contacts
+
+## How Merge Fix Works
+
+When merging contacts with multiple Xero links to the same tenant:
+
+**Example:**
+- Contact A → Tekna → Xero ID "abc123" (active)
+- Contact B → Tekna → Xero ID "xyz789" (stale/archived)
+
+**Old Behavior (BUG):**
+1. Merge B into A
+2. Destroy B's link (dependent: :destroy)
+3. Next sync sees "xyz789" in Xero
+4. No link found → creates NEW contact
+5. Duplicate is back!
+
+**New Behavior (FIXED):**
+1. Merge B into A
+2. Transfer B's link to A AND mark as 'not_found'
+3. A now has both links: "abc123" (active) + "xyz789" (stale)
+4. Next sync sees "xyz789" in existing_links
+5. Won't recreate contact
+6. Cleanup job deletes stale link after 7 days
 
 ## Usage
 

@@ -172,10 +172,17 @@ module Api
         # Build lookup cache to prevent N+1 queries (only for user foundations with lookup columns)
         lookup_cache = @foundation.table_type == "system" ? {} : build_lookup_cache(records)
 
+        # Serialize records to JSON
+        serialized_records = records.map { |r| record_to_json(r, lookup_cache) }
+
+        # CRITICAL: Deduplicate by ID (belt-and-suspenders approach)
+        # This ensures no duplicate IDs appear in the response regardless of query issues
+        unique_records = serialized_records.uniq { |r| r[:id] || r["id"] }
+
         # Response format: cursor pagination includes has_more + next_cursor
         response = {
           success: true,
-          records: records.map { |r| record_to_json(r, lookup_cache) }
+          records: unique_records
         }
 
         if params[:cursor].present?
