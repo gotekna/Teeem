@@ -6,8 +6,10 @@ module Api
       # GET /api/v1/foundations/:foundation_id/records
       def index
         # Sanitize and validate pagination parameters to prevent DoS
+        # Support both 'limit' (new cursor pagination) and 'per_page' (legacy offset pagination)
         page = [ (params[:page] || 1).to_i, 1 ].max
-        per_page = [ (params[:per_page] || 50).to_i, 1 ].max
+        limit_or_per_page = params[:limit]&.to_i || params[:per_page]&.to_i || 50
+        per_page = [ limit_or_per_page, 1 ].max
         per_page = [ per_page, 10000 ].min  # Cap at 10000 to prevent DoS
 
         search = params[:search]

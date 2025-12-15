@@ -71,11 +71,9 @@ export default function ContactsPageClient({
   const [foundation] = useState(initialFoundation);
   const [columns] = useState(initialColumns);
 
-  // TeeemTableView now handles data fetching automatically when foundationIdNumeric is set
-  // We don't need to manage records state here anymore - just pass empty array
-  // TeeemTableView will auto-fetch with cursor pagination + infinite scroll
-  const [records, setRecords] = useState<TTableRow[]>([]);
-  const [hasMore, setHasMore] = useState(false);
+  // Use SSR data as initial state, then infinite scroll will load more
+  const [records, setRecords] = useState(initialRecords);
+  const [hasMore, setHasMore] = useState(true); // Assume more records exist initially
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
