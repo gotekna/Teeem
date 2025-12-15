@@ -741,7 +741,8 @@ class Contact < ApplicationRecord
     service = AbrApiService.new
     result = service.lookup(tax_number)
 
-    update!(
+    # Use update_columns to bypass validations (we only update ABN fields)
+    update_columns(
       abn_valid: result[:valid],
       abn_entity_name: result[:entity_name],
       abn_entity_type: result[:entity_type_description],
@@ -751,13 +752,13 @@ class Contact < ApplicationRecord
 
     result
   rescue AbrApiService::InvalidAbnFormat => e
-    update!(
+    update_columns(
       abn_valid: false,
       abn_verified_at: Time.current
     )
     raise e
   rescue AbrApiService::AbnNotFound => e
-    update!(
+    update_columns(
       abn_valid: false,
       abn_verified_at: Time.current
     )
