@@ -73,6 +73,13 @@ xero_bank_transaction_sync:
   queue: low
   schedule: every 6 hours at minute 30
 
+# Cleanup stale Xero external links (7+ days old)
+# Removes links to archived/deleted Xero contacts after grace period
+cleanup_stale_xero_links:
+  class: CleanupStaleXeroLinksJob
+  queue: low
+  schedule: at 3am every day
+
 # ============================================
 # DATA WAREHOUSE RECURRING JOBS
 # ============================================

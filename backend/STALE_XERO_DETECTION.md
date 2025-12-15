@@ -72,9 +72,11 @@ cleanup_stale_xero_links:
   description: "Remove Xero external links marked as stale for 7+ days"
 ```
 
-### 5. Fix Script (fix_duplicate_ato_contacts.rb)
+### 5. Fix Scripts
 
-**Immediate fix for current ATO issue:**
+#### 5a. Fix Specific Duplicate (fix_duplicate_ato_contacts.rb)
+
+**One-time fix for ATO duplicate:**
 ```bash
 heroku run --app teeemlive "rails runner lib/scripts/fix_duplicate_ato_contacts.rb"
 ```
@@ -85,6 +87,27 @@ heroku run --app teeemlive "rails runner lib/scripts/fix_duplicate_ato_contacts.
 3. Marks stale link as `not_found`
 4. Deletes stale link
 5. Merges TEEEM contacts
+
+#### 5b. Merge All Duplicates (merge_all_duplicate_xero_contacts.rb)
+
+**Find and merge ALL duplicate contacts:**
+```bash
+# Dry run (see what would happen)
+heroku run --app teeemlive "DRY_RUN=true rails runner lib/scripts/merge_all_duplicate_xero_contacts.rb"
+
+# Live run (make changes)
+heroku run --app teeemlive "rails runner lib/scripts/merge_all_duplicate_xero_contacts.rb"
+
+# Process specific tenant only
+heroku run --app teeemlive "TENANT_ID=xxx rails runner lib/scripts/merge_all_duplicate_xero_contacts.rb"
+```
+
+**What it does:**
+1. Finds ALL contacts with multiple Xero links for the same tenant
+2. Keeps the most recently verified link
+3. Marks other links as `not_found`
+4. Deletes stale links
+5. Reports all changes made
 
 ## Benefits
 
@@ -161,10 +184,11 @@ Contact.joins(:external_links).merge(ContactExternalLink.stale_status).distinct
 - [x] Model methods added
 - [x] Sync service updated
 - [x] Cleanup job created
-- [x] Fix script created
-- [ ] Run migration on production
-- [ ] Run fix script on production
-- [ ] Add cleanup job to recurring.yml
+- [x] Fix scripts created (specific + merge all)
+- [x] Run migration on production
+- [x] Run fix script on production (ATO)
+- [x] Add cleanup job to recurring.yml
+- [ ] Run merge all duplicates script
 - [ ] Monitor first full sync
 - [ ] Verify no duplicates reappear
 
