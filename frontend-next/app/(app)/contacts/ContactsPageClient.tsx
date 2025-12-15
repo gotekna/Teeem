@@ -88,6 +88,9 @@ export default function ContactsPageClient({
   const [showExplorer, setShowExplorer] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
+  // Track if we've already started auto-loading (to prevent double-load)
+  const hasStartedAutoLoad = useRef(false);
+
   // Handler for when the active view changes in View Manager
   const handleViewChange = useCallback((view: any) => {
     setCurrentView(view);
@@ -252,6 +255,21 @@ export default function ContactsPageClient({
       refresh();
     }
   }, [refresh]);
+
+  // Auto-load all contacts in background after initial render
+  useEffect(() => {
+    if (!foundation || !hasMore || hasStartedAutoLoad.current) return;
+
+    hasStartedAutoLoad.current = true;
+
+    // Small delay to let initial render complete
+    const timer = setTimeout(() => {
+      console.log('[ContactsPageClient] Auto-loading all contacts in background...');
+      loadAll();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [foundation, hasMore, loadAll]);
 
   const handleMergeComplete = () => {
     setSelectedForMerge([]);
@@ -513,28 +531,6 @@ export default function ContactsPageClient({
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
           />
-        )}
-
-        {/* Load More Controls - show when there are more records to load */}
-        {hasMore && !showExplorer && currentView?.view_type !== "relational" && (
-          <div className="flex items-center justify-center gap-3 py-4 border-t">
-            <Button
-              onClick={loadMore}
-              disabled={isLoadingMore}
-              variant="outline"
-              size="sm"
-            >
-              {isLoadingMore ? "Loading..." : `Load 100 More (${records.length} of ${totalCount || "?"} shown)`}
-            </Button>
-            <Button
-              onClick={loadAll}
-              disabled={isLoadingMore}
-              variant="default"
-              size="sm"
-            >
-              {isLoadingMore ? "Loading..." : "Load All Remaining"}
-            </Button>
-          </div>
         )}
       </div>
 
