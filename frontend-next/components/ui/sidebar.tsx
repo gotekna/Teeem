@@ -96,6 +96,7 @@ export function Sidebar() {
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
   const [deployedAt, setDeployedAt] = useState<string | null>(null);
+  const [loadingHref, setLoadingHref] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -103,6 +104,11 @@ export function Sidebar() {
 
   // Prevent duplicate fetches (React StrictMode double-mount)
   const badgeFetchingRef = useRef(false);
+
+  // Clear loading state when navigation completes (pathname changes)
+  useEffect(() => {
+    setLoadingHref(null);
+  }, [pathname]);
 
   // Load persona from localStorage on mount
   useEffect(() => {
@@ -248,12 +254,14 @@ export function Sidebar() {
           const Icon = item.icon;
           const active = isActive(item.href);
           const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
+          const isLoading = loadingHref === item.href;
 
           return (
             <Link
               key={item.href}
               href={item.href}
               prefetch={false}
+              onClick={() => !active && setLoadingHref(item.href)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2 transition-colors relative group",
                 active
@@ -261,8 +269,11 @@ export function Sidebar() {
                   : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
               )}
             >
-              <div className="relative shrink-0">
-                <Icon size={16} />
+              <div className={cn(
+                "relative shrink-0 transition-opacity",
+                isLoading && "animate-pulse"
+              )}>
+                <Icon size={16} className={cn(isLoading && "opacity-40")} />
                 {badgeCount > 0 && !isExpanded && !mobile && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {badgeCount > 9 ? "9+" : badgeCount}
@@ -272,7 +283,8 @@ export function Sidebar() {
               <span
                 className={cn(
                   "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
-                  isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
+                  isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+                  isLoading && "animate-pulse opacity-40"
                 )}
               >
                 {item.name}
