@@ -52,7 +52,7 @@ interface MergeContactsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contacts: Contact[];
-  onMergeComplete: () => void;
+  onMergeComplete: (mergedContactIds: number[], primaryContactId: number) => void;
 }
 
 function getInitials(name: string | undefined | null): string {
@@ -114,7 +114,8 @@ export function MergeContactsModal({
         primary_contact_id: primaryContactId,
         secondary_contact_ids: secondaryIds,
       });
-      onMergeComplete();
+      // Pass the merged IDs back to parent so it can remove them from state
+      onMergeComplete(secondaryIds, primaryContactId);
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to merge contacts");
@@ -143,7 +144,8 @@ export function MergeContactsModal({
         person_id: personContact.id,
         company_ids: companyContacts.map(c => c.id),
       });
-      onMergeComplete();
+      // No contacts are deleted in fix email assignment, just pass empty array
+      onMergeComplete([], personContact.id);
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fix email assignment");

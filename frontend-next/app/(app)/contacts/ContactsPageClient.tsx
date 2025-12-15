@@ -322,10 +322,23 @@ export default function ContactsPageClient({
     return () => clearTimeout(timer);
   }, [foundation, hasMore, loadAll]);
 
-  const handleMergeComplete = () => {
+  const handleMergeComplete = useCallback((mergedContactIds: number[], primaryContactId: number) => {
+    console.log('[ContactsPageClient] Merge complete - removing contacts:', mergedContactIds);
     setSelectedForMerge([]);
-    refresh();
-  };
+
+    // Optimistically remove merged contacts from state (no need to reload all 1,178 contacts!)
+    setRecords(prev => prev.filter(r => !mergedContactIds.includes(Number(r.id))));
+
+    // Update total count
+    if (totalCount !== null) {
+      setTotalCount(totalCount - mergedContactIds.length);
+    }
+
+    toast({
+      title: "Contacts merged",
+      description: `${mergedContactIds.length} contact(s) merged successfully`,
+    });
+  }, [totalCount, toast]);
 
   // Handle row click - navigate to contact detail
   const handleRowClick = useCallback((row: TTableRow) => {
