@@ -81,6 +81,7 @@ import {
   formatABN,
   formatACN,
   validateABN,
+  validateACN,
   formatPhoneNumber,
   validatePhoneNumber,
 } from "../types";
@@ -110,7 +111,8 @@ interface ContactFormData {
   residential_address: string;
   drivers_licence: string;
   passport_number: string;
-  tax_number: string;
+  abn: string;
+  acn: string;
   sync_with_xero: boolean;
 }
 
@@ -2421,39 +2423,74 @@ function BusinessTaxCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="tax_number">
+          <Label htmlFor="abn">
             {isPerson(formData.entity_type) ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
           </Label>
           <Input
-            id="tax_number"
-            value={formData.tax_number}
+            id="abn"
+            value={formData.abn}
             onChange={(e) => {
-              handleInputChange("tax_number", e.target.value);
-              setFieldErrors(prev => ({ ...prev, tax_number: '' }));
+              handleInputChange("abn", e.target.value);
+              setFieldErrors(prev => ({ ...prev, abn: '' }));
             }}
             onBlur={() => {
-              const validation = validateABN(formData.tax_number);
+              const validation = validateABN(formData.abn);
               if (!validation.isValid) {
-                setFieldErrors(prev => ({ ...prev, tax_number: validation.error || 'Invalid ABN' }));
+                setFieldErrors(prev => ({ ...prev, abn: validation.error || 'Invalid ABN' }));
               } else {
-                const formatted = formatABN(formData.tax_number);
-                if (formatted !== formData.tax_number) {
-                  handleInputChange("tax_number", formatted);
+                const formatted = formatABN(formData.abn);
+                if (formatted !== formData.abn) {
+                  handleInputChange("abn", formatted);
                 }
-                setFieldErrors(prev => ({ ...prev, tax_number: '' }));
+                setFieldErrors(prev => ({ ...prev, abn: '' }));
               }
               handleAutoSave();
             }}
             placeholder="XX XXX XXX XXX"
-            className={cn(fieldErrors.tax_number && 'border-red-500 focus-visible:ring-red-500')}
+            className={cn(fieldErrors.abn && 'border-red-500 focus-visible:ring-red-500')}
           />
-          {fieldErrors.tax_number && (
-            <p className="text-xs text-red-500">{fieldErrors.tax_number}</p>
+          {fieldErrors.abn && (
+            <p className="text-xs text-red-500">{fieldErrors.abn}</p>
           )}
-          {isPerson(formData.entity_type) && !fieldErrors.tax_number && (
+          {isPerson(formData.entity_type) && !fieldErrors.abn && (
             <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
           )}
         </div>
+
+        {/* ACN field - only for companies/trusts */}
+        {!isPerson(formData.entity_type) && (
+          <div className="space-y-2">
+            <Label htmlFor="acn">ACN (Australian Company Number)</Label>
+            <Input
+              id="acn"
+              value={formData.acn}
+              onChange={(e) => {
+                handleInputChange("acn", e.target.value);
+                setFieldErrors(prev => ({ ...prev, acn: '' }));
+              }}
+              onBlur={() => {
+                const validation = validateACN(formData.acn);
+                if (!validation.isValid) {
+                  setFieldErrors(prev => ({ ...prev, acn: validation.error || 'Invalid ACN' }));
+                } else {
+                  const formatted = formatACN(formData.acn);
+                  if (formatted !== formData.acn) {
+                    handleInputChange("acn", formatted);
+                  }
+                  setFieldErrors(prev => ({ ...prev, acn: '' }));
+                }
+                handleAutoSave();
+              }}
+              placeholder="XXX XXX XXX"
+              className={cn(fieldErrors.acn && 'border-red-500 focus-visible:ring-red-500')}
+            />
+            {fieldErrors.acn && (
+              <p className="text-xs text-red-500">{fieldErrors.acn}</p>
+            )}
+            <p className="text-xs text-muted-foreground">9-digit company registration number</p>
+          </div>
+        )}
+
         {contact.linked_company && (
           <Link href={`/corporate/companies/${contact.linked_company.id}`}>
             <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-4 w-4 mr-2" />View Corporate Record</Button>

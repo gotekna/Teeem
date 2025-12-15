@@ -1651,8 +1651,8 @@ module Api
           # Stage 3 blocker info
           stage3_blocker = if sharepoint_pending > 0
             {
-              reason: "Waiting for PDF downloads",
-              detail: "SharePoint uploads happen automatically when PDFs are downloaded",
+              reason: "Uploading to SharePoint",
+              detail: "#{sharepoint_pending} PDFs queued for SharePoint upload",
               pending_count: sharepoint_pending
             }
           else

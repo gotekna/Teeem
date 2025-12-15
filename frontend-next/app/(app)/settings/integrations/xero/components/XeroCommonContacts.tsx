@@ -22,7 +22,7 @@ interface CommonContact {
   display_name: string;
   entity_type: string;
   email: string | null;
-  tax_number: string | null;
+  abn: string | null;
   tenant_count: number;
   tenants: TenantLink[];
 }
@@ -147,10 +147,10 @@ export function XeroCommonContacts() {
                               {contact.email}
                             </span>
                           )}
-                          {contact.tax_number && (
+                          {contact.abn && (
                             <span className="flex items-center gap-1">
                               <Hash className="h-3 w-3" />
-                              ABN: {contact.tax_number}
+                              ABN: {contact.abn}
                             </span>
                           )}
                         </div>

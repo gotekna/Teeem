@@ -67,7 +67,7 @@ interface Contact {
   mobile_phone: string | null;
   office_phone: string | null;
   website: string | null;
-  tax_number: string | null;
+  abn: string | null;
   address: string | null; // Legacy - deprecated, use contact_addresses
   notes: string | null;
   is_active: boolean;
@@ -293,12 +293,12 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                       );
                     })()}
 
-                    {contact.tax_number && (
+                    {contact.abn && (
                       <div className="flex items-center gap-3">
                         <Hash className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <p className="text-xs text-muted-foreground">ABN</p>
-                          <p className="text-sm font-mono">{formatABN(contact.tax_number)}</p>
+                          <p className="text-sm font-mono">{formatABN(contact.abn)}</p>
                         </div>
                       </div>
                     )}

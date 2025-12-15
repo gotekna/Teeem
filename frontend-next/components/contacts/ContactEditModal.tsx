@@ -68,7 +68,7 @@ interface Contact {
   mobile_phone: string | null;
   office_phone: string | null;
   website: string | null;
-  tax_number: string | null;
+  abn: string | null;
   address: string | null; // Legacy - deprecated, use contact_addresses
   notes: string | null;
   is_active: boolean;
@@ -107,7 +107,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
     mobile_phone: "",
     office_phone: "",
     website: "",
-    tax_number: "",
+    abn: "",
     address: "",
     notes: "",
     is_active: true,
@@ -153,7 +153,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
         mobile_phone: contact.mobile_phone || "",
         office_phone: contact.office_phone || "",
         website: contact.website || "",
-        tax_number: contact.tax_number || "",
+        abn: contact.abn || "",
         address: getPrimaryAddress(contact.contact_addresses) || contact.address || "", // SSoT: prefer contact_addresses
         notes: contact.notes || "",
         is_active: contact.is_active,
@@ -851,11 +851,11 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
           {/* Other Tab */}
           <TabsContent value="other" className="space-y-4 mt-4">
             <div className="space-y-2">
-              <Label htmlFor="tax_number">ABN / Tax Number</Label>
+              <Label htmlFor="abn">ABN / Tax Number</Label>
               <Input
-                id="tax_number"
-                value={formData.tax_number}
-                onChange={(e) => handleInputChange("tax_number", e.target.value)}
+                id="abn"
+                value={formData.abn}
+                onChange={(e) => handleInputChange("abn", e.target.value)}
                 placeholder="XX XXX XXX XXX"
               />
             </div>

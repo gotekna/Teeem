@@ -16,7 +16,7 @@ interface Contact {
   company_name?: string;
   first_name?: string;
   last_name?: string;
-  tax_number?: string;
+  abn?: string;
   email?: string;
   mobile_phone?: string;
   xero_contact_status?: string;
@@ -315,9 +315,9 @@ export function XeroDuplicateReviewPanel({
                     <div className="flex-1 min-w-0">
                       <Label htmlFor={`contact-${item.id}`} className="cursor-pointer">
                         <div className="font-medium">{item.contact.display_name}</div>
-                        {item.contact.tax_number && (
+                        {item.contact.abn && (
                           <div className="text-xs text-muted-foreground font-mono mt-1">
-                            ABN: {item.contact.tax_number}
+                            ABN: {item.contact.abn}
                           </div>
                         )}
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">

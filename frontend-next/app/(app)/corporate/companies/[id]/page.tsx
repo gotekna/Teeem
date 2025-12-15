@@ -183,7 +183,7 @@ interface Company {
   entity_type?: string;
   contact_id?: number; // SSoT: Link to Contact record
   contact?: {
-    tax_number?: string;
+    abn?: string;
     abn_valid?: boolean;
     abn_entity_name?: string;
   };
@@ -397,7 +397,7 @@ function InformationTab({ company }: { company: Company }) {
               label="ABN"
               value={company.formatted_abn || company.abn}
             />
-            {company.contact && company.contact.tax_number && (
+            {company.contact && company.contact.abn && (
               <>
                 {company.contact.abn_valid ? (
                   <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">

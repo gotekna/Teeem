@@ -344,7 +344,7 @@ module HealthChecks
     def check_company_missing_abn
       contacts = Contact.all
                        .where(entity_type: [ "company", "trust", "sole_trader" ])
-                       .where("tax_number IS NULL OR tax_number = ''")
+                       .where("abn IS NULL OR abn = ''")
 
       build_result(
         name: "Company Missing ABN",
@@ -589,7 +589,7 @@ module HealthChecks
     def check_company_person_like
       # Company without ABN AND has first/last name AND name doesn't have company indicators
       contacts = Contact.where(entity_type: "company")
-                        .where("(tax_number IS NULL OR tax_number = '')")
+                        .where("(abn IS NULL OR abn = '')")
                         .where("first_name IS NOT NULL AND first_name != ''")
                         .where("last_name IS NOT NULL AND last_name != ''")
                         .where("LOWER(COALESCE(company_name_or_trust, display_name)) NOT SIMILAR TO '%(pty|ltd|limited|holdings|group|trust|inc|corp|services|consulting)%'")
@@ -628,7 +628,7 @@ module HealthChecks
           display_name: c.display_name,
           entity_type: c.entity_type,
           abn_entity_type: c.abn_entity_type,
-          tax_number: c.tax_number
+          abn: c.abn
         }
       end
 

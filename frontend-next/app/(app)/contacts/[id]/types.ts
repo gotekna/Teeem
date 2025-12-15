@@ -324,7 +324,8 @@ export interface Contact {
   mobile_phone: string | null;
   office_phone: string | null;
   website: string | null;
-  tax_number: string | null;
+  abn: string | null;
+  acn: string | null;
   address: string | null;
   // Legacy address fields (SSoT is contact_addresses, these are for backwards compatibility)
   city: string | null;      // Suburb in Australian context
@@ -448,6 +449,16 @@ export const formatACN = (acn: string | null): string => {
     return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 9)}`;
   }
   return acn;
+};
+
+export const validateACN = (acn: string | null): { isValid: boolean; error?: string } => {
+  if (!acn || acn.trim() === "") return { isValid: true };
+  const digits = acn.replace(/\D/g, "");
+  if (digits.length === 0) return { isValid: true };
+  if (digits.length !== 9) {
+    return { isValid: false, error: `ACN must be 9 digits (got ${digits.length})` };
+  }
+  return { isValid: true };
 };
 
 export const validateABN = (abn: string | null): { isValid: boolean; error?: string } => {

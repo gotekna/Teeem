@@ -80,10 +80,10 @@ class XeroDuplicateDetector
     groups = {}
 
     contacts.each do |contact|
-      next if contact.tax_number.blank?
+      next if contact.abn.blank?
 
       # Normalize ABN (remove spaces and non-digits)
-      abn = contact.tax_number.to_s.gsub(/\D/, "")
+      abn = contact.abn.to_s.gsub(/\D/, "")
       next if abn.blank?
 
       groups[abn] ||= []
@@ -145,8 +145,8 @@ class XeroDuplicateDetector
 
     # Group by ABN if available, otherwise by normalized name
     ato_asic_contacts.each do |contact|
-      group_key = if contact.tax_number.present?
-        "abn_#{contact.tax_number.gsub(/\D/, '')}"
+      group_key = if contact.abn.present?
+        "abn_#{contact.abn.gsub(/\D/, '')}"
       else
         "name_#{normalize_name(contact.display_name)}"
       end

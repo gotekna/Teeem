@@ -191,7 +191,7 @@ interface BillDetail {
   supplier: {
     id: number;
     display_name: string;
-    tax_number: string;
+    abn: string;
     bank_bsb: string;
     bank_account_number: string;
     // Trust account fields for lawyers, accountants, real estate agents, etc.
@@ -779,7 +779,7 @@ export default function BillDetailPage() {
             <div className="space-y-1 text-xs">
               {/* ABN Mismatch */}
               {(() => {
-                const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number);
+                const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.abn);
                 if (match === false) {
                   return (
                     <div className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded">
@@ -788,13 +788,13 @@ export default function BillDetailPage() {
                         <p className="font-medium text-red-700">Supplier ABN Mismatch</p>
                         <p className="text-red-600 mt-0.5">
                           Invoice: {bill.ai_extraction_result?.supplier_abn || 'N/A'}<br />
-                          Expected: {bill.supplier?.tax_number || 'N/A'}
+                          Expected: {bill.supplier?.abn || 'N/A'}
                         </p>
                       </div>
                     </div>
                   );
                 }
-                if (match === null && bill.ai_extraction_result?.supplier_abn && !bill.supplier?.tax_number) {
+                if (match === null && bill.ai_extraction_result?.supplier_abn && !bill.supplier?.abn) {
                   return (
                     <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
                       <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
@@ -905,7 +905,7 @@ export default function BillDetailPage() {
 
               {/* All Good */}
               {bill.ai_confidence && bill.ai_confidence >= 0.95 &&
-               abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number) !== false &&
+               abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.abn) !== false &&
                bill.ai_extraction_result?.billing_company_name &&
                (!bill.matched_purchase_order || (bill.variance_amount === null || bill.variance_amount === 0)) &&
                (() => {
@@ -1141,14 +1141,14 @@ export default function BillDetailPage() {
                 <div className="flex items-center gap-1">
                   <p className="font-mono font-bold">
                     {(() => {
-                      const abn = bill.ai_extraction_result?.supplier_abn || bill.supplier?.tax_number || "";
+                      const abn = bill.ai_extraction_result?.supplier_abn || bill.supplier?.abn || "";
                       if (!abn) return "-";
                       const clean = abn.replace(/\s/g, '');
                       return clean.length === 11 ? `${clean.slice(0,2)} ${clean.slice(2,5)} ${clean.slice(5,8)} ${clean.slice(8)}` : abn;
                     })()}
                   </p>
                   {(() => {
-                    const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.tax_number);
+                    const match = abnMatches(bill.ai_extraction_result?.supplier_abn, bill.supplier?.abn);
                     if (match === true) return <CheckCircle2 className="h-3 w-3 text-green-600" />;
                     if (match === false) return <XCircle2 className="h-3 w-3 text-red-500" />;
                     return null;

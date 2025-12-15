@@ -223,8 +223,8 @@ class XeroContactSyncService
 
     # Build lookup maps for efficient matching
     teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
-    teeem_by_tax_number = teeem_contacts.select { |c| c.tax_number.present? }
-                                          .group_by(&:tax_number)
+    teeem_by_tax_number = teeem_contacts.select { |c| c.abn.present? }
+                                          .group_by(&:abn)
     teeem_by_email = teeem_contacts.select { |c| c.email.present? }
                                      .index_by { |c| c.email.downcase.strip }
 
@@ -622,8 +622,8 @@ class XeroContactSyncService
       updates[:email] = xero_email if xero_email.present?
     end
 
-    if importable_fields.include?("tax_number")
-      updates[:tax_number] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
+    if importable_fields.include?("abn")
+      updates[:abn] = normalize_tax_number(xero_contact["TaxNumber"]) if xero_contact["TaxNumber"].present?
     end
 
     if importable_fields.include?("mobile_phone") || importable_fields.include?("office_phone")
@@ -1052,7 +1052,7 @@ class XeroContactSyncService
     payload[:FirstName] = teeem_contact.first_name if teeem_contact.first_name.present?
     payload[:LastName] = teeem_contact.last_name if teeem_contact.last_name.present?
     payload[:EmailAddress] = teeem_contact.email if teeem_contact.email.present?
-    payload[:TaxNumber] = teeem_contact.tax_number if teeem_contact.tax_number.present?
+    payload[:TaxNumber] = teeem_contact.abn if teeem_contact.abn.present?
 
     # Add phone numbers
     phones = []

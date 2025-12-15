@@ -74,7 +74,7 @@ class ContactDataQualityService
       display_name: @contact.display_name,
       current_entity_type: @contact.entity_type,
       email: @contact.email,
-      tax_number: @contact.tax_number,
+      tax_number: @contact.abn,
       suggested_entity_type: detect_suggested_entity_type,
       confidence: calculate_confidence,
       issues: @issues,
@@ -114,11 +114,11 @@ class ContactDataQualityService
 
   # If contact has ABN and ABR entity type doesn't match TEEEM entity type
   def check_abn_entity_mismatch
-    return unless @contact.tax_number.present?
+    return unless @contact.abn.present?
 
     # Lookup ABN via ABR API
     begin
-      @abr_data = @abr_service.lookup(@contact.tax_number)
+      @abr_data = @abr_service.lookup(@contact.abn)
     rescue AbrApiService::AbrError => e
       Rails.logger.warn "ABN lookup failed for contact #{@contact.id}: #{e.message}"
       return
@@ -225,7 +225,7 @@ class ContactDataQualityService
     issues_found = []
 
     # No ABN
-    if @contact.tax_number.blank?
+    if @contact.abn.blank?
       issues_found << "no ABN"
     end
 
@@ -240,7 +240,7 @@ class ContactDataQualityService
     # Has first_name/last_name set (unusual for company)
     has_person_fields = @contact.first_name.present? && @contact.last_name.present?
 
-    if !has_company_indicators && has_person_fields && @contact.tax_number.blank?
+    if !has_company_indicators && has_person_fields && @contact.abn.blank?
       @issues << {
         type: "misclassified_company",
         severity: :warning,
@@ -313,9 +313,9 @@ class ContactDataQualityService
 
   def find_existing_company_match
     # Check by ABN match
-    if @contact.tax_number.present?
+    if @contact.abn.present?
       abn_match = Contact.where(entity_type: %w[company trust])
-                         .where(tax_number: @contact.tax_number)
+                         .where(tax_number: @contact.abn)
                          .where.not(id: @contact.id)
                          .first
       return abn_match if abn_match

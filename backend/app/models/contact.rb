@@ -1127,7 +1127,7 @@ class Contact < ApplicationRecord
 
     company_record.update!(
       name: display_name,
-      abn: tax_number  # SelfHealing will format with spaces
+      abn: abn  # SelfHealing will format with spaces
     )
   rescue StandardError => e
     Rails.logger.error("Contact##{id}: Sync to CorporateCompany failed - #{e.message}")

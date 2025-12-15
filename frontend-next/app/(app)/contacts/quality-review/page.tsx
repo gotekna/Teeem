@@ -31,7 +31,7 @@ interface QualityReview {
     display_name: string;
     email: string | null;
     entity_type: string;
-    tax_number: string | null;
+    abn: string | null;
   };
   suggested_company: {
     id: number;
@@ -138,9 +138,9 @@ function ReviewCard({
 
             <p className="text-sm text-muted-foreground truncate">{review.contact.email || "No email"}</p>
 
-            {review.contact.tax_number && (
+            {review.contact.abn && (
               <p className="text-xs text-muted-foreground mt-1">
-                ABN: {review.contact.tax_number}
+                ABN: {review.contact.abn}
               </p>
             )}
           </div>

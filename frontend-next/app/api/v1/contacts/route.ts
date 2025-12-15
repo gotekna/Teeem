@@ -13,7 +13,7 @@ export async function GET() {
         office_phone,
         mobile_phone,
         website,
-        tax_number,
+        abn,
         contact_types,
         rating,
         response_rate,
