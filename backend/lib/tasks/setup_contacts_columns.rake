@@ -80,14 +80,14 @@ namespace :teeem do
 
       # Additional text fields
       [ "supplier_code", "Supplier Code", "single_line_text", 32, { is_unique: true } ],
-      [ "tax_number", "Tax Number (ABN)", "single_line_text", 33, {} ],
+      [ "tax_number", "Tax Number (ABN)", "abn", 33, {} ],
       [ "xero_id", "Xero ID", "single_line_text", 34, {} ],
       [ "xero_contact_number", "Xero Contact #", "single_line_text", 35, {} ],
       [ "xero_contact_status", "Xero Status", "choice", 36, {} ],
 
       # Banking
-      [ "bank_bsb", "Bank BSB", "single_line_text", 37, {} ],
-      [ "bank_account_number", "Bank Account #", "single_line_text", 38, {} ],
+      [ "bank_bsb", "Bank BSB", "bsb", 37, {} ],
+      [ "bank_account_number", "Bank Account #", "bank_account", 38, {} ],
       [ "bank_account_name", "Bank Account Name", "single_line_text", 39, {} ]
     ]
 

@@ -67,10 +67,12 @@ module Api
             end
           end
           if searchable_columns.any?
-            # Build search conditions: exact ILIKE OR fuzzy similarity (pg_trgm)
-            # Fuzzy search catches typos like "coasal" -> "coastal"
+            # Build search conditions: ILIKE (default) OR fuzzy similarity (opt-in with ?fuzzy=true)
+            # Default: Fast ILIKE substring matching
+            # Fuzzy: Slower word_similarity matching for typo tolerance
             sanitized_search = ActiveRecord::Base.connection.quote(search)
             conn = ActiveRecord::Base.connection
+            enable_fuzzy = params[:fuzzy] == "true"
 
             # Get column type information to handle non-text columns
             column_types = model.columns.each_with_object({}) { |c, h| h[c.name] = c.type }
@@ -89,20 +91,25 @@ module Api
 
             # Fuzzy word_similarity conditions (matches search term against words in text)
             # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
-            # Only apply to first few columns to keep it fast
-            fuzzy_columns = searchable_columns.first(3)
-            fuzzy_conditions = fuzzy_columns.map do |col|
-              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
-                "CAST(#{conn.quote_column_name(col)} AS TEXT)"
-              else
-                conn.quote_column_name(col)
-              end
-              "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
-            end.join(" OR ")
+            # Only enabled with ?fuzzy=true parameter to avoid performance issues on large tables
+            if enable_fuzzy
+              fuzzy_columns = searchable_columns.first(3)
+              fuzzy_conditions = fuzzy_columns.map do |col|
+                column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+                  "CAST(#{conn.quote_column_name(col)} AS TEXT)"
+                else
+                  conn.quote_column_name(col)
+                end
+                "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
+              end.join(" OR ")
 
-            # Combine: match if ILIKE OR fuzzy match
-            combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
-            query = query.where(combined_conditions, search: "%#{search}%")
+              # Combine: match if ILIKE OR fuzzy match
+              combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
+              query = query.where(combined_conditions, search: "%#{search}%")
+            else
+              # Default: ILIKE only (fast)
+              query = query.where(ilike_conditions, search: "%#{search}%")
+            end
           end
         end
 
