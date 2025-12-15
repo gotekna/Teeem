@@ -245,14 +245,19 @@ module Api
               filters = JSON.parse(params[:filters])
               if filters.is_a?(Array) && filters.any?
                 filters.each do |filter|
-                  next unless filter["column"].present? && filter["value"].present?
-
                   column = filter["column"]
                   value = filter["value"]
                   operator = filter["operator"] || "="
 
+                  # Skip if no column specified
+                  next unless column.present?
+
                   # Security: Validate column name exists
                   next unless valid_columns.include?(column) || column == "id"
+
+                  # For operators that don't need a value, skip value check
+                  value_required = !%w[is_null is_not_null is_empty is_not_empty].include?(operator)
+                  next if value_required && !value.present?
 
                   case operator
                   when "="
@@ -263,6 +268,10 @@ module Api
                     query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "%#{value}%")
                   when "starts_with"
                     query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "#{value}%")
+                  when "is_null"
+                    query = query.where(column => nil)
+                  when "is_not_null"
+                    query = query.where.not(column => nil)
                   when "is_empty"
                     query = query.where("#{conn.quote_column_name(column)} IS NULL OR #{conn.quote_column_name(column)} = ''")
                   when "is_not_empty"
