@@ -121,32 +121,58 @@ module Api
           query = query.order(created_at: :desc)
         end
 
-        # Get count before pagination
-        total_count = query.count
+        # Get count before pagination (skip if using cursor pagination for performance)
+        total_count = params[:cursor].present? ? nil : query.count
 
         # NOTE: We removed the fields=minimal SELECT hack here.
         # It was breaking features (cascading filters, column selection, associations).
         # Performance is achieved through:
         # 1. Eager loading associations (apply_eager_loading - auto-derived from model)
-        # 2. Proper pagination
+        # 2. Proper pagination (offset OR cursor-based)
         # See: Ultra philosophy - load what the UI needs, optimize HOW we load it
 
-        # Paginate
-        records = query.offset((page - 1) * per_page).limit(per_page)
+        # Paginate: Use cursor-based for infinite scroll, offset for traditional pagination
+        if params[:cursor].present?
+          # Cursor-based pagination (for infinite scroll)
+          # Format: cursor is the ID of the last record from previous page
+          cursor_id = params[:cursor].to_i
+          limit = [params[:limit]&.to_i || 50, 100].min # Default 50, max 100 per request
+
+          # Fetch records after cursor
+          records = query.where("#{model.table_name}.id > ?", cursor_id).limit(limit + 1)
+
+          # Check if there are more records (fetch limit+1, return limit)
+          has_more = records.length > limit
+          records = records.first(limit) if has_more
+        else
+          # Traditional offset pagination (backwards compatible)
+          records = query.offset((page - 1) * per_page).limit(per_page)
+        end
 
         # Build lookup cache to prevent N+1 queries (only for user foundations with lookup columns)
         lookup_cache = @foundation.table_type == "system" ? {} : build_lookup_cache(records)
 
-        render json: {
+        # Response format: cursor pagination includes has_more + next_cursor
+        response = {
           success: true,
-          records: records.map { |r| record_to_json(r, lookup_cache) },
-          pagination: {
+          records: records.map { |r| record_to_json(r, lookup_cache) }
+        }
+
+        if params[:cursor].present?
+          # Cursor pagination response
+          response[:has_more] = has_more
+          response[:next_cursor] = records.last&.id
+        else
+          # Traditional pagination response (backwards compatible)
+          response[:pagination] = {
             page: page,
             per_page: per_page,
             total_count: total_count,
             total_pages: (total_count.to_f / per_page).ceil
           }
-        }
+        end
+
+        render json: response
       rescue => e
         render json: { error: e.message }, status: :internal_server_error
       end

@@ -75,6 +75,11 @@ export default function ContactsPageClient({
   const initialRecordsRef = useRef(initialRecords);
   const [records, setRecords] = useState(() => initialRecordsRef.current);
 
+  // Infinite scroll state
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+
   // CRITICAL: Don't update records from props after initial mount
   // This prevents SSR from overwriting optimistic deletes
   useEffect(() => {
@@ -94,7 +99,63 @@ export default function ContactsPageClient({
     setCurrentView(view);
   }, []);
 
-  // Refresh function to reload data
+  // Server-side search - searches ALL contacts in database, not just loaded ones
+  const handleServerSearch = useCallback(async (searchTerm: string) => {
+    if (!foundation) return;
+
+    setIsSearching(true);
+
+    try {
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
+        `/api/v1/foundations/${foundation.id}/records`,
+        {
+          params: {
+            search: searchTerm,
+            limit: 100  // Return first 100 search results
+          }
+        }
+      );
+
+      setRecords(response.records || []);
+      setHasMore(response.has_more ?? false);
+    } catch (error) {
+      console.error("[ContactsPageClient] Search failed:", error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [foundation]);
+
+  // Load more records (infinite scroll)
+  const loadMore = useCallback(async () => {
+    if (!foundation || !hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+
+    try {
+      const lastRecord = records[records.length - 1];
+      const cursor = lastRecord?.id;
+
+      const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
+        `/api/v1/foundations/${foundation.id}/records`,
+        {
+          params: {
+            cursor,
+            limit: 100  // Fetch 100 more records
+          }
+        }
+      );
+
+      // Append new records to existing ones
+      setRecords(prev => [...prev, ...(response.records || [])]);
+      setHasMore(response.has_more ?? false);
+    } catch (error) {
+      console.error("[ContactsPageClient] Failed to load more:", error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [foundation, records, hasMore, isLoadingMore]);
+
+  // Refresh function to reload data (resets to first page)
   const refresh = useCallback(async () => {
     console.log('[ContactsPageClient] Refresh called');
     if (!foundation) {
@@ -104,31 +165,25 @@ export default function ContactsPageClient({
 
     try {
       console.log('[ContactsPageClient] Fetching records from API...');
-      console.log('[ContactsPageClient] Foundation ID:', foundation.id);
-      console.log('[ContactsPageClient] Current records count:', records.length);
 
       // Small delay to ensure backend transaction commits
       await new Promise(resolve => setTimeout(resolve, 200));
 
       const timestamp = Date.now();
-      console.log('[ContactsPageClient] Cache buster timestamp:', timestamp);
 
-      const response = await api.get<{ records: TTableRow[] }>(
+      const response = await api.get<{ records: TTableRow[], has_more: boolean }>(
         `/api/v1/foundations/${foundation.id}/records`,
         {
           params: {
-            per_page: 10000,  // Fetch all records (increased from 500)
+            limit: 100,        // Initial load: first 100 records (FAST!)
             _t: timestamp      // Cache buster to ensure fresh data
           },
           dedupe: false        // Disable request deduplication to force fresh data
         }
       );
-      console.log('[ContactsPageClient] API response received');
-      console.log('[ContactsPageClient] New records count:', response.records?.length || 0);
-      console.log('[ContactsPageClient] First 5 record IDs:', response.records?.slice(0, 5).map(r => r.id) || []);
-      console.log('[ContactsPageClient] Setting records...');
+
       setRecords(response.records || []);
-      console.log('[ContactsPageClient] Records state updated');
+      setHasMore(response.has_more ?? true);
       console.log('[ContactsPageClient] Refresh complete!');
     } catch (error) {
       console.error("[ContactsPageClient] Failed to refresh:", error);
@@ -143,6 +198,19 @@ export default function ContactsPageClient({
       refresh();
     }
   }, [refresh]);
+
+  // Auto-load more records in background after initial render
+  useEffect(() => {
+    if (!foundation || !hasMore || isLoadingMore) return;
+
+    // Wait 2 seconds after mount, then start loading more in background
+    const timer = setTimeout(() => {
+      console.log('[ContactsPageClient] Auto-loading more records in background...');
+      loadMore();
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [foundation]); // Only run once on mount
 
   const handleMergeComplete = () => {
     setSelectedForMerge([]);
@@ -396,6 +464,9 @@ export default function ContactsPageClient({
             onBulkDelete={handleBulkDelete}
             leftActions={leftActions}
             onViewChange={handleViewChange}
+            onServerSearch={handleServerSearch}
+            serverSearchLoading={isSearching}
+            loadingMore={isLoadingMore}
           />
         )}
       </div>

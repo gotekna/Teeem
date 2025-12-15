@@ -68,6 +68,36 @@ class AbrApiService
     (sum % 89).zero?
   end
 
+  # Search for ABN by company name
+  # Returns an array of matching businesses (could be multiple matches)
+  def search_by_name(name, state: nil, postcode: nil)
+    unless @guid.present?
+      raise ApiError, "ABR_GUID environment variable not set. Register at https://abr.business.gov.au"
+    end
+
+    uri = URI("#{ABR_BASE_URL}/SearchByNameSimpleProtocol")
+    params = {
+      name: name,
+      authenticationGuid: @guid
+    }
+    params[:postcode] = postcode if postcode.present?
+    params[:legalName] = "Y" # Include legal name matches
+    params[:tradingName] = "Y" # Include trading name matches
+    uri.query = URI.encode_www_form(params)
+
+    response = Net::HTTP.get_response(uri)
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise ApiError, "ABR API returned #{response.code}: #{response.message}"
+    end
+
+    parse_name_search_response(response.body)
+  rescue Net::OpenTimeout, Net::ReadTimeout => e
+    raise ApiError, "ABR API timeout: #{e.message}"
+  rescue SocketError => e
+    raise ApiError, "ABR API connection error: #{e.message}"
+  end
+
   # Bulk validate ABNs (for batch processing)
   def bulk_lookup(abns, batch_size: 10, delay: 0.5)
     results = {}
@@ -126,6 +156,48 @@ class AbrApiService
     raise ApiError, "ABR API timeout: #{e.message}"
   rescue SocketError => e
     raise ApiError, "ABR API connection error: #{e.message}"
+  end
+
+  def parse_name_search_response(xml_body)
+    doc = Nokogiri::XML(xml_body)
+    doc.remove_namespaces!
+
+    # Check for exception
+    exception = doc.at_xpath("//response/exception/exceptionDescription")
+    if exception
+      raise ApiError, "ABR API error: #{exception.text}"
+    end
+
+    # Get all matching businesses
+    businesses = doc.xpath("//response/searchResultsList/searchResultsRecord")
+
+    return [] if businesses.empty?
+
+    businesses.map do |business|
+      abn_node = business.at_xpath("ABN/identifierValue")
+      abn = abn_node&.text&.gsub(/\s/, "")
+
+      name_node = business.at_xpath("mainName/organisationName") ||
+                  business.at_xpath("legalName/fullName")
+      name = name_node&.text
+
+      trading_names = business.xpath("mainTradingName/organisationName").map(&:text)
+
+      state_node = business.at_xpath("mainBusinessPhysicalAddress/stateCode")
+      postcode_node = business.at_xpath("mainBusinessPhysicalAddress/postcode")
+
+      {
+        abn: abn,
+        abn_formatted: self.class.format(abn),
+        name: name,
+        trading_names: trading_names,
+        state: state_node&.text,
+        postcode: postcode_node&.text,
+        score: business.at_xpath("score")&.text&.to_i || 0
+      }
+    end.compact.sort_by { |b| -b[:score] } # Sort by relevance score descending
+  rescue Nokogiri::XML::SyntaxError => e
+    raise ApiError, "Failed to parse ABR response: #{e.message}"
   end
 
   def parse_response(xml_body, abn)

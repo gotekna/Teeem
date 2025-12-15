@@ -112,8 +112,10 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     const foundation = foundationData.foundation as Foundation;
 
     // Fetch records (associations are eager-loaded on backend for performance)
+    // Use cursor-based pagination: initial load is 100 records for instant page load
+    // More records will be loaded in background by ContactsPageClient
     const recordsRes = await fetch(
-      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?per_page=2000`,
+      `${API_BASE_URL}/api/v1/foundations/${foundation.id}/records?limit=100`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -129,7 +131,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
 
     const recordsData = await recordsRes.json();
     const records = (recordsData.records || []) as TableRow[];
-    const totalCount = recordsData.pagination?.total_count ?? records.length;
+    const totalCount = recordsData.pagination?.total_count ?? recordsData.has_more ? null : records.length;
 
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);

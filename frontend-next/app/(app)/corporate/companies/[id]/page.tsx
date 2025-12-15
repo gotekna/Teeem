@@ -386,10 +386,34 @@ function InformationTab({ company }: { company: Company }) {
           label="ACN"
           value={company.formatted_acn || company.acn}
         />
-        <CopyableField
-          label="ABN"
-          value={company.formatted_abn || company.abn}
-        />
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <CopyableField
+              label="ABN"
+              value={company.formatted_abn || company.abn}
+            />
+            {company.contact && company.contact.tax_number && (
+              <>
+                {company.contact.abn_valid ? (
+                  <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Verified
+                  </Badge>
+                ) : company.contact.abn_valid === false ? (
+                  <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Invalid
+                  </Badge>
+                ) : null}
+              </>
+            )}
+          </div>
+          {company.contact?.abn_entity_name && (
+            <p className="text-xs text-muted-foreground ml-0">
+              {company.contact.abn_entity_name}
+            </p>
+          )}
+        </div>
         <CopyableField
           label="Registered Office"
           value={company.registered_office_address}
