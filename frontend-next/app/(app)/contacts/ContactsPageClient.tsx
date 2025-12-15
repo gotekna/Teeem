@@ -70,12 +70,39 @@ export default function ContactsPageClient({
   const router = useRouter();
   const { toast } = useToast();
 
+  // Helper function to deduplicate records by ID (belt-and-suspenders approach)
+  const deduplicateRecords = useCallback((recs: TTableRow[]) => {
+    const seen = new Set<number | string>();
+    const unique = recs.filter(r => {
+      if (seen.has(r.id)) {
+        console.warn(`[ContactsPageClient] Removed duplicate record ID: ${r.id}`);
+        return false;
+      }
+      seen.add(r.id);
+      return true;
+    });
+
+    if (unique.length !== recs.length) {
+      console.error(`[ContactsPageClient] ⚠️ DUPLICATES DETECTED: Removed ${recs.length - unique.length} duplicate records`);
+    }
+
+    return unique;
+  }, []);
+
   // Use initial data from server - no loading state needed on first render!
   const [foundation] = useState(initialFoundation);
   const [columns] = useState(initialColumns);
 
   // Use SSR data as initial state, then infinite scroll will load more
-  const [records, setRecords] = useState(initialRecords);
+  // Deduplicate initial records as a safety measure
+  const [records, setRecords] = useState(() => {
+    const seen = new Set<number | string>();
+    return (initialRecords || []).filter(r => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+  });
   const [totalCount, setTotalCount] = useState(initialTotalCount);
   const [hasMore, setHasMore] = useState(initialHasMore); // Use server-provided hasMore flag
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -113,7 +140,7 @@ export default function ContactsPageClient({
         }
       );
 
-      setRecords(response.records || []);
+      setRecords(deduplicateRecords(response.records || []));
       setHasMore(response.has_more ?? false);
       // Update total count if provided (first request includes it)
       if (response.total_count !== undefined) {
@@ -124,7 +151,7 @@ export default function ContactsPageClient({
     } finally {
       setIsSearching(false);
     }
-  }, [foundation]);
+  }, [foundation, deduplicateRecords]);
 
   // Load more records (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -146,15 +173,15 @@ export default function ContactsPageClient({
         }
       );
 
-      // Append new records to existing ones
-      setRecords(prev => [...prev, ...(response.records || [])]);
+      // Append new records to existing ones (with deduplication)
+      setRecords(prev => deduplicateRecords([...prev, ...(response.records || [])]));
       setHasMore(response.has_more ?? false);
     } catch (error) {
       console.error("[ContactsPageClient] Failed to load more:", error);
     } finally {
       setIsLoadingMore(false);
     }
-  }, [foundation, records, hasMore, isLoadingMore]);
+  }, [foundation, records, hasMore, isLoadingMore, deduplicateRecords]);
 
   // Load ALL remaining records (loops until hasMore is false)
   const loadAll = useCallback(async () => {
@@ -180,7 +207,8 @@ export default function ContactsPageClient({
         );
 
         const newRecords = response.records || [];
-        currentRecords = [...currentRecords, ...newRecords];
+        // CRITICAL: Deduplicate after appending to prevent duplicate IDs in UI
+        currentRecords = deduplicateRecords([...currentRecords, ...newRecords]);
         setRecords(currentRecords);
 
         keepLoading = response.has_more ?? false;
@@ -206,7 +234,7 @@ export default function ContactsPageClient({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [foundation, records, hasMore, isLoadingMore, toast]);
+  }, [foundation, records, hasMore, isLoadingMore, toast, deduplicateRecords]);
 
   // Refresh function to reload data (resets to first page)
   const refresh = useCallback(async () => {
@@ -235,7 +263,7 @@ export default function ContactsPageClient({
         }
       );
 
-      setRecords(response.records || []);
+      setRecords(deduplicateRecords(response.records || []));
       setHasMore(response.has_more ?? true);
       // Update total count if provided (first request includes it)
       if (response.total_count !== undefined) {
@@ -245,7 +273,7 @@ export default function ContactsPageClient({
     } catch (error) {
       console.error("[ContactsPageClient] Failed to refresh:", error);
     }
-  }, [foundation]);
+  }, [foundation, deduplicateRecords]);
 
   // Check if we need to refresh after returning from detail page
   useEffect(() => {
