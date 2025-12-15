@@ -560,6 +560,9 @@ class XeroContactSyncService
       @stats[:links_updated] += 1
     end
 
+    # Mark link as verified (contact exists and is active in Xero)
+    link.mark_verified! unless needs_review
+
     link
   end
 
@@ -1352,26 +1355,23 @@ class XeroContactSyncService
 
     Rails.logger.info("Found #{count} orphaned xero_links for tenant #{tenant_id}")
 
-    # Handle based on cleanup options
-    cleanup_options = @sync_config&.cleanup_options || SyncConfiguration::DEFAULT_CLEANUP_OPTIONS
-
+    # Mark all orphaned links as not_found (SSoT: track stale links instead of immediate deletion)
     orphaned_links.find_each do |link|
       begin
         contact = link.contact
-        if cleanup_options["unlink_deleted_xero_contacts"]
-          Rails.logger.info("Unlinking orphaned contact: #{contact&.display_name} (xero_id: #{link.external_contact_id})")
-          link.destroy!
-          @stats[:deleted_from_teeem] += 1
-        else
-          # Mark as having an error instead of deleting
-          link.update!(sync_error: "Contact no longer exists in Xero")
-        end
+        Rails.logger.info("Marking as stale: #{contact&.display_name} (xero_id: #{link.external_contact_id})")
+        link.mark_stale!('not_found')
+        link.update!(sync_error: "Contact no longer exists in Xero")
+        @stats[:deleted_from_teeem] += 1
       rescue StandardError => e
-        error_msg = "Failed to handle orphaned link #{link.id}: #{e.message}"
+        error_msg = "Failed to mark orphaned link #{link.id} as stale: #{e.message}"
         Rails.logger.error(error_msg)
         @stats[:errors] << error_msg
       end
     end
+
+    # Note: Actual cleanup/deletion is handled by CleanupStaleXeroLinksJob
+    # This allows links to be marked as stale without immediate deletion
   end
 
   # Legacy method for backwards compatibility

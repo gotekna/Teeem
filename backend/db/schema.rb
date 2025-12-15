@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_15_085455) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_15_093000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -909,6 +909,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_15_085455) do
     t.decimal "match_confidence", precision: 5, scale: 4
     t.datetime "reviewed_at"
     t.string "reviewed_by"
+    t.string "xero_contact_status", default: "active"
+    t.datetime "last_verified_at"
+    t.index ["last_verified_at"], name: "index_contact_external_links_on_last_verified_at"
+    t.index ["xero_contact_status"], name: "index_contact_external_links_on_xero_contact_status"
   end
 
   create_table "contact_group_memberships", id: false, force: :cascade do |t|

@@ -10,7 +10,11 @@ class ContactExternalLink < ApplicationRecord
   # Match types for cross-tenant matching
   MATCH_TYPES = %w[exact_abn exact_email fuzzy_name manual].freeze
 
+  # Xero contact status tracking
+  XERO_STATUSES = %w[active archived deleted not_found].freeze
+
   validates :source, presence: true, inclusion: { in: SOURCES }
+  validates :xero_contact_status, inclusion: { in: XERO_STATUSES }, allow_nil: true
   validates :tenant_id, presence: true
   validates :external_contact_id, presence: true
   validates :sync_direction, inclusion: { in: SYNC_DIRECTIONS }
@@ -27,6 +31,9 @@ class ContactExternalLink < ApplicationRecord
   scope :with_conflicts, -> { where("conflict_fields != '{}'") }
   scope :pending_review, -> { where(needs_review: true) }
   scope :reviewed, -> { where(needs_review: false).where.not(reviewed_at: nil) }
+  scope :active_status, -> { where(xero_contact_status: 'active') }
+  scope :stale_status, -> { where(xero_contact_status: ['archived', 'deleted', 'not_found']) }
+  scope :unverified_since, ->(timestamp) { where("last_verified_at < ? OR last_verified_at IS NULL", timestamp) }
 
   # Check if this link has sync conflicts
   def has_conflicts?
@@ -50,6 +57,30 @@ class ContactExternalLink < ApplicationRecord
       external_last_modified_at: external_modified_at,
       sync_error: nil
     )
+  end
+
+  # Mark as verified (contact exists and is active in external system)
+  def mark_verified!
+    update!(
+      xero_contact_status: 'active',
+      last_verified_at: Time.current
+    )
+  end
+
+  # Mark as stale (contact not found in external system)
+  def mark_stale!(status = 'not_found')
+    raise ArgumentError, "Invalid status: #{status}" unless XERO_STATUSES.include?(status)
+    update!(xero_contact_status: status)
+  end
+
+  # Check if this link is stale
+  def stale?
+    %w[archived deleted not_found].include?(xero_contact_status)
+  end
+
+  # Check if this link is active
+  def active_status?
+    xero_contact_status == 'active'
   end
 
   # Add a conflict field
