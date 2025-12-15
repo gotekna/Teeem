@@ -39,10 +39,12 @@ module Api
           @contacts = @contacts.where(is_potential_director: true)
         end
 
-        # Search by name or email (includes company name for team contacts)
+        # Search by name or email (includes company name for team contacts and employer name for employees)
         if params[:search].present?
           search_term = "%#{params[:search]}%"
-          @contacts = @contacts.left_outer_joins(:primary_company).where(
+
+          # Find contacts that match the search term directly
+          direct_matches = @contacts.left_outer_joins(:primary_company).where(
             "contacts.display_name ILIKE :q OR
              contacts.email ILIKE :q OR
              contacts.first_name ILIKE :q OR
@@ -50,6 +52,29 @@ module Api
              (contacts.is_team_contact = true AND companies_contacts.display_name ILIKE :q)",
             q: search_term
           )
+
+          # Find companies that match the search term
+          matching_company_ids = Contact.where("display_name ILIKE ?", search_term)
+                                       .where(entity_type: %w[company trust sole_trader])
+                                       .pluck(:id)
+
+          if matching_company_ids.any?
+            # Find employees of those companies (via primary_company_id OR via relationships)
+            employee_relationship_ids = ContactRelationship
+              .active
+              .where(relationship_type: "employee_of")
+              .where(related_contact_id: matching_company_ids)
+              .pluck(:contact_id)
+
+            employee_primary_company_ids = Contact.where(primary_company_id: matching_company_ids).pluck(:id)
+
+            employee_ids = (employee_relationship_ids + employee_primary_company_ids).uniq
+
+            # Combine direct matches with employees of matching companies
+            @contacts = @contacts.where(id: direct_matches.pluck(:id) + matching_company_ids + employee_ids)
+          else
+            @contacts = direct_matches
+          end
         end
 
         # Filter by role (updated from deprecated contact_types to roles)
