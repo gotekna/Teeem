@@ -1131,11 +1131,11 @@ export default function TeeemTableView({
   const handleSearchAllChange = useCallback(
     (checked: boolean) => {
       setSearchAllColumns(checked);
-      if (effectiveOnServerSearch && search) {
+      if (effectiveOnServerSearch && search && onServerSearch) {
         onServerSearch(search, checked);
       }
     },
-    [onServerSearch, search]
+    [onServerSearch, search, effectiveOnServerSearch]
   );
 
   // Column resize handler
