@@ -2081,8 +2081,11 @@ export default function TeeemTableView({
       });
     }
 
-    // Apply cascade filters
-    if (safeFilters.length > 0) {
+    // Apply cascade filters (skip if server search is active - SSoT: backend handles filtering)
+    // When server search is active (onServerSearch exists AND search term present),
+    // the backend applies both filters + search in a single SQL query
+    const skipClientFilters = onServerSearch && search;
+    if (safeFilters.length > 0 && !skipClientFilters) {
       // Pre-compute filter groups ONCE outside the row loop (performance optimization)
       const filtersByGroup = safeFilters.reduce((acc, filter) => {
         const groupId = filter.groupId || "default";

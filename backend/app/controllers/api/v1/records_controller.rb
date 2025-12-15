@@ -118,6 +118,110 @@ module Api
           end
         end
 
+        # Apply cascade filters (sent from frontend view state)
+        # Filters format: [{ column: "status", operator: "=", value: "Active", groupId: "group1" }, ...]
+        # Groups format: [{ id: "group1", logic: "AND" }, ...]
+        # Inter-group logic: "AND" or "OR"
+        if params[:filters].present?
+          begin
+            filters = JSON.parse(params[:filters])
+            filter_groups = params[:filter_groups].present? ? JSON.parse(params[:filter_groups]) : []
+            inter_group_logic = params[:inter_group_logic] || "AND"
+
+            # Group filters by groupId
+            filters_by_group = filters.group_by { |f| f["groupId"] || "default" }
+
+            # Build group conditions
+            group_conditions = filters_by_group.map do |group_id, group_filters|
+              # Get group logic (AND/OR within group)
+              group = filter_groups.find { |g| g["id"] == group_id }
+              group_logic = group&.dig("logic") || "AND"
+
+              # Build conditions for this group
+              filter_conditions = group_filters.map do |filter|
+                column = filter["column"]
+                operator = filter["operator"]
+                value = filter["value"]
+
+                # Validate column exists
+                valid_columns = if @foundation.table_type == "system"
+                  model.column_names
+                else
+                  @foundation.columns.pluck(:column_name)
+                end
+
+                next nil unless valid_columns.include?(column)
+
+                # Build SQL condition based on operator
+                conn = ActiveRecord::Base.connection
+                quoted_column = conn.quote_column_name(column)
+
+                case operator
+                when "="
+                  ["#{quoted_column} = ?", value]
+                when "!="
+                  ["#{quoted_column} != ? OR #{quoted_column} IS NULL", value]
+                when ">"
+                  ["#{quoted_column} > ?", value]
+                when "<"
+                  ["#{quoted_column} < ?", value]
+                when ">="
+                  ["#{quoted_column} >= ?", value]
+                when "<="
+                  ["#{quoted_column} <= ?", value]
+                when "contains"
+                  ["#{quoted_column} ILIKE ?", "%#{value}%"]
+                when "not_contains"
+                  ["#{quoted_column} NOT ILIKE ? OR #{quoted_column} IS NULL", "%#{value}%"]
+                when "starts_with"
+                  ["#{quoted_column} ILIKE ?", "#{value}%"]
+                when "ends_with"
+                  ["#{quoted_column} ILIKE ?", "%#{value}"]
+                when "is_empty"
+                  ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                when "is_not_empty"
+                  ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                else
+                  nil
+                end
+              end.compact
+
+              # Combine conditions within group
+              if filter_conditions.any?
+                if group_logic == "AND"
+                  # Combine with AND
+                  sql = filter_conditions.map(&:first).join(" AND ")
+                  bind_values = filter_conditions.flat_map { |c| c[1..-1] }
+                  [sql, *bind_values]
+                else
+                  # Combine with OR
+                  sql = "(" + filter_conditions.map(&:first).join(" OR ") + ")"
+                  bind_values = filter_conditions.flat_map { |c| c[1..-1] }
+                  [sql, *bind_values]
+                end
+              else
+                nil
+              end
+            end.compact
+
+            # Combine groups with inter-group logic
+            if group_conditions.any?
+              if inter_group_logic == "AND"
+                group_conditions.each do |condition|
+                  query = query.where(condition)
+                end
+              else
+                # OR logic between groups
+                or_sql = group_conditions.map { |c| "(#{c.first})" }.join(" OR ")
+                or_bind_values = group_conditions.flat_map { |c| c[1..-1] }
+                query = query.where(or_sql, *or_bind_values)
+              end
+            end
+          rescue JSON::ParserError => e
+            Rails.logger.error "Failed to parse filter params: #{e.message}"
+          end
+        end
+
         # Apply sorting with SQL injection prevention
         if sort_by.present?
           # For system foundations, validate against model columns

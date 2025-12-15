@@ -4,6 +4,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
@@ -15,6 +16,11 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
+import {
+  currentFiltersAtom,
+  currentFilterGroupsAtom,
+  currentInterGroupLogicAtom,
+} from "@/lib/view-state-atoms";
 
 interface Contact {
   id: number;
@@ -123,21 +129,35 @@ export default function ContactsPageClient({
     setCurrentView(view);
   }, []);
 
-  // Server-side search - searches ALL contacts in database, not just loaded ones
+  // Read current filters from Jotai atoms
+  const currentFilters = useAtomValue(currentFiltersAtom);
+  const currentFilterGroups = useAtomValue(currentFilterGroupsAtom);
+  const currentInterGroupLogic = useAtomValue(currentInterGroupLogicAtom);
+
+  // Server-side search - searches within the current filtered view (SSoT approach)
+  // Sends both search term AND view filters to backend for combined SQL query
   const handleServerSearch = useCallback(async (searchTerm: string) => {
     if (!foundation) return;
 
     setIsSearching(true);
 
     try {
+      // Build params with search + current view filters (SSoT: backend does filtering + search)
+      const params: any = {
+        search: searchTerm,
+        limit: 100  // Return first 100 search results
+      };
+
+      // Include view filters if present (so search only searches within current view)
+      if (currentFilters.length > 0) {
+        params.filters = JSON.stringify(currentFilters);
+        params.filter_groups = JSON.stringify(currentFilterGroups);
+        params.inter_group_logic = currentInterGroupLogic;
+      }
+
       const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number, total_count?: number }>(
         `/api/v1/foundations/${foundation.id}/records`,
-        {
-          params: {
-            search: searchTerm,
-            limit: 100  // Return first 100 search results
-          }
-        }
+        { params }
       );
 
       setRecords(deduplicateRecords(response.records || []));
@@ -151,7 +171,7 @@ export default function ContactsPageClient({
     } finally {
       setIsSearching(false);
     }
-  }, [foundation, deduplicateRecords]);
+  }, [foundation, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic]);
 
   // Load more records (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -308,8 +328,18 @@ export default function ContactsPageClient({
   }, [refresh]);
 
   // Auto-load all contacts in background after initial render
+  // CRITICAL: Only runs ONCE on mount, never again (even after merges/updates)
   useEffect(() => {
-    if (!foundation || !hasMore || hasStartedAutoLoad.current) return;
+    // Never auto-load if already started, or if there are active filters
+    if (hasStartedAutoLoad.current || currentFilters.length > 0) {
+      console.log('[ContactsPageClient] Skipping auto-load:', {
+        alreadyStarted: hasStartedAutoLoad.current,
+        hasFilters: currentFilters.length > 0
+      });
+      return;
+    }
+
+    if (!foundation || !hasMore) return;
 
     hasStartedAutoLoad.current = true;
 
@@ -320,7 +350,9 @@ export default function ContactsPageClient({
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [foundation, hasMore, loadAll]);
+    // CRITICAL: Only depend on foundation (not loadAll!) to prevent re-runs after state changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [foundation]);
 
   const handleMergeComplete = useCallback((mergedContactIds: number[], primaryContactId: number) => {
     console.log('[ContactsPageClient] Merge complete - removing contacts:', mergedContactIds);
