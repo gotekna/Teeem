@@ -171,6 +171,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       .pluck(:documentable_id)
 
     query = ExternalInvoice
+      .active  # Exclude deleted/voided invoices
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
@@ -191,6 +192,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       .pluck(:documentable_id)
 
     ExternalInvoice
+      .active  # Exclude deleted/voided invoices
       .where.not(external_id: nil)
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
