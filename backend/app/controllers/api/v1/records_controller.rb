@@ -154,9 +154,14 @@ module Api
           cursor_id = params[:cursor]&.to_i || 0
           limit = [params[:limit]&.to_i || 50, 100].min # Default 50, max 100 per request
 
-          # Fetch records after cursor
+          # CRITICAL: When using cursor pagination, we MUST sort by the cursor field (id)
+          # to ensure consistent pagination. Sorting by created_at with id cursor causes
+          # records to be skipped because id and created_at are not monotonically aligned.
+          query = query.reorder(id: :desc)
+
+          # Fetch records after cursor (id < cursor to go backwards through IDs)
           if cursor_id > 0
-            records = query.where("#{model.table_name}.id > ?", cursor_id).limit(limit + 1)
+            records = query.where("#{model.table_name}.id < ?", cursor_id).limit(limit + 1)
           else
             records = query.limit(limit + 1)
           end

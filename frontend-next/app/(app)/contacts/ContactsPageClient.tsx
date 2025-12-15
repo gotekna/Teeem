@@ -185,16 +185,24 @@ export default function ContactsPageClient({
 
   // Load ALL remaining records (loops until hasMore is false)
   const loadAll = useCallback(async () => {
-    if (!foundation || !hasMore || isLoadingMore) return;
+    if (!foundation || !hasMore || isLoadingMore) {
+      console.log('[ContactsPageClient] loadAll aborted:', { foundation: !!foundation, hasMore, isLoadingMore });
+      return;
+    }
 
+    console.log('[ContactsPageClient] 🔄 Starting loadAll - Initial records:', records.length);
     setIsLoadingMore(true);
     let keepLoading = true;
     let currentRecords = records;
+    let iteration = 0;
 
     try {
       while (keepLoading) {
+        iteration++;
         const lastRecord = currentRecords[currentRecords.length - 1];
         const cursor = lastRecord?.id;
+
+        console.log(`[ContactsPageClient] 📥 Iteration ${iteration}: Fetching with cursor=${cursor}, current total: ${currentRecords.length}`);
 
         const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
           `/api/v1/foundations/${foundation.id}/records`,
@@ -207,12 +215,21 @@ export default function ContactsPageClient({
         );
 
         const newRecords = response.records || [];
+        console.log(`[ContactsPageClient] 📦 Iteration ${iteration}: Received ${newRecords.length} records, has_more=${response.has_more}`);
+
         // CRITICAL: Deduplicate after appending to prevent duplicate IDs in UI
+        const beforeDedup = currentRecords.length + newRecords.length;
         currentRecords = deduplicateRecords([...currentRecords, ...newRecords]);
+        console.log(`[ContactsPageClient] 🔍 Iteration ${iteration}: After dedup: ${currentRecords.length} (removed ${beforeDedup - currentRecords.length} duplicates)`);
+
         setRecords(currentRecords);
 
         keepLoading = response.has_more ?? false;
         setHasMore(keepLoading);
+
+        if (!keepLoading) {
+          console.log(`[ContactsPageClient] ✅ LoadAll complete: Loaded ${currentRecords.length} total records (expected ~1216)`);
+        }
 
         // Small delay to avoid hammering the API
         if (keepLoading) {
@@ -225,10 +242,16 @@ export default function ContactsPageClient({
         description: `Loaded ${currentRecords.length} total contacts`,
       });
     } catch (error) {
-      console.error("[ContactsPageClient] Failed to load all:", error);
+      console.error("[ContactsPageClient] ❌ Failed to load all:", error);
+      console.error("[ContactsPageClient] ❌ Error details:", {
+        message: error instanceof Error ? error.message : String(error),
+        iteration,
+        currentRecordsCount: currentRecords.length,
+        error
+      });
       toast({
         title: "Load failed",
-        description: "Failed to load all contacts",
+        description: `Failed after loading ${currentRecords.length} contacts`,
         variant: "destructive",
       });
     } finally {
