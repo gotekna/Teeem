@@ -604,6 +604,8 @@ export default function TeeemTableView({
   onLoadViewReady,
   onServerSearch,
   serverSearchLoading = false,
+  searchMode: propSearchMode,
+  onSearchModeChange,
   onViewApiParamsChange,
   loadingMore = false,
   onLoadMore,
@@ -1177,13 +1179,13 @@ export default function TeeemTableView({
 
   // Search handler
   const handleSearchFromInput = useCallback(
-    (value: string) => {
+    (value: string, mode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => {
       setSearch(value);
       if (effectiveOnServerSearch) {
-        effectiveOnServerSearch(value, searchAllColumns);
+        effectiveOnServerSearch(value, mode);
       }
     },
-    [effectiveOnServerSearch, searchAllColumns]
+    [effectiveOnServerSearch]
   );
 
   const handleSearchAllChange = useCallback(
@@ -3661,6 +3663,8 @@ export default function TeeemTableView({
             searchAllColumns={searchAllColumns}
             serverSearchLoading={serverSearchLoading}
             hasServerSearch={!!onServerSearch}
+            searchMode={propSearchMode}
+            onSearchModeChange={onSearchModeChange}
           />
           </div>
 

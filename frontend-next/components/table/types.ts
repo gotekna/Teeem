@@ -145,8 +145,10 @@ export interface TeeemTableViewProps {
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
 
   // Server-side operations
-  onServerSearch?: (term: string, searchAllColumns: boolean) => void;
+  onServerSearch?: (term: string, mode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => void;
   serverSearchLoading?: boolean;
+  searchMode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex";
+  onSearchModeChange?: (mode: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => void;
   onViewApiParamsChange?: (params: Record<string, unknown> | null) => void;
   loadingMore?: boolean;
   onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom

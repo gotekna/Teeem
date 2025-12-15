@@ -16,6 +16,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
+import type { SearchMode } from "@/components/table/components/SearchInput";
 import {
   currentFiltersAtom,
   currentFilterGroupsAtom,
@@ -120,6 +121,7 @@ export default function ContactsPageClient({
   const [currentView, setCurrentView] = useState<any>(null);
   const [showExplorer, setShowExplorer] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>("contains");
 
   // Track if we've already started auto-loading (to prevent double-load)
   const hasStartedAutoLoad = useRef(false);
@@ -141,9 +143,15 @@ export default function ContactsPageClient({
 
   // Server-side search - searches within the current filtered view (SSoT approach)
   // Sends both search term AND view filters to backend for combined SQL query
-  // Features: request cancellation, pre-search data caching, instant restore on clear
-  const handleServerSearch = useCallback(async (searchTerm: string) => {
+  // Features: request cancellation, pre-search data caching, instant restore on clear, search modes
+  const handleServerSearch = useCallback(async (searchTerm: string, mode?: SearchMode) => {
     if (!foundation) return;
+
+    // Update search mode if provided
+    const effectiveMode = mode || searchMode;
+    if (mode && mode !== searchMode) {
+      setSearchMode(mode);
+    }
 
     // Cancel any pending search request (prevents race conditions)
     if (searchAbortControllerRef.current) {
@@ -174,9 +182,10 @@ export default function ContactsPageClient({
     setIsSearching(true);
 
     try {
-      // Build params with search + current view filters (SSoT: backend does filtering + search)
+      // Build params with search + search mode + current view filters (SSoT: backend does filtering + search)
       const params: Record<string, string | number> = {
         search: searchTerm,
+        search_mode: effectiveMode,  // Pass search mode to backend
         limit: 100  // Return first 100 search results
       };
 
@@ -212,7 +221,7 @@ export default function ContactsPageClient({
         setIsSearching(false);
       }
     }
-  }, [foundation, records, totalCount, hasMore, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic]);
+  }, [foundation, records, totalCount, hasMore, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic, searchMode]);
 
   // Load more records (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -643,6 +652,8 @@ export default function ContactsPageClient({
             onViewChange={handleViewChange}
             onServerSearch={handleServerSearch}
             serverSearchLoading={isSearching}
+            searchMode={searchMode}
+            onSearchModeChange={setSearchMode}
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
             onLoadAll={loadAll}
