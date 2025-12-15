@@ -71,21 +71,10 @@ export default function ContactsPageClient({
   const [foundation] = useState(initialFoundation);
   const [columns] = useState(initialColumns);
 
-  // Initialize records only once, then ignore server props to prevent SSR overwrites
-  const initialRecordsRef = useRef(initialRecords);
-  const [records, setRecords] = useState(() => initialRecordsRef.current);
-
-  // Infinite scroll state
-  const [hasMore, setHasMore] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-
-  // CRITICAL: Don't update records from props after initial mount
-  // This prevents SSR from overwriting optimistic deletes
-  useEffect(() => {
-    // Only use the initial records on first mount
-    // After that, ignore any props changes from SSR
-  }, []);
+  // TeeemTableView now handles data fetching automatically when foundationIdNumeric is set
+  // We don't need to manage records state here anymore - just pass empty array
+  // TeeemTableView will auto-fetch with cursor pagination + infinite scroll
+  const [records] = useState<TTableRow[]>([]);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);

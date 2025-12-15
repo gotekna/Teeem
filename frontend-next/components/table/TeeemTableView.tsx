@@ -638,6 +638,17 @@ export default function TeeemTableView({
   const [foundationColumns, setFoundationColumns] = useState<TableColumn[] | null>(null);
   const [columnsLoading, setColumnsLoading] = useState(false);
 
+  // ============================================================================
+  // AUTO-FETCH RECORDS WITH INFINITE SCROLL (GOLD STANDARD)
+  // When foundationIdNumeric is set AND entries prop is empty/not provided,
+  // TeeemTableView manages its own data fetching with cursor-based pagination
+  // ============================================================================
+  const [autoFetchedRecords, setAutoFetchedRecords] = useState<TableRowType[]>([]);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const useAutoFetch = foundationIdNumeric && entries.length === 0;
+
   // Auto-fetch columns when foundationIdNumeric is set
   useEffect(() => {
     if (!foundationIdNumeric) {
@@ -690,8 +701,86 @@ export default function TeeemTableView({
     fetchColumns();
   }, [foundationIdNumeric, columns]);
 
+  // Auto-fetch records when foundationIdNumeric is set AND entries not provided
+  useEffect(() => {
+    if (!useAutoFetch) return;
+
+    const fetchInitialRecords = async () => {
+      setIsLoadingMore(true);
+      try {
+        const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+          `/api/v1/foundations/${foundationIdNumeric}/records`,
+          { params: { limit: 100 } }
+        );
+        setAutoFetchedRecords(response.records || []);
+        setHasMore(response.has_more ?? true);
+      } catch (error) {
+        console.error(`[TeeemTableView] Failed to fetch records for Foundation #${foundationIdNumeric}:`, error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    };
+
+    fetchInitialRecords();
+  }, [useAutoFetch, foundationIdNumeric]);
+
+  // Auto-load more records in background after initial render
+  useEffect(() => {
+    if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      if (!hasMore || isLoadingMore) return;
+
+      const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
+      const cursor = lastRecord?.id;
+
+      setIsLoadingMore(true);
+      try {
+        const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+          `/api/v1/foundations/${foundationIdNumeric}/records`,
+          { params: { cursor, limit: 100 } }
+        );
+        setAutoFetchedRecords(prev => [...prev, ...(response.records || [])]);
+        setHasMore(response.has_more ?? false);
+      } catch (error) {
+        console.error(`[TeeemTableView] Failed to load more records:`, error);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    }, 2000); // Wait 2 seconds before auto-loading more
+
+    return () => clearTimeout(timer);
+  }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, foundationIdNumeric]);
+
+  // Server-side search for auto-fetch mode
+  const handleAutoFetchSearch = useCallback(async (searchTerm: string) => {
+    if (!useAutoFetch) return;
+
+    setIsSearching(true);
+    try {
+      const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
+        `/api/v1/foundations/${foundationIdNumeric}/records`,
+        { params: { search: searchTerm, limit: 100 } }
+      );
+      setAutoFetchedRecords(response.records || []);
+      setHasMore(response.has_more ?? false);
+    } catch (error) {
+      console.error(`[TeeemTableView] Search failed:`, error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [useAutoFetch, foundationIdNumeric]);
+
   // Use Foundation columns when available (SSoT), otherwise fall back to props
   const effectiveColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+
+  // Use auto-fetched records when in auto-fetch mode, otherwise use entries prop
+  const effectiveEntries = useAutoFetch ? autoFetchedRecords : entries;
+
+  // Use auto-fetch search handler when in auto-fetch mode, otherwise use provided handler
+  const effectiveOnServerSearch = useAutoFetch ? handleAutoFetchSearch : onServerSearch;
+  const effectiveServerSearchLoading = useAutoFetch ? isSearching : serverSearchLoading;
+  const effectiveLoadingMore = useAutoFetch ? isLoadingMore : loadingMore;
 
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
@@ -721,8 +810,8 @@ export default function TeeemTableView({
     if (hasEmailColumn) return true;
 
     // Check if any entry has email-related fields in the data
-    if (entries && entries.length > 0) {
-      const firstEntry = entries[0];
+    if (effectiveEntries && effectiveEntries.length > 0) {
+      const firstEntry = effectiveEntries[0];
       const hasEmailFields =
         'from_email' in firstEntry ||
         'to_emails' in firstEntry ||
@@ -733,7 +822,7 @@ export default function TeeemTableView({
     }
 
     return false;
-  }, [COLUMNS, entries]);
+  }, [COLUMNS, effectiveEntries]);
 
   // Sticky columns configuration - columns that stay fixed on horizontal scroll
   // Order matters: select first (leftmost), then id, then name
@@ -1032,17 +1121,17 @@ export default function TeeemTableView({
   const handleSearchFromInput = useCallback(
     (value: string) => {
       setSearch(value);
-      if (onServerSearch) {
-        onServerSearch(value, searchAllColumns);
+      if (effectiveOnServerSearch) {
+        effectiveOnServerSearch(value, searchAllColumns);
       }
     },
-    [onServerSearch, searchAllColumns]
+    [effectiveOnServerSearch, searchAllColumns]
   );
 
   const handleSearchAllChange = useCallback(
     (checked: boolean) => {
       setSearchAllColumns(checked);
-      if (onServerSearch && search) {
+      if (effectiveOnServerSearch && search) {
         onServerSearch(search, checked);
       }
     },
@@ -1173,7 +1262,7 @@ export default function TeeemTableView({
 
   // Clear callback cache when rows change to prevent memory leaks
   React.useEffect(() => {
-    const currentIds = new Set(entries.map(e => e.id));
+    const currentIds = new Set(effectiveEntries.map(e => e.id));
     const cachedIds = Array.from(toggleCallbacksRef.current.keys());
     cachedIds.forEach(id => {
       if (!currentIds.has(id)) {
@@ -1380,7 +1469,7 @@ export default function TeeemTableView({
   const startMultiEditing = useCallback((rowIds: (number | string)[]) => {
     const newEditingData: Record<string | number, Record<string, unknown>> = {};
     rowIds.forEach(id => {
-      const row = entries.find(e => e.id === id);
+      const row = effectiveEntries.find(e => e.id === id);
       if (row) {
         newEditingData[id] = { ...row };
       }
@@ -1453,7 +1542,7 @@ export default function TeeemTableView({
       const rowsToUpdate: Array<{ rowId: number | string; changes: Record<string, unknown> }> = [];
 
       for (const rowId of editingRowIds) {
-        const originalRow = entries.find((e) => e.id === rowId);
+        const originalRow = effectiveEntries.find((e) => e.id === rowId);
         const rowData = editingData[rowId];
         if (!originalRow || !rowData) continue;
 
