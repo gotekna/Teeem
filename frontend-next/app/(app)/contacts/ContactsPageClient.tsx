@@ -82,6 +82,7 @@ export default function ContactsPageClient({
   // Track current view to determine display mode
   const [currentView, setCurrentView] = useState<any>(null);
   const [showExplorer, setShowExplorer] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Handler for when the active view changes in View Manager
   const handleViewChange = useCallback((view: any) => {
