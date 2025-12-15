@@ -151,6 +151,58 @@ export default function ContactsPageClient({
     }
   }, [foundation, records, hasMore, isLoadingMore]);
 
+  // Load ALL remaining records (loops until hasMore is false)
+  const loadAll = useCallback(async () => {
+    if (!foundation || !hasMore || isLoadingMore) return;
+
+    setIsLoadingMore(true);
+    let keepLoading = true;
+    let currentRecords = records;
+
+    try {
+      while (keepLoading) {
+        const lastRecord = currentRecords[currentRecords.length - 1];
+        const cursor = lastRecord?.id;
+
+        const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number }>(
+          `/api/v1/foundations/${foundation.id}/records`,
+          {
+            params: {
+              cursor,
+              limit: 100
+            }
+          }
+        );
+
+        const newRecords = response.records || [];
+        currentRecords = [...currentRecords, ...newRecords];
+        setRecords(currentRecords);
+
+        keepLoading = response.has_more ?? false;
+        setHasMore(keepLoading);
+
+        // Small delay to avoid hammering the API
+        if (keepLoading) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      toast({
+        title: "All contacts loaded",
+        description: `Loaded ${currentRecords.length} total contacts`,
+      });
+    } catch (error) {
+      console.error("[ContactsPageClient] Failed to load all:", error);
+      toast({
+        title: "Load failed",
+        description: "Failed to load all contacts",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [foundation, records, hasMore, isLoadingMore, toast]);
+
   // Refresh function to reload data (resets to first page)
   const refresh = useCallback(async () => {
     console.log('[ContactsPageClient] Refresh called');
@@ -459,6 +511,28 @@ export default function ContactsPageClient({
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
           />
+        )}
+
+        {/* Load More Controls - show when there are more records to load */}
+        {hasMore && !showExplorer && currentView?.view_type !== "relational" && (
+          <div className="flex items-center justify-center gap-3 py-4 border-t">
+            <Button
+              onClick={loadMore}
+              disabled={isLoadingMore}
+              variant="outline"
+              size="sm"
+            >
+              {isLoadingMore ? "Loading..." : `Load 100 More (${records.length} of ${totalCount || "?"} shown)`}
+            </Button>
+            <Button
+              onClick={loadAll}
+              disabled={isLoadingMore}
+              variant="default"
+              size="sm"
+            >
+              {isLoadingMore ? "Loading..." : "Load All Remaining"}
+            </Button>
+          </div>
         )}
       </div>
 
