@@ -351,7 +351,7 @@ module Api
               id: "system_#{col.name}",
               name: col.name.titleize,
               column_name: col.name,
-              column_type: map_sql_type_to_column_type(col.type),
+              column_type: map_sql_type_to_column_type(col.type, col.name),
               required: !col.null,
               is_title: col.name == "title" || col.name == "name",
               is_unique: false,
@@ -364,24 +364,43 @@ module Api
         end
       end
 
-      def map_sql_type_to_column_type(sql_type)
+      def map_sql_type_to_column_type(sql_type, column_name = nil)
+        # Special handling for Australian column types based on column name (Gold Standard compliance)
+        if column_name
+          case column_name.to_s
+          when /^(tax_number|abn)$/i
+            return "abn"
+          when /^(company_number|acn)$/i
+            return "acn"
+          when /^(bank_bsb|bsb)$/i
+            return "bsb"
+          when /^(bank_account_number|bank_account)$/i
+            return "bank_account"
+          when /^postcode$/i
+            return "postcode"
+          when /^tfn$/i
+            return "tfn"
+          end
+        end
+
+        # Default SQL type mapping (using Gold Standard column types)
         case sql_type
         when :string, :text
-          "text"
+          "single_line_text"
         when :integer, :bigint
-          "number"
+          "whole_number"
         when :decimal, :float
-          "currency"
+          "number"
         when :boolean
           "boolean"
         when :date
           "date"
         when :datetime, :timestamp
-          "datetime"
+          "date_and_time"
         when :json, :jsonb
-          "json"
+          "structured_data"
         else
-          "text"
+          "single_line_text"
         end
       end
 
