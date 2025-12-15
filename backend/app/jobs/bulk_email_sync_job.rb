@@ -131,20 +131,26 @@ class BulkEmailSyncJob < ApplicationJob
   def sync_emails_to_warehouse(sync_years)
     Rails.logger.info "[BulkSync] Phase 1: Syncing emails to warehouse..."
 
-    # Configure for full historical sync
+    # Configure for full historical sync - MUST set sync_all: true for OrgEmailSyncJob
     original_config = @credential.sync_config || {}
     @credential.update!(
-      sync_config: original_config.merge("sync_years" => sync_years),
+      sync_config: original_config.merge("sync_years" => sync_years, "sync_all" => true),
       last_sync_at: nil  # Force full sync
     )
 
     result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
 
-    @progress["emails_synced"] = result[:total_synced]
+    # Handle nil result (job returned early - no users to sync)
+    if result.nil?
+      Rails.logger.warn "[BulkSync] OrgEmailSyncJob returned nil - no users configured?"
+      @progress["emails_synced"] = 0
+    else
+      @progress["emails_synced"] = result[:total_synced]
+    end
     @progress["emails_total"] = EmailWarehouse.where(microsoft_credential_id: @credential.id).count
     save_progress!
 
-    Rails.logger.info "[BulkSync] Phase 1 complete: #{result[:total_synced]} emails synced"
+    Rails.logger.info "[BulkSync] Phase 1 complete: #{@progress["emails_synced"]} emails synced"
   end
 
   # Phase 2: Upload attachments to SharePoint
