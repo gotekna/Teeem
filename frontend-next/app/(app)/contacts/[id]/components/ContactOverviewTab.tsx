@@ -922,7 +922,7 @@ function EmployeeMultiSelector({
           }
           disabled={loadingPeople}
           className="w-full"
-          hidePlaceholderWhenSelected
+          hidePlaceholderWhenSelected={false}
         />
         <p className="text-xs text-muted-foreground">Add people who work for this {isTrust(formData.entity_type) ? 'trust' : 'company'}. View and edit roles in the Overview tab.</p>
       </div>
