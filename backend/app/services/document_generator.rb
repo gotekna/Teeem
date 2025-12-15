@@ -183,7 +183,7 @@ class DocumentGenerator
   end
 
   def build_context(job: nil, contact: nil, extra_data: {})
-    context = Sablon.content({})
+    context = {}
 
     # Add job data
     if job
@@ -216,20 +216,30 @@ class DocumentGenerator
   end
 
   def build_job_context(job)
+    # Build street address from components
+    street_address = [
+      job.street_number,
+      job.street_name,
+      job.street_type
+    ].compact.reject(&:blank?).join(" ")
+
     {
       # Core fields
-      job_number: job.job_number,
-      title: job.title,
-      address: job.address,
+      id: job.id,
+      job_number: job.try(:job_number) || job.id.to_s,
+      name: job.name,
+      title: job.try(:title) || job.name,
+      address: street_address,
       suburb: job.suburb,
       state: job.state,
       postcode: job.postcode,
-      full_address: [ job.address, job.suburb, job.state, job.postcode ].compact.join(", "),
-      status: job.status&.humanize,
+      full_address: [ street_address, job.suburb, job.state, job.postcode ].compact.reject(&:blank?).join(", "),
+      status: job.try(:job_status)&.name || job.try(:status)&.humanize,
 
       # Contract details
-      contract_price: format_currency(job.contract_price),
-      contract_price_raw: job.contract_price,
+      contract_price: format_currency(job.try(:contract_price) || job.try(:contract_value)),
+      contract_price_raw: job.try(:contract_price) || job.try(:contract_value),
+      contract_value: format_currency(job.try(:contract_value)),
       contract_price_ex_gst: format_currency(job.try(:contract_price_ex_gst)),
       deposit: format_currency(job.try(:deposit)),
       deposit_percentage: job.try(:deposit_percentage),
@@ -237,23 +247,31 @@ class DocumentGenerator
       build_period_weeks: job.try(:build_period_weeks),
 
       # Dates
-      contract_date: format_date(job.contract_date),
-      practical_completion_date: format_date(job.practical_completion_date),
-      site_start_date: format_date(job.site_start_date),
+      contract_date: format_date(job.try(:contract_date)),
+      practical_completion_date: format_date(job.try(:practical_completion_date)),
+      site_start_date: format_date(job.try(:site_start_date)),
+      start_date: format_date(job.try(:start_date)),
+      plan_date: format_date(job.try(:plan_date)),
+      spec_date: format_date(job.try(:spec_date)),
 
       # Property details
-      lot_number: job.lot_number,
-      lot: job.lot_number, # Alias for Compoza compatibility
-      plan_number: job.plan_number,
-      plan_sp_number: job.plan_number, # Alias for Compoza compatibility
+      lot_number: job.try(:lot_number),
+      lot: job.try(:lot_number), # Alias for Compoza compatibility
+      plan_number: job.try(:plan_number),
+      plan_sp_number: job.try(:plan_number), # Alias for Compoza compatibility
       council: job.try(:council),
+      street_number: job.try(:street_number),
+      street_name: job.try(:street_name),
+      street_type: job.try(:street_type),
 
       # Builder info
       builder_brand: job.try(:builder_brand),
       builder_licence: job.try(:builder_licence),
       builder_abn: job.try(:builder_abn),
+      site_supervisor_name: job.try(:site_supervisor_name),
+      site_supervisor_phone: job.try(:site_supervisor_phone),
 
-      description: job.description
+      description: job.try(:description)
     }
   end
 
@@ -262,36 +280,52 @@ class DocumentGenerator
 
     {
       # Name fields
+      id: contact.id,
       display_name: contact.display_name,
       full_name: contact.display_name, # Alias for Compoza compatibility
-      first_name: contact.first_name,
-      last_name: contact.last_name,
+      first_name: contact.try(:first_name),
+      last_name: contact.try(:last_name),
+      middle_name: contact.try(:middle_name),
       name: contact.display_name, # Short alias
 
       # Contact details
-      email: contact.email,
-      phone: contact.phone,
-      mobile: contact.mobile,
+      email: contact.try(:email),
+      phone: contact.try(:office_phone) || contact.try(:mobile_phone),
+      phone_number: contact.try(:office_phone) || contact.try(:mobile_phone),
+      home_phone: contact.try(:office_phone),
+      mobile: contact.try(:mobile_phone),
+      mobile_phone: contact.try(:mobile_phone),
+      office_phone: contact.try(:office_phone),
+      fax: contact.try(:fax_phone),
 
       # Business details
-      company_name: contact.company_name,
-      abn: contact.abn,
+      company_name: contact.try(:company_name_or_trust),
+      company: contact.try(:company_name_or_trust),
+      abn: contact.try(:abn),
+      acn: contact.try(:acn),
 
-      # Address
-      address_line_1: contact.address_line_1,
-      address_line_2: contact.address_line_2,
-      suburb: contact.suburb,
-      state: contact.state,
-      postcode: contact.postcode,
+      # Address - contact uses single address field + city/state/postcode
+      address: contact.try(:address),
+      address_line_1: contact.try(:address),
+      street_address_line_1: contact.try(:address),
+      street: contact.try(:address),
+      suburb: contact.try(:city),
+      city: contact.try(:city),
+      street_city: contact.try(:city),
+      state: contact.try(:state),
+      street_region: contact.try(:state),
+      region: contact.try(:state),
+      postcode: contact.try(:postcode),
+      street_post_code: contact.try(:postcode),
+      postal_code: contact.try(:postcode),
       full_address: build_full_address(contact)
     }
   end
 
   def build_full_address(contact)
-    parts = [ contact.address_line_1 ]
-    parts << contact.address_line_2 if contact.address_line_2.present?
-    parts << [ contact.suburb, contact.state, contact.postcode ].compact.join(" ")
-    parts.compact.join(", ")
+    parts = [ contact.try(:address) ]
+    parts << [ contact.try(:city), contact.try(:state), contact.try(:postcode) ].compact.reject(&:blank?).join(" ")
+    parts.compact.reject(&:blank?).join(", ")
   end
 
   def format_currency(amount)
