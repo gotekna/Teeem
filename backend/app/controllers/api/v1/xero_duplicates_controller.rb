@@ -17,7 +17,7 @@ module Api
         groups = XeroDuplicateGroup
                    .pending
                    .prioritized
-                   .includes(xero_duplicate_items: { contact: :contact_external_links })
+                   .includes(xero_duplicate_items: { contact: :external_links })
                    .limit(limit)
                    .offset(offset)
 
@@ -42,7 +42,7 @@ module Api
                    .pending
                    .joins(:xero_duplicate_items)
                    .where(xero_duplicate_items: { contact_id: contact_id })
-                   .includes(xero_duplicate_items: { contact: :contact_external_links })
+                   .includes(xero_duplicate_items: { contact: :external_links })
                    .distinct
 
         render json: {
@@ -209,7 +209,7 @@ module Api
 
       def serialize_duplicate_item(item)
         contact = item.contact
-        xero_links = contact.contact_external_links.where(source: "xero")
+        xero_links = contact.external_links.where(source: "xero")
 
         {
           id: item.id,

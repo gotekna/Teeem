@@ -68,12 +68,11 @@ class XeroDuplicateDetector
   def fetch_xero_contacts
     # Get all contacts that have Xero external links and are not archived
     Contact
-      .joins(:contact_external_links)
+      .joins(:external_links)
       .where(contact_external_links: { source: "xero", sync_enabled: true })
       .where.not(xero_contact_status: "ARCHIVED")
-      .where(deleted_at: nil)
       .distinct
-      .includes(:contact_external_links)
+      .includes(:external_links)
   end
 
   def group_by_abn(contacts)
@@ -98,7 +97,7 @@ class XeroDuplicateDetector
   def group_by_display_name(contacts)
     # Filter to companies and trusts only
     eligible_contacts = contacts.select do |c|
-      %w[company trust].include?(c.contact_type&.downcase)
+      %w[company trust].include?(c.entity_type&.downcase)
     end
 
     groups = {}

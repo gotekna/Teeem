@@ -43,7 +43,7 @@ class XeroDuplicateItem < ApplicationRecord
       mobile_phone: contact.mobile_phone,
       xero_contact_status: contact.xero_contact_status,
       last_synced_at: contact.last_synced_at,
-      xero_links_count: contact.contact_external_links.xero.count,
+      xero_links_count: contact.external_links.xero.count,
       invoices_count: contact.external_invoices.count,
       created_at: contact.created_at,
       updated_at: contact.updated_at

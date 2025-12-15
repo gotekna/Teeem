@@ -77,11 +77,11 @@ class XeroContactMerger
 
   def merge_xero_links(target, duplicate)
     # Get all Xero links from duplicate
-    duplicate_links = duplicate.contact_external_links.where(source: "xero")
+    duplicate_links = duplicate.external_links.where(source: "xero")
 
     duplicate_links.each do |dup_link|
       # Check if target already has a link for this tenant
-      existing_link = target.contact_external_links.find_by(
+      existing_link = target.external_links.find_by(
         source: "xero",
         tenant_id: dup_link.tenant_id
       )
@@ -215,7 +215,7 @@ class XeroContactMerger
 
   def archive_in_xero(duplicate)
     # Get all Xero links for this contact
-    xero_links = duplicate.contact_external_links.xero
+    xero_links = duplicate.external_links.xero
 
     xero_links.each do |link|
       begin
