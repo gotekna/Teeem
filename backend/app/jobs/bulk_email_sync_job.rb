@@ -65,11 +65,12 @@ class BulkEmailSyncJob < ApplicationJob
       end
 
       # Phase 3: Upload email .eml files to SharePoint
-      unless @progress["phase3_complete"]
-        sync_emails_to_sharepoint
-        @progress["phase3_complete"] = true
-        save_progress!
-      end
+      # DISABLED - EML upload takes too long and times out on Heroku
+      # unless @progress["phase3_complete"]
+      #   sync_emails_to_sharepoint
+      #   @progress["phase3_complete"] = true
+      #   save_progress!
+      # end
 
       # Mark complete
       @progress["status"] = "completed"
