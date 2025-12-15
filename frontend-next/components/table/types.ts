@@ -145,7 +145,12 @@ export interface TeeemTableViewProps {
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
 
   // Server-side operations
-  onServerSearch?: (term: string, mode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => void;
+  // Note: Second parameter can be:
+  // - boolean (searchAllColumns - legacy)
+  // - SearchMode string (new mode feature)
+  // Use searchMode prop for new implementations.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onServerSearch?: (term: string, searchAllOrMode?: any) => void;
   serverSearchLoading?: boolean;
   searchMode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex";
   onSearchModeChange?: (mode: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => void;

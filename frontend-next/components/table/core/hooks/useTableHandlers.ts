@@ -62,7 +62,8 @@ export interface UseTableHandlersProps {
   searchAllColumns: boolean;
 
   /** Server-side search callback (optional) */
-  onServerSearch?: (search: string, searchAll: boolean) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onServerSearch?: (search: string, searchAllOrMode?: any) => void;
 
   /** Set column order state */
   setColumnOrder: React.Dispatch<React.SetStateAction<string[]>>;

@@ -444,30 +444,34 @@ module HealthChecks
       )
     end
 
-    # Duplicate Xero IDs
+    # Duplicate Xero Links - Multiple contacts linked to the same Xero contact
+    # SSoT: Uses contact_external_links table
     def check_duplicate_xero_ids
-      # Find xero_ids that appear more than once
-      duplicate_xero_ids = Contact.all
-                                 .where.not(xero_id: [ nil, "" ])
-                                 .group(:xero_id)
-                                 .having("COUNT(*) > 1")
-                                 .pluck(:xero_id)
+      # Find external_contact_ids that appear more than once per tenant in contact_external_links
+      duplicates = ContactExternalLink.xero
+                                      .group(:external_contact_id, :tenant_id)
+                                      .having("COUNT(DISTINCT contact_id) > 1")
+                                      .pluck(:external_contact_id, :tenant_id)
 
-      items = duplicate_xero_ids.map do |xero_id|
-        # Load all columns - display_name method needs is_team_contact, entity_type, etc.
-        contacts = Contact.where(xero_id: xero_id).includes(:primary_company)
+      items = duplicates.map do |external_contact_id, tenant_id|
+        # Find all links with this external_contact_id and tenant
+        links = ContactExternalLink.xero
+                                   .where(external_contact_id: external_contact_id, tenant_id: tenant_id)
+                                   .includes(contact: :primary_company)
+        contacts = links.map(&:contact).compact.uniq
         {
-          id: contacts.first.id,
-          display: "Xero ID #{xero_id[0..7]}... shared by: #{contacts.map(&:display_name).join(', ')}",
-          xero_id: xero_id,
+          id: contacts.first&.id,
+          display: "Xero contact #{external_contact_id[0..7]}... linked to: #{contacts.map(&:display_name).join(', ')}",
+          xero_id: external_contact_id,
+          tenant_id: tenant_id,
           contact_ids: contacts.map(&:id),
           contact_names: contacts.map(&:display_name)
         }
       end
 
       build_result(
-        name: "Duplicate Xero IDs",
-        description: "Multiple contacts sharing the same Xero ID. These should be merged to prevent sync issues.",
+        name: "Duplicate Xero Links",
+        description: "Multiple TEEEM contacts linked to the same Xero contact. These should be merged to prevent sync issues.",
         severity: :critical,
         items: items,
         icon: "copy",

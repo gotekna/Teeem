@@ -579,11 +579,6 @@ class XeroContactSyncService
   def update_teeem_from_xero(teeem_contact, xero_contact, link = nil)
     updates = {}
 
-    # DEPRECATED: Legacy xero_id field - use WarehouseContact.xero_id instead
-    # Keeping for backwards compatibility during migration period
-    # TODO: Remove after Phase 5 migration is verified complete
-    updates[:xero_id] = xero_contact["ContactID"] if teeem_contact.xero_id.blank?
-
     # Get field mappings from sync config
     field_mappings = @sync_config&.field_mappings || SyncConfiguration::DEFAULT_FIELD_MAPPINGS
 
@@ -715,7 +710,10 @@ class XeroContactSyncService
     end
 
     # Xero-specific fields (always import)
-    updates[:xero_contact_status] = xero_contact["ContactStatus"] if xero_contact["ContactStatus"].present?
+    # Note: xero_contact_status is stored on the link (SSoT), not Contact
+    if link && xero_contact["ContactStatus"].present?
+      link.update!(xero_contact_status: xero_contact["ContactStatus"])
+    end
     updates[:xero_contact_number] = xero_contact["ContactNumber"] if xero_contact["ContactNumber"].present?
     updates[:xero_account_number] = xero_contact["AccountNumber"] if xero_contact["AccountNumber"].present?
     updates[:website] = xero_contact["Website"] if xero_contact["Website"].present?
@@ -764,7 +762,7 @@ class XeroContactSyncService
     end
 
     # Track changes for activity logging
-    changed_fields = updates.keys - [ :xero_id ]
+    changed_fields = updates.keys
     changes_made = changed_fields.each_with_object({}) do |field, hash|
       old_value = teeem_contact.send(field) rescue nil
       new_value = updates[field]
@@ -808,8 +806,8 @@ class XeroContactSyncService
 
     is_company = xero_contact_is_company?(xero_contact)
 
+    # Note: xero_id and xero_contact_status are stored in contact_external_links (SSoT)
     contact_data = {
-      xero_id: xero_contact["ContactID"],  # Legacy field
       display_name: xero_contact["Name"],
       first_name: is_company ? nil : xero_contact["FirstName"],
       last_name: is_company ? nil : xero_contact["LastName"],
@@ -820,7 +818,6 @@ class XeroContactSyncService
       roles: roles.any? ? roles : nil,
       xero_contact_types: xero_contact_types,
       sync_with_xero: true,
-      xero_contact_status: xero_contact["ContactStatus"],
       xero_contact_number: xero_contact["ContactNumber"],
       xero_account_number: xero_contact["AccountNumber"],
       website: xero_contact["Website"],
@@ -970,13 +967,6 @@ class XeroContactSyncService
           sync_direction: "bidirectional",
           last_synced_at: @sync_timestamp
         )
-
-        # DEPRECATED: Legacy xero_id field - use WarehouseContact.xero_id instead
-        # Keeping for backwards compatibility during migration period
-        # TODO: Remove after Phase 5 migration is verified complete
-        if teeem_contact.xero_id.blank?
-          teeem_contact.update!(xero_id: created_contact["ContactID"])
-        end
 
         @stats[:created_in_xero] += 1
         @stats[:links_created] += 1

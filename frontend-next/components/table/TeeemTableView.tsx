@@ -200,7 +200,7 @@ import { sortColumnsForModal } from "./column-utils";
 import { EditModeToggle } from "./EditModeToggle";
 
 // Extracted components (Phase 1 refactoring)
-import { SearchInput } from "./components/SearchInput";
+import { SearchInput, type SearchMode } from "./components/SearchInput";
 import { ResizableColumnHeader } from "./components/ResizableColumnHeader";
 import { SortableColumnRow } from "./components/SortableColumnRow";
 import { CascadeFilterItem } from "./core/filtering/CascadeFilterItem";
@@ -227,6 +227,7 @@ import { EditColumnsModal } from "./modals/EditColumnsModal";
 import { useExportHandlers } from "./core/hooks/useExportHandlers";
 import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
 import { useTableHandlers } from "./core/hooks/useTableHandlers";
+import { useGroupCounts } from "@/hooks/useGroupCounts";
 
 // Extracted utilities (Phase 1 refactoring)
 import { extractSelectedIds, formatCellValue, truncateText, fuzzyMatch } from "./utils/table-utils";
@@ -958,6 +959,42 @@ export default function TeeemTableView({
   // groupViewMode managed by atom (SSoT)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
+  // Server-side group counts for accurate totals (not limited by pagination)
+  // This fetches GROUP BY counts from the database for the current groupByColumn
+  const {
+    groups: serverGroupCounts,
+    totalRecords: serverTotalRecords,
+    loading: groupCountsLoading,
+    hasFetched: groupCountsHasFetched,
+  } = useGroupCounts(
+    foundationIdNumeric,
+    groupByColumn,
+    undefined, // TODO: pass cascadeFilters when implemented
+    groupByColumns.length > 0 // enabled when grouping is active
+  );
+
+  // Build a map of group key -> server count for quick lookup
+  const serverCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const group of serverGroupCounts) {
+      const key = group.key === null ? "(Empty)" : String(group.key);
+      map.set(key, group.count);
+    }
+    return map;
+  }, [serverGroupCounts]);
+
+  // Lazy loading state for groups - fetch all records when expanding
+  // Tracks which groups are currently being loaded from server
+  const [groupLoadingState, setGroupLoadingState] = useState<Set<string>>(new Set());
+  // Stores fully loaded records for each group (Map<groupKey, records[]>)
+  const [lazyLoadedGroups, setLazyLoadedGroups] = useState<Map<string, TableRowType[]>>(new Map());
+
+  // Clear lazy-loaded group data when groupByColumn changes
+  useEffect(() => {
+    setLazyLoadedGroups(new Map());
+    setGroupLoadingState(new Set());
+  }, [groupByColumn]);
+
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
   const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
@@ -1179,7 +1216,7 @@ export default function TeeemTableView({
 
   // Search handler
   const handleSearchFromInput = useCallback(
-    (value: string, mode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => {
+    (value: string, mode?: SearchMode) => {
       setSearch(value);
       if (effectiveOnServerSearch) {
         effectiveOnServerSearch(value, mode);
@@ -1416,17 +1453,73 @@ export default function TeeemTableView({
   }, [onRefresh]);
 
   // Group handlers
+  // Lazy load all records for a group when expanding (server-side grouping)
+  const loadGroupRecords = useCallback(async (groupKey: string) => {
+    // Skip if no foundation or groupBy column
+    if (!foundationIdNumeric || !groupByColumn) return;
+
+    // Skip if already loaded or loading
+    if (lazyLoadedGroups.has(groupKey) || groupLoadingState.has(groupKey)) return;
+
+    // Mark as loading
+    setGroupLoadingState(prev => new Set(prev).add(groupKey));
+
+    try {
+      // Handle "(Empty)" key - server expects null
+      const filterValue = groupKey === "(Empty)" ? null : groupKey;
+
+      const response = await api.get<{
+        success: boolean;
+        records: TableRowType[];
+        total?: number;
+      }>(`/api/v1/foundations/${foundationIdNumeric}/records`, {
+        params: {
+          filters: JSON.stringify([{
+            column: groupByColumn,
+            operator: filterValue === null ? "is_null" : "=",
+            value: filterValue
+          }]),
+          limit: 10000 // Get all records for the group
+        }
+      });
+
+      if (response.success && response.records) {
+        setLazyLoadedGroups(prev => new Map(prev).set(groupKey, response.records));
+      }
+    } catch (error) {
+      console.error(`[TeeemTableView] Failed to load group records for "${groupKey}":`, error);
+    } finally {
+      setGroupLoadingState(prev => {
+        const next = new Set(prev);
+        next.delete(groupKey);
+        return next;
+      });
+    }
+  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState]);
+
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {
       const next = new Set(prev);
-      if (next.has(groupKey)) {
+      const isExpanding = next.has(groupKey);
+
+      if (isExpanding) {
         next.delete(groupKey);
+        // When expanding, check if we need to lazy load records
+        // Only for first-level groups (no "›" in key) that have partial data
+        if (!groupKey.includes("›")) {
+          const serverCount = serverCountMap.get(groupKey);
+          const hasFullData = lazyLoadedGroups.has(groupKey);
+          // Trigger lazy load if server shows more records than we have
+          if (serverCount && !hasFullData) {
+            loadGroupRecords(groupKey);
+          }
+        }
       } else {
         next.add(groupKey);
       }
       return next;
     });
-  }, [setCollapsedGroups]);
+  }, [setCollapsedGroups, serverCountMap, lazyLoadedGroups, loadGroupRecords]);
 
   // Collect all group keys for expand/collapse all
   const getAllGroupKeys = useCallback((
@@ -3122,8 +3215,16 @@ export default function TeeemTableView({
     Object.entries(groups).forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
-      const rowCount = group.rows.length;
+      // Use server count for first-level groups (accurate total), fallback to client count
+      const serverCount = depth === 0 ? serverCountMap.get(groupKey) : undefined;
+      const rowCount = serverCount ?? group.rows.length;
       const hasSubgroups = group.subgroups && Object.keys(group.subgroups).length > 0;
+      // Check if this group has been fully loaded via lazy loading
+      const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
+      // Check if we're currently loading this group
+      const isLoadingThisGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Show indicator if we only have partial data loaded (and not fully loaded yet)
+      const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
       // Group header
       result.push(
@@ -3137,7 +3238,9 @@ export default function TeeemTableView({
           onClick={() => toggleGroupCollapse(fullKey)}
         >
           <div className="flex items-center gap-2">
-            {isCollapsed ? (
+            {isLoadingThisGroup ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isCollapsed ? (
               <ChevronRight className="h-4 w-4" />
             ) : (
               <ChevronDown className="h-4 w-4" />
@@ -3145,14 +3248,37 @@ export default function TeeemTableView({
             <span className="font-bold text-[13px]">
               {groupKey}
             </span>
-            <span className="text-xs bg-white px-2 py-0.5 rounded">({rowCount})</span>
+            <span className="text-xs bg-white px-2 py-0.5 rounded">
+              ({rowCount})
+              {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
+              {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+            </span>
           </div>
         </div>
       );
 
       // If not collapsed, render content
       if (!isCollapsed) {
-        if (hasSubgroups) {
+        // Check if we're currently loading this group's data
+        const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
+        // Use lazy-loaded records if available, otherwise use current records
+        const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
+          ? lazyLoadedGroups.get(groupKey) || group.rows
+          : group.rows;
+
+        if (isLoadingGroup) {
+          // Show loading indicator while fetching group records
+          result.push(
+            <div
+              key={`loading-${fullKey}`}
+              className="flex items-center justify-center py-8 text-muted-foreground"
+              style={{ marginLeft: `${16 + depth * 24}px` }}
+            >
+              <Loader2 className="h-5 w-5 animate-spin mr-2" />
+              <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
+            </div>
+          );
+        } else if (hasSubgroups) {
           // Render subgroups recursively
           result.push(...renderGroupNavigation(group.subgroups as typeof groups, depth + 1, fullKey));
         } else {
@@ -3162,7 +3288,7 @@ export default function TeeemTableView({
               key={`data-${fullKey}`}
               fullKey={fullKey}
               depth={depth}
-              rows={group.rows}
+              rows={effectiveRows}
               selectedRows={selectedRows}
               visibleColumnsInOrder={visibleColumnsInOrder}
               columnWidths={columnWidths}
@@ -3195,7 +3321,8 @@ export default function TeeemTableView({
 
     const collectRows = (
       groups: Record<string, { rows: TableRowType[]; subgroups?: Record<string, { rows: TableRowType[]; subgroups?: Record<string, unknown> }> }>,
-      parentKey: string = ""
+      parentKey: string = "",
+      depth: number = 0
     ) => {
       Object.entries(groups).forEach(([groupKey, group]) => {
         const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
@@ -3203,9 +3330,13 @@ export default function TeeemTableView({
 
         if (!isCollapsed) {
           if (group.subgroups && Object.keys(group.subgroups).length > 0) {
-            collectRows(group.subgroups as typeof groups, fullKey);
+            collectRows(group.subgroups as typeof groups, fullKey, depth + 1);
           } else {
-            visibleRows.push(...group.rows);
+            // Use lazy-loaded records if available (for first-level groups)
+            const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
+              ? lazyLoadedGroups.get(groupKey) || group.rows
+              : group.rows;
+            visibleRows.push(...effectiveRows);
           }
         }
       });
@@ -3213,7 +3344,7 @@ export default function TeeemTableView({
 
     collectRows(groupedEntries);
     return visibleRows;
-  }, [groupedEntries, collapsedGroups]);
+  }, [groupedEntries, collapsedGroups, lazyLoadedGroups]);
 
   // Render data rows for the table body
   const renderDataRows = () => {
@@ -3307,7 +3438,15 @@ export default function TeeemTableView({
     Object.entries(groups).forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
-      const rowCount = group.rows.length;
+      // Use server count for first-level groups (accurate total), fallback to client count
+      const serverCount = depth === 0 ? serverCountMap.get(groupKey) : undefined;
+      const rowCount = serverCount ?? group.rows.length;
+      // Check if this group has been fully loaded via lazy loading
+      const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
+      // Check if we're currently loading this group
+      const isLoadingThisGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Show indicator if we only have partial data loaded (and not fully loaded yet)
+      const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
       // Add group header row
       result.push(
@@ -3325,7 +3464,9 @@ export default function TeeemTableView({
             style={{ paddingLeft: `${16 + depth * 24}px` }}
           >
             <div className="flex items-center gap-2">
-              {isCollapsed ? (
+              {isLoadingThisGroup ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isCollapsed ? (
                 <ChevronRight className="h-4 w-4" />
               ) : (
                 <ChevronDown className="h-4 w-4" />
@@ -3333,7 +3474,11 @@ export default function TeeemTableView({
               <span className="font-bold text-[13px]">
                 {groupKey}
               </span>
-              <span className="text-xs bg-white px-2 py-0.5 rounded">({rowCount})</span>
+              <span className="text-xs bg-white px-2 py-0.5 rounded">
+                ({rowCount})
+                {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
+                {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
+              </span>
             </div>
           </TableCell>
         </TableRow>
@@ -3341,12 +3486,34 @@ export default function TeeemTableView({
 
       // If not collapsed, add content
       if (!isCollapsed) {
-        if (group.subgroups && Object.keys(group.subgroups).length > 0) {
+        // Check if we're currently loading this group's data
+        const isLoadingGroup = depth === 0 && groupLoadingState.has(groupKey);
+        // Use lazy-loaded records if available, otherwise use current records
+        const effectiveRows = depth === 0 && lazyLoadedGroups.has(groupKey)
+          ? lazyLoadedGroups.get(groupKey) || group.rows
+          : group.rows;
+
+        if (isLoadingGroup) {
+          // Show loading row while fetching group records
+          result.push(
+            <TableRow key={`loading-${fullKey}`}>
+              <TableCell
+                colSpan={visibleColumnsInOrder.length}
+                className="py-8 text-center text-muted-foreground"
+              >
+                <div className="flex items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <span>Loading {serverCount ? serverCount.toLocaleString() : ''} records...</span>
+                </div>
+              </TableCell>
+            </TableRow>
+          );
+        } else if (group.subgroups && Object.keys(group.subgroups).length > 0) {
           // Render subgroups recursively
           result.push(...renderInlineGroupRows(group.subgroups as typeof groups, depth + 1, fullKey));
         } else {
           // Render actual data rows
-          group.rows.forEach((row, rowIndex) => {
+          effectiveRows.forEach((row, rowIndex) => {
             const globalIndex = filteredAndSortedEntries.findIndex(e => e.id === row.id);
             result.push(
               <TableRow

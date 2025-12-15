@@ -218,7 +218,6 @@ class Contact < ApplicationRecord
     default_discount
     xero_account_number
     xero_contact_number
-    xero_contact_status
     company_number
   ].freeze
 
@@ -244,7 +243,6 @@ class Contact < ApplicationRecord
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
   before_validation :clear_roles_if_not_person  # Must run before validations
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
-  before_save :update_xero_synced_status
   before_save :generate_display_name
   before_save :sync_company_name_or_trust
   before_save :clear_roles_if_not_person
@@ -657,6 +655,18 @@ class Contact < ApplicationRecord
     synced_to_xero?
   end
 
+  # Virtual xero_id reader - returns primary_xero_id for backwards compatibility
+  # Column dropped - now reads from contact_external_links SSoT
+  def xero_id
+    primary_xero_id
+  end
+
+  # Virtual xero_contact_status reader - returns primary link's status
+  # Column dropped - now reads from contact_external_links SSoT
+  def xero_contact_status
+    xero_links.enabled.order(:created_at).first&.xero_contact_status
+  end
+
   # Count of Xero tenants this contact is linked to
   def xero_linked_count
     xero_links.enabled.count
@@ -982,14 +992,8 @@ class Contact < ApplicationRecord
     end
   end
 
-  # SSoT: Update xero_synced based on contact_external_links (not legacy xero_id)
-  # This callback keeps the legacy xero_synced column in sync for backwards compatibility
-  # Note: xero_synced column should eventually be removed - use synced_to_xero? method instead
-  def update_xero_synced_status
-    # Use the xero_links association which is the SSoT
-    # Also check the legacy xero_id for backwards compatibility during migration
-    self.xero_synced = xero_links.enabled.exists? || xero_id.present?
-  end
+  # Legacy update_xero_synced_status callback removed
+  # SSoT: Use synced_to_xero? method which queries contact_external_links
 
   # Auto-generate display_name from first_name + last_name for person contacts
   # For company/trust, display_name is typically set directly
