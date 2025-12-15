@@ -732,13 +732,11 @@ module HealthChecks
       groups = []
       seen_ids = Set.new
 
-      # Include all fields needed by the merge modal
-      # Note: Use SQL subqueries for counts instead of loading associations (performance optimization)
+      # Load all columns (no column limiting per CLAUDE.md policy) + SQL subqueries for counts
+      # Note: Use SQL subqueries for counts instead of loading associations (prevents timeout on 1400+ contacts)
       contacts = Contact.all
                        .select(
-                         :id, :display_name, :first_name, :middle_name, :last_name,
-                         :email, :mobile_phone, :office_phone, :xero_id,
-                         :entity_type, :is_team_contact, :primary_company_id,
+                         "contacts.*",
                          # Use SQL to count without loading associations (prevents timeout on 1400+ contacts)
                          "(SELECT COUNT(*) FROM job_contacts WHERE job_contacts.contact_id = contacts.id) AS jobs_count",
                          "(SELECT COUNT(*) FROM purchase_orders WHERE purchase_orders.supplier_id = contacts.id) AS purchase_orders_count"
