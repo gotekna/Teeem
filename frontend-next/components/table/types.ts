@@ -149,6 +149,7 @@ export interface TeeemTableViewProps {
   serverSearchLoading?: boolean;
   onViewApiParamsChange?: (params: Record<string, unknown> | null) => void;
   loadingMore?: boolean;
+  onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom
 
   // Data Health widget
   showDataHealth?: boolean;

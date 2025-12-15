@@ -606,6 +606,7 @@ export default function TeeemTableView({
   serverSearchLoading = false,
   onViewApiParamsChange,
   loadingMore = false,
+  onLoadMore,
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -1033,6 +1034,28 @@ export default function TeeemTableView({
   // Ref for table container
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
+  // ============================================================================
+  // INFINITE SCROLL - Detect when user scrolls near bottom and trigger onLoadMore
+  // ============================================================================
+  useEffect(() => {
+    if (!onLoadMore || loadingMore) return;
+
+    const container = tableContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      // Trigger when within 300px of bottom
+      const nearBottom = scrollTop + clientHeight >= scrollHeight - 300;
+
+      if (nearBottom && !loadingMore) {
+        onLoadMore();
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, [onLoadMore, loadingMore]);
 
   // Global Views Manager state managed by atom (SSoT)
   const [showGlobalViewsManager, setShowGlobalViewsManager] = useAtom(showGlobalViewsManagerAtom);

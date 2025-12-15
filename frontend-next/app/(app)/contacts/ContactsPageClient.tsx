@@ -457,6 +457,7 @@ export default function ContactsPageClient({
             onServerSearch={handleServerSearch}
             serverSearchLoading={isSearching}
             loadingMore={isLoadingMore}
+            onLoadMore={loadMore}
           />
         )}
       </div>
