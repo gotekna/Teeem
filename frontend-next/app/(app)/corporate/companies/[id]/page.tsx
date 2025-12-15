@@ -182,6 +182,11 @@ interface Company {
   tfn?: string;
   entity_type?: string;
   contact_id?: number; // SSoT: Link to Contact record
+  contact?: {
+    tax_number?: string;
+    abn_valid?: boolean;
+    abn_entity_name?: string;
+  };
   status?: string;
   date_incorporated?: string;
   purpose?: string;

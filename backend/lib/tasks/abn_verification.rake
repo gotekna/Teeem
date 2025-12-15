@@ -134,7 +134,6 @@ namespace :contacts do
       # Get contacts without ABNs (excluding individuals)
       contacts_without_abn = Contact.where(tax_number: [ nil, "" ])
                                    .where.not(display_name: [ nil, "" ])
-                                   .where.not(display_name: /^[A-Z][a-z]+ [A-Z][a-z]+$/) # Skip "Firstname Lastname" pattern
 
       total = contacts_without_abn.count
       puts "Found #{total} contacts without ABN"
