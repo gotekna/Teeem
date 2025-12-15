@@ -235,6 +235,25 @@ class ContactAutoMergeService
           target.update!(primary_company_id: source.primary_company_id)
         end
 
+        # Transfer Xero links (contact_external_links)
+        source.xero_links.each do |xero_link|
+          # Check if target already has a link to this Xero tenant
+          existing = target.xero_links.find_by(
+            tenant_id: xero_link.tenant_id,
+            source: xero_link.source
+          )
+
+          if existing
+            # Target already linked to this Xero tenant, keep target's link and delete source's
+            Rails.logger.info "[ContactAutoMerge] Target already linked to #{xero_link.tenant_name}, keeping target's link"
+            xero_link.destroy
+          else
+            # Transfer this Xero link to target
+            xero_link.update(contact_id: target.id)
+            Rails.logger.info "[ContactAutoMerge] Transferred Xero link to #{xero_link.tenant_name}"
+          end
+        end
+
         # Transfer job associations
         source.job_contacts.each do |job_contact|
           # Check if target already has this job association

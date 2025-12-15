@@ -193,30 +193,39 @@ export function ContactHeader({
                       return (
                         <div
                           key={tenant.tenant_id}
-                          className={`flex items-center justify-between text-sm py-1.5 px-2 rounded ${
+                          className={`flex items-center justify-between py-1.5 px-2 rounded ${
                             linked ? "bg-green-50 dark:bg-green-900/20" : "hover:bg-accent"
                           }`}
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
                             {linked ? (
-                              <Check className="h-4 w-4 text-green-600" />
+                              <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
                             ) : (
-                              <div className="h-4 w-4" />
+                              <div className="h-4 w-4 flex-shrink-0" />
                             )}
-                            <span className={linked ? "text-green-700 dark:text-green-300" : ""}>
-                              {tenant.tenant_name}
-                            </span>
-                            {linked && link?.invoice_count !== undefined && link.invoice_count > 0 && (
-                              <span className="text-xs text-muted-foreground">
-                                ({link.invoice_count})
-                              </span>
-                            )}
+                            <div className="flex flex-col min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm ${linked ? "text-green-700 dark:text-green-300" : ""}`}>
+                                  {tenant.tenant_name}
+                                </span>
+                                {linked && link?.invoice_count !== undefined && link.invoice_count > 0 && (
+                                  <span className="text-xs text-muted-foreground">
+                                    ({link.invoice_count})
+                                  </span>
+                                )}
+                              </div>
+                              {linked && link?.xero_contact_id && (
+                                <span className="text-xs text-muted-foreground font-mono truncate">
+                                  {link.xero_contact_id}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           {!linked && (
                             <Button
                               size="sm"
                               variant="ghost"
-                              className="h-6 px-2 text-xs"
+                              className="h-6 px-2 text-xs flex-shrink-0"
                               onClick={() => handlePushToXero(tenant.tenant_id, tenant.tenant_name)}
                               disabled={pushing}
                             >
