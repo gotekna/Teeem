@@ -175,9 +175,22 @@ module Api
         # Serialize records to JSON
         serialized_records = records.map { |r| record_to_json(r, lookup_cache) }
 
+        # DEBUG: Log if we're finding duplicates in the query result
+        record_ids = records.map(&:id)
+        duplicate_ids = record_ids.select { |id| record_ids.count(id) > 1 }.uniq
+        if duplicate_ids.any?
+          Rails.logger.error "[DUPLICATE BUG] Found #{duplicate_ids.count} duplicate IDs in query result: #{duplicate_ids.first(10).inspect}"
+          Rails.logger.error "[DUPLICATE BUG] Foundation: #{@foundation.slug}, Total records: #{records.count}, Unique: #{record_ids.uniq.count}"
+        end
+
         # CRITICAL: Deduplicate by ID (belt-and-suspenders approach)
         # This ensures no duplicate IDs appear in the response regardless of query issues
         unique_records = serialized_records.uniq { |r| r[:id] || r["id"] }
+
+        # DEBUG: Log deduplication results
+        if serialized_records.count != unique_records.count
+          Rails.logger.error "[DUPLICATE BUG] Deduplication removed #{serialized_records.count - unique_records.count} duplicate records"
+        end
 
         # Response format: cursor pagination includes has_more + next_cursor
         response = {
