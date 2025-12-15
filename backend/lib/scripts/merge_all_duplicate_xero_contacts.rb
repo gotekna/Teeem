@@ -31,7 +31,7 @@ sql = <<-SQL
     COUNT(*) as link_count,
     STRING_AGG(DISTINCT external_contact_id, ', ') as xero_ids
   FROM contact_external_links
-  WHERE platform = 'xero'
+  WHERE source = 'xero'
     #{target_tenant_id ? "AND tenant_id = '#{target_tenant_id}'" : ''}
   GROUP BY contact_id, tenant_id
   HAVING COUNT(DISTINCT external_contact_id) > 1
@@ -73,8 +73,8 @@ duplicate_groups.each_with_index do |row, index|
   puts "   Name: #{contact.display_name}"
 
   # Get all Xero links for this contact and tenant
-  links = ContactExternalLink.xero
-    .where(contact_id: contact_id, tenant_id: tenant_id)
+  links = ContactExternalLink
+    .where(contact_id: contact_id, tenant_id: tenant_id, source: 'xero')
     .order('last_verified_at DESC NULLS LAST, updated_at DESC')
 
   # Show all links
