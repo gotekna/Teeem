@@ -124,6 +124,11 @@ export default function ContactsPageClient({
   // Track if we've already started auto-loading (to prevent double-load)
   const hasStartedAutoLoad = useRef(false);
 
+  // Search: AbortController for cancelling pending requests (prevents race conditions)
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  // Search: Cache original data to restore when search is cleared
+  const preSearchDataRef = useRef<{ records: TTableRow[]; totalCount: number | null; hasMore: boolean } | null>(null);
+
   // Handler for when the active view changes in View Manager
   const handleViewChange = useCallback((view: any) => {
     setCurrentView(view);
@@ -136,14 +141,41 @@ export default function ContactsPageClient({
 
   // Server-side search - searches within the current filtered view (SSoT approach)
   // Sends both search term AND view filters to backend for combined SQL query
+  // Features: request cancellation, pre-search data caching, instant restore on clear
   const handleServerSearch = useCallback(async (searchTerm: string) => {
     if (!foundation) return;
+
+    // Cancel any pending search request (prevents race conditions)
+    if (searchAbortControllerRef.current) {
+      searchAbortControllerRef.current.abort();
+    }
+
+    // If clearing search, restore cached pre-search data instantly (no API call needed)
+    if (!searchTerm || searchTerm.trim() === "") {
+      if (preSearchDataRef.current) {
+        setRecords(preSearchDataRef.current.records);
+        setTotalCount(preSearchDataRef.current.totalCount);
+        setHasMore(preSearchDataRef.current.hasMore);
+        preSearchDataRef.current = null; // Clear cache after restore
+      }
+      setIsSearching(false);
+      return;
+    }
+
+    // Cache current data before first search (so we can restore on clear)
+    if (!preSearchDataRef.current) {
+      preSearchDataRef.current = { records, totalCount, hasMore };
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    searchAbortControllerRef.current = abortController;
 
     setIsSearching(true);
 
     try {
       // Build params with search + current view filters (SSoT: backend does filtering + search)
-      const params: any = {
+      const params: Record<string, string | number> = {
         search: searchTerm,
         limit: 100  // Return first 100 search results
       };
@@ -157,21 +189,30 @@ export default function ContactsPageClient({
 
       const response = await api.get<{ records: TTableRow[], has_more: boolean, next_cursor: number, total_count?: number }>(
         `/api/v1/foundations/${foundation.id}/records`,
-        { params }
+        { params, signal: abortController.signal }
       );
 
-      setRecords(deduplicateRecords(response.records || []));
-      setHasMore(response.has_more ?? false);
-      // Update total count if provided (first request includes it)
-      if (response.total_count !== undefined) {
-        setTotalCount(response.total_count);
+      // Only update if this request wasn't aborted
+      if (!abortController.signal.aborted) {
+        setRecords(deduplicateRecords(response.records || []));
+        setHasMore(response.has_more ?? false);
+        if (response.total_count !== undefined) {
+          setTotalCount(response.total_count);
+        }
       }
     } catch (error) {
+      // Ignore abort errors (expected when user types quickly)
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       console.error("[ContactsPageClient] Search failed:", error);
     } finally {
-      setIsSearching(false);
+      // Only clear loading if this is still the current request
+      if (searchAbortControllerRef.current === abortController) {
+        setIsSearching(false);
+      }
     }
-  }, [foundation, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic]);
+  }, [foundation, records, totalCount, hasMore, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic]);
 
   // Load more records (infinite scroll)
   const loadMore = useCallback(async () => {
