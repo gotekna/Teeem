@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown, ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { ArrowLeft, Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator, Mail } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator, Mail, FileText, AlertTriangle, Clock, Wallet, MessageSquare, Paperclip, CheckSquare } from "lucide-react";
 import { api } from "@/lib/api";
 import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
@@ -110,7 +110,22 @@ interface EmailProposal {
     contract_value?: number;
     description?: string;
     scope_of_work?: string;
+    notes?: string;
+    special_requirements?: string;
+    timeline_notes?: string;
+    budget_breakdown?: string;
+    risk_factors?: string;
+    communication_preferences?: string;
+    attachments_summary?: string;
     customer?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      company?: string;
+      contact_id?: number;
+      contact_exists?: boolean;
+    };
+    customer2?: {
       name?: string;
       email?: string;
       phone?: string;
@@ -121,6 +136,7 @@ interface EmailProposal {
     referral_contact?: {
       name?: string;
       email?: string;
+      phone?: string;
       contact_id?: number;
       contact_exists?: boolean;
     };
@@ -271,18 +287,49 @@ export default function NewJobPage() {
         const data = prop.extracted_data || {};
 
         // Build description from email + extracted info
-        let description = "";
+        const descriptionParts: string[] = [];
+
         if (data.description) {
-          description += data.description;
+          descriptionParts.push(data.description);
         }
+
+        if (data.notes) {
+          descriptionParts.push("--- NOTES ---\n" + data.notes);
+        }
+
         if (data.scope_of_work) {
-          description += description ? "\n\n" : "";
-          description += "Scope of Work:\n" + data.scope_of_work;
+          descriptionParts.push("--- SCOPE OF WORK ---\n" + data.scope_of_work);
         }
+
+        if (data.special_requirements) {
+          descriptionParts.push("--- SPECIAL REQUIREMENTS ---\n" + data.special_requirements);
+        }
+
+        if (data.timeline_notes) {
+          descriptionParts.push("--- TIMELINE ---\n" + data.timeline_notes);
+        }
+
+        if (data.budget_breakdown) {
+          descriptionParts.push("--- BUDGET ---\n" + data.budget_breakdown);
+        }
+
+        if (data.risk_factors) {
+          descriptionParts.push("--- RISKS ---\n" + data.risk_factors);
+        }
+
+        if (data.communication_preferences) {
+          descriptionParts.push("--- COMMUNICATION ---\n" + data.communication_preferences);
+        }
+
+        if (data.attachments_summary) {
+          descriptionParts.push("--- ATTACHMENTS ---\n" + data.attachments_summary);
+        }
+
         if (prop.email?.subject) {
-          description += description ? "\n\n" : "";
-          description += `[From email: ${prop.email.subject}]`;
+          descriptionParts.push(`[From email: ${prop.email.subject}]`);
         }
+
+        const description = descriptionParts.join("\n\n");
 
         setFormData(prev => ({
           ...prev,
@@ -294,6 +341,9 @@ export default function NewJobPage() {
         // Pre-fill contacts if they exist
         if (data.customer?.contact_id) {
           setPeopleData(prev => ({ ...prev, client1_id: data.customer!.contact_id! }));
+        }
+        if (data.customer2?.contact_id) {
+          setPeopleData(prev => ({ ...prev, client2_id: data.customer2!.contact_id! }));
         }
         if (data.referral_contact?.contact_id) {
           setPeopleData(prev => ({ ...prev, referrer_id: data.referral_contact!.contact_id! }));
@@ -906,6 +956,141 @@ export default function NewJobPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Email Notes Section - Only shown when coming from email proposal */}
+        {proposal?.extracted_data && (
+          <Card className="mt-6 border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                <Mail className="h-5 w-5" />
+                Email Lead Information
+              </CardTitle>
+              <CardDescription>
+                Review the extracted information from the email before creating the job
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Description */}
+                {proposal.extracted_data.description && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-blue-500" />
+                      Description
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Notes */}
+                {proposal.extracted_data.notes && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <ClipboardList className="h-4 w-4 text-amber-500" />
+                      Important Notes
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Scope of Work */}
+                {proposal.extracted_data.scope_of_work && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <CheckSquare className="h-4 w-4 text-green-500" />
+                      Scope of Work
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.scope_of_work}
+                    </p>
+                  </div>
+                )}
+
+                {/* Special Requirements */}
+                {proposal.extracted_data.special_requirements && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      Special Requirements
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.special_requirements}
+                    </p>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                {proposal.extracted_data.timeline_notes && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-purple-500" />
+                      Timeline
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.timeline_notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Budget */}
+                {proposal.extracted_data.budget_breakdown && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Wallet className="h-4 w-4 text-emerald-500" />
+                      Budget Breakdown
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.budget_breakdown}
+                    </p>
+                  </div>
+                )}
+
+                {/* Risks */}
+                {proposal.extracted_data.risk_factors && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-red-500" />
+                      Risk Factors
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.risk_factors}
+                    </p>
+                  </div>
+                )}
+
+                {/* Communication */}
+                {proposal.extracted_data.communication_preferences && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-blue-500" />
+                      Communication Preferences
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.communication_preferences}
+                    </p>
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {proposal.extracted_data.attachments_summary && (
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-gray-500" />
+                      Attachments
+                    </h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded-md border">
+                      {proposal.extracted_data.attachments_summary}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* People */}
         <Card className="mt-6">
