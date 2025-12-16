@@ -471,7 +471,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 33, // Estimated row height in pixels
+    estimateSize: () => 28, // Row height in pixels (matches h-7 = 1.75rem = 28px)
     overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
   });
 
@@ -489,7 +489,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
               <div
                 ref={parentRef}
                 style={{
-                  height: `${Math.min(rows.length * 33, 500)}px`, // Max 500px tall
+                  height: `${Math.min(rows.length * 28, 500)}px`, // Max 500px tall (28px matches h-7)
                   overflow: 'auto',
                   position: 'relative',
                 }}
@@ -655,7 +655,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 33, // Row height in pixels
+    estimateSize: () => 28, // Row height in pixels (matches h-7 = 1.75rem = 28px)
     overscan: 10, // Render 10 extra rows for smoother scrolling
   });
 
@@ -4489,13 +4489,25 @@ export default function TeeemTableView({
       {/* Page Header - Title + count on LEFT, totals on RIGHT (SSoT) */}
       {showHeader && (
         <div className="flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-baseline gap-3">
+          <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
             <span className="text-sm text-muted-foreground">
               {totalCount !== null
                 ? `${filteredAndSortedEntries.length.toLocaleString()} of ${totalCount.toLocaleString()} records`
                 : `${filteredAndSortedEntries.length.toLocaleString()} records`}
             </span>
+            {/* Load All button - inline with record count */}
+            {!loadingMore && serverHasMore && onLoadAll && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onLoadAll}
+                className="gap-1.5 h-7 text-xs"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length})` : ''}
+              </Button>
+            )}
           </div>
           {/* Totals in header (only when showTotals enabled and has numeric columns) */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
@@ -5118,21 +5130,6 @@ export default function TeeemTableView({
           <span className="text-[11px] text-muted-foreground">
             Loading more records...
           </span>
-        </div>
-      )}
-
-      {/* Load All button - shows when there are more records to load from server */}
-      {!loadingMore && serverHasMore && onLoadAll && (
-        <div className="flex items-center justify-center p-2 border-t">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLoadAll}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length} remaining)` : 'Remaining Records'}
-          </Button>
         </div>
       )}
 

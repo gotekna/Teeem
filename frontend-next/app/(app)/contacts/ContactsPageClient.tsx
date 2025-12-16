@@ -645,6 +645,7 @@ export default function ContactsPageClient({
             onSearchModeChange={setSearchMode}
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
+            onLoadAll={loadAll}
             hasMore={hasMore}
             hideFooter={true}
           />
