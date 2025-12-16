@@ -61,23 +61,7 @@ export default function TaskTemplatesPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Task Templates</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {stats.total} reusable task definitions for construction schedules
-            
-          </p>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Template
-        </Button>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
         columns={columns}
@@ -88,6 +72,7 @@ export default function TaskTemplatesPage() {
         onRefresh={refresh}
         onRowUpdate={handleRowUpdate}
         leftActions={leftActions}
+        hideFooter={true}
       />
     </div>
   );

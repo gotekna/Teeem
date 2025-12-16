@@ -649,7 +649,6 @@ export default function ContactsPageClient({
             hideFooter={true}
           />
         )}
-      </div>
 
       {/* Merge Modal */}
       <MergeContactsModal

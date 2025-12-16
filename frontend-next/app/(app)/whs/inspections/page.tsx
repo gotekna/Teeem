@@ -65,39 +65,23 @@ export default function WHSInspectionsPage() {
     );
   }
 
-  // Left actions - New Inspection button
+  // Left actions - Back button + action buttons
   const leftActions = (
-    <Button>
-      <Plus className="h-4 w-4 mr-2" />
-      New Inspection
-    </Button>
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" asChild>
+        <Link href="/whs">
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+      </Button>
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        New Inspection
+      </Button>
+    </div>
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Site Inspections</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Conduct and track workplace safety inspections
-              
-            </p>
-          </div>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          New Inspection
-        </Button>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
         columns={columns}
@@ -108,6 +92,7 @@ export default function WHSInspectionsPage() {
         onRefresh={refresh}
         onRowUpdate={handleRowUpdate}
         leftActions={leftActions}
+        hideFooter={true}
       />
     </div>
   );

@@ -76,25 +76,14 @@ export default function ScheduleTemplatesPage() {
     </Button>
   );
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Schedule Templates</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Pre-built schedules to quickly set up new jobs
-            
-          </p>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Template
-        </Button>
-      </div>
-
-      {/* View Toggle */}
-      <div className="flex items-center gap-2">
+  // Left actions - Create button + View Toggle
+  const leftActionsWithToggle = (
+    <div className="flex items-center gap-2">
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Create Template
+      </Button>
+      <div className="flex items-center gap-1 ml-4">
         <Button
           variant={viewMode === "cards" ? "default" : "outline"}
           size="sm"
@@ -112,7 +101,11 @@ export default function ScheduleTemplatesPage() {
           Table
         </Button>
       </div>
+    </div>
+  );
 
+  return (
+    <div className="flex flex-col h-full -mx-4">
       {/* Content */}
       {viewMode === "table" ? (
         <TeeemTableView
@@ -124,7 +117,8 @@ export default function ScheduleTemplatesPage() {
           enableExport={true}
           onRefresh={refresh}
           onRowUpdate={handleRowUpdate}
-          leftActions={leftActions}
+          leftActions={leftActionsWithToggle}
+          hideFooter={true}
         />
       ) : (
         /* Templates Grid - Card View */

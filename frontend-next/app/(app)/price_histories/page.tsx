@@ -61,24 +61,9 @@ export default function PriceHistoriesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <History className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Price Histories</h1>
-            <p className="text-muted-foreground">
-              Track all price changes across your pricebook
-            </p>
-          </div>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full -mx-4">
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-3 px-4 mb-4 shrink-0">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -131,9 +116,7 @@ export default function PriceHistoriesPage() {
       </div>
 
       {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          <TeeemTableView
+      <TeeemTableView
             foundationId={String(foundation.id)}
             foundationIdNumeric={foundation.id}
             tableName={foundation.name || "Price Histories"}
@@ -143,9 +126,8 @@ export default function PriceHistoriesPage() {
             onRefresh={refresh}
             onServerSearch={serverSearch}
             serverSearchLoading={isSearching}
-          />
-        </CardContent>
-      </Card>
+        hideFooter={true}
+      />
     </div>
   );
 }

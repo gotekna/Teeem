@@ -224,37 +224,25 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="-mx-4 sm:-mx-6 lg:-mx-8 h-screen flex flex-col">
-      <div className="px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">User Management</h1>
-          <p className="text-muted-foreground">
-            Manage users, roles, and group assignments
-          </p>
-        </div>
-
-        {/* TeeemTableView */}
-        <div className="flex-1">
-          <TeeemTableView
-            category="users"
-            foundationId="users"
-            foundationIdNumeric={212}
-            tableName="Users"
-            entries={users}
-            // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onBulkDelete={handleBulkDelete}
-            customActions={
-              <Button onClick={() => setShowAddModal(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            }
-          />
-        </div>
-      </div>
+    <div className="flex flex-col h-full -mx-4">
+      <TeeemTableView
+        category="users"
+        foundationId="users"
+        foundationIdNumeric={212}
+        tableName="Users"
+        entries={users}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        leftActions={
+          <Button onClick={() => setShowAddModal(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+        }
+        hideFooter={true}
+      />
 
       {/* Add User Modal */}
       <AddUserModal

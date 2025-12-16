@@ -56,16 +56,7 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="border-b pb-4">
-        <h1 className="text-2xl font-bold tracking-tight font-serif">Assets</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage company assets, equipment, and vehicles
-        </p>
-      </div>
-
-      {/* Assets Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         foundationId="assets"
         foundationIdNumeric={foundationId || 0}
@@ -86,6 +77,7 @@ export default function AssetsPage() {
             Add Asset
           </Button>
         }
+        hideFooter={true}
       />
     </div>
   );

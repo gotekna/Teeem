@@ -75,39 +75,34 @@ export default function PortalPage() {
     </Button>
   );
 
+  // Left actions with Preview Portal button
+  const portalLeftActions = (
+    <div className="flex items-center gap-2">
+      <Button variant="outline" asChild>
+        <Link href="/portal/preview" target="_blank">
+          <ExternalLink className="h-4 w-4 mr-2" />
+          Preview Portal
+        </Link>
+      </Button>
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Invite Supplier
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Subcontractor Portal</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage supplier access and track performance
-            
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/portal/preview" target="_blank">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Preview Portal
-            </Link>
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            Invite Supplier
-          </Button>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full -mx-4">
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="users">Portal Users</TabsTrigger>
-          <TabsTrigger value="leaderboard">Kudos Leaderboard</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+        <div className="px-4 shrink-0">
+          <TabsList>
+            <TabsTrigger value="users">Portal Users</TabsTrigger>
+            <TabsTrigger value="leaderboard">Kudos Leaderboard</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="users" className="mt-4 space-y-4">
+        <TabsContent value="users" className="flex-1 min-h-0 mt-4">
           <TeeemTableView
             entries={records}
             columns={columns}
@@ -117,7 +112,8 @@ export default function PortalPage() {
             enableExport={true}
             onRefresh={refresh}
             onRowUpdate={handleRowUpdate}
-            leftActions={leftActions}
+            leftActions={portalLeftActions}
+            hideFooter={true}
           />
         </TabsContent>
 
