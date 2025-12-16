@@ -422,9 +422,8 @@ function SystemAdminPageContent() {
     router.push(`/admin/system?tab=${value}`);
   };
 
-  // DEBUG: green=page wrapper
   return (
-    <div className="flex flex-col h-full border-4 border-green-500">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="shrink-0 mb-4">
         <h1 className="text-2xl font-bold tracking-tight font-serif">System Administration</h1>

@@ -816,13 +816,11 @@ function GoldStandardDataTab() {
     );
   }
 
-  // Follow exact same pattern as Jobs/Pricebook pages - TeeemTableView handles everything
-  // DEBUG: yellow=GoldStandardDataTab wrapper
   return (
-    <div className="h-full flex flex-col border-4 border-yellow-500">
+    <div className="h-full flex flex-col -mx-4">
       <TeeemTableView
         entries={entries}
-        columns={columns}
+        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
         foundationId="gold-standard"
         foundationIdNumeric={1}
@@ -840,7 +838,8 @@ function GoldStandardDataTab() {
         enableImport={true}
         enableExport={true}
         enableSchemaEditor={true}
-        initialShowTotals={false}
+        initialShowTotals={true}
+        initialStickyActions={true}
         leftActions={
           <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-2" />
@@ -1659,9 +1658,8 @@ function SyncCheckTab() {
 }
 
 export function GoldStandardTab() {
-  // DEBUG: purple=GoldStandardTab (Tabs wrapper)
   return (
-    <Tabs defaultValue="table" className="flex flex-col h-full border-4 border-purple-500">
+    <Tabs defaultValue="table" className="flex flex-col h-full">
       <TabsList className="shrink-0">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />

@@ -56,9 +56,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      {/* DEBUG: red=main, blue=inner div */}
-      <main className="sidebar-content-area pt-12 h-full overflow-auto transition-all duration-300 ease-in-out border-4 border-red-500">
-        <div className="h-full pt-6 pb-0 px-4 flex flex-col border-4 border-blue-500">
+      <main className="sidebar-content-area pt-12 h-full overflow-auto transition-all duration-300 ease-in-out">
+        <div className="h-full pt-6 pb-0 px-4 flex flex-col">
           {children}
         </div>
       </main>

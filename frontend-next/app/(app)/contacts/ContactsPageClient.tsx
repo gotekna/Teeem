@@ -612,47 +612,8 @@ export default function ContactsPageClient({
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-sm text-muted-foreground">
-              {totalCount !== null
-                ? `Showing ${records.length.toLocaleString()} of ${totalCount.toLocaleString()} contacts`
-                : `${records.length.toLocaleString()}+ contacts`}
-            </p>
-            {hasMore && !isLoadingMore && (
-              <Button
-                variant="link"
-                size="sm"
-                onClick={loadAll}
-                className="h-auto p-0 text-sm text-primary"
-              >
-                Load All
-              </Button>
-            )}
-            {isLoadingMore && (
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            )}
-          </div>
-        </div>
-        {currentView?.view_type === "relational" && (
-          <Button
-            variant={showExplorer ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowExplorer(!showExplorer)}
-          >
-            <Search className="h-4 w-4 mr-2" />
-            {showExplorer ? "Show Network" : "Search Relationships"}
-          </Button>
-        )}
-      </div>
-
-      {/* Contacts View - Table or Relational based on saved view setting */}
-      {/* -mx-4 breaks out of parent px-4 padding to make table full width */}
-      <div className="flex-1 min-h-0 -mx-4">
+    <div className="flex flex-col h-full -mx-4">
+      {/* TeeemTableView handles header, count, and table (SSoT) */}
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
             <ContactRelationshipsExplorer />
