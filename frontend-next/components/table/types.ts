@@ -174,6 +174,9 @@ export interface TeeemTableViewProps {
   // Legacy props
   stats?: Record<string, unknown>;
   category?: string | null;
+
+  // Header display
+  showHeader?: boolean; // Show built-in header with tableName and record count (default: true)
 }
 
 // Column visibility state

@@ -816,24 +816,17 @@ function GoldStandardDataTab() {
     );
   }
 
+  // Follow exact same pattern as Jobs/Pricebook pages - TeeemTableView handles everything
+  // DEBUG: yellow=GoldStandardDataTab wrapper
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Gold Standard Table Data</h2>
-          <p className="text-sm text-muted-foreground">
-            Live database table demonstrating all TeeemTableView column types and features.
-            <span className="ml-2 text-xs font-mono text-muted-foreground">Table #1</span>
-          </p>
-        </div>
-      </div>
-
+    <div className="h-full flex flex-col border-4 border-yellow-500">
       <TeeemTableView
         entries={entries}
         columns={columns}
+        totalCount={entries.length}
         foundationId="gold-standard"
         foundationIdNumeric={1}
-        tableName="Gold Standard"
+        tableName="Gold Standard Table"
         onView={handleView}
         onEdit={handleOpenEditDialog}
         onDelete={handleDelete}
@@ -854,7 +847,6 @@ function GoldStandardDataTab() {
             Add Item
           </Button>
         }
-        // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
       />
 
       {/* Add Item Dialog */}
@@ -1218,10 +1210,13 @@ function GoldStandardTableTab() {
             example: "1, 2, 3, 100",
             usedFor: "Primary key for identifying records",
           },
-          ...data.data.map((col) => ({
-            ...col,
-            icon: col.icon || "📝",
-          })),
+          // Filter out system columns from API data (we add them manually above/below)
+          ...data.data
+            .filter((col) => !["id", "created_at", "updated_at"].includes(col.columnName))
+            .map((col) => ({
+              ...col,
+              icon: col.icon || "📝",
+            })),
           {
             columnName: "created_at",
             sqlType: "TIMESTAMP",
@@ -1664,9 +1659,10 @@ function SyncCheckTab() {
 }
 
 export function GoldStandardTab() {
+  // DEBUG: purple=GoldStandardTab (Tabs wrapper)
   return (
-    <Tabs defaultValue="table" className="space-y-6">
-      <TabsList>
+    <Tabs defaultValue="table" className="flex flex-col h-full border-4 border-purple-500">
+      <TabsList className="shrink-0">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
           Gold Standard Table
@@ -1681,15 +1677,15 @@ export function GoldStandardTab() {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="table">
+      <TabsContent value="table" className="flex-1 min-h-0 mt-4">
         <GoldStandardDataTab />
       </TabsContent>
 
-      <TabsContent value="column-info">
+      <TabsContent value="column-info" className="flex-1 min-h-0 mt-4 overflow-auto">
         <GoldStandardTableTab />
       </TabsContent>
 
-      <TabsContent value="sync-check">
+      <TabsContent value="sync-check" className="flex-1 min-h-0 mt-4 overflow-auto">
         <SyncCheckTab />
       </TabsContent>
     </Tabs>

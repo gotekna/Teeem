@@ -145,48 +145,35 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full gap-6">
-      {/* Header */}
-      <div className="flex items-center justify-between shrink-0">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight font-serif">Jobs</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your construction projects and jobs
-            <span className="ml-2 text-xs font-mono">Table #{JOBS_TABLE_ID}</span>
-          </p>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="flex-1 min-h-0">
-        <TeeemTableView
-          entries={records as TableRow[]}
-          // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
-          foundationId="jobs"
-          foundationIdNumeric={JOBS_TABLE_ID}
-          tableName="Jobs"
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onBulkDelete={handleBulkDelete}
-          onRowDoubleClick={handleRowDoubleClick}
-          onRowUpdate={handleRowUpdate}
-          onServerSearch={handleServerSearch}
-          serverSearchLoading={isSearching}
-          enableExport={tableConfig.enableExport}
-          enableImport={tableConfig.enableImport}
-          enableSchemaEditor={tableConfig.enableSchemaEditor}
-          onRefresh={refresh}
-          leftActions={
-            <Button variant="default" size="sm" asChild>
-              <Link href="/jobs/new">
-                <Plus className="h-4 w-4 mr-2" />
-                New Job
-              </Link>
-            </Button>
-          }
-        />
-      </div>
+    <div className="flex flex-col h-full -mx-4">
+      {/* TeeemTableView handles header, count, and table (SSoT) */}
+      <TeeemTableView
+        entries={records as TableRow[]}
+        totalCount={totalCount}
+        foundationId="jobs"
+        foundationIdNumeric={JOBS_TABLE_ID}
+        tableName="Jobs"
+        onView={handleView}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onBulkDelete={handleBulkDelete}
+        onRowDoubleClick={handleRowDoubleClick}
+        onRowUpdate={handleRowUpdate}
+        onServerSearch={handleServerSearch}
+        serverSearchLoading={isSearching}
+        enableExport={tableConfig.enableExport}
+        enableImport={tableConfig.enableImport}
+        enableSchemaEditor={tableConfig.enableSchemaEditor}
+        onRefresh={refresh}
+        leftActions={
+          <Button variant="default" size="sm" asChild>
+            <Link href="/jobs/new">
+              <Plus className="h-4 w-4 mr-2" />
+              New Job
+            </Link>
+          </Button>
+        }
+      />
     </div>
   );
 }

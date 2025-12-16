@@ -108,9 +108,6 @@ export function TableHeaderSection({
             ? SYSTEM_COLUMN_BG
             : 'hsl(var(--muted))'; // Match bg-muted for solid sticky background
 
-          // DEBUG: Log sticky styles
-          const debugInfo = `sticky:top-0 z:${isSticky ? 30 : 20} bg:${bgColor.substring(0, 15)}`;
-
           return (
             <TableHead
               key={`${column.key}-${colIndex}`}
@@ -123,8 +120,6 @@ export function TableHeaderSection({
                   textAlign: 'center',
                   verticalAlign: 'middle',
                 }),
-                // DEBUG: Red border to see header cells
-                border: '2px solid red',
               }}
               className={cn(
                 "sticky top-0 relative",
@@ -132,7 +127,6 @@ export function TableHeaderSection({
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
                 column.key === "actions" && "!border-l-0"
               )}
-              title={`DEBUG: ${debugInfo} | ${isSystemGen ? "System column" : "User column"}`}
             >
               {column.key === "select" ? (
                 <Checkbox

@@ -892,6 +892,7 @@ export default function TeeemTableView({
   alwaysVisibleColumns = [],
   stats,
   category,
+  showHeader = true,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -3158,11 +3159,20 @@ export default function TeeemTableView({
       orderedVisible.unshift(selectCol);
     }
 
-    // Ensure actions is always last if it exists in COLUMNS
-    const actionsCol = COLUMNS.find(c => c.key === 'actions');
-    const hasActionsInOrder = orderedVisible.some(c => c.key === 'actions');
-    if (actionsCol && !hasActionsInOrder) {
-      orderedVisible.push(actionsCol);
+    // Ensure actions is always last if it exists in COLUMNS AND stickyActions is enabled
+    // When stickyActions is OFF, hide the actions column entirely
+    if (stickyActions) {
+      const actionsCol = COLUMNS.find(c => c.key === 'actions');
+      const hasActionsInOrder = orderedVisible.some(c => c.key === 'actions');
+      if (actionsCol && !hasActionsInOrder) {
+        orderedVisible.push(actionsCol);
+      }
+    } else {
+      // Remove actions column if stickyActions is off
+      const actionsIndex = orderedVisible.findIndex(c => c.key === 'actions');
+      if (actionsIndex >= 0) {
+        orderedVisible.splice(actionsIndex, 1);
+      }
     }
 
     // Ensure alwaysVisibleColumns are included (insert after select, before other columns)
@@ -3180,7 +3190,7 @@ export default function TeeemTableView({
     });
 
     return orderedVisible;
-  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns]);
+  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns, stickyActions]);
 
   // Calculate total table width based on column widths
   const totalTableWidth = useMemo(() => {
@@ -3709,7 +3719,7 @@ export default function TeeemTableView({
         position: 'sticky',
         left: 0,
         zIndex: isHeader ? 30 : 10,
-        background: bgColor,
+        backgroundColor: bgColor,
       };
     }
 
@@ -3721,7 +3731,7 @@ export default function TeeemTableView({
         position: 'sticky',
         left: selectWidth,
         zIndex: isHeader ? 30 : 10,
-        background: bgColor,
+        backgroundColor: bgColor,
         boxShadow: '2px 0 4px rgba(0,0,0,0.1)',
       };
     }
@@ -3732,7 +3742,7 @@ export default function TeeemTableView({
         position: 'sticky',
         right: 0,
         zIndex: isHeader ? 50 : 20,
-        background: bgColor,
+        backgroundColor: bgColor,
         boxShadow: '-2px 0 4px rgba(0,0,0,0.1)',
       };
     }
@@ -3820,18 +3830,18 @@ export default function TeeemTableView({
           }}
           onClick={() => toggleGroupCollapse(fullKey)}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             {isLoadingThisGroup ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 shrink-0" />
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 shrink-0" />
             )}
             <span className="font-bold text-[13px]">
               {groupKey}
             </span>
-            <span className="text-xs bg-white px-2 py-0.5 rounded">
+            <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
               ({rowCount})
               {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
               {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
@@ -4046,44 +4056,57 @@ export default function TeeemTableView({
       const stickyTop = 28 + (depth * 36); // 28px for column header, 36px per group level
       const groupBgColor = `rgba(242, 241, 239, ${Math.max(0.5, 0.95 - depth * 0.30)})`; // Solid enough for sticky
 
+      // Calculate sticky width: select + first data column
+      const selectWidth = columnWidths['select'] || 40;
+      const firstDataColKey = visibleColumnsInOrder[1]?.key;
+      const firstDataColWidth = firstDataColKey ? (columnWidths[firstDataColKey] || 150) : 150;
+      const stickyWidth = selectWidth + firstDataColWidth;
+
       result.push(
         <TableRow
           key={`group-${fullKey}`}
           className="cursor-pointer hover:opacity-80"
           onClick={() => toggleGroupCollapse(fullKey)}
         >
+          {/* Sticky cell - spans first 2 columns (select + first data col) */}
           <TableCell
-            colSpan={visibleColumnsInOrder.length}
-            className="py-2"
+            colSpan={2}
+            className="py-1"
             style={{
+              width: stickyWidth,
+              minWidth: stickyWidth,
               paddingLeft: `${16 + depth * 24}px`,
-              // Sticky on the CELL, not the row
               position: 'sticky',
-              top: stickyTop,
+              left: 0,
               zIndex: 10,
               backgroundColor: groupBgColor,
-              // DEBUG: Blue border
-              border: '3px solid blue',
             }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 whitespace-nowrap">
               {isLoadingThisGroup ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               ) : isCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
                 {groupKey}
               </span>
-              <span className="text-xs bg-white px-2 py-0.5 rounded">
+              <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
                 {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
                 {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
               </span>
             </div>
           </TableCell>
+          {/* Non-sticky filler cell for remaining columns */}
+          {visibleColumnsInOrder.length > 2 && (
+            <TableCell
+              colSpan={visibleColumnsInOrder.length - 2}
+              style={{ backgroundColor: groupBgColor }}
+            />
+          )}
         </TableRow>
       );
 
@@ -4146,7 +4169,7 @@ export default function TeeemTableView({
                       }),
                       ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                         backgroundColor: SYSTEM_COLUMN_BG,
-                      })
+                      }),
                     }}
                     className={cn(
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
@@ -4460,6 +4483,30 @@ export default function TeeemTableView({
             onIssueClick={onDataHealthIssueClick}
             onDataChanged={onRefresh}
           />
+        </div>
+      )}
+
+      {/* Page Header - Title + count on LEFT, totals on RIGHT (SSoT) */}
+      {showHeader && (
+        <div className="flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-baseline gap-3">
+            <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
+            <span className="text-sm text-muted-foreground">
+              {totalCount !== null
+                ? `${filteredAndSortedEntries.length.toLocaleString()} of ${totalCount.toLocaleString()} records`
+                : `${filteredAndSortedEntries.length.toLocaleString()} records`}
+            </span>
+          </div>
+          {/* Totals in header (only when showTotals enabled and has numeric columns) */}
+          {showTotals && Object.keys(columnTotals).length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {Object.entries(columnTotals).map(([key, data]) => (
+                <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                  {data.label}: <span className="font-mono">{formatTotal(key)}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -5129,27 +5176,10 @@ export default function TeeemTableView({
         )}
       </div>
 
-      {/* Footer - compact (hidden when hideFooter is true) */}
-      {!hideFooter && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Column totals - only show when enabled AND there are numeric columns */}
-            {showTotals && Object.keys(columnTotals).length > 0 && (
-              <>
-                {Object.entries(columnTotals).map(([key, data]) => (
-                  <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
-                    {data.label}: <span className="font-mono">{formatTotal(key)}</span>
-                  </span>
-                ))}
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
-            <span>
-              Showing {filteredAndSortedEntries.length} of {totalCount ?? entries.length} records
-            </span>
-          </div>
+      {/* Footer - only shows selected count (totals moved to header) */}
+      {!hideFooter && selectedRows.size > 0 && (
+        <div className="flex items-center justify-end text-xs text-muted-foreground shrink-0 py-1 px-4">
+          <span>{selectedRows.size} selected</span>
         </div>
       )}
 

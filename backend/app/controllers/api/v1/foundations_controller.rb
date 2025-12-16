@@ -698,8 +698,12 @@ module Api
               column_data
             end
 
-            # Combine system columns + user columns
-            json[:columns] = system_columns + user_columns
+            # Filter out system columns from user_columns (they're already in system_columns with proper metadata)
+            system_column_names = %w[id created_at updated_at]
+            user_columns_filtered = user_columns.reject { |col| system_column_names.include?(col[:column_name]) }
+
+            # Combine system columns + filtered user columns
+            json[:columns] = system_columns + user_columns_filtered
           elsif foundation.table_type == "system"
             # Fallback: auto-detect columns from model schema for system foundations without defined columns
             json[:columns] = system_columns + system_foundation_columns

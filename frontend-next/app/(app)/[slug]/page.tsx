@@ -200,15 +200,10 @@ function TablePageContent() {
   };
 
   return (
-    <div className="flex flex-col h-full p-6 space-y-4">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
-      </div>
-
+    <div className="flex flex-col h-full -mx-4">
       {/* Tabs (if configured) */}
       {uiConfig.tabs && uiConfig.tabs.length > 0 ? (
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col px-4">
           <TabsList>
             {uiConfig.tabs.map((t) => (
               <TabsTrigger key={t.id} value={t.id}>
@@ -246,9 +241,7 @@ function TablePageContent() {
           ))}
         </Tabs>
       ) : (
-        <div className="flex-1 min-h-0">
-          <TeeemTableView {...tableProps} />
-        </div>
+        <TeeemTableView {...tableProps} />
       )}
 
       {/* Create Record Dialog */}
