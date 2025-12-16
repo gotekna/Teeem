@@ -287,9 +287,9 @@ export const applyViewAtom = atom(
       const groups = viewWithCollapsed.collapsedGroups;
       set(collapsedGroupsAtom, groups instanceof Set ? groups : new Set(groups));
     } else {
-      // No saved collapsed state - collapse all groups by default for performance
-      // Use special marker that TeeemTableView will detect and expand to all keys
-      set(collapsedGroupsAtom, new Set(['__collapse_all_pending__']));
+      // No saved collapsed state - expand all groups by default so user sees data
+      // Empty set means no groups are collapsed (all expanded)
+      set(collapsedGroupsAtom, new Set());
     }
   }
 );
