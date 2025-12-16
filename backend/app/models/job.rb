@@ -89,7 +89,11 @@ class Job < ApplicationRecord
 
   # Check if job is in Enquiry status (relaxed validations for leads/proposals)
   def enquiry_status?
-    job_status&.name == "Enquiry"
+    return job_status.name == "Enquiry" if job_status.present?
+    return false if job_status_id.blank?
+
+    # During creation, association may not be loaded yet - look up by ID
+    JobStatus.find_by(id: job_status_id)&.name == "Enquiry"
   end
 
   # Callbacks

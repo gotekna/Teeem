@@ -6,21 +6,51 @@ require 'csv'
 puts "Loading all Australian suburbs..."
 
 # SEQ Council mappings by postcode ranges and specific suburbs
+# IMPORTANT: Explicit suburb lists take priority over postcode ranges
 SEQ_COUNCIL_MAPPINGS = {
   # Brisbane City Council - 4000-4179 (core Brisbane)
+  # Note: Many postcodes in 4113-4179 are actually Logan/Redland - those are listed explicitly below
   "Brisbane City Council" => {
-    postcode_ranges: [4000..4179],
-    suburbs: []
+    postcode_ranges: [4000..4112, 4180..4199],
+    suburbs: [
+      # Explicitly Brisbane suburbs in shared postcodes
+      "Eight Mile Plains", "Runcorn", "Rochedale", "Underwood", "Greenslopes", "Stones Corner",
+      "Holland Park", "Holland Park East", "Holland Park West", "Tarragindi", "Wellers Hill",
+      "Mansfield", "Mount Gravatt", "Mount Gravatt East", "Upper Mount Gravatt", "Wishart",
+      "Algester", "Parkinson", "Calamvale", "Drewvale", "Stretton", "Berrinba", "Karawatha",
+      "Sunnybank", "Sunnybank Hills", "Robertson", "Macgregor", "Coopers Plains", "Salisbury",
+      "Nathan", "Moorooka", "Annerley", "Woolloongabba", "Coorparoo", "Camp Hill", "Carina",
+      "Carina Heights", "Tingalpa", "Hemmant", "Lytton", "Wynnum", "Wynnum West", "Manly",
+      "Manly West", "Belmont", "Gumdale", "Wakerley", "Chandler", "Burbank"
+    ]
   },
   # Gold Coast City Council - 4207-4230, 4270-4275
   "Gold Coast City Council" => {
     postcode_ranges: [4207..4230, 4270..4275],
     suburbs: ["Advancetown", "Beechmont", "Binna Burra", "Canungra", "Clagiraba", "Natural Bridge", "Numinbah Valley", "Springbrook"]
   },
-  # Logan City Council - 4113-4133, 4205-4209
+  # Logan City Council - explicit suburb list is authoritative for boundary areas
   "Logan City Council" => {
-    postcode_ranges: [4113..4133, 4205..4209],
-    suburbs: ["Logan Village", "Yarrabilba", "Jimboomba", "Flagstone", "North Maclean", "South Maclean", "Greenbank", "New Beith", "Munruben", "Park Ridge", "Park Ridge South", "Browns Plains", "Regents Park", "Heritage Park", "Crestmead"]
+    postcode_ranges: [4205..4209],
+    suburbs: [
+      # 4114 - Logan Central area
+      "Kingston", "Logan Central", "Woodridge",
+      # 4115-4118 - Western Logan
+      "Browns Plains", "Forestdale", "Heritage Park", "Hillcrest", "Regents Park",
+      # 4119-4125 - Central/Southern Logan
+      "Rochedale South", "Daisy Hill", "Priestdale", "Slacks Creek", "Springwood",
+      "Shailer Park", "Tanah Merah", "Loganholme", "Carbrook", "Cornubia",
+      "Loganlea", "Meadowbrook", "Crestmead", "Marsden",
+      # 4124-4125 - Greenbank/Park Ridge area
+      "Boronia Heights", "Greenbank", "Lyons", "New Beith", "Spring Mountain",
+      "Munruben", "Park Ridge", "Park Ridge South",
+      # 4127-4133 - Eastern/Southern Logan
+      "Chambers Flat", "Logan Reserve", "Waterford", "Waterford West",
+      # 4205-4209 - Southern Logan
+      "Logan Village", "Yarrabilba", "Jimboomba", "Flagstone", "North Maclean", "South Maclean",
+      "Stockleigh", "Cedar Grove", "Cedar Vale", "Veresdale", "Veresdale Scrub",
+      "Kagaru", "Mundoolun", "Tamborine", "Kairabah"
+    ]
   },
   # Moreton Bay Regional Council - 4500-4521, 4550-4560
   "Moreton Bay Regional Council" => {
@@ -73,15 +103,21 @@ def get_council_for_suburb(suburb_name, postcode, state)
   return nil unless state == "QLD"
 
   postcode_int = postcode.to_i
+  suburb_lower = suburb_name.downcase
 
+  # FIRST PASS: Check explicit suburb lists (highest priority)
+  # This ensures suburbs in shared postcodes get the correct council
   SEQ_COUNCIL_MAPPINGS.each do |council_name, config|
-    # Check if postcode is in any of the ranges
-    in_range = config[:postcode_ranges].any? { |range| range.include?(postcode_int) }
+    if config[:suburbs].any? { |s| s.downcase == suburb_lower }
+      return council_name
+    end
+  end
 
-    # Check if suburb is specifically listed
-    in_suburbs = config[:suburbs].any? { |s| s.downcase == suburb_name.downcase }
-
-    return council_name if in_range || in_suburbs
+  # SECOND PASS: Fall back to postcode range matching
+  SEQ_COUNCIL_MAPPINGS.each do |council_name, config|
+    if config[:postcode_ranges].any? { |range| range.include?(postcode_int) }
+      return council_name
+    end
   end
 
   nil

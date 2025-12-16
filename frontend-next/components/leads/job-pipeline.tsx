@@ -4,21 +4,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PipelineJob, PipelineStage, PIPELINE_STAGE_CONFIG } from "@/types/leads";
 import { JobPipelineCard } from "./job-pipeline-card";
-import { EmailProposalCard } from "./email-proposal-card";
 import { cn } from "@/lib/utils";
-import { EmailProposal } from "@/app/(app)/leads/page";
 
 interface JobPipelineProps {
   jobsByStage: Record<string, PipelineJob[]>;
-  emailProposals?: EmailProposal[];
   onJobClick: (job: PipelineJob) => void;
   onStageChange: (jobId: number, newStage: PipelineStage) => void;
-  onProposalsChange?: () => void;
   onJobsChange?: () => void;
 }
 
 const PIPELINE_COLUMNS: PipelineStage[] = [
-  "proposal",
+  "needs_pricing",
+  "needs_drafting",
   "priced_up",
   "contacted",
   "qualified",
@@ -26,12 +23,22 @@ const PIPELINE_COLUMNS: PipelineStage[] = [
   "lost",
 ];
 
+// Map stage to border color
+const STAGE_BORDER_COLORS: Record<PipelineStage, string> = {
+  needs_pricing: "#eab308",
+  needs_drafting: "#ec4899",
+  priced_up: "#6b7280",
+  contacted: "#3b82f6",
+  qualified: "#a855f7",
+  contract_sent: "#f97316",
+  won: "#22c55e",
+  lost: "#ef4444",
+};
+
 export function JobPipeline({
   jobsByStage,
-  emailProposals = [],
   onJobClick,
   onStageChange,
-  onProposalsChange,
   onJobsChange,
 }: JobPipelineProps) {
   const router = useRouter();
@@ -44,7 +51,7 @@ export function JobPipeline({
 
   const getTotalValue = (stage: PipelineStage): number => {
     const jobs = getJobsByStage(stage);
-    return jobs.reduce((sum, job) => sum + (job.contract_value || 0), 0);
+    return jobs.reduce((sum, job) => sum + (Number(job.contract_value) || 0), 0);
   };
 
   const formatCurrency = (value: number) => {
@@ -76,7 +83,7 @@ export function JobPipeline({
     e.preventDefault();
     if (draggedJob) {
       // Get current stage from job_stage field (normalize to snake_case)
-      const currentStage = draggedJob.job_stage?.toLowerCase().replace(' ', '_') || 'proposal';
+      const currentStage = draggedJob.job_stage?.toLowerCase().replace(/ /g, '_') || 'needs_pricing';
       if (currentStage !== newStage) {
         onStageChange(draggedJob.id, newStage);
       }
@@ -90,13 +97,6 @@ export function JobPipeline({
     setDragOverColumn(null);
   };
 
-  // Handler for when a proposal is approved and navigates to job
-  const handleProposalApproved = (jobId: number) => {
-    onProposalsChange?.();
-    onJobsChange?.();
-    router.push(`/jobs/${jobId}`);
-  };
-
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 min-h-[600px]">
       {PIPELINE_COLUMNS.map((stage) => {
@@ -104,15 +104,12 @@ export function JobPipeline({
         const columnJobs = getJobsByStage(stage);
         const totalValue = getTotalValue(stage);
         const isDropTarget = dragOverColumn === stage;
-        // Show email proposals in the "proposal" column
-        const showEmailProposals = stage === "proposal";
-        const proposalCount = showEmailProposals ? emailProposals.length : 0;
-        const totalCount = columnJobs.length + proposalCount;
+        const totalCount = columnJobs.length;
 
         return (
           <div
             key={stage}
-            className="flex-1 min-w-[220px] max-w-[320px]"
+            className="flex-1 min-w-[200px] max-w-[280px]"
             onDragOver={(e) => handleDragOver(e, stage)}
             onDragLeave={handleDragLeave}
             onDrop={(e) => handleDrop(e, stage)}
@@ -124,20 +121,7 @@ export function JobPipeline({
                 stageConfig.bgColor
               )}
               style={{
-                borderBottomColor:
-                  stage === "won"
-                    ? "#22c55e"
-                    : stage === "lost"
-                    ? "#ef4444"
-                    : stage === "priced_up"
-                    ? "#6b7280"
-                    : stage === "contacted"
-                    ? "#3b82f6"
-                    : stage === "qualified"
-                    ? "#a855f7"
-                    : stage === "proposal"
-                    ? "#eab308"
-                    : "#f97316",
+                borderBottomColor: STAGE_BORDER_COLORS[stage],
               }}
             >
               <div className="flex items-center justify-between">
@@ -162,16 +146,6 @@ export function JobPipeline({
                 isDropTarget && "bg-primary/10 ring-2 ring-primary ring-inset"
               )}
             >
-              {/* Email Proposals (only in proposal column) */}
-              {showEmailProposals && emailProposals.map((proposal) => (
-                <EmailProposalCard
-                  key={`proposal-${proposal.id}`}
-                  proposal={proposal}
-                  onApproved={handleProposalApproved}
-                  onRejected={onProposalsChange}
-                />
-              ))}
-
               {/* Jobs */}
               {columnJobs.map((job) => (
                 <div

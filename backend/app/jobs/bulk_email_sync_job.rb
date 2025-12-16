@@ -65,13 +65,12 @@ class BulkEmailSyncJob < ApplicationJob
       end
 
       # Phase 3: Upload email .eml files to SharePoint
-      # DISABLED: EML upload is too slow and not needed for now
+      # DISABLED - EML upload takes too long and times out on Heroku
       # unless @progress["phase3_complete"]
       #   sync_emails_to_sharepoint
       #   @progress["phase3_complete"] = true
       #   save_progress!
       # end
-      @progress["phase3_complete"] = true  # Skip phase 3
 
       # Mark complete
       @progress["status"] = "completed"
@@ -133,20 +132,26 @@ class BulkEmailSyncJob < ApplicationJob
   def sync_emails_to_warehouse(sync_years)
     Rails.logger.info "[BulkSync] Phase 1: Syncing emails to warehouse..."
 
-    # Configure for full historical sync
+    # Configure for full historical sync - MUST set sync_all: true for OrgEmailSyncJob
     original_config = @credential.sync_config || {}
     @credential.update!(
-      sync_config: original_config.merge("sync_years" => sync_years),
+      sync_config: original_config.merge("sync_years" => sync_years, "sync_all" => true),
       last_sync_at: nil  # Force full sync
     )
 
     result = OrgEmailSyncJob.perform_now("full", org_name: @credential.name)
 
-    @progress["emails_synced"] = result[:total_synced]
+    # Handle nil result (job returned early - no users to sync)
+    if result.nil?
+      Rails.logger.warn "[BulkSync] OrgEmailSyncJob returned nil - no users configured?"
+      @progress["emails_synced"] = 0
+    else
+      @progress["emails_synced"] = result[:total_synced]
+    end
     @progress["emails_total"] = EmailWarehouse.where(microsoft_credential_id: @credential.id).count
     save_progress!
 
-    Rails.logger.info "[BulkSync] Phase 1 complete: #{result[:total_synced]} emails synced"
+    Rails.logger.info "[BulkSync] Phase 1 complete: #{@progress["emails_synced"]} emails synced"
   end
 
   # Phase 2: Upload attachments to SharePoint
@@ -206,6 +211,12 @@ class BulkEmailSyncJob < ApplicationJob
 
     attachments.each do |attachment_data|
       next unless attachment_data["@odata.type"] == "#microsoft.graph.fileAttachment"
+
+      # Skip signature/embedded images
+      if skip_signature_image?(attachment_data)
+        Rails.logger.debug "[BulkSync] Skipping signature image: #{attachment_data['name']} (inline: #{attachment_data['isInline']}, size: #{attachment_data['size']})"
+        next
+      end
 
       outlook_attachment_id = attachment_data["id"]
       filename = attachment_data["name"]
@@ -399,5 +410,39 @@ class BulkEmailSyncJob < ApplicationJob
     Rails.logger.info "Emails uploaded to SharePoint: #{@progress['emails_uploaded_to_sharepoint']}"
     Rails.logger.info "Errors: #{@progress['errors'].count}"
     Rails.logger.info "=" * 60
+  end
+
+  # Skip signature/embedded images that aren't real attachments
+  # Rules:
+  # 1. Inline images with signature-like filenames (image001.png, image002.jpg, etc.)
+  # 2. Very small images (< 10KB) that are likely icons/logos
+  # 3. Images with GUID-like filenames (often Outlook Content-IDs)
+  def skip_signature_image?(attachment_data)
+    filename = attachment_data["name"].to_s.downcase
+    is_inline = attachment_data["isInline"] == true
+    file_size = attachment_data["size"].to_i
+    content_type = attachment_data["contentType"].to_s.downcase
+
+    # Only apply these rules to images
+    return false unless content_type.start_with?("image/")
+
+    # Rule 1: Inline images with signature-like patterns
+    signature_patterns = [
+      /^image\d{3}\.(png|jpg|jpeg|gif)$/i,  # image001.png, image002.jpg
+      /^[a-f0-9]{32}\.(png|jpg|jpeg|gif)$/i, # 32-char hex filenames (Outlook CIDs)
+      /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\.(png|jpg|jpeg|gif)$/i, # UUID filenames
+      /^cid:/i,                              # Content-ID references
+    ]
+
+    if is_inline && signature_patterns.any? { |pattern| filename.match?(pattern) }
+      return true
+    end
+
+    # Rule 2: Very small INLINE images (< 10KB) are likely icons/social media buttons
+    if is_inline && file_size < 10_000
+      return true
+    end
+
+    false
   end
 end

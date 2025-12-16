@@ -725,6 +725,7 @@ export default function JobDetailPage() {
   // Lookup data for dropdowns
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
+  const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
   const [lookupLoading, setLookupLoading] = React.useState(false);
 
   // Xero tracking category state
@@ -762,12 +763,14 @@ export default function JobDetailPage() {
   const loadLookupData = React.useCallback(async () => {
     setLookupLoading(true);
     try {
-      const [typesRes, statusesRes] = await Promise.all([
+      const [typesRes, statusesRes, stagesRes] = await Promise.all([
         api.get<{ job_types: JobType[] }>("/api/v1/job_types"),
         api.get<{ job_statuses: JobStatus[] }>("/api/v1/job_status"),
+        api.get<{ job_stages: JobStage[] }>("/api/v1/job_stages"),
       ]);
       setJobTypes(typesRes?.job_types || []);
       setJobStatuses(statusesRes?.job_statuses || []);
+      setJobStages(stagesRes?.job_stages || []);
     } catch (error) {
       console.error("Failed to load lookup data:", error);
     } finally {
@@ -832,6 +835,7 @@ export default function JobDetailPage() {
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
         job_status_id: job.job_status?.id || job.job_status_id,
+        job_stage_id: job.job_stage?.id || job.job_stage_id,
       });
       setIsEditing(true);
       // Load dropdown data only when editing
@@ -1064,6 +1068,26 @@ export default function JobDetailPage() {
                       )
                     ) : (
                       <Input value={job.job_status?.name || "-"} readOnly />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Job Stage</Label>
+                    {isEditing ? (
+                      lookupLoading ? (
+                        <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-muted-foreground">{job.job_stage?.name || "Loading..."}</span>
+                        </div>
+                      ) : (
+                        <ComboboxDropdown
+                          items={jobStages.map((stage) => ({ id: stage.id.toString(), label: stage.name }))}
+                          selectedItem={editForm.job_stage_id ? { id: editForm.job_stage_id.toString(), label: jobStages.find(s => s.id === editForm.job_stage_id)?.name || "" } : undefined}
+                          onSelect={(item) => setEditForm({ ...editForm, job_stage_id: parseInt(item.id) })}
+                          placeholder="Search job stages..."
+                        />
+                      )
+                    ) : (
+                      <Input value={job.job_stage?.name || "-"} readOnly />
                     )}
                   </div>
                   <div className="space-y-2">

@@ -54,7 +54,7 @@ export function JobPipelineCard({ job, onClick, isDragging }: JobPipelineCardPro
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
             <DollarSign className="h-3 w-3" />
-            {formatCurrency(job.contract_value || 0)}
+            {formatCurrency(Number(job.contract_value) || 0)}
           </div>
           {job.job_type && (
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">

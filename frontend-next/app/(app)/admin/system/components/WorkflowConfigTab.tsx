@@ -24,6 +24,23 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface JobType {
   id: number;
@@ -43,21 +60,151 @@ interface JobStage {
   color: string;
 }
 
+// Backend returns flattened status with job_type_status_id
 interface TypeStatus {
-  id: number;
-  job_type_id: number;
-  job_status_id: number;
+  id: number;  // This is the job_status.id
+  name: string;
+  color: string;
   position: number;
-  job_status: JobStatus;
+  job_type_status_id: number;  // This is the join table id for deletion
 }
 
+// Backend returns flattened stage with job_status_stage_id
 interface StatusStage {
-  id: number;
-  job_type_id: number;
-  job_status_id: number;
-  job_stage_id: number;
+  id: number;  // This is the job_stage.id
+  name: string;
+  color: string;
   position: number;
-  job_stage: JobStage;
+  is_required: boolean;
+  job_status_stage_id: number;  // This is the join table id for deletion
+}
+
+// API response types
+interface TypeStatusesResponse {
+  success: boolean;
+  job_type: { id: number; name: string };
+  statuses: TypeStatus[];
+}
+
+interface StatusStagesResponse {
+  success: boolean;
+  job_type_id: string;
+  job_status_id: string;
+  stages: StatusStage[];
+}
+
+// Sortable Status Item Component
+function SortableStatusItem({
+  status,
+  isSelected,
+  onSelect,
+  onRemove,
+}: {
+  status: TypeStatus;
+  isSelected: boolean;
+  onSelect: () => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: status.job_type_status_id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 rounded-md border",
+        isSelected ? "bg-primary/10 border-primary" : "hover:bg-muted/50",
+        isDragging && "shadow-lg"
+      )}
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <button
+        onClick={onSelect}
+        className="flex-1 flex items-center gap-2 text-left"
+      >
+        <div
+          className="w-3 h-3 rounded-full"
+          style={{ backgroundColor: status.color }}
+        />
+        <span className="text-sm">{status.name}</span>
+      </button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={onRemove}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
+}
+
+// Sortable Stage Item Component
+function SortableStageItem({
+  stage,
+  onRemove,
+}: {
+  stage: StatusStage;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: stage.job_status_stage_id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-2 p-2 rounded-md border hover:bg-muted/50",
+        isDragging && "shadow-lg"
+      )}
+    >
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      <div
+        className="w-3 h-3 rounded-full"
+        style={{ backgroundColor: stage.color }}
+      />
+      <span className="flex-1 text-sm">{stage.name}</span>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-7 w-7"
+        onClick={onRemove}
+      >
+        <X className="h-3 w-3" />
+      </Button>
+    </div>
+  );
 }
 
 export function WorkflowConfigTab() {
@@ -76,18 +223,28 @@ export function WorkflowConfigTab() {
   const [loadingStatuses, setLoadingStatuses] = React.useState(false);
   const [loadingStages, setLoadingStages] = React.useState(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   React.useEffect(() => {
     loadInitialData();
-     
   }, []);
 
   const loadInitialData = async () => {
     try {
-      const [types, statuses, stages] = await Promise.all([
-        api.get<JobType[]>("/api/v1/job_types"),
-        api.get<JobStatus[]>("/api/v1/job_status"),
-        api.get<JobStage[]>("/api/v1/job_stages"),
+      const [typesRes, statusesRes, stagesRes] = await Promise.all([
+        api.get<{ success: boolean; job_types: JobType[] }>("/api/v1/job_types"),
+        api.get<{ success: boolean; job_statuses: JobStatus[] }>("/api/v1/job_status"),
+        api.get<{ success: boolean; job_stages: JobStage[] }>("/api/v1/job_stages"),
       ]);
+      const types = typesRes.job_types || [];
+      const statuses = statusesRes.job_statuses || [];
+      const stages = stagesRes.job_stages || [];
+
       setAllTypes(types);
       setAllStatuses(statuses);
       setAllStages(stages);
@@ -98,36 +255,7 @@ export function WorkflowConfigTab() {
       }
     } catch (error) {
       console.error("Failed to load data:", error);
-      // Mock data
-      const mockTypes = [
-        { id: 1, name: "New Build", color: "#3B82F6" },
-        { id: 2, name: "Renovation", color: "#10B981" },
-      ];
-      const mockStatuses = [
-        { id: 1, name: "Quote", color: "#8B5CF6" },
-        { id: 2, name: "Won", color: "#10B981" },
-        { id: 3, name: "In Progress", color: "#3B82F6" },
-        { id: 4, name: "Complete", color: "#84CC16" },
-      ];
-      const mockStages = [
-        { id: 1, name: "Pre-Construction", color: "#F59E0B" },
-        { id: 2, name: "Foundation", color: "#6366F1" },
-        { id: 3, name: "Frame", color: "#06B6D4" },
-        { id: 4, name: "Lock Up", color: "#8B5CF6" },
-      ];
-      setAllTypes(mockTypes);
-      setAllStatuses(mockStatuses);
-      setAllStages(mockStages);
-
-      if (mockTypes.length > 0) {
-        setSelectedType(mockTypes[0]);
-        // Mock type statuses
-        setTypeStatuses([
-          { id: 1, job_type_id: 1, job_status_id: 1, position: 1, job_status: mockStatuses[0] },
-          { id: 2, job_type_id: 1, job_status_id: 2, position: 2, job_status: mockStatuses[1] },
-          { id: 3, job_type_id: 1, job_status_id: 3, position: 3, job_status: mockStatuses[2] },
-        ]);
-      }
+      toast({ title: "Error", description: "Failed to load workflow data", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -138,10 +266,11 @@ export function WorkflowConfigTab() {
     setSelectedStatus(null);
     setStatusStages([]);
     try {
-      const data = await api.get<TypeStatus[]>(`/api/v1/job_types/${typeId}/statuses`);
-      setTypeStatuses(data);
+      const response = await api.get<TypeStatusesResponse>(`/api/v1/job_types/${typeId}/statuses`);
+      setTypeStatuses(response.statuses || []);
     } catch (error) {
       console.error("Failed to load type statuses:", error);
+      setTypeStatuses([]);
     } finally {
       setLoadingStatuses(false);
     }
@@ -150,17 +279,13 @@ export function WorkflowConfigTab() {
   const loadStatusStages = async (typeId: number, statusId: number) => {
     setLoadingStages(true);
     try {
-      const data = await api.get<StatusStage[]>(
+      const response = await api.get<StatusStagesResponse>(
         `/api/v1/job_types/${typeId}/statuses/${statusId}/stages`
       );
-      setStatusStages(data);
+      setStatusStages(response.stages || []);
     } catch (error) {
       console.error("Failed to load status stages:", error);
-      // Mock data
-      setStatusStages([
-        { id: 1, job_type_id: typeId, job_status_id: statusId, job_stage_id: 1, position: 1, job_stage: allStages[0] },
-        { id: 2, job_type_id: typeId, job_status_id: statusId, job_stage_id: 2, position: 2, job_stage: allStages[1] },
-      ]);
+      setStatusStages([]);
     } finally {
       setLoadingStages(false);
     }
@@ -174,7 +299,7 @@ export function WorkflowConfigTab() {
   const handleSelectStatus = (status: TypeStatus) => {
     setSelectedStatus(status);
     if (selectedType) {
-      loadStatusStages(selectedType.id, status.job_status_id);
+      loadStatusStages(selectedType.id, status.id);
     }
   };
 
@@ -192,14 +317,14 @@ export function WorkflowConfigTab() {
     }
   };
 
-  const handleRemoveStatusFromType = async (typeStatusId: number) => {
+  const handleRemoveStatusFromType = async (jobTypeStatusId: number) => {
     try {
-      await api.delete(`/api/v1/job_type_statuses/${typeStatusId}`);
+      await api.delete(`/api/v1/job_type_statuses/${jobTypeStatusId}`);
       toast({ title: "Success", description: "Status removed from type" });
       if (selectedType) {
         loadTypeStatuses(selectedType.id);
       }
-      if (selectedStatus?.id === typeStatusId) {
+      if (selectedStatus?.job_type_status_id === jobTypeStatusId) {
         setSelectedStatus(null);
         setStatusStages([]);
       }
@@ -213,23 +338,23 @@ export function WorkflowConfigTab() {
     if (!selectedType || !selectedStatus) return;
     try {
       await api.post(
-        `/api/v1/job_types/${selectedType.id}/statuses/${selectedStatus.job_status_id}/stages`,
+        `/api/v1/job_types/${selectedType.id}/statuses/${selectedStatus.id}/stages`,
         { job_stage_id: Number(stageId) }
       );
       toast({ title: "Success", description: "Stage added to status" });
-      loadStatusStages(selectedType.id, selectedStatus.job_status_id);
+      loadStatusStages(selectedType.id, selectedStatus.id);
     } catch (error) {
       console.error("Failed to add stage:", error);
       toast({ title: "Error", description: "Failed to add stage", variant: "destructive" });
     }
   };
 
-  const handleRemoveStageFromStatus = async (statusStageId: number) => {
+  const handleRemoveStageFromStatus = async (jobStatusStageId: number) => {
     try {
-      await api.delete(`/api/v1/job_status_stages/${statusStageId}`);
+      await api.delete(`/api/v1/job_status_stages/${jobStatusStageId}`);
       toast({ title: "Success", description: "Stage removed from status" });
       if (selectedType && selectedStatus) {
-        loadStatusStages(selectedType.id, selectedStatus.job_status_id);
+        loadStatusStages(selectedType.id, selectedStatus.id);
       }
     } catch (error) {
       console.error("Failed to remove stage:", error);
@@ -237,13 +362,65 @@ export function WorkflowConfigTab() {
     }
   };
 
+  // Handle status reorder
+  const handleStatusDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedType) return;
+
+    const oldIndex = typeStatuses.findIndex((s) => s.job_type_status_id === active.id);
+    const newIndex = typeStatuses.findIndex((s) => s.job_type_status_id === over.id);
+
+    const newStatuses = arrayMove(typeStatuses, oldIndex, newIndex);
+    setTypeStatuses(newStatuses);
+
+    // Send reorder to backend
+    try {
+      await api.post(`/api/v1/job_types/${selectedType.id}/statuses/reorder`, {
+        job_type_status_ids: newStatuses.map((s) => s.job_type_status_id),
+      });
+    } catch (error) {
+      console.error("Failed to reorder statuses:", error);
+      toast({ title: "Error", description: "Failed to save order", variant: "destructive" });
+      // Reload to get correct order
+      loadTypeStatuses(selectedType.id);
+    }
+  };
+
+  // Handle stage reorder
+  const handleStageDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !selectedType || !selectedStatus) return;
+
+    const oldIndex = statusStages.findIndex((s) => s.job_status_stage_id === active.id);
+    const newIndex = statusStages.findIndex((s) => s.job_status_stage_id === over.id);
+
+    const newStages = arrayMove(statusStages, oldIndex, newIndex);
+    setStatusStages(newStages);
+
+    // Send reorder to backend
+    try {
+      await api.post(
+        `/api/v1/job_types/${selectedType.id}/statuses/${selectedStatus.id}/stages/reorder`,
+        { job_status_stage_ids: newStages.map((s) => s.job_status_stage_id) }
+      );
+    } catch (error) {
+      console.error("Failed to reorder stages:", error);
+      toast({ title: "Error", description: "Failed to save order", variant: "destructive" });
+      // Reload to get correct order
+      loadStatusStages(selectedType.id, selectedStatus.id);
+    }
+  };
+
   const availableStatuses = allStatuses.filter(
-    (status) => !typeStatuses.some((ts) => ts.job_status_id === status.id)
+    (status) => !typeStatuses.some((ts) => ts.id === status.id)
   );
 
   const availableStages = allStages.filter(
-    (stage) => !statusStages.some((ss) => ss.job_stage_id === stage.id)
+    (stage) => !statusStages.some((ss) => ss.id === stage.id)
   );
+
+  const sortedStatuses = [...typeStatuses].sort((a, b) => a.position - b.position);
+  const sortedStages = [...statusStages].sort((a, b) => a.position - b.position);
 
   if (loading) {
     return (
@@ -307,7 +484,7 @@ export function WorkflowConfigTab() {
                 Statuses for {selectedType?.name || "..."}
               </CardTitle>
             </div>
-            <CardDescription>Select a status to configure its stages</CardDescription>
+            <CardDescription>Drag to reorder, select to configure stages</CardDescription>
           </CardHeader>
           <CardContent>
             {!selectedType ? (
@@ -340,41 +517,28 @@ export function WorkflowConfigTab() {
                 </Select>
 
                 <ScrollArea className="h-[340px]">
-                  <div className="space-y-1">
-                    {typeStatuses
-                      .sort((a, b) => a.position - b.position)
-                      .map((ts) => (
-                        <div
-                          key={ts.id}
-                          className={cn(
-                            "flex items-center gap-2 p-2 rounded-md border",
-                            selectedStatus?.id === ts.id
-                              ? "bg-primary/10 border-primary"
-                              : "hover:bg-muted/50"
-                          )}
-                        >
-                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                          <button
-                            onClick={() => handleSelectStatus(ts)}
-                            className="flex-1 flex items-center gap-2 text-left"
-                          >
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: ts.job_status.color }}
-                            />
-                            <span className="text-sm">{ts.job_status.name}</span>
-                          </button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleRemoveStatusFromType(ts.id)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                  </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleStatusDragEnd}
+                  >
+                    <SortableContext
+                      items={sortedStatuses.map((s) => s.job_type_status_id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-1">
+                        {sortedStatuses.map((ts) => (
+                          <SortableStatusItem
+                            key={ts.job_type_status_id}
+                            status={ts}
+                            isSelected={selectedStatus?.id === ts.id}
+                            onSelect={() => handleSelectStatus(ts)}
+                            onRemove={() => handleRemoveStatusFromType(ts.job_type_status_id)}
+                          />
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 </ScrollArea>
               </div>
             )}
@@ -387,10 +551,10 @@ export function WorkflowConfigTab() {
             <div className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-muted-foreground" />
               <CardTitle className="text-base">
-                Stages for {selectedStatus?.job_status.name || "..."}
+                Stages for {selectedStatus?.name || "..."}
               </CardTitle>
             </div>
-            <CardDescription>Configure stages available for this status</CardDescription>
+            <CardDescription>Drag to reorder stages</CardDescription>
           </CardHeader>
           <CardContent>
             {!selectedStatus ? (
@@ -423,31 +587,26 @@ export function WorkflowConfigTab() {
                 </Select>
 
                 <ScrollArea className="h-[340px]">
-                  <div className="space-y-1">
-                    {statusStages
-                      .sort((a, b) => a.position - b.position)
-                      .map((ss) => (
-                        <div
-                          key={ss.id}
-                          className="flex items-center gap-2 p-2 rounded-md border hover:bg-muted/50"
-                        >
-                          <GripVertical className="h-4 w-4 text-muted-foreground cursor-move" />
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: ss.job_stage.color }}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleStageDragEnd}
+                  >
+                    <SortableContext
+                      items={sortedStages.map((s) => s.job_status_stage_id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-1">
+                        {sortedStages.map((ss) => (
+                          <SortableStageItem
+                            key={ss.job_status_stage_id}
+                            stage={ss}
+                            onRemove={() => handleRemoveStageFromStatus(ss.job_status_stage_id)}
                           />
-                          <span className="flex-1 text-sm">{ss.job_stage.name}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleRemoveStageFromStatus(ss.id)}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                  </div>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </DndContext>
                 </ScrollArea>
               </div>
             )}
@@ -466,25 +625,23 @@ export function WorkflowConfigTab() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 flex-wrap">
-              {typeStatuses
-                .sort((a, b) => a.position - b.position)
-                .map((ts, index) => (
-                  <React.Fragment key={ts.id}>
-                    <Badge
-                      variant="outline"
-                      className="py-2 px-3"
-                      style={{
-                        borderColor: ts.job_status.color,
-                        backgroundColor: `${ts.job_status.color}20`,
-                      }}
-                    >
-                      {ts.job_status.name}
-                    </Badge>
-                    {index < typeStatuses.length - 1 && (
-                      <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </React.Fragment>
-                ))}
+              {sortedStatuses.map((ts, index) => (
+                <React.Fragment key={ts.job_type_status_id}>
+                  <Badge
+                    variant="outline"
+                    className="py-2 px-3"
+                    style={{
+                      borderColor: ts.color,
+                      backgroundColor: `${ts.color}20`,
+                    }}
+                  >
+                    {ts.name}
+                  </Badge>
+                  {index < sortedStatuses.length - 1 && (
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </React.Fragment>
+              ))}
             </div>
           </CardContent>
         </Card>
