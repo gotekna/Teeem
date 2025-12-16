@@ -1275,6 +1275,31 @@ export default function TeeemTableView({
   // Selection state managed by atom (SSoT)
   const [selectedRows, setSelectedRows] = useAtom(selectedRowsAtom);
 
+  // SSoT FIX: Sync selectedRows with entries - remove stale IDs that no longer exist
+  // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
+  // Only runs when entries change (not when selectedRows changes, to avoid infinite loop)
+  const entriesRef = useRef(entries);
+  useEffect(() => {
+    // Skip if entries haven't actually changed (same reference)
+    if (entriesRef.current === entries) return;
+    entriesRef.current = entries;
+
+    setSelectedRows(prev => {
+      if (prev.size === 0) return prev;
+
+      const validIds = new Set(entries.map(e => e.id));
+      const staleIds = Array.from(prev).filter(id => !validIds.has(id));
+
+      if (staleIds.length > 0) {
+        console.warn(`[TeeemTableView] Removing ${staleIds.length} stale selection IDs:`, staleIds);
+        const updated = new Set(prev);
+        staleIds.forEach(id => updated.delete(id));
+        return updated;
+      }
+      return prev;
+    });
+  }, [entries, setSelectedRows]);
+
   // Filter state managed by atoms
   const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);
   // Defensive: ensure cascadeFilters is always an array for .map/.length calls
