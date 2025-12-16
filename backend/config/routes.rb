@@ -433,6 +433,7 @@ Rails.application.routes.draw do
           patch :portal_user, to: "contacts#update_portal_user"
           delete :portal_user, to: "contacts#delete_portal_user"
           post :enrich_from_web
+          patch :update_from_bill    # Update contact fields from extracted invoice data
           # Data quality endpoints
           post :verify_abn           # Verify ABN via ABR
           get :analyze_quality       # Analyze contact for quality issues

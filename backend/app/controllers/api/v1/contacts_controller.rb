@@ -5,7 +5,7 @@ module Api
       include Contacts::PortalUserManagement
       include Contacts::XeroSync
 
-      before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies, :coworkers ]
+      before_action :set_contact, only: [ :show, :update, :destroy, :activities, :link_xero_contact, :sync_from_xero, :sync_to_xero, :create_portal_user, :update_portal_user, :delete_portal_user, :internal_messages, :company_group_memberships, :directorships, :shareholdings, :trust_roles, :ownership_chain, :enrich_from_web, :reorder_employees, :reorder_companies, :coworkers, :update_from_bill ]
       before_action :require_corporate_permission, only: [ :directorships, :shareholdings, :trust_roles, :ownership_chain ]
 
       # GET /api/v1/contacts/read_only_fields
@@ -608,6 +608,99 @@ module Api
         render json: {
           success: false,
           error: "Failed to delete contact: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # PATCH /api/v1/contacts/:id/update_from_bill
+      # Updates contact fields from extracted invoice data
+      # Expects: { fields: { field_key: value, ... }, bill_id: 123 }
+      def update_from_bill
+        fields = params[:fields]
+        bill_id = params[:bill_id]
+
+        unless fields.is_a?(Hash) && fields.any?
+          return render json: {
+            success: false,
+            error: "No fields provided to update"
+          }, status: :unprocessable_entity
+        end
+
+        # Map extracted field keys to contact attributes
+        field_mapping = {
+          "supplier_name" => :display_name,
+          "abn" => :abn,
+          "acn" => :acn,
+          "address" => :office_address,
+          "city" => :office_city,
+          "state" => :office_state,
+          "postcode" => :office_postcode,
+          "website" => :website,
+          "phone" => :office_phone,
+          "email" => :office_email
+        }
+
+        # Build the attributes to update
+        attributes_to_update = {}
+        updated_fields = []
+
+        fields.each do |field_key, value|
+          contact_attr = field_mapping[field_key.to_s]
+          if contact_attr && value.present?
+            attributes_to_update[contact_attr] = value
+            updated_fields << field_key.to_s
+          end
+        end
+
+        if attributes_to_update.empty?
+          return render json: {
+            success: false,
+            error: "No valid fields to update"
+          }, status: :unprocessable_entity
+        end
+
+        ActiveRecord::Base.transaction do
+          # Store old values for audit
+          old_values = {}
+          attributes_to_update.each do |attr, _|
+            old_values[attr] = @contact.send(attr)
+          end
+
+          # Update the contact
+          @contact.update!(attributes_to_update)
+
+          # Create activity log entry
+          bill = BillInbox.find_by(id: bill_id)
+          invoice_ref = bill ? "##{bill.invoice_number || bill.id}" : "unknown"
+
+          @contact.contact_activities.create!(
+            activity_type: "note",
+            subject: "Contact updated from invoice",
+            body: "Updated fields from invoice #{invoice_ref}: #{updated_fields.join(', ')}",
+            metadata: {
+              source: "bill_inbox",
+              bill_id: bill_id,
+              updated_fields: updated_fields,
+              old_values: old_values,
+              new_values: attributes_to_update
+            }
+          )
+        end
+
+        render json: {
+          success: true,
+          message: "Contact updated successfully",
+          updated_fields: updated_fields,
+          contact: @contact.as_json
+        }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: {
+          success: false,
+          error: "Failed to update contact: #{e.message}"
+        }, status: :unprocessable_entity
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to update contact: #{e.message}"
         }, status: :internal_server_error
       end
 

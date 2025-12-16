@@ -151,7 +151,8 @@ function simpleGridLayout<T extends Record<string, unknown>>(
     // For 3 branches (rows 0, 1, 2), center is row 1
     // For 2 branches (rows 0, 1), center is row 0.5
     const centerRow = (branchCount - 1) / 2;
-    nodePositions.set(parallelGateways[0].id, {col: 1, row: centerRow});
+    // Position gateway at col 1.8 (closer to tasks) so edges visually originate from it
+    nodePositions.set(parallelGateways[0].id, {col: 1.8, row: centerRow});
 
     // Also adjust start node to align with gateway
     if (startNode) {
@@ -165,16 +166,17 @@ function simpleGridLayout<T extends Record<string, unknown>>(
     0
   );
 
-  // Second parallel gateway (convergence) - position at visual center
+  // Second parallel gateway (convergence) - position closer to tasks so edges converge AT it
   if (parallelGateways[1]) {
     const centerRow = (branchCount - 1) / 2;
-    nodePositions.set(parallelGateways[1].id, {col: maxCol + 1, row: centerRow});
+    // Position at col maxCol + 0.2 (closer to tasks) so edges visually converge at it
+    nodePositions.set(parallelGateways[1].id, {col: maxCol + 0.2, row: centerRow});
   }
 
   // End event - align with gateways
   if (endNode) {
     const centerRow = (branchCount - 1) / 2;
-    nodePositions.set(endNode.id, {col: maxCol + 2, row: centerRow});
+    nodePositions.set(endNode.id, {col: maxCol + 1.2, row: centerRow});
   }
 
   // Ensure all nodes have positions - assign any missing nodes

@@ -78,6 +78,9 @@ module Api
           methods: [ :remaining_balance, :variance_percent, :status_color, :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]
         ).merge(
           ai_extraction_result: @bill.ai_extraction_result,
+          ocr_extraction_result: @bill.ocr_extraction_result,
+          comparison_data: @bill.comparison_data,
+          contact_comparison_data: @bill.contact_comparison_data,
           extracted_at: @bill.extracted_at,
           xero_tenant_name: xero_tenant_name
         )

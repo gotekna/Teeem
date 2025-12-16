@@ -27,8 +27,6 @@ interface ContactFinancialTabProps {
   activeFinancialSubTab: string;
   handleFinancialSubTabChange: (value: string) => void;
   setContact: (contact: Contact) => void;
-  setSelectedInvoiceId: (id: string | null) => void;
-  setShowInvoiceDetail: (show: boolean) => void;
   handleViewInvoiceDetail: (invoiceId: string) => void;
 }
 
@@ -37,8 +35,6 @@ export function ContactFinancialTab({
   activeFinancialSubTab,
   handleFinancialSubTabChange,
   setContact,
-  setSelectedInvoiceId,
-  setShowInvoiceDetail,
   handleViewInvoiceDetail,
 }: ContactFinancialTabProps) {
   return (
@@ -80,8 +76,7 @@ export function ContactFinancialTab({
         <XeroSubTab
           contact={contact}
           setContact={setContact}
-          setSelectedInvoiceId={setSelectedInvoiceId}
-          setShowInvoiceDetail={setShowInvoiceDetail}
+          handleViewInvoiceDetail={handleViewInvoiceDetail}
         />
       </TabsContent>
 
@@ -363,15 +358,13 @@ function BankDetailsSubTab({ contact }: { contact: Contact }) {
 interface XeroSubTabProps {
   contact: Contact;
   setContact: (contact: Contact) => void;
-  setSelectedInvoiceId: (id: string | null) => void;
-  setShowInvoiceDetail: (show: boolean) => void;
+  handleViewInvoiceDetail: (invoiceId: string) => void;
 }
 
 function XeroSubTab({
   contact,
   setContact,
-  setSelectedInvoiceId,
-  setShowInvoiceDetail,
+  handleViewInvoiceDetail,
 }: XeroSubTabProps) {
   return (
     <div className="space-y-6">
@@ -383,10 +376,7 @@ function XeroSubTab({
       <XeroTransactionsSection
         contactId={contact.id}
         xeroLink={null}
-        onViewInvoiceDetail={(invoiceId: string) => {
-          setSelectedInvoiceId(invoiceId);
-          setShowInvoiceDetail(true);
-        }}
+        onViewInvoiceDetail={handleViewInvoiceDetail}
       />
     </div>
   );
