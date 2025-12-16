@@ -21,6 +21,7 @@ import {
   Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { UnlinkedContactsSheet } from "./UnlinkedContactsSheet";
 
 // Rate limit types
 interface RateLimitUsage {
@@ -164,6 +165,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [rateLimitsLoading, setRateLimitsLoading] = React.useState(false);
+  const [showUnlinkedSheet, setShowUnlinkedSheet] = React.useState(false);
 
   const fetchStatus = React.useCallback(async () => {
     try {
@@ -408,19 +410,34 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         </div>
       )}
       {blocker && (
-        <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs">
+        <button
+          onClick={() => {
+            // Check if this is the unlinked contacts blocker
+            if (blocker.unlinked_count && blocker.unlinked_count > 0) {
+              setShowUnlinkedSheet(true);
+            }
+          }}
+          className={`mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs w-full text-left ${
+            blocker.unlinked_count ? "hover:bg-amber-100 cursor-pointer transition-colors" : ""
+          }`}
+        >
           <div className="flex items-start gap-1.5">
             <AlertTriangle className="h-3 w-3 text-amber-600 mt-0.5 shrink-0" />
-            <div>
+            <div className="flex-1">
               <div className="font-medium text-amber-800">{blocker.reason}</div>
               {blocker.estimated_days && blocker.estimated_days > 1 && (
                 <div className="text-amber-700 mt-0.5">
                   ~{blocker.estimated_days} days to complete
                 </div>
               )}
+              {blocker.unlinked_count && blocker.unlinked_count > 0 && (
+                <div className="text-amber-600 mt-1 underline">
+                  Click to manage unlinked contacts
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        </button>
       )}
     </div>
   );
@@ -878,6 +895,16 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           )}
         </div>
       </CardContent>
+
+      {/* Unlinked Contacts Sheet */}
+      <UnlinkedContactsSheet
+        isOpen={showUnlinkedSheet}
+        onClose={() => setShowUnlinkedSheet(false)}
+        onLinked={() => {
+          // Refresh status after linking
+          fetchStatus();
+        }}
+      />
     </Card>
   );
 }
