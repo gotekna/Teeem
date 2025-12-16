@@ -126,12 +126,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+// NOTE: Tooltip imports removed - using native HTML title attributes instead
+// to avoid compose-refs infinite loop issues during rapid re-renders (view switching)
 import {
   Dialog,
   DialogContent,
@@ -361,6 +357,32 @@ const isSystemGeneratedColumn = (column: TableColumn): boolean => {
     NON_EDITABLE_COLUMNS.includes(column.key?.toLowerCase()) ||
     SYSTEM_GENERATED_TYPES.includes(column.column_type || "")
   );
+};
+
+// Helper to get plain text for cell tooltip (handles objects, arrays, etc.)
+const getCellTooltip = (value: unknown): string | undefined => {
+  if (value == null) return undefined;
+  if (typeof value === "string") return value || undefined;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "object") {
+    // Handle lookup/relation objects
+    if ("display" in value) return String((value as { display: string }).display) || undefined;
+    if ("name" in value) return String((value as { name: string }).name) || undefined;
+    if ("label" in value) return String((value as { label: string }).label) || undefined;
+    // Handle arrays (multi-select)
+    if (Array.isArray(value) && value.length > 0) {
+      const text = value.map(v => {
+        if (typeof v === "object" && v !== null) {
+          if ("display" in v) return (v as { display: string }).display;
+          if ("name" in v) return (v as { name: string }).name;
+          return JSON.stringify(v);
+        }
+        return String(v);
+      }).join(", ");
+      return text || undefined;
+    }
+  }
+  return undefined;
 };
 
 // Background color for system-generated columns
@@ -726,6 +748,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                         return (
                           <TableCell
                             key={`${column.key}-${colIndex}`}
+                            title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
                             style={{
                               width: columnWidths[column.key] || column.width,
                               ...stickyStyles,
@@ -3215,45 +3238,9 @@ export default function TeeemTableView({
     return newWidths;
   }, [visibleColumnsInOrder, filteredAndSortedEntries]);
 
-  // Apply smart-fit or auto-fit widths when enabled
-  useEffect(() => {
-    if (smartFit && filteredAndSortedEntries.length > 0) {
-      // TEEEM Smart: priority-based intelligent widths
-      const smartWidths = calculateSmartFitWidths();
-      setColumnWidths(smartWidths);
-    } else if (autoFitColumns && filteredAndSortedEntries.length > 0) {
-      // Auto-fit: content-based widths (all columns treated equally)
-      const autoWidths = calculateAutoFitWidths();
-      setColumnWidths(autoWidths);
-    }
-
-  }, [smartFit, autoFitColumns, calculateSmartFitWidths, calculateAutoFitWidths, visibleColumnsInOrder]);
-
-  // Watch for container resize and recalculate widths when TEEEM Smart is enabled
-  // Debounced to prevent excessive recalculations during window drag
-  useEffect(() => {
-    if (!smartFit || !tableContainerRef.current) return;
-
-    let timeoutId: NodeJS.Timeout;
-
-    const resizeObserver = new ResizeObserver(() => {
-      // Debounce: wait 150ms after last resize event
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => {
-        if (filteredAndSortedEntries.length > 0) {
-          const smartWidths = calculateSmartFitWidths();
-          setColumnWidths(smartWidths);
-        }
-      }, 150);
-    });
-
-    resizeObserver.observe(tableContainerRef.current);
-
-    return () => {
-      clearTimeout(timeoutId);
-      resizeObserver.disconnect();
-    };
-  }, [smartFit, calculateSmartFitWidths, filteredAndSortedEntries]);
+  // NOTE: Smart-fit and Auto-fit logic removed.
+  // Column widths are now always manual - set by user dragging column borders.
+  // Widths are auto-saved to the view when changed.
 
   // Get visible data columns (excluding select and actions)
   const visibleDataColumns = useMemo(() => {
@@ -3583,50 +3570,16 @@ export default function TeeemTableView({
         const textValue = value == null ? "" : String(value);
         if (textValue) {
           return (
-            <span title={textValue}>
-              <HighlightedText
-                text={textValue}
-                highlight={search}
-                mode={propSearchMode || "contains"}
-              />
-            </span>
+            <HighlightedText
+              text={textValue}
+              highlight={search}
+              mode={propSearchMode || "contains"}
+            />
           );
         }
       }
 
-      // Get plain text value for tooltip (handles objects, arrays, etc.)
-      const getTooltipText = (val: unknown): string => {
-        if (val == null) return "";
-        if (typeof val === "string") return val;
-        if (typeof val === "number" || typeof val === "boolean") return String(val);
-        if (typeof val === "object") {
-          // Handle lookup/relation objects
-          if ("display" in val) return String((val as { display: string }).display);
-          if ("name" in val) return String((val as { name: string }).name);
-          if ("label" in val) return String((val as { label: string }).label);
-          // Handle arrays (multi-select)
-          if (Array.isArray(val)) {
-            return val.map(v => {
-              if (typeof v === "object" && v !== null) {
-                if ("display" in v) return (v as { display: string }).display;
-                if ("name" in v) return (v as { name: string }).name;
-                return JSON.stringify(v);
-              }
-              return String(v);
-            }).join(", ");
-          }
-        }
-        return String(val);
-      };
-
-      const tooltipText = getTooltipText(value);
-      const rendered = renderCellWithRegistry(value, column, entry, "display");
-
-      // Wrap in span with title for tooltip on hover (only if there's text to show)
-      if (tooltipText) {
-        return <span title={tooltipText}>{rendered}</span>;
-      }
-      return rendered;
+      return renderCellWithRegistry(value, column, entry, "display");
     };
 
   // ============================================================================
@@ -3903,6 +3856,7 @@ export default function TeeemTableView({
           return (
             <TableCell
               key={`${column.key}-${colIndex}`}
+              title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
               style={{
                 width: columnWidths[column.key],
                 minWidth: columnWidths[column.key],
@@ -4055,6 +4009,7 @@ export default function TeeemTableView({
                   return (
                   <TableCell
                     key={`${column.key}-${colIndex}`}
+                    title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
                     style={{
                       width: columnWidths[column.key],
                       minWidth: columnWidths[column.key],
@@ -4267,6 +4222,7 @@ export default function TeeemTableView({
                   return (
                     <TableCell
                       key={`${column.key}-${colIndex}`}
+                      title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
                       style={{
                         width: columnWidths[column.key] || column.width,
                         minWidth: columnWidths[column.key] || column.width,
@@ -4794,30 +4750,24 @@ export default function TeeemTableView({
           ) : (
             <>
               {/* Show all views as individual buttons */}
+              {/* Uses native title attributes to avoid compose-refs issues during view switching */}
               {savedViews.map((view) => (
-                <TooltipProvider key={view.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={activeViewId === view.id ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => loadViewState(view)}
-                        className={cn(
-                          "shrink-0 max-w-[140px]",
-                          view.is_global && "border-blue-300 dark:border-blue-700"
-                        )}
-                      >
-                        {view.is_global && (
-                          <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
-                        )}
-                        <span className="truncate">{view.name}</span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Button
+                  key={view.id}
+                  variant={activeViewId === view.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => loadViewState(view)}
+                  title={view.is_global ? `Global view: ${view.name}` : `Personal view: ${view.name}`}
+                  className={cn(
+                    "shrink-0 max-w-[140px]",
+                    view.is_global && "border-blue-300 dark:border-blue-700"
+                  )}
+                >
+                  {view.is_global && (
+                    <Globe className="h-3 w-3 mr-1 flex-shrink-0" />
+                  )}
+                  <span className="truncate">{view.name}</span>
+                </Button>
               ))}
             </>
           )}

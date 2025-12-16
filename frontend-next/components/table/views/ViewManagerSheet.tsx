@@ -373,8 +373,8 @@ export function ViewManagerSheet({
       columnWidths: baseView?.columnWidths || {},
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
-      autoFitColumns: baseView?.autoFitColumns ?? false,
-      smartFit: baseView?.smartFit ?? true, // Default to TEEEM Smart for new views
+      autoFitColumns: false, // Always use manual widths
+      smartFit: false, // Always use manual widths
       showTotals: baseView?.showTotals ?? true,
       stickyActions: baseView?.stickyActions ?? true, // Default to pinned actions
     };
@@ -427,8 +427,8 @@ export function ViewManagerSheet({
           visible: currentEditState.visibleColumns,
           order: currentEditState.columnOrder,
           widths: currentEditState.columnWidths,
-          autoFitColumns: currentEditState.autoFitColumns,
-          smartFit: currentEditState.smartFit,
+          autoFitColumns: false, // Always use manual widths
+          smartFit: false, // Always use manual widths
           showTotals: currentEditState.showTotals,
           stickyActions: currentEditState.stickyActions,
           searchable: currentEditState.searchableColumns,
@@ -465,8 +465,8 @@ export function ViewManagerSheet({
           visibleColumns: currentEditState.visibleColumns,
           columnOrder: currentEditState.columnOrder,
           columnWidths: currentEditState.columnWidths,
-          autoFitColumns: currentEditState.autoFitColumns,
-          smartFit: currentEditState.smartFit,
+          autoFitColumns: false, // Always use manual widths
+          smartFit: false, // Always use manual widths
           showTotals: currentEditState.showTotals,
           stickyActions: currentEditState.stickyActions,
           searchableColumns: currentEditState.searchableColumns,
@@ -1621,26 +1621,6 @@ export function ViewManagerSheet({
                                 />
                               </div>
                               <div className="flex items-center gap-2">
-                                <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
-                                <Switch
-                                  id="auto-fit"
-                                  checked={editAutoFitColumns}
-                                  onCheckedChange={handleAutoFitChange}
-                                  disabled={editSmartFit}
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Label htmlFor="smart-fit" className="text-xs text-muted-foreground">
-                                  TEEEM Smart
-                                  <span className="ml-1 text-[10px] text-primary">(Recommended)</span>
-                                </Label>
-                                <Switch
-                                  id="smart-fit"
-                                  checked={editSmartFit}
-                                  onCheckedChange={handleSmartFitChange}
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
                                 <Label htmlFor="sticky-actions" className="text-xs text-muted-foreground">Pin Actions</Label>
                                 <Switch
                                   id="sticky-actions"
@@ -1719,12 +1699,9 @@ export function ViewManagerSheet({
                                             index={originalIndex + 1}
                                             totalVisible={visibleCols.length}
                                             onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
-                                            showWidthInput={!editAutoFitColumns && !editSmartFit}
+                                            showWidthInput={true}
                                             width={editColumnWidths[col.column_name]}
                                             onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
-                                            smartFit={editSmartFit}
-                                            priority={editSmartFit ? getColumnPriority(col.column_name, col.column_type) : undefined}
-                                            smartWidth={editSmartFit ? calculateSmartWidth(col) : undefined}
                                             lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                           />
                                         );
