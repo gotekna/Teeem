@@ -77,6 +77,13 @@ class InvoiceFieldMatcherService
 
     return no_match_result if normalized_ai.blank?
 
+    # For date fields, use context-aware matching FIRST (not as fallback)
+    # This prevents matching to wrong dates (e.g., invoice_date matching due_date's location)
+    if %w[invoice_date due_date].include?(field_name)
+      date_match = find_date_match(ai_value, field_name)
+      return date_match if date_match
+    end
+
     # Build search candidates (different ways the value might appear)
     candidates = build_search_candidates(ai_value, field_name)
 
@@ -121,6 +128,8 @@ class InvoiceFieldMatcherService
       # Handle multiple date formats
       # AI gives: 2025-12-11 or 11/12/2025
       # OCR might have: "11", "December", "2025" as separate words or "11/12/2025"
+      # NOTE: Don't add month name alone - it causes wrong matches between invoice_date and due_date
+      # Date matching is handled by find_date_match which uses context-aware matching
       date_str = value.to_s
 
       # Try to parse the date
@@ -130,13 +139,11 @@ class InvoiceFieldMatcherService
         month_num = date.month.to_s.rjust(2, "0")
         year = date.year.to_s
 
-        # Add various formats the date might appear as
-        candidates << day  # Just the day number to find it
+        # Add full date formats only (not month name alone)
         candidates << "#{day}/#{month_num}/#{year}"
         candidates << "#{day}-#{month_num}-#{year}"
         candidates << "#{day} #{Date::MONTHNAMES[date.month]} #{year}"
-        candidates << Date::MONTHNAMES[date.month]  # Month name to find it
-        candidates << Date::MONTHNAMES[date.month]&.downcase
+        candidates << "#{day} #{Date::MONTHNAMES[date.month]&.downcase} #{year}"
       rescue ArgumentError
         # If date parsing fails, just use the raw value
       end
@@ -216,10 +223,8 @@ class InvoiceFieldMatcherService
       best_match = find_multiword_match(candidates, field_name)
     end
 
-    # Special handling for dates - look for day + month pattern
-    if best_match.nil? && %w[invoice_date due_date].include?(field_name)
-      best_match = find_date_match(candidates.first, field_name)
-    end
+    # Note: Date fields are now handled by find_date_match FIRST in find_ocr_match
+    # This ensures context-aware matching to distinguish invoice_date from due_date
 
     best_match
   end
