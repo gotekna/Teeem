@@ -894,6 +894,7 @@ export default function TeeemTableView({
   onLoadMore,
   onLoadAll,
   hasMore: serverHasMore = false,
+  autoFetchRecords = false,
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -956,11 +957,10 @@ export default function TeeemTableView({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  // CRITICAL: Determine auto-fetch mode ONCE on mount, not on every render
-  // This prevents mode-switching when search returns 0 results (entries.length === 0)
-  // The mode is: "use auto-fetch if we were NOT given initial data"
-  const initialEntriesProvidedRef = useRef(entries.length > 0);
-  const useAutoFetch = foundationIdNumeric && !initialEntriesProvidedRef.current;
+  // CRITICAL: Auto-fetch must be EXPLICITLY enabled via prop
+  // Previously this used a heuristic based on entries.length which broke when entries was empty during loading
+  // Now pages must explicitly set autoFetchRecords={true} if they want TeeemTableView to fetch its own records
+  const useAutoFetch = autoFetchRecords && !!foundationIdNumeric;
 
   // Auto-fetch columns when foundationIdNumeric is set
   useEffect(() => {
@@ -4505,8 +4505,13 @@ export default function TeeemTableView({
                 ? `${filteredAndSortedEntries.length.toLocaleString()} of ${totalCount.toLocaleString()} records`
                 : `${filteredAndSortedEntries.length.toLocaleString()} records`}
             </span>
-            {/* Load All button - inline with record count */}
-            {!loadingMore && serverHasMore && onLoadAll && (
+            {/* Load All button OR loading indicator - inline with record count */}
+            {loadingMore ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading more records...
+              </span>
+            ) : serverHasMore && onLoadAll ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -4516,7 +4521,7 @@ export default function TeeemTableView({
                 <Download className="h-3.5 w-3.5" />
                 Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length})` : ''}
               </Button>
-            )}
+            ) : null}
           </div>
           {/* Totals in header (only when showTotals enabled and has numeric columns) */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
@@ -5129,16 +5134,6 @@ export default function TeeemTableView({
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* Loading indicator */}
-      {loadingMore && (
-        <div className="flex items-center justify-center p-2">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <span className="text-[11px] text-muted-foreground">
-            Loading more records...
-          </span>
         </div>
       )}
 
