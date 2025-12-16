@@ -3583,16 +3583,50 @@ export default function TeeemTableView({
         const textValue = value == null ? "" : String(value);
         if (textValue) {
           return (
-            <HighlightedText
-              text={textValue}
-              highlight={search}
-              mode={propSearchMode || "contains"}
-            />
+            <span title={textValue}>
+              <HighlightedText
+                text={textValue}
+                highlight={search}
+                mode={propSearchMode || "contains"}
+              />
+            </span>
           );
         }
       }
 
-      return renderCellWithRegistry(value, column, entry, "display");
+      // Get plain text value for tooltip (handles objects, arrays, etc.)
+      const getTooltipText = (val: unknown): string => {
+        if (val == null) return "";
+        if (typeof val === "string") return val;
+        if (typeof val === "number" || typeof val === "boolean") return String(val);
+        if (typeof val === "object") {
+          // Handle lookup/relation objects
+          if ("display" in val) return String((val as { display: string }).display);
+          if ("name" in val) return String((val as { name: string }).name);
+          if ("label" in val) return String((val as { label: string }).label);
+          // Handle arrays (multi-select)
+          if (Array.isArray(val)) {
+            return val.map(v => {
+              if (typeof v === "object" && v !== null) {
+                if ("display" in v) return (v as { display: string }).display;
+                if ("name" in v) return (v as { name: string }).name;
+                return JSON.stringify(v);
+              }
+              return String(v);
+            }).join(", ");
+          }
+        }
+        return String(val);
+      };
+
+      const tooltipText = getTooltipText(value);
+      const rendered = renderCellWithRegistry(value, column, entry, "display");
+
+      // Wrap in span with title for tooltip on hover (only if there's text to show)
+      if (tooltipText) {
+        return <span title={tooltipText}>{rendered}</span>;
+      }
+      return rendered;
     };
 
   // ============================================================================
