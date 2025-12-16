@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_16_230443) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_16_234602) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -501,6 +501,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_230443) do
     t.datetime "published_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.text "svg_preview"
     t.index ["is_published"], name: "index_bpmn_processes_on_is_published"
     t.index ["name"], name: "index_bpmn_processes_on_name"
     t.index ["workflow_definition_id"], name: "index_bpmn_processes_on_workflow_definition_id"
@@ -1285,6 +1286,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_230443) do
     t.datetime "acn_verified_at"
     t.integer "xero_linked_count", default: 0
     t.string "xero_tenant_names", default: [], array: true
+    t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"

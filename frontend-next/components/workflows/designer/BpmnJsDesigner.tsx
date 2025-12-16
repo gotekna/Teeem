@@ -6,7 +6,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 
 // Default empty BPMN diagram
@@ -171,6 +170,9 @@ export default function BpmnJsDesigner({
     try {
       const { xml } = await modelerRef.current.saveXML({ format: true });
       const { svg } = await modelerRef.current.saveSVG();
+
+      console.log("Saving XML:", xml?.substring(0, 500));
+      console.log("XML length:", xml?.length);
 
       await onSave(xml || "", svg || "");
       setIsDirty(false);
@@ -389,6 +391,8 @@ export default function BpmnJsDesigner({
                     id="element-name"
                     value={selectedElement.name || ""}
                     onChange={(e) => handleNameChange(e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    onKeyUp={(e) => e.stopPropagation()}
                     placeholder="Enter name..."
                     className="mt-1"
                   />
@@ -400,25 +404,19 @@ export default function BpmnJsDesigner({
                     <h4 className="font-medium mb-3">Document Generation</h4>
                     <div>
                       <Label htmlFor="template-select">Word Template</Label>
-                      <Select
+                      <select
+                        id="template-select"
                         value={getTemplateId()}
-                        onValueChange={handleTemplateChange}
+                        onChange={(e) => handleTemplateChange(e.target.value)}
+                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select template..." />
-                        </SelectTrigger>
-                        <SelectContent className="z-50">
-                          {templates.length === 0 ? (
-                            <SelectItem value="loading" disabled>Loading templates...</SelectItem>
-                          ) : (
-                            templates.map((template) => (
-                              <SelectItem key={template.id} value={template.id.toString()}>
-                                {template.name}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select template...</option>
+                        {templates.map((template) => (
+                          <option key={template.id} value={template.id.toString()}>
+                            {template.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 )}
