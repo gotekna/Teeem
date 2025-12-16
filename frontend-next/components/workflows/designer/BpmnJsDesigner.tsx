@@ -73,8 +73,10 @@ export default function BpmnJsDesigner({
         const response = await api.get<{ success: boolean; document_templates: DocumentTemplate[] }>(
           "/api/v1/document_templates"
         );
+        console.log("Templates response:", response);
         if (response?.success && response.document_templates) {
           setTemplates(response.document_templates);
+          console.log("Loaded templates:", response.document_templates.length);
         }
       } catch (err) {
         console.error("Failed to fetch templates:", err);
@@ -102,7 +104,7 @@ export default function BpmnJsDesigner({
       await import("bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css");
 
       modeler = new BpmnModeler({
-        container: containerRef.current,
+        container: containerRef.current!,
       });
 
       modelerRef.current = modeler;
@@ -392,8 +394,8 @@ export default function BpmnJsDesigner({
                   />
                 </div>
 
-                {/* Service Task Config */}
-                {selectedElement.type === "bpmn:ServiceTask" && (
+                {/* Service Task Config - show for Task or ServiceTask */}
+                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (
                   <div className="pt-4 border-t">
                     <h4 className="font-medium mb-3">Document Generation</h4>
                     <div>
@@ -405,12 +407,16 @@ export default function BpmnJsDesigner({
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Select template..." />
                         </SelectTrigger>
-                        <SelectContent>
-                          {templates.map((template) => (
-                            <SelectItem key={template.id} value={template.id.toString()}>
-                              {template.name}
-                            </SelectItem>
-                          ))}
+                        <SelectContent className="z-50">
+                          {templates.length === 0 ? (
+                            <SelectItem value="loading" disabled>Loading templates...</SelectItem>
+                          ) : (
+                            templates.map((template) => (
+                              <SelectItem key={template.id} value={template.id.toString()}>
+                                {template.name}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
