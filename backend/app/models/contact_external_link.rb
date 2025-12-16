@@ -1,6 +1,10 @@
 class ContactExternalLink < ApplicationRecord
   belongs_to :contact
 
+  # Callbacks to keep Contact's cached xero columns in sync
+  after_save :update_contact_xero_cache
+  after_destroy :update_contact_xero_cache
+
   # Sources
   SOURCES = %w[xero myob quickbooks].freeze
 
@@ -164,5 +168,14 @@ class ContactExternalLink < ApplicationRecord
   # Check if this was a fuzzy match
   def fuzzy_match?
     match_type == "fuzzy_name"
+  end
+
+  private
+
+  # Update the contact's cached xero columns
+  def update_contact_xero_cache
+    return unless contact && xero?
+
+    contact.update_xero_link_cache!
   end
 end

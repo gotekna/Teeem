@@ -667,19 +667,18 @@ class Contact < ApplicationRecord
     xero_links.enabled.order(:created_at).first&.xero_contact_status
   end
 
-  # Count of Xero tenants this contact is linked to
-  def xero_linked_count
-    xero_links.enabled.count
-  end
-
   # All Xero tenant IDs this contact is linked to
   def xero_tenants
     xero_links.enabled.pluck(:tenant_id)
   end
 
-  # All Xero tenant names this contact is linked to
-  def xero_tenant_names
-    xero_links.enabled.pluck(:tenant_name).compact
+  # Update cached xero link columns (called by ContactExternalLink callbacks)
+  def update_xero_link_cache!
+    links = xero_links.enabled
+    update_columns(
+      xero_linked_count: links.count,
+      xero_tenant_names: links.pluck(:tenant_name).compact
+    )
   end
 
   # Xero link summary for UI display

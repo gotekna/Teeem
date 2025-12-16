@@ -210,6 +210,7 @@ import { SelectCheckbox, ActionsButtons, EditingActionsButtons } from "./core/ce
 import { RowEditingCell } from "./core/cell-components/RowEditingCell";
 import { HighlightedText } from "./components/HighlightedText";
 import { EmptyState, getEmptyStateVariant } from "./components/EmptyState";
+import { TableSkeleton } from "./components/TableSkeleton";
 
 // Column renderer registry (Phase 4 refactoring)
 import { renderCell as renderCellWithRegistry } from "./core/column-renderer/ColumnRenderer";
@@ -1020,14 +1021,23 @@ export default function TeeemTableView({
   }, [useAutoFetch, hasMore, isLoadingMore, autoFetchedRecords.length, foundationIdNumeric]);
 
   // Server-side search for auto-fetch mode
-  const handleAutoFetchSearch = useCallback(async (searchTerm: string) => {
+  // Supports all search modes: contains (default), exact, starts_with, fuzzy, regex
+  const handleAutoFetchSearch = useCallback(async (searchTerm: string, mode?: SearchMode) => {
     if (!useAutoFetch) return;
 
     setIsSearching(true);
     try {
+      const params: Record<string, string | number> = {
+        search: searchTerm,
+        limit: 100,
+      };
+      // Pass search mode to backend if specified (backend defaults to 'contains')
+      if (mode) {
+        params.search_mode = mode;
+      }
       const response = await api.get<{ records: TableRowType[], has_more: boolean }>(
         `/api/v1/foundations/${foundationIdNumeric}/records`,
-        { params: { search: searchTerm, limit: 100 } }
+        { params }
       );
       setAutoFetchedRecords(response.records || []);
       setHasMore(response.has_more ?? false);
@@ -4860,9 +4870,21 @@ export default function TeeemTableView({
           "flex-1 min-h-[200px] max-h-[calc(100vh-420px)] w-full overflow-auto relative border-t border-b",
           tableHasFocus && "ring-2 ring-primary/20 ring-inset"
         )}
+        role="region"
+        aria-label={`${tableName} table with ${filteredAndSortedEntries.length} rows`}
+        aria-busy={columnsLoading || serverSearchLoading}
         {...keyboardProps}
       >
-        {groupedEntries ? renderGroupedTable() : renderFlatTable()}
+        {/* Show skeleton while columns are loading */}
+        {columnsLoading ? (
+          <TableSkeleton
+            rowCount={10}
+            columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
+            showHeader
+          />
+        ) : (
+          groupedEntries ? renderGroupedTable() : renderFlatTable()
+        )}
       </div>
 
       {/* Footer - compact */}

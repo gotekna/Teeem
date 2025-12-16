@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_16_000000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_16_001000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1282,6 +1282,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_000000) do
     t.string "acn", limit: 11
     t.boolean "acn_valid"
     t.datetime "acn_verified_at"
+    t.integer "xero_linked_count", default: 0
+    t.string "xero_tenant_names", default: [], array: true
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"

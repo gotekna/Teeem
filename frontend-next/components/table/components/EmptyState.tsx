@@ -137,13 +137,18 @@ export function EmptyState({
   const Icon = content.icon;
 
   return (
-    <div className={cn("flex flex-col items-center justify-center py-16 px-4", className)}>
+    <div
+      className={cn("flex flex-col items-center justify-center py-16 px-4", className)}
+      role="status"
+      aria-live="polite"
+    >
       {/* Icon container */}
       <div
         className={cn(
           "flex items-center justify-center w-16 h-16 rounded-full mb-4",
           content.iconBg
         )}
+        aria-hidden="true"
       >
         <Icon className={cn("h-8 w-8", content.iconColor)} />
       </div>
@@ -160,7 +165,9 @@ export function EmptyState({
 
       {/* Actions */}
       {content.actions && (
-        <div className="flex items-center gap-2">{content.actions}</div>
+        <div className="flex items-center gap-2" role="group" aria-label="Available actions">
+          {content.actions}
+        </div>
       )}
     </div>
   );

@@ -135,13 +135,21 @@ export const SearchInput = memo(function SearchInput({
             hasServerSearch ? "Search all records..." : "Search across all fields..."
           }
           className="pl-9 pr-9"
+          aria-label="Search table"
+          aria-busy={serverSearchLoading}
+          aria-describedby={localValue ? "search-clear-hint" : undefined}
         />
         {localValue && (
           <button
             onClick={handleClear}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            aria-label="Clear search"
+            type="button"
           >
             <X className="h-4 w-4" />
+            <span id="search-clear-hint" className="sr-only">
+              Press to clear search
+            </span>
           </button>
         )}
       </div>
