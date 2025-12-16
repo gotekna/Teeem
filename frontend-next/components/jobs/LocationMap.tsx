@@ -284,6 +284,75 @@ export function LocationMap({
     }
   };
 
+  // Geocode from form fields to find coordinates
+  const [geocoding, setGeocoding] = useState(false);
+
+  const geocodeFromFormFields = async () => {
+    // Build full search query from form fields
+    const fullParts: string[] = [];
+    if (formStreetNumber) fullParts.push(formStreetNumber);
+    if (formStreetName) {
+      const street = [formStreetName, formStreetType].filter(Boolean).join(" ");
+      fullParts.push(street);
+    }
+    if (formSuburb) fullParts.push(formSuburb);
+    if (formState) fullParts.push(formState);
+
+    const fullQuery = fullParts.join(", ");
+
+    // Build suburb-only fallback query
+    const suburbParts: string[] = [];
+    if (formSuburb) suburbParts.push(formSuburb);
+    if (formState) suburbParts.push(formState);
+    const suburbQuery = suburbParts.join(", ");
+
+    if (!fullQuery || fullQuery.length < 3) {
+      setError("Please enter at least a suburb to find on map");
+      return;
+    }
+
+    setGeocoding(true);
+    setError(null);
+
+    try {
+      // First try with full address
+      const data = await api.get<{ suggestions: AddressSuggestion[] }>(
+        `/api/v1/geocode/search?q=${encodeURIComponent(fullQuery)}`
+      );
+      const suggestions = data?.suggestions || [];
+
+      if (suggestions.length > 0) {
+        const [lon, lat] = suggestions[0].center;
+        const newPosition: [number, number] = [lat, lon];
+        setTempPosition(newPosition);
+        setMapPosition(newPosition);
+      } else if (suburbQuery && suburbQuery !== fullQuery) {
+        // Fall back to suburb-only search
+        const suburbData = await api.get<{ suggestions: AddressSuggestion[] }>(
+          `/api/v1/geocode/search?q=${encodeURIComponent(suburbQuery)}`
+        );
+        const suburbSuggestions = suburbData?.suggestions || [];
+
+        if (suburbSuggestions.length > 0) {
+          const [lon, lat] = suburbSuggestions[0].center;
+          const newPosition: [number, number] = [lat, lon];
+          setTempPosition(newPosition);
+          setMapPosition(newPosition);
+          setError("Exact address not found. Showing suburb location - adjust pin as needed.");
+        } else {
+          setError("Could not find location. Please place pin manually on the map.");
+        }
+      } else {
+        setError("Could not find location. Please place pin manually on the map.");
+      }
+    } catch (err) {
+      console.error("Geocoding failed:", err);
+      setError("Failed to find location. Please place pin manually on the map.");
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
   const handleAddressSelect = (suggestion: AddressSuggestion) => {
     const [lon, lat] = suggestion.center;
     const newPosition: [number, number] = [lat, lon];
@@ -777,9 +846,30 @@ export function LocationMap({
                   </div>
                 </div>
 
-                <p className="text-xs text-muted-foreground">
-                  Click on the map below to adjust the pin position if needed.
-                </p>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={geocodeFromFormFields}
+                    disabled={geocoding || (!formSuburb && !formStreetName)}
+                  >
+                    {geocoding ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Finding...
+                      </>
+                    ) : (
+                      <>
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Find on Map
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Or click on the map below to place the pin manually
+                  </p>
+                </div>
               </div>
             )}
 
