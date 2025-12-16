@@ -65,8 +65,8 @@ export function XeroLinkTransferModal({
       try {
         // Load both contacts and their Xero links in parallel
         const [contact1Res, contact2Res, links1Res, links2Res] = await Promise.all([
-          api.get<{ success: boolean; data: Contact }>(`/api/v1/contacts/${contactIds[0]}`),
-          api.get<{ success: boolean; data: Contact }>(`/api/v1/contacts/${contactIds[1]}`),
+          api.get<{ success: boolean; contact: Contact }>(`/api/v1/contacts/${contactIds[0]}`),
+          api.get<{ success: boolean; contact: Contact }>(`/api/v1/contacts/${contactIds[1]}`),
           api.get<{ success: boolean; xero_links: XeroLink[] }>(`/api/v1/contacts/${contactIds[0]}/xero_links`),
           api.get<{ success: boolean; xero_links: XeroLink[] }>(`/api/v1/contacts/${contactIds[1]}/xero_links`),
         ]);
@@ -74,13 +74,13 @@ export function XeroLinkTransferModal({
         const loadedContacts: Contact[] = [];
         const loadedLinks: Record<number, XeroLink[]> = {};
 
-        if (contact1Res?.success && contact1Res.data) {
-          loadedContacts.push(contact1Res.data);
-          loadedLinks[contact1Res.data.id] = links1Res?.xero_links || [];
+        if (contact1Res?.success && contact1Res.contact) {
+          loadedContacts.push(contact1Res.contact);
+          loadedLinks[contact1Res.contact.id] = links1Res?.xero_links || [];
         }
-        if (contact2Res?.success && contact2Res.data) {
-          loadedContacts.push(contact2Res.data);
-          loadedLinks[contact2Res.data.id] = links2Res?.xero_links || [];
+        if (contact2Res?.success && contact2Res.contact) {
+          loadedContacts.push(contact2Res.contact);
+          loadedLinks[contact2Res.contact.id] = links2Res?.xero_links || [];
         }
 
         setContacts(loadedContacts);
