@@ -914,14 +914,13 @@ function EmployeeMultiSelector({
         <MultipleSelector
           value={selectedEmployees}
           onChange={handleEmployeeChange}
-          placeholder="Click to search employees..."
+          placeholder={loadingPeople ? "Loading people..." : "🔍 Search and add employees..."}
           options={availablePeople}
           emptyIndicator={
             <p className="text-center text-sm text-muted-foreground">
               {loadingPeople ? "Loading people..." : "No people found"}
             </p>
           }
-          disabled={loadingPeople}
           className="w-full"
           hidePlaceholderWhenSelected={false}
         />
