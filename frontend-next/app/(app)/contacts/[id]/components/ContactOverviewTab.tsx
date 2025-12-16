@@ -780,14 +780,13 @@ function CompanyMultiSelector({
           onChange={(newOptions) => {
             handleCompanyChange(newOptions);
           }}
-          placeholder="🔍 Search and add companies..."
+          placeholder={loadingCompanies ? "Loading companies..." : "🔍 Search and add companies..."}
           options={availableCompanies}
           emptyIndicator={
             <p className="text-center text-sm text-muted-foreground">
               {loadingCompanies ? "Loading companies..." : "No companies found"}
             </p>
           }
-          disabled={loadingCompanies}
           hidePlaceholderWhenSelected={false}
           className="w-full bg-white dark:bg-gray-950"
         />
