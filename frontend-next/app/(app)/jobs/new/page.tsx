@@ -45,6 +45,7 @@ interface JobFormData {
   suburb: string;
   postcode: string;
   state: string;
+  council: string;
   job_type_id: string;
   job_status_id: string;
   job_stage_id: string;
@@ -136,6 +137,7 @@ export default function NewJobPage() {
     suburb: "",
     postcode: "",
     state: "",
+    council: "",
     job_type_id: "",
     job_status_id: "",
     job_stage_id: "",
@@ -317,13 +319,14 @@ export default function NewJobPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle suburb selection - auto-fills postcode and state
+  // Handle suburb selection - auto-fills postcode, state, and council
   const handleSuburbSelect = (suburb: SuburbSearchResult) => {
     setFormData(prev => ({
       ...prev,
       suburb: suburb.name,
       postcode: suburb.postcode,
       state: suburb.state,
+      council: suburb.council || "",
     }));
     setSuburbSearchQuery("");
     setShowSuburbDropdown(false);
@@ -381,6 +384,7 @@ export default function NewJobPage() {
           suburb: formData.suburb,
           postcode: formData.postcode,
           state: formData.state,
+          council: formData.council,
           description: formData.description,
           job_type_id: formData.job_type_id ? parseInt(formData.job_type_id) : null,
           job_status_id: formData.job_status_id ? parseInt(formData.job_status_id) : null,
@@ -642,6 +646,16 @@ export default function NewJobPage() {
                       maxLength={4}
                     />
                   </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="council">Council</Label>
+                  <Input
+                    id="council"
+                    value={formData.council}
+                    onChange={(e) => handleChange("council", e.target.value)}
+                    placeholder="Auto-filled from suburb selection"
+                  />
                 </div>
               </div>
 
