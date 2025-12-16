@@ -2330,6 +2330,218 @@ module Api
         nil
       end
 
+      # GET /api/v1/xero/unlinked_contacts
+      # Returns grouped unlinked Xero contacts with potential TEEEM contact matches
+      def unlinked_contacts
+        begin
+          # Get all unlinked invoices grouped by contact_name
+          unlinked = ExternalInvoice.where(contact_id: nil)
+            .where.not(contact_name: [ nil, "", "No Contact" ])
+            .group(:contact_name, :external_contact_id)
+            .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
+            .order("invoice_count DESC")
+
+          # Build response with potential matches for each
+          contacts_with_matches = unlinked.map do |record|
+            name = record.contact_name
+            potential_matches = find_potential_teeem_matches(name)
+
+            {
+              xero_contact_name: name,
+              xero_contact_id: record.external_contact_id,
+              invoice_count: record.invoice_count,
+              total_amount: record.total_amount&.to_f || 0,
+              potential_matches: potential_matches,
+              best_match: potential_matches.first
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              total_unlinked: contacts_with_matches.size,
+              total_invoices: contacts_with_matches.sum { |c| c[:invoice_count] },
+              contacts: contacts_with_matches
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero unlinked_contacts error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get unlinked contacts: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/link_unlinked_contact
+      # Links all invoices with a given Xero contact name to a TEEEM contact
+      # Can optionally create a new contact if create_new: true
+      def link_unlinked_contact
+        xero_contact_name = params[:xero_contact_name]
+        contact_id = params[:contact_id]
+        create_new = params[:create_new] == true || params[:create_new] == "true"
+
+        unless xero_contact_name.present?
+          return render json: { success: false, error: "xero_contact_name is required" }, status: :bad_request
+        end
+
+        unless contact_id.present? || create_new
+          return render json: { success: false, error: "contact_id or create_new is required" }, status: :bad_request
+        end
+
+        begin
+          ActiveRecord::Base.transaction do
+            # Find the TEEEM contact (or create new)
+            if create_new
+              # Create a new contact with the Xero contact name
+              @contact = Contact.create!(
+                display_name: xero_contact_name,
+                is_active: true
+              )
+            else
+              @contact = Contact.find(contact_id)
+            end
+
+            # Update all unlinked invoices with this contact name
+            updated_count = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+              .update_all(contact_id: @contact.id)
+
+            render json: {
+              success: true,
+              data: {
+                contact_id: @contact.id,
+                contact_name: @contact.display_name,
+                invoices_linked: updated_count,
+                created_new: create_new
+              }
+            }
+          end
+        rescue ActiveRecord::RecordNotFound
+          render json: { success: false, error: "Contact not found" }, status: :not_found
+        rescue StandardError => e
+          Rails.logger.error("Xero link_unlinked_contact error: #{e.message}")
+          render json: { success: false, error: "Failed to link contact: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/auto_match_contacts
+      # Automatically matches unlinked Xero contacts to TEEEM contacts by name
+      def auto_match_contacts
+        begin
+          matched_count = 0
+          skipped_count = 0
+          results = []
+
+          # Get all unique unlinked contact names
+          unlinked = ExternalInvoice.where(contact_id: nil)
+            .where.not(contact_name: [ nil, "", "No Contact" ])
+            .distinct
+            .pluck(:contact_name)
+
+          unlinked.each do |xero_name|
+            # Try to find exact match first
+            teeem_contact = Contact.find_by("LOWER(display_name) = ?", xero_name.downcase)
+
+            # Try company name match
+            teeem_contact ||= Contact.find_by("LOWER(company_name_or_trust) = ?", xero_name.downcase)
+
+            if teeem_contact
+              # Link all invoices with this name
+              count = ExternalInvoice.where(contact_id: nil, contact_name: xero_name)
+                .update_all(contact_id: teeem_contact.id)
+
+              matched_count += 1
+              results << {
+                xero_name: xero_name,
+                matched_to: teeem_contact.display_name,
+                contact_id: teeem_contact.id,
+                invoices_linked: count
+              }
+            else
+              skipped_count += 1
+            end
+          end
+
+          render json: {
+            success: true,
+            data: {
+              matched_count: matched_count,
+              skipped_count: skipped_count,
+              results: results
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero auto_match_contacts error: #{e.message}")
+          render json: { success: false, error: "Failed to auto-match: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      private
+
+      # Find potential TEEEM contact matches for a Xero contact name
+      def find_potential_teeem_matches(xero_name)
+        return [] unless xero_name.present?
+
+        matches = []
+        name_lower = xero_name.downcase
+
+        # Priority 1: Exact display_name match
+        exact = Contact.where("LOWER(display_name) = ?", name_lower).first
+        if exact
+          matches << { id: exact.id, name: exact.display_name, match_type: "exact", score: 100 }
+        end
+
+        # Priority 2: Exact company_name_or_trust match
+        company_exact = Contact.where("LOWER(company_name_or_trust) = ?", name_lower).first
+        if company_exact && company_exact.id != exact&.id
+          matches << { id: company_exact.id, name: company_exact.display_name, match_type: "company_exact", score: 95 }
+        end
+
+        # Priority 3: Partial name match (contains)
+        partial = Contact.where("LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?", "%#{name_lower}%", "%#{name_lower}%")
+          .where.not(id: matches.map { |m| m[:id] })
+          .limit(5)
+
+        partial.each do |p|
+          score = calculate_name_similarity(name_lower, p.display_name&.downcase || "")
+          matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
+        end
+
+        # Priority 4: Word-based matching (split name into words, match any)
+        words = name_lower.split(/\s+/).reject { |w| w.length < 3 }
+        if words.any? && matches.size < 5
+          word_conditions = words.map { |w| "LOWER(display_name) LIKE '%#{ActiveRecord::Base.connection.quote_string(w)}%'" }.join(" OR ")
+          word_matches = Contact.where(word_conditions)
+            .where.not(id: matches.map { |m| m[:id] })
+            .limit(5 - matches.size)
+
+          word_matches.each do |w|
+            score = calculate_name_similarity(name_lower, w.display_name&.downcase || "")
+            matches << { id: w.id, name: w.display_name, match_type: "word", score: score }
+          end
+        end
+
+        # Sort by score descending and return top 5
+        matches.sort_by { |m| -m[:score] }.first(5)
+      end
+
+      # Calculate simple similarity score between two names
+      def calculate_name_similarity(name1, name2)
+        return 0 if name1.blank? || name2.blank?
+
+        # Levenshtein-like scoring
+        words1 = name1.split(/\s+/)
+        words2 = name2.split(/\s+/)
+
+        common_words = words1 & words2
+        total_words = (words1 + words2).uniq.size
+
+        return 0 if total_words == 0
+
+        ((common_words.size.to_f / total_words) * 100).round
+      end
+
       # Verify Xero webhook signature using HMAC-SHA256
       def verify_xero_webhook_signature
         webhook_key = ENV["XERO_WEBHOOK_KEY"]

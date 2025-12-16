@@ -56,7 +56,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
-import { XeroInvoiceDetailModal } from "@/components/contacts/XeroInvoiceDetailModal";
+// XeroInvoiceDetailModal removed - now navigating to /finance/invoices/[id] page
 import { XeroInvoicesListByTenant } from "@/components/contacts/XeroInvoicesListByTenant";
 import { PendingXeroReviewPanel } from "@/components/contacts/PendingXeroReviewPanel";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -571,8 +571,6 @@ export default function ContactDetailPage() {
   const [loadingOwnershipChain, setLoadingOwnershipChain] = useState(false);
   const [caseRelationships, setCaseRelationships] = useState<CaseRelationship[]>([]);
   const [loadingCaseRelationships, setLoadingCaseRelationships] = useState(false);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
-  const [showInvoiceDetail, setShowInvoiceDetail] = useState(false);
 
   // Email warehouse state
   const [emails, setEmails] = useState<EmailMessage[]>([]);
@@ -1071,8 +1069,8 @@ export default function ContactDetailPage() {
   };
 
   const handleViewInvoiceDetail = (invoiceId: string) => {
-    setSelectedInvoiceId(invoiceId);
-    setShowInvoiceDetail(true);
+    // Navigate to full invoice detail page instead of modal
+    router.push(`/finance/invoices/${invoiceId}`);
   };
 
   const handleEnrichFromWeb = async () => {
@@ -2380,8 +2378,6 @@ export default function ContactDetailPage() {
             activeFinancialSubTab={activeFinancialSubTab}
             handleFinancialSubTabChange={handleFinancialSubTabChange}
             setContact={setContact}
-            setSelectedInvoiceId={setSelectedInvoiceId}
-            setShowInvoiceDetail={setShowInvoiceDetail}
             handleViewInvoiceDetail={handleViewInvoiceDetail}
           />
         </TabsContent>
@@ -2466,16 +2462,6 @@ export default function ContactDetailPage() {
             loadingDirectorships={loadingDirectorships}
           />
         </TabsContent>
-
-        {/* Xero Invoice Detail Modal */}
-        <XeroInvoiceDetailModal
-          isOpen={showInvoiceDetail}
-          onClose={() => {
-            setShowInvoiceDetail(false);
-            setSelectedInvoiceId(null);
-          }}
-          invoiceId={selectedInvoiceId}
-        />
 
       </Tabs>
 

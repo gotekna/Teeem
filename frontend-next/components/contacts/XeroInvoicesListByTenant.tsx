@@ -1,20 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { FileText, Loader2, Eye, RefreshCw } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
+import { useRouter } from "next/navigation";
 
 // Warehouse invoice type (from external_invoices table)
 interface ExternalInvoice {
@@ -85,6 +80,7 @@ export function XeroInvoicesListByTenant({
   type,
   onViewInvoiceDetail,
 }: XeroInvoicesListByTenantProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [byTenant, setByTenant] = useState<Record<string, TenantInvoicesData>>({});
@@ -134,21 +130,6 @@ export function XeroInvoicesListByTenant({
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = "AUD") => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   const formatRelativeTime = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -166,103 +147,62 @@ export function XeroInvoicesListByTenant({
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const normalizedStatus = status?.toUpperCase();
-    const statusColors: Record<string, string> = {
-      PAID: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-      AUTHORISED: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-      APPROVED: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
-      DRAFT: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-      SUBMITTED: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300",
-      DELETED: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-      VOIDED: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-    };
-
-    return (
-      <Badge className={statusColors[normalizedStatus] || "bg-gray-100 text-gray-700"}>
-        {normalizedStatus}
-      </Badge>
-    );
+  // Get tenant name lookup for "All" view
+  const getTenantName = (tenantId: string | undefined): string => {
+    if (!tenantId) return "Unknown";
+    const data = byTenant[tenantId];
+    return data?.tenant_info?.tenant_name || "Unknown";
   };
 
-  const renderInvoiceTable = (invoices: ExternalInvoice[]) => {
-    if (invoices.length === 0) {
-      return (
-        <div className="text-center py-12 text-muted-foreground">
-          <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
-          <p>No {title.toLowerCase()} found</p>
-        </div>
-      );
+  // Define columns for TeeemTableView
+  // Note: Columns are defined explicitly since external_invoices come from Xero (no Foundation table)
+  const getColumns = (showTenantColumn: boolean): TableColumn[] => {
+    const cols: TableColumn[] = [
+      { key: "invoice_number", label: "Number", width: 100, sortable: true },
+    ];
+
+    if (showTenantColumn) {
+      cols.push({ key: "tenant_name", label: "Company", width: 150, sortable: true });
     }
 
-    return (
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Number</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead>Job</TableHead>
-              <TableHead>Reference</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">
-                {isInvoice ? "Amount Due" : "Amount Owing"}
-              </TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invoices.map((invoice) => (
-              <TableRow key={invoice.id}>
-                <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
-                <TableCell>{invoice.due_date ? formatDate(invoice.due_date) : "-"}</TableCell>
-                <TableCell className="text-sm">
-                  {invoice.job_title ? (
-                    <span className="text-blue-600">{invoice.job_title}</span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-sm">
-                  {invoice.reference ? (
-                    <span className="font-mono text-xs">{invoice.reference}</span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>{getStatusBadge(invoice.status)}</TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(invoice.total, invoice.currency_code)}
-                </TableCell>
-                <TableCell className="text-right">
-                  {invoice.amount_due > 0 ? (
-                    <span className="text-red-600 font-medium">
-                      {formatCurrency(invoice.amount_due, invoice.currency_code)}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {onViewInvoiceDetail && invoice.external_id && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onViewInvoiceDetail(invoice.external_id)}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+    cols.push(
+      { key: "invoice_date", label: "Date", width: 110, sortable: true, column_type: "date" },
+      { key: "due_date", label: "Due Date", width: 110, sortable: true, column_type: "date" },
+      { key: "job_title", label: "Job", width: 250, sortable: true },
+      { key: "reference", label: "Reference", width: 100, sortable: true },
+      { key: "status", label: "Status", width: 100, sortable: true, column_type: "badge" },
+      { key: "total", label: "Total", width: 120, sortable: true, column_type: "currency", showSum: true, sumType: "currency" },
+      { key: "amount_due", label: isInvoice ? "Amount Due" : "Amount Owing", width: 130, sortable: true, column_type: "currency", showSum: true, sumType: "currency" }
     );
+
+    return cols;
+  };
+
+  // Transform invoice data to table rows
+  const transformToRows = (invoices: ExternalInvoice[], includeTenant: boolean): TableRow[] => {
+    return invoices.map((invoice) => ({
+      id: invoice.id,
+      external_id: invoice.external_id,
+      invoice_number: invoice.invoice_number,
+      tenant_name: includeTenant ? getTenantName(invoice.tenant_id) : undefined,
+      invoice_date: invoice.invoice_date,
+      due_date: invoice.due_date,
+      job_title: invoice.job_title,
+      job_id: invoice.job_id,
+      reference: invoice.reference,
+      status: invoice.status?.toUpperCase(),
+      total: invoice.total,
+      amount_due: invoice.amount_due,
+      currency_code: invoice.currency_code,
+    }));
+  };
+
+  // Handle row click - navigate to invoice detail page
+  const handleRowClick = (row: TableRow) => {
+    if (row.external_id) {
+      // Navigate to the full-page invoice detail view
+      router.push(`/finance/invoices/${row.external_id}`);
+    }
   };
 
   if (loading) {
@@ -295,55 +235,85 @@ export function XeroInvoicesListByTenant({
     );
   }
 
+  // Sync status header
+  const SyncHeader = () => (
+    <div className="flex items-center justify-between text-sm text-muted-foreground px-1 mb-4">
+      <span>
+        Last synced: {lastSyncedAt ? formatRelativeTime(lastSyncedAt) : "Never"}
+        {cacheAgeSeconds && cacheAgeSeconds > 86400 && (
+          <span className="text-yellow-600 dark:text-yellow-400 ml-2">
+            (Data may be outdated)
+          </span>
+        )}
+      </span>
+      <Button variant="ghost" size="sm" onClick={loadInvoices} disabled={loading}>
+        <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+        Refresh
+      </Button>
+    </div>
+  );
+
   // Single tenant - no tabs needed
   if (tenantIds.length === 1) {
     const data = byTenant[tenantIds[0]];
     const items = isInvoice ? data.invoices : data.bills;
+    const rows = transformToRows(items, false);
+    const columns = getColumns(false);
+
     return (
       <div className="space-y-4">
-        {lastSyncedAt && (
-          <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-            <span>
-              Last synced: {formatRelativeTime(lastSyncedAt)}
-              {cacheAgeSeconds && cacheAgeSeconds > 86400 && (
-                <span className="text-yellow-600 dark:text-yellow-400 ml-2">
-                  (Data may be outdated)
-                </span>
-              )}
-            </span>
-            <Button variant="ghost" size="sm" onClick={loadInvoices} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+        <SyncHeader />
+        {rows.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
+            <p>No {title.toLowerCase()} found</p>
+          </div>
+        ) : (
+          <div className="-mx-4">
+            <TeeemTableView
+              entries={rows}
+              columns={columns}
+              tableName={title}
+              onRowClick={handleRowClick}
+              viewOnly={true}
+              enableExport={true}
+            />
           </div>
         )}
-        {renderInvoiceTable(items)}
       </div>
     );
   }
 
-  // Multiple tenants - show tabs
+  // Multiple tenants - show tabs with "All" option
+  // Combine all items for the "All" tab
+  const allItems = useMemo(() => {
+    return tenantIds.flatMap((tenantId) => {
+      const data = byTenant[tenantId];
+      const items = isInvoice ? data.invoices : data.bills;
+      // Ensure tenant_id is set on each item for display
+      return items.map((item) => ({ ...item, tenant_id: tenantId }));
+    });
+  }, [byTenant, tenantIds, isInvoice]);
+
+  const totalAllCount = tenantIds.reduce((sum, tenantId) => {
+    const data = byTenant[tenantId];
+    return sum + (isInvoice ? data.total_invoices : data.total_bills);
+  }, 0);
+
   return (
     <div className="space-y-4">
-      {lastSyncedAt && (
-        <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
-          <span>
-            Last synced: {formatRelativeTime(lastSyncedAt)}
-            {cacheAgeSeconds && cacheAgeSeconds > 86400 && (
-              <span className="text-yellow-600 dark:text-yellow-400 ml-2">
-                (Data may be outdated)
-              </span>
-            )}
-          </span>
-          <Button variant="ghost" size="sm" onClick={loadInvoices} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </div>
-      )}
+      <SyncHeader />
 
-      <Tabs value={activeTenant || tenantIds[0]} onValueChange={setActiveTenant}>
+      <Tabs value={activeTenant || "all"} onValueChange={setActiveTenant}>
         <TabsList className="mb-4">
+          {/* "All" tab first */}
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            All
+            <Badge variant="secondary" className="ml-1">
+              {totalAllCount}
+            </Badge>
+          </TabsTrigger>
+          {/* Individual tenant tabs */}
           {tenantIds.map((tenantId) => {
             const data = byTenant[tenantId];
             const count = isInvoice ? data.total_invoices : data.total_bills;
@@ -358,12 +328,51 @@ export function XeroInvoicesListByTenant({
           })}
         </TabsList>
 
+        {/* "All" tab content - shows Company column */}
+        <TabsContent value="all">
+          {allItems.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
+              <p>No {title.toLowerCase()} found</p>
+            </div>
+          ) : (
+            <div className="-mx-4">
+              <TeeemTableView
+                entries={transformToRows(allItems, true)}
+                columns={getColumns(true)}
+                tableName={title}
+                onRowClick={handleRowClick}
+                viewOnly={true}
+                enableExport={true}
+              />
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Individual tenant tab contents */}
         {tenantIds.map((tenantId) => {
           const data = byTenant[tenantId];
           const items = isInvoice ? data.invoices : data.bills;
+          const rows = transformToRows(items, false);
           return (
             <TabsContent key={tenantId} value={tenantId}>
-              {renderInvoiceTable(items)}
+              {rows.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                  <p>No {title.toLowerCase()} found</p>
+                </div>
+              ) : (
+                <div className="-mx-4">
+                  <TeeemTableView
+                    entries={rows}
+                    columns={getColumns(false)}
+                    tableName={title}
+                    onRowClick={handleRowClick}
+                    viewOnly={true}
+                    enableExport={true}
+                  />
+                </div>
+              )}
             </TabsContent>
           );
         })}

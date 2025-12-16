@@ -43,6 +43,9 @@ class InvoiceParsingService
     # Try to detect Bill To company from ABN
     detect_company!
 
+    # Compare extracted supplier data with stored contact for enrichment
+    compare_contact_data!
+
     Rails.logger.info "[InvoiceParsing] Completed extraction for BillInbox ##{@bill.id}"
     ai_result
   rescue StandardError => e
@@ -235,6 +238,14 @@ class InvoiceParsingService
       {
         "supplier_name": "company name issuing the invoice",
         "supplier_abn": "11 digit ABN without spaces if present, null otherwise",
+        "supplier_acn": "9 digit ACN without spaces if present, null otherwise",
+        "supplier_address": "full street address of supplier if present, null otherwise",
+        "supplier_city": "city/suburb of supplier if present, null otherwise",
+        "supplier_state": "state (e.g., QLD, NSW) of supplier if present, null otherwise",
+        "supplier_postcode": "postcode of supplier if present, null otherwise",
+        "supplier_website": "website URL of supplier if present, null otherwise",
+        "supplier_phone": "phone number of supplier if present, null otherwise",
+        "supplier_email": "email address of supplier if present, null otherwise",
         "billing_company_name": "company name being billed (look for 'Bill To', 'Attention', address block)",
         "billing_company_abn": "ABN of company being billed if present, null otherwise",
         "invoice_number": "invoice/reference number",
@@ -447,5 +458,81 @@ class InvoiceParsingService
     Date.parse(date_str)
   rescue ArgumentError
     nil
+  end
+
+  # Compare extracted supplier data with stored contact for enrichment opportunities
+  def compare_contact_data!
+    return unless @bill.supplier_id.present?
+
+    contact = @bill.supplier
+    return unless contact
+
+    ai_result = @bill.ai_extraction_result || {}
+    comparison = { fields: {}, has_updates: false, compared_at: Time.current.iso8601 }
+
+    # Define fields to compare: [extracted_key, contact_method, display_name]
+    field_mappings = [
+      ["supplier_name", :display_name, "Name"],
+      ["supplier_abn", :abn, "ABN"],
+      ["supplier_acn", :company_number, "ACN"],
+      ["supplier_address", :address, "Address"],
+      ["supplier_city", :city, "City"],
+      ["supplier_state", :state, "State"],
+      ["supplier_postcode", :postcode, "Postcode"],
+      ["supplier_website", :website, "Website"],
+      ["supplier_phone", :office_phone, "Office Phone"],
+      ["supplier_email", :email, "Office Email"]
+    ]
+
+    field_mappings.each do |extracted_key, contact_method, display_name|
+      extracted_value = normalize_value(ai_result[extracted_key])
+      stored_value = normalize_value(contact.send(contact_method))
+
+      # Skip if extracted value is blank
+      next if extracted_value.blank?
+
+      field_comparison = {
+        extracted: extracted_value,
+        stored: stored_value,
+        display_name: display_name,
+        status: determine_status(extracted_value, stored_value)
+      }
+
+      # Mark if there's an update opportunity
+      if field_comparison[:status] == "add" || field_comparison[:status] == "different"
+        comparison[:has_updates] = true
+      end
+
+      comparison[:fields][extracted_key] = field_comparison
+    end
+
+    @bill.update!(contact_comparison_data: comparison)
+    Rails.logger.info "[InvoiceParsing] Contact comparison completed for BillInbox ##{@bill.id}. Has updates: #{comparison[:has_updates]}"
+  rescue StandardError => e
+    Rails.logger.error "[InvoiceParsing] Contact comparison failed for BillInbox ##{@bill.id}: #{e.message}"
+    # Don't fail the whole extraction if comparison fails
+  end
+
+  def normalize_value(value)
+    return nil if value.blank?
+
+    value.to_s.strip.gsub(/\s+/, " ")
+  end
+
+  def determine_status(extracted, stored)
+    return "add" if stored.blank? && extracted.present?
+    return "match" if values_match?(extracted, stored)
+
+    "different"
+  end
+
+  def values_match?(val1, val2)
+    return true if val1 == val2
+
+    # Normalize for comparison (remove spaces, lowercase)
+    norm1 = val1.to_s.downcase.gsub(/[\s\-]/, "")
+    norm2 = val2.to_s.downcase.gsub(/[\s\-]/, "")
+
+    norm1 == norm2
   end
 end

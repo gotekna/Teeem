@@ -45,6 +45,10 @@ class BpmnProcess < ApplicationRecord
     update!(is_published: false, published_at: nil)
   end
 
+  def published?
+    is_published
+  end
+
   def duplicate(new_name: nil)
     new_process = dup
     new_process.name = new_name || "#{name} (Copy)"

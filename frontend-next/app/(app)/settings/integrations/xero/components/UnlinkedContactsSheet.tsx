@@ -1,0 +1,390 @@
+"use client";
+
+import * as React from "react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertTriangle,
+  Check,
+  ChevronRight,
+  FileText,
+  Link2,
+  Loader2,
+  Plus,
+  Search,
+  Sparkles,
+  User,
+  X,
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
+
+interface PotentialMatch {
+  id: number;
+  name: string;
+  match_type: "exact" | "company_exact" | "partial" | "word";
+  score: number;
+}
+
+interface UnlinkedContact {
+  xero_contact_name: string;
+  xero_contact_id: string;
+  invoice_count: number;
+  total_amount: number;
+  potential_matches: PotentialMatch[];
+  best_match: PotentialMatch | null;
+}
+
+interface UnlinkedContactsData {
+  total_unlinked: number;
+  total_invoices: number;
+  contacts: UnlinkedContact[];
+}
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onLinked?: () => void;
+}
+
+export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
+  const [loading, setLoading] = React.useState(true);
+  const [data, setData] = React.useState<UnlinkedContactsData | null>(null);
+  const [search, setSearch] = React.useState("");
+  const [linking, setLinking] = React.useState<string | null>(null);
+  const [autoMatching, setAutoMatching] = React.useState(false);
+  const [expandedContact, setExpandedContact] = React.useState<string | null>(null);
+
+  const fetchData = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; data: UnlinkedContactsData }>(
+        "/api/v1/xero/unlinked_contacts"
+      );
+      if (response.success) {
+        setData(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch unlinked contacts:", error);
+      toast.error("Failed to load unlinked contacts");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      fetchData();
+    }
+  }, [isOpen, fetchData]);
+
+  const handleLink = async (xeroContactName: string, contactId: number) => {
+    setLinking(xeroContactName);
+    try {
+      const response = await api.post<{ success: boolean; data: { invoices_linked: number } }>(
+        "/api/v1/xero/link_unlinked_contact",
+        { xero_contact_name: xeroContactName, contact_id: contactId }
+      );
+      if (response?.success) {
+        toast.success(`Linked ${response.data.invoices_linked} invoices`);
+        fetchData();
+        onLinked?.();
+      }
+    } catch (error) {
+      console.error("Failed to link contact:", error);
+      toast.error("Failed to link contact");
+    } finally {
+      setLinking(null);
+    }
+  };
+
+  const handleCreateNew = async (xeroContactName: string) => {
+    setLinking(xeroContactName);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { contact_id: number; invoices_linked: number };
+      }>("/api/v1/xero/link_unlinked_contact", {
+        xero_contact_name: xeroContactName,
+        create_new: true,
+      });
+      if (response?.success) {
+        toast.success(
+          `Created new contact and linked ${response.data.invoices_linked} invoices`
+        );
+        fetchData();
+        onLinked?.();
+      }
+    } catch (error) {
+      console.error("Failed to create contact:", error);
+      toast.error("Failed to create contact");
+    } finally {
+      setLinking(null);
+    }
+  };
+
+  const handleAutoMatch = async () => {
+    setAutoMatching(true);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { matched_count: number; skipped_count: number };
+      }>("/api/v1/xero/auto_match_contacts");
+      if (response?.success) {
+        const { matched_count } = response.data;
+        if (matched_count > 0) {
+          toast.success(`Auto-matched ${matched_count} contacts`);
+          fetchData();
+          onLinked?.();
+        } else {
+          toast.info("No exact matches found");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to auto-match:", error);
+      toast.error("Failed to auto-match contacts");
+    } finally {
+      setAutoMatching(false);
+    }
+  };
+
+  const filteredContacts = React.useMemo(() => {
+    if (!data?.contacts) return [];
+    if (!search.trim()) return data.contacts;
+    const searchLower = search.toLowerCase();
+    return data.contacts.filter(
+      (c) =>
+        c.xero_contact_name.toLowerCase().includes(searchLower) ||
+        c.potential_matches.some((m) => m.name.toLowerCase().includes(searchLower))
+    );
+  }, [data?.contacts, search]);
+
+  const getMatchBadge = (matchType: string, score: number) => {
+    if (matchType === "exact" || score === 100) {
+      return (
+        <Badge className="bg-green-100 text-green-800 text-xs">
+          <Check className="h-3 w-3 mr-1" />
+          Exact
+        </Badge>
+      );
+    }
+    if (matchType === "company_exact" || score >= 90) {
+      return (
+        <Badge className="bg-blue-100 text-blue-800 text-xs">Company Match</Badge>
+      );
+    }
+    if (score >= 50) {
+      return (
+        <Badge className="bg-amber-100 text-amber-800 text-xs">Partial</Badge>
+      );
+    }
+    return <Badge variant="secondary" className="text-xs">Possible</Badge>;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-AU", {
+      style: "currency",
+      currency: "AUD",
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  return (
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="w-[600px] sm:max-w-[600px] p-0">
+        <SheetHeader className="p-6 pb-4 border-b">
+          <SheetTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            Unlinked Xero Contacts
+          </SheetTitle>
+          <SheetDescription>
+            {data ? (
+              <>
+                {data.total_unlinked} Xero contacts with {data.total_invoices} invoices
+                need to be linked to TEEEM contacts
+              </>
+            ) : (
+              "Loading..."
+            )}
+          </SheetDescription>
+        </SheetHeader>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <div className="flex flex-col h-[calc(100vh-140px)]">
+            {/* Actions Bar */}
+            <div className="p-4 border-b space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search contacts..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button
+                  onClick={handleAutoMatch}
+                  disabled={autoMatching}
+                  className="shrink-0"
+                >
+                  {autoMatching ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4 mr-2" />
+                  )}
+                  Auto-Match
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Auto-Match will link contacts with exact name matches automatically.
+              </p>
+            </div>
+
+            {/* Contacts List */}
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-2">
+                {filteredContacts.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    {search ? "No contacts match your search" : "All contacts are linked!"}
+                  </div>
+                ) : (
+                  filteredContacts.map((contact) => (
+                    <div
+                      key={contact.xero_contact_name}
+                      className="border rounded-lg overflow-hidden"
+                    >
+                      {/* Contact Header */}
+                      <button
+                        onClick={() =>
+                          setExpandedContact(
+                            expandedContact === contact.xero_contact_name
+                              ? null
+                              : contact.xero_contact_name
+                          )
+                        }
+                        className="w-full p-3 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-amber-100 rounded">
+                            <User className="h-4 w-4 text-amber-600" />
+                          </div>
+                          <div className="text-left">
+                            <div className="font-medium">{contact.xero_contact_name}</div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <FileText className="h-3 w-3" />
+                              <span>{contact.invoice_count} invoices</span>
+                              <span className="text-muted-foreground/50">|</span>
+                              <span>{formatCurrency(contact.total_amount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {contact.best_match && (
+                            <Badge
+                              className={`text-xs ${
+                                contact.best_match.score === 100
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-blue-100 text-blue-800"
+                              }`}
+                            >
+                              {contact.potential_matches.length} match
+                              {contact.potential_matches.length !== 1 ? "es" : ""}
+                            </Badge>
+                          )}
+                          <ChevronRight
+                            className={`h-4 w-4 text-muted-foreground transition-transform ${
+                              expandedContact === contact.xero_contact_name
+                                ? "rotate-90"
+                                : ""
+                            }`}
+                          />
+                        </div>
+                      </button>
+
+                      {/* Expanded Content */}
+                      {expandedContact === contact.xero_contact_name && (
+                        <div className="border-t bg-muted/30 p-3 space-y-2">
+                          {contact.potential_matches.length > 0 ? (
+                            <>
+                              <div className="text-xs font-medium text-muted-foreground mb-2">
+                                Potential TEEEM Matches:
+                              </div>
+                              {contact.potential_matches.map((match) => (
+                                <div
+                                  key={match.id}
+                                  className="flex items-center justify-between p-2 bg-background rounded-lg border"
+                                >
+                                  <div className="flex items-center gap-2">
+                                    {getMatchBadge(match.match_type, match.score)}
+                                    <span className="font-medium">{match.name}</span>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    onClick={() =>
+                                      handleLink(contact.xero_contact_name, match.id)
+                                    }
+                                    disabled={linking === contact.xero_contact_name}
+                                  >
+                                    {linking === contact.xero_contact_name ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Link2 className="h-3 w-3 mr-1" />
+                                        Link
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
+                            </>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">
+                              No potential matches found in TEEEM.
+                            </div>
+                          )}
+
+                          {/* Create New Button */}
+                          <div className="pt-2 border-t mt-3">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => handleCreateNew(contact.xero_contact_name)}
+                              disabled={linking === contact.xero_contact_name}
+                            >
+                              {linking === contact.xero_contact_name ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              ) : (
+                                <Plus className="h-3 w-3 mr-1" />
+                              )}
+                              Create New Contact
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}

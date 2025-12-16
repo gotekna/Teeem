@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer, FieldHighlight } from "@/components/ui/pdf-viewer";
+import { ContactComparisonCard } from "@/components/invoice/ContactComparisonCard";
 import { CheckCircle2, XCircle as XCircle2, MapPin } from "lucide-react";
 
 // Normalize ABN for comparison (remove spaces, dashes, and non-digit characters)
@@ -232,6 +233,16 @@ interface BillDetail {
   "has_invoice_file?": boolean;
   invoice_file_content_type: string | null;
   invoice_file_filename: string | null;
+  contact_comparison_data: {
+    fields: Record<string, {
+      extracted: string | null;
+      stored: string | null;
+      display_name: string;
+      status: "match" | "different" | "add";
+    }>;
+    has_updates: boolean;
+    compared_at: string;
+  } | null;
 }
 
 const statusColors: Record<string, string> = {
@@ -1035,6 +1046,19 @@ export default function BillDetailPage() {
               <p className="whitespace-pre-wrap">{bill.notes}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Contact Enrichment Card - show when there's comparison data */}
+      {bill.supplier && bill.contact_comparison_data && (
+        <div className="shrink-0">
+          <ContactComparisonCard
+            supplierId={bill.supplier.id}
+            supplierName={bill.supplier.display_name}
+            contactComparisonData={bill.contact_comparison_data}
+            billId={bill.id}
+            onContactUpdated={loadBill}
+          />
         </div>
       )}
 
