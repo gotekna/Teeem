@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useRef, useCallback, useEffect, useState, memo } from "react";
-import { Search, X, Loader2, ChevronDown } from "lucide-react";
+import { Search, X, Loader2, MoreHorizontal, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -20,15 +20,14 @@ interface SearchModeConfig {
   label: string;
   icon: string;
   description: string;
-  shortcut?: string;
 }
 
 const SEARCH_MODES: SearchModeConfig[] = [
-  { id: "contains", label: "Contains", icon: "∋", description: "Search anywhere in text", shortcut: "Default" },
-  { id: "exact", label: "Exact", icon: "=", description: "Match exact text only" },
-  { id: "starts_with", label: "Starts With", icon: "^", description: "Match beginning of text" },
-  { id: "fuzzy", label: "Fuzzy", icon: "≈", description: "Typo-tolerant search" },
-  { id: "regex", label: "Regex", icon: ".*", description: "Regular expression" },
+  { id: "contains", label: "Contains", icon: "∋", description: "Match anywhere in text" },
+  { id: "exact", label: "Exact Match", icon: "=", description: "Match the exact text only" },
+  { id: "starts_with", label: "Starts With", icon: "^", description: "Match text at the start" },
+  { id: "fuzzy", label: "Fuzzy Search", icon: "≈", description: "Tolerates typos (e.g., 'acount' → 'account')" },
+  { id: "regex", label: "Regex", icon: ".*", description: "Use regular expressions" },
 ];
 
 interface SearchInputProps {
@@ -154,61 +153,67 @@ export const SearchInput = memo(function SearchInput({
         )}
       </div>
 
-      {/* Search Mode Selector */}
+      {/* Search Options Menu - "..." button */}
       {showModeSelector && hasServerSearch && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className="h-9 px-2 gap-1 min-w-[100px] justify-between"
+              className="h-9 w-9 p-0"
+              title="Search options"
             >
-              <span className="flex items-center gap-1.5">
-                <span className="font-mono text-xs opacity-70">{currentMode.icon}</span>
-                <span className="text-xs">{currentMode.label}</span>
-              </span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
+              <MoreHorizontal className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
+          <DropdownMenuContent align="end" className="w-64">
+            {/* Search All Columns Toggle */}
+            <DropdownMenuItem
+              onClick={(e) => {
+                e.preventDefault();
+                onSearchAllChange(!searchAllColumns);
+              }}
+              className="flex items-center justify-between py-2 cursor-pointer"
+            >
+              <div className="flex-1">
+                <div className="font-medium text-sm">Search all columns</div>
+                <div className="text-xs text-muted-foreground">
+                  {searchAllColumns
+                    ? "Searching all columns including hidden"
+                    : "Only searching key columns (name, ID, etc.)"}
+                </div>
+              </div>
+              {searchAllColumns && <Check className="h-4 w-4 text-primary" />}
+            </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            {/* Search Mode Label */}
+            <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+              Match Type
+            </div>
+
+            {/* Search Modes */}
             {SEARCH_MODES.map((mode) => (
               <DropdownMenuItem
                 key={mode.id}
                 onClick={() => handleModeChange(mode.id)}
-                className={`flex items-start gap-3 py-2 cursor-pointer ${
-                  localMode === mode.id ? "bg-accent" : ""
-                }`}
+                className="flex items-center gap-3 py-2 cursor-pointer"
               >
-                <span className="font-mono text-sm w-5 text-center opacity-70 mt-0.5">
+                <span className="font-mono text-sm w-5 text-center opacity-70">
                   {mode.icon}
                 </span>
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{mode.label}</span>
-                    {mode.shortcut && (
-                      <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                        {mode.shortcut}
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-xs text-muted-foreground">
+                  <div className="font-medium text-sm">{mode.label}</div>
+                  <div className="text-xs text-muted-foreground">
                     {mode.description}
-                  </span>
+                  </div>
                 </div>
+                {localMode === mode.id && <Check className="h-4 w-4 text-primary" />}
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      )}
-
-      {hasServerSearch && (
-        <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted-foreground">
-          <Checkbox
-            checked={searchAllColumns}
-            onCheckedChange={(checked) => onSearchAllChange(checked === true)}
-          />
-          <span className="whitespace-nowrap">Search all columns</span>
-        </label>
       )}
     </div>
   );

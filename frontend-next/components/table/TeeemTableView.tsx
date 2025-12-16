@@ -2631,12 +2631,15 @@ export default function TeeemTableView({
       result = result.filter((entry) => !pendingDeleteIds.has(entry.id as string | number));
     }
 
-    // Apply search filter (client-side if no server search)
-    // Uses fuzzy matching to handle typos like "coasal" -> "coastal"
-    if (search && !onServerSearch) {
+    // Apply search filter (client-side)
+    // Always filter client-side when there's a search term - this ensures filtering works
+    // even when server search returns unfiltered results or for useAutoFetch mode
+    if (search) {
       result = result.filter((entry) => {
         return COLUMNS.some((col) => {
           if (col.key === "select" || col.key === "actions") return false;
+          // If not "search all columns", only search columns marked as searchable
+          if (!searchAllColumns && !searchableColumns[col.key]) return false;
           const value = entry[col.key];
           if (value == null) return false;
           // Use fuzzy match for typo tolerance
@@ -2748,6 +2751,8 @@ export default function TeeemTableView({
   }, [
     effectiveEntries,
     search,
+    searchAllColumns,
+    searchableColumns,
     onServerSearch,
     COLUMNS,
     cascadeFilters,
@@ -4458,8 +4463,8 @@ export default function TeeemTableView({
             onSearch={handleSearchFromInput}
             onSearchAllChange={handleSearchAllChange}
             searchAllColumns={searchAllColumns}
-            serverSearchLoading={serverSearchLoading}
-            hasServerSearch={!!onServerSearch}
+            serverSearchLoading={effectiveServerSearchLoading}
+            hasServerSearch={!!effectiveOnServerSearch}
             searchMode={propSearchMode}
             onSearchModeChange={onSearchModeChange}
           />
