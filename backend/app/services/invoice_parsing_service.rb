@@ -172,11 +172,20 @@ class InvoiceParsingService
       - Dates must be YYYY-MM-DD format
       - All amounts should be numbers, not strings
       - Return null for fields you cannot find, not empty strings
+      - confidence should reflect how certain you are about the extracted data
+
+      CRITICAL - billing_company_name extraction:
+      - This is the company/person the invoice is addressed TO (the recipient who must pay)
+      - Look for: address block near top of invoice, usually with street address, city, postcode
+      - For LAWYER/ACCOUNTANT invoices: The billing company is the address block ABOVE the case/matter description
+        Example: "W2G Assets Pty Ltd, 160 Alperton Road, BURBANK QLD 4156" is the billing company
+        The case description like "[W2G] Caspaney as liquidator..." is NOT the billing company
+      - Extract the company name only (e.g., "W2G Assets Pty Ltd"), not the full address
+
+      Other notes:
       - For lawyers/accountants: Look for "Less funds in Trust" or similar for trust_deduction
       - balance_due is the actual amount to pay (total_amount minus trust_deduction if applicable)
       - payment_reference is often near bank details or at top (file ref, matter ref, etc.)
-      - billing_company_name: Look carefully for who is being billed (may say "Bill To:", "Tax Invoice To:", etc.)
-      - confidence should reflect how certain you are about the extracted data
     PROMPT
   end
 
@@ -270,11 +279,20 @@ class InvoiceParsingService
       - height: box height as percentage of image height
       - page: page number (1-indexed)
 
-      Important notes:
+      CRITICAL - billing_company_name extraction:
+      - This is the company/person the invoice is addressed TO (the recipient who must pay)
+      - Look for: address block near top of invoice, usually with street address, city, postcode
+      - Common patterns: "To:", "Bill To:", "Tax Invoice To:", "Attention:", or just a company name above an address
+      - For LAWYER/ACCOUNTANT invoices: The billing company is the address block ABOVE the case/matter description
+        Example: "W2G Assets Pty Ltd, 160 Alperton Road, BURBANK QLD 4156" is the billing company
+        The case description like "[W2G] Caspaney as liquidator..." is NOT the billing company
+      - Extract the company name only (e.g., "W2G Assets Pty Ltd"), not the full address
+      - If you see "Pty Ltd", "Ltd", "Inc" - that's likely a company name
+
+      Other important notes:
       - For lawyers/accountants: Look for "Less funds in Trust" or similar for trust_deduction
       - balance_due is the actual amount to pay (total_amount minus trust_deduction if applicable)
       - payment_reference is often near bank details or at top (file ref, matter ref, etc.)
-      - billing_company_name: Look carefully for who is being billed (may say "Bill To:", "Tax Invoice To:", etc.)
       - Only include field_locations for fields you actually found in the document.
 
       Return ONLY the JSON, no explanations.
@@ -341,9 +359,9 @@ class InvoiceParsingService
     abn = clean_abn(@bill.supplier_abn_raw)
     return if abn.blank?
 
-    # Find contact by ABN
-    contact = Contact.find_by(tax_number: abn)
-    contact ||= Contact.where("REPLACE(tax_number, ' ', '') = ?", abn).first
+    # Find contact by ABN (column is 'abn' not 'tax_number')
+    contact = Contact.find_by(abn: abn)
+    contact ||= Contact.where("REPLACE(abn, ' ', '') = ?", abn).first
 
     if contact
       @bill.update!(supplier: contact)
@@ -362,18 +380,59 @@ class InvoiceParsingService
 
   def detect_company!
     result = @bill.ai_extraction_result
-    # Support both old and new field names for ABN
+    company = nil
+    match_strategy = nil
+
+    # Strategy 1: Match by ABN (most reliable)
     bill_to_abn = clean_abn(result["billing_company_abn"] || result["bill_to_abn"])
+    if bill_to_abn.present?
+      company = CorporateCompany.find_by(abn: bill_to_abn)
+      company ||= CorporateCompany.where("REPLACE(abn, ' ', '') = ?", bill_to_abn).first
+      match_strategy = "ABN" if company
+    end
 
-    return if bill_to_abn.blank?
+    # Strategy 2: Match by company name (if ABN match failed)
+    # Support both old and new field names
+    if company.nil?
+      billing_name = result["billing_company_name"] || result["bill_to_name"]
+      if billing_name.present?
+        # Normalize: remove "Pty Ltd", "Ltd", extra spaces
+        normalized_name = normalize_company_name(billing_name)
 
-    company = CorporateCompany.find_by(abn: bill_to_abn)
-    company ||= CorporateCompany.where("REPLACE(abn, ' ', '') = ?", bill_to_abn).first
+        # Try exact normalized match first
+        company = CorporateCompany.all.find do |c|
+          normalize_company_name(c.name) == normalized_name
+        end
+        match_strategy = "exact_name" if company
+
+        # Try partial match (first 2 significant words)
+        if company.nil?
+          name_prefix = normalized_name.split.first(2).join(" ")
+          if name_prefix.length >= 3
+            company = CorporateCompany.where("LOWER(name) LIKE ?", "#{name_prefix.downcase}%").first
+            match_strategy = "prefix_name" if company
+          end
+        end
+      end
+    end
 
     if company
       @bill.update!(detected_company: company, corporate_company: company)
-      Rails.logger.info "[InvoiceParsing] Detected bill-to company: #{company.name}"
+      Rails.logger.info "[InvoiceParsing] Detected bill-to company: #{company.name} (strategy: #{match_strategy})"
+    else
+      Rails.logger.info "[InvoiceParsing] Could not detect bill-to company. ABN: #{bill_to_abn.presence || 'none'}, Name: #{result['billing_company_name'].presence || 'none'}"
     end
+  end
+
+  def normalize_company_name(name)
+    return "" if name.blank?
+
+    name.to_s
+        .gsub(/\b(pty|ltd|limited|inc|incorporated|company|co|the)\b/i, "")
+        .gsub(/[^a-zA-Z0-9\s]/, "")
+        .squeeze(" ")
+        .strip
+        .downcase
   end
 
   def clean_abn(abn)

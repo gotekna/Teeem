@@ -93,48 +93,6 @@ export default function ScheduleTemplatesPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Templates</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 text-yellow-500" />
-              <span className="text-xs text-muted-foreground">Default</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 truncate">
-              {stats.defaultTemplate}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <ListTodo className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Total Tasks</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.totalTasks}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Times Used</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.timesUsed}</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* View Toggle */}
       <div className="flex items-center gap-2">
         <Button

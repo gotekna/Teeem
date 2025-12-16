@@ -77,46 +77,6 @@ export default function TaskTemplatesPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <ListTodo className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Templates</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Flag className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Milestones</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.milestones}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Layers className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Standard Tasks</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.standard}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Avg Duration</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.avgDuration} days</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Table */}
       <TeeemTableView
         entries={records}

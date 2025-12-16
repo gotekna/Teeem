@@ -1217,7 +1217,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_042904) do
 
   create_table "contacts", force: :cascade do |t|
     t.string "abn"
-    t.string "xero_id"
     t.string "email"
     t.string "office_phone"
     t.string "mobile_phone"
@@ -1239,7 +1238,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_042904) do
     t.integer "bill_due_day"
     t.string "bill_due_type"
     t.string "xero_contact_number"
-    t.string "xero_contact_status"
     t.string "xero_account_number"
     t.string "default_sales_account"
     t.decimal "default_discount", precision: 5, scale: 2
@@ -1249,7 +1247,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_042904) do
     t.string "company_name_or_trust"
     t.bigint "primary_company_id"
     t.string "entity_type"
-    t.boolean "xero_synced", default: false, null: false
     t.string "place_of_birth"
     t.string "birth_state"
     t.string "birth_country"
@@ -1258,7 +1255,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_042904) do
     t.boolean "is_potential_director", default: false
     t.bigint "company_group_id"
     t.integer "xero_invoice_count", default: 0
-    t.boolean "xero_disconnect", default: false
     t.boolean "link_to_cg", default: false
     t.integer "linked_company_id"
     t.string "city"
@@ -1284,6 +1280,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_042904) do
     t.string "acn", limit: 11
     t.boolean "acn_valid"
     t.datetime "acn_verified_at"
+    t.integer "xero_linked_count", default: 0
+    t.string "xero_tenant_names", default: [], array: true
+    t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"
@@ -1295,7 +1294,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_042904) do
     t.index ["primary_company_id"], name: "index_contacts_on_primary_company_id"
     t.index ["roles"], name: "index_contacts_on_roles", using: :gin
     t.index ["xero_contact_number"], name: "index_contacts_on_xero_contact_number"
-    t.index ["xero_contact_status"], name: "index_contacts_on_xero_contact_status"
     t.index ["xero_contact_types"], name: "index_contacts_on_xero_contact_types", using: :gin
   end
 

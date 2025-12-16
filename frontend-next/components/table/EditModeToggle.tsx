@@ -9,19 +9,16 @@
  * - Active: "Editing" with Done button
  * - Saving: Shows spinner for any pending saves
  * - Errors: Shows warning indicator if validation errors exist
+ *
+ * NOTE: Uses native HTML title attributes instead of Radix Tooltip to avoid
+ * compose-refs infinite loop issues during rapid re-renders (view switching).
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, memo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Pencil, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import {
   tableEditModeAtom,
   hasAnyValidationErrorsAtom,
@@ -39,7 +36,7 @@ export interface EditModeToggleProps {
   onEditModeChange?: (isEditing: boolean) => void;
 }
 
-export function EditModeToggle({
+export const EditModeToggle = memo(function EditModeToggle({
   className,
   show = true,
   onEditModeChange,
@@ -57,80 +54,71 @@ export function EditModeToggle({
 
   if (!show) return null;
 
+  // Get tooltip text based on state
+  const getTooltip = () => {
+    if (isEditMode) {
+      if (isSaving) return 'Saving changes...';
+      if (hasErrors) return 'Some cells have validation errors. Click to exit edit mode anyway.';
+      return 'Click to exit edit mode and save all changes (Esc)';
+    }
+    return 'Enter edit mode to modify cells directly';
+  };
+
   // Edit mode active - show "Done" button
   if (isEditMode) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={handleToggle}
-              disabled={isSaving}
-              className={cn(
-                'bg-green-600 hover:bg-green-700 text-white',
-                hasErrors && 'bg-amber-600 hover:bg-amber-700',
-                className
-              )}
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : hasErrors ? (
-                <>
-                  <AlertTriangle className="h-4 w-4 mr-2" />
-                  Done (with errors)
-                </>
-              ) : (
-                <>
-                  <Check className="h-4 w-4 mr-2" />
-                  Done Editing
-                </>
-              )}
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {isSaving
-              ? 'Saving changes...'
-              : hasErrors
-              ? 'Some cells have validation errors. Click to exit edit mode anyway.'
-              : 'Click to exit edit mode and save all changes (Esc)'}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Button
+        variant="default"
+        size="sm"
+        onClick={handleToggle}
+        disabled={isSaving}
+        title={getTooltip()}
+        className={cn(
+          'bg-green-600 hover:bg-green-700 text-white',
+          hasErrors && 'bg-amber-600 hover:bg-amber-700',
+          className
+        )}
+      >
+        {isSaving ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Saving...
+          </>
+        ) : hasErrors ? (
+          <>
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Done (with errors)
+          </>
+        ) : (
+          <>
+            <Check className="h-4 w-4 mr-2" />
+            Done Editing
+          </>
+        )}
+      </Button>
     );
   }
 
   // Edit mode inactive - show "Edit" button
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToggle}
-            className={className}
-          >
-            <Pencil className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          Enter edit mode to modify cells directly
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleToggle}
+      title={getTooltip()}
+      className={className}
+    >
+      <Pencil className="h-4 w-4 mr-2" />
+      Edit
+    </Button>
   );
-}
+});
 
 /**
  * Compact version of the toggle for tight spaces
+ * Uses native HTML title attributes to avoid compose-refs issues.
  */
-export function EditModeToggleCompact({
+export const EditModeToggleCompact = memo(function EditModeToggleCompact({
   className,
   show = true,
   onEditModeChange,
@@ -148,46 +136,42 @@ export function EditModeToggleCompact({
 
   if (!show) return null;
 
+  // Get tooltip text based on state
+  const getTooltip = () => {
+    if (isEditMode) {
+      if (isSaving) return 'Saving...';
+      if (hasErrors) return 'Exit edit mode (has errors)';
+      return 'Exit edit mode';
+    }
+    return 'Enter edit mode';
+  };
+
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={isEditMode ? 'default' : 'outline'}
-            size="icon"
-            onClick={handleToggle}
-            disabled={isSaving}
-            className={cn(
-              isEditMode && 'bg-green-600 hover:bg-green-700 text-white',
-              hasErrors && isEditMode && 'bg-amber-600 hover:bg-amber-700',
-              className
-            )}
-          >
-            {isSaving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isEditMode ? (
-              hasErrors ? (
-                <AlertTriangle className="h-4 w-4" />
-              ) : (
-                <Check className="h-4 w-4" />
-              )
-            ) : (
-              <Pencil className="h-4 w-4" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {isEditMode
-            ? isSaving
-              ? 'Saving...'
-              : hasErrors
-              ? 'Exit edit mode (has errors)'
-              : 'Exit edit mode'
-            : 'Enter edit mode'}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant={isEditMode ? 'default' : 'outline'}
+      size="icon"
+      onClick={handleToggle}
+      disabled={isSaving}
+      title={getTooltip()}
+      className={cn(
+        isEditMode && 'bg-green-600 hover:bg-green-700 text-white',
+        hasErrors && isEditMode && 'bg-amber-600 hover:bg-amber-700',
+        className
+      )}
+    >
+      {isSaving ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : isEditMode ? (
+        hasErrors ? (
+          <AlertTriangle className="h-4 w-4" />
+        ) : (
+          <Check className="h-4 w-4" />
+        )
+      ) : (
+        <Pencil className="h-4 w-4" />
+      )}
+    </Button>
   );
-}
+});
 
 export default EditModeToggle;

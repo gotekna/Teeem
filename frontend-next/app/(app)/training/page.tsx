@@ -131,55 +131,6 @@ export default function TrainingPage() {
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Total Modules</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.total_modules || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Completed</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.completed_modules || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Play className="h-4 w-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">In Progress</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.in_progress || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Hours Learned</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.total_hours || 0}h</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Award className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm text-muted-foreground">Certificates</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.certificates_earned || 0}</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Progress Overview */}
       <Card>
         <CardContent className="pt-6">

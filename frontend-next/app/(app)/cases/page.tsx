@@ -264,43 +264,6 @@ export default function CasesPage() {
 
         {/* Cases Tab */}
         <TabsContent value="cases" className="space-y-6 mt-6">
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Cases</p>
-                    <p className="text-2xl font-bold">{meta.total}</p>
-                  </div>
-                  <Briefcase className="h-8 w-8 text-muted-foreground" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Open Cases</p>
-                    <p className="text-2xl font-bold">{meta.open}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Overdue</p>
-                    <p className="text-2xl font-bold text-red-600">{meta.overdue}</p>
-                  </div>
-                  <AlertTriangle className="h-8 w-8 text-red-500" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Filters */}
           <Card>
             <CardContent className="pt-4">

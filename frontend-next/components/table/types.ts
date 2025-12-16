@@ -79,6 +79,7 @@ export interface SavedView {
   autoFitColumns?: boolean;
   smartFit?: boolean;
   showTotals?: boolean;
+  stickyActions?: boolean; // Pin actions column to right edge when scrolling horizontally
   display_order?: number;
   isDefault?: boolean;
   is_global?: boolean;
@@ -104,6 +105,7 @@ export interface TeeemTableViewProps {
   onBulkDelete?: (ids: (number | string)[]) => void;
   onBulkEdit?: (ids: (number | string)[]) => void;
   onBulkMerge?: (ids: (number | string)[]) => void;
+  onXeroTransfer?: (ids: (number | string)[]) => void; // Called when Xero transfer button clicked (exactly 2 selected)
   enableMerge?: boolean; // Enable built-in merge functionality (default: true when foundationIdNumeric is set)
   mergeDisplayColumn?: string; // Column to display in merge modal (default: 'name')
   mergeSecondaryColumns?: string[]; // Additional columns to show in merge modal
@@ -145,8 +147,15 @@ export interface TeeemTableViewProps {
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
 
   // Server-side operations
-  onServerSearch?: (term: string, searchAllColumns: boolean) => void;
+  // Note: Second parameter can be:
+  // - boolean (searchAllColumns - legacy)
+  // - SearchMode string (new mode feature)
+  // Use searchMode prop for new implementations.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onServerSearch?: (term: string, searchAllOrMode?: any) => void;
   serverSearchLoading?: boolean;
+  searchMode?: "contains" | "exact" | "starts_with" | "fuzzy" | "regex";
+  onSearchModeChange?: (mode: "contains" | "exact" | "starts_with" | "fuzzy" | "regex") => void;
   onViewApiParamsChange?: (params: Record<string, unknown> | null) => void;
   loadingMore?: boolean;
   onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom
@@ -159,6 +168,8 @@ export interface TeeemTableViewProps {
 
   // Display options
   initialShowTotals?: boolean; // Initial value for showing totals row (default: true)
+  hideFooter?: boolean; // Hide the footer row (record count shown in page header instead)
+  alwaysVisibleColumns?: string[]; // Columns that are always visible regardless of view settings
 
   // Legacy props
   stats?: Record<string, unknown>;

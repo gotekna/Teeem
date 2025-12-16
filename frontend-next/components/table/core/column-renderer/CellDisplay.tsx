@@ -13,8 +13,9 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
-import type { TableColumn } from "../../types";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CheckCircle2, Circle, ExternalLink, Check, ShieldCheck } from "lucide-react";
+import type { TableColumn, TableRow } from "../../types";
 
 // Consistent link styling
 const LINK_CLASSES = "text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
@@ -514,6 +515,90 @@ export function displayTfn(value: unknown): React.ReactNode {
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+// ============================================================================
+// XERO INTEGRATION
+// ============================================================================
+
+/**
+ * Display Xero links count with popover showing org names
+ * Shows "X/Y" format where X is linked orgs, Y is total available
+ * Click to see which orgs are linked
+ */
+export function displayXeroLinks(
+  value: unknown,
+  _column: TableColumn,
+  row?: TableRow,
+  totalTenants?: number
+): React.ReactNode {
+  const linkedCount = typeof value === "number" ? value : parseInt(String(value || 0), 10);
+  const total = totalTenants || 8; // Default to 8 if not provided
+  const tenantNames: string[] = row?.xero_tenant_names as string[] || [];
+  const linkSummary = row?.xero_link_summary as {
+    linked_count?: number;
+    tenant_names?: string[];
+    has_sync_errors?: boolean;
+    has_conflicts?: boolean;
+  } | undefined;
+
+  // If no links, show empty state
+  if (linkedCount === 0) {
+    return (
+      <span className="text-muted-foreground text-[11px]">
+        0/{total}
+      </span>
+    );
+  }
+
+  // Determine badge color based on sync status
+  const hasErrors = linkSummary?.has_sync_errors || linkSummary?.has_conflicts;
+  const badgeColor = hasErrors
+    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+    : "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300";
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Badge
+          variant="outline"
+          className={`${badgeColor} gap-1 cursor-pointer hover:bg-opacity-80 text-[10px] px-1.5 py-0`}
+        >
+          <ShieldCheck className="h-3 w-3" />
+          {linkedCount}/{total}
+        </Badge>
+      </PopoverTrigger>
+      <PopoverContent className="w-56 p-2" align="start">
+        <div className="text-xs font-medium text-muted-foreground mb-2">
+          Linked to {linkedCount} Xero org{linkedCount !== 1 ? "s" : ""}
+        </div>
+        <div className="space-y-1">
+          {tenantNames.length > 0 ? (
+            tenantNames.map((name, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-2 py-1 px-2 rounded bg-green-50 dark:bg-green-900/20"
+              >
+                <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                <span className="text-[11px] text-green-700 dark:text-green-300 truncate">
+                  {name}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-[11px] text-muted-foreground py-1">
+              Linked to {linkedCount} organization{linkedCount !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
+        {hasErrors && (
+          <div className="mt-2 pt-2 border-t text-[10px] text-yellow-600 dark:text-yellow-400">
+            ⚠️ Has sync errors or conflicts
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
 

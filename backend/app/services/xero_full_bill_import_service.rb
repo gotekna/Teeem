@@ -278,9 +278,9 @@ class XeroFullBillImportService
       return warehouse_contact.contact if warehouse_contact&.contact
     end
 
-    # Fallback: Try to find by Contact.xero_id (legacy, deprecated)
-    contact = Contact.find_by(xero_id: xero_id)
-    return contact if contact
+    # Fallback: Try to find via contact_external_links (SSoT)
+    link = ContactExternalLink.xero.find_by(external_contact_id: xero_id)
+    return link.contact if link&.contact
 
     # Try to find by name
     contact_name = xero_contact["Name"]

@@ -15,6 +15,8 @@ import { cn } from '@/lib/utils';
 import type { TableColumn } from '../../types';
 
 const SYSTEM_COLUMN_BG = 'hsl(47, 100%, 96%)'; // Light yellow tint
+// GOLD STANDARD: Sticky is position-based (select + position 2)
+// This is only used for z-index calculation - actual sticky comes from getStickyColumnStyles
 const STICKY_COLUMNS = ['select'];
 
 export interface TableHeaderSectionProps {
@@ -88,14 +90,17 @@ export function TableHeaderSection({
   getStickyColumnStyles,
   isSystemGeneratedColumn,
 }: TableHeaderSectionProps) {
-  const isStickyColumn = (key: string) => STICKY_COLUMNS.includes(key) || key === 'actions';
+  // GOLD STANDARD: Sticky is position-based
+  // Position 1 (select), Position 2 (first data column), and actions are sticky
+  const isStickyColumn = (key: string, index: number) =>
+    key === 'select' || index === 1 || key === 'actions';
 
   return (
     <TableHeader>
       <TableRow>
         {visibleColumnsInOrder.map((column, colIndex) => {
           const stickyStyles = getStickyColumnStyles(column.key, true);
-          const isSticky = isStickyColumn(column.key);
+          const isSticky = isStickyColumn(column.key, colIndex);
           const isSystemGen = isSystemGeneratedColumn(column);
 
           return (
@@ -136,7 +141,7 @@ export function TableHeaderSection({
               ) : (
                 <ResizableColumnHeader
                   column={column}
-                  width={columnWidths[column.key]}
+                  width={columnWidths[column.key] || column.width || 150}
                   onResize={handleColumnResize}
                   onSort={handleSort}
                   onHide={hideColumn}

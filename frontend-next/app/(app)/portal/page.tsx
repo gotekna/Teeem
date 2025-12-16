@@ -100,59 +100,6 @@ export default function PortalPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Users</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total_users}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Active</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.active_users}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Pending</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
-              {stats.pending_invites}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Quotes (Month)</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.quotes_this_month}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 text-yellow-500" />
-              <span className="text-xs text-muted-foreground">Avg Kudos</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.avg_kudos_score}</div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

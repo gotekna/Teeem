@@ -51,21 +51,53 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
   isEditMode,
   children,
 }: ResizableColumnHeaderProps) {
+  // Default width if not provided
+  const effectiveWidth = width || 100;
+
   const [isResizing, setIsResizing] = useState(false);
+  const [isHoveringHandle, setIsHoveringHandle] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [currentWidth, setCurrentWidth] = useState(effectiveWidth);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+
+  // Measure actual width from DOM when hovering (more accurate than prop)
+  useEffect(() => {
+    if (isHoveringHandle && containerRef.current) {
+      // Get the parent TableHead cell's width
+      const parentCell = containerRef.current.closest('th');
+      if (parentCell) {
+        setMeasuredWidth(parentCell.getBoundingClientRect().width);
+      }
+    }
+  }, [isHoveringHandle]);
+
+  // Sync width when prop changes (not during resize)
+  useEffect(() => {
+    if (!isResizing && effectiveWidth) {
+      setCurrentWidth(effectiveWidth);
+    }
+  }, [effectiveWidth, isResizing]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      // Measure actual width at start of resize
+      const parentCell = containerRef.current?.closest('th');
+      const actualWidth = parentCell ? parentCell.getBoundingClientRect().width : effectiveWidth;
       setIsResizing(true);
       startXRef.current = e.clientX;
-      startWidthRef.current = width;
+      startWidthRef.current = actualWidth;
+      setCurrentWidth(actualWidth);
     },
-    [width]
+    [effectiveWidth]
   );
+
+  // Track final width to commit on mouseup
+  const finalWidthRef = useRef(0);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -73,19 +105,43 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
     const handleMouseMove = (e: MouseEvent) => {
       const diff = e.clientX - startXRef.current;
       const newWidth = Math.max(50, startWidthRef.current + diff);
-      onResize(column.key, newWidth);
+      setCurrentWidth(newWidth);
+      finalWidthRef.current = newWidth;
+
+      // Direct DOM manipulation for smooth visual feedback (no React re-render)
+      const parentCell = containerRef.current?.closest('th');
+      if (parentCell) {
+        (parentCell as HTMLElement).style.width = `${newWidth}px`;
+        // Also update the corresponding col element if it exists
+        const table = parentCell.closest('table');
+        const colIndex = Array.from(parentCell.parentElement?.children || []).indexOf(parentCell);
+        const col = table?.querySelector(`colgroup col:nth-child(${colIndex + 1})`);
+        if (col) {
+          (col as HTMLElement).style.width = `${newWidth}px`;
+        }
+      }
     };
 
     const handleMouseUp = () => {
+      // Commit the final width to global state only on mouseup
+      if (finalWidthRef.current > 0) {
+        onResize(column.key, finalWidthRef.current);
+      }
       setIsResizing(false);
     };
 
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
 
+    // Add resize cursor to body while resizing
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
   }, [isResizing, column.key, onResize]);
 
@@ -107,8 +163,8 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
 
   return (
     <div
-      className="flex items-center justify-between group relative"
-      style={{ width }}
+      ref={containerRef}
+      className="flex items-center justify-between group relative overflow-visible w-full"
     >
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
@@ -245,14 +301,43 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
         </button>
       )}
 
+      {/* Resize handle - large hit area on right edge of cell */}
       {column.resizable !== false && (
         <div
-          className={cn(
-            "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover:opacity-100 bg-border hover:bg-primary transition-opacity",
-            isResizing && "opacity-100 bg-primary"
-          )}
+          className="absolute -right-[12px] -top-2 -bottom-2 w-[24px] cursor-col-resize z-20"
           onMouseDown={handleMouseDown}
-        />
+          onMouseEnter={() => setIsHoveringHandle(true)}
+          onMouseLeave={() => setIsHoveringHandle(false)}
+          title="Drag to resize column"
+        >
+          {/* The visible line indicator - thin line at column border */}
+          <div className={cn(
+            "absolute left-[11px] w-[2px] top-2 bottom-2 transition-all",
+            (isHoveringHandle || isResizing)
+              ? "bg-primary -top-1 -bottom-1"
+              : "bg-border/50"
+          )} />
+        </div>
+      )}
+
+      {/* Width indicator badge - shows during resize or hover */}
+      {column.resizable !== false && (isResizing || isHoveringHandle) && (
+        <div
+          className={cn(
+            "absolute px-2 py-1 text-xs font-mono rounded shadow-lg whitespace-nowrap pointer-events-none border",
+            isResizing
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background text-foreground"
+          )}
+          style={{
+            top: '100%',
+            right: 0,
+            marginTop: '4px',
+            zIndex: 9999,
+          }}
+        >
+          {Math.round(isResizing ? currentWidth : (measuredWidth || effectiveWidth))}px
+        </div>
       )}
     </div>
   );

@@ -166,13 +166,12 @@ class ContactAutoMergeService
         end
 
         # Keep Xero connection if target doesn't have one but source does
-        if target.xero_id.blank? && source.xero_id.present?
-          target.update!(
-            xero_id: source.xero_id,
-            xero_contact_status: source.xero_contact_status
-          )
-          @stats[:xero_connections_preserved] += 1
-          Rails.logger.info "[ContactAutoMerge] Transferred Xero connection from #{source.id} to #{target.id}"
+        # SSoT: Use contact_external_links (xero_links) not legacy xero_id column
+        if target.xero_links.empty? && source.xero_links.any?
+          links_count = source.xero_links.count
+          source.xero_links.update_all(contact_id: target.id)
+          @stats[:xero_connections_preserved] += links_count
+          Rails.logger.info "[ContactAutoMerge] Transferred #{links_count} Xero link(s) from #{source.id} to #{target.id}"
         end
 
         # Merge supplier-specific fields (if both are suppliers)

@@ -96,43 +96,6 @@ export default function WHSInductionsPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total Workers</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-2xl font-bold text-green-600">{stats.completed}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Inducted</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-2xl font-bold text-orange-600">{stats.pending}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Pending</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-2xl font-bold text-red-600">{stats.expired}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Expired</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Table */}
       <TeeemTableView
         entries={records}

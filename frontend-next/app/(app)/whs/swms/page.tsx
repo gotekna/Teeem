@@ -230,40 +230,6 @@ export default function WHSSWMSPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-sm text-muted-foreground">Total SWMS</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-            <p className="text-sm text-muted-foreground">Active</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
-            <p className="text-sm text-muted-foreground">Draft</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-red-600">{stats.expired}</div>
-            <p className="text-sm text-muted-foreground">Expired</p>
-          </CardContent>
-        </Card>
-        <Card className={stats.expiringSoon > 0 ? "border-orange-300 bg-orange-50 dark:bg-orange-900/10" : ""}>
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-orange-600">{stats.expiringSoon}</div>
-            <p className="text-sm text-muted-foreground">Expiring Soon</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Filters */}
       <div className="flex items-center gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">

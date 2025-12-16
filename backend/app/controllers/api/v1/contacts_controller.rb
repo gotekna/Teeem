@@ -91,13 +91,13 @@ module Api
           end
         end
 
-        # Filter by Xero sync status
+        # Filter by Xero sync status (SSoT: contact_external_links)
         if params[:xero_sync].present?
           case params[:xero_sync]
           when "synced"
-            @contacts = @contacts.where.not(xero_id: nil)
+            @contacts = @contacts.joins(:external_links).where(contact_external_links: { source: "xero" }).distinct
           when "not_synced"
-            @contacts = @contacts.where(xero_id: nil)
+            @contacts = @contacts.where.not(id: ContactExternalLink.xero.select(:contact_id))
           end
         end
 
@@ -2251,8 +2251,9 @@ module Api
       # GET /api/v1/contacts/price_only_with_xero
       # Health check: Find price_only contacts that are synced to Xero (should never happen)
       def price_only_with_xero
+        # SSoT: Use contact_external_links for Xero sync status
         violations = Contact.where(entity_type: "price_only")
-          .where.not(xero_id: nil)
+          .joins(:external_links).where(contact_external_links: { source: "xero" }).distinct
 
         render json: {
           success: true,
@@ -3767,14 +3768,12 @@ module Api
           :fax_phone,
           :website,
           :tax_number,
-          :xero_id,
           :sys_type_id,
           :parent_id,
           :parent,
           :drive_id,
           :folder_id,
           :sync_with_xero,
-          :xero_disconnect,
           :contact_region_id,
           :contact_region,
           :branch,

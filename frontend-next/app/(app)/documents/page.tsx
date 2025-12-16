@@ -162,46 +162,6 @@ export default function DocumentsPage() {
             </Card>
           )}
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-blue-600" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Total Documents</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-2xl font-bold text-green-600">{stats.verified}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Verified</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-2xl font-bold text-orange-600">{stats.pending}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Pending Review</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-purple-600" />
-              <span className="text-2xl font-bold">{folders.length}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Folders</p>
-          </CardContent>
-        </Card>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Folders Sidebar */}
         <Card className="lg:col-span-1">

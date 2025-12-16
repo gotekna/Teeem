@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { LinkXeroContactModal } from "./LinkXeroContactModal";
+import { TransferXeroLinkModal } from "./TransferXeroLinkModal";
 import type {
   XeroLink,
   XeroTenant,
@@ -74,6 +75,8 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   const [syncConfig, setSyncConfig] = useState<SyncConfiguration | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferLink, setTransferLink] = useState<XeroLink | null>(null);
 
   const selectedLink = xeroLinks.find((link) => link.id === selectedLinkId);
   const hasXeroConnection = xeroLinks.length > 0;
@@ -508,11 +511,24 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                       variant="ghost"
                       size="sm"
                       onClick={(e) => {
+                        e.stopPropagation();
+                        setTransferLink(link);
+                        setShowTransferModal(true);
+                      }}
+                      className="ml-2"
+                      title={`Transfer link to another contact`}
+                    >
+                      <ArrowLeftRight className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
                         e.stopPropagation(); // Prevent selecting when clicking unlink
                         handleUnlink(link.id, link.xero_tenant_name);
                       }}
                       disabled={unlinkingLinkId === link.id}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10 ml-2"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       title={`Unlink from ${link.xero_tenant_name}`}
                     >
                       {unlinkingLinkId === link.id ? (
@@ -652,6 +668,20 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
         onSuccess={(updatedContact) => {
           onContactUpdate(updatedContact);
           loadXeroLinks(); // Reload links after successful link
+        }}
+      />
+
+      {/* Transfer Xero Link Modal */}
+      <TransferXeroLinkModal
+        isOpen={showTransferModal}
+        onClose={() => {
+          setShowTransferModal(false);
+          setTransferLink(null);
+        }}
+        link={transferLink}
+        currentContact={contact}
+        onSuccess={() => {
+          loadXeroLinks(); // Reload links after successful transfer
         }}
       />
     </div>

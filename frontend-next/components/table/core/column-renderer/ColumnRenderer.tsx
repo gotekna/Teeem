@@ -313,6 +313,11 @@ export function renderCell(
   mode: "display" | "edit",
   editorProps?: Partial<CellEditorProps>
 ): React.ReactNode {
+  // Special handling for xero_linked_count column (uses custom popover display)
+  if (column.key === "xero_linked_count" && mode === "display") {
+    return Display.displayXeroLinks(value, column, row);
+  }
+
   // Get handler for this column type
   const handler = COLUMN_TYPE_REGISTRY[column.column_type || "single_line_text"] || fallbackHandler;
 

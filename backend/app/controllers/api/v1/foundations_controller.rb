@@ -2,7 +2,7 @@ module Api
   module V1
     class FoundationsController < ApplicationController
       skip_before_action :authorize_request, only: [ :table_ids ]
-      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :schema ]
+      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :schema, :groups ]
 
       # GET /api/v1/foundations
       def index
@@ -199,6 +199,128 @@ module Api
           table_name: @foundation.name,
           columns: columns
         }
+      end
+
+      # GET /api/v1/foundations/:id/groups
+      # Returns group counts by column value for server-side grouping
+      # Params:
+      #   group_by: column name to group by (required)
+      #   filters: optional cascade filters (JSON string)
+      # Returns accurate counts directly from SQL GROUP BY (not limited by pagination)
+      def groups
+        group_by_column = params[:group_by]
+
+        # Validate group_by parameter
+        if group_by_column.blank?
+          return render json: {
+            success: false,
+            error: "group_by parameter is required"
+          }, status: :bad_request
+        end
+
+        # Validate that column exists
+        valid_columns = @foundation.columns.pluck(:column_name)
+        unless valid_columns.include?(group_by_column)
+          return render json: {
+            success: false,
+            error: "Invalid column: #{group_by_column}"
+          }, status: :bad_request
+        end
+
+        begin
+          model = @foundation.dynamic_model
+          conn = ActiveRecord::Base.connection
+
+          # Build base query
+          query = model.all
+
+          # Apply standard filters (soft delete, is_active, etc.)
+          if model.column_names.include?("deleted_at")
+            query = query.where(deleted_at: nil)
+          end
+
+          # Apply cascade filters if provided
+          if params[:filters].present?
+            begin
+              filters = JSON.parse(params[:filters])
+              if filters.is_a?(Array) && filters.any?
+                filters.each do |filter|
+                  column = filter["column"]
+                  value = filter["value"]
+                  operator = filter["operator"] || "="
+
+                  # Skip if no column specified
+                  next unless column.present?
+
+                  # Security: Validate column name exists
+                  next unless valid_columns.include?(column) || column == "id"
+
+                  # For operators that don't need a value, skip value check
+                  value_required = !%w[is_null is_not_null is_empty is_not_empty].include?(operator)
+                  next if value_required && !value.present?
+
+                  case operator
+                  when "="
+                    query = query.where(column => value)
+                  when "!="
+                    query = query.where.not(column => value)
+                  when "contains"
+                    query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "%#{value}%")
+                  when "starts_with"
+                    query = query.where("#{conn.quote_column_name(column)} ILIKE ?", "#{value}%")
+                  when "is_null"
+                    query = query.where(column => nil)
+                  when "is_not_null"
+                    query = query.where.not(column => nil)
+                  when "is_empty"
+                    query = query.where("#{conn.quote_column_name(column)} IS NULL OR #{conn.quote_column_name(column)} = ''")
+                  when "is_not_empty"
+                    query = query.where("#{conn.quote_column_name(column)} IS NOT NULL AND #{conn.quote_column_name(column)} != ''")
+                  end
+                end
+              end
+            rescue JSON::ParserError
+              # Ignore invalid JSON
+            end
+          end
+
+          # Get group counts via SQL aggregation
+          # Handle NULL values by coalescing to a display-friendly string
+          quoted_column = conn.quote_column_name(group_by_column)
+
+          groups_result = query
+            .group(group_by_column)
+            .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
+            .order(Arel.sql("COUNT(*) DESC"))
+
+          # Transform results
+          groups = groups_result.map do |row|
+            {
+              key: row.group_key,
+              count: row.count,
+              display_value: row.group_key.nil? ? "(Empty)" : row.group_key.to_s
+            }
+          end
+
+          # Get total records in query (for verification)
+          total_records = groups.sum { |g| g[:count] }
+
+          render json: {
+            success: true,
+            groups: groups,
+            total_groups: groups.length,
+            total_records: total_records,
+            group_by_column: group_by_column,
+            foundation_id: @foundation.id
+          }
+        rescue => e
+          Rails.logger.error "Error in groups action: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+          render json: {
+            success: false,
+            error: "Failed to get group counts: #{e.message}"
+          }, status: :internal_server_error
+        end
       end
 
       # GET /api/v1/foundations/table_ids

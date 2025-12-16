@@ -744,7 +744,7 @@ module Api
 
           # Get sync statistics (SSoT: ContactExternalLink for sync status)
           total_contacts = Contact.count
-          synced_contacts = Contact.where.not(xero_id: nil).count
+          synced_contacts = Contact.joins(:external_links).where(contact_external_links: { source: "xero" }).distinct.count
           sync_enabled = ContactExternalLink.xero.enabled.count
           contacts_with_errors = ContactExternalLink.xero.with_errors.count
 

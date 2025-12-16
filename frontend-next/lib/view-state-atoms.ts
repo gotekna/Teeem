@@ -96,6 +96,12 @@ export const currentSmartFitAtom = atom<boolean>(true);
 export const currentShowTotalsAtom = atom<boolean>(true);
 
 /**
+ * Pin actions column to right edge when scrolling horizontally
+ * GOLD STANDARD: Part of position-based sticky columns
+ */
+export const currentStickyActionsAtom = atom<boolean>(true);
+
+/**
  * Collapsed groups in grouped table view
  * SSoT: Stored in atoms so it persists with saved views
  */
@@ -280,6 +286,18 @@ export const applyViewAtom = atom(
       set(currentShowTotalsAtom, viewAny.columns.showTotals);
     }
 
+    // Sticky actions - default to true if not specified
+    // GOLD STANDARD: Part of position-based sticky columns
+    const viewStickyActions = view as SavedView & { stickyActions?: boolean; columns?: { stickyActions?: boolean } };
+    if (typeof viewStickyActions.stickyActions === 'boolean') {
+      set(currentStickyActionsAtom, viewStickyActions.stickyActions);
+    } else if (viewStickyActions.columns && typeof viewStickyActions.columns.stickyActions === 'boolean') {
+      set(currentStickyActionsAtom, viewStickyActions.columns.stickyActions);
+    } else {
+      // Default to true - actions column is sticky by default
+      set(currentStickyActionsAtom, true);
+    }
+
     // Collapsed groups - restore from saved view or reset
     // Handle both Array and Set formats (API returns array, we store as Set)
     const viewWithCollapsed = view as SavedView & { collapsedGroups?: string[] | Set<string> };
@@ -287,9 +305,9 @@ export const applyViewAtom = atom(
       const groups = viewWithCollapsed.collapsedGroups;
       set(collapsedGroupsAtom, groups instanceof Set ? groups : new Set(groups));
     } else {
-      // No saved collapsed state - collapse all groups by default for performance
-      // Use special marker that TeeemTableView will detect and expand to all keys
-      set(collapsedGroupsAtom, new Set(['__collapse_all_pending__']));
+      // No saved collapsed state - expand all groups by default so user sees data
+      // Empty set means no groups are collapsed (all expanded)
+      set(collapsedGroupsAtom, new Set());
     }
   }
 );
@@ -331,7 +349,9 @@ export const saveViewAtom = atom(
           order: get(currentColumnOrderAtom),
           widths: get(currentColumnWidthsAtom),
           autoFitColumns: get(currentAutoFitColumnsAtom),
+          smartFit: get(currentSmartFitAtom),
           showTotals: get(currentShowTotalsAtom),
+          stickyActions: get(currentStickyActionsAtom),
         },
         sort_order: get(currentSortColumnsAtom),
         group_by_columns: get(currentGroupByColumnsAtom),

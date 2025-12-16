@@ -138,54 +138,6 @@ export default function FinancePage() {
         </Alert>
       )}
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Inbox className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Bills Pending</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">
-              {billStats?.pending ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Awaiting Approval</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">
-              {billStats?.awaiting_approval ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Ready to Pay</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">
-              {billStats?.approved ?? 0}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Amount Pending</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">
-              ${(billStats?.total_amount_pending ?? 0).toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Module Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Bill Inbox */}

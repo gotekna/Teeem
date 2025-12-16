@@ -45,9 +45,12 @@ module Api
           query = query.where(id: duplicate_ids)
         end
 
-        # Apply search filter with fuzzy matching support (pg_trgm)
+        # Apply search filter with multiple search modes
         # SSoT: Foundation column `searchable: true` is the source of truth for ALL tables
+        # Search modes: contains (default), exact, starts_with, fuzzy, regex
         if search.present?
+          search_mode = params[:search_mode] || "contains"
+
           searchable_columns = if search_all
             # Search ALL text columns (comprehensive but slower)
             if @foundation.table_type == "system"
@@ -71,49 +74,85 @@ module Api
               []
             end
           end
+
           if searchable_columns.any?
-            # Build search conditions: ILIKE (default) OR fuzzy similarity (opt-in with ?fuzzy=true)
-            # Default: Fast ILIKE substring matching
-            # Fuzzy: Slower word_similarity matching for typo tolerance
-            sanitized_search = ActiveRecord::Base.connection.quote(search)
             conn = ActiveRecord::Base.connection
-            enable_fuzzy = params[:fuzzy] == "true"
+            sanitized_search = conn.quote(search)
 
             # Get column type information to handle non-text columns
             column_types = model.columns.each_with_object({}) { |c, h| h[c.name] = c.type }
 
-            # ILIKE conditions for exact substring matches
-            # Security: Quote column names to prevent SQL injection
-            # Cast non-text columns to TEXT to support searching numeric/date columns
-            ilike_conditions = searchable_columns.map do |col|
-              column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
+            # Helper to get SQL-safe column reference with optional TEXT casting
+            get_column_sql = ->(col) {
+              if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
                 "CAST(#{conn.quote_column_name(col)} AS TEXT)"
               else
                 conn.quote_column_name(col)
               end
-              "#{column_sql} ILIKE :search"
-            end.join(" OR ")
+            }
 
-            # Fuzzy word_similarity conditions (matches search term against words in text)
-            # word_similarity > 0.4 catches typos like "tekan" -> "Tekna Admin"
-            # Only enabled with ?fuzzy=true parameter to avoid performance issues on large tables
-            if enable_fuzzy
-              fuzzy_columns = searchable_columns.first(3)
+            case search_mode
+            when "exact"
+              # Exact case-insensitive match
+              conditions = searchable_columns.map do |col|
+                "LOWER(#{get_column_sql.call(col)}) = LOWER(:search)"
+              end.join(" OR ")
+              query = query.where(conditions, search: search)
+
+            when "starts_with"
+              # Prefix match (ILIKE term%)
+              conditions = searchable_columns.map do |col|
+                "#{get_column_sql.call(col)} ILIKE :search"
+              end.join(" OR ")
+              query = query.where(conditions, search: "#{search}%")
+
+            when "fuzzy"
+              # Trigram similarity search for typo tolerance
+              # Uses pg_trgm's word_similarity function
+              fuzzy_columns = searchable_columns.first(5) # Limit for performance
               fuzzy_conditions = fuzzy_columns.map do |col|
-                column_sql = if [:integer, :bigint, :decimal, :float, :boolean, :date, :datetime].include?(column_types[col])
-                  "CAST(#{conn.quote_column_name(col)} AS TEXT)"
-                else
-                  conn.quote_column_name(col)
-                end
-                "word_similarity(#{sanitized_search}, COALESCE(#{column_sql}, '')) > 0.4"
+                "word_similarity(#{sanitized_search}, COALESCE(#{get_column_sql.call(col)}, '')) > 0.3"
               end.join(" OR ")
 
-              # Combine: match if ILIKE OR fuzzy match
-              combined_conditions = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
-              query = query.where(combined_conditions, search: "%#{search}%")
-            else
-              # Default: ILIKE only (fast)
-              query = query.where(ilike_conditions, search: "%#{search}%")
+              # Also include ILIKE as fallback for short terms (trigrams work better with 3+ chars)
+              ilike_conditions = searchable_columns.map do |col|
+                "#{get_column_sql.call(col)} ILIKE :search"
+              end.join(" OR ")
+
+              combined = "(#{ilike_conditions}) OR (#{fuzzy_conditions})"
+              query = query.where(combined, search: "%#{search}%")
+
+              # Order by similarity for fuzzy results (best matches first)
+              if fuzzy_columns.any?
+                primary_col = get_column_sql.call(fuzzy_columns.first)
+                query = query.order(Arel.sql("word_similarity(#{sanitized_search}, COALESCE(#{primary_col}, '')) DESC"))
+              end
+
+            when "regex"
+              # PostgreSQL regex search (~* for case-insensitive)
+              # Note: This can be slow and dangerous with complex patterns
+              begin
+                # Validate regex is valid before executing
+                Regexp.new(search)
+                conditions = searchable_columns.map do |col|
+                  "#{get_column_sql.call(col)} ~* :search"
+                end.join(" OR ")
+                query = query.where(conditions, search: search)
+              rescue RegexpError => e
+                Rails.logger.warn "Invalid regex search pattern: #{search} - #{e.message}"
+                # Fall back to contains search for invalid regex
+                conditions = searchable_columns.map do |col|
+                  "#{get_column_sql.call(col)} ILIKE :search"
+                end.join(" OR ")
+                query = query.where(conditions, search: "%#{search}%")
+              end
+
+            else # "contains" (default)
+              # Substring match (ILIKE %term%)
+              conditions = searchable_columns.map do |col|
+                "#{get_column_sql.call(col)} ILIKE :search"
+              end.join(" OR ")
+              query = query.where(conditions, search: "%#{search}%")
             end
           end
         end
@@ -785,6 +824,11 @@ module Api
             # See ContactRelationship#update_company_employees_count
             json[:employees_count] = record.employees_count
             json[:display_name] = record.display_name  # Computed: includes company name for team contacts
+
+            # SSoT: Xero link data from contact_external_links (not legacy xero_id)
+            json[:xero_linked_count] = record.xero_linked_count
+            json[:xero_tenant_names] = record.xero_tenant_names
+            json[:xero_link_summary] = record.xero_link_summary
           end
 
           return json

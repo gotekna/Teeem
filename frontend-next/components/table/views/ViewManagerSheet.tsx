@@ -110,8 +110,11 @@ interface ViewManagerSheetProps {
   onApplyView?: (view: SavedView) => void;
   onAutoFitChange?: (enabled: boolean) => void;
   onShowTotalsChange?: (enabled: boolean) => void;
+  onStickyActionsChange?: (enabled: boolean) => void;
   onRefresh?: () => void; // Called after saving to refresh data with new filters/settings
   rows?: Record<string, unknown>[];
+  currentColumnWidths?: Record<string, number>; // Current widths from table (SSoT)
+  activeViewId?: number | string | null; // Currently active view on the table
 }
 
 // Known lookup column mappings (column_name -> foundation_id and custom endpoint)
@@ -133,8 +136,11 @@ export function ViewManagerSheet({
   onApplyView,
   onAutoFitChange,
   onShowTotalsChange,
+  onStickyActionsChange,
   onRefresh,
   rows,
+  currentColumnWidths,
+  activeViewId: tableActiveViewId,
 }: ViewManagerSheetProps) {
   const { toast } = useToast();
 
@@ -185,6 +191,7 @@ export function ViewManagerSheet({
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
   const [editSmartFit, setEditSmartFit] = React.useState(true); // Default to TEEEM Smart
   const [editShowTotals, setEditShowTotals] = React.useState(true);
+  const [editStickyActions, setEditStickyActions] = React.useState(true); // Pin actions column to right
   const [editSearchableColumns, setEditSearchableColumns] = React.useState<Record<string, boolean>>({});
 
   // Collapse state
@@ -259,6 +266,7 @@ export function ViewManagerSheet({
           autoFitColumns: v.columns?.autoFitColumns === true,
           smartFit: v.columns?.smartFit !== false, // Default to true
           showTotals: v.columns?.showTotals !== false,
+          stickyActions: v.columns?.stickyActions !== false, // Default to true
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
         })) as SavedView[];
@@ -275,13 +283,16 @@ export function ViewManagerSheet({
           }
         }
 
-        if (activeViewId) {
-          const currentView = mappedViews.find(v => v.id === activeViewId);
+        // Prioritize table's active view when opening View Manager
+        const viewIdToSelect = tableActiveViewId || activeViewId;
+        if (viewIdToSelect) {
+          const currentView = mappedViews.find(v => v.id === viewIdToSelect);
           if (currentView) {
+            setActiveViewId(currentView.id);
             loadViewIntoEditor(currentView);
             setIsEditing(false);
+            return;
           }
-          return;
         }
 
         if (!activeViewId && mappedViews.length > 0) {
@@ -319,10 +330,22 @@ export function ViewManagerSheet({
     setEditVisibleColumns(visibleColumnsToSet!);
 
     setEditColumnOrder(view.columnOrder || effectiveColumns.map(c => c.column_name));
-    setEditColumnWidths(view.columnWidths || {});
+
+    // Load column widths from view, with validation to filter out corrupted values
+    const savedWidths = view.columnWidths || {};
+    const validatedWidths: Record<string, number> = {};
+    for (const [key, value] of Object.entries(savedWidths)) {
+      // Only accept reasonable width values (20-2000px)
+      if (typeof value === 'number' && value >= 20 && value <= 2000) {
+        validatedWidths[key] = value;
+      }
+    }
+    setEditColumnWidths(validatedWidths);
+
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
+    setEditStickyActions(view.stickyActions !== false); // Default to true - actions pinned
 
     // Load searchable columns - default to foundation schema's searchable settings
     const hasSearchableColumns = view.searchableColumns && Object.keys(view.searchableColumns).length > 0;
@@ -370,9 +393,10 @@ export function ViewManagerSheet({
       columnWidths: baseView?.columnWidths || {},
       sortColumns: baseView?.sortColumns || [],
       groupByColumns: baseView?.groupByColumns || [],
-      autoFitColumns: baseView?.autoFitColumns ?? false,
-      smartFit: baseView?.smartFit ?? true, // Default to TEEEM Smart for new views
+      autoFitColumns: false, // Always use manual widths
+      smartFit: false, // Always use manual widths
       showTotals: baseView?.showTotals ?? true,
+      stickyActions: baseView?.stickyActions ?? true, // Default to pinned actions
     };
 
     setViews(prev => [...prev, newView]);
@@ -399,6 +423,7 @@ export function ViewManagerSheet({
         autoFitColumns: editAutoFitColumns,
         smartFit: editSmartFit,
         showTotals: editShowTotals,
+        stickyActions: editStickyActions,
         searchableColumns: editSearchableColumns,
         filters: editFilters,
         filterGroups: editFilterGroups,
@@ -422,9 +447,10 @@ export function ViewManagerSheet({
           visible: currentEditState.visibleColumns,
           order: currentEditState.columnOrder,
           widths: currentEditState.columnWidths,
-          autoFitColumns: currentEditState.autoFitColumns,
-          smartFit: currentEditState.smartFit,
+          autoFitColumns: false, // Always use manual widths
+          smartFit: false, // Always use manual widths
           showTotals: currentEditState.showTotals,
+          stickyActions: currentEditState.stickyActions,
           searchable: currentEditState.searchableColumns,
         },
         sort_order: currentEditState.sortColumns,
@@ -459,9 +485,10 @@ export function ViewManagerSheet({
           visibleColumns: currentEditState.visibleColumns,
           columnOrder: currentEditState.columnOrder,
           columnWidths: currentEditState.columnWidths,
-          autoFitColumns: currentEditState.autoFitColumns,
-          smartFit: currentEditState.smartFit,
+          autoFitColumns: false, // Always use manual widths
+          smartFit: false, // Always use manual widths
           showTotals: currentEditState.showTotals,
+          stickyActions: currentEditState.stickyActions,
           searchableColumns: currentEditState.searchableColumns,
           filters: currentEditState.filters,
           filterGroups: currentEditState.filterGroups,
@@ -1069,6 +1096,11 @@ export function ViewManagerSheet({
     onShowTotalsChange?.(enabled);
   };
 
+  const handleStickyActionsChange = (enabled: boolean) => {
+    setEditStickyActions(enabled);
+    onStickyActionsChange?.(enabled);
+  };
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -1610,23 +1642,11 @@ export function ViewManagerSheet({
                                 />
                               </div>
                               <div className="flex items-center gap-2">
-                                <Label htmlFor="auto-fit" className="text-xs text-muted-foreground">Auto-fit</Label>
+                                <Label htmlFor="sticky-actions" className="text-xs text-muted-foreground">Pin Actions</Label>
                                 <Switch
-                                  id="auto-fit"
-                                  checked={editAutoFitColumns}
-                                  onCheckedChange={handleAutoFitChange}
-                                  disabled={editSmartFit}
-                                />
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Label htmlFor="smart-fit" className="text-xs text-muted-foreground">
-                                  TEEEM Smart
-                                  <span className="ml-1 text-[10px] text-primary">(Recommended)</span>
-                                </Label>
-                                <Switch
-                                  id="smart-fit"
-                                  checked={editSmartFit}
-                                  onCheckedChange={handleSmartFitChange}
+                                  id="sticky-actions"
+                                  checked={editStickyActions}
+                                  onCheckedChange={handleStickyActionsChange}
                                 />
                               </div>
                             </div>
@@ -1700,12 +1720,9 @@ export function ViewManagerSheet({
                                             index={originalIndex + 1}
                                             totalVisible={visibleCols.length}
                                             onReorder={(newPos) => reorderColumnToPosition(col.column_name, newPos)}
-                                            showWidthInput={!editAutoFitColumns && !editSmartFit}
+                                            showWidthInput={true}
                                             width={editColumnWidths[col.column_name]}
                                             onWidthChange={(w) => setEditColumnWidths(prev => ({ ...prev, [col.column_name]: w }))}
-                                            smartFit={editSmartFit}
-                                            priority={editSmartFit ? getColumnPriority(col.column_name, col.column_type) : undefined}
-                                            smartWidth={editSmartFit ? calculateSmartWidth(col) : undefined}
                                             lookupFoundationName={col.lookup_foundation_id ? foundationNames[col.lookup_foundation_id] : undefined}
                                           />
                                         );

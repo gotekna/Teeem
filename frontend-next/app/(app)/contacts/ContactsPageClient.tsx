@@ -8,6 +8,7 @@ import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
+import { XeroLinkTransferModal } from "@/components/contacts/XeroLinkTransferModal";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import ContactsRelationalView from "./ContactsRelationalView";
 import ContactRelationshipsExplorer from "./ContactRelationshipsExplorer";
@@ -16,6 +17,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
+import type { SearchMode } from "@/components/table/components/SearchInput";
 import {
   currentFiltersAtom,
   currentFilterGroupsAtom,
@@ -115,11 +117,14 @@ export default function ContactsPageClient({
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [xeroTransferIds, setXeroTransferIds] = useState<(number | string)[]>([]);
+  const [xeroTransferModalOpen, setXeroTransferModalOpen] = useState(false);
 
   // Track current view to determine display mode
   const [currentView, setCurrentView] = useState<any>(null);
   const [showExplorer, setShowExplorer] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState<SearchMode>("contains");
 
   // Track if we've already started auto-loading (to prevent double-load)
   const hasStartedAutoLoad = useRef(false);
@@ -141,9 +146,15 @@ export default function ContactsPageClient({
 
   // Server-side search - searches within the current filtered view (SSoT approach)
   // Sends both search term AND view filters to backend for combined SQL query
-  // Features: request cancellation, pre-search data caching, instant restore on clear
-  const handleServerSearch = useCallback(async (searchTerm: string) => {
+  // Features: request cancellation, pre-search data caching, instant restore on clear, search modes
+  const handleServerSearch = useCallback(async (searchTerm: string, mode?: SearchMode) => {
     if (!foundation) return;
+
+    // Update search mode if provided
+    const effectiveMode = mode || searchMode;
+    if (mode && mode !== searchMode) {
+      setSearchMode(mode);
+    }
 
     // Cancel any pending search request (prevents race conditions)
     if (searchAbortControllerRef.current) {
@@ -174,9 +185,10 @@ export default function ContactsPageClient({
     setIsSearching(true);
 
     try {
-      // Build params with search + current view filters (SSoT: backend does filtering + search)
+      // Build params with search + search mode + current view filters (SSoT: backend does filtering + search)
       const params: Record<string, string | number> = {
         search: searchTerm,
+        search_mode: effectiveMode,  // Pass search mode to backend
         limit: 100  // Return first 100 search results
       };
 
@@ -212,7 +224,7 @@ export default function ContactsPageClient({
         setIsSearching(false);
       }
     }
-  }, [foundation, records, totalCount, hasMore, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic]);
+  }, [foundation, records, totalCount, hasMore, deduplicateRecords, currentFilters, currentFilterGroups, currentInterGroupLogic, searchMode]);
 
   // Load more records (infinite scroll)
   const loadMore = useCallback(async () => {
@@ -395,6 +407,14 @@ export default function ContactsPageClient({
       description: `${mergedContactIds.length} contact(s) merged successfully`,
     });
   }, [totalCount, toast]);
+
+  // Xero transfer handler - called when 2 contacts are selected and Xero button is clicked
+  const handleXeroTransfer = useCallback((ids: (number | string)[]) => {
+    if (ids.length === 2) {
+      setXeroTransferIds(ids);
+      setXeroTransferModalOpen(true);
+    }
+  }, []);
 
   // Handle row double-click - navigate to contact detail
   // NOTE: Single-click is disabled to allow row selection and inline editing
@@ -597,11 +617,26 @@ export default function ContactsPageClient({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totalCount !== null
-              ? `${totalCount.toLocaleString()} contacts`
-              : `${records.length.toLocaleString()}+ contacts`}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-muted-foreground">
+              {totalCount !== null
+                ? `Showing ${records.length.toLocaleString()} of ${totalCount.toLocaleString()} contacts`
+                : `${records.length.toLocaleString()}+ contacts`}
+            </p>
+            {hasMore && !isLoadingMore && (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={loadAll}
+                className="h-auto p-0 text-sm text-primary"
+              >
+                Load All
+              </Button>
+            )}
+            {isLoadingMore && (
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            )}
+          </div>
         </div>
         {currentView?.view_type === "relational" && (
           <Button
@@ -616,7 +651,8 @@ export default function ContactsPageClient({
       </div>
 
       {/* Contacts View - Table or Relational based on saved view setting */}
-      <div className="flex-1 min-h-0">
+      {/* -mx-4 breaks out of parent px-4 padding to make table full width */}
+      <div className="flex-1 min-h-0 -mx-4">
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
             <ContactRelationshipsExplorer />
@@ -639,14 +675,17 @@ export default function ContactsPageClient({
             onRowUpdate={handleRowUpdate}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
+            onXeroTransfer={handleXeroTransfer}
             leftActions={leftActions}
             onViewChange={handleViewChange}
             onServerSearch={handleServerSearch}
             serverSearchLoading={isSearching}
+            searchMode={searchMode}
+            onSearchModeChange={setSearchMode}
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
-            onLoadAll={loadAll}
             hasMore={hasMore}
+            hideFooter={true}
           />
         )}
       </div>
@@ -657,6 +696,17 @@ export default function ContactsPageClient({
         onOpenChange={setMergeModalOpen}
         contacts={selectedForMerge}
         onMergeComplete={handleMergeComplete}
+      />
+
+      {/* Xero Link Transfer Modal */}
+      <XeroLinkTransferModal
+        isOpen={xeroTransferModalOpen}
+        onClose={() => {
+          setXeroTransferModalOpen(false);
+          setXeroTransferIds([]);
+        }}
+        contactIds={xeroTransferIds}
+        onSuccess={refresh}
       />
     </div>
   );

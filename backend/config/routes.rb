@@ -452,6 +452,7 @@ Rails.application.routes.draw do
             post :resolve_conflict
             post :approve
             post :reject
+            post :transfer
           end
           collection do
             get :conflicts
@@ -1360,6 +1361,7 @@ Rails.application.routes.draw do
         member do
           get :health  # GET /api/v1/foundations/:id/health - Health checks for this table
           get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
+          get :groups  # GET /api/v1/foundations/:id/groups - Server-side group counts by column
         end
 
         # Column management
