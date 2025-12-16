@@ -212,7 +212,6 @@ export default function TablePage() {
       <div className="flex-1 min-h-0">
         <TeeemTableView
           entries={entries}
-          columns={columns}
           foundationId={`table-${tableId}`}
           foundationIdNumeric={tableId}
           tableName={foundation?.name || `Table ${tableId}`}

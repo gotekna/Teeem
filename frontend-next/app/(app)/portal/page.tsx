@@ -29,7 +29,7 @@ export default function PortalPage() {
   const [activeTab, setActiveTab] = useState("users");
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("portal_users");
+  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("portal_users");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -105,7 +105,6 @@ export default function PortalPage() {
         <TabsContent value="users" className="flex-1 min-h-0 mt-4">
           <TeeemTableView
             entries={records}
-            columns={columns}
             foundationId="portal_users"
             foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || "Portal Users"}

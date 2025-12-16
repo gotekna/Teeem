@@ -30,7 +30,7 @@ export default function EstimatesPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("estimates");
+  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("estimates");
 
   // Handle row click - navigate to job with estimates tab
   const handleRowClick = useCallback((row: TableRow) => {
@@ -82,7 +82,6 @@ export default function EstimatesPage() {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="estimates"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Estimates"}

@@ -19,7 +19,7 @@ import { api } from "@/lib/api";
 
 export default function TaskTemplatesPage() {
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("task_templates");
+  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("task_templates");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -64,7 +64,6 @@ export default function TaskTemplatesPage() {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="task_templates"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Task Templates"}

@@ -651,6 +651,14 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   tableHasFocus = false,
 }: VirtualizedFlatTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  // Sync horizontal scroll between body and header
+  const handleBodyScroll = useCallback(() => {
+    if (parentRef.current && headerRef.current) {
+      headerRef.current.scrollLeft = parentRef.current.scrollLeft;
+    }
+  }, []);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
@@ -668,8 +676,8 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Fixed header */}
-      <div className="overflow-x-auto shrink-0">
+      {/* Fixed header - scrolls horizontally in sync with body */}
+      <div ref={headerRef} className="overflow-x-hidden shrink-0">
         <Table className="w-full" style={{ tableLayout: 'fixed', minWidth: totalWidth }}>
           <colgroup>
             {visibleColumnsInOrder.map((column) => (
@@ -687,6 +695,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
       <div
         ref={parentRef}
         className="overflow-auto flex-1 min-h-0"
+        onScroll={handleBodyScroll}
       >
         <div
           style={{

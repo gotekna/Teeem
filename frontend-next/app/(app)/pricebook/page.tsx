@@ -16,7 +16,7 @@ export default function PriceBookPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView with server-side stats
-  const { foundation, columns, records, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook");
+  const { foundation, records, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook");
 
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -76,7 +76,6 @@ export default function PriceBookPage() {
       {/* TeeemTableView handles header, count, and table (SSoT) */}
       <TeeemTableView
         entries={records}
-        columns={columns}
         totalCount={totalCount}
         foundationId="pricebook"
         foundationIdNumeric={foundation?.id}

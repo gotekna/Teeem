@@ -21,7 +21,7 @@ import { api } from "@/lib/api";
 
 export default function WHSInspectionsPage() {
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_inspections");
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug("whs_inspections");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -84,7 +84,6 @@ export default function WHSInspectionsPage() {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="whs_inspections"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Site Inspections"}

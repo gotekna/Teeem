@@ -181,23 +181,31 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 return (
   <div className="flex flex-col h-full -mx-4">
     <TeeemTableView
-      tableName="Page Title"
+      entries={records}
+      // ❌ NEVER pass columns - TeeemTableView auto-fetches from Foundation API
       foundationId="slug"
       foundationIdNumeric={id}
-      entries={records}
+      tableName="Page Title"
+      onRefresh={refresh}
+      onRowUpdate={handleRowUpdate}
       leftActions={<Button>Action</Button>}
-      hideFooter={true}
+      enableExport={true}
     />
   </div>
 );
 ```
 
 **Rules:**
+- ❌ **NEVER pass `columns` prop** - TeeemTableView auto-fetches columns from Foundation API (SSoT)
 - ❌ **NO custom `<h1>` headers** - TeeemTableView renders the header (title + count + totals)
 - ❌ **NO duplicate headers** - If you see `<h1>` AND `<TeeemTableView>`, it's a violation
 - ✅ **Action buttons go in `leftActions`** - Back buttons, Add buttons, toggles
 - ✅ **Edge-to-edge layout** - Use `-mx-4` to break out of parent padding
 - ✅ **Full height** - Use `h-full` and `flex flex-col` for proper height chain
+
+**Reference Implementation:**
+The Gold Standard Table (`admin/system → Gold Standard Table tab`) is THE canonical demo of TeeemTableView.
+See `GoldStandardTab.tsx` lines 820-848 for the correct pattern.
 
 **For pages with extra content (tabs, stats cards):**
 ```tsx

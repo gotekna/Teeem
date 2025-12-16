@@ -41,7 +41,7 @@ export default function WHSIncidentsPage() {
   const [newIncidentOpen, setNewIncidentOpen] = useState(false);
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_incidents");
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug("whs_incidents");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -167,7 +167,6 @@ export default function WHSIncidentsPage() {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="whs_incidents"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Incident Reports"}

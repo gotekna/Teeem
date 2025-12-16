@@ -175,9 +175,9 @@ function TablePageContent() {
 
   // Common table props
   // Note: Filters button is auto-enabled by TeeemTableView when foundationIdNumeric is set
+  // Note: columns NOT passed - TeeemTableView auto-fetches from Foundation API (SSoT)
   const tableProps = {
     entries: records,
-    columns: columns,
     foundationId: String(tableId),
     foundationIdNumeric: tableId,
     tableName: tableName,

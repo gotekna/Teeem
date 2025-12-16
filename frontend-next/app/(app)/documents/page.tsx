@@ -50,7 +50,7 @@ export default function DocumentsPage() {
   const [oneDriveConnected] = useState(false);
 
   // Use foundation hook for active tab's document type
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -191,7 +191,6 @@ export default function DocumentsPage() {
         <div className="lg:col-span-3 h-full">
           <TeeemTableView
             entries={records}
-            columns={columns}
             foundationId={DOCUMENT_TYPES[activeTab]}
             foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}

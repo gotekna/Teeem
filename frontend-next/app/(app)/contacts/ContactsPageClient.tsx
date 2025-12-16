@@ -99,7 +99,7 @@ export default function ContactsPageClient({
 
   // Use initial data from server - no loading state needed on first render!
   const [foundation] = useState(initialFoundation);
-  const [columns] = useState(initialColumns);
+  // columns removed - TeeemTableView auto-fetches from Foundation API (SSoT)
 
   // Use SSR data as initial state, then infinite scroll will load more
   // Deduplicate initial records as a safety measure
@@ -623,7 +623,6 @@ export default function ContactsPageClient({
         ) : (
           <TeeemTableView
             entries={records}
-            columns={columns}
             totalCount={totalCount}
             foundationId="contacts"
             foundationIdNumeric={foundation?.id}

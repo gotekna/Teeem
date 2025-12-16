@@ -36,7 +36,7 @@ export default function ScheduleTemplatesPage() {
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("schedule_templates");
+  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("schedule_templates");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -110,7 +110,6 @@ export default function ScheduleTemplatesPage() {
       {viewMode === "table" ? (
         <TeeemTableView
           entries={records}
-          columns={columns}
           foundationId="schedule_templates"
           foundationIdNumeric={foundation?.id}
           tableName={foundation?.name || "Schedule Templates"}

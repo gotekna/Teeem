@@ -23,7 +23,7 @@ export default function QuoteRequestsPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("quote_requests");
+  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("quote_requests");
 
   // Handle row click - navigate to quote request detail
   const handleRowClick = useCallback((row: TableRow) => {
@@ -73,7 +73,6 @@ export default function QuoteRequestsPage() {
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="quote_requests"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Quote Requests"}
