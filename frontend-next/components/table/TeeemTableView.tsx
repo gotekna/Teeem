@@ -667,9 +667,9 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   }, [visibleColumnsInOrder, columnWidths]);
 
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Fixed header */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto shrink-0">
         <Table className="w-full" style={{ tableLayout: 'fixed', minWidth: totalWidth }}>
           <colgroup>
             {visibleColumnsInOrder.map((column) => (
@@ -683,11 +683,10 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
         </Table>
       </div>
 
-      {/* Virtualized scrollable body */}
+      {/* Virtualized scrollable body - fills remaining flex space */}
       <div
         ref={parentRef}
-        className="overflow-auto"
-        style={{ height: Math.min(rows.length * 33 + 20, tableHeight) }}
+        className="overflow-auto flex-1 min-h-0"
       >
         <div
           style={{

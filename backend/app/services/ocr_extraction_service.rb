@@ -91,7 +91,15 @@ class OcrExtractionService
     # Get bounding box data (word level)
     # Tesseract TSV format: level, page_num, block_num, par_num, line_num, word_num,
     #                       left, top, width, height, conf, text
-    tsv_data = image.to_tsv
+    tsv_file = image.to_tsv
+
+    # RTesseract returns a File object, so read its contents
+    tsv_data = if tsv_file.respond_to?(:read)
+                 tsv_file.rewind if tsv_file.respond_to?(:rewind)
+                 tsv_file.read
+               else
+                 tsv_file.to_s
+               end
 
     # Parse TSV to extract words with coordinates
     words = parse_tsv_data(tsv_data, page_number, image_path)
