@@ -5,9 +5,11 @@ class Api::V1::EmailBlacklistController < ApplicationController
   def index
     items = EmailBlacklistItem.order(match_count: :desc, created_at: :desc)
 
+    # Skip expensive warehouse_match_count calculation on index
+    # to prevent N+1 queries that cause timeouts
     render json: {
       success: true,
-      items: items.map { |item| blacklist_item_json(item) },
+      items: items.map { |item| blacklist_item_json(item, include_warehouse_count: false) },
       pattern_types: EmailBlacklistItem::PATTERN_TYPES
     }
   end
@@ -93,17 +95,18 @@ class Api::V1::EmailBlacklistController < ApplicationController
     params.require(:email_blacklist_item).permit(:pattern, :pattern_type, :description, :active)
   end
 
-  def blacklist_item_json(item)
-    {
+  def blacklist_item_json(item, include_warehouse_count: true)
+    result = {
       id: item.id,
       pattern: item.pattern,
       pattern_type: item.pattern_type,
       description: item.description,
       active: item.active,
       match_count: item.match_count,
-      warehouse_match_count: item.warehouse_match_count,
+      warehouse_match_count: include_warehouse_count ? item.warehouse_match_count : 0,
       created_at: item.created_at,
       updated_at: item.updated_at
     }
+    result
   end
 end
