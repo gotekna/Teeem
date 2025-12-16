@@ -1361,13 +1361,13 @@ export default function TeeemTableView({
   // Stores fully loaded records for each group (Map<groupKey, records[]>)
   const [lazyLoadedGroups, setLazyLoadedGroups] = useState<Map<string, TableRowType[]>>(new Map());
 
-  // Clear lazy-loaded group data when groupByColumn or filters change
-  // This ensures lazy-loaded data stays in sync with saved views and cascade filters
+  // Clear lazy-loaded group data when groupByColumn, filters, or search change
+  // This ensures lazy-loaded data stays in sync with saved views, cascade filters, and search
   const filtersKey = useMemo(() => JSON.stringify(safeFilters), [safeFilters]);
   useEffect(() => {
     setLazyLoadedGroups(new Map());
     setGroupLoadingState(new Set());
-  }, [groupByColumn, filtersKey]);
+  }, [groupByColumn, filtersKey, search]);
 
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
@@ -1985,6 +1985,14 @@ export default function TeeemTableView({
         params.sort_order = JSON.stringify(sortColumns);
       }
 
+      // SSoT: Apply search term to lazy-loaded records (fixes search + grouping bug)
+      if (search) {
+        params.search = search;
+        if (propSearchMode) {
+          params.search_mode = propSearchMode;
+        }
+      }
+
       const response = await api.get<{
         success: boolean;
         records: TableRowType[];
@@ -2048,7 +2056,7 @@ export default function TeeemTableView({
         return next;
       });
     }
-  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns]);
+  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
 
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {
@@ -3912,8 +3920,11 @@ export default function TeeemTableView({
       const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
       // Check if we're currently loading this group
       const isLoadingThisGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Check if ALL data is already loaded (main "Load All" was clicked)
+      const allDataLoaded = totalCount === null || totalCount === undefined || entries.length >= totalCount;
       // Show indicator if we only have partial data loaded (and not fully loaded yet)
-      const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
+      // Don't show if all data is already loaded via main Load All button
+      const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
       // Group header
       result.push(
@@ -3942,6 +3953,18 @@ export default function TeeemTableView({
               {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
               {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
             </span>
+            {hasPartialData && !isLoadingThisGroup && (
+              <button
+                type="button"
+                className="text-xs text-primary hover:text-primary/80 underline ml-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  loadGroupRecords(groupKey);
+                }}
+              >
+                Load All
+              </button>
+            )}
           </div>
         </div>
       );
@@ -4144,8 +4167,11 @@ export default function TeeemTableView({
       const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
       // Check if we're currently loading this group
       const isLoadingThisGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Check if ALL data is already loaded (main "Load All" was clicked)
+      const allDataLoaded = totalCount === null || totalCount === undefined || entries.length >= totalCount;
       // Show indicator if we only have partial data loaded (and not fully loaded yet)
-      const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
+      // Don't show if all data is already loaded via main Load All button
+      const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
       // Add group header row - STICKY cell so it stays visible while scrolling within group
       // Calculate top position: column header height (28px) + previous group headers
