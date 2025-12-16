@@ -652,6 +652,15 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
 }: VirtualizedFlatTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
+  const [scrollbarWidth, setScrollbarWidth] = useState(0);
+
+  // Detect scrollbar width when body content changes
+  useEffect(() => {
+    if (parentRef.current) {
+      const width = parentRef.current.offsetWidth - parentRef.current.clientWidth;
+      setScrollbarWidth(width);
+    }
+  }, [rows.length]);
 
   // Sync horizontal scroll between body and header
   const handleBodyScroll = useCallback(() => {
@@ -676,8 +685,8 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Fixed header - scrolls horizontally in sync with body */}
-      <div ref={headerRef} className="overflow-x-hidden shrink-0">
+      {/* Fixed header - scrolls horizontally in sync with body, with scrollbar width compensation */}
+      <div ref={headerRef} className="overflow-x-hidden shrink-0" style={{ paddingRight: scrollbarWidth }}>
         <Table className="w-full" style={{ tableLayout: 'fixed', minWidth: totalWidth }}>
           <colgroup>
             {visibleColumnsInOrder.map((column) => (
@@ -3729,16 +3738,21 @@ export default function TeeemTableView({
         left: 0,
         zIndex: isHeader ? 30 : 10,
         backgroundColor: bgColor,
+        // IMPORTANT: Force exact width to prevent w-auto from shrinking it
+        width: 40,
+        minWidth: 40,
+        maxWidth: 40,
       };
     }
 
     // Position 2: first data column (index 1 after select) - sticky at left: selectWidth
+    // IMPORTANT: Use hardcoded 40px to match the select column definition
+    // This avoids misalignment if columnWidths['select'] is undefined or differs
     const columnIndex = visibleColumnsInOrder.findIndex(c => c.key === columnKey);
     if (columnIndex === 1) {
-      const selectWidth = columnWidths['select'] || 40;
       return {
         position: 'sticky',
-        left: selectWidth,
+        left: 40, // Match select column width (defined in DEFAULT_COLUMNS)
         zIndex: isHeader ? 30 : 10,
         backgroundColor: bgColor,
         boxShadow: '2px 0 4px rgba(0,0,0,0.1)',
@@ -4066,7 +4080,7 @@ export default function TeeemTableView({
       const groupBgColor = `rgba(242, 241, 239, ${Math.max(0.5, 0.95 - depth * 0.30)})`; // Solid enough for sticky
 
       // Calculate sticky width: select + first data column
-      const selectWidth = columnWidths['select'] || 40;
+      const selectWidth = 40; // Match select column width (hardcoded for consistency)
       const firstDataColKey = visibleColumnsInOrder[1]?.key;
       const firstDataColWidth = firstDataColKey ? (columnWidths[firstDataColKey] || 150) : 150;
       const stickyWidth = selectWidth + firstDataColWidth;

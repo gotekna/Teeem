@@ -11,8 +11,24 @@ import React from 'react';
 import { TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { TableColumn } from '../../types';
+
+/**
+ * Xero column tooltips - explains what each Xero-related field means
+ */
+const XERO_COLUMN_TOOLTIPS: Record<string, string> = {
+  xero_linked_count: 'Number of Xero organizations this contact is linked to',
+  xero_tenant_names: 'Names of the Xero organizations this contact is linked to',
+  xero_contact_types: 'Whether this contact is a Customer and/or Supplier in Xero',
+  xero_invoice_count: 'Total number of Xero invoices associated with this contact',
+  sync_with_xero: 'Whether this contact is configured to sync with Xero',
+  xero_contact_number: 'Unique contact identifier number in Xero',
+  xero_account_number: 'Account number assigned in Xero',
+  xero_id: 'Unique Xero contact ID (internal reference)',
+  xero_link_summary: 'Summary of Xero links showing connected organizations',
+};
 
 const SYSTEM_COLUMN_BG = 'hsl(47, 100%, 96%)'; // Light yellow tint
 // GOLD STANDARD: Sticky is position-based (select + position 2)
@@ -129,13 +145,15 @@ export function TableHeaderSection({
               )}
             >
               {column.key === "select" ? (
-                <Checkbox
-                  checked={
-                    selectedRows.size === filteredAndSortedEntries.length &&
-                    filteredAndSortedEntries.length > 0
-                  }
-                  onCheckedChange={toggleSelectAll}
-                />
+                <div className="flex items-center justify-center w-full h-full">
+                  <Checkbox
+                    checked={
+                      selectedRows.size === filteredAndSortedEntries.length &&
+                      filteredAndSortedEntries.length > 0
+                    }
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </div>
               ) : column.key === "actions" ? (
                 <span className="truncate">{column.label}</span>
               ) : (
@@ -152,7 +170,22 @@ export function TableHeaderSection({
                   isGroupedBy={groupByColumn === column.key}
                   isEditMode={columnEditMode}
                 >
-                  <span className="truncate">{column.label}</span>
+                  {XERO_COLUMN_TOOLTIPS[column.key] ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="truncate cursor-help border-b border-dashed border-gray-400 dark:border-gray-500">
+                            {column.label}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-xs">
+                          <p>{XERO_COLUMN_TOOLTIPS[column.key]}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <span className="truncate">{column.label}</span>
+                  )}
                 </ResizableColumnHeader>
               )}
             </TableHead>
