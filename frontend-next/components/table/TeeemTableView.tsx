@@ -94,6 +94,7 @@ import {
   GitMerge,
   UserPlus,
   ArrowLeftRight,
+  Pin,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -323,6 +324,7 @@ import {
   currentAutoFitColumnsAtom,
   currentSmartFitAtom,
   currentShowTotalsAtom,
+  currentStickyActionsAtom,
   collapsedGroupsAtom,
   foundationViewsAtom,
   viewsLoadingAtom,
@@ -520,8 +522,8 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                       })
                                     }}
                                     className={cn(
-                                      column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                                      column.key === "actions" && "!border-l-0 !bg-white"
+                                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                                      column.key === "actions" && "!border-l-0"
                                     )}
                                     onClick={(e) => {
                                       if (column.key === "select") {
@@ -732,8 +734,8 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                               })
                             }}
                             className={cn(
-                              column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                              column.key === "actions" && "!border-l-0 !bg-white"
+                              column.key === "select" && "!border-r-0 !p-0 !h-full",
+                              column.key === "actions" && "!border-l-0"
                             )}
                             onClick={(e) => {
                               if (column.key === "select") {
@@ -857,6 +859,8 @@ export default function TeeemTableView({
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
+  hideFooter = false,
+  alwaysVisibleColumns = [],
   stats,
   category,
 }: TeeemTableViewProps) {
@@ -1133,10 +1137,10 @@ export default function TeeemTableView({
     return false;
   }, [COLUMNS, effectiveEntries]);
 
-  // Sticky columns configuration - columns that stay fixed on horizontal scroll
-  // Order matters: select first (leftmost), then id, then display_name/name
-  // Includes both 'name' and 'display_name' to cover different table schemas
-  const STICKY_COLUMNS = useMemo(() => ['select', 'id', 'display_name', 'name'], []);
+  // GOLD STANDARD: Sticky columns are now position-based, not name-based
+  // Position 1 (select) and Position 2 (first data column) are always sticky
+  // This constant is kept for backwards compatibility with TableHeaderSection
+  const STICKY_COLUMNS = useMemo(() => ['select'], []);
 
   // Initialize default column state
   const DEFAULT_COLUMN_WIDTHS = useMemo(
@@ -1300,6 +1304,8 @@ export default function TeeemTableView({
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
   const [autoFitColumns, setAutoFitColumns] = useAtom(currentAutoFitColumnsAtom);
   const [smartFit, setSmartFit] = useAtom(currentSmartFitAtom);
+  // GOLD STANDARD: Position-based sticky actions toggle
+  const [stickyActions, setStickyActions] = useAtom(currentStickyActionsAtom);
   // healthPanelOpen managed by atom (SSoT)
   const [healthPanelOpen, setHealthPanelOpen] = useAtom(healthPanelOpenAtom);
 
@@ -3027,8 +3033,22 @@ export default function TeeemTableView({
       orderedVisible.push(actionsCol);
     }
 
+    // Ensure alwaysVisibleColumns are included (insert after select, before other columns)
+    alwaysVisibleColumns.forEach(colKey => {
+      const alreadyIncluded = orderedVisible.some(c => c.key === colKey);
+      if (!alreadyIncluded) {
+        const col = COLUMNS.find(c => c.key === colKey);
+        if (col) {
+          // Insert after select column (index 1) or at start if no select
+          const selectIndex = orderedVisible.findIndex(c => c.key === 'select');
+          const insertIndex = selectIndex >= 0 ? selectIndex + 1 : 0;
+          orderedVisible.splice(insertIndex, 0, col);
+        }
+      }
+    });
+
     return orderedVisible;
-  }, [columnOrder, visibleColumns, COLUMNS]);
+  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns]);
 
   // Calculate total table width based on column widths
   const totalTableWidth = useMemo(() => {
@@ -3579,51 +3599,51 @@ export default function TeeemTableView({
   // RENDER FUNCTIONS
   // ============================================================================
 
-  // Helper function to compute sticky column styles
-  // Returns position:sticky and left offset based on cumulative widths of previous sticky columns
+  // GOLD STANDARD: Position-based sticky columns
+  // - Position 1 (select): always sticky at left: 0
+  // - Position 2 (first data column): sticky at left: selectWidth
+  // - Actions: sticky to right (controlled by stickyActions toggle)
+  // User controls which column is sticky by reordering columns in their view!
   const getStickyColumnStyles = useCallback((columnKey: string, isHeader: boolean = false): React.CSSProperties => {
-    const stickyIndex = STICKY_COLUMNS.indexOf(columnKey);
+    const bgColor = isHeader ? 'hsl(40, 11%, 89%)' : 'hsl(40, 11%, 95%)';
 
-    // Actions column - sticky to right
-    if (columnKey === 'actions') {
+    // Position 1: select - always sticky at left: 0
+    if (columnKey === 'select') {
+      return {
+        position: 'sticky',
+        left: 0,
+        zIndex: isHeader ? 30 : 10,
+        background: bgColor,
+      };
+    }
+
+    // Position 2: first data column (index 1 after select) - sticky at left: selectWidth
+    const columnIndex = visibleColumnsInOrder.findIndex(c => c.key === columnKey);
+    if (columnIndex === 1) {
+      const selectWidth = columnWidths['select'] || 40;
+      return {
+        position: 'sticky',
+        left: selectWidth,
+        zIndex: isHeader ? 30 : 10,
+        background: bgColor,
+        boxShadow: '2px 0 4px rgba(0,0,0,0.1)',
+      };
+    }
+
+    // Actions column - sticky to right (only if stickyActions is enabled)
+    if (columnKey === 'actions' && stickyActions) {
       return {
         position: 'sticky',
         right: 0,
         zIndex: isHeader ? 50 : 20,
-        background: isHeader ? 'hsl(40, 11%, 89%)' : 'hsl(40, 11%, 95%)',
+        background: bgColor,
         boxShadow: '-2px 0 4px rgba(0,0,0,0.1)',
       };
     }
 
     // Not a sticky column
-    if (stickyIndex === -1) {
-      return {};
-    }
-
-    // Calculate left position based on cumulative widths of previous sticky columns
-    let leftPosition = 0;
-    for (let i = 0; i < stickyIndex; i++) {
-      const prevColumnKey = STICKY_COLUMNS[i];
-      // Check if previous sticky column is actually visible
-      if (visibleColumnsInOrder.some(c => c.key === prevColumnKey)) {
-        leftPosition += columnWidths[prevColumnKey] || (prevColumnKey === 'select' ? 40 : 100);
-      }
-    }
-
-    // Determine if this is the last visible sticky column (for shadow effect)
-    const visibleStickyColumns = STICKY_COLUMNS.filter(key =>
-      visibleColumnsInOrder.some(c => c.key === key)
-    );
-    const isLastSticky = visibleStickyColumns[visibleStickyColumns.length - 1] === columnKey;
-
-    return {
-      position: 'sticky',
-      left: leftPosition,
-      zIndex: isHeader ? 30 : 10,
-      background: isHeader ? 'hsl(40, 11%, 89%)' : 'hsl(40, 11%, 95%)',
-      boxShadow: isLastSticky ? '2px 0 4px rgba(0,0,0,0.1)' : undefined,
-    };
-  }, [STICKY_COLUMNS, visibleColumnsInOrder, columnWidths]);
+    return {};
+  }, [visibleColumnsInOrder, columnWidths, stickyActions]);
 
   // Render table header
   // Table header render (Phase 6 refactoring - extracted to TableHeaderSection component)
@@ -3862,8 +3882,8 @@ export default function TeeemTableView({
                 }),
               }}
               className={cn(
-                column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                column.key === "actions" && "!border-l-0 !bg-white"
+                column.key === "select" && "!border-r-0 !p-0 !h-full",
+                column.key === "actions" && "!border-l-0"
               )}
               onClick={(e) => {
                 if (column.key === "select") {
@@ -3997,33 +4017,25 @@ export default function TeeemTableView({
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
                   const isSystemGen = isSystemGeneratedColumn(column);
+                  const stickyStyles = getStickyColumnStyles(column.key, false);
                   return (
                   <TableCell
                     key={`${column.key}-${colIndex}`}
                     style={{
                       width: columnWidths[column.key],
                       minWidth: columnWidths[column.key],
+                      ...stickyStyles,
                       ...(column.key === "select" && {
-                        position: 'sticky',
-                        left: 0,
-                        zIndex: 10,
-                        background: 'hsl(40, 11%, 95%)',
-                        boxShadow: '1px 0 0 #d4d4d4',
-                      }),
-                      ...(column.key === "actions" && {
-                        position: 'sticky',
-                        right: 0,
-                        zIndex: 10,
-                        background: 'hsl(40, 11%, 95%)',
-                        boxShadow: '-1px 0 0 #d4d4d4',
+                        textAlign: 'center',
+                        verticalAlign: 'middle',
                       }),
                       ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                         backgroundColor: SYSTEM_COLUMN_BG,
                       })
                     }}
                     className={cn(
-                      column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                      column.key === "actions" && "!border-l-0 !bg-white"
+                      column.key === "select" && "!border-r-0 !p-0 !h-full",
+                      column.key === "actions" && "!border-l-0"
                     )}
                     onClick={(e) => {
                       if (column.key === "select") {
@@ -4217,35 +4229,25 @@ export default function TeeemTableView({
               >
                 {visibleColumnsInOrder.map((column, colIndex) => {
                   const isSystemGen = isSystemGeneratedColumn(column);
+                  const stickyStyles = getStickyColumnStyles(column.key, false);
                   return (
                     <TableCell
                       key={`${column.key}-${colIndex}`}
                       style={{
                         width: columnWidths[column.key] || column.width,
                         minWidth: columnWidths[column.key] || column.width,
+                        ...stickyStyles,
                         ...(column.key === "select" && {
-                          position: 'sticky',
-                          left: 0,
-                          zIndex: 10,
-                          background: 'hsl(40, 11%, 95%)',
-                          boxShadow: '1px 0 0 #d4d4d4',
                           textAlign: 'center',
                           verticalAlign: 'middle'
-                        }),
-                        ...(column.key === "actions" && {
-                          position: 'sticky',
-                          right: 0,
-                          zIndex: 10,
-                          background: 'hsl(40, 11%, 95%)',
-                          boxShadow: '-1px 0 0 #d4d4d4',
                         }),
                         ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                           backgroundColor: SYSTEM_COLUMN_BG,
                         })
                       }}
                       className={cn(
-                        column.key === "select" && "!border-r-0 !p-0 !h-full !bg-white",
-                        column.key === "actions" && "!border-l-0 !bg-white"
+                        column.key === "select" && "!border-r-0 !p-0 !h-full",
+                        column.key === "actions" && "!border-l-0"
                       )}
                       onClick={(e) => {
                         if (column.key === "select") {
@@ -4318,20 +4320,22 @@ export default function TeeemTableView({
 
 
   return (
-    <div className="flex flex-col h-full gap-4">
+    <div className="flex flex-col h-full gap-2">
       {/* Data Health Widget - shown when button clicked or showDataHealth prop is true */}
       {(healthPanelOpen || showDataHealth) && foundationIdNumeric && (
-        <DataHealthWidget
-          foundationId={foundationIdNumeric}
-          compact={!healthPanelOpen}
-          forceShow={healthPanelOpen}
-          onIssueClick={onDataHealthIssueClick}
-          onDataChanged={onRefresh}
-        />
+        <div className="px-4">
+          <DataHealthWidget
+            foundationId={foundationIdNumeric}
+            compact={!healthPanelOpen}
+            forceShow={healthPanelOpen}
+            onIssueClick={onDataHealthIssueClick}
+            onDataChanged={onRefresh}
+          />
+        </div>
       )}
 
       {/* Toolbar - First row: Search and main actions */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 px-4">
           {/* Left section: Add button + leftActions + Search */}
           <div className="toolbar-left flex items-center gap-2 flex-shrink-0">
             {/* Add Row button - auto-shown when onAddRow is provided */}
@@ -4550,6 +4554,22 @@ export default function TeeemTableView({
                 </>
               )}
 
+              {/* Display Options Section */}
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
+                DISPLAY
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onClick={() => setStickyActions(!stickyActions)}
+                className="flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Pin className="h-4 w-4" />
+                  Pin Actions Column
+                </span>
+                {stickyActions && <Check className="h-4 w-4" />}
+              </DropdownMenuItem>
+
               {/* Table Info Section */}
               <DropdownMenuSeparator />
               <DropdownMenuLabel className="text-xs text-muted-foreground font-medium">
@@ -4579,7 +4599,7 @@ export default function TeeemTableView({
 
       {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
       {savedViews.length > 0 && (
-        <div className="flex items-center gap-2 overflow-x-auto mt-3 pb-2">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 px-4">
           {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
           {groupByColumn && (
             <Button
@@ -4772,7 +4792,7 @@ export default function TeeemTableView({
 
       {/* Active filters indicator - only show when NO saved view is active (view buttons already indicate active view) */}
       {safeFilters.length > 0 && !activeViewId && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap px-4">
           <span className="text-[11px] text-muted-foreground">Active filters:</span>
           {safeFilters.map((filter) => {
             const col = COLUMNS.find((c) => c.key === filter.column);
@@ -4952,7 +4972,7 @@ export default function TeeemTableView({
       <div
         ref={tableContainerRef}
         className={cn(
-          "flex-1 min-h-[200px] max-h-[calc(100vh-420px)] w-full overflow-auto relative border-t border-b",
+          "flex-1 min-h-0 w-full overflow-auto relative border-t border-b",
           tableHasFocus && "ring-2 ring-primary/20 ring-inset"
         )}
         role="region"
@@ -4972,27 +4992,29 @@ export default function TeeemTableView({
         )}
       </div>
 
-      {/* Footer - compact */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Column totals */}
-          {showTotals && Object.keys(columnTotals).length > 0 && (
-            <>
-              {Object.entries(columnTotals).map(([key, data]) => (
-                <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
-                  {data.label}: <span className="font-mono">{formatTotal(key)}</span>
-                </span>
-              ))}
-            </>
-          )}
+      {/* Footer - compact (hidden when hideFooter is true) */}
+      {!hideFooter && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Column totals */}
+            {showTotals && Object.keys(columnTotals).length > 0 && (
+              <>
+                {Object.entries(columnTotals).map(([key, data]) => (
+                  <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                    {data.label}: <span className="font-mono">{formatTotal(key)}</span>
+                  </span>
+                ))}
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-[11px]">
+            {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
+            <span>
+              Showing {filteredAndSortedEntries.length} of {totalCount ?? entries.length} records
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3 text-[11px]">
-          {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
-          <span>
-            Showing {filteredAndSortedEntries.length} of {totalCount ?? entries.length} records
-          </span>
-        </div>
-      </div>
+      )}
 
       {/* Bulk Update Modal */}
       <BulkUpdateModal

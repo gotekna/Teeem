@@ -90,55 +90,6 @@ export default function PurchaseOrdersPage() {
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Total POs</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.total}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Draft</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.draft}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">Pending</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.pending}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Approved</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats.approved}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Total Value</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(stats.totalValue)}</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Table */}
       <TeeemTableView
         entries={records}

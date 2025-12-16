@@ -617,11 +617,26 @@ export default function ContactsPageClient({
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {totalCount !== null
-              ? `${totalCount.toLocaleString()} contacts`
-              : `${records.length.toLocaleString()}+ contacts`}
-          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-sm text-muted-foreground">
+              {totalCount !== null
+                ? `Showing ${records.length.toLocaleString()} of ${totalCount.toLocaleString()} contacts`
+                : `${records.length.toLocaleString()}+ contacts`}
+            </p>
+            {hasMore && !isLoadingMore && (
+              <Button
+                variant="link"
+                size="sm"
+                onClick={loadAll}
+                className="h-auto p-0 text-sm text-primary"
+              >
+                Load All
+              </Button>
+            )}
+            {isLoadingMore && (
+              <span className="text-sm text-muted-foreground">Loading...</span>
+            )}
+          </div>
         </div>
         {currentView?.view_type === "relational" && (
           <Button
@@ -636,7 +651,8 @@ export default function ContactsPageClient({
       </div>
 
       {/* Contacts View - Table or Relational based on saved view setting */}
-      <div className="flex-1 min-h-0">
+      {/* -mx-4 breaks out of parent px-4 padding to make table full width */}
+      <div className="flex-1 min-h-0 -mx-4">
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
             <ContactRelationshipsExplorer />
@@ -668,8 +684,8 @@ export default function ContactsPageClient({
             onSearchModeChange={setSearchMode}
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
-            onLoadAll={loadAll}
             hasMore={hasMore}
+            hideFooter={true}
           />
         )}
       </div>

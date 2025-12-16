@@ -4,19 +4,11 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
-import {
-  Plus,
-  DollarSign,
-  Package,
-  AlertTriangle,
-  ImageIcon,
-  CheckCircle,
-} from "lucide-react";
+import { Plus, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDrawer";
@@ -124,59 +116,6 @@ export default function PriceBookPage() {
             {stats.total.toLocaleString()} items across {stats.categoriesCount} categories
           </p>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Total Items</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.total.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Active</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-green-600">
-              {stats.active.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">Categories</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.categoriesCount}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <ImageIcon className="h-4 w-4 text-indigo-600" />
-              <span className="text-xs text-muted-foreground">With Images</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2">{stats.withImages.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-        <Card className={stats.needsReview > 0 ? "border-yellow-300 bg-yellow-50 dark:bg-yellow-900/10" : ""}>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <span className="text-xs text-muted-foreground">Needs Review</span>
-            </div>
-            <div className="text-2xl font-bold font-mono mt-2 text-yellow-600">
-              {stats.needsReview.toLocaleString()}
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Tabs */}

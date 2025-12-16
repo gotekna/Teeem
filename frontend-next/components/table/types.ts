@@ -79,6 +79,7 @@ export interface SavedView {
   autoFitColumns?: boolean;
   smartFit?: boolean;
   showTotals?: boolean;
+  stickyActions?: boolean; // Pin actions column to right edge when scrolling horizontally
   display_order?: number;
   isDefault?: boolean;
   is_global?: boolean;
@@ -167,6 +168,8 @@ export interface TeeemTableViewProps {
 
   // Display options
   initialShowTotals?: boolean; // Initial value for showing totals row (default: true)
+  hideFooter?: boolean; // Hide the footer row (record count shown in page header instead)
+  alwaysVisibleColumns?: string[]; // Columns that are always visible regardless of view settings
 
   // Legacy props
   stats?: Record<string, unknown>;

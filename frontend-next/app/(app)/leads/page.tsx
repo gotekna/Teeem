@@ -208,54 +208,6 @@ export default function LeadsPage() {
 
         {/* Pipeline Tab */}
         <TabsContent value="leads" className="mt-6 space-y-6">
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Total Pipeline</span>
-                </div>
-                <div className="text-2xl font-bold font-mono mt-1">
-                  {formatCurrency(pipelineMeta?.total_pipeline_value || 0)}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-blue-500" />
-                  <span className="text-xs text-muted-foreground">Active Enquiries</span>
-                </div>
-                <div className="text-2xl font-bold font-mono text-blue-600 mt-1">
-                  {activeCount}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-xs text-muted-foreground">Won</span>
-                </div>
-                <div className="text-2xl font-bold font-mono text-green-600 mt-1">
-                  {pipelineMeta?.won_count || 0}
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs text-muted-foreground">Won Value</span>
-                </div>
-                <div className="text-2xl font-bold font-mono mt-1">
-                  {formatCurrency(pipelineMeta?.won_value || 0)}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
           {/* Pipeline View */}
           <JobPipeline
             jobsByStage={jobsByStage}

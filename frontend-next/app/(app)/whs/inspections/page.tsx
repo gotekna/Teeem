@@ -97,54 +97,6 @@ export default function WHSInspectionsPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Total Inspections</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <span className="text-2xl font-bold text-green-600">{stats.completed}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-600" />
-              <span className="text-2xl font-bold text-blue-600">{stats.scheduled}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Scheduled</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-2xl font-bold text-red-600">{stats.overdue}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Overdue</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className={`text-2xl font-bold ${getScoreColor(stats.avgScore)}`}>
-              {stats.avgScore}%
-            </div>
-            <p className="text-sm text-muted-foreground">Avg. Score</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Table */}
       <TeeemTableView
         entries={records}

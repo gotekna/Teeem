@@ -179,46 +179,6 @@ export default function WHSIncidentsPage() {
         </Dialog>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-bold">{stats.total}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Total Incidents</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-orange-600" />
-              <span className="text-2xl font-bold text-orange-600">{stats.open}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">Open Cases</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <span className="text-2xl font-bold text-red-600">{stats.high}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">High Severity</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-blue-600" />
-              <span className="text-2xl font-bold">{stats.thisMonth}</span>
-            </div>
-            <p className="text-sm text-muted-foreground">This Month</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Table */}
       <TeeemTableView
         entries={records}

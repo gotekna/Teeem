@@ -149,58 +149,6 @@ export default function WHSPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Active SWMS</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.active_swms || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">Pending Inductions</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.pending_inductions || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-500" />
-              <span className="text-sm text-muted-foreground">Incidents (Month)</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.incidents_this_month || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <HardHat className="h-4 w-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">Expiring Licenses</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{stats?.expiring_licenses || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <div className="flex items-center gap-2">
-              <Shield className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">Compliance</span>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-2xl font-bold">{stats?.compliance_score || 0}%</p>
-              <Progress value={stats?.compliance_score || 0} className="flex-1 h-2" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card

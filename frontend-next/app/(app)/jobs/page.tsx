@@ -157,40 +157,6 @@ export default function JobsPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">Total Jobs</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-blue-600">
-              {stats.inProgress}
-            </div>
-            <p className="text-xs text-muted-foreground">In Progress</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-green-600">
-              {stats.completed}
-            </div>
-            <p className="text-xs text-muted-foreground">Completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-2xl font-bold font-mono text-purple-600">
-              ${stats.totalValue.toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">Total Value</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Table */}
       <div className="flex-1 min-h-0">
         <TeeemTableView
