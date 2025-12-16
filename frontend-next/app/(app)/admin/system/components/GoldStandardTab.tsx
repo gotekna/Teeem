@@ -839,7 +839,6 @@ function GoldStandardDataTab() {
         enableExport={true}
         enableSchemaEditor={true}
         initialShowTotals={true}
-        initialStickyActions={true}
         leftActions={
           <Button variant="default" size="sm" onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-2" />
