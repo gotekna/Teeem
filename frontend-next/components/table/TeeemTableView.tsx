@@ -1134,8 +1134,9 @@ export default function TeeemTableView({
   }, [COLUMNS, effectiveEntries]);
 
   // Sticky columns configuration - columns that stay fixed on horizontal scroll
-  // Order matters: select first (leftmost), then id, then name
-  const STICKY_COLUMNS = useMemo(() => ['select', 'id', 'name'], []);
+  // Order matters: select first (leftmost), then id, then display_name/name
+  // Includes both 'name' and 'display_name' to cover different table schemas
+  const STICKY_COLUMNS = useMemo(() => ['select', 'id', 'display_name', 'name'], []);
 
   // Initialize default column state
   const DEFAULT_COLUMN_WIDTHS = useMemo(
