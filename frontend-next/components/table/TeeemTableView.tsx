@@ -821,16 +821,6 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
         </div>
       </div>
 
-      {/* Row count indicator */}
-      <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/30 text-sm text-muted-foreground">
-        <span>
-          {rows.length.toLocaleString()} row{rows.length !== 1 ? "s" : ""}
-        </span>
-        <span className="text-xs">
-          Virtual scroll active
-        </span>
-      </div>
-
       {/* Fixed footer (totals) */}
       {showTotals && renderTableFooter && (
         <div className="overflow-x-auto border-t">
@@ -4542,6 +4532,12 @@ export default function TeeemTableView({
                 Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length})` : ''}
               </Button>
             ) : null}
+            {/* Virtual scroll indicator - shown when table exceeds threshold */}
+            {filteredAndSortedEntries.length > VIRTUALIZATION_THRESHOLD && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                Virtual scroll active
+              </span>
+            )}
           </div>
           {/* Totals in header (only when showTotals enabled and has numeric columns) */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
@@ -4618,8 +4614,8 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Bulk action buttons - show when rows selected (flat table only, grouped has inline) */}
-          {selectedRows.size > 0 && !groupByColumn && (
+          {/* Bulk action buttons - show when rows selected (SSoT: always in first row) */}
+          {selectedRows.size > 0 && (
             <div className="flex items-center gap-2 shrink-0">
               <div className="h-4 w-px bg-border mx-1" />
               {/* Bulk Update - column-based update modal */}
@@ -4906,8 +4902,7 @@ export default function TeeemTableView({
             })()
           ) : groupByColumn && selectedRows.size > 0 ? (
             <>
-
-              {/* Selection dropdown */}
+              {/* Selection dropdown for grouped tables */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center cursor-pointer">
@@ -4932,66 +4927,7 @@ export default function TeeemTableView({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Bulk action buttons */}
-              {onRowUpdate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkUpdateModal(true)}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Bulk Update
-                </Button>
-              )}
-              {onRowUpdate && !viewOnly && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startMultiEditing(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Inline Edit
-                </Button>
-              )}
-              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleMergeClick(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <GitMerge className="h-3 w-3 mr-1" />
-                  Merge
-                </Button>
-              )}
-              {/* Xero Transfer button - compact */}
-              {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onXeroTransfer(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <ArrowLeftRight className="h-3 w-3 mr-1" />
-                  Xero
-                </Button>
-              )}
-              {/* Delete button - compact */}
-              {onBulkDelete && !viewOnly && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => onBulkDelete(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Trash2 className="h-3 w-3 mr-1" />
-                  Delete
-                </Button>
-              )}
-
-              {/* Selection count and clear */}
+              {/* Selection count and clear - bulk action buttons are in the first toolbar row (SSoT) */}
               <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
               <Button
                 variant="outline"

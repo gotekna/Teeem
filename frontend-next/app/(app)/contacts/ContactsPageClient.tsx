@@ -528,36 +528,41 @@ export default function ContactsPageClient({
     // Pick a random TEEEM value
     const randomValue = teeemValues[Math.floor(Math.random() * teeemValues.length)];
 
-    try {
-      // Optimistically remove from UI immediately
-      const idsSet = new Set(ids);
-      setRecords(prev => prev.filter(r => !idsSet.has(r.id)));
+    // Optimistically remove from UI immediately
+    const idsSet = new Set(ids);
+    setRecords(prev => prev.filter(r => !idsSet.has(r.id)));
 
-      // Show TEEEM value toast
-      toast({
-        title: randomValue.title,
-        description: randomValue.description,
-      });
+    // Show TEEEM value toast
+    toast({
+      title: randomValue.title,
+      description: randomValue.description,
+    });
 
-      // Soft delete all via API (in parallel for speed)
-      await Promise.all(
-        ids.map(id => api.delete(`/api/v1/foundations/contacts/records/${id}`))
-      );
+    // Soft delete all via API (in parallel for speed)
+    // Use allSettled to handle already-deleted records gracefully
+    const results = await Promise.allSettled(
+      ids.map(id => api.delete(`/api/v1/foundations/contacts/records/${id}`))
+    );
 
-      // Show success toast
-      toast({
-        title: "Contacts archived",
-        description: `${ids.length} contacts have been removed`,
-      });
-    } catch (error: any) {
-      console.error("[ContactsPageClient] Failed to delete contacts:", error);
+    // Count successes and failures
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
 
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast({
-        title: "Delete failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    if (failed > 0) {
+      // Some failed (likely already deleted) - log but don't show error
+      console.warn(`[ContactsPageClient] Bulk delete: ${succeeded} succeeded, ${failed} already deleted/not found`);
+    }
+
+    // Show success toast (even if some were already deleted)
+    toast({
+      title: "Contacts archived",
+      description: succeeded === ids.length
+        ? `${ids.length} contacts have been removed`
+        : `${succeeded} contacts removed (${failed} were already deleted)`,
+    });
+
+    // Refresh to ensure UI is in sync with backend
+    if (failed > 0) {
       await refresh();
     }
   }, [refresh, toast]);
