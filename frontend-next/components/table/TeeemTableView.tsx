@@ -1992,7 +1992,52 @@ export default function TeeemTableView({
       }>(`/api/v1/foundations/${foundationIdNumeric}/records`, { params });
 
       if (response.success && response.records) {
-        setLazyLoadedGroups(prev => new Map(prev).set(groupKey, response.records));
+        // SSoT: Apply client-side sorting to match current sort order
+        let sortedRecords = response.records;
+        if (sortColumns.length > 0) {
+          sortedRecords = [...response.records].sort((a, b) => {
+            for (const { column, dir, customOrder } of sortColumns) {
+              const aVal = a[column];
+              const bVal = b[column];
+
+              if (aVal == null && bVal == null) continue;
+              if (aVal == null) return dir === "asc" ? 1 : -1;
+              if (bVal == null) return dir === "asc" ? -1 : 1;
+
+              // Get display values (handle lookup objects)
+              const getDisplayVal = (val: unknown): string => {
+                if (typeof val === 'object' && val !== null) {
+                  const obj = val as { display?: string; name?: string; id?: number };
+                  return obj.display || obj.name || String(obj.id || '');
+                }
+                return String(val);
+              };
+
+              const aDisplay = getDisplayVal(aVal);
+              const bDisplay = getDisplayVal(bVal);
+
+              let comparison = 0;
+
+              if (dir === "custom" && customOrder && customOrder.length > 0) {
+                const aIndex = customOrder.indexOf(aDisplay);
+                const bIndex = customOrder.indexOf(bDisplay);
+                const aPos = aIndex === -1 ? customOrder.length : aIndex;
+                const bPos = bIndex === -1 ? customOrder.length : bIndex;
+                comparison = aPos - bPos;
+              } else if (typeof aVal === "number" && typeof bVal === "number") {
+                comparison = aVal - bVal;
+              } else {
+                comparison = aDisplay.localeCompare(bDisplay);
+              }
+
+              if (comparison !== 0) {
+                return dir === "desc" ? -comparison : comparison;
+              }
+            }
+            return 0;
+          });
+        }
+        setLazyLoadedGroups(prev => new Map(prev).set(groupKey, sortedRecords));
       }
     } catch (error) {
       console.error(`[TeeemTableView] Failed to load group records for "${groupKey}":`, error);
