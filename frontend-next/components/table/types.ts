@@ -104,6 +104,7 @@ export interface TeeemTableViewProps {
   onBulkDelete?: (ids: (number | string)[]) => void;
   onBulkEdit?: (ids: (number | string)[]) => void;
   onBulkMerge?: (ids: (number | string)[]) => void;
+  onXeroTransfer?: (ids: (number | string)[]) => void; // Called when Xero transfer button clicked (exactly 2 selected)
   enableMerge?: boolean; // Enable built-in merge functionality (default: true when foundationIdNumeric is set)
   mergeDisplayColumn?: string; // Column to display in merge modal (default: 'name')
   mergeSecondaryColumns?: string[]; // Additional columns to show in merge modal

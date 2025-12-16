@@ -93,6 +93,7 @@ import {
   CalendarIcon,
   GitMerge,
   UserPlus,
+  ArrowLeftRight,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -812,6 +813,7 @@ export default function TeeemTableView({
   onBulkDelete,
   onBulkEdit,
   onBulkMerge,
+  onXeroTransfer,
   enableMerge,
   mergeDisplayColumn = "name",
   mergeSecondaryColumns = [],
@@ -4426,6 +4428,17 @@ export default function TeeemTableView({
                   Merge
                 </Button>
               )}
+              {/* Xero Transfer button - transfer Xero link between exactly 2 contacts */}
+              {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onXeroTransfer(Array.from(selectedRows))}
+                >
+                  <ArrowLeftRight className="h-4 w-4 mr-1" />
+                  Xero
+                </Button>
+              )}
             </div>
           )}
 
@@ -4699,6 +4712,18 @@ export default function TeeemTableView({
                   Merge
                 </Button>
               )}
+              {/* Xero Transfer button - compact */}
+              {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onXeroTransfer(Array.from(selectedRows))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <ArrowLeftRight className="h-3 w-3 mr-1" />
+                  Xero
+                </Button>
+              )}
 
               {/* Selection count and clear */}
               <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
@@ -4836,6 +4861,17 @@ export default function TeeemTableView({
             >
               <GitMerge className="h-4 w-4 mr-1" />
               Merge
+            </Button>
+          )}
+          {/* Xero Transfer button - transfer Xero link between exactly 2 contacts */}
+          {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onXeroTransfer?.(Array.from(selectedRows))}
+            >
+              <ArrowLeftRight className="h-4 w-4 mr-1" />
+              Xero
             </Button>
           )}
           {/* Delete button */}

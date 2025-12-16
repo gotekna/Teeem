@@ -8,6 +8,7 @@ import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MergeContactsModal } from "@/components/contacts/merge-contacts-modal";
+import { XeroLinkTransferModal } from "@/components/contacts/XeroLinkTransferModal";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import ContactsRelationalView from "./ContactsRelationalView";
 import ContactRelationshipsExplorer from "./ContactRelationshipsExplorer";
@@ -116,6 +117,8 @@ export default function ContactsPageClient({
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
+  const [xeroTransferIds, setXeroTransferIds] = useState<(number | string)[]>([]);
+  const [xeroTransferModalOpen, setXeroTransferModalOpen] = useState(false);
 
   // Track current view to determine display mode
   const [currentView, setCurrentView] = useState<any>(null);
@@ -405,6 +408,14 @@ export default function ContactsPageClient({
     });
   }, [totalCount, toast]);
 
+  // Xero transfer handler - called when 2 contacts are selected and Xero button is clicked
+  const handleXeroTransfer = useCallback((ids: (number | string)[]) => {
+    if (ids.length === 2) {
+      setXeroTransferIds(ids);
+      setXeroTransferModalOpen(true);
+    }
+  }, []);
+
   // Handle row double-click - navigate to contact detail
   // NOTE: Single-click is disabled to allow row selection and inline editing
   // Double-click is the standard way to open a record in a table
@@ -601,9 +612,16 @@ export default function ContactsPageClient({
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+    /* [1] MAIN CONTAINER (BLUE) */
+    <div className="flex flex-col h-full border-4 border-blue-500 relative">
+      <div className="bg-blue-600 text-white px-2 py-1 text-xs font-bold absolute top-0 left-0 z-50">
+        [1] MAIN (BLUE) - flex-col h-full
+      </div>
+      {/* [2] HEADER (GREEN) */}
+      <div className="flex items-center justify-between mb-4 border-4 border-green-500 bg-green-50 dark:bg-green-900/20 p-2 mt-6 relative">
+        <div className="bg-green-600 text-white px-2 py-1 text-xs font-bold absolute -top-2 left-0 z-50">
+          [2] HEADER (GREEN)
+        </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -624,8 +642,11 @@ export default function ContactsPageClient({
         )}
       </div>
 
-      {/* Contacts View - Table or Relational based on saved view setting */}
-      <div className="flex-1 min-h-0">
+      {/* [3] TABLE CONTAINER (PURPLE) */}
+      <div className="flex-1 min-h-0 border-4 border-purple-500 relative">
+        <div className="bg-purple-600 text-white px-2 py-1 text-xs font-bold absolute -top-2 left-0 z-50">
+          [3] TABLE (PURPLE) - flex-1 min-h-0
+        </div>
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
             <ContactRelationshipsExplorer />
@@ -648,6 +669,7 @@ export default function ContactsPageClient({
             onRowUpdate={handleRowUpdate}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
+            onXeroTransfer={handleXeroTransfer}
             leftActions={leftActions}
             onViewChange={handleViewChange}
             onServerSearch={handleServerSearch}
@@ -668,6 +690,17 @@ export default function ContactsPageClient({
         onOpenChange={setMergeModalOpen}
         contacts={selectedForMerge}
         onMergeComplete={handleMergeComplete}
+      />
+
+      {/* Xero Link Transfer Modal */}
+      <XeroLinkTransferModal
+        isOpen={xeroTransferModalOpen}
+        onClose={() => {
+          setXeroTransferModalOpen(false);
+          setXeroTransferIds([]);
+        }}
+        contactIds={xeroTransferIds}
+        onSuccess={refresh}
       />
     </div>
   );
