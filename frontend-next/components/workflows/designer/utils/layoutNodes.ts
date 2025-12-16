@@ -89,7 +89,6 @@ function simpleGridLayout<T extends Record<string, unknown>>(
   const ROW_HEIGHT = 320; // Vertical spacing between rows (RULE: nodes can NEVER overlap)
   const START_X = -350;   // Negative offset to shift workflow left and eliminate wasted space
   const START_Y = 150;    // Starting Y offset to align with canvas rows
-  const UNIFORM_NODE_HEIGHT = 80; // Use uniform height for vertical centering (adjusted for actual rendered height)
 
   // Build adjacency lists
   const outgoing = new Map<string, string[]>();
@@ -107,19 +106,20 @@ function simpleGridLayout<T extends Record<string, unknown>>(
   const parallelGateways = nodes.filter(n => n.type === 'parallel_gateway');
   const endNode = nodes.find(n => n.type === 'end_event');
 
+  // Track positions - using fractional rows for gateways at intersection points
   const nodePositions = new Map<string, {col: number, row: number}>();
+  let branchCount = 0;
 
-  // Start event at column 0, row 1 (middle)
+  // Start event at column 0
   if (startNode) {
-    nodePositions.set(startNode.id, {col: 0, row: 1});
+    nodePositions.set(startNode.id, {col: 0, row: 1}); // Will be adjusted after we know branch count
   }
 
-  // First parallel gateway at column 1, row 1
+  // First parallel gateway at column 1
   if (parallelGateways[0]) {
-    nodePositions.set(parallelGateways[0].id, {col: 1, row: 1});
-
-    // Get the 3 parallel branches
+    // Get the parallel branches to determine row spread
     const branches = outgoing.get(parallelGateways[0].id) || [];
+    branchCount = branches.length;
 
     // For each branch, traverse and assign positions
     branches.forEach((branchStartId, branchIndex) => {
@@ -146,6 +146,17 @@ function simpleGridLayout<T extends Record<string, unknown>>(
         col++;
       }
     });
+
+    // Position the split gateway at the visual center of all branches
+    // For 3 branches (rows 0, 1, 2), center is row 1
+    // For 2 branches (rows 0, 1), center is row 0.5
+    const centerRow = (branchCount - 1) / 2;
+    nodePositions.set(parallelGateways[0].id, {col: 1, row: centerRow});
+
+    // Also adjust start node to align with gateway
+    if (startNode) {
+      nodePositions.set(startNode.id, {col: 0, row: centerRow});
+    }
   }
 
   // Find max column used
@@ -154,17 +165,19 @@ function simpleGridLayout<T extends Record<string, unknown>>(
     0
   );
 
-  // Second parallel gateway (convergence) at maxCol + 1, row 1
+  // Second parallel gateway (convergence) - position at visual center
   if (parallelGateways[1]) {
-    nodePositions.set(parallelGateways[1].id, {col: maxCol + 1, row: 1});
+    const centerRow = (branchCount - 1) / 2;
+    nodePositions.set(parallelGateways[1].id, {col: maxCol + 1, row: centerRow});
   }
 
-  // End event at maxCol + 2, row 1
+  // End event - align with gateways
   if (endNode) {
-    nodePositions.set(endNode.id, {col: maxCol + 2, row: 1});
+    const centerRow = (branchCount - 1) / 2;
+    nodePositions.set(endNode.id, {col: maxCol + 2, row: centerRow});
   }
 
-  // Ensure all nodes have positions - assign any missing nodes to row 1, next available column
+  // Ensure all nodes have positions - assign any missing nodes
   nodes.forEach(node => {
     if (!nodePositions.has(node.id)) {
       console.warn(`Node ${node.id} not positioned, defaulting to row 1`);
@@ -179,7 +192,7 @@ function simpleGridLayout<T extends Record<string, unknown>>(
     // Get node dimensions for both horizontal and vertical centering
     const dimensions = NODE_DIMENSIONS[node.type || ''] || DEFAULT_DIMENSIONS;
 
-    // Calculate exact Y position for this row - use actual node height for proper centering
+    // Calculate exact Y position for this row - supports fractional rows for centered gateways
     const rowCenterY = START_Y + (pos.row * ROW_HEIGHT);
     const rowY = Math.round(rowCenterY - (dimensions.height / 2));
 

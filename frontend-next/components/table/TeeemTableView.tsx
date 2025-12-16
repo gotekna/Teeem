@@ -959,6 +959,36 @@ export default function TeeemTableView({
         }
       } catch (error) {
         console.error(`[TeeemTableView] Failed to fetch columns for Foundation #${foundationIdNumeric}:`, error);
+
+        // If 404 (foundation deleted), clean up stale cache entries
+        const apiError = error as { status?: number };
+        if (apiError?.status === 404) {
+          console.warn(`[TeeemTableView] Foundation #${foundationIdNumeric} not found - cleaning up stale cache`);
+
+          // Clean up localStorage views cache
+          try {
+            const viewsCacheKey = 'teeem_views_cache';
+            const viewsCache = localStorage.getItem(viewsCacheKey);
+            if (viewsCache) {
+              const parsed = JSON.parse(viewsCache);
+              if (parsed[foundationIdNumeric]) {
+                delete parsed[foundationIdNumeric];
+                localStorage.setItem(viewsCacheKey, JSON.stringify(parsed));
+              }
+            }
+          } catch {
+            // Ignore cache cleanup errors
+          }
+
+          // Clean up sessionStorage table state
+          try {
+            const sessionKey = `teeem-table-state-v1-${foundationIdNumeric}`;
+            sessionStorage.removeItem(sessionKey);
+          } catch {
+            // Ignore cache cleanup errors
+          }
+        }
+
         // Fall back to props if fetch fails
         setFoundationColumns(null);
       } finally {
