@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from "@/lib/api";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -42,6 +46,11 @@ interface SelectedElement {
   businessObject?: Record<string, unknown>;
 }
 
+interface DocumentTemplate {
+  id: number;
+  name: string;
+}
+
 export default function BpmnJsDesigner({
   processId,
   initialXml,
@@ -54,7 +63,25 @@ export default function BpmnJsDesigner({
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const { toast } = useToast();
+
+  // Fetch document templates
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const response = await api.get<{ success: boolean; document_templates: DocumentTemplate[] }>(
+          "/api/v1/document_templates"
+        );
+        if (response?.success && response.document_templates) {
+          setTemplates(response.document_templates);
+        }
+      } catch (err) {
+        console.error("Failed to fetch templates:", err);
+      }
+    };
+    fetchTemplates();
+  }, []);
 
   // Initialize modeler (client-side only)
   useEffect(() => {
@@ -67,8 +94,11 @@ export default function BpmnJsDesigner({
       const BpmnModeler = (await import("bpmn-js/lib/Modeler")).default;
 
       // Import CSS dynamically
+      // @ts-expect-error - CSS imports don't have type declarations
       await import("bpmn-js/dist/assets/diagram-js.css");
+      // @ts-expect-error - CSS imports don't have type declarations
       await import("bpmn-js/dist/assets/bpmn-js.css");
+      // @ts-expect-error - CSS imports don't have type declarations
       await import("bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css");
 
       modeler = new BpmnModeler({
@@ -231,6 +261,57 @@ export default function BpmnJsDesigner({
     canvas.zoom("fit-viewport");
   }, []);
 
+  // Update element name
+  const handleNameChange = useCallback((newName: string) => {
+    if (!modelerRef.current || !selectedElement) return;
+
+    const modeling = modelerRef.current.get("modeling");
+    const elementRegistry = modelerRef.current.get("elementRegistry");
+    const element = elementRegistry.get(selectedElement.id);
+
+    if (element) {
+      modeling.updateProperties(element, { name: newName });
+      setSelectedElement(prev => prev ? { ...prev, name: newName } : null);
+    }
+  }, [selectedElement]);
+
+  // Update service task documentation (stores template_id)
+  const handleTemplateChange = useCallback((templateId: string) => {
+    if (!modelerRef.current || !selectedElement) return;
+
+    const modeling = modelerRef.current.get("modeling");
+    const elementRegistry = modelerRef.current.get("elementRegistry");
+    const element = elementRegistry.get(selectedElement.id);
+
+    if (element) {
+      // Store template_id in documentation field as JSON
+      const config = { template_id: parseInt(templateId, 10), task_type: "generate_document" };
+      modeling.updateProperties(element, {
+        "documentation": JSON.stringify(config)
+      });
+      setIsDirty(true);
+    }
+  }, [selectedElement]);
+
+  // Get current template ID from selected element
+  const getTemplateId = useCallback((): string => {
+    if (!selectedElement?.businessObject) return "";
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bo = selectedElement.businessObject as any;
+    const docs = bo.documentation;
+
+    if (docs && docs.length > 0 && docs[0].text) {
+      try {
+        const config = JSON.parse(docs[0].text);
+        return config.template_id?.toString() || "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  }, [selectedElement]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -291,19 +372,48 @@ export default function BpmnJsDesigner({
             ) : selectedElement ? (
               <div className="space-y-4">
                 <div>
-                  <label className="text-sm text-muted-foreground">Type</label>
-                  <div className="font-medium">{selectedElement.type}</div>
+                  <Label className="text-sm text-muted-foreground">Type</Label>
+                  <div className="font-medium">{selectedElement.type.replace("bpmn:", "")}</div>
                 </div>
 
                 <div>
-                  <label className="text-sm text-muted-foreground">ID</label>
-                  <div className="font-mono text-sm">{selectedElement.id}</div>
+                  <Label className="text-sm text-muted-foreground">ID</Label>
+                  <div className="font-mono text-xs">{selectedElement.id}</div>
                 </div>
 
-                {selectedElement.name && (
-                  <div>
-                    <label className="text-sm text-muted-foreground">Name</label>
-                    <div>{selectedElement.name}</div>
+                <div>
+                  <Label htmlFor="element-name">Name</Label>
+                  <Input
+                    id="element-name"
+                    value={selectedElement.name || ""}
+                    onChange={(e) => handleNameChange(e.target.value)}
+                    placeholder="Enter name..."
+                    className="mt-1"
+                  />
+                </div>
+
+                {/* Service Task Config */}
+                {selectedElement.type === "bpmn:ServiceTask" && (
+                  <div className="pt-4 border-t">
+                    <h4 className="font-medium mb-3">Document Generation</h4>
+                    <div>
+                      <Label htmlFor="template-select">Word Template</Label>
+                      <Select
+                        value={getTemplateId()}
+                        onValueChange={handleTemplateChange}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select template..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {templates.map((template) => (
+                            <SelectItem key={template.id} value={template.id.toString()}>
+                              {template.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 )}
               </div>
