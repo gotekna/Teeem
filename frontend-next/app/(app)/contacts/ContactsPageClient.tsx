@@ -612,16 +612,9 @@ export default function ContactsPageClient({
   );
 
   return (
-    /* [1] MAIN CONTAINER (BLUE) */
-    <div className="flex flex-col h-full border-4 border-blue-500 relative">
-      <div className="bg-blue-600 text-white px-2 py-1 text-xs font-bold absolute top-0 left-0 z-50">
-        [1] MAIN (BLUE) - flex-col h-full
-      </div>
-      {/* [2] HEADER (GREEN) */}
-      <div className="flex items-center justify-between mb-4 border-4 border-green-500 bg-green-50 dark:bg-green-900/20 p-2 mt-6 relative">
-        <div className="bg-green-600 text-white px-2 py-1 text-xs font-bold absolute -top-2 left-0 z-50">
-          [2] HEADER (GREEN)
-        </div>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -642,11 +635,8 @@ export default function ContactsPageClient({
         )}
       </div>
 
-      {/* [3] TABLE CONTAINER (PURPLE) */}
-      <div className="flex-1 min-h-0 border-4 border-purple-500 relative">
-        <div className="bg-purple-600 text-white px-2 py-1 text-xs font-bold absolute -top-2 left-0 z-50">
-          [3] TABLE (PURPLE) - flex-1 min-h-0
-        </div>
+      {/* Contacts View - Table or Relational based on saved view setting */}
+      <div className="flex-1 min-h-0">
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
             <ContactRelationshipsExplorer />

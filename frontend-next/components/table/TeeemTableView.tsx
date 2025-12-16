@@ -4972,7 +4972,7 @@ export default function TeeemTableView({
       </div>
 
       {/* Footer - compact */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-1 border-t">
+      <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-0">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Column totals */}
           {showTotals && Object.keys(columnTotals).length > 0 && (
