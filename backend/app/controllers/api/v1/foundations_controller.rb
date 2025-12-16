@@ -238,6 +238,11 @@ module Api
           if model.column_names.include?("deleted_at")
             query = query.where(deleted_at: nil)
           end
+          # SSoT: Match records_controller.rb - only filter is_active for contacts table
+          # Allow both true and nil (nil = legacy records before is_active was added)
+          if model.table_name == "contacts" && model.column_names.include?("is_active")
+            query = query.where(is_active: [true, nil])
+          end
 
           # Apply cascade filters if provided
           if params[:filters].present?
