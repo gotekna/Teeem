@@ -468,6 +468,9 @@ export function LocationMap({
   };
 
   const handleSuburbSelect = (suburb: SuburbSearchResult) => {
+    console.log("Suburb selected:", suburb);
+    console.log("Setting postcode to:", suburb.postcode);
+    console.log("Setting state to:", suburb.state);
     setFormSuburb(suburb.name);
     setFormPostcode(suburb.postcode);
     setFormState(suburb.state);
