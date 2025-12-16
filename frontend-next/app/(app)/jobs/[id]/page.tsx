@@ -659,23 +659,26 @@ function AddressDetailsCard({
             <Input
               id="state"
               value={editForm.state}
-              onChange={(e) => setEditForm({ ...editForm, state: e.target.value })}
-              readOnly={!isEditing}
-              placeholder="e.g., QLD"
-              className={!isEditing ? "bg-muted/50" : ""}
+              readOnly
+              placeholder="Auto-filled from suburb"
+              className="bg-muted/50"
             />
+            {isEditing && (
+              <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
+            )}
           </div>
           <div>
             <Label htmlFor="postcode">Postcode</Label>
             <Input
               id="postcode"
               value={editForm.postcode}
-              onChange={(e) => setEditForm({ ...editForm, postcode: e.target.value })}
-              readOnly={!isEditing}
-              placeholder="e.g., 4000"
-              maxLength={4}
-              className={!isEditing ? "bg-muted/50" : ""}
+              readOnly
+              placeholder="Auto-filled from suburb"
+              className="bg-muted/50"
             />
+            {isEditing && (
+              <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
+            )}
           </div>
         </div>
 
@@ -684,15 +687,17 @@ function AddressDetailsCard({
           <Input
             id="council"
             value={editForm.council || ""}
-            onChange={(e) => setEditForm({ ...editForm, council: e.target.value })}
-            readOnly={!isEditing}
-            placeholder={isEditing ? "Auto-filled from suburb or enter manually" : "Select a suburb to auto-fill"}
-            className={!isEditing ? "bg-muted/50" : ""}
+            readOnly
+            placeholder="Auto-filled from suburb"
+            className="bg-muted/50"
           />
           {isEditing && editForm.council && (
             <p className="text-xs text-green-600 dark:text-green-400 mt-1">
               Auto-filled from suburb lookup
             </p>
+          )}
+          {isEditing && !editForm.council && (
+            <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
           )}
         </div>
       </CardContent>

@@ -833,19 +833,21 @@ export function LocationMap({
                     <Label className="text-xs">State</Label>
                     <Input
                       value={formState}
-                      onChange={(e) => setFormState(e.target.value)}
-                      placeholder="e.g., QLD"
-                      className="mt-1"
+                      readOnly
+                      placeholder="Auto-filled from suburb"
+                      className="mt-1 bg-muted/50"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
                   </div>
                   <div>
                     <Label className="text-xs">Postcode</Label>
                     <Input
                       value={formPostcode}
-                      onChange={(e) => setFormPostcode(e.target.value)}
-                      placeholder="e.g., 4174"
-                      className="mt-1"
+                      readOnly
+                      placeholder="Auto-filled from suburb"
+                      className="mt-1 bg-muted/50"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
                   </div>
                 </div>
 
