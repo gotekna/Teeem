@@ -54,7 +54,7 @@ const TableRow = React.forwardRef<
   HTMLTableRowElement,
   React.HTMLAttributes<HTMLTableRowElement>
 >(({ className, ...props }, ref) => (
-  <tr ref={ref} className={cn("border-b", className)} {...props} />
+  <tr ref={ref} className={cn("border-b h-8", className)} {...props} />
 ));
 TableRow.displayName = "TableRow";
 
@@ -80,7 +80,7 @@ const TableCell = React.forwardRef<
   <td
     ref={ref}
     className={cn(
-      "px-1.5 py-0.25 align-middle text-[13px] [&:has([role=checkbox])]:px-1",
+      "px-1.5 py-0.25 align-middle text-[13px] [&:has([role=checkbox])]:px-1 max-w-0 overflow-hidden text-ellipsis whitespace-nowrap",
       className,
     )}
     {...props}

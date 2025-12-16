@@ -185,6 +185,7 @@ export function ViewManagerSheet({
   const [editAutoFitColumns, setEditAutoFitColumns] = React.useState(false);
   const [editSmartFit, setEditSmartFit] = React.useState(true); // Default to TEEEM Smart
   const [editShowTotals, setEditShowTotals] = React.useState(true);
+  const [editStickyActions, setEditStickyActions] = React.useState(true); // Pin actions column to right
   const [editSearchableColumns, setEditSearchableColumns] = React.useState<Record<string, boolean>>({});
 
   // Collapse state
@@ -259,6 +260,7 @@ export function ViewManagerSheet({
           autoFitColumns: v.columns?.autoFitColumns === true,
           smartFit: v.columns?.smartFit !== false, // Default to true
           showTotals: v.columns?.showTotals !== false,
+          stickyActions: v.columns?.stickyActions !== false, // Default to true
           sortColumns: Array.isArray(v.sort_order) ? v.sort_order : [],
           groupByColumns: v.group_by_columns || [],
         })) as SavedView[];
@@ -323,6 +325,7 @@ export function ViewManagerSheet({
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
+    setEditStickyActions(view.stickyActions !== false); // Default to true - actions pinned
 
     // Load searchable columns - default to foundation schema's searchable settings
     const hasSearchableColumns = view.searchableColumns && Object.keys(view.searchableColumns).length > 0;
@@ -373,6 +376,7 @@ export function ViewManagerSheet({
       autoFitColumns: baseView?.autoFitColumns ?? false,
       smartFit: baseView?.smartFit ?? true, // Default to TEEEM Smart for new views
       showTotals: baseView?.showTotals ?? true,
+      stickyActions: baseView?.stickyActions ?? true, // Default to pinned actions
     };
 
     setViews(prev => [...prev, newView]);
@@ -399,6 +403,7 @@ export function ViewManagerSheet({
         autoFitColumns: editAutoFitColumns,
         smartFit: editSmartFit,
         showTotals: editShowTotals,
+        stickyActions: editStickyActions,
         searchableColumns: editSearchableColumns,
         filters: editFilters,
         filterGroups: editFilterGroups,
@@ -425,6 +430,7 @@ export function ViewManagerSheet({
           autoFitColumns: currentEditState.autoFitColumns,
           smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
+          stickyActions: currentEditState.stickyActions,
           searchable: currentEditState.searchableColumns,
         },
         sort_order: currentEditState.sortColumns,
@@ -462,6 +468,7 @@ export function ViewManagerSheet({
           autoFitColumns: currentEditState.autoFitColumns,
           smartFit: currentEditState.smartFit,
           showTotals: currentEditState.showTotals,
+          stickyActions: currentEditState.stickyActions,
           searchableColumns: currentEditState.searchableColumns,
           filters: currentEditState.filters,
           filterGroups: currentEditState.filterGroups,
@@ -1069,6 +1076,10 @@ export function ViewManagerSheet({
     onShowTotalsChange?.(enabled);
   };
 
+  const handleStickyActionsChange = (enabled: boolean) => {
+    setEditStickyActions(enabled);
+  };
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -1627,6 +1638,14 @@ export function ViewManagerSheet({
                                   id="smart-fit"
                                   checked={editSmartFit}
                                   onCheckedChange={handleSmartFitChange}
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Label htmlFor="sticky-actions" className="text-xs text-muted-foreground">Pin Actions</Label>
+                                <Switch
+                                  id="sticky-actions"
+                                  checked={editStickyActions}
+                                  onCheckedChange={handleStickyActionsChange}
                                 />
                               </div>
                             </div>
