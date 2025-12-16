@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { FileText, Loader2, Eye, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -185,7 +185,14 @@ export function XeroInvoicesListByTenant({
     );
   };
 
-  const renderInvoiceTable = (invoices: ExternalInvoice[]) => {
+  // Get tenant name lookup for "All" view
+  const getTenantName = (tenantId: string | undefined): string => {
+    if (!tenantId) return "Unknown";
+    const data = byTenant[tenantId];
+    return data?.tenant_info?.tenant_name || "Unknown";
+  };
+
+  const renderInvoiceTable = (invoices: ExternalInvoice[], showTenantColumn: boolean = false) => {
     if (invoices.length === 0) {
       return (
         <div className="text-center py-12 text-muted-foreground">
@@ -201,6 +208,7 @@ export function XeroInvoicesListByTenant({
           <TableHeader>
             <TableRow>
               <TableHead>Number</TableHead>
+              {showTenantColumn && <TableHead>Company</TableHead>}
               <TableHead>Date</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>Job</TableHead>
@@ -217,6 +225,13 @@ export function XeroInvoicesListByTenant({
             {invoices.map((invoice) => (
               <TableRow key={invoice.id}>
                 <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
+                {showTenantColumn && (
+                  <TableCell className="text-sm">
+                    <Badge variant="outline" className="font-normal">
+                      {getTenantName(invoice.tenant_id)}
+                    </Badge>
+                  </TableCell>
+                )}
                 <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                 <TableCell>{invoice.due_date ? formatDate(invoice.due_date) : "-"}</TableCell>
                 <TableCell className="text-sm">
@@ -322,7 +337,22 @@ export function XeroInvoicesListByTenant({
     );
   }
 
-  // Multiple tenants - show tabs
+  // Multiple tenants - show tabs with "All" option
+  // Combine all items for the "All" tab
+  const allItems = useMemo(() => {
+    return tenantIds.flatMap((tenantId) => {
+      const data = byTenant[tenantId];
+      const items = isInvoice ? data.invoices : data.bills;
+      // Ensure tenant_id is set on each item for display
+      return items.map((item) => ({ ...item, tenant_id: tenantId }));
+    });
+  }, [byTenant, tenantIds, isInvoice]);
+
+  const totalAllCount = tenantIds.reduce((sum, tenantId) => {
+    const data = byTenant[tenantId];
+    return sum + (isInvoice ? data.total_invoices : data.total_bills);
+  }, 0);
+
   return (
     <div className="space-y-4">
       {lastSyncedAt && (
@@ -342,8 +372,16 @@ export function XeroInvoicesListByTenant({
         </div>
       )}
 
-      <Tabs value={activeTenant || tenantIds[0]} onValueChange={setActiveTenant}>
+      <Tabs value={activeTenant || "all"} onValueChange={setActiveTenant}>
         <TabsList className="mb-4">
+          {/* "All" tab first */}
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            All
+            <Badge variant="secondary" className="ml-1">
+              {totalAllCount}
+            </Badge>
+          </TabsTrigger>
+          {/* Individual tenant tabs */}
           {tenantIds.map((tenantId) => {
             const data = byTenant[tenantId];
             const count = isInvoice ? data.total_invoices : data.total_bills;
@@ -358,12 +396,18 @@ export function XeroInvoicesListByTenant({
           })}
         </TabsList>
 
+        {/* "All" tab content - shows Company column */}
+        <TabsContent value="all">
+          {renderInvoiceTable(allItems, true)}
+        </TabsContent>
+
+        {/* Individual tenant tab contents */}
         {tenantIds.map((tenantId) => {
           const data = byTenant[tenantId];
           const items = isInvoice ? data.invoices : data.bills;
           return (
             <TabsContent key={tenantId} value={tenantId}>
-              {renderInvoiceTable(items)}
+              {renderInvoiceTable(items, false)}
             </TabsContent>
           );
         })}
