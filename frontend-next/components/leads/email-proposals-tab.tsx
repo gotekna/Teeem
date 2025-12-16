@@ -22,7 +22,6 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { ProposalApprovalDialog } from "./proposal-approval-dialog";
 
 interface EmailProposal {
   id: number;
@@ -80,8 +79,6 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   const router = useRouter();
   const [proposals, setProposals] = useState<EmailProposal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedProposal, setSelectedProposal] = useState<EmailProposal | null>(null);
-  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
   const [processing, setProcessing] = useState<number | null>(null);
 
   useEffect(() => {
@@ -109,36 +106,8 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   };
 
   const handleApprove = (proposalId: number) => {
-    const proposal = proposals.find((p) => p.id === proposalId);
-    if (proposal) {
-      setSelectedProposal(proposal);
-      setShowApprovalDialog(true);
-    }
-  };
-
-  const handleApproveWithEdits = async (proposalId: number, userEdits: Record<string, unknown>) => {
-    try {
-      setProcessing(proposalId);
-      const response = await api.post<{ success: boolean; job: { id: number } }>(
-        `/api/v1/email_job_proposals/${proposalId}/approve`,
-        { user_edits: userEdits }
-      );
-
-      if (response?.success) {
-        setShowApprovalDialog(false);
-        setSelectedProposal(null);
-        loadProposals();
-
-        if (response?.job?.id) {
-          router.push(`/jobs/${response.job.id}`);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to approve proposal:", error);
-      alert("Failed to approve proposal");
-    } finally {
-      setProcessing(null);
-    }
+    // Navigate to new job page with proposal ID to pre-fill data
+    router.push(`/jobs/new?from_proposal=${proposalId}`);
   };
 
   const handleReject = async (proposalId: number) => {
@@ -360,17 +329,6 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
           </p>
         </div>
       )}
-
-      {/* Approval Dialog */}
-      {showApprovalDialog && selectedProposal && (
-        <ProposalApprovalDialog
-          proposal={selectedProposal}
-          open={showApprovalDialog}
-          onOpenChange={setShowApprovalDialog}
-          onApprove={handleApproveWithEdits}
-          processing={processing === selectedProposal.id}
-        />
-      )}
     </div>
   );
 }
@@ -441,7 +399,7 @@ function ProposalCard({
                 disabled={processing === proposal.id}
               >
                 <CheckCircle className="w-4 h-4 mr-1" />
-                Edit & Approve
+                Review & Create Job
               </Button>
               <Button
                 variant="outline"

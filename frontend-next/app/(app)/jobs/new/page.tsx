@@ -16,8 +16,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown, ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { ArrowLeft, Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator } from "lucide-react";
+import { ArrowLeft, Loader2, Building2, User, Users, DollarSign, Wrench, ClipboardList, Calculator, Mail } from "lucide-react";
 import { api } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 
 interface SuburbSearchResult {
@@ -95,10 +96,57 @@ interface PeopleFormData {
   coordinator_id: number | null;
 }
 
+interface EmailProposal {
+  id: number;
+  status: string;
+  email?: {
+    from_email: string;
+    subject: string;
+  };
+  extracted_data?: {
+    job_title?: string;
+    property_address?: string;
+    job_type?: string;
+    contract_value?: number;
+    description?: string;
+    scope_of_work?: string;
+    customer?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      company?: string;
+      contact_id?: number;
+      contact_exists?: boolean;
+    };
+    referral_contact?: {
+      name?: string;
+      email?: string;
+      contact_id?: number;
+      contact_exists?: boolean;
+    };
+    external_sales?: Array<{
+      name: string;
+      email: string;
+      contact_id?: number;
+      contact_exists?: boolean;
+    }>;
+    internal_sales?: {
+      user_id?: number;
+      user_name?: string;
+      user_email?: string;
+    };
+  };
+}
+
 export default function NewJobPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const proposalId = searchParams.get("from_proposal");
+
   const [loading, setLoading] = React.useState(false);
   const [loadingLookups, setLoadingLookups] = React.useState(true);
+  const [loadingProposal, setLoadingProposal] = React.useState(!!proposalId);
+  const [proposal, setProposal] = React.useState<EmailProposal | null>(null);
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
@@ -205,6 +253,66 @@ export default function NewJobPage() {
     };
     loadContacts();
   }, []);
+
+  // Load email proposal if from_proposal param is set
+  React.useEffect(() => {
+    if (!proposalId) return;
+
+    const loadProposal = async () => {
+      try {
+        setLoadingProposal(true);
+        const response = await api.get<{ proposal: EmailProposal }>(
+          `/api/v1/email_job_proposals/${proposalId}`
+        );
+        const prop = response.proposal;
+        setProposal(prop);
+
+        // Pre-fill form with extracted data
+        const data = prop.extracted_data || {};
+
+        // Build description from email + extracted info
+        let description = "";
+        if (data.description) {
+          description += data.description;
+        }
+        if (data.scope_of_work) {
+          description += description ? "\n\n" : "";
+          description += "Scope of Work:\n" + data.scope_of_work;
+        }
+        if (prop.email?.subject) {
+          description += description ? "\n\n" : "";
+          description += `[From email: ${prop.email.subject}]`;
+        }
+
+        setFormData(prev => ({
+          ...prev,
+          address: data.property_address || data.job_title || "",
+          description: description,
+          contract_value: data.contract_value?.toString() || "",
+        }));
+
+        // Pre-fill contacts if they exist
+        if (data.customer?.contact_id) {
+          setPeopleData(prev => ({ ...prev, client1_id: data.customer!.contact_id! }));
+        }
+        if (data.referral_contact?.contact_id) {
+          setPeopleData(prev => ({ ...prev, referrer_id: data.referral_contact!.contact_id! }));
+        }
+        if (data.external_sales?.[0]?.contact_id) {
+          setPeopleData(prev => ({ ...prev, external_sales_id: data.external_sales![0].contact_id! }));
+        }
+        if (data.internal_sales?.user_id) {
+          setPeopleData(prev => ({ ...prev, internal_sales_id: data.internal_sales!.user_id! }));
+        }
+      } catch (error) {
+        console.error("Failed to load proposal:", error);
+      } finally {
+        setLoadingProposal(false);
+      }
+    };
+
+    loadProposal();
+  }, [proposalId]);
 
   // Convert contacts to combobox items
   const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({
@@ -470,6 +578,18 @@ export default function NewJobPage() {
           await Promise.allSettled(contactPromises);
         }
 
+        // If this was from an email proposal, mark it as approved
+        if (proposalId) {
+          try {
+            await api.post(`/api/v1/email_job_proposals/${proposalId}/approve`, {
+              job_id: jobId,
+            });
+          } catch (error) {
+            console.error("Failed to mark proposal as approved:", error);
+            // Don't fail the job creation if this fails
+          }
+        }
+
         // Navigate to the new job
         router.push(`/jobs/${jobId}`);
       } else {
@@ -483,19 +603,39 @@ export default function NewJobPage() {
     }
   };
 
+  // Show loading state if loading proposal
+  if (loadingProposal) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/jobs">
+          <Link href={proposal ? "/leads/emails" : "/jobs"}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">New Job</h1>
+          <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
+            {proposal ? (
+              <>
+                <Mail className="h-6 w-6" />
+                Create Job from Email Lead
+              </>
+            ) : (
+              "New Job"
+            )}
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Create a new construction project
+            {proposal
+              ? `Review and create job from: ${proposal.email?.subject || "Email proposal"}`
+              : "Create a new construction project"}
           </p>
         </div>
       </div>
@@ -998,7 +1138,7 @@ export default function NewJobPage() {
         {/* Actions */}
         <div className="flex items-center justify-end gap-4 mt-6">
           <Button type="button" variant="outline" asChild>
-            <Link href="/jobs">Cancel</Link>
+            <Link href={proposal ? "/leads/emails" : "/jobs"}>Cancel</Link>
           </Button>
           <Button type="submit" disabled={loading || loadingLookups}>
             {loading ? (
@@ -1006,6 +1146,8 @@ export default function NewJobPage() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Creating...
               </>
+            ) : proposal ? (
+              "Create Job from Email"
             ) : (
               "Create Job"
             )}
