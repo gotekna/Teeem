@@ -338,22 +338,21 @@ export default function NewJobPage() {
           contract_value: data.contract_value?.toString() || "",
         }));
 
-        // Pre-fill contacts if they exist
-        if (data.customer?.contact_id) {
-          setPeopleData(prev => ({ ...prev, client1_id: data.customer!.contact_id! }));
-        }
-        if (data.customer2?.contact_id) {
-          setPeopleData(prev => ({ ...prev, client2_id: data.customer2!.contact_id! }));
-        }
-        if (data.referral_contact?.contact_id) {
-          setPeopleData(prev => ({ ...prev, referrer_id: data.referral_contact!.contact_id! }));
-        }
-        if (data.external_sales?.[0]?.contact_id) {
-          setPeopleData(prev => ({ ...prev, external_sales_id: data.external_sales![0].contact_id! }));
-        }
-        if (data.internal_sales?.user_id) {
-          setPeopleData(prev => ({ ...prev, internal_sales_id: data.internal_sales!.user_id! }));
-        }
+        // Store contact IDs to populate after contacts load
+        const contactIdsToPopulate = {
+          client1_id: data.customer?.contact_id || null,
+          client2_id: data.customer2?.contact_id || null,
+          referrer_id: data.referral_contact?.contact_id || null,
+          external_sales_id: data.external_sales?.[0]?.contact_id || null,
+        };
+
+        // Set people data IDs
+        setPeopleData(prev => ({
+          ...prev,
+          ...contactIdsToPopulate,
+          internal_sales_id: data.internal_sales?.user_id || null,
+        }));
+
       } catch (error) {
         console.error("Failed to load proposal:", error);
       } finally {
@@ -363,6 +362,47 @@ export default function NewJobPage() {
 
     loadProposal();
   }, [proposalId]);
+
+  // Populate selectedContacts when contacts load and we have proposal IDs
+  React.useEffect(() => {
+    if (allContacts.length === 0 || !proposalId) return;
+
+    // Check if we have IDs but no selected contacts yet
+    const needsPopulation =
+      (peopleData.client1_id && !selectedContacts.client1) ||
+      (peopleData.client2_id && !selectedContacts.client2) ||
+      (peopleData.referrer_id && !selectedContacts.referrer) ||
+      (peopleData.external_sales_id && !selectedContacts.external_sales);
+
+    if (!needsPopulation) return;
+
+    // Find and set the contact objects
+    const newSelectedContacts: typeof selectedContacts = {};
+
+    if (peopleData.client1_id) {
+      const contact = allContacts.find(c => c.id === peopleData.client1_id);
+      if (contact) newSelectedContacts.client1 = contact;
+    }
+
+    if (peopleData.client2_id) {
+      const contact = allContacts.find(c => c.id === peopleData.client2_id);
+      if (contact) newSelectedContacts.client2 = contact;
+    }
+
+    if (peopleData.referrer_id) {
+      const contact = allContacts.find(c => c.id === peopleData.referrer_id);
+      if (contact) newSelectedContacts.referrer = contact;
+    }
+
+    if (peopleData.external_sales_id) {
+      const contact = allContacts.find(c => c.id === peopleData.external_sales_id);
+      if (contact) newSelectedContacts.external_sales = contact;
+    }
+
+    if (Object.keys(newSelectedContacts).length > 0) {
+      setSelectedContacts(prev => ({ ...prev, ...newSelectedContacts }));
+    }
+  }, [allContacts, peopleData.client1_id, peopleData.client2_id, peopleData.referrer_id, peopleData.external_sales_id, proposalId, selectedContacts]);
 
   // Convert contacts to combobox items
   const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({

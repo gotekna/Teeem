@@ -29,9 +29,10 @@ module Api
         jobs_by_stage["needs_pricing"] ||= []
         jobs_by_stage["needs_pricing"] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage["needs_pricing"]
 
-        # Initialize empty won/lost arrays (only Enquiry jobs are shown in pipeline)
+        # Initialize won array as empty (won jobs move to Pre Contract status)
         jobs_by_stage["won"] = []
-        jobs_by_stage["lost"] = []
+        # Ensure lost array exists (should be populated from enquiry_stages if Lost stage exists)
+        jobs_by_stage["lost"] ||= []
 
         # For stats, we can still count won/lost from other statuses
         won_statuses = JobStatus.where(name: [ "Pre Contract", "Contract", "Pre Start", "Active Job", "Handover", "Archived" ])
