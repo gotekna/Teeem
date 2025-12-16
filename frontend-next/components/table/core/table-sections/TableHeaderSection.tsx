@@ -22,7 +22,7 @@ const XERO_COLUMN_TOOLTIPS: Record<string, string> = {
   xero_linked_count: 'Number of Xero organizations this contact is linked to',
   xero_tenant_names: 'Names of the Xero organizations this contact is linked to',
   xero_contact_types: 'Whether this contact is a Customer and/or Supplier in Xero',
-  xero_invoice_count: 'Total number of Xero invoices associated with this contact',
+  xero_invoice_count: 'Total Xero transactions (sales invoices + supplier bills) for this contact',
   sync_with_xero: 'Whether this contact is configured to sync with Xero',
   xero_contact_number: 'Unique contact identifier number in Xero',
   xero_account_number: 'Account number assigned in Xero',
