@@ -776,8 +776,15 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                                   onCheckedChange={getToggleCallback(row.id)}
                                 />
                               </div>
-                            ) : (
+                            ) : column.key === "actions" ? (
                               renderCellValue(row, column)
+                            ) : (
+                              <div
+                                className="truncate"
+                                title={getCellTooltip(row[column.key])}
+                              >
+                                {renderCellValue(row, column)}
+                              </div>
                             )}
                           </TableCell>
                         );
@@ -1411,6 +1418,9 @@ export default function TeeemTableView({
   const tableContainerRef = useRef<HTMLDivElement>(null);
   // Ref for search input (keyboard shortcut "/" focuses it)
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Refs for auto-saving column widths
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingWidthsRef = useRef<Record<string, number> | null>(null);
 
   // ============================================================================
   // INFINITE SCROLL - Detect when user scrolls near bottom and trigger onLoadMore
@@ -1601,15 +1611,52 @@ export default function TeeemTableView({
     [onServerSearch, search, effectiveOnServerSearch]
   );
 
-  // Column resize handler
+  // Auto-save column widths to view (debounced)
+  const autoSaveColumnWidths = useCallback(async (widths: Record<string, number>) => {
+    // Only save if we have an active view ID that's a real view (not a temp "new_" view)
+    if (!activeViewId || (typeof activeViewId === 'string' && activeViewId.startsWith('new_'))) {
+      return;
+    }
+    if (!foundationIdNumeric) return;
+
+    try {
+      await api.patch(`/api/v1/foundation_views/${activeViewId}`, {
+        foundation_view: {
+          columns: {
+            widths,
+            autoFitColumns: false,
+            smartFit: false,
+          }
+        }
+      });
+      console.log('[TeeemTableView] Auto-saved column widths for view', activeViewId);
+    } catch (error) {
+      console.error('[TeeemTableView] Failed to auto-save column widths:', error);
+    }
+  }, [activeViewId, foundationIdNumeric]);
+
+  // Column resize handler with auto-save
   const handleColumnResize = useCallback((key: string, width: number) => {
     setColumnWidths((prev) => {
       const next = { ...prev, [key]: width };
       // Save to session storage cache
       cacheColumnWidths(next);
+
+      // Queue auto-save (debounced - saves 1 second after last resize)
+      pendingWidthsRef.current = next;
+      if (autoSaveTimeoutRef.current) {
+        clearTimeout(autoSaveTimeoutRef.current);
+      }
+      autoSaveTimeoutRef.current = setTimeout(() => {
+        if (pendingWidthsRef.current) {
+          autoSaveColumnWidths(pendingWidthsRef.current);
+          pendingWidthsRef.current = null;
+        }
+      }, 1000);
+
       return next;
     });
-  }, [cacheColumnWidths]);
+  }, [cacheColumnWidths, autoSaveColumnWidths]);
 
   // Sort handler
   const handleSort = useCallback((columnKey: string) => {
@@ -3889,8 +3936,15 @@ export default function TeeemTableView({
                     onCheckedChange={getToggleCallback(row.id)}
                   />
                 </div>
-              ) : (
+              ) : column.key === "actions" ? (
                 renderCellValue(row, column)
+              ) : (
+                <div
+                  className="truncate"
+                  title={getCellTooltip(row[column.key])}
+                >
+                  {renderCellValue(row, column)}
+                </div>
               )}
             </TableCell>
           );
@@ -4042,8 +4096,15 @@ export default function TeeemTableView({
                           onCheckedChange={getToggleCallback(row.id)}
                         />
                       </div>
-                    ) : (
+                    ) : column.key === "actions" ? (
                       renderCellValue(row, column)
+                    ) : (
+                      <div
+                        className="truncate"
+                        title={getCellTooltip(row[column.key])}
+                      >
+                        {renderCellValue(row, column)}
+                      </div>
                     )}
                   </TableCell>
                   );
@@ -4255,8 +4316,15 @@ export default function TeeemTableView({
                             onCheckedChange={getToggleCallback(row.id)}
                           />
                         </div>
-                      ) : (
+                      ) : column.key === "actions" ? (
                         renderCellValue(row, column)
+                      ) : (
+                        <div
+                          className="truncate"
+                          title={getCellTooltip(row[column.key])}
+                        >
+                          {renderCellValue(row, column)}
+                        </div>
                       )}
                     </TableCell>
                   );
@@ -5156,8 +5224,11 @@ export default function TeeemTableView({
           onApplyView={loadViewState as (view: unknown) => void}
           onAutoFitChange={setAutoFitColumns}
           onShowTotalsChange={setShowTotals}
+          onStickyActionsChange={setStickyActions}
           onRefresh={onRefresh}
           rows={entries as Record<string, unknown>[]}
+          currentColumnWidths={columnWidths}
+          activeViewId={activeViewId}
         />
       )}
     </div>

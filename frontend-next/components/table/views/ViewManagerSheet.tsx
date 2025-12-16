@@ -110,8 +110,11 @@ interface ViewManagerSheetProps {
   onApplyView?: (view: SavedView) => void;
   onAutoFitChange?: (enabled: boolean) => void;
   onShowTotalsChange?: (enabled: boolean) => void;
+  onStickyActionsChange?: (enabled: boolean) => void;
   onRefresh?: () => void; // Called after saving to refresh data with new filters/settings
   rows?: Record<string, unknown>[];
+  currentColumnWidths?: Record<string, number>; // Current widths from table (SSoT)
+  activeViewId?: number | string | null; // Currently active view on the table
 }
 
 // Known lookup column mappings (column_name -> foundation_id and custom endpoint)
@@ -133,8 +136,11 @@ export function ViewManagerSheet({
   onApplyView,
   onAutoFitChange,
   onShowTotalsChange,
+  onStickyActionsChange,
   onRefresh,
   rows,
+  currentColumnWidths,
+  activeViewId: tableActiveViewId,
 }: ViewManagerSheetProps) {
   const { toast } = useToast();
 
@@ -277,13 +283,16 @@ export function ViewManagerSheet({
           }
         }
 
-        if (activeViewId) {
-          const currentView = mappedViews.find(v => v.id === activeViewId);
+        // Prioritize table's active view when opening View Manager
+        const viewIdToSelect = tableActiveViewId || activeViewId;
+        if (viewIdToSelect) {
+          const currentView = mappedViews.find(v => v.id === viewIdToSelect);
           if (currentView) {
+            setActiveViewId(currentView.id);
             loadViewIntoEditor(currentView);
             setIsEditing(false);
+            return;
           }
-          return;
         }
 
         if (!activeViewId && mappedViews.length > 0) {
@@ -321,7 +330,15 @@ export function ViewManagerSheet({
     setEditVisibleColumns(visibleColumnsToSet!);
 
     setEditColumnOrder(view.columnOrder || effectiveColumns.map(c => c.column_name));
-    setEditColumnWidths(view.columnWidths || {});
+
+    // SSoT: Use current widths from table if this is the active view being edited
+    // This ensures View Manager shows what the user actually sees on the table
+    const isActiveView = tableActiveViewId && view.id === tableActiveViewId;
+    const widthsToUse = isActiveView && currentColumnWidths && Object.keys(currentColumnWidths).length > 0
+      ? currentColumnWidths
+      : view.columnWidths || {};
+    setEditColumnWidths(widthsToUse);
+
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart
     setEditShowTotals(view.showTotals !== false);
@@ -1078,6 +1095,7 @@ export function ViewManagerSheet({
 
   const handleStickyActionsChange = (enabled: boolean) => {
     setEditStickyActions(enabled);
+    onStickyActionsChange?.(enabled);
   };
 
   return (

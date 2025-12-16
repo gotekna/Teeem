@@ -51,10 +51,22 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
   isEditMode,
   children,
 }: ResizableColumnHeaderProps) {
+  // Default width if not provided
+  const effectiveWidth = width || 100;
+
   const [isResizing, setIsResizing] = useState(false);
+  const [isHoveringHandle, setIsHoveringHandle] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [currentWidth, setCurrentWidth] = useState(effectiveWidth);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+
+  // Sync width when prop changes (not during resize)
+  useEffect(() => {
+    if (!isResizing && effectiveWidth) {
+      setCurrentWidth(effectiveWidth);
+    }
+  }, [effectiveWidth, isResizing]);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -62,9 +74,10 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
       e.stopPropagation();
       setIsResizing(true);
       startXRef.current = e.clientX;
-      startWidthRef.current = width;
+      startWidthRef.current = effectiveWidth;
+      setCurrentWidth(effectiveWidth);
     },
-    [width]
+    [effectiveWidth]
   );
 
   useEffect(() => {
@@ -73,6 +86,7 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
     const handleMouseMove = (e: MouseEvent) => {
       const diff = e.clientX - startXRef.current;
       const newWidth = Math.max(50, startWidthRef.current + diff);
+      setCurrentWidth(newWidth);
       onResize(column.key, newWidth);
     };
 
@@ -83,9 +97,15 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handleMouseUp);
 
+    // Add resize cursor to body while resizing
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
     };
   }, [isResizing, column.key, onResize]);
 
@@ -107,8 +127,8 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
 
   return (
     <div
-      className="flex items-center justify-between group relative"
-      style={{ width }}
+      className="flex items-center justify-between group relative overflow-visible"
+      style={{ width: effectiveWidth }}
     >
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
@@ -245,14 +265,43 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
         </button>
       )}
 
+      {/* Resize handle - Excel-style on right edge */}
       {column.resizable !== false && (
         <div
-          className={cn(
-            "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize opacity-0 group-hover:opacity-100 bg-border hover:bg-primary transition-opacity",
-            isResizing && "opacity-100 bg-primary"
-          )}
+          className="absolute right-0 top-0 bottom-0 w-[5px] cursor-col-resize z-20 flex items-center justify-center"
           onMouseDown={handleMouseDown}
-        />
+          onMouseEnter={() => setIsHoveringHandle(true)}
+          onMouseLeave={() => setIsHoveringHandle(false)}
+          title="Drag to resize column"
+        >
+          {/* The visible line indicator */}
+          <div className={cn(
+            "absolute right-[2px] w-[2px] transition-all",
+            (isHoveringHandle || isResizing)
+              ? "bg-primary -top-2 -bottom-2"  // ~5mm above and below header
+              : "bg-border top-1 bottom-1"     // Subtle line within header
+          )} />
+        </div>
+      )}
+
+      {/* Width indicator badge - shows during resize or hover */}
+      {column.resizable !== false && (isResizing || isHoveringHandle) && (
+        <div
+          className={cn(
+            "absolute px-2 py-1 text-xs font-mono rounded shadow-lg whitespace-nowrap pointer-events-none border",
+            isResizing
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-background text-foreground"
+          )}
+          style={{
+            top: '100%',
+            right: 0,
+            marginTop: '4px',
+            zIndex: 9999,
+          }}
+        >
+          {Math.round(currentWidth || effectiveWidth)}px
+        </div>
       )}
     </div>
   );
