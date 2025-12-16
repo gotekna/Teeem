@@ -1974,16 +1974,22 @@ export default function TeeemTableView({
       // This ensures lazy loading respects saved view filters
       const combinedFilters = [...safeFilters, groupFilter];
 
+      // Build params with sort to maintain consistent ordering
+      const params: Record<string, string | number> = {
+        filters: JSON.stringify(combinedFilters),
+        limit: 10000 // Get all records for the group
+      };
+
+      // SSoT: Apply current sort order to lazy-loaded records
+      if (sortColumns.length > 0) {
+        params.sort_order = JSON.stringify(sortColumns);
+      }
+
       const response = await api.get<{
         success: boolean;
         records: TableRowType[];
         total?: number;
-      }>(`/api/v1/foundations/${foundationIdNumeric}/records`, {
-        params: {
-          filters: JSON.stringify(combinedFilters),
-          limit: 10000 // Get all records for the group
-        }
-      });
+      }>(`/api/v1/foundations/${foundationIdNumeric}/records`, { params });
 
       if (response.success && response.records) {
         setLazyLoadedGroups(prev => new Map(prev).set(groupKey, response.records));
@@ -1997,7 +2003,7 @@ export default function TeeemTableView({
         return next;
       });
     }
-  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters]);
+  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns]);
 
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {
