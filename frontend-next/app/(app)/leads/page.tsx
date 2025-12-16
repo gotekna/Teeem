@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { JobPipeline } from "@/components/leads/job-pipeline";
-import { EmailProposalsTab } from "@/components/leads/email-proposals-tab";
 import {
   PipelineJob,
   PipelineStage,
@@ -94,7 +93,6 @@ export default function LeadsPage() {
   const [jobsByStage, setJobsByStage] = useState<Record<string, PipelineJob[]>>({});
   const [pipelineMeta, setPipelineMeta] = useState<PipelineResponse["meta"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [emailProposals, setEmailProposals] = useState<EmailProposal[]>([]);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [pendingProposalCount, setPendingProposalCount] = useState(0);
 
@@ -118,12 +116,10 @@ export default function LeadsPage() {
         "/api/v1/email_job_proposals?status="
       );
       const proposals = response.proposals || [];
-      setEmailProposals(proposals);
       const pendingCount = proposals.filter(p => p.status === "pending").length;
       setPendingProposalCount(pendingCount);
     } catch (error) {
       console.error("Failed to load email proposals:", error);
-      setEmailProposals([]);
     }
   };
 
@@ -150,13 +146,13 @@ export default function LeadsPage() {
     router.push("/jobs/new?status=Enquiry");
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | string) => {
     return new Intl.NumberFormat("en-AU", {
       style: "currency",
       currency: "AUD",
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
-    }).format(value);
+    }).format(Number(value) || 0);
   };
 
   // Calculate active count (all jobs in pipeline except won/lost)
@@ -195,9 +191,16 @@ export default function LeadsPage() {
             <TrendingUp className="h-4 w-4 mr-2" />
             Pipeline
           </TabsTrigger>
-          <TabsTrigger value="email-proposals" className="relative">
+          <TabsTrigger
+            value="email-leads"
+            className="relative"
+            onClick={(e) => {
+              e.preventDefault();
+              router.push("/leads/emails");
+            }}
+          >
             <Mail className="h-4 w-4 mr-2" />
-            Email Proposals
+            Email Leads
             {pendingProposalCount > 0 && (
               <Badge className="ml-2 bg-yellow-500 text-white hover:bg-yellow-500">
                 {pendingProposalCount}
@@ -259,17 +262,10 @@ export default function LeadsPage() {
           {/* Pipeline View */}
           <JobPipeline
             jobsByStage={jobsByStage}
-            emailProposals={emailProposals.filter(p => p.status === "pending")}
             onJobClick={handleJobClick}
             onStageChange={handleStageChange}
-            onProposalsChange={loadEmailProposals}
             onJobsChange={loadPipeline}
           />
-        </TabsContent>
-
-        {/* Email Proposals Tab */}
-        <TabsContent value="email-proposals" className="mt-6">
-          <EmailProposalsTab onPendingCountChange={setPendingProposalCount} />
         </TabsContent>
       </Tabs>
     </div>

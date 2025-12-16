@@ -24,10 +24,10 @@ module Api
           jobs_by_stage[stage.name.downcase.gsub(" ", "_")] = stage_jobs.map { |job| pipeline_job_to_json(job) }
         end
 
-        # Add jobs without a stage to "proposal" (first stage)
+        # Add jobs without a stage to "needs_pricing" (first stage)
         no_stage_jobs = jobs.select { |j| j.job_stage_id.nil? }
-        jobs_by_stage["proposal"] ||= []
-        jobs_by_stage["proposal"] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage["proposal"]
+        jobs_by_stage["needs_pricing"] ||= []
+        jobs_by_stage["needs_pricing"] = no_stage_jobs.map { |job| pipeline_job_to_json(job) } + jobs_by_stage["needs_pricing"]
 
         # Initialize empty won/lost arrays (only Enquiry jobs are shown in pipeline)
         jobs_by_stage["won"] = []

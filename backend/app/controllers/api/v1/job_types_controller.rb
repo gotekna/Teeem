@@ -82,13 +82,14 @@ module Api
       end
 
       def job_type_params
-        params.require(:job_type).permit(:name, :position, :is_active)
+        params.require(:job_type).permit(:name, :position, :is_active, :color)
       end
 
       def job_type_json(job_type)
         {
           id: job_type.id,
           name: job_type.name,
+          color: job_type.color || "#6366F1",
           position: job_type.position,
           is_active: job_type.is_active,
           jobs_count: job_type.jobs.count,
