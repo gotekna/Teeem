@@ -3663,8 +3663,10 @@ export default function TeeemTableView({
     Object.entries(groups).forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
-      // Use server count for first-level groups (accurate total), fallback to client count
-      const serverCount = depth === 0 ? serverCountMap.get(groupKey) : undefined;
+      // Use server count for first-level groups (accurate total), UNLESS there's an active search
+      // When searching, server counts are stale - use client count which reflects filtered results
+      const hasActiveSearch = search.trim().length > 0;
+      const serverCount = (depth === 0 && !hasActiveSearch) ? serverCountMap.get(groupKey) : undefined;
       const rowCount = serverCount ?? group.rows.length;
       const hasSubgroups = group.subgroups && Object.keys(group.subgroups).length > 0;
       // Check if this group has been fully loaded via lazy loading
@@ -3886,8 +3888,10 @@ export default function TeeemTableView({
     Object.entries(groups).forEach(([groupKey, group]) => {
       const fullKey = parentKey ? `${parentKey}›${groupKey}` : groupKey;
       const isCollapsed = collapsedGroups.has(fullKey);
-      // Use server count for first-level groups (accurate total), fallback to client count
-      const serverCount = depth === 0 ? serverCountMap.get(groupKey) : undefined;
+      // Use server count for first-level groups (accurate total), UNLESS there's an active search
+      // When searching, server counts are stale - use client count which reflects filtered results
+      const hasActiveSearch = search.trim().length > 0;
+      const serverCount = (depth === 0 && !hasActiveSearch) ? serverCountMap.get(groupKey) : undefined;
       const rowCount = serverCount ?? group.rows.length;
       // Check if this group has been fully loaded via lazy loading
       const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
