@@ -118,7 +118,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
     id: e.edgeKey || e.id,
     source: e.source,
     target: e.target,
-    type: "straight",
+    type: "smoothstep",
     animated: !!e.conditionExpression,
     label: e.name,
     markerEnd: {
@@ -217,7 +217,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
       const newEdge: Edge = {
         ...params,
         id: `edge-${Date.now()}`,
-        type: "straight",
+        type: "smoothstep",
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 20,

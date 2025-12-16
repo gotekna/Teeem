@@ -2,13 +2,12 @@
 
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useApi } from "@/hooks/useApi";
+import { api } from "@/lib/api";
 import BpmnJsDesigner from "@/components/workflows/designer/BpmnJsDesigner";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function BpmnJsDesignerPage() {
   const { id } = useParams();
-  const api = useApi();
   const queryClient = useQueryClient();
   const processId = parseInt(id as string, 10);
 
@@ -16,8 +15,8 @@ export default function BpmnJsDesignerPage() {
   const { data: process, isLoading, error } = useQuery({
     queryKey: ["bpmn_process", processId],
     queryFn: async () => {
-      const response = await api.get(`/api/v1/bpmn_processes/${processId}`);
-      return response.data.data;
+      const response = await api.get<{ success: boolean; data: { bpmn_xml: string; name: string } }>(`/api/v1/bpmn_processes/${processId}`);
+      return response?.data;
     },
     enabled: !isNaN(processId),
   });
@@ -31,7 +30,7 @@ export default function BpmnJsDesignerPage() {
           svg_preview: svg,
         },
       });
-      return response.data;
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bpmn_process", processId] });

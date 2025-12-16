@@ -73,9 +73,6 @@ export default function BpmnJsDesigner({
 
       modeler = new BpmnModeler({
         container: containerRef.current,
-        keyboard: {
-          bindTo: document,
-        },
       });
 
       modelerRef.current = modeler;
