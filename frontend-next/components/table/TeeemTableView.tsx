@@ -1931,18 +1931,19 @@ export default function TeeemTableView({
 
   // Called when merge completes successfully - optimistically hides merged rows
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
-    // Optimistically hide deleted rows immediately
+    // Optimistically hide deleted rows immediately (no full refresh needed!)
+    // This keeps the table open and preserves group expansion state
     setPendingDeleteIds(new Set(deletedIds));
 
     // Clear selections
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
 
-    // Refresh data from server (will eventually sync state)
-    if (onRefresh) {
-      onRefresh();
-    }
-  }, [onRefresh]);
+    // NOTE: We intentionally do NOT call onRefresh() here anymore.
+    // The optimistic hide via pendingDeleteIds provides instant feedback.
+    // A full refresh would reset grouped views, scroll position, and cause flicker.
+    // Data will naturally sync on the next user-triggered refresh or navigation.
+  }, []);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
