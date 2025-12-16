@@ -331,11 +331,53 @@ export default function NewJobPage() {
 
         const description = descriptionParts.join("\n\n");
 
+        // Parse the property address to extract components if available
+        const propertyAddress = data.property_address || data.job_title || "";
+
+        // Try to parse address components from the property address
+        // Format typically: "45 Smith Street, Paddington QLD 4064"
+        let streetNumber = "";
+        let streetName = "";
+        let streetType = "";
+        let suburb = "";
+        let state = "";
+        let postcode = "";
+
+        // Simple regex to parse Australian address
+        const addressMatch = propertyAddress.match(/^(\d+)\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Way|Lane|Ln|Boulevard|Blvd|Parade|Pde|Terrace|Tce),?\s*(.+?)(?:\s+(QLD|NSW|VIC|SA|WA|TAS|NT|ACT))?\s*(\d{4})?$/i);
+
+        if (addressMatch) {
+          streetNumber = addressMatch[1] || "";
+          streetName = addressMatch[2] || "";
+          streetType = addressMatch[3] || "";
+          suburb = addressMatch[4]?.trim() || "";
+          state = addressMatch[5]?.toUpperCase() || "";
+          postcode = addressMatch[6] || "";
+        }
+
+        console.log("Pre-filling form with:", {
+          address: propertyAddress,
+          description: description.substring(0, 100) + "...",
+          contract_value: data.contract_value,
+          streetNumber,
+          streetName,
+          streetType,
+          suburb,
+          state,
+          postcode
+        });
+
         setFormData(prev => ({
           ...prev,
-          address: data.property_address || data.job_title || "",
+          address: propertyAddress,
           description: description,
           contract_value: data.contract_value?.toString() || "",
+          street_number: streetNumber || prev.street_number,
+          street_name: streetName || prev.street_name,
+          street_type: streetType || prev.street_type,
+          suburb: suburb || prev.suburb,
+          state: state || prev.state,
+          postcode: postcode || prev.postcode,
         }));
 
         // Store contact IDs to populate after contacts load

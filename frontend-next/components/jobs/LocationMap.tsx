@@ -164,6 +164,7 @@ export function LocationMap({
   const [formSuburb, setFormSuburb] = useState("");
   const [formPostcode, setFormPostcode] = useState("");
   const [formState, setFormState] = useState("");
+  const [formCouncil, setFormCouncil] = useState("");
   const [originalLocation, setOriginalLocation] = useState("");
 
   // Suburb search state
@@ -408,8 +409,10 @@ export function LocationMap({
     }
 
     // Pre-fill form with extracted data
-    setFormLotNumber(addr.houseNumber || "");
-    setFormStreetNumber("");
+    // houseNumber from geocoder goes to Street Number, not Lot Number
+    // Lot Number is for lot/plan numbers which users enter manually
+    setFormLotNumber("");
+    setFormStreetNumber(addr.houseNumber || "");
     setFormStreetName(addr.streetName || "");
     setFormStreetType(addr.streetType || "");
     setFormSuburb(suburb);
@@ -461,21 +464,73 @@ export function LocationMap({
     setFormSuburb("");
     setFormPostcode("");
     setFormState("");
+    setFormCouncil("");
     setOriginalLocation("");
     setSuburbSearchQuery("");
     setSuburbSearchResults([]);
     setShowSuburbDropdown(false);
   };
 
-  const handleSuburbSelect = (suburb: SuburbSearchResult) => {
+  const handleSuburbSelect = async (suburb: SuburbSearchResult) => {
     console.log("Suburb selected:", suburb);
     console.log("Setting postcode to:", suburb.postcode);
     console.log("Setting state to:", suburb.state);
+    console.log("Setting council to:", suburb.council);
     setFormSuburb(suburb.name);
     setFormPostcode(suburb.postcode);
     setFormState(suburb.state);
+    setFormCouncil(suburb.council || "");
     setSuburbSearchQuery("");
     setShowSuburbDropdown(false);
+
+    // Auto-geocode to center map on the suburb/address
+    // Build search query from current form fields + new suburb
+    const searchParts: string[] = [];
+    if (formStreetNumber) searchParts.push(formStreetNumber);
+    if (formStreetName) {
+      const street = [formStreetName, formStreetType].filter(Boolean).join(" ");
+      searchParts.push(street);
+    }
+    searchParts.push(suburb.name);
+    searchParts.push(suburb.state);
+
+    const searchQuery = searchParts.join(", ");
+
+    if (searchQuery.length >= 3) {
+      setGeocoding(true);
+      setError(null);
+      try {
+        const data = await api.get<{ suggestions: AddressSuggestion[] }>(
+          `/api/v1/geocode/search?q=${encodeURIComponent(searchQuery)}`
+        );
+        const suggestions = data?.suggestions || [];
+
+        if (suggestions.length > 0) {
+          const [lon, lat] = suggestions[0].center;
+          const newPosition: [number, number] = [lat, lon];
+          setTempPosition(newPosition);
+          setMapPosition(newPosition);
+        } else {
+          // Fall back to suburb-only search
+          const suburbQuery = `${suburb.name}, ${suburb.state}`;
+          const suburbData = await api.get<{ suggestions: AddressSuggestion[] }>(
+            `/api/v1/geocode/search?q=${encodeURIComponent(suburbQuery)}`
+          );
+          const suburbSuggestions = suburbData?.suggestions || [];
+
+          if (suburbSuggestions.length > 0) {
+            const [lon, lat] = suburbSuggestions[0].center;
+            const newPosition: [number, number] = [lat, lon];
+            setTempPosition(newPosition);
+            setMapPosition(newPosition);
+          }
+        }
+      } catch (err) {
+        console.error("Auto-geocoding failed:", err);
+      } finally {
+        setGeocoding(false);
+      }
+    }
   };
 
   const handleCancelEdit = () => {
@@ -540,6 +595,7 @@ export function LocationMap({
           suburb: formSuburb.trim() || null,
           postcode: formPostcode.trim() || null,
           state: formState.trim() || null,
+          council: formCouncil.trim() || null,
         },
       });
 
@@ -828,7 +884,7 @@ export function LocationMap({
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <Label className="text-xs">State</Label>
                     <Input
@@ -843,6 +899,16 @@ export function LocationMap({
                     <Label className="text-xs">Postcode</Label>
                     <Input
                       value={formPostcode}
+                      readOnly
+                      placeholder="Auto-filled from suburb"
+                      className="mt-1 bg-muted/50"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Council</Label>
+                    <Input
+                      value={formCouncil}
                       readOnly
                       placeholder="Auto-filled from suburb"
                       className="mt-1 bg-muted/50"
