@@ -23,6 +23,11 @@ import {
   currentFilterGroupsAtom,
   currentInterGroupLogicAtom,
 } from "@/lib/view-state-atoms";
+import {
+  getCachedRecords,
+  setCachedRecords,
+  removeMultipleFromCache,
+} from "@/lib/records-cache";
 
 interface Contact {
   id: number;
@@ -101,9 +106,18 @@ export default function ContactsPageClient({
   const [foundation] = useState(initialFoundation);
   // columns removed - TeeemTableView auto-fetches from Foundation API (SSoT)
 
-  // Use SSR data as initial state, then infinite scroll will load more
-  // Deduplicate initial records as a safety measure
+  // SSoT: Check cache first, then fall back to SSR initial data
+  // This preserves loaded records when navigating back from detail pages
   const [records, setRecords] = useState(() => {
+    // Check if we have cached records for this foundation
+    if (initialFoundation?.id) {
+      const cached = getCachedRecords(initialFoundation.id);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        console.log(`[ContactsPageClient] Using cached records: ${cached.records.length} (SSR had ${initialRecords?.length || 0})`);
+        return cached.records as TTableRow[];
+      }
+    }
+    // Fall back to SSR data
     const seen = new Set<number | string>();
     return (initialRecords || []).filter(r => {
       if (seen.has(r.id)) return false;
@@ -111,8 +125,24 @@ export default function ContactsPageClient({
       return true;
     });
   });
-  const [totalCount, setTotalCount] = useState(initialTotalCount);
-  const [hasMore, setHasMore] = useState(initialHasMore); // Use server-provided hasMore flag
+  const [totalCount, setTotalCount] = useState(() => {
+    if (initialFoundation?.id) {
+      const cached = getCachedRecords(initialFoundation.id);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        return cached.totalCount;
+      }
+    }
+    return initialTotalCount;
+  });
+  const [hasMore, setHasMore] = useState(() => {
+    if (initialFoundation?.id) {
+      const cached = getCachedRecords(initialFoundation.id);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        return cached.hasMore;
+      }
+    }
+    return initialHasMore;
+  });
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
@@ -310,6 +340,11 @@ export default function ContactsPageClient({
         }
       }
 
+      // Save to cache so data persists when navigating back
+      if (foundation?.id) {
+        setCachedRecords(foundation.id, currentRecords, totalCount, false);
+      }
+
       toast({
         title: "All contacts loaded",
         description: `Loaded ${currentRecords.length} total contacts`,
@@ -397,6 +432,11 @@ export default function ContactsPageClient({
     // Optimistically remove merged contacts from state (no need to reload all 1,178 contacts!)
     setRecords(prev => prev.filter(r => !mergedContactIds.includes(Number(r.id))));
 
+    // Update cache to remove merged contacts
+    if (foundation?.id) {
+      removeMultipleFromCache(foundation.id, mergedContactIds);
+    }
+
     // Update total count
     if (totalCount !== null) {
       setTotalCount(totalCount - mergedContactIds.length);
@@ -406,7 +446,7 @@ export default function ContactsPageClient({
       title: "Contacts merged",
       description: `${mergedContactIds.length} contact(s) merged successfully`,
     });
-  }, [totalCount, toast]);
+  }, [foundation?.id, totalCount, toast]);
 
   // Xero transfer handler - called when 2 contacts are selected and Xero button is clicked
   const handleXeroTransfer = useCallback((ids: (number | string)[]) => {
@@ -532,6 +572,11 @@ export default function ContactsPageClient({
     const idsSet = new Set(ids);
     setRecords(prev => prev.filter(r => !idsSet.has(r.id)));
 
+    // Update cache to remove deleted contacts
+    if (foundation?.id) {
+      removeMultipleFromCache(foundation.id, ids);
+    }
+
     // Show TEEEM value toast
     toast({
       title: randomValue.title,
@@ -565,7 +610,7 @@ export default function ContactsPageClient({
     if (failed > 0) {
       await refresh();
     }
-  }, [refresh, toast]);
+  }, [foundation?.id, refresh, toast]);
 
   // Handle data health issue click (e.g., fix duplicate emails)
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
