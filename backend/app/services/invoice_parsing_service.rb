@@ -359,9 +359,9 @@ class InvoiceParsingService
     abn = clean_abn(@bill.supplier_abn_raw)
     return if abn.blank?
 
-    # Find contact by ABN
-    contact = Contact.find_by(tax_number: abn)
-    contact ||= Contact.where("REPLACE(tax_number, ' ', '') = ?", abn).first
+    # Find contact by ABN (column is 'abn' not 'tax_number')
+    contact = Contact.find_by(abn: abn)
+    contact ||= Contact.where("REPLACE(abn, ' ', '') = ?", abn).first
 
     if contact
       @bill.update!(supplier: contact)
