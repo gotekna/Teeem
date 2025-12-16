@@ -1227,6 +1227,17 @@ export default function TeeemTableView({
   // searchAllColumns managed by atom (SSoT)
   const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
 
+  // Re-trigger server search on mount if there's a persisted search term
+  // This handles browser back navigation where atom state is preserved but data isn't
+  const hasRestoredSearchRef = useRef(false);
+  useEffect(() => {
+    if (search && effectiveOnServerSearch && !hasRestoredSearchRef.current) {
+      hasRestoredSearchRef.current = true;
+      // Re-execute the search to restore filtered results
+      effectiveOnServerSearch(search, propSearchMode);
+    }
+  }, [search, effectiveOnServerSearch, propSearchMode]);
+
   // View-related state now managed by Jotai atoms (SSoT)
   const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
   const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
