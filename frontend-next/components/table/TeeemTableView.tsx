@@ -2632,9 +2632,10 @@ export default function TeeemTableView({
     }
 
     // Apply search filter (client-side)
-    // Always filter client-side when there's a search term - this ensures filtering works
-    // even when server search returns unfiltered results or for useAutoFetch mode
-    if (search) {
+    // ONLY filter client-side when there's NO server search - SSoT: backend handles filtering
+    // When effectiveOnServerSearch exists, server already filtered with SQL ILIKE
+    const hasServerSearch = !!effectiveOnServerSearch;
+    if (search && !hasServerSearch) {
       result = result.filter((entry) => {
         return COLUMNS.some((col) => {
           if (col.key === "select" || col.key === "actions") return false;
@@ -2754,6 +2755,7 @@ export default function TeeemTableView({
     searchAllColumns,
     searchableColumns,
     onServerSearch,
+    effectiveOnServerSearch,
     COLUMNS,
     cascadeFilters,
     filterGroups,
@@ -3004,7 +3006,8 @@ export default function TeeemTableView({
     // IMPORTANT: Merge in server groups that aren't in loaded data
     // This ensures ALL groups appear in the UI, even if their records haven't been loaded yet
     // Only applies to first-level grouping (depth 0)
-    if (serverGroupCounts.length > 0 && groupByColumns.length > 0) {
+    // SKIP when searching - server counts don't include search term, so only show client-filtered results
+    if (serverGroupCounts.length > 0 && groupByColumns.length > 0 && !search) {
       for (const serverGroup of serverGroupCounts) {
         const key = serverGroup.key === null ? "(Empty)" : String(serverGroup.key);
         if (!result[key]) {
@@ -3015,7 +3018,7 @@ export default function TeeemTableView({
     }
 
     return result;
-  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns, serverGroupCounts]);
+  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns, serverGroupCounts, search]);
 
   // Expand/collapse all group handlers (must be after groupedEntries)
   const expandAllGroups = useCallback(() => {
@@ -3045,8 +3048,23 @@ export default function TeeemTableView({
       const allKeys = getAllGroupKeys(groupedEntries);
       setCollapsedGroups(new Set(allKeys));
     }
-     
+
   }, [groupedEntries, getAllGroupKeys]);
+
+  // Auto-expand all groups when searching
+  // This ensures users can see matching results without manually expanding
+  const prevSearchRef = useRef(search);
+  useEffect(() => {
+    const hasSearch = !!search;
+    prevSearchRef.current = search;
+
+    // When search becomes active, expand all groups so results are visible
+    if (hasSearch && groupedEntries && collapsedGroups.size > 0) {
+      setCollapsedGroups(new Set());
+    }
+    // NOTE: Do NOT trigger onLoadAll here - server search handles filtering at database level
+    // Loading all records would overwrite the search-filtered results
+  }, [search, groupedEntries, collapsedGroups.size, setCollapsedGroups]);
 
   // Helper to get visible (non-collapsed) row IDs in grouped tables
   const getVisibleRowIds = useCallback(() => {
@@ -5070,7 +5088,7 @@ export default function TeeemTableView({
         )}
         role="region"
         aria-label={`${tableName} table with ${filteredAndSortedEntries.length} rows`}
-        aria-busy={columnsLoading || serverSearchLoading}
+        aria-busy={columnsLoading || serverSearchLoading || loadingMore}
         {...keyboardProps}
       >
         {/* Show skeleton while columns are loading */}
@@ -5080,6 +5098,20 @@ export default function TeeemTableView({
             columnCount={Math.min(visibleColumnsInOrder.length || 6, 8)}
             showHeader
           />
+        ) : filteredAndSortedEntries.length === 0 && loadingMore ? (
+          /* Show loading state when searching but still loading records */
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="h-8 w-8 animate-spin mb-4" />
+            <p className="text-sm font-medium">Loading records...</p>
+            <p className="text-xs mt-1">Searching through all {totalCount || 'available'} records</p>
+          </div>
+        ) : filteredAndSortedEntries.length === 0 && search ? (
+          /* Show no results message when search is active but no matches */
+          <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            <Search className="h-8 w-8 mb-4 opacity-50" />
+            <p className="text-sm font-medium">No results found</p>
+            <p className="text-xs mt-1">No records match "{search}"</p>
+          </div>
         ) : (
           groupedEntries ? renderGroupedTable() : renderFlatTable()
         )}

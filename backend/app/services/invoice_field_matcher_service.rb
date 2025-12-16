@@ -245,39 +245,100 @@ class InvoiceFieldMatcherService
     nil
   end
 
-  # Find date matches by looking for day number followed by month
+  # Find date matches by looking for context labels + day/month pattern
+  # Different fields need different context:
+  # - invoice_date: look for "Date:", "Invoice Date", "Tax Invoice"
+  # - due_date: look for "Due", "Due Date", "Due by", "Balance Due"
   def find_date_match(date_value, field_name)
     return nil if date_value.blank?
 
     begin
       date = Date.parse(date_value.to_s)
       day_str = date.day.to_s
+      day_padded = day_str.rjust(2, "0")
       month_name = Date::MONTHNAMES[date.month]&.downcase
 
-      @ocr_result[:words].each_with_index do |word, idx|
-        # Look for the day number
-        if word[:text] == day_str || word[:text] == day_str.rjust(2, "0")
-          # Check if next word is the month
-          next_words = get_surrounding_words(idx, 3)
-          combined_lower = next_words.map { |w| w[:text].downcase }.join(" ")
+      # Define context labels for each date field
+      context_labels = case field_name
+                       when "due_date"
+                         %w[due balance payable payment]
+                       when "invoice_date"
+                         %w[date invoice tax issued]
+                       else
+                         []
+                       end
 
-          if combined_lower.include?(month_name) || combined_lower.include?(month_name[0..2])
-            return build_match_result(word, next_words, next_words.map { |w| w[:text] }.join(" "), 0.9, false)
-          end
+      best_match = nil
+      best_score = 0
+
+      @ocr_result[:words].each_with_index do |word, idx|
+        word_lower = word[:text].downcase
+
+        # Look for the day number matching our target date
+        next unless word[:text] == day_str || word[:text] == day_padded
+
+        # Check if next words contain the month
+        surrounding = get_surrounding_words(idx, 5)
+        combined_lower = surrounding.map { |w| w[:text].downcase }.join(" ")
+
+        # Must have the right month
+        next unless combined_lower.include?(month_name) || combined_lower.include?(month_name[0..2])
+
+        # Calculate context score - higher if near relevant labels
+        context_score = 0
+        extended_context = get_surrounding_words(idx, 10)
+        extended_text = extended_context.map { |w| w[:text].downcase }.join(" ")
+
+        context_labels.each do |label|
+          context_score += 1 if extended_text.include?(label)
         end
 
-        # Also look for month name first
-        if word[:text].downcase == month_name || word[:text].downcase == month_name[0..2]
-          surrounding = get_surrounding_words(idx, 3)
-          combined = surrounding.map { |w| w[:text] }.join(" ")
-          return build_match_result(word, surrounding, combined, 0.85, false)
+        # For due_date, give bonus if "due" appears nearby
+        if field_name == "due_date" && extended_text.include?("due")
+          context_score += 2
+        end
+
+        # For invoice_date, give bonus if it's near top of page (low y value)
+        if field_name == "invoice_date" && word[:y] && word[:y] < 0.3
+          context_score += 1
+        end
+
+        # For due_date, penalize if it looks like invoice date position (early in doc)
+        if field_name == "due_date" && word[:y] && word[:y] < 0.2
+          context_score -= 2
+        end
+
+        if context_score > best_score
+          date_words = surrounding.select { |w|
+            w[:text] == day_str || w[:text] == day_padded ||
+            w[:text].downcase == month_name || w[:text].downcase == month_name[0..2] ||
+            w[:text] =~ /^\d{4}$/
+          }
+          date_words = surrounding.first(4) if date_words.length < 2
+
+          best_match = build_match_result(word, date_words, date_words.map { |w| w[:text] }.join(" "), 0.9, false)
+          best_score = context_score
         end
       end
+
+      # If no context match found, fall back to any date match (but only for invoice_date)
+      if best_match.nil? && field_name == "invoice_date"
+        @ocr_result[:words].each_with_index do |word, idx|
+          if word[:text] == day_str || word[:text] == day_padded
+            surrounding = get_surrounding_words(idx, 3)
+            combined_lower = surrounding.map { |w| w[:text].downcase }.join(" ")
+
+            if combined_lower.include?(month_name) || combined_lower.include?(month_name[0..2])
+              return build_match_result(word, surrounding, surrounding.map { |w| w[:text] }.join(" "), 0.8, false)
+            end
+          end
+        end
+      end
+
+      best_match
     rescue ArgumentError
       nil
     end
-
-    nil
   end
 
   def get_surrounding_words(center_idx, radius)
