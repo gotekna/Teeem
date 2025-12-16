@@ -4041,20 +4041,30 @@ export default function TeeemTableView({
       // Show indicator if we only have partial data loaded (and not fully loaded yet)
       const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
-      // Add group header row
+      // Add group header row - STICKY cell so it stays visible while scrolling within group
+      // Calculate top position: column header height (28px) + previous group headers
+      const stickyTop = 28 + (depth * 36); // 28px for column header, 36px per group level
+      const groupBgColor = `rgba(242, 241, 239, ${Math.max(0.5, 0.95 - depth * 0.30)})`; // Solid enough for sticky
+
       result.push(
         <TableRow
           key={`group-${fullKey}`}
           className="cursor-pointer hover:opacity-80"
-          style={{
-            backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
-          }}
           onClick={() => toggleGroupCollapse(fullKey)}
         >
           <TableCell
             colSpan={visibleColumnsInOrder.length}
             className="py-2"
-            style={{ paddingLeft: `${16 + depth * 24}px` }}
+            style={{
+              paddingLeft: `${16 + depth * 24}px`,
+              // Sticky on the CELL, not the row
+              position: 'sticky',
+              top: stickyTop,
+              zIndex: 10,
+              backgroundColor: groupBgColor,
+              // DEBUG: Blue border
+              border: '3px solid blue',
+            }}
           >
             <div className="flex items-center gap-2">
               {isLoadingThisGroup ? (
