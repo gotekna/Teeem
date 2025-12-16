@@ -679,7 +679,8 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   // Calculate total table width for proper scrolling
   const totalWidth = useMemo(() => {
     return visibleColumnsInOrder.reduce((sum, col) => {
-      return sum + (columnWidths[col.key] || col.width || 100);
+      // Match colgroup width calculation: select is always 40px
+      return sum + (col.key === "select" ? 40 : (columnWidths[col.key] || col.width || 150));
     }, 0);
   }, [visibleColumnsInOrder, columnWidths]);
 
@@ -692,7 +693,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
             {visibleColumnsInOrder.map((column) => (
               <col
                 key={column.key}
-                style={{ width: columnWidths[column.key] || column.width || 100 }}
+                style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
               />
             ))}
           </colgroup>
@@ -736,7 +737,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                     {visibleColumnsInOrder.map((column) => (
                       <col
                         key={column.key}
-                        style={{ width: columnWidths[column.key] || column.width || 100 }}
+                        style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
                       />
                     ))}
                   </colgroup>
@@ -768,7 +769,12 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                             title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
                             style={{
                               width: columnWidths[column.key] || column.width,
+                              minWidth: columnWidths[column.key] || column.width,
                               ...stickyStyles,
+                              ...(column.key === "select" && {
+                                textAlign: 'center',
+                                verticalAlign: 'middle'
+                              }),
                               ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                                 backgroundColor: SYSTEM_COLUMN_BG,
                               })
@@ -833,7 +839,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
               {visibleColumnsInOrder.map((column) => (
                 <col
                   key={column.key}
-                  style={{ width: columnWidths[column.key] || column.width || 100 }}
+                  style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
                 />
               ))}
             </colgroup>
@@ -4660,6 +4666,17 @@ export default function TeeemTableView({
                   Xero
                 </Button>
               )}
+              {/* Delete button - bulk delete selected rows */}
+              {onBulkDelete && !viewOnly && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onBulkDelete(Array.from(selectedRows))}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+              )}
             </div>
           )}
 
@@ -4959,6 +4976,18 @@ export default function TeeemTableView({
                 >
                   <ArrowLeftRight className="h-3 w-3 mr-1" />
                   Xero
+                </Button>
+              )}
+              {/* Delete button - compact */}
+              {onBulkDelete && !viewOnly && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onBulkDelete(Array.from(selectedRows))}
+                  className="h-7 px-2 text-xs"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Delete
                 </Button>
               )}
 
