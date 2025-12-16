@@ -2,7 +2,7 @@ module Api
   module V1
     class ContactXeroLinksController < ApplicationController
       before_action :set_contact, except: [ :pending_review ]
-      before_action :set_xero_link, only: [ :show, :update, :destroy, :sync, :approve, :reject ]
+      before_action :set_xero_link, only: [ :show, :update, :destroy, :sync, :approve, :reject, :transfer ]
 
       # GET /api/v1/xero_links/pending_review
       # Global endpoint to list all links needing manual review
@@ -161,6 +161,54 @@ module Api
           success: true,
           message: "Sync initiated",
           xero_link: serialize_xero_link(@xero_link)
+        }
+      end
+
+      # POST /api/v1/contacts/:contact_id/xero_links/:id/transfer
+      # Transfer a Xero link from one contact to another
+      def transfer
+        target_contact = Contact.find_by(id: params[:target_contact_id])
+
+        unless target_contact
+          return render json: {
+            success: false,
+            error: "Target contact not found"
+          }, status: :not_found
+        end
+
+        if target_contact.id == @contact.id
+          return render json: {
+            success: false,
+            error: "Cannot transfer to the same contact"
+          }, status: :unprocessable_entity
+        end
+
+        # Check if target already has link to same tenant
+        existing_link = target_contact.external_links.find_by(
+          source: @xero_link.source,
+          tenant_id: @xero_link.tenant_id
+        )
+
+        if existing_link
+          return render json: {
+            success: false,
+            error: "Target contact is already linked to #{@xero_link.tenant_name}"
+          }, status: :unprocessable_entity
+        end
+
+        old_contact = @xero_link.contact
+
+        # Transfer the link
+        @xero_link.update!(contact_id: target_contact.id)
+
+        # Update caches on both contacts
+        old_contact.update_xero_link_cache!
+        target_contact.update_xero_link_cache!
+
+        render json: {
+          success: true,
+          message: "Xero link transferred to #{target_contact.display_name}",
+          xero_link: serialize_xero_link(@xero_link.reload)
         }
       end
 

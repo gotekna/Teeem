@@ -452,6 +452,7 @@ Rails.application.routes.draw do
             post :resolve_conflict
             post :approve
             post :reject
+            post :transfer
           end
           collection do
             get :conflicts

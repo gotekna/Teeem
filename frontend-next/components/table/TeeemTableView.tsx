@@ -2881,8 +2881,22 @@ export default function TeeemTableView({
     };
 
     const result = buildNestedGroups(filteredAndSortedEntries, groupByColumns, 0);
+
+    // IMPORTANT: Merge in server groups that aren't in loaded data
+    // This ensures ALL groups appear in the UI, even if their records haven't been loaded yet
+    // Only applies to first-level grouping (depth 0)
+    if (serverGroupCounts.length > 0 && groupByColumns.length > 0) {
+      for (const serverGroup of serverGroupCounts) {
+        const key = serverGroup.key === null ? "(Empty)" : String(serverGroup.key);
+        if (!result[key]) {
+          // Add empty group placeholder - rows will be lazy-loaded when expanded
+          result[key] = { rows: [] };
+        }
+      }
+    }
+
     return result;
-  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns]);
+  }, [filteredAndSortedEntries, groupByColumns, getDisplayValue, sortColumns, serverGroupCounts]);
 
   // Expand/collapse all group handlers (must be after groupedEntries)
   const expandAllGroups = useCallback(() => {

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/accordion";
 import { api } from "@/lib/api";
 import { LinkXeroContactModal } from "./LinkXeroContactModal";
+import { TransferXeroLinkModal } from "./TransferXeroLinkModal";
 import type {
   XeroLink,
   XeroTenant,
@@ -74,6 +75,8 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
   const [syncConfig, setSyncConfig] = useState<SyncConfiguration | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferLink, setTransferLink] = useState<XeroLink | null>(null);
 
   const selectedLink = xeroLinks.find((link) => link.id === selectedLinkId);
   const hasXeroConnection = xeroLinks.length > 0;
