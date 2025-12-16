@@ -140,6 +140,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Contact[]>([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false); // Track if a search has completed
   const [error, setError] = useState<string | null>(null);
   const [expandedContacts, setExpandedContacts] = useState<Set<number>>(new Set());
 
@@ -198,22 +199,33 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
   const searchContacts = async (query: string) => {
     if (!query || query.length < 2) {
       setSearchResults([]);
+      setHasSearched(false); // Reset when query is cleared/too short
       return;
     }
 
     try {
       setSearching(true);
+      console.log("[JobPeopleTab] Searching contacts with query:", query);
       const response = await api.get<{ contacts?: Contact[] }>("/api/v1/contacts", {
         params: { search: query, per_page: 10 },
+        dedupe: false, // Disable deduplication for search
       });
 
+      console.log("[JobPeopleTab] API response:", response);
+      console.log("[JobPeopleTab] Contacts returned:", response.contacts?.length || 0);
+
       const existingForRole = contacts.filter((c) => c.role === addingRole).map((c) => c.contact_id);
+      console.log("[JobPeopleTab] Existing contacts for role", addingRole, ":", existingForRole);
+
       const filtered = (response.contacts || []).filter(
         (contact) => !existingForRole.includes(contact.id)
       );
+      console.log("[JobPeopleTab] Filtered results:", filtered.length);
       setSearchResults(filtered);
+      setHasSearched(true); // Mark that a search has completed
     } catch (err) {
-      console.error("Failed to search contacts:", err);
+      console.error("[JobPeopleTab] Failed to search contacts:", err);
+      setHasSearched(true); // Also set on error so user knows search ran
     } finally {
       setSearching(false);
     }
@@ -404,7 +416,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
               </div>
             )}
 
-            {!searching && searchQuery.length >= 2 && searchResults.length === 0 && (
+            {!searching && hasSearched && searchResults.length === 0 && (
               <div className="mt-2 text-sm text-muted-foreground text-center py-2">
                 No contacts found
               </div>
@@ -531,7 +543,9 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
         // External roles - collapsible rows
         return group.roles.map((role) => {
           const roleContacts = contactsByRole[role.key] || [];
-          if (roleContacts.length === 0 && group.key === "client") return null;
+          // Only hide non-primary client roles (representative, broker, bank) when empty
+          // Always show the main "client" role so users can add the first client
+          if (roleContacts.length === 0 && group.key === "client" && role.key !== "client") return null;
 
           const RoleIcon = role.icon;
           return (

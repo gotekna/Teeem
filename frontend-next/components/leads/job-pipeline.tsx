@@ -1,15 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { PipelineJob, PipelineStage, PIPELINE_STAGE_CONFIG } from "@/types/leads";
 import { JobPipelineCard } from "./job-pipeline-card";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface JobPipelineProps {
   jobsByStage: Record<string, PipelineJob[]>;
   onJobClick: (job: PipelineJob) => void;
   onStageChange: (jobId: number, newStage: PipelineStage) => void;
+  onMarkAsLost?: (jobId: number) => Promise<void>;
   onJobsChange?: () => void;
 }
 
@@ -39,11 +49,11 @@ export function JobPipeline({
   jobsByStage,
   onJobClick,
   onStageChange,
-  onJobsChange,
+  onMarkAsLost,
 }: JobPipelineProps) {
-  const router = useRouter();
   const [draggedJob, setDraggedJob] = useState<PipelineJob | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<PipelineStage | null>(null);
+  const [lostConfirmJob, setLostConfirmJob] = useState<PipelineJob | null>(null);
 
   const getJobsByStage = (stage: PipelineStage): PipelineJob[] => {
     return jobsByStage[stage] || [];
@@ -85,11 +95,27 @@ export function JobPipeline({
       // Get current stage from job_stage field (normalize to snake_case)
       const currentStage = draggedJob.job_stage?.toLowerCase().replace(/ /g, '_') || 'needs_pricing';
       if (currentStage !== newStage) {
-        onStageChange(draggedJob.id, newStage);
+        // If dropping to "lost", show confirmation dialog instead of immediate change
+        if (newStage === "lost") {
+          setLostConfirmJob(draggedJob);
+        } else {
+          onStageChange(draggedJob.id, newStage);
+        }
       }
     }
     setDraggedJob(null);
     setDragOverColumn(null);
+  };
+
+  const handleConfirmLost = async () => {
+    if (lostConfirmJob && onMarkAsLost) {
+      await onMarkAsLost(lostConfirmJob.id);
+    }
+    setLostConfirmJob(null);
+  };
+
+  const handleCancelLost = () => {
+    setLostConfirmJob(null);
   };
 
   const handleDragEnd = () => {
@@ -98,6 +124,25 @@ export function JobPipeline({
   };
 
   return (
+    <>
+    <AlertDialog open={!!lostConfirmJob} onOpenChange={(open) => !open && setLostConfirmJob(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Mark as Lost?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to mark &quot;{lostConfirmJob?.title}&quot; as lost?
+            This will change the status to &quot;Lost - Pre Contract&quot; and remove it from the pipeline.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancelLost}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmLost} className="bg-red-600 hover:bg-red-700">
+            Yes, Mark as Lost
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <div className="flex gap-3 overflow-x-auto pb-4 min-h-[600px]">
       {PIPELINE_COLUMNS.map((stage) => {
         const stageConfig = PIPELINE_STAGE_CONFIG[stage];
@@ -172,5 +217,6 @@ export function JobPipeline({
         );
       })}
     </div>
+    </>
   );
 }

@@ -137,6 +137,15 @@ export default function LeadsPage() {
     }
   };
 
+  const handleMarkAsLost = async (jobId: number) => {
+    try {
+      await api.patch(`/api/v1/jobs/${jobId}/mark_lost`);
+      loadPipeline();
+    } catch (error) {
+      console.error("Failed to mark job as lost:", error);
+    }
+  };
+
   const handleJobClick = (job: PipelineJob) => {
     router.push(`/jobs/${job.id}`);
   };
@@ -216,7 +225,7 @@ export default function LeadsPage() {
             jobsByStage={jobsByStage}
             onJobClick={handleJobClick}
             onStageChange={handleStageChange}
-            onJobsChange={loadPipeline}
+            onMarkAsLost={handleMarkAsLost}
           />
         </TabsContent>
       </Tabs>

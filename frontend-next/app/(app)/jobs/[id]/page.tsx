@@ -7,13 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -56,7 +49,6 @@ import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { StartWorkflowButton } from "@/components/jobs/StartWorkflowButton";
-import { JobWorkflowsCard } from "@/components/jobs/JobWorkflowsCard";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -896,7 +888,7 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -1171,90 +1163,6 @@ export default function JobDetailPage() {
               }}
             />
 
-            {/* Workflows */}
-            <JobWorkflowsCard jobId={job.id} />
-
-            {/* Contacts */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Client Contacts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {job.contacts && job.contacts.length > 0 ? (
-                  <div className="space-y-4">
-                    {job.contacts.map((contact) => (
-                      <div key={contact.id} className="flex items-start gap-3">
-                        <Avatar>
-                          <AvatarFallback>{getInitials(contact.name)}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium truncate">{contact.name}</p>
-                            {contact.is_primary && (
-                              <Badge variant="secondary" className="text-xs">
-                                Primary
-                              </Badge>
-                            )}
-                          </div>
-                          {contact.company && (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Building2 className="h-3 w-3" />
-                              {contact.company}
-                            </p>
-                          )}
-                          {contact.email && (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Mail className="h-3 w-3" />
-                              {contact.email}
-                            </p>
-                          )}
-                          {contact.mobile && (
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Phone className="h-3 w-3" />
-                              {contact.mobile}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No contacts assigned</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Team */}
-            <Card className="lg:col-span-3">
-              <CardHeader>
-                <CardTitle>Team</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-start gap-3">
-                  <Avatar>
-                    <AvatarFallback>
-                      {job.site_supervisor_name ? getInitials(job.site_supervisor_name) : "SS"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium">{job.site_supervisor_name || "Not assigned"}</p>
-                    <p className="text-sm text-muted-foreground">Site Supervisor</p>
-                    {job.site_supervisor_email && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <Mail className="h-3 w-3" />
-                        {job.site_supervisor_email}
-                      </p>
-                    )}
-                    {job.site_supervisor_phone && (
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {job.site_supervisor_phone}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         </TabsContent>
 

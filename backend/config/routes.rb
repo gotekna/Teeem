@@ -153,6 +153,7 @@ Rails.application.routes.draw do
           get :activities
           get :budget_tracking
           patch :stage, action: :update_stage  # PATCH /api/v1/jobs/:id/stage - Update job stage
+          patch :mark_lost  # PATCH /api/v1/jobs/:id/mark_lost - Mark job as lost
           # Xero bill import
           post :import_xero_bills
           post :link_xero_tracking

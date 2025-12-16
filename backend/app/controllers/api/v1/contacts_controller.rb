@@ -44,12 +44,13 @@ module Api
           search_term = "%#{params[:search]}%"
 
           # Find contacts that match the search term directly
+          # Note: left_outer_joins(:primary_company) creates alias "primary_companies_contacts"
           direct_matches = @contacts.left_outer_joins(:primary_company).where(
             "contacts.display_name ILIKE :q OR
              contacts.email ILIKE :q OR
              contacts.first_name ILIKE :q OR
              contacts.last_name ILIKE :q OR
-             (contacts.is_team_contact = true AND companies_contacts.display_name ILIKE :q)",
+             (contacts.is_team_contact = true AND primary_companies_contacts.display_name ILIKE :q)",
             q: search_term
           )
 
@@ -64,7 +65,7 @@ module Api
               .active
               .where(relationship_type: "employee_of")
               .where(related_contact_id: matching_company_ids)
-              .pluck(:contact_id)
+              .pluck(:source_contact_id)
 
             employee_primary_company_ids = Contact.where(primary_company_id: matching_company_ids).pluck(:id)
 

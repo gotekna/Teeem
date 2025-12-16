@@ -346,6 +346,9 @@ export default function NewJobPage() {
           external_sales_id: data.external_sales?.[0]?.contact_id || null,
         };
 
+        console.log("Proposal loaded with contact IDs:", contactIdsToPopulate);
+        console.log("Internal sales user_id:", data.internal_sales?.user_id);
+
         // Set people data IDs
         setPeopleData(prev => ({
           ...prev,
@@ -363,18 +366,22 @@ export default function NewJobPage() {
     loadProposal();
   }, [proposalId]);
 
+  // Track if we've already populated contacts from proposal
+  const [hasPopulatedFromProposal, setHasPopulatedFromProposal] = React.useState(false);
+
   // Populate selectedContacts when contacts load and we have proposal IDs
   React.useEffect(() => {
-    if (allContacts.length === 0 || !proposalId) return;
+    // Skip if already populated, no contacts, or no proposal
+    if (hasPopulatedFromProposal || allContacts.length === 0 || !proposalId) return;
 
-    // Check if we have IDs but no selected contacts yet
-    const needsPopulation =
-      (peopleData.client1_id && !selectedContacts.client1) ||
-      (peopleData.client2_id && !selectedContacts.client2) ||
-      (peopleData.referrer_id && !selectedContacts.referrer) ||
-      (peopleData.external_sales_id && !selectedContacts.external_sales);
+    // Check if we have any IDs to populate
+    const hasIds =
+      peopleData.client1_id ||
+      peopleData.client2_id ||
+      peopleData.referrer_id ||
+      peopleData.external_sales_id;
 
-    if (!needsPopulation) return;
+    if (!hasIds) return;
 
     // Find and set the contact objects
     const newSelectedContacts: typeof selectedContacts = {};
@@ -400,9 +407,11 @@ export default function NewJobPage() {
     }
 
     if (Object.keys(newSelectedContacts).length > 0) {
-      setSelectedContacts(prev => ({ ...prev, ...newSelectedContacts }));
+      console.log("Populating contacts from proposal:", newSelectedContacts);
+      setSelectedContacts(newSelectedContacts);
+      setHasPopulatedFromProposal(true);
     }
-  }, [allContacts, peopleData.client1_id, peopleData.client2_id, peopleData.referrer_id, peopleData.external_sales_id, proposalId, selectedContacts]);
+  }, [allContacts, peopleData.client1_id, peopleData.client2_id, peopleData.referrer_id, peopleData.external_sales_id, proposalId, hasPopulatedFromProposal]);
 
   // Convert contacts to combobox items
   const contactItems: ComboboxItem[] = allContacts.map((c: Contact) => ({
