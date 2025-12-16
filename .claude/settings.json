@@ -1,4 +1,28 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit(**/frontend-next/**/*.tsx)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd frontend-next && npx tsc --noEmit 2>&1 | tail -10 || true",
+            "statusMessage": "Type checking..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit(**/backend/**/*.rb)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd backend && bundle exec rubocop --format simple $FILE 2>&1 | tail -5 || true",
+            "statusMessage": "Linting Ruby..."
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "defaultMode": "bypassPermissions",
     "allow": [

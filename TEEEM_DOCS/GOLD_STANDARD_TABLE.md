@@ -233,6 +233,32 @@ Some tables display data where users cannot add, edit, or delete records. Use th
 
 ---
 
+## Sticky Columns (Horizontal Scroll)
+
+When scrolling horizontally, certain columns stay frozen at the left edge:
+
+| Column | Position | Sticky Left | Z-Index |
+|--------|----------|-------------|---------|
+| Select checkbox | 0 | `left: 0` | 10 (cells), 30 (header) |
+| First data column | 1 | `left: selectWidth` | 10 (cells), 30 (header) |
+| Actions | Last | `right: 0` (when Pin Actions enabled) | 10 |
+
+**Pin Actions Toggle:**
+- **ON**: Actions column visible and sticky to right edge
+- **OFF**: Actions column hidden entirely from table
+
+**Implementation:**
+- `getStickyColumnStyles()` in TeeemTableView.tsx determines which columns are sticky
+- Background color required for sticky cells to cover content behind
+- Box shadow on first data column provides visual separation
+
+**Group Headers (Cascading View):**
+- Group header row split into 2 cells: sticky cell (colSpan=2) + filler cell
+- Sticky cell covers select + first data column width
+- Height matches data rows (`py-1` padding)
+
+---
+
 ## Grouped Tables
 
 ### Grouping Behavior
@@ -244,6 +270,7 @@ When a table is grouped (via GlobalViewsManager or `initialGroupByColumn` prop):
 - View toggle appears in main toolbar (Inline/Panel modes)
 - Table header shows NO selection checkbox column
 - Group rows display with collapse/expand chevrons on the left
+- Group header rows match data row height for visual consistency
 
 **Selection in Grouped Tables:**
 - Selection bar appears ABOVE the table (not in header)
@@ -273,6 +300,39 @@ When a table is grouped (via GlobalViewsManager or `initialGroupByColumn` prop):
 
 ## Table Styling Standards
 
+### Page Container Pattern (Edge-to-Edge Tables)
+
+**SSoT: TeeemTableView handles the header internally.** Pages should NOT implement their own headers.
+
+```tsx
+// ✅ CORRECT - TeeemTableView handles everything (SSoT)
+<div className="flex flex-col h-full -mx-4">
+  <TeeemTableView
+    entries={records}
+    totalCount={totalCount}
+    tableName="Jobs"
+    foundationIdNumeric={tableId}
+    // ... other props
+  />
+</div>
+
+// ❌ WRONG - Custom header duplicates TeeemTableView functionality
+<div className="flex flex-col h-full">
+  <h1>Jobs</h1>                    {/* DON'T DO THIS */}
+  <p>15 of 150 jobs</p>            {/* DON'T DO THIS */}
+  <TeeemTableView ... />
+</div>
+```
+
+**TeeemTableView built-in header shows:**
+- `tableName` as h1 title
+- Record count: "X of Y records" (using `totalCount` and filtered count)
+
+**Key classes:**
+- `-mx-4` on outer container breaks out of parent `px-4` padding for edge-to-edge
+- `h-full` on outer container ensures full height
+- `showHeader={false}` prop to hide if custom header needed (rare)
+
 ### Cell Spacing
 ```
 TableHead: px-1 (4px horizontal padding)
@@ -285,6 +345,7 @@ TableCell: px-1 py-0.5 (4px horizontal, 2px vertical)
 - Cell text: `text-[11px]` (11px font size)
 - Monospace values: Font mono for codes, IDs, technical values
 - Date format: DD/MM/YYYY (Australian standard)
+- **Group headers**: `text-[13px] font-bold truncate whitespace-nowrap` (no wrapping)
 
 ### Colors
 - **System columns** (id, created_at, updated_at): `hsl(47, 100%, 96%)` (light yellow tint)
@@ -306,9 +367,11 @@ TableCell: px-1 py-0.5 (4px horizontal, 2px vertical)
 | **UI & Styling** |
 | Cell Spacing | `frontend-next/components/ui/table.tsx` → TableHead, TableCell | Section: Table Styling Standards |
 | Toolbar Layout | `frontend-next/components/table/TeeemTableView.tsx` (lines 3260-3520) | Section: Standard Toolbar Layout |
-| Grouped Tables | `frontend-next/components/table/TeeemTableView.tsx` → renderGroupedTable | Section: Grouped Tables |
+| Grouped Tables | `frontend-next/components/table/TeeemTableView.tsx` → renderInlineGroupRows | Section: Grouped Tables |
 | Selection Bar | `frontend-next/components/table/TeeemTableView.tsx` (lines 2979-3088) | Section: Selection in Grouped Tables |
 | Expand/Collapse | `frontend-next/components/table/TeeemTableView.tsx` (lines 3466-3487) | Section: Expand/Collapse |
+| Sticky Columns | `frontend-next/components/table/TeeemTableView.tsx` → getStickyColumnStyles | Section: Sticky Columns |
+| View Save | `frontend-next/components/table/TeeemTableView.tsx` → saveNewView | Section: View Persistence |
 
 **Architecture Note (2025-12-06):**
 
@@ -353,8 +416,27 @@ The Gold Standard Table is a **demonstration** of this spec. It should have:
 
 ---
 
+## View Persistence (What Gets Saved)
+
+When saving a view, these settings are persisted:
+
+| Category | Settings |
+|----------|----------|
+| **Columns** | `visible`, `order`, `widths`, `autoFitColumns`, `smartFit`, `showTotals`, `stickyActions` |
+| **Filters** | `cascadeFilters`, `filterGroups`, `interGroupLogic` |
+| **Sorting** | `sort_order` (array of column + direction) |
+| **Grouping** | `group_by_columns` (cascading column keys) |
+
+**Implementation:**
+- `saveNewView()` in TeeemTableView.tsx - manual save button
+- `saveViewAtom` in view-state-atoms.ts - auto-save (must match saveNewView)
+
+---
+
 ## Version History
 
 | Date | Change |
 |------|--------|
+| 2025-12-16 | SSoT: TeeemTableView now handles header/count internally (showHeader prop). Pages no longer implement custom headers. |
+| 2025-12-16 | Added Sticky Columns, View Persistence, Page Container Pattern, group header no-wrap |
 | 2024-12-03 | Created as SSoT, documented all 31 column types |

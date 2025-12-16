@@ -241,6 +241,7 @@ class Contact < ApplicationRecord
   # Callbacks
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
+  before_validation :normalize_entity_type      # Convert "Person" → "person", "Sole Trader" → "sole_trader"
   before_validation :clear_roles_if_not_person  # Must run before validations
   before_validation :auto_fix_name_casing       # Auto-fix ALL CAPS and lowercase names
   before_save :generate_display_name
@@ -682,11 +683,12 @@ class Contact < ApplicationRecord
   end
 
   # Xero link summary for UI display
-  # Returns: { linked_count: 3, total_tenants: 8, tenant_names: ["Company A", "Company B"] }
+  # Returns: { linked_count: 3, total_tenants: 10, tenant_names: ["Company A", "Company B"] }
   def xero_link_summary
     links = xero_links.enabled
     {
       linked_count: links.count,
+      total_tenants: XeroCredential.count,
       tenant_names: links.pluck(:tenant_name).compact,
       has_sync_errors: links.with_errors.any?,
       has_conflicts: links.with_conflicts.any?,
@@ -1071,6 +1073,16 @@ class Contact < ApplicationRecord
 
     # Add https:// prefix
     self.website = "https://#{website}"
+  end
+
+  # Normalize entity_type to match backend constants
+  # Frontend choices: "Person", "Company", "Trust", "Sole Trader", "Price Only"
+  # Backend expects:  "person", "company", "trust", "sole_trader", "price_only"
+  def normalize_entity_type
+    return if entity_type.blank?
+
+    # Convert to lowercase and replace spaces with underscores
+    self.entity_type = entity_type.downcase.gsub(" ", "_")
   end
 
   private

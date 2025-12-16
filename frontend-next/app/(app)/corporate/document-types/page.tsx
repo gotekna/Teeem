@@ -294,23 +294,21 @@ export default function DocumentTypesPage() {
     );
   }
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Document Types & Naming Conventions</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage document types, naming formats, and tab assignments. Click any cell to edit.
-            </p>
-          </div>
-        </div>
-      </div>
+  // Left actions - Back button + Add button
+  const leftActionsWithBack = (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" onClick={() => router.push("/corporate")}>
+        <ArrowLeft className="h-5 w-5" />
+      </Button>
+      <Button onClick={() => setShowAddForm(true)}>
+        <Plus className="h-4 w-4 mr-2" />
+        Add Document Type
+      </Button>
+    </div>
+  );
 
+  return (
+    <div className="flex flex-col h-full -mx-4">
       {/* Add Form */}
       {showAddForm && (
         <Card className="mb-6">
@@ -380,7 +378,7 @@ export default function DocumentTypesPage() {
       <TeeemTableView
         foundationId="document-types"
         foundationIdNumeric={454}
-        tableName={`Document Types (${documentTypes.length})`}
+        tableName="Document Types"
         entries={documentTypes}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         onEdit={handleEdit}
@@ -392,12 +390,8 @@ export default function DocumentTypesPage() {
         enableExport={true}
         enableSchemaEditor={true}
         customCellRenderer={customCellRenderer}
-        leftActions={
-          <Button onClick={() => setShowAddForm(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Document Type
-          </Button>
-        }
+        leftActions={leftActionsWithBack}
+        hideFooter={true}
       />
 
       {/* Legend */}

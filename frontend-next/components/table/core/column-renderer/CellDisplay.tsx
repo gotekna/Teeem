@@ -534,20 +534,24 @@ export function displayXeroLinks(
   totalTenants?: number
 ): React.ReactNode {
   const linkedCount = typeof value === "number" ? value : parseInt(String(value || 0), 10);
-  const total = totalTenants || 8; // Default to 8 if not provided
   const tenantNames: string[] = row?.xero_tenant_names as string[] || [];
   const linkSummary = row?.xero_link_summary as {
     linked_count?: number;
+    total_tenants?: number;
     tenant_names?: string[];
     has_sync_errors?: boolean;
     has_conflicts?: boolean;
   } | undefined;
+  // SSoT: Get total from xero_link_summary (backend provides actual XeroCredential.count)
+  // If not available (cached data), don't show denominator
+  const total = linkSummary?.total_tenants || totalTenants || null;
+  const displayCount = total ? `${linkedCount}/${total}` : `${linkedCount}`;
 
   // If no links, show empty state
   if (linkedCount === 0) {
     return (
       <span className="text-muted-foreground text-[11px]">
-        0/{total}
+        {total ? `0/${total}` : "—"}
       </span>
     );
   }
@@ -566,7 +570,7 @@ export function displayXeroLinks(
           className={`${badgeColor} gap-1 cursor-pointer hover:bg-opacity-80 text-[10px] px-1.5 py-0`}
         >
           <ShieldCheck className="h-3 w-3" />
-          {linkedCount}/{total}
+          {displayCount}
         </Badge>
       </PopoverTrigger>
       <PopoverContent className="w-56 p-2" align="start">

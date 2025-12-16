@@ -173,6 +173,64 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 
 **Migration Policy:** "Fix it when you touch it" - When editing a file that uses a deprecated component, update the import to THE ONE.
 
+## 🔴 CRITICAL: Table Page Pattern (SSoT)
+
+**ALL pages that display a table MUST use this exact structure:**
+
+```tsx
+return (
+  <div className="flex flex-col h-full -mx-4">
+    <TeeemTableView
+      entries={records}
+      // ❌ NEVER pass columns - TeeemTableView auto-fetches from Foundation API
+      foundationId="slug"
+      foundationIdNumeric={id}
+      tableName="Page Title"
+      onRefresh={refresh}
+      onRowUpdate={handleRowUpdate}
+      leftActions={<Button>Action</Button>}
+      enableExport={true}
+    />
+  </div>
+);
+```
+
+**Rules:**
+- ❌ **NEVER pass `columns` prop** - TeeemTableView auto-fetches columns from Foundation API (SSoT)
+- ❌ **NO custom `<h1>` headers** - TeeemTableView renders the header (title + count + totals)
+- ❌ **NO duplicate headers** - If you see `<h1>` AND `<TeeemTableView>`, it's a violation
+- ✅ **Action buttons go in `leftActions`** - Back buttons, Add buttons, toggles
+- ✅ **Edge-to-edge layout** - Use `-mx-4` to break out of parent padding
+- ✅ **Full height** - Use `h-full` and `flex flex-col` for proper height chain
+
+**Reference Implementation:**
+The Gold Standard Table (`admin/system → Gold Standard Table tab`) is THE canonical demo of TeeemTableView.
+See `GoldStandardTab.tsx` lines 820-848 for the correct pattern.
+
+**For pages with extra content (tabs, stats cards):**
+```tsx
+return (
+  <div className="flex flex-col h-full -mx-4">
+    {/* Stats cards ABOVE the table (optional) */}
+    <div className="px-4 mb-4 shrink-0">
+      <StatsCards />
+    </div>
+
+    {/* TeeemTableView handles EVERYTHING else */}
+    <TeeemTableView ... />
+  </div>
+);
+```
+
+**SSoT Violation Check:**
+If a page imports `TeeemTableView` AND has a custom `<h1>` header → **STOP and fix it**.
+
+**Current compliant pages (19 total):**
+- jobs, pricebook, [slug], contacts, estimates, purchase_orders, quote-requests
+- task-templates, schedule-templates, price_histories, portal, documents
+- whs/inductions, whs/inspections, whs/incidents
+- corporate/assets, corporate/document-types, admin/users, financial/transactions
+
 ## 🔴 CRITICAL: Design System References
 
 **Primary Sources for UI Design:**

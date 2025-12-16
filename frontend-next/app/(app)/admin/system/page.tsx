@@ -423,9 +423,9 @@ function SystemAdminPageContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div>
+      <div className="shrink-0 mb-4">
         <h1 className="text-2xl font-bold tracking-tight font-serif">System Administration</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Configure system settings, integrations, and developer tools
@@ -433,8 +433,8 @@ function SystemAdminPageContent() {
       </div>
 
       {/* Main Tab Navigation */}
-      <Tabs value={currentTab} onValueChange={handleTabChange}>
-        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start">
+      <Tabs value={currentTab} onValueChange={handleTabChange} className="flex flex-col flex-1 min-h-0">
+        <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 justify-start shrink-0">
           {MAIN_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = currentTab === tab.id;
@@ -457,8 +457,8 @@ function SystemAdminPageContent() {
           })}
         </TabsList>
 
-        <div className="mt-6">
-          <TabsContent value="company">
+        <div className="mt-4 flex-1 min-h-0 flex flex-col">
+          <TabsContent value="company" className="flex-1 min-h-0 overflow-auto">
             <CompanySettingsTab />
           </TabsContent>
           <TabsContent value="warehouse">
@@ -541,7 +541,7 @@ function SystemAdminPageContent() {
           <TabsContent value="supervisor-checklist">
             <SupervisorChecklistTab />
           </TabsContent>
-          <TabsContent value="gold-standard">
+          <TabsContent value="gold-standard" className="flex-1 min-h-0 h-full">
             <GoldStandardTab />
           </TabsContent>
           <TabsContent value="developer-tools">

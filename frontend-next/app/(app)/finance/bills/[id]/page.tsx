@@ -1590,8 +1590,8 @@ export default function BillDetailPage() {
         </div>{/* End Details Grid */}
       </div>{/* End Left Half */}
 
-      {/* RIGHT HALF - PDF Preview (full width, no aspect constraint) */}
-      <div className="flex-1 min-w-[400px] sticky top-0 h-[calc(100vh-80px)]">
+      {/* RIGHT HALF - PDF Preview (fills available space) */}
+      <div className="flex-1 min-w-[500px] sticky top-0 h-[calc(100vh-80px)]">
         <Card className="h-full w-full">
           <CardContent className="p-2 h-full">
             {pdfLoading ? (

@@ -780,14 +780,13 @@ function CompanyMultiSelector({
           onChange={(newOptions) => {
             handleCompanyChange(newOptions);
           }}
-          placeholder="🔍 Search and add companies..."
+          placeholder={loadingCompanies ? "Loading companies..." : "🔍 Search and add companies..."}
           options={availableCompanies}
           emptyIndicator={
             <p className="text-center text-sm text-muted-foreground">
               {loadingCompanies ? "Loading companies..." : "No companies found"}
             </p>
           }
-          disabled={loadingCompanies}
           hidePlaceholderWhenSelected={false}
           className="w-full bg-white dark:bg-gray-950"
         />
@@ -915,14 +914,13 @@ function EmployeeMultiSelector({
         <MultipleSelector
           value={selectedEmployees}
           onChange={handleEmployeeChange}
-          placeholder="Click to search employees..."
+          placeholder={loadingPeople ? "Loading people..." : "🔍 Search and add employees..."}
           options={availablePeople}
           emptyIndicator={
             <p className="text-center text-sm text-muted-foreground">
               {loadingPeople ? "Loading people..." : "No people found"}
             </p>
           }
-          disabled={loadingPeople}
           className="w-full"
           hidePlaceholderWhenSelected={false}
         />

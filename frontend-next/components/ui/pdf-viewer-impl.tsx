@@ -26,9 +26,11 @@ export function PDFViewerImpl({
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [numPages, setNumPages] = React.useState<number>(0);
   const [pageNumber, setPageNumber] = React.useState<number>(1);
-  const [scale, setScale] = React.useState<number>(1.0);
+  const [scale, setScale] = React.useState<number | null>(null); // null = auto-fit
   const [pageSize, setPageSize] = React.useState<{ width: number; height: number } | null>(null);
+  const [containerWidth, setContainerWidth] = React.useState<number>(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const contentRef = React.useRef<HTMLDivElement>(null);
   const pageRef = React.useRef<HTMLDivElement>(null);
 
   // Create a stable copy of PDF data to prevent ArrayBuffer detachment issues
@@ -43,6 +45,26 @@ export function PDFViewerImpl({
   // Store onError in a ref to avoid re-fetching when callback changes
   const onErrorRef = React.useRef(onError);
   onErrorRef.current = onError;
+
+  // Track container width for auto-fit
+  React.useEffect(() => {
+    const updateWidth = () => {
+      if (contentRef.current) {
+        // Subtract padding (32px = 16px * 2 for p-4)
+        const width = contentRef.current.clientWidth - 32;
+        setContainerWidth(width);
+      }
+    };
+
+    updateWidth();
+
+    const resizeObserver = new ResizeObserver(updateWidth);
+    if (contentRef.current) {
+      resizeObserver.observe(contentRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Fetch PDF with credentials for authenticated API endpoints
   // Only re-fetch when URL changes, not when callbacks change
@@ -116,16 +138,19 @@ export function PDFViewerImpl({
     setPageNumber((prev) => Math.min(prev + 1, numPages));
   };
 
+  // Calculate effective scale for display
+  const effectiveScale = scale ?? 1.0;
+
   const zoomIn = () => {
-    setScale((prev) => Math.min(prev + 0.25, 3.0));
+    setScale((prev) => Math.min((prev ?? 1.0) + 0.25, 3.0));
   };
 
   const zoomOut = () => {
-    setScale((prev) => Math.max(prev - 0.25, 0.5));
+    setScale((prev) => Math.max((prev ?? 1.0) - 0.25, 0.5));
   };
 
   const fitToWidth = () => {
-    setScale(1.0);
+    setScale(null); // null = auto-fit to container width
   };
 
   if (isLoading) {
@@ -174,7 +199,7 @@ export function PDFViewerImpl({
             <ZoomOut className="h-4 w-4" />
           </Button>
           <span className="text-sm min-w-[50px] text-center">
-            {Math.round(scale * 100)}%
+            {scale === null ? "Fit" : `${Math.round(scale * 100)}%`}
           </span>
           <Button variant="outline" size="icon" onClick={zoomIn}>
             <ZoomIn className="h-4 w-4" />
@@ -186,7 +211,7 @@ export function PDFViewerImpl({
       </div>
 
       {/* PDF Content */}
-      <div className="flex-1 overflow-auto flex justify-center p-4 bg-muted/30">
+      <div className="flex-1 overflow-auto flex justify-center p-4 bg-muted/30" ref={contentRef}>
         <Document
           file={pdfFile}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -205,7 +230,10 @@ export function PDFViewerImpl({
           <div className="relative" ref={pageRef}>
             <Page
               pageNumber={pageNumber}
-              scale={scale}
+              {...(scale === null
+                ? { width: containerWidth > 0 ? containerWidth : undefined }
+                : { scale }
+              )}
               loading={
                 <div className="flex items-center justify-center h-96">
                   <Loader2 className="h-6 w-6 animate-spin" />
@@ -219,8 +247,8 @@ export function PDFViewerImpl({
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  width: pageSize.width * scale,
-                  height: pageSize.height * scale
+                  width: pageSize.width,
+                  height: pageSize.height
                 }}
               >
                 {currentPageHighlights.map((highlight, idx) => {

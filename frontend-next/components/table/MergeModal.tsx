@@ -68,7 +68,15 @@ export function MergeModal({
     setMerging(true);
     try {
       // Get the secondary IDs (all except primary)
-      const secondaryIds = selectedIds.filter((id) => id !== primaryId);
+      // Use String() comparison to handle type mismatches (selectedIds may be numbers, primaryId is string from radio)
+      const secondaryIds = selectedIds.filter((id) => String(id) !== String(primaryId));
+
+      // Validate we have at least 1 secondary record to merge
+      if (secondaryIds.length === 0) {
+        toast.error("Select at least 2 records to merge.");
+        setMerging(false);
+        return;
+      }
 
       // Call the generic merge API
       await api.post(

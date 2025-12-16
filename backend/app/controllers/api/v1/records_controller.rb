@@ -561,8 +561,9 @@ module Api
         primary = model.find(params[:id])
         secondary_ids = params[:secondary_ids]
 
-        if secondary_ids.blank?
-          return render json: { error: "No secondary record IDs provided" }, status: :unprocessable_entity
+        # Check for nil, empty string, OR empty array (Rails: [].blank? is false!)
+        if secondary_ids.blank? || (secondary_ids.is_a?(Array) && secondary_ids.empty?)
+          return render json: { error: "No secondary record IDs provided. Select at least 2 records to merge." }, status: :unprocessable_entity
         end
 
         secondaries = model.where(id: secondary_ids)

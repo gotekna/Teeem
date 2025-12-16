@@ -41,7 +41,7 @@ export default function WHSIncidentsPage() {
   const [newIncidentOpen, setNewIncidentOpen] = useState(false);
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_incidents");
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug("whs_incidents");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -151,45 +151,30 @@ export default function WHSIncidentsPage() {
     </Dialog>
   );
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Incident Reports</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Track and manage workplace safety incidents
-              
-            </p>
-          </div>
-        </div>
-        <Dialog open={newIncidentOpen} onOpenChange={setNewIncidentOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Report Incident
-            </Button>
-          </DialogTrigger>
-        </Dialog>
-      </div>
+  // Add back button to leftActions
+  const leftActionsWithBack = (
+    <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" asChild>
+        <Link href="/whs">
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+      </Button>
+      {leftActions}
+    </div>
+  );
 
-      {/* Table */}
+  return (
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="whs_incidents"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Incident Reports"}
         enableExport={true}
         onRefresh={refresh}
         onRowUpdate={handleRowUpdate}
-        leftActions={leftActions}
+        leftActions={leftActionsWithBack}
+        hideFooter={true}
       />
     </div>
   );

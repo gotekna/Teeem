@@ -185,45 +185,32 @@ export default function TablePage() {
     );
   }
 
-  return (
-    <div className="flex flex-col h-full gap-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">
-            {foundation?.name || `Table ${tableId}`}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {foundation?.description || `${entries.length} records`}
-            <span className="ml-2 text-xs font-mono">Table #{tableId}</span>
-          </p>
-        </div>
-        {tableInfo?.itemRoute && (
-          <Button asChild>
-            <Link href={`${tableInfo.itemRoute}/new`}>
-              <Plus className="h-4 w-4 mr-2" />
-              New
-            </Link>
-          </Button>
-        )}
-      </div>
+  // Left actions - Add New button (moved from duplicate header)
+  const leftActions = tableInfo?.itemRoute ? (
+    <Button asChild>
+      <Link href={`${tableInfo.itemRoute}/new`}>
+        <Plus className="h-4 w-4 mr-2" />
+        New
+      </Link>
+    </Button>
+  ) : null;
 
-      {/* Table */}
-      <div className="flex-1 min-h-0">
-        <TeeemTableView
-          entries={entries}
-          columns={columns}
-          foundationId={`table-${tableId}`}
-          foundationIdNumeric={tableId}
-          tableName={foundation?.name || `Table ${tableId}`}
-          onView={handleView}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onRowDoubleClick={handleView}
-          onRefresh={loadTableData}
-          enableExport={true}
-        />
-      </div>
+  return (
+    <div className="flex flex-col h-full -mx-4">
+      {/* TeeemTableView handles the header (tableName), no duplicate h1 needed */}
+      <TeeemTableView
+        entries={entries}
+        foundationId={`table-${tableId}`}
+        foundationIdNumeric={tableId}
+        tableName={foundation?.name || `Table ${tableId}`}
+        onView={handleView}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        onRowDoubleClick={handleView}
+        onRefresh={loadTableData}
+        enableExport={true}
+        leftActions={leftActions}
+      />
     </div>
   );
 }

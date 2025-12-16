@@ -50,7 +50,7 @@ export default function DocumentsPage() {
   const [oneDriveConnected] = useState(false);
 
   // Use foundation hook for active tab's document type
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -93,51 +93,47 @@ export default function DocumentsPage() {
     </Button>
   );
 
+  // Left actions with OneDrive + Upload buttons
+  const documentsLeftActions = (
+    <div className="flex items-center gap-2">
+      {!oneDriveConnected && (
+        <Button
+          variant="outline"
+          onClick={() => router.push("/settings/integrations/microsoft")}
+        >
+          <Cloud className="h-4 w-4 mr-2" />
+          Connect OneDrive
+        </Button>
+      )}
+      <Button>
+        <Upload className="h-4 w-4 mr-2" />
+        Upload
+      </Button>
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Documents</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage company, job, and personal documents
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {!oneDriveConnected && (
-            <Button
-              variant="outline"
-              onClick={() => router.push("/settings/integrations/microsoft")}
-            >
-              <Cloud className="h-4 w-4 mr-2" />
-              Connect OneDrive
-            </Button>
-          )}
-          <Button>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full -mx-4">
       {/* Document Type Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
-          <TabsTrigger value="company" className="gap-2">
-            <Building2 className="h-4 w-4" />
-            Company
-          </TabsTrigger>
-          <TabsTrigger value="job" className="gap-2">
-            <Briefcase className="h-4 w-4" />
-            Job
-          </TabsTrigger>
-          <TabsTrigger value="people" className="gap-2">
-            <Users className="h-4 w-4" />
-            People
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
+        <div className="px-4 shrink-0">
+          <TabsList className="grid w-full grid-cols-3 max-w-md">
+            <TabsTrigger value="company" className="gap-2">
+              <Building2 className="h-4 w-4" />
+              Company
+            </TabsTrigger>
+            <TabsTrigger value="job" className="gap-2">
+              <Briefcase className="h-4 w-4" />
+              Job
+            </TabsTrigger>
+            <TabsTrigger value="people" className="gap-2">
+              <Users className="h-4 w-4" />
+              People
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value={activeTab} className="mt-6 space-y-6">
+        <TabsContent value={activeTab} className="flex-1 min-h-0 mt-6 px-4">
           {/* OneDrive Status */}
           {oneDriveConnected && (
             <Card className="bg-blue-50 border-blue-200">
@@ -192,17 +188,17 @@ export default function DocumentsPage() {
         </Card>
 
         {/* Documents Table */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 h-full">
           <TeeemTableView
             entries={records}
-            columns={columns}
             foundationId={DOCUMENT_TYPES[activeTab]}
             foundationIdNumeric={foundation?.id}
             tableName={foundation?.name || `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Documents`}
             enableExport={true}
             onRefresh={refresh}
             onRowUpdate={handleRowUpdate}
-            leftActions={leftActions}
+            leftActions={documentsLeftActions}
+            hideFooter={true}
           />
         </div>
       </div>

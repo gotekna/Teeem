@@ -32,7 +32,7 @@ export default function PurchaseOrdersPage() {
   const router = useRouter();
 
   // Use foundation hook with table name (slug) instead of hardcoded ID
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug(PURCHASE_ORDERS_TABLE_NAME);
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug(PURCHASE_ORDERS_TABLE_NAME);
 
   // Get foundation ID from loaded foundation data
   const foundationId = foundation?.id;
@@ -80,20 +80,9 @@ export default function PurchaseOrdersPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight font-serif">{foundation?.name || "Purchase Orders"}</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Manage purchase orders across all jobs
-          {foundationId && <span className="ml-2 text-xs font-mono">Table #{foundationId}</span>}
-        </p>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId={foundationId ? String(foundationId) : ""}
         foundationIdNumeric={foundationId || 0}
         tableName={foundation?.name || "Purchase Orders"}
@@ -101,6 +90,7 @@ export default function PurchaseOrdersPage() {
         onRefresh={refresh}
         onRowClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
+        hideFooter={true}
       />
     </div>
   );

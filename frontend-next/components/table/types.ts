@@ -161,6 +161,7 @@ export interface TeeemTableViewProps {
   onLoadMore?: () => void; // Infinite scroll callback when user reaches bottom
   onLoadAll?: () => void; // Load all remaining records button callback
   hasMore?: boolean; // Whether there are more records to load from server
+  autoFetchRecords?: boolean; // Enable auto-fetch from Foundation API (default: false). Only set true if NOT passing entries prop.
 
   // Data Health widget
   showDataHealth?: boolean;
@@ -174,6 +175,9 @@ export interface TeeemTableViewProps {
   // Legacy props
   stats?: Record<string, unknown>;
   category?: string | null;
+
+  // Header display
+  showHeader?: boolean; // Show built-in header with tableName and record count (default: true)
 }
 
 // Column visibility state

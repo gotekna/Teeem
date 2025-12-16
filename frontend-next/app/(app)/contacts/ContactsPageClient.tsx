@@ -23,6 +23,11 @@ import {
   currentFilterGroupsAtom,
   currentInterGroupLogicAtom,
 } from "@/lib/view-state-atoms";
+import {
+  getCachedRecords,
+  setCachedRecords,
+  removeMultipleFromCache,
+} from "@/lib/records-cache";
 
 interface Contact {
   id: number;
@@ -99,11 +104,20 @@ export default function ContactsPageClient({
 
   // Use initial data from server - no loading state needed on first render!
   const [foundation] = useState(initialFoundation);
-  const [columns] = useState(initialColumns);
+  // columns removed - TeeemTableView auto-fetches from Foundation API (SSoT)
 
-  // Use SSR data as initial state, then infinite scroll will load more
-  // Deduplicate initial records as a safety measure
+  // SSoT: Check cache first, then fall back to SSR initial data
+  // This preserves loaded records when navigating back from detail pages
   const [records, setRecords] = useState(() => {
+    // Check if we have cached records for this foundation
+    if (initialFoundation?.id) {
+      const cached = getCachedRecords(initialFoundation.id);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        console.log(`[ContactsPageClient] Using cached records: ${cached.records.length} (SSR had ${initialRecords?.length || 0})`);
+        return cached.records as TTableRow[];
+      }
+    }
+    // Fall back to SSR data
     const seen = new Set<number | string>();
     return (initialRecords || []).filter(r => {
       if (seen.has(r.id)) return false;
@@ -111,8 +125,24 @@ export default function ContactsPageClient({
       return true;
     });
   });
-  const [totalCount, setTotalCount] = useState(initialTotalCount);
-  const [hasMore, setHasMore] = useState(initialHasMore); // Use server-provided hasMore flag
+  const [totalCount, setTotalCount] = useState(() => {
+    if (initialFoundation?.id) {
+      const cached = getCachedRecords(initialFoundation.id);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        return cached.totalCount;
+      }
+    }
+    return initialTotalCount;
+  });
+  const [hasMore, setHasMore] = useState(() => {
+    if (initialFoundation?.id) {
+      const cached = getCachedRecords(initialFoundation.id);
+      if (cached && cached.records.length > (initialRecords?.length || 0)) {
+        return cached.hasMore;
+      }
+    }
+    return initialHasMore;
+  });
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [selectedForMerge, setSelectedForMerge] = useState<Contact[]>([]);
@@ -310,6 +340,11 @@ export default function ContactsPageClient({
         }
       }
 
+      // Save to cache so data persists when navigating back
+      if (foundation?.id) {
+        setCachedRecords(foundation.id, currentRecords, totalCount, false);
+      }
+
       toast({
         title: "All contacts loaded",
         description: `Loaded ${currentRecords.length} total contacts`,
@@ -397,6 +432,11 @@ export default function ContactsPageClient({
     // Optimistically remove merged contacts from state (no need to reload all 1,178 contacts!)
     setRecords(prev => prev.filter(r => !mergedContactIds.includes(Number(r.id))));
 
+    // Update cache to remove merged contacts
+    if (foundation?.id) {
+      removeMultipleFromCache(foundation.id, mergedContactIds);
+    }
+
     // Update total count
     if (totalCount !== null) {
       setTotalCount(totalCount - mergedContactIds.length);
@@ -406,7 +446,7 @@ export default function ContactsPageClient({
       title: "Contacts merged",
       description: `${mergedContactIds.length} contact(s) merged successfully`,
     });
-  }, [totalCount, toast]);
+  }, [foundation?.id, totalCount, toast]);
 
   // Xero transfer handler - called when 2 contacts are selected and Xero button is clicked
   const handleXeroTransfer = useCallback((ids: (number | string)[]) => {
@@ -528,39 +568,49 @@ export default function ContactsPageClient({
     // Pick a random TEEEM value
     const randomValue = teeemValues[Math.floor(Math.random() * teeemValues.length)];
 
-    try {
-      // Optimistically remove from UI immediately
-      const idsSet = new Set(ids);
-      setRecords(prev => prev.filter(r => !idsSet.has(r.id)));
+    // Optimistically remove from UI immediately
+    const idsSet = new Set(ids);
+    setRecords(prev => prev.filter(r => !idsSet.has(r.id)));
 
-      // Show TEEEM value toast
-      toast({
-        title: randomValue.title,
-        description: randomValue.description,
-      });
+    // Update cache to remove deleted contacts
+    if (foundation?.id) {
+      removeMultipleFromCache(foundation.id, ids);
+    }
 
-      // Soft delete all via API (in parallel for speed)
-      await Promise.all(
-        ids.map(id => api.delete(`/api/v1/foundations/contacts/records/${id}`))
-      );
+    // Show TEEEM value toast
+    toast({
+      title: randomValue.title,
+      description: randomValue.description,
+    });
 
-      // Show success toast
-      toast({
-        title: "Contacts archived",
-        description: `${ids.length} contacts have been removed`,
-      });
-    } catch (error: any) {
-      console.error("[ContactsPageClient] Failed to delete contacts:", error);
+    // Soft delete all via API (in parallel for speed)
+    // Use allSettled to handle already-deleted records gracefully
+    const results = await Promise.allSettled(
+      ids.map(id => api.delete(`/api/v1/foundations/contacts/records/${id}`))
+    );
 
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      toast({
-        title: "Delete failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
+    // Count successes and failures
+    const succeeded = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+
+    if (failed > 0) {
+      // Some failed (likely already deleted) - log but don't show error
+      console.warn(`[ContactsPageClient] Bulk delete: ${succeeded} succeeded, ${failed} already deleted/not found`);
+    }
+
+    // Show success toast (even if some were already deleted)
+    toast({
+      title: "Contacts archived",
+      description: succeeded === ids.length
+        ? `${ids.length} contacts have been removed`
+        : `${succeeded} contacts removed (${failed} were already deleted)`,
+    });
+
+    // Refresh to ensure UI is in sync with backend
+    if (failed > 0) {
       await refresh();
     }
-  }, [refresh, toast]);
+  }, [foundation?.id, refresh, toast]);
 
   // Handle data health issue click (e.g., fix duplicate emails)
   const handleDataHealthIssueClick = useCallback((item: unknown, check: unknown) => {
@@ -612,47 +662,8 @@ export default function ContactsPageClient({
   );
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Contacts</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-sm text-muted-foreground">
-              {totalCount !== null
-                ? `Showing ${records.length.toLocaleString()} of ${totalCount.toLocaleString()} contacts`
-                : `${records.length.toLocaleString()}+ contacts`}
-            </p>
-            {hasMore && !isLoadingMore && (
-              <Button
-                variant="link"
-                size="sm"
-                onClick={loadAll}
-                className="h-auto p-0 text-sm text-primary"
-              >
-                Load All
-              </Button>
-            )}
-            {isLoadingMore && (
-              <span className="text-sm text-muted-foreground">Loading...</span>
-            )}
-          </div>
-        </div>
-        {currentView?.view_type === "relational" && (
-          <Button
-            variant={showExplorer ? "default" : "outline"}
-            size="sm"
-            onClick={() => setShowExplorer(!showExplorer)}
-          >
-            <Search className="h-4 w-4 mr-2" />
-            {showExplorer ? "Show Network" : "Search Relationships"}
-          </Button>
-        )}
-      </div>
-
-      {/* Contacts View - Table or Relational based on saved view setting */}
-      {/* -mx-4 breaks out of parent px-4 padding to make table full width */}
-      <div className="flex-1 min-h-0 -mx-4">
+    <div className="flex flex-col h-full -mx-4">
+      {/* TeeemTableView handles header, count, and table (SSoT) */}
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
             <ContactRelationshipsExplorer />
@@ -662,7 +673,6 @@ export default function ContactsPageClient({
         ) : (
           <TeeemTableView
             entries={records}
-            columns={columns}
             totalCount={totalCount}
             foundationId="contacts"
             foundationIdNumeric={foundation?.id}
@@ -684,11 +694,11 @@ export default function ContactsPageClient({
             onSearchModeChange={setSearchMode}
             loadingMore={isLoadingMore}
             onLoadMore={loadMore}
+            onLoadAll={loadAll}
             hasMore={hasMore}
             hideFooter={true}
           />
         )}
-      </div>
 
       {/* Merge Modal */}
       <MergeContactsModal

@@ -471,7 +471,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 33, // Estimated row height in pixels
+    estimateSize: () => 28, // Row height in pixels (matches h-7 = 1.75rem = 28px)
     overscan: 5, // Render 5 extra rows above/below viewport for smooth scrolling
   });
 
@@ -489,7 +489,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
               <div
                 ref={parentRef}
                 style={{
-                  height: `${Math.min(rows.length * 33, 500)}px`, // Max 500px tall
+                  height: `${Math.min(rows.length * 28, 500)}px`, // Max 500px tall (28px matches h-7)
                   overflow: 'auto',
                   position: 'relative',
                 }}
@@ -651,31 +651,49 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   tableHasFocus = false,
 }: VirtualizedFlatTableProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [scrollbarWidth, setScrollbarWidth] = useState(0);
+
+  // Detect scrollbar width when body content changes
+  useEffect(() => {
+    if (parentRef.current) {
+      const width = parentRef.current.offsetWidth - parentRef.current.clientWidth;
+      setScrollbarWidth(width);
+    }
+  }, [rows.length]);
+
+  // Sync horizontal scroll between body and header
+  const handleBodyScroll = useCallback(() => {
+    if (parentRef.current && headerRef.current) {
+      headerRef.current.scrollLeft = parentRef.current.scrollLeft;
+    }
+  }, []);
 
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 33, // Row height in pixels
+    estimateSize: () => 28, // Row height in pixels (matches h-7 = 1.75rem = 28px)
     overscan: 10, // Render 10 extra rows for smoother scrolling
   });
 
   // Calculate total table width for proper scrolling
   const totalWidth = useMemo(() => {
     return visibleColumnsInOrder.reduce((sum, col) => {
-      return sum + (columnWidths[col.key] || col.width || 100);
+      // Match colgroup width calculation: select is always 40px
+      return sum + (col.key === "select" ? 40 : (columnWidths[col.key] || col.width || 150));
     }, 0);
   }, [visibleColumnsInOrder, columnWidths]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Fixed header */}
-      <div className="overflow-x-auto shrink-0">
+      {/* Fixed header - scrolls horizontally in sync with body, with scrollbar width compensation */}
+      <div ref={headerRef} className="overflow-x-hidden shrink-0" style={{ paddingRight: scrollbarWidth }}>
         <Table className="w-full" style={{ tableLayout: 'fixed', minWidth: totalWidth }}>
           <colgroup>
             {visibleColumnsInOrder.map((column) => (
               <col
                 key={column.key}
-                style={{ width: columnWidths[column.key] || column.width || 100 }}
+                style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
               />
             ))}
           </colgroup>
@@ -687,6 +705,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
       <div
         ref={parentRef}
         className="overflow-auto flex-1 min-h-0"
+        onScroll={handleBodyScroll}
       >
         <div
           style={{
@@ -718,7 +737,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                     {visibleColumnsInOrder.map((column) => (
                       <col
                         key={column.key}
-                        style={{ width: columnWidths[column.key] || column.width || 100 }}
+                        style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
                       />
                     ))}
                   </colgroup>
@@ -750,7 +769,12 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                             title={column.key !== "select" && column.key !== "actions" ? getCellTooltip(row[column.key]) : undefined}
                             style={{
                               width: columnWidths[column.key] || column.width,
+                              minWidth: columnWidths[column.key] || column.width,
                               ...stickyStyles,
+                              ...(column.key === "select" && {
+                                textAlign: 'center',
+                                verticalAlign: 'middle'
+                              }),
                               ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                                 backgroundColor: SYSTEM_COLUMN_BG,
                               })
@@ -797,16 +821,6 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
         </div>
       </div>
 
-      {/* Row count indicator */}
-      <div className="flex items-center justify-between px-3 py-2 border-t bg-muted/30 text-sm text-muted-foreground">
-        <span>
-          {rows.length.toLocaleString()} row{rows.length !== 1 ? "s" : ""}
-        </span>
-        <span className="text-xs">
-          Virtual scroll active
-        </span>
-      </div>
-
       {/* Fixed footer (totals) */}
       {showTotals && renderTableFooter && (
         <div className="overflow-x-auto border-t">
@@ -815,7 +829,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
               {visibleColumnsInOrder.map((column) => (
                 <col
                   key={column.key}
-                  style={{ width: columnWidths[column.key] || column.width || 100 }}
+                  style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
                 />
               ))}
             </colgroup>
@@ -885,6 +899,7 @@ export default function TeeemTableView({
   onLoadMore,
   onLoadAll,
   hasMore: serverHasMore = false,
+  autoFetchRecords = false,
   showDataHealth = false,
   onDataHealthIssueClick,
   initialShowTotals = true,
@@ -892,6 +907,7 @@ export default function TeeemTableView({
   alwaysVisibleColumns = [],
   stats,
   category,
+  showHeader = true,
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -946,11 +962,10 @@ export default function TeeemTableView({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  // CRITICAL: Determine auto-fetch mode ONCE on mount, not on every render
-  // This prevents mode-switching when search returns 0 results (entries.length === 0)
-  // The mode is: "use auto-fetch if we were NOT given initial data"
-  const initialEntriesProvidedRef = useRef(entries.length > 0);
-  const useAutoFetch = foundationIdNumeric && !initialEntriesProvidedRef.current;
+  // CRITICAL: Auto-fetch must be EXPLICITLY enabled via prop
+  // Previously this used a heuristic based on entries.length which broke when entries was empty during loading
+  // Now pages must explicitly set autoFetchRecords={true} if they want TeeemTableView to fetch its own records
+  const useAutoFetch = autoFetchRecords && !!foundationIdNumeric;
 
   // Auto-fetch columns when foundationIdNumeric is set
   useEffect(() => {
@@ -1212,6 +1227,17 @@ export default function TeeemTableView({
   // searchAllColumns managed by atom (SSoT)
   const [searchAllColumns, setSearchAllColumns] = useAtom(searchAllColumnsAtom);
 
+  // Re-trigger server search on mount if there's a persisted search term
+  // This handles browser back navigation where atom state is preserved but data isn't
+  const hasRestoredSearchRef = useRef(false);
+  useEffect(() => {
+    if (search && effectiveOnServerSearch && !hasRestoredSearchRef.current) {
+      hasRestoredSearchRef.current = true;
+      // Re-execute the search to restore filtered results
+      effectiveOnServerSearch(search, propSearchMode);
+    }
+  }, [search, effectiveOnServerSearch, propSearchMode]);
+
   // View-related state now managed by Jotai atoms (SSoT)
   const [sortColumns, setSortColumns] = useAtom(currentSortColumnsAtom);
   const [columnWidths, setColumnWidths] = useAtom(currentColumnWidthsAtom);
@@ -1259,6 +1285,31 @@ export default function TeeemTableView({
   }, [COLUMNS]);
   // Selection state managed by atom (SSoT)
   const [selectedRows, setSelectedRows] = useAtom(selectedRowsAtom);
+
+  // SSoT FIX: Sync selectedRows with entries - remove stale IDs that no longer exist
+  // This prevents "ghost selection" where IDs remain selected after records are deleted/merged
+  // Only runs when entries change (not when selectedRows changes, to avoid infinite loop)
+  const entriesRef = useRef(entries);
+  useEffect(() => {
+    // Skip if entries haven't actually changed (same reference)
+    if (entriesRef.current === entries) return;
+    entriesRef.current = entries;
+
+    setSelectedRows(prev => {
+      if (prev.size === 0) return prev;
+
+      const validIds = new Set(entries.map(e => e.id));
+      const staleIds = Array.from(prev).filter(id => !validIds.has(id));
+
+      if (staleIds.length > 0) {
+        console.warn(`[TeeemTableView] Removing ${staleIds.length} stale selection IDs:`, staleIds);
+        const updated = new Set(prev);
+        staleIds.forEach(id => updated.delete(id));
+        return updated;
+      }
+      return prev;
+    });
+  }, [entries, setSelectedRows]);
 
   // Filter state managed by atoms
   const [cascadeFilters, setCascadeFilters] = useAtom(currentFiltersAtom);
@@ -1321,13 +1372,13 @@ export default function TeeemTableView({
   // Stores fully loaded records for each group (Map<groupKey, records[]>)
   const [lazyLoadedGroups, setLazyLoadedGroups] = useState<Map<string, TableRowType[]>>(new Map());
 
-  // Clear lazy-loaded group data when groupByColumn or filters change
-  // This ensures lazy-loaded data stays in sync with saved views and cascade filters
+  // Clear lazy-loaded group data when groupByColumn, filters, or search change
+  // This ensures lazy-loaded data stays in sync with saved views, cascade filters, and search
   const filtersKey = useMemo(() => JSON.stringify(safeFilters), [safeFilters]);
   useEffect(() => {
     setLazyLoadedGroups(new Map());
     setGroupLoadingState(new Set());
-  }, [groupByColumn, filtersKey]);
+  }, [groupByColumn, filtersKey, search]);
 
   // Display options managed by atoms
   const [showTotals, setShowTotals] = useAtom(currentShowTotalsAtom);
@@ -1891,18 +1942,19 @@ export default function TeeemTableView({
 
   // Called when merge completes successfully - optimistically hides merged rows
   const handleMergeComplete = useCallback((deletedIds: (string | number)[]) => {
-    // Optimistically hide deleted rows immediately
+    // Optimistically hide deleted rows immediately (no full refresh needed!)
+    // This keeps the table open and preserves group expansion state
     setPendingDeleteIds(new Set(deletedIds));
 
     // Clear selections
     setMergeSelectedIds([]);
     setSelectedRows(new Set<string | number>());
 
-    // Refresh data from server (will eventually sync state)
-    if (onRefresh) {
-      onRefresh();
-    }
-  }, [onRefresh]);
+    // NOTE: We intentionally do NOT call onRefresh() here anymore.
+    // The optimistic hide via pendingDeleteIds provides instant feedback.
+    // A full refresh would reset grouped views, scroll position, and cause flicker.
+    // Data will naturally sync on the next user-triggered refresh or navigation.
+  }, []);
 
   // Group handlers
   // Lazy load all records for a group when expanding (server-side grouping)
@@ -1933,19 +1985,78 @@ export default function TeeemTableView({
       // This ensures lazy loading respects saved view filters
       const combinedFilters = [...safeFilters, groupFilter];
 
+      // Build params with sort to maintain consistent ordering
+      const params: Record<string, string | number> = {
+        filters: JSON.stringify(combinedFilters),
+        limit: 10000 // Get all records for the group
+      };
+
+      // SSoT: Apply current sort order to lazy-loaded records
+      if (sortColumns.length > 0) {
+        params.sort_order = JSON.stringify(sortColumns);
+      }
+
+      // SSoT: Apply search term to lazy-loaded records (fixes search + grouping bug)
+      if (search) {
+        params.search = search;
+        if (propSearchMode) {
+          params.search_mode = propSearchMode;
+        }
+      }
+
       const response = await api.get<{
         success: boolean;
         records: TableRowType[];
         total?: number;
-      }>(`/api/v1/foundations/${foundationIdNumeric}/records`, {
-        params: {
-          filters: JSON.stringify(combinedFilters),
-          limit: 10000 // Get all records for the group
-        }
-      });
+      }>(`/api/v1/foundations/${foundationIdNumeric}/records`, { params });
 
       if (response.success && response.records) {
-        setLazyLoadedGroups(prev => new Map(prev).set(groupKey, response.records));
+        // SSoT: Apply client-side sorting to match current sort order
+        let sortedRecords = response.records;
+        if (sortColumns.length > 0) {
+          sortedRecords = [...response.records].sort((a, b) => {
+            for (const { column, dir, customOrder } of sortColumns) {
+              const aVal = a[column];
+              const bVal = b[column];
+
+              if (aVal == null && bVal == null) continue;
+              if (aVal == null) return dir === "asc" ? 1 : -1;
+              if (bVal == null) return dir === "asc" ? -1 : 1;
+
+              // Get display values (handle lookup objects)
+              const getDisplayVal = (val: unknown): string => {
+                if (typeof val === 'object' && val !== null) {
+                  const obj = val as { display?: string; name?: string; id?: number };
+                  return obj.display || obj.name || String(obj.id || '');
+                }
+                return String(val);
+              };
+
+              const aDisplay = getDisplayVal(aVal);
+              const bDisplay = getDisplayVal(bVal);
+
+              let comparison = 0;
+
+              if (dir === "custom" && customOrder && customOrder.length > 0) {
+                const aIndex = customOrder.indexOf(aDisplay);
+                const bIndex = customOrder.indexOf(bDisplay);
+                const aPos = aIndex === -1 ? customOrder.length : aIndex;
+                const bPos = bIndex === -1 ? customOrder.length : bIndex;
+                comparison = aPos - bPos;
+              } else if (typeof aVal === "number" && typeof bVal === "number") {
+                comparison = aVal - bVal;
+              } else {
+                comparison = aDisplay.localeCompare(bDisplay);
+              }
+
+              if (comparison !== 0) {
+                return dir === "desc" ? -comparison : comparison;
+              }
+            }
+            return 0;
+          });
+        }
+        setLazyLoadedGroups(prev => new Map(prev).set(groupKey, sortedRecords));
       }
     } catch (error) {
       console.error(`[TeeemTableView] Failed to load group records for "${groupKey}":`, error);
@@ -1956,7 +2067,7 @@ export default function TeeemTableView({
         return next;
       });
     }
-  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters]);
+  }, [foundationIdNumeric, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
 
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {
@@ -2503,6 +2614,10 @@ export default function TeeemTableView({
           visible: visibleColumns,
           order: columnOrder,
           widths: columnWidths,
+          autoFitColumns,
+          smartFit,
+          showTotals,
+          stickyActions,
         },
         sort_order: sortColumns,
         group_by_columns: groupByColumns,
@@ -3154,11 +3269,20 @@ export default function TeeemTableView({
       orderedVisible.unshift(selectCol);
     }
 
-    // Ensure actions is always last if it exists in COLUMNS
-    const actionsCol = COLUMNS.find(c => c.key === 'actions');
-    const hasActionsInOrder = orderedVisible.some(c => c.key === 'actions');
-    if (actionsCol && !hasActionsInOrder) {
-      orderedVisible.push(actionsCol);
+    // Ensure actions is always last if it exists in COLUMNS AND stickyActions is enabled
+    // When stickyActions is OFF, hide the actions column entirely
+    if (stickyActions) {
+      const actionsCol = COLUMNS.find(c => c.key === 'actions');
+      const hasActionsInOrder = orderedVisible.some(c => c.key === 'actions');
+      if (actionsCol && !hasActionsInOrder) {
+        orderedVisible.push(actionsCol);
+      }
+    } else {
+      // Remove actions column if stickyActions is off
+      const actionsIndex = orderedVisible.findIndex(c => c.key === 'actions');
+      if (actionsIndex >= 0) {
+        orderedVisible.splice(actionsIndex, 1);
+      }
     }
 
     // Ensure alwaysVisibleColumns are included (insert after select, before other columns)
@@ -3176,7 +3300,7 @@ export default function TeeemTableView({
     });
 
     return orderedVisible;
-  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns]);
+  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns, stickyActions]);
 
   // Calculate total table width based on column widths
   const totalTableWidth = useMemo(() => {
@@ -3705,19 +3829,24 @@ export default function TeeemTableView({
         position: 'sticky',
         left: 0,
         zIndex: isHeader ? 30 : 10,
-        background: bgColor,
+        backgroundColor: bgColor,
+        // IMPORTANT: Force exact width to prevent w-auto from shrinking it
+        width: 40,
+        minWidth: 40,
+        maxWidth: 40,
       };
     }
 
     // Position 2: first data column (index 1 after select) - sticky at left: selectWidth
+    // IMPORTANT: Use hardcoded 40px to match the select column definition
+    // This avoids misalignment if columnWidths['select'] is undefined or differs
     const columnIndex = visibleColumnsInOrder.findIndex(c => c.key === columnKey);
     if (columnIndex === 1) {
-      const selectWidth = columnWidths['select'] || 40;
       return {
         position: 'sticky',
-        left: selectWidth,
+        left: 40, // Match select column width (defined in DEFAULT_COLUMNS)
         zIndex: isHeader ? 30 : 10,
-        background: bgColor,
+        backgroundColor: bgColor,
         boxShadow: '2px 0 4px rgba(0,0,0,0.1)',
       };
     }
@@ -3728,7 +3857,7 @@ export default function TeeemTableView({
         position: 'sticky',
         right: 0,
         zIndex: isHeader ? 50 : 20,
-        background: bgColor,
+        backgroundColor: bgColor,
         boxShadow: '-2px 0 4px rgba(0,0,0,0.1)',
       };
     }
@@ -3802,8 +3931,11 @@ export default function TeeemTableView({
       const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
       // Check if we're currently loading this group
       const isLoadingThisGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Check if ALL data is already loaded (main "Load All" was clicked)
+      const allDataLoaded = totalCount === null || totalCount === undefined || entries.length >= totalCount;
       // Show indicator if we only have partial data loaded (and not fully loaded yet)
-      const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
+      // Don't show if all data is already loaded via main Load All button
+      const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
       // Group header
       result.push(
@@ -3816,22 +3948,34 @@ export default function TeeemTableView({
           }}
           onClick={() => toggleGroupCollapse(fullKey)}
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             {isLoadingThisGroup ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin shrink-0" />
             ) : isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-4 w-4 shrink-0" />
             ) : (
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4 shrink-0" />
             )}
             <span className="font-bold text-[13px]">
               {groupKey}
             </span>
-            <span className="text-xs bg-white px-2 py-0.5 rounded">
+            <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
               ({rowCount})
               {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
               {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
             </span>
+            {hasPartialData && !isLoadingThisGroup && (
+              <button
+                type="button"
+                className="text-xs text-primary hover:text-primary/80 underline ml-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  loadGroupRecords(groupKey);
+                }}
+              >
+                Load All
+              </button>
+            )}
           </div>
         </div>
       );
@@ -4034,42 +4178,68 @@ export default function TeeemTableView({
       const isFullyLoaded = depth === 0 && lazyLoadedGroups.has(groupKey);
       // Check if we're currently loading this group
       const isLoadingThisGroup = depth === 0 && groupLoadingState.has(groupKey);
+      // Check if ALL data is already loaded (main "Load All" was clicked)
+      const allDataLoaded = totalCount === null || totalCount === undefined || entries.length >= totalCount;
       // Show indicator if we only have partial data loaded (and not fully loaded yet)
-      const hasPartialData = serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
+      // Don't show if all data is already loaded via main Load All button
+      const hasPartialData = !allDataLoaded && serverCount !== undefined && !isFullyLoaded && group.rows.length < serverCount;
 
-      // Add group header row
+      // Add group header row - STICKY cell so it stays visible while scrolling within group
+      // Calculate top position: column header height (28px) + previous group headers
+      const stickyTop = 28 + (depth * 36); // 28px for column header, 36px per group level
+      const groupBgColor = `rgba(242, 241, 239, ${Math.max(0.5, 0.95 - depth * 0.30)})`; // Solid enough for sticky
+
+      // Calculate sticky width: select + first data column
+      const selectWidth = 40; // Match select column width (hardcoded for consistency)
+      const firstDataColKey = visibleColumnsInOrder[1]?.key;
+      const firstDataColWidth = firstDataColKey ? (columnWidths[firstDataColKey] || 150) : 150;
+      const stickyWidth = selectWidth + firstDataColWidth;
+
       result.push(
         <TableRow
           key={`group-${fullKey}`}
           className="cursor-pointer hover:opacity-80"
-          style={{
-            backgroundColor: `rgba(242, 241, 239, ${Math.max(0.15, 0.95 - depth * 0.30)})` // Brand secondary #F2F1EF: dramatic contrast between levels
-          }}
           onClick={() => toggleGroupCollapse(fullKey)}
         >
+          {/* Sticky cell - spans first 2 columns (select + first data col) */}
           <TableCell
-            colSpan={visibleColumnsInOrder.length}
-            className="py-2"
-            style={{ paddingLeft: `${16 + depth * 24}px` }}
+            colSpan={2}
+            className="py-1"
+            style={{
+              width: stickyWidth,
+              minWidth: stickyWidth,
+              paddingLeft: `${16 + depth * 24}px`,
+              position: 'sticky',
+              left: 0,
+              zIndex: 10,
+              backgroundColor: groupBgColor,
+            }}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 whitespace-nowrap">
               {isLoadingThisGroup ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin shrink-0" />
               ) : isCollapsed ? (
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4 shrink-0" />
               )}
               <span className="font-bold text-[13px]">
                 {groupKey}
               </span>
-              <span className="text-xs bg-white px-2 py-0.5 rounded">
+              <span className="text-xs bg-white px-2 py-0.5 rounded shrink-0">
                 ({rowCount})
                 {hasPartialData && <span className="ml-1 text-muted-foreground">• {group.rows.length} loaded</span>}
                 {isFullyLoaded && <span className="ml-1 text-green-600">✓</span>}
               </span>
             </div>
           </TableCell>
+          {/* Non-sticky filler cell for remaining columns */}
+          {visibleColumnsInOrder.length > 2 && (
+            <TableCell
+              colSpan={visibleColumnsInOrder.length - 2}
+              style={{ backgroundColor: groupBgColor }}
+            />
+          )}
         </TableRow>
       );
 
@@ -4132,7 +4302,7 @@ export default function TeeemTableView({
                       }),
                       ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
                         backgroundColor: SYSTEM_COLUMN_BG,
-                      })
+                      }),
                     }}
                     className={cn(
                       column.key === "select" && "!border-r-0 !p-0 !h-full",
@@ -4197,11 +4367,9 @@ export default function TeeemTableView({
     const visibleRows = getVisibleRows();
 
     return (
-      <div className="w-full">
-        {/* Selection controls moved to saved views row in toolbar (lines 3467-3560) */}
-
+      <>
         {groupViewMode === "inline" ? (
-          /* Inline mode (default) - groups as rows in table body */
+          /* Inline mode (default) - single table with sticky header */
           <Table className="w-full" style={{ tableLayout: 'fixed' }}>
             {renderTableHeader()}
             <TableBody>
@@ -4214,7 +4382,7 @@ export default function TeeemTableView({
             {renderGroupNavigation(groupedEntries)}
           </div>
         )}
-      </div>
+      </>
     );
   };
 
@@ -4451,6 +4619,53 @@ export default function TeeemTableView({
         </div>
       )}
 
+      {/* Page Header - Title + count on LEFT, totals on RIGHT (SSoT) */}
+      {showHeader && (
+        <div className="flex items-center justify-between px-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
+            <span className="text-sm text-muted-foreground">
+              {totalCount !== null
+                ? `${filteredAndSortedEntries.length.toLocaleString()} of ${totalCount.toLocaleString()} records`
+                : `${filteredAndSortedEntries.length.toLocaleString()} records`}
+            </span>
+            {/* Load All button OR loading indicator - inline with record count */}
+            {loadingMore ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading more records...
+              </span>
+            ) : serverHasMore && onLoadAll ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onLoadAll}
+                className="gap-1.5 h-7 text-xs"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length})` : ''}
+              </Button>
+            ) : null}
+            {/* Virtual scroll indicator - shown when table exceeds threshold */}
+            {filteredAndSortedEntries.length > VIRTUALIZATION_THRESHOLD && (
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                Virtual scroll active
+              </span>
+            )}
+          </div>
+          {/* Totals in header (only when showTotals enabled and has numeric columns) */}
+          {showTotals && Object.keys(columnTotals).length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {Object.entries(columnTotals).map(([key, data]) => (
+                <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
+                  {data.label}: <span className="font-mono">{formatTotal(key)}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Toolbar - First row: Search and main actions */}
       <div className="flex items-center justify-between gap-4 px-4">
           {/* Left section: Add button + leftActions + Search */}
@@ -4513,8 +4728,8 @@ export default function TeeemTableView({
             </div>
           )}
 
-          {/* Bulk action buttons - show when rows selected (flat table only, grouped has inline) */}
-          {selectedRows.size > 0 && !groupByColumn && (
+          {/* Bulk action buttons - show when rows selected (SSoT: always in first row) */}
+          {selectedRows.size > 0 && (
             <div className="flex items-center gap-2 shrink-0">
               <div className="h-4 w-px bg-border mx-1" />
               {/* Bulk Update - column-based update modal */}
@@ -4559,6 +4774,17 @@ export default function TeeemTableView({
                 >
                   <ArrowLeftRight className="h-4 w-4 mr-1" />
                   Xero
+                </Button>
+              )}
+              {/* Delete button - bulk delete selected rows */}
+              {onBulkDelete && !viewOnly && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onBulkDelete(Array.from(selectedRows))}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
                 </Button>
               )}
             </div>
@@ -4790,8 +5016,7 @@ export default function TeeemTableView({
             })()
           ) : groupByColumn && selectedRows.size > 0 ? (
             <>
-
-              {/* Selection dropdown */}
+              {/* Selection dropdown for grouped tables */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center cursor-pointer">
@@ -4816,54 +5041,7 @@ export default function TeeemTableView({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Bulk action buttons */}
-              {onRowUpdate && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowBulkUpdateModal(true)}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Bulk Update
-                </Button>
-              )}
-              {onRowUpdate && !viewOnly && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => startMultiEditing(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Pencil className="h-3 w-3 mr-1" />
-                  Inline Edit
-                </Button>
-              )}
-              {(onBulkMerge || (enableMerge !== false && foundationIdNumeric)) && !viewOnly && selectedRows.size >= 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleMergeClick(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <GitMerge className="h-3 w-3 mr-1" />
-                  Merge
-                </Button>
-              )}
-              {/* Xero Transfer button - compact */}
-              {onXeroTransfer && !viewOnly && selectedRows.size === 2 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onXeroTransfer(Array.from(selectedRows))}
-                  className="h-7 px-2 text-xs"
-                >
-                  <ArrowLeftRight className="h-3 w-3 mr-1" />
-                  Xero
-                </Button>
-              )}
-
-              {/* Selection count and clear */}
+              {/* Selection count and clear - bulk action buttons are in the first toolbar row (SSoT) */}
               <span className="text-[11px] font-medium ml-auto">{selectedRows.size} selected</span>
               <Button
                 variant="outline"
@@ -5052,31 +5230,6 @@ export default function TeeemTableView({
         </div>
       )}
 
-      {/* Loading indicator */}
-      {loadingMore && (
-        <div className="flex items-center justify-center p-2">
-          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-          <span className="text-[11px] text-muted-foreground">
-            Loading more records...
-          </span>
-        </div>
-      )}
-
-      {/* Load All button - shows when there are more records to load from server */}
-      {!loadingMore && serverHasMore && onLoadAll && (
-        <div className="flex items-center justify-center p-2 border-t">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onLoadAll}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Load All {totalCount !== null && totalCount !== undefined ? `(${totalCount - entries.length} remaining)` : 'Remaining Records'}
-          </Button>
-        </div>
-      )}
-
       {/* Table - scrollable container with max height so scrollbar stays visible */}
       {/* Account for: nav(64) + page header(80) + data health(60 collapsed/40vh expanded) + toolbar(50) + footer(30) */}
       {/* Keyboard navigation: Arrow keys, Enter, Space, Escape, / (search) */}
@@ -5117,27 +5270,10 @@ export default function TeeemTableView({
         )}
       </div>
 
-      {/* Footer - compact (hidden when hideFooter is true) */}
-      {!hideFooter && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Column totals - only show when enabled AND there are numeric columns */}
-            {showTotals && Object.keys(columnTotals).length > 0 && (
-              <>
-                {Object.entries(columnTotals).map(([key, data]) => (
-                  <span key={key} className="bg-muted px-1.5 py-0.5 rounded text-[11px]">
-                    {data.label}: <span className="font-mono">{formatTotal(key)}</span>
-                  </span>
-                ))}
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-3 text-[11px]">
-            {selectedRows.size > 0 && <span>{selectedRows.size} selected</span>}
-            <span>
-              Showing {filteredAndSortedEntries.length} of {totalCount ?? entries.length} records
-            </span>
-          </div>
+      {/* Footer - only shows selected count (totals moved to header) */}
+      {!hideFooter && selectedRows.size > 0 && (
+        <div className="flex items-center justify-end text-xs text-muted-foreground shrink-0 py-1 px-4">
+          <span>{selectedRows.size} selected</span>
         </div>
       )}
 

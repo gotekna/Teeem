@@ -21,7 +21,7 @@ import { api } from "@/lib/api";
 
 export default function WHSInductionsPage() {
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, refresh } = useFoundationBySlug("whs_inductions");
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug("whs_inductions");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -52,9 +52,14 @@ export default function WHSInductionsPage() {
     );
   }
 
-  // Left actions - New Induction button
+  // Left actions - Back button + action buttons
   const leftActions = (
     <div className="flex items-center gap-2">
+      <Button variant="ghost" size="icon" asChild>
+        <Link href="/whs">
+          <ArrowLeft className="h-4 w-4" />
+        </Link>
+      </Button>
       <Button variant="outline">
         <Mail className="h-4 w-4 mr-2" />
         Send Reminders
@@ -67,39 +72,9 @@ export default function WHSInductionsPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild>
-            <Link href="/whs">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight font-serif">Site Inductions</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Manage worker inductions and site access
-              
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline">
-            <Mail className="h-4 w-4 mr-2" />
-            Send Reminders
-          </Button>
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            New Induction
-          </Button>
-        </div>
-      </div>
-
-      {/* Table */}
+    <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={records}
-        columns={columns}
         foundationId="whs_inductions"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Site Inductions"}
@@ -107,6 +82,7 @@ export default function WHSInductionsPage() {
         onRefresh={refresh}
         onRowUpdate={handleRowUpdate}
         leftActions={leftActions}
+        hideFooter={true}
       />
     </div>
   );

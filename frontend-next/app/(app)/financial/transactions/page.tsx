@@ -305,17 +305,9 @@ export default function FinancialTransactionsPage() {
   }
 
   return (
-    <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Financial Tracking</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Track income and expenses for your construction projects
-        </p>
-      </div>
-
+    <div className="flex flex-col h-full -mx-4">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 px-4 shrink-0">
         {/* Total Income */}
         <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
           <div className="flex items-center justify-between">
@@ -404,7 +396,7 @@ export default function FinancialTransactionsPage() {
         enableExport={true}
         onImport={handleImport}
         onExport={handleExport}
-        customActions={
+        leftActions={
           <div className="flex items-center gap-3">
             <button
               onClick={handleAddIncome}
@@ -422,6 +414,7 @@ export default function FinancialTransactionsPage() {
             </button>
           </div>
         }
+        hideFooter={true}
       />
 
       {/* Transaction Form Modal */}

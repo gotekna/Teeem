@@ -36,7 +36,7 @@ export default function ScheduleTemplatesPage() {
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   // Use foundation hook for TeeemTableView
-  const { foundation, columns, records, isLoading, error, refresh } = useFoundationBySlug("schedule_templates");
+  const { foundation, records, isLoading, error, refresh } = useFoundationBySlug("schedule_templates");
 
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -76,25 +76,14 @@ export default function ScheduleTemplatesPage() {
     </Button>
   );
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight font-serif">Schedule Templates</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Pre-built schedules to quickly set up new jobs
-            
-          </p>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Template
-        </Button>
-      </div>
-
-      {/* View Toggle */}
-      <div className="flex items-center gap-2">
+  // Left actions - Create button + View Toggle
+  const leftActionsWithToggle = (
+    <div className="flex items-center gap-2">
+      <Button>
+        <Plus className="h-4 w-4 mr-2" />
+        Create Template
+      </Button>
+      <div className="flex items-center gap-1 ml-4">
         <Button
           variant={viewMode === "cards" ? "default" : "outline"}
           size="sm"
@@ -112,19 +101,23 @@ export default function ScheduleTemplatesPage() {
           Table
         </Button>
       </div>
+    </div>
+  );
 
+  return (
+    <div className="flex flex-col h-full -mx-4">
       {/* Content */}
       {viewMode === "table" ? (
         <TeeemTableView
           entries={records}
-          columns={columns}
           foundationId="schedule_templates"
           foundationIdNumeric={foundation?.id}
           tableName={foundation?.name || "Schedule Templates"}
           enableExport={true}
           onRefresh={refresh}
           onRowUpdate={handleRowUpdate}
-          leftActions={leftActions}
+          leftActions={leftActionsWithToggle}
+          hideFooter={true}
         />
       ) : (
         /* Templates Grid - Card View */

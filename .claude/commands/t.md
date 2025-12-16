@@ -4,18 +4,28 @@
 
 A focused code review aligned with CLAUDE.md philosophy. Checks the things that matter.
 
-## What This Checks (8 Categories)
+## What This Checks (10 Categories)
 
 | # | Category | Why It Matters |
 |---|----------|----------------|
 | 1 | **SSoT Violations** | The core philosophy - find duplicates |
 | 2 | **Sync Risk Patterns** | Code that will get out of sync with source of truth |
 | 3 | **Standard Components** | THE ONE component for each use case |
-| 4 | **Gold Standard** | 31 valid column types |
-| 5 | **SSoT Model Auditor** | Find NoMethodError time bombs |
-| 6 | **Security** | Always important |
-| 7 | **Performance** | PERF-001 to PERF-006 anti-patterns |
-| 8 | **Code Quality** | Bug patterns, dead code, over-engineering |
+| 4 | **Table Page Pattern** | No `columns` prop, no custom headers |
+| 5 | **UI Compliance** | Dark mode, no hex colors, accessibility |
+| 6 | **Gold Standard** | 31 valid column types |
+| 7 | **SSoT Model Auditor** | Find NoMethodError time bombs |
+| 8 | **Security** | Always important |
+| 9 | **Performance** | PERF-001 to PERF-006 anti-patterns |
+| 10 | **Code Quality** | Bug patterns, dead code, over-engineering |
+
+## Key Docs (SSoT References)
+
+| Doc | Location | Use For |
+|-----|----------|---------|
+| Components SSoT | `TEEEM_DOCS/COMPONENTS.md` | THE ONE component table |
+| Debugging | `TEEEM_DOCS/DEBUGGING.md` | Token-efficient debugging |
+| Column Types | `TEEEM_DOCS/GOLD_STANDARD_TABLE.md` | 31 valid types |
 
 ## Execution
 
@@ -186,7 +196,81 @@ grep -rn "from.*collapsible" frontend-next/app --include="*.tsx" | head -5
 
 **Expected:** Zero matches (all using THE ONE)
 
-### Step 4: Gold Standard Column Types
+### Step 4: Table Page Pattern (NEW)
+
+**CRITICAL: All table pages must follow the Gold Standard pattern from CLAUDE.md.**
+
+```bash
+echo "=== Table Page Pattern Violations ==="
+
+# Pattern 1: Pages passing columns prop (FORBIDDEN - auto-fetched from Foundation API)
+echo ""
+echo "--- Pages passing columns prop (FORBIDDEN) ---"
+grep -rn "TeeemTableView" frontend-next/app --include="*.tsx" -A 10 | grep "columns=" | head -10
+
+# Pattern 2: Pages with both <h1> AND TeeemTableView (duplicate header)
+echo ""
+echo "--- Pages with duplicate headers (<h1> + TeeemTableView) ---"
+for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
+  if grep -q "<h1" "$file"; then
+    echo "  ⚠️  $file - has both <h1> AND TeeemTableView (remove <h1>)"
+  fi
+done
+
+# Pattern 3: Missing -mx-4 (edge-to-edge layout)
+echo ""
+echo "--- Pages missing -mx-4 (should be edge-to-edge) ---"
+for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
+  if ! grep -q "\-mx-4" "$file"; then
+    echo "  ⚠️  $file - missing -mx-4 for edge-to-edge layout"
+  fi
+done
+```
+
+**Expected:**
+- Zero pages passing `columns` prop (TeeemTableView auto-fetches from Foundation API)
+- Zero pages with both `<h1>` AND `TeeemTableView`
+- All table pages have `-mx-4` for edge-to-edge layout
+
+**Reference:** `TEEEM_DOCS/COMPONENTS.md` and `GoldStandardTab.tsx` lines 820-848
+
+### Step 5: UI Compliance (NEW)
+
+**Check dark mode, hex colors, and accessibility patterns.**
+
+```bash
+echo "=== UI Compliance Check ==="
+
+# Check 1: Missing dark mode variants
+echo ""
+echo "--- Components missing dark: variants ---"
+grep -rn "className=" frontend-next/app --include="*.tsx" | grep -E "bg-white|bg-gray-|text-gray-" | grep -v "dark:" | head -10
+
+# Check 2: Hardcoded hex colors (should use Tailwind config)
+echo ""
+echo "--- Hardcoded hex colors (use Tailwind tokens instead) ---"
+grep -rn "text-\[#\|bg-\[#\|border-\[#" frontend-next/app --include="*.tsx" | head -10
+
+# Check 3: Icon-only buttons missing aria-label
+echo ""
+echo "--- Icon-only buttons missing aria-label ---"
+grep -rn "<Button.*>" frontend-next/app --include="*.tsx" | grep -v "aria-label" | grep -E "Icon.*\/>" | head -5
+
+# Check 4: Forms missing labels
+echo ""
+echo "--- Input elements - verify they have labels ---"
+grep -rn "<Input" frontend-next/app --include="*.tsx" | grep -v "aria-label\|<label" | head -5
+```
+
+**Expected:**
+- All color classes have `dark:` variants
+- Zero hardcoded hex colors (use `text-indigo-600` not `text-[#4F46E5]`)
+- Icon-only buttons have `aria-label`
+- Form inputs have associated labels
+
+**Reference:** `TEEEM_DOCS/COMPONENTS.md`
+
+### Step 6: Gold Standard Column Types
 
 **Validate all columns use one of the 31 valid types:**
 
@@ -204,7 +288,7 @@ cd backend && bin/rails runner "
 "
 ```
 
-### Step 5: SSoT Model Auditor
+### Step 7: SSoT Model Auditor
 
 **Find NoMethodError time bombs - method calls on models that don't exist:**
 
@@ -221,14 +305,14 @@ cd backend && bin/rails ssot:audit
 
 **Expected:** 0 issues found
 
-### Step 6: Security Scan
+### Step 8: Security Scan
 
 ```bash
 # Quick security check
 cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -30 || echo "Brakeman not available"
 ```
 
-### Step 7: Performance Auditor (Masterpiece Level)
+### Step 9: Performance Auditor (Masterpiece Level)
 
 **CRITICAL: Slow UI = bad product. Take whatever time needed to guarantee great performance.**
 
@@ -621,7 +705,7 @@ After running all checks, provide:
 - ✅ API response times <500ms
 - ✅ Payload sizes <50KB for list views
 
-### Step 8: Code Quality (Bug Patterns, Dead Code, Over-Engineering)
+### Step 10: Code Quality (Bug Patterns, Dead Code, Over-Engineering)
 
 **Quick automated checks from Code Guardian:**
 
@@ -659,14 +743,16 @@ find backend/app -name "*.rb" -exec wc -l {} \; | awk '$1 > 500 {print $1, $2}' 
      [Brisbane Time]
 ════════════════════════════════════════
 
-1. SSoT Violations:     [PASS/X issues]
-2. Sync Risk Patterns:  [PASS/X issues]  ← NEW: Catches manual lists
-3. Standard Components: [PASS/X issues]
-4. Gold Standard:       [PASS/X issues]
-5. Model Auditor:       [PASS/X issues]
-6. Security:            [PASS/X issues]
-7. Performance:         [PASS/X issues]
-8. Code Quality:        [PASS/X issues]
+1. SSoT Violations:      [PASS/X issues]
+2. Sync Risk Patterns:   [PASS/X issues]
+3. Standard Components:  [PASS/X issues]
+4. Table Page Pattern:   [PASS/X issues]  ← No columns prop, no <h1>
+5. UI Compliance:        [PASS/X issues]  ← Dark mode, no hex colors
+6. Gold Standard:        [PASS/X issues]
+7. Model Auditor:        [PASS/X issues]
+8. Security:             [PASS/X issues]
+9. Performance:          [PASS/X issues]
+10. Code Quality:        [PASS/X issues]
 
 ────────────────────────────────────────
 Total: X issues to fix
@@ -679,11 +765,13 @@ Total: X issues to fix
 
 | Command | Scope | Time |
 |---------|-------|------|
-| `/t` | Full review (all 8 checks) | ~10-15 min |
+| `/t` | Full review (all 10 checks) | ~10-15 min |
 | `/t ssot` | SSoT violations only | ~10 sec |
-| `/t sync` | **Sync Risk Patterns** - catches manual lists that should be auto-derived | ~15 sec |
-| `/t ui` | Standard components only | ~10 sec |
-| `/t gold` | Gold Standard only | ~10 sec |
+| `/t sync` | Sync Risk Patterns - catches manual lists | ~15 sec |
+| `/t comp` | Standard components only | ~10 sec |
+| `/t table` | **Table Page Pattern** - columns prop, headers, -mx-4 | ~10 sec |
+| `/t ui` | **UI Compliance** - dark mode, hex colors, a11y | ~15 sec |
+| `/t gold` | Gold Standard column types | ~10 sec |
 | `/t model` | Model Auditor only | ~15 sec |
 | `/t sec` | Security only | ~10 sec |
 | `/t perf` | **Performance Masterpiece Audit** (4 parts, 13 checks) | ~5-10 min |
@@ -715,17 +803,30 @@ When you want to ensure code is **masterpiece quality**, run `/t deep`. This spa
 
 This command embodies the Ultrathink principle: **"Simplify ruthlessly."**
 
-**Standard mode (`/t`)** - 8 checks that matter:
+**Standard mode (`/t`)** - 10 checks that matter:
 1. SSoT violations break the codebase philosophy
 2. Sync risk patterns create future bugs (manual lists that should be auto-derived)
 3. Wrong components create maintenance debt
-4. Invalid column types break the data model
-5. Missing model methods cause runtime crashes
-6. Security issues risk the business
-7. Performance anti-patterns slow users down
-8. Code quality catches bugs before production
+4. Table page pattern ensures consistent UX
+5. UI compliance guarantees dark mode and accessibility
+6. Invalid column types break the data model
+7. Missing model methods cause runtime crashes
+8. Security issues risk the business
+9. Performance anti-patterns slow users down
+10. Code quality catches bugs before production
 
 **Deep mode (`/t deep`)** - Full Code Guardian:
 - When you need to verify code is a **masterpiece**
 - Manual review of architecture and patterns
 - "Elegance is achieved not when there's nothing left to add, but when there's nothing left to take away"
+
+## Keyword Triggers
+
+If user types these keywords, Claude should immediately respond:
+
+| Keyword | Meaning | Action |
+|---------|---------|--------|
+| `ssot` | Duplicate found | Search for both locations, ask which is SSoT |
+| `ultra` | Lazy solution | Present 3 approaches, pick simplest |
+| `gold` | Wrong component | Check TEEEM_DOCS/COMPONENTS.md |
+| `slow` | Wasting tokens | Stop reading logs, use Sentry or targeted grep |
