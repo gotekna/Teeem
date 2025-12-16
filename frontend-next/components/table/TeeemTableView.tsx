@@ -1610,36 +1610,65 @@ export default function TeeemTableView({
     [onServerSearch, search, effectiveOnServerSearch]
   );
 
-  // Auto-save column widths to view (debounced)
-  // DISABLED: This was corrupting view data by replacing entire columns object
-  // TODO: Need backend endpoint that only updates widths without touching columnOrder/visibleColumns
-  const autoSaveColumnWidths = useCallback(async (_widths: Record<string, number>) => {
-    // Disabled to prevent data corruption - user must save via View Manager
-    console.log('[TeeemTableView] Auto-save disabled - use View Manager to save column widths');
-    return;
+  // Refs to track current state for auto-save (avoids stale closure issues)
+  const currentStateRef = useRef({
+    visibleColumns,
+    columnOrder,
+    autoFitColumns,
+    smartFit,
+    showTotals,
+    stickyActions,
+  });
 
-    /* Original code that caused corruption:
+  // Keep refs updated
+  useEffect(() => {
+    currentStateRef.current = {
+      visibleColumns,
+      columnOrder,
+      autoFitColumns,
+      smartFit,
+      showTotals,
+      stickyActions,
+    };
+  }, [visibleColumns, columnOrder, autoFitColumns, smartFit, showTotals, stickyActions]);
+
+  // Auto-save column widths to view (debounced)
+  // Uses refs to always get current state values
+  const autoSaveColumnWidths = useCallback(async (widths: Record<string, number>) => {
     if (!activeViewId || (typeof activeViewId === 'string' && activeViewId.startsWith('new_'))) {
+      console.log('[TeeemTableView] Skipping auto-save - no active view');
       return;
     }
-    if (!foundationIdNumeric) return;
+    if (!foundationIdNumeric) {
+      console.log('[TeeemTableView] Skipping auto-save - no foundation ID');
+      return;
+    }
+
+    const state = currentStateRef.current;
 
     try {
-      await api.patch(`/api/v1/foundation_views/${activeViewId}`, {
+      // IMPORTANT: Merge with existing columns data to prevent corruption
+      const payload = {
         foundation_view: {
           columns: {
-            widths,
-            autoFitColumns: false,
-            smartFit: false,
+            visible: state.visibleColumns,
+            order: state.columnOrder,
+            widths: widths,
+            autoFitColumns: state.autoFitColumns,
+            smartFit: state.smartFit,
+            showTotals: state.showTotals,
+            stickyActions: state.stickyActions,
           }
         }
-      });
+      };
+      console.log('[TeeemTableView] Saving column widths:', { viewId: activeViewId, widths });
+
+      await api.patch(`/api/v1/foundation_views/${activeViewId}`, payload);
       console.log('[TeeemTableView] Auto-saved column widths for view', activeViewId);
     } catch (error) {
       console.error('[TeeemTableView] Failed to auto-save column widths:', error);
     }
-    */
-  }, []);
+  }, [activeViewId, foundationIdNumeric]);
 
   // Column resize handler with auto-save
   const handleColumnResize = useCallback((key: string, width: number) => {
@@ -4150,7 +4179,7 @@ export default function TeeemTableView({
 
         {groupViewMode === "inline" ? (
           /* Inline mode (default) - groups as rows in table body */
-          <Table className="w-full" style={{ tableLayout: 'auto' }}>
+          <Table className="w-full" style={{ tableLayout: 'fixed' }}>
             {renderTableHeader()}
             <TableBody>
               {renderInlineGroupRows(groupedEntries)}
@@ -4248,13 +4277,14 @@ export default function TeeemTableView({
     }
 
     // Standard table for small datasets (better for editing, printing)
+    // tableLayout: fixed ensures column widths are respected (SSoT: user-set widths)
     return (
-      <Table className="w-full" style={{ tableLayout: 'auto' }}>
+      <Table className="w-full" style={{ tableLayout: 'fixed' }}>
         <colgroup>
           {visibleColumnsInOrder.map((column) => (
             <col
               key={column.key}
-              style={{ minWidth: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 50) }}
+              style={{ width: column.key === "select" ? 40 : (columnWidths[column.key] || column.width || 150) }}
             />
           ))}
         </colgroup>
@@ -5052,9 +5082,9 @@ export default function TeeemTableView({
 
       {/* Footer - compact (hidden when hideFooter is true) */}
       {!hideFooter && (
-        <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-0">
+        <div className="flex items-center justify-between text-xs text-muted-foreground shrink-0 py-1">
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Column totals */}
+            {/* Column totals - only show when enabled AND there are numeric columns */}
             {showTotals && Object.keys(columnTotals).length > 0 && (
               <>
                 {Object.entries(columnTotals).map(([key, data]) => (

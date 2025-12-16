@@ -96,6 +96,9 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
     [effectiveWidth]
   );
 
+  // Track final width to commit on mouseup
+  const finalWidthRef = useRef(0);
+
   useEffect(() => {
     if (!isResizing) return;
 
@@ -103,10 +106,27 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
       const diff = e.clientX - startXRef.current;
       const newWidth = Math.max(50, startWidthRef.current + diff);
       setCurrentWidth(newWidth);
-      onResize(column.key, newWidth);
+      finalWidthRef.current = newWidth;
+
+      // Direct DOM manipulation for smooth visual feedback (no React re-render)
+      const parentCell = containerRef.current?.closest('th');
+      if (parentCell) {
+        (parentCell as HTMLElement).style.width = `${newWidth}px`;
+        // Also update the corresponding col element if it exists
+        const table = parentCell.closest('table');
+        const colIndex = Array.from(parentCell.parentElement?.children || []).indexOf(parentCell);
+        const col = table?.querySelector(`colgroup col:nth-child(${colIndex + 1})`);
+        if (col) {
+          (col as HTMLElement).style.width = `${newWidth}px`;
+        }
+      }
     };
 
     const handleMouseUp = () => {
+      // Commit the final width to global state only on mouseup
+      if (finalWidthRef.current > 0) {
+        onResize(column.key, finalWidthRef.current);
+      }
       setIsResizing(false);
     };
 
