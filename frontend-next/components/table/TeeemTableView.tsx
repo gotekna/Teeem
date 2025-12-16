@@ -1612,8 +1612,14 @@ export default function TeeemTableView({
   );
 
   // Auto-save column widths to view (debounced)
-  const autoSaveColumnWidths = useCallback(async (widths: Record<string, number>) => {
-    // Only save if we have an active view ID that's a real view (not a temp "new_" view)
+  // DISABLED: This was corrupting view data by replacing entire columns object
+  // TODO: Need backend endpoint that only updates widths without touching columnOrder/visibleColumns
+  const autoSaveColumnWidths = useCallback(async (_widths: Record<string, number>) => {
+    // Disabled to prevent data corruption - user must save via View Manager
+    console.log('[TeeemTableView] Auto-save disabled - use View Manager to save column widths');
+    return;
+
+    /* Original code that caused corruption:
     if (!activeViewId || (typeof activeViewId === 'string' && activeViewId.startsWith('new_'))) {
       return;
     }
@@ -1633,7 +1639,8 @@ export default function TeeemTableView({
     } catch (error) {
       console.error('[TeeemTableView] Failed to auto-save column widths:', error);
     }
-  }, [activeViewId, foundationIdNumeric]);
+    */
+  }, []);
 
   // Column resize handler with auto-save
   const handleColumnResize = useCallback((key: string, width: number) => {

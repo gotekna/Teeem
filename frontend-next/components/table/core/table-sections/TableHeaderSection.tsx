@@ -141,7 +141,7 @@ export function TableHeaderSection({
               ) : (
                 <ResizableColumnHeader
                   column={column}
-                  width={columnWidths[column.key]}
+                  width={columnWidths[column.key] || column.width || 150}
                   onResize={handleColumnResize}
                   onSort={handleSort}
                   onHide={hideColumn}

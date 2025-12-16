@@ -331,13 +331,16 @@ export function ViewManagerSheet({
 
     setEditColumnOrder(view.columnOrder || effectiveColumns.map(c => c.column_name));
 
-    // SSoT: Use current widths from table if this is the active view being edited
-    // This ensures View Manager shows what the user actually sees on the table
-    const isActiveView = tableActiveViewId && view.id === tableActiveViewId;
-    const widthsToUse = isActiveView && currentColumnWidths && Object.keys(currentColumnWidths).length > 0
-      ? currentColumnWidths
-      : view.columnWidths || {};
-    setEditColumnWidths(widthsToUse);
+    // Load column widths from view, with validation to filter out corrupted values
+    const savedWidths = view.columnWidths || {};
+    const validatedWidths: Record<string, number> = {};
+    for (const [key, value] of Object.entries(savedWidths)) {
+      // Only accept reasonable width values (20-2000px)
+      if (typeof value === 'number' && value >= 20 && value <= 2000) {
+        validatedWidths[key] = value;
+      }
+    }
+    setEditColumnWidths(validatedWidths);
 
     setEditAutoFitColumns(view.autoFitColumns || false);
     setEditSmartFit(view.smartFit !== false); // Default to true for TEEEM Smart

@@ -58,8 +58,21 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
   const [isHoveringHandle, setIsHoveringHandle] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [currentWidth, setCurrentWidth] = useState(effectiveWidth);
+  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
+
+  // Measure actual width from DOM when hovering (more accurate than prop)
+  useEffect(() => {
+    if (isHoveringHandle && containerRef.current) {
+      // Get the parent TableHead cell's width
+      const parentCell = containerRef.current.closest('th');
+      if (parentCell) {
+        setMeasuredWidth(parentCell.getBoundingClientRect().width);
+      }
+    }
+  }, [isHoveringHandle]);
 
   // Sync width when prop changes (not during resize)
   useEffect(() => {
@@ -72,10 +85,13 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
     (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      // Measure actual width at start of resize
+      const parentCell = containerRef.current?.closest('th');
+      const actualWidth = parentCell ? parentCell.getBoundingClientRect().width : effectiveWidth;
       setIsResizing(true);
       startXRef.current = e.clientX;
-      startWidthRef.current = effectiveWidth;
-      setCurrentWidth(effectiveWidth);
+      startWidthRef.current = actualWidth;
+      setCurrentWidth(actualWidth);
     },
     [effectiveWidth]
   );
@@ -127,8 +143,8 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
 
   return (
     <div
-      className="flex items-center justify-between group relative overflow-visible"
-      style={{ width: effectiveWidth }}
+      ref={containerRef}
+      className="flex items-center justify-between group relative overflow-visible w-full"
     >
       <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
@@ -265,21 +281,21 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
         </button>
       )}
 
-      {/* Resize handle - Excel-style on right edge */}
+      {/* Resize handle - large hit area on right edge of cell */}
       {column.resizable !== false && (
         <div
-          className="absolute right-0 top-0 bottom-0 w-[5px] cursor-col-resize z-20 flex items-center justify-center"
+          className="absolute -right-[12px] -top-2 -bottom-2 w-[24px] cursor-col-resize z-20"
           onMouseDown={handleMouseDown}
           onMouseEnter={() => setIsHoveringHandle(true)}
           onMouseLeave={() => setIsHoveringHandle(false)}
           title="Drag to resize column"
         >
-          {/* The visible line indicator */}
+          {/* The visible line indicator - thin line at column border */}
           <div className={cn(
-            "absolute right-[2px] w-[2px] transition-all",
+            "absolute left-[11px] w-[2px] top-2 bottom-2 transition-all",
             (isHoveringHandle || isResizing)
-              ? "bg-primary -top-2 -bottom-2"  // ~5mm above and below header
-              : "bg-border top-1 bottom-1"     // Subtle line within header
+              ? "bg-primary -top-1 -bottom-1"
+              : "bg-border/50"
           )} />
         </div>
       )}
@@ -300,7 +316,7 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
             zIndex: 9999,
           }}
         >
-          {Math.round(currentWidth || effectiveWidth)}px
+          {Math.round(isResizing ? currentWidth : (measuredWidth || effectiveWidth))}px
         </div>
       )}
     </div>
