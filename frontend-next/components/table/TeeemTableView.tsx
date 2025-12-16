@@ -4201,11 +4201,9 @@ export default function TeeemTableView({
     const visibleRows = getVisibleRows();
 
     return (
-      <div className="w-full">
-        {/* Selection controls moved to saved views row in toolbar (lines 3467-3560) */}
-
+      <>
         {groupViewMode === "inline" ? (
-          /* Inline mode (default) - groups as rows in table body */
+          /* Inline mode (default) - single table with sticky header */
           <Table className="w-full" style={{ tableLayout: 'fixed' }}>
             {renderTableHeader()}
             <TableBody>
@@ -4218,7 +4216,7 @@ export default function TeeemTableView({
             {renderGroupNavigation(groupedEntries)}
           </div>
         )}
-      </div>
+      </>
     );
   };
 

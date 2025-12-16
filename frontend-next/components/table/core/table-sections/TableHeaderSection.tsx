@@ -103,30 +103,36 @@ export function TableHeaderSection({
           const isSticky = isStickyColumn(column.key, colIndex);
           const isSystemGen = isSystemGeneratedColumn(column);
 
+          // Determine background color - system columns get yellow, others get muted
+          const bgColor = isSystemGen && column.key !== "select" && column.key !== "actions"
+            ? SYSTEM_COLUMN_BG
+            : 'hsl(var(--muted))'; // Match bg-muted for solid sticky background
+
+          // DEBUG: Log sticky styles
+          const debugInfo = `sticky:top-0 z:${isSticky ? 30 : 20} bg:${bgColor.substring(0, 15)}`;
+
           return (
             <TableHead
               key={`${column.key}-${colIndex}`}
               style={{
                 width: columnWidths[column.key] || column.width,
                 minWidth: columnWidths[column.key] || column.width || 50,
-                position: 'sticky',
-                top: 0,
-                zIndex: isSticky ? 30 : 20,
+                backgroundColor: bgColor,
                 ...stickyStyles,
                 ...(column.key === "select" && {
                   textAlign: 'center',
                   verticalAlign: 'middle',
                 }),
-                ...(isSystemGen && column.key !== "select" && column.key !== "actions" && {
-                  backgroundColor: SYSTEM_COLUMN_BG,
-                }),
+                // DEBUG: Red border to see header cells
+                border: '2px solid red',
               }}
               className={cn(
-                "relative",
+                "sticky top-0 relative",
+                isSticky ? "z-30" : "z-20",
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
                 column.key === "actions" && "!border-l-0"
               )}
-              title={isSystemGen ? "System-generated column (read-only)" : undefined}
+              title={`DEBUG: ${debugInfo} | ${isSystemGen ? "System column" : "User column"}`}
             >
               {column.key === "select" ? (
                 <Checkbox
