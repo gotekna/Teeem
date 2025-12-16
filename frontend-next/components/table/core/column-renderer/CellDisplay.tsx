@@ -534,14 +534,16 @@ export function displayXeroLinks(
   totalTenants?: number
 ): React.ReactNode {
   const linkedCount = typeof value === "number" ? value : parseInt(String(value || 0), 10);
-  const total = totalTenants || 8; // Default to 8 if not provided
   const tenantNames: string[] = row?.xero_tenant_names as string[] || [];
   const linkSummary = row?.xero_link_summary as {
     linked_count?: number;
+    total_tenants?: number;
     tenant_names?: string[];
     has_sync_errors?: boolean;
     has_conflicts?: boolean;
   } | undefined;
+  // SSoT: Get total from xero_link_summary (backend provides actual XeroCredential.count)
+  const total = linkSummary?.total_tenants || totalTenants || 0;
 
   // If no links, show empty state
   if (linkedCount === 0) {

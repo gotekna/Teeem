@@ -682,11 +682,12 @@ class Contact < ApplicationRecord
   end
 
   # Xero link summary for UI display
-  # Returns: { linked_count: 3, total_tenants: 8, tenant_names: ["Company A", "Company B"] }
+  # Returns: { linked_count: 3, total_tenants: 10, tenant_names: ["Company A", "Company B"] }
   def xero_link_summary
     links = xero_links.enabled
     {
       linked_count: links.count,
+      total_tenants: XeroCredential.count,
       tenant_names: links.pluck(:tenant_name).compact,
       has_sync_errors: links.with_errors.any?,
       has_conflicts: links.with_conflicts.any?,
