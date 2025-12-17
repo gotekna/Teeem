@@ -35,6 +35,7 @@ import {
   Receipt,
   TrendingUp,
   Plus,
+  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -87,6 +88,7 @@ interface ClaimStage {
   // Invoice details
   invoice: {
     id: number;
+    external_id: string | null;
     invoice_number: string;
     reference: string | null;
     total: number;
@@ -462,9 +464,21 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                               ) : (
                                 <Link2 className="h-4 w-4 text-blue-500" />
                               )}
-                              <span className="font-medium text-sm">
-                                {stage.invoice.invoice_number}
-                              </span>
+                              {stage.invoice.external_id ? (
+                                <a
+                                  href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${stage.invoice.external_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                >
+                                  {stage.invoice.invoice_number}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                <span className="font-medium text-sm">
+                                  {stage.invoice.invoice_number}
+                                </span>
+                              )}
                               {stage.invoice.reference && (
                                 <span className="text-xs text-muted-foreground">
                                   {stage.invoice.reference}

@@ -81,6 +81,22 @@ interface Job {
   job_number?: string;
 }
 
+// Preview job with contacts for showing actual names/emails
+interface JobContact {
+  id: number;
+  display_name: string;
+  email: string;
+  phone?: string;
+}
+
+interface PreviewJobData {
+  job_id: number;
+  job_name: string;
+  primary_contact?: JobContact;
+  secondary_contact?: JobContact;
+  builder_representative?: JobContact;
+}
+
 // Task configuration types
 type TaskType = "generate_document" | "generate_and_send_for_signing";
 
@@ -154,6 +170,8 @@ export default function BpmnJsDesigner({
   const [workflowSigningConfig, setWorkflowSigningConfig] = useState<WorkflowSigningConfig>(
     (canvasData?.signing_config as WorkflowSigningConfig) || DEFAULT_SIGNING_CONFIG
   );
+  const [previewJobData, setPreviewJobData] = useState<PreviewJobData | null>(null);
+  const [loadingJobContacts, setLoadingJobContacts] = useState(false);
   const { toast } = useToast();
 
   // Update editable name when prop changes (e.g., data loads from server)
@@ -226,6 +244,44 @@ export default function BpmnJsDesigner({
     };
     fetchJobs();
   }, []);
+
+  // Fetch job contacts when a job is selected for preview
+  useEffect(() => {
+    if (!selectedJobId) {
+      setPreviewJobData(null);
+      return;
+    }
+
+    const fetchJobContacts = async () => {
+      setLoadingJobContacts(true);
+      try {
+        const response = await api.get<{
+          success?: boolean;
+          id: number;
+          name: string;
+          primary_contact?: { id: number; display_name: string; email: string; phone?: string };
+          secondary_contact?: { id: number; display_name: string; email: string; phone?: string };
+          builder_representative?: { id: number; display_name: string; email: string; phone?: string };
+        }>(`/api/v1/jobs/${selectedJobId}`);
+
+        if (response) {
+          setPreviewJobData({
+            job_id: response.id,
+            job_name: response.name,
+            primary_contact: response.primary_contact,
+            secondary_contact: response.secondary_contact,
+            builder_representative: response.builder_representative,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch job contacts:", err);
+        setPreviewJobData(null);
+      } finally {
+        setLoadingJobContacts(false);
+      }
+    };
+    fetchJobContacts();
+  }, [selectedJobId]);
 
   // Handle test run
   const handleTestRun = useCallback(async () => {
@@ -756,6 +812,36 @@ export default function BpmnJsDesigner({
     setIsDirty(true);
   }, []);
 
+  // Get contact details from preview job data based on contact_key
+  const getContactDetails = useCallback((contactKey?: string): JobContact | null => {
+    if (!previewJobData || !contactKey) return null;
+
+    switch (contactKey) {
+      case "primary_contact":
+        return previewJobData.primary_contact || null;
+      case "secondary_contact":
+        return previewJobData.secondary_contact || null;
+      case "builder":
+        return previewJobData.builder_representative || null;
+      default:
+        return null;
+    }
+  }, [previewJobData]);
+
+  // Open document preview in new tab
+  const handlePreviewDocument = useCallback((templateKey: string) => {
+    if (!selectedJobId || !templateKey) {
+      toast({
+        title: "Cannot Preview",
+        description: "Select a job first to preview the document",
+        variant: "destructive",
+      });
+      return;
+    }
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    window.open(`${apiUrl}/api/v1/tekna_documents/preview?template_key=${templateKey}&job_id=${selectedJobId}`, "_blank");
+  }, [selectedJobId, toast]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
@@ -891,9 +977,32 @@ export default function BpmnJsDesigner({
                               #{idx + 1}
                             </Badge>
                           )}
-                          <span className="text-sm font-medium">
-                            {CONTACT_KEY_OPTIONS.find(o => o.id === signer.contact_key)?.label || "Custom Signer"}
-                          </span>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">
+                              {CONTACT_KEY_OPTIONS.find(o => o.id === signer.contact_key)?.label || "Custom Signer"}
+                            </span>
+                            {/* Show actual contact details if job is selected */}
+                            {signer.contact_key && getContactDetails(signer.contact_key) && (
+                              <span className="text-xs text-green-600">
+                                {getContactDetails(signer.contact_key)?.display_name} - {getContactDetails(signer.contact_key)?.email}
+                              </span>
+                            )}
+                            {signer.contact_key && !getContactDetails(signer.contact_key) && selectedJobId && !loadingJobContacts && (
+                              <span className="text-xs text-orange-500">
+                                Not set on selected job
+                              </span>
+                            )}
+                            {signer.contact_key && loadingJobContacts && (
+                              <span className="text-xs text-muted-foreground">
+                                Loading...
+                              </span>
+                            )}
+                            {signer.contact_key && !selectedJobId && (
+                              <span className="text-xs text-muted-foreground">
+                                Select a job to preview contacts
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex items-center gap-1">
                           {workflowSigningConfig.signing_order > 0 && idx > 0 && (
@@ -1009,10 +1118,25 @@ export default function BpmnJsDesigner({
                     <FileText className="h-4 w-4" />
                     Document Package
                   </h4>
+                  {workflowSigningConfig.additional_documents && workflowSigningConfig.additional_documents.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {workflowSigningConfig.additional_documents.length} doc{workflowSigningConfig.additional_documents.length > 1 ? "s" : ""}
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Add additional documents to include in the signing package (like plans, schedules, etc.)
                 </p>
+                {selectedJobId && previewJobData && (
+                  <div className="text-xs bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
+                    <span className="font-medium">Preview Job:</span> {previewJobData.job_name}
+                  </div>
+                )}
+                {!selectedJobId && (
+                  <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                    Select a job (below) to preview documents and see contact details
+                  </div>
+                )}
 
                 {/* List of additional documents */}
                 <div className="space-y-2">
@@ -1022,14 +1146,26 @@ export default function BpmnJsDesigner({
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{doc.name}</span>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => removeAdditionalDocument(doc.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => doc.template_key && handlePreviewDocument(doc.template_key)}
+                          disabled={!selectedJobId}
+                          title={selectedJobId ? "Preview document" : "Select a job to preview"}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => removeAdditionalDocument(doc.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

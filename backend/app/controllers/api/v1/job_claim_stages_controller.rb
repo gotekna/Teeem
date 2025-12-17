@@ -381,6 +381,7 @@ module Api
           # Invoice details (if matched)
           invoice: invoice ? {
             id: invoice.id,
+            external_id: invoice.external_id,
             invoice_number: invoice.invoice_number,
             reference: invoice.reference,
             total: invoice.total&.to_f,
