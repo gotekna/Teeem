@@ -41,7 +41,8 @@ namespace :teeem do
       { model: "Document", icon: "📄", feature: "Documents" },
       { model: "TaskTemplate", icon: "📋", feature: "Templates", name: "Task Templates" },
       { model: "EmailJobProposal", icon: "📧", feature: "Sales", name: "Email Proposals" },
-      { model: "PortalUser", icon: "🌐", feature: "Portal", name: "Portal Users" }
+      { model: "PortalUser", icon: "🌐", feature: "Portal", name: "Portal Users" },
+      { model: "BillInbox", icon: "📬", feature: "Finance", name: "Bill Inbox" }
     ]
 
     created = 0

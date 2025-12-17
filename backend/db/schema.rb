@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_024959) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -823,6 +823,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_024959) do
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
     t.index ["sharepoint_file_id"], name: "index_chat_messages_on_sharepoint_file_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
+  end
+
+  create_table "claim_stage_templates", force: :cascade do |t|
+    t.bigint "job_type_id", null: false
+    t.string "name", null: false
+    t.decimal "percentage", precision: 5, scale: 2, null: false
+    t.integer "sequence_order", default: 0, null: false
+    t.string "description"
+    t.string "invoice_match_pattern"
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_type_id", "name"], name: "idx_claim_stage_templates_unique_name", unique: true
+    t.index ["job_type_id", "sequence_order"], name: "idx_claim_stage_templates_ordering"
+    t.index ["job_type_id"], name: "index_claim_stage_templates_on_job_type_id"
   end
 
   create_table "column_type_definitions", force: :cascade do |t|
@@ -2782,6 +2797,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_024959) do
     t.index ["occurred_at"], name: "index_job_activities_on_occurred_at"
     t.index ["related_type", "related_id"], name: "index_job_activities_on_related_type_and_related_id"
     t.index ["user_id"], name: "index_job_activities_on_user_id"
+  end
+
+  create_table "job_claim_stages", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "claim_stage_template_id"
+    t.bigint "external_invoice_id"
+    t.string "name", null: false
+    t.decimal "percentage", precision: 5, scale: 2
+    t.decimal "expected_amount", precision: 12, scale: 2
+    t.integer "sequence_order", default: 0, null: false
+    t.string "description"
+    t.string "match_status", default: "unmatched", null: false
+    t.datetime "matched_at"
+    t.string "payment_status", default: "pending", null: false
+    t.decimal "amount_invoiced", precision: 12, scale: 2, default: "0.0"
+    t.decimal "amount_paid", precision: 12, scale: 2, default: "0.0"
+    t.date "payment_date"
+    t.boolean "is_custom", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["claim_stage_template_id"], name: "index_job_claim_stages_on_claim_stage_template_id"
+    t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
+    t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
+    t.index ["job_id", "sequence_order"], name: "idx_job_claim_stages_ordering"
+    t.index ["job_id"], name: "index_job_claim_stages_on_job_id"
+    t.index ["match_status"], name: "index_job_claim_stages_on_match_status"
+    t.index ["payment_status"], name: "index_job_claim_stages_on_payment_status"
   end
 
   create_table "job_claims", force: :cascade do |t|
@@ -5577,6 +5619,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_024959) do
   add_foreign_key "chat_messages", "jobs"
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
+  add_foreign_key "claim_stage_templates", "job_types"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "company_approval_rules", "bpmn_processes"
@@ -5692,6 +5735,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_024959) do
   add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
+  add_foreign_key "job_claim_stages", "claim_stage_templates"
+  add_foreign_key "job_claim_stages", "external_invoices"
+  add_foreign_key "job_claim_stages", "jobs"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
   add_foreign_key "job_contacts", "contacts"

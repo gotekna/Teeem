@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, ExternalLink, Play, Loader2 } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -47,9 +47,11 @@ interface SelectedElement {
 }
 
 interface DocumentTemplate {
-  id: number;
+  key: string;
   name: string;
-  sharepoint_path?: string;
+  category: string;
+  layout: string;
+  requires: string[];
 }
 
 interface Job {
@@ -106,17 +108,17 @@ export default function BpmnJsDesigner({
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, []);
 
-  // Fetch document templates
+  // Fetch Tekna document templates
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
-        const response = await api.get<{ success: boolean; document_templates: DocumentTemplate[] }>(
-          "/api/v1/document_templates"
+        const response = await api.get<{ success: boolean; data: DocumentTemplate[] }>(
+          "/api/v1/tekna_documents/templates"
         );
         console.log("Templates response:", response);
-        if (response?.success && response.document_templates) {
-          setTemplates(response.document_templates);
-          console.log("Loaded templates:", response.document_templates.length);
+        if (response?.success && response.data) {
+          setTemplates(response.data);
+          console.log("Loaded templates:", response.data.length);
         }
       } catch (err) {
         console.error("Failed to fetch templates:", err);
