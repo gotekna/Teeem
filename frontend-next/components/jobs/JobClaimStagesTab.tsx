@@ -266,6 +266,15 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
         error?: string;
       }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/create_invoice`, {});
 
+      if (!response) {
+        toast({
+          title: "Error",
+          description: "No response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
       if (response.success && response.data) {
         toast({
           title: "Invoice Created",
