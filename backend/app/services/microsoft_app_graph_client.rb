@@ -328,6 +328,19 @@ class MicrosoftAppGraphClient
     format_drive_item(response)
   end
 
+  # Get a specific item by path (e.g., "Templates/Contract/QBCC Contract.docx")
+  def get_item_by_path(drive_id, path)
+    # Microsoft Graph uses :/path: syntax for path-based access
+    # Encode each path segment separately to handle spaces correctly
+    encoded_path = path.split("/").map { |segment| CGI.escape(segment) }.join("/")
+    response = get("/drives/#{CGI.escape(drive_id)}/root:/#{encoded_path}")
+    format_drive_item(response)
+  rescue ApiError => e
+    # Return nil if file not found (404)
+    return nil if e.message.include?("404") || e.message.include?("itemNotFound")
+    raise
+  end
+
   # Search for files across a drive
   def search_drive(drive_id, query, top: 50)
     endpoint = "/drives/#{CGI.escape(drive_id)}/root/search(q='#{CGI.escape(query)}')"

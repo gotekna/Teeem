@@ -136,6 +136,51 @@ namespace :templates do
     puts "  ✓ Updated!\n\n"
   end
 
+  desc "Sync SharePoint item IDs from file paths"
+  task sync_item_ids: :environment do
+    puts "\n=== Syncing Template SharePoint Item IDs ===\n\n"
+
+    graph_client = MicrosoftAppGraphClient.new
+
+    # Get TEEEM site and drive
+    sites = graph_client.get_all_sites
+    teeem_site = sites.find { |s| s[:name] == "TEEEM" || s[:display_name] == "TEEEM" }
+    raise "TEEEM site not found" unless teeem_site
+
+    drives = graph_client.get_site_drives(teeem_site[:id])
+    docs_drive = drives.find { |d| d[:name] == "Shared Documents" || d[:name] == "Documents" }
+    raise "Documents drive not found" unless docs_drive
+
+    puts "Site: #{teeem_site[:name]} (#{teeem_site[:id]})"
+    puts "Drive: #{docs_drive[:name]} (#{docs_drive[:id]})"
+    puts ""
+
+    DocumentTemplate.where.not(sharepoint_path: nil).each do |template|
+      print "#{template.name.truncate(40).ljust(42)}"
+
+      begin
+        # Look up file by path
+        item = graph_client.get_item_by_path(docs_drive[:id], template.sharepoint_path)
+
+        if item
+          old_id = template.sharepoint_item_id
+          template.update!(
+            sharepoint_site_id: teeem_site[:id],
+            sharepoint_drive_id: docs_drive[:id],
+            sharepoint_item_id: item[:id]
+          )
+          puts "✓ Updated (#{old_id&.truncate(8)}... → #{item[:id].truncate(8)}...)"
+        else
+          puts "✗ File not found at path"
+        end
+      rescue StandardError => e
+        puts "✗ ERROR: #{e.message.truncate(50)}"
+      end
+    end
+
+    puts "\n=== Sync Complete ===\n"
+  end
+
   desc "Verify all templates are accessible in SharePoint"
   task verify: :environment do
     puts "\n=== Verifying Template Access ===\n\n"

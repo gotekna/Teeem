@@ -1,0 +1,21 @@
+<div class="document-header">
+  <div class="logo-container">
+    <% if @company[:logo_url].present? %>
+      <img src="<%= @company[:logo_url] %>" alt="<%= @company[:name] %>" class="logo">
+    <% else %>
+      <strong style="font-size: var(--text-lg);"><%= @company[:name] %></strong>
+    <% end %>
+  </div>
+
+  <div class="company-info">
+    <strong><%= @company[:name] %></strong><br>
+    ABN: <%= @company[:abn_formatted] %><br>
+    QBCC Licence: <%= @company[:qbcc_license] %><br>
+    <br>
+    <%= @company[:address_line_1] %><br>
+    <%= @company[:suburb] %> <%= @company[:state] %> <%= @company[:postcode] %><br>
+    <br>
+    <%= @company[:phone_formatted] %><br>
+    <%= @company[:email] %>
+  </div>
+</div>

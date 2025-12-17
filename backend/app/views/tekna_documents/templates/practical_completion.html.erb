@@ -1,0 +1,219 @@
+<h1>Certificate of Practical Completion</h1>
+
+<p style="color: var(--color-text-secondary);">
+  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
+  Date: <%= format_date(today, :long) %>
+</p>
+
+<h2>Project Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
+    <td><%= @job[:full_address] %></td>
+  </tr>
+  <% if @job[:lot_number].present? %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Lot/Plan</strong></td>
+    <td>Lot <%= @job[:lot_number] %> on Plan <%= @job[:plan_number] %></td>
+  </tr>
+  <% end %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Client(s)</strong></td>
+    <td><%= @client_names %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Builder</strong></td>
+    <td><%= @company[:name] %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>QBCC Licence</strong></td>
+    <td><%= @company[:qbcc_license] %></td>
+  </tr>
+</table>
+
+<h2>Contract Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Contract Date</strong></td>
+    <td><%= @job[:contract_date] %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Original Contract Price</strong></td>
+    <td><%= @job[:contract_price] %> (inc. GST)</td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Approved Variations</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Final Contract Price</strong></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>Completion Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Date of Practical Completion</strong></td>
+    <td><%= format_date(today, :long) %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Building Approval Reference</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Final Inspection Date</strong></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>Certification</h2>
+
+<p>
+  <strong><%= @company[:name] %></strong> (QBCC Licence No. <%= @company[:qbcc_license] %>)
+  hereby certifies that:
+</p>
+
+<ol>
+  <li>
+    The building work described above has been completed in accordance with the
+    building contract, plans, and specifications.
+  </li>
+  <li>
+    The work has been carried out in a proper and workmanlike manner and complies
+    with the Building Code of Australia and relevant Australian Standards.
+  </li>
+  <li>
+    All required inspections have been completed and certified.
+  </li>
+  <li>
+    The building is fit for occupation and its intended use.
+  </li>
+</ol>
+
+<h2>Outstanding Items (Defects)</h2>
+
+<p>
+  The following minor items remain to be completed or rectified within 7 days:
+</p>
+
+<table>
+  <tr>
+    <th style="width: 10%;">No.</th>
+    <th style="width: 60%;">Description</th>
+    <th>Target Date</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+<p>
+  <em>Note: These minor items do not affect practical completion or occupancy.</em>
+</p>
+
+<h2>Warranties</h2>
+
+<p>
+  From the date of practical completion, the following statutory warranties apply:
+</p>
+
+<ul>
+  <li><strong>Structural Defects:</strong> 6 years and 6 months</li>
+  <li><strong>Non-Structural Defects:</strong> 6 months</li>
+  <li><strong>Subsidence or Settlement:</strong> 6 years and 6 months</li>
+</ul>
+
+<p>
+  Additional manufacturer warranties may apply to specific products and systems.
+  Please refer to the separate warranty documentation provided.
+</p>
+
+<h2>Handover Documents</h2>
+
+<p>
+  The following documents have been provided at handover:
+</p>
+
+<table>
+  <tr>
+    <td style="width: 5%;">☐</td>
+    <td>Certificate of Classification (Form 11/21)</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Energy Efficiency Certificate</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Termite Management System Documentation</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Electrical Safety Certificate</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Plumbing Compliance Certificate</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Smoke Alarm Compliance Certificate</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Appliance Manuals and Warranties</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Pool Safety Certificate (if applicable)</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>As-Built Drawings</td>
+  </tr>
+  <tr>
+    <td>☐</td>
+    <td>Keys (_________ sets provided)</td>
+  </tr>
+</table>
+
+<h2>Acknowledgement</h2>
+
+<p>
+  I/We, <strong><%= @client_names %></strong>, acknowledge that:
+</p>
+
+<ul>
+  <li>I/We have inspected the property with the builder</li>
+  <li>The building work has reached practical completion</li>
+  <li>I/We have received the handover documents listed above</li>
+  <li>I/We understand my/our warranty rights and obligations</li>
+</ul>
+
+<%= render "signature_block" %>

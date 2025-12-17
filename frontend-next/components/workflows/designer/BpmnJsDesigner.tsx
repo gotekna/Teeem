@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, ExternalLink } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
 
 // Default empty BPMN diagram
@@ -36,6 +37,7 @@ interface BpmnJsDesignerProps {
   initialXml?: string;
   processName?: string;
   onSave?: (xml: string, svg: string, name: string) => Promise<void>;
+  dataLoaded?: boolean; // True when parent has finished loading (even if xml is null)
 }
 
 interface SelectedElement {
@@ -46,9 +48,17 @@ interface SelectedElement {
 }
 
 interface DocumentTemplate {
+  key: string;
+  name: string;
+  category: string;
+  layout: string;
+  requires: string[];
+}
+
+interface Job {
   id: number;
   name: string;
-  sharepoint_path?: string;
+  job_number?: string;
 }
 
 export default function BpmnJsDesigner({
@@ -56,6 +66,7 @@ export default function BpmnJsDesigner({
   initialXml,
   processName = "New Process",
   onSave,
+  dataLoaded = false,
 }: BpmnJsDesignerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,6 +76,9 @@ export default function BpmnJsDesigner({
   const [isLoaded, setIsLoaded] = useState(false);
   const [editableName, setEditableName] = useState(processName || "New Workflow");
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>("");
+  const [isTestRunning, setIsTestRunning] = useState(false);
   const { toast } = useToast();
 
   // Update editable name when prop changes (e.g., data loads from server)
@@ -95,17 +109,17 @@ export default function BpmnJsDesigner({
     return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, []);
 
-  // Fetch document templates
+  // Fetch Tekna document templates
   useEffect(() => {
     const fetchTemplates = async () => {
       try {
-        const response = await api.get<{ success: boolean; document_templates: DocumentTemplate[] }>(
-          "/api/v1/document_templates"
+        const response = await api.get<{ success: boolean; data: DocumentTemplate[] }>(
+          "/api/v1/tekna_documents/templates"
         );
         console.log("Templates response:", response);
-        if (response?.success && response.document_templates) {
-          setTemplates(response.document_templates);
-          console.log("Loaded templates:", response.document_templates.length);
+        if (response?.success && response.data) {
+          setTemplates(response.data);
+          console.log("Loaded templates:", response.data.length);
         }
       } catch (err) {
         console.error("Failed to fetch templates:", err);
@@ -113,6 +127,68 @@ export default function BpmnJsDesigner({
     };
     fetchTemplates();
   }, []);
+
+  // Fetch recent jobs for test run
+  useEffect(() => {
+    console.log("[BPMN] Starting to fetch jobs...");
+    const fetchJobs = async () => {
+      try {
+        console.log("[BPMN] Calling /api/v1/jobs...");
+        const response = await api.get<{ jobs: Job[]; pagination: object }>(
+          "/api/v1/jobs?per_page=50"
+        );
+        console.log("[BPMN] Jobs API response:", response);
+        console.log("[BPMN] Jobs array:", response?.jobs);
+        if (response?.jobs && Array.isArray(response.jobs)) {
+          console.log("[BPMN] Setting", response.jobs.length, "jobs");
+          setJobs(response.jobs);
+        } else {
+          console.warn("[BPMN] No jobs array in response. Keys:", Object.keys(response || {}));
+        }
+      } catch (err) {
+        console.error("[BPMN] Failed to fetch jobs:", err);
+      }
+    };
+    fetchJobs();
+  }, []);
+
+  // Handle test run
+  const handleTestRun = useCallback(async () => {
+    if (!processId || !selectedJobId) {
+      toast({
+        title: "Cannot Test",
+        description: "Please save the workflow and select a job first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTestRunning(true);
+    try {
+      const response = await api.post<{ success: boolean; instance_id?: number; error?: string }>(
+        `/api/v1/bpmn_processes/${processId}/test_run`,
+        { job_id: selectedJobId }
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Test Run Started",
+          description: `Workflow instance #${response.instance_id} created for job`,
+        });
+      } else {
+        throw new Error(response?.error || "Test run failed");
+      }
+    } catch (err) {
+      console.error("Test run failed:", err);
+      toast({
+        title: "Test Run Failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestRunning(false);
+    }
+  }, [processId, selectedJobId, toast]);
 
   // Track initialization
   const initializedRef = useRef(false);
@@ -140,10 +216,11 @@ export default function BpmnJsDesigner({
       return;
     }
 
-    // Wait for initialXml if processId exists (editing existing workflow)
-    // For new workflows, initialXml will be undefined and that's fine
-    if (processId && !initialXml && !xmlLoadedRef.current) {
-      console.log(`[${myInitId}] Waiting for initialXml to load...`);
+    // Wait for data to load if processId exists (editing existing workflow)
+    // For new workflows (no processId), we can start immediately
+    // dataLoaded tells us the query completed (even if xml is null)
+    if (processId && !dataLoaded && !xmlLoadedRef.current) {
+      console.log(`[${myInitId}] Waiting for data to load... (dataLoaded: ${dataLoaded})`);
       return; // Wait for query to complete
     }
 
@@ -252,9 +329,9 @@ export default function BpmnJsDesigner({
         initializedRef.current = false;
       }
     };
-  // Note: initialXml in deps so effect re-runs when XML loads from parent query
+  // Note: dataLoaded in deps so effect re-runs when data loads from parent query
   // The initCounterRef ensures only the latest init attempt succeeds
-  }, [toast, initialXml, processId]);
+  }, [toast, initialXml, processId, dataLoaded]);
 
   // Save handler
   const handleSave = useCallback(async () => {
@@ -370,8 +447,8 @@ export default function BpmnJsDesigner({
   }, [selectedElement]);
 
 
-  // Update service task documentation (stores template_id)
-  const handleTemplateChange = useCallback((templateId: string) => {
+  // Update service task documentation (stores template_key)
+  const handleTemplateChange = useCallback((templateKey: string) => {
     if (!modelerRef.current || !selectedElement) return;
 
     const modeling = modelerRef.current.get("modeling");
@@ -380,8 +457,8 @@ export default function BpmnJsDesigner({
     const element = elementRegistry.get(selectedElement.id);
 
     if (element) {
-      // Create proper BPMN documentation element
-      const config = { template_id: parseInt(templateId, 10), task_type: "generate_document" };
+      // Create proper BPMN documentation element with template key
+      const config = { template_key: templateKey, task_type: "generate_document" };
       const configJson = JSON.stringify(config);
 
       // Create a documentation element using moddle
@@ -405,8 +482,8 @@ export default function BpmnJsDesigner({
     }
   }, [selectedElement]);
 
-  // Get current template ID from selected element
-  const getTemplateId = useCallback((): string => {
+  // Get current template key from selected element
+  const getTemplateKey = useCallback((): string => {
     if (!selectedElement?.businessObject) return "";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -421,7 +498,8 @@ export default function BpmnJsDesigner({
       if (typeof textContent === "string") {
         try {
           const config = JSON.parse(textContent);
-          return config.template_id?.toString() || "";
+          // Support both new template_key and legacy template_id
+          return config.template_key || config.template_id?.toString() || "";
         } catch {
           return "";
         }
@@ -429,15 +507,15 @@ export default function BpmnJsDesigner({
     }
 
     // Handle direct object (from local state update)
-    if (typeof docs === "object" && docs.template_id) {
-      return docs.template_id.toString();
+    if (typeof docs === "object" && (docs.template_key || docs.template_id)) {
+      return docs.template_key || docs.template_id?.toString() || "";
     }
 
     // Handle JSON string
     if (typeof docs === "string") {
       try {
         const config = JSON.parse(docs);
-        return config.template_id?.toString() || "";
+        return config.template_key || config.template_id?.toString() || "";
       } catch {
         return "";
       }
@@ -493,6 +571,37 @@ export default function BpmnJsDesigner({
           <Save className="w-4 h-4 mr-1" />
           Save
         </Button>
+
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Test Run Section */}
+        <ComboboxDropdown
+          items={jobs.map((job) => ({
+            id: job.id.toString(),
+            label: `${job.job_number ? `${job.job_number} - ` : ""}${job.name}`,
+          }))}
+          selectedItem={selectedJobId ? { id: selectedJobId, label: jobs.find(j => j.id.toString() === selectedJobId)?.name || "" } : undefined}
+          onSelect={(item) => setSelectedJobId(item.id)}
+          placeholder="Select job to test..."
+          searchPlaceholder="Search jobs..."
+          emptyResults="No jobs found"
+          className="min-w-[250px]"
+        />
+
+        <Button
+          variant="default"
+          onClick={handleTestRun}
+          disabled={!processId || !selectedJobId || isTestRunning}
+          title={!processId ? "Save workflow first" : !selectedJobId ? "Select a job" : isDirty ? "Has unsaved changes" : "Run workflow test"}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          {isTestRunning ? (
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+          ) : (
+            <Play className="w-4 h-4 mr-1" />
+          )}
+          Test Run
+        </Button>
       </div>
 
       {/* Main content area */}
@@ -539,55 +648,40 @@ export default function BpmnJsDesigner({
                   <div className="pt-4 border-t">
                     <h4 className="font-medium mb-3">Document Generation</h4>
                     <div className="space-y-2">
-                      <Label htmlFor="template-select">Word Template</Label>
+                      <Label htmlFor="template-select">Document Template</Label>
                       <select
                         id="template-select"
-                        value={getTemplateId()}
+                        value={getTemplateKey()}
                         onChange={(e) => handleTemplateChange(e.target.value)}
                         className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       >
                         <option value="">Select template...</option>
                         {templates.map((template) => (
-                          <option key={template.id} value={template.id.toString()}>
+                          <option key={template.key} value={template.key}>
                             {template.name}
                           </option>
                         ))}
                       </select>
-                      {getTemplateId() && (() => {
-                        const selectedTemplate = templates.find(t => t.id.toString() === getTemplateId());
-                        const sharepointPath = selectedTemplate?.sharepoint_path;
-                        // Use ?web=1 to open in Word Online for editing
-                        const wordOnlineUrl = sharepointPath
-                          ? `https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${encodeURIComponent(sharepointPath)}?web=1`
-                          : null;
-                        return (
+                      {getTemplateKey() && (() => {
+                        const selectedTemplate = templates.find(t => t.key === getTemplateKey());
+                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+                        return selectedTemplate ? (
                           <div className="space-y-2">
-                            {sharepointPath && (
-                              <p className="text-xs text-muted-foreground break-all">
-                                📁 {sharepointPath}
-                              </p>
-                            )}
-                            {wordOnlineUrl && (
-                              <Button
-                                variant="default"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => window.open(wordOnlineUrl, '_blank')}
-                              >
-                                <ExternalLink className="h-4 w-4 mr-2" />
-                                Edit in Word Online
-                              </Button>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              <FileText className="h-3 w-3 inline mr-1" />
+                              {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : "QBCC Official"}
+                            </p>
                             <Button
-                              variant="outline"
+                              variant="default"
                               size="sm"
                               className="w-full"
-                              onClick={() => window.open(`/admin/document-templates?edit=${getTemplateId()}`, '_blank')}
+                              onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
                             >
-                              View Merge Fields
+                              <Eye className="h-4 w-4 mr-2" />
+                              Preview Template
                             </Button>
                           </div>
-                        );
+                        ) : null;
                       })()}
                     </div>
                   </div>

@@ -1,5 +1,5 @@
 class Api::V1::DocumentTemplatesController < ApplicationController
-  before_action :set_document_template, only: [ :show, :update, :destroy, :preview, :link_sharepoint ]
+  before_action :set_document_template, only: [ :show, :update, :destroy, :preview, :link_sharepoint, :generate_and_send ]
 
   # GET /api/v1/document_templates
   def index
@@ -11,7 +11,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     # Filter by active status
     templates = templates.active if params[:active_only] == "true"
 
-    templates = templates.order(:category, :name)
+    templates = templates.order(:category, :sort_order, :name)
 
     render json: {
       success: true,
@@ -164,6 +164,80 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     end
   end
 
+  # POST /api/v1/document_templates/:id/generate_and_send
+  # Generate document from template and send for e-signature
+  def generate_and_send
+    job = Job.find_by(id: params[:job_id])
+
+    unless job
+      render json: {
+        success: false,
+        errors: [ "Job not found" ]
+      }, status: :not_found
+      return
+    end
+
+    unless @document_template.sharepoint_linked?
+      render json: {
+        success: false,
+        errors: [ "Template not linked to SharePoint file" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    # Build signers from params or from job contacts
+    signers = build_signers(job, params[:signers])
+
+    if signers.empty?
+      render json: {
+        success: false,
+        errors: [ "At least one signer is required" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    # Execute the service
+    service = DocumentEsignService.new(
+      template: @document_template,
+      job: job,
+      signers: signers,
+      title: params[:title],
+      description: params[:description],
+      message_to_signers: params[:message_to_signers],
+      signing_order: params[:signing_order]&.to_i || 0,
+      expires_in_days: params[:expires_in_days]&.to_i || 30,
+      auto_send: params[:auto_send] != false,
+      extra_data: params[:extra_data]&.to_unsafe_h || {}
+    )
+
+    result = service.execute!
+
+    render json: {
+      success: true,
+      message: "Document generated and sent for e-signature",
+      e_signature_request: {
+        id: result[:e_signature_request].id,
+        request_number: result[:request_number],
+        status: result[:status],
+        signers_count: result[:signers_count]
+      },
+      document: {
+        filename: result[:document_filename],
+        sharepoint_id: result[:document_sharepoint_id]
+      }
+    }
+  rescue DocumentEsignService::Error => e
+    render json: {
+      success: false,
+      errors: [ e.message ]
+    }, status: :unprocessable_entity
+  rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
+    render json: {
+      success: false,
+      errors: [ "Document generation failed: #{e.message}" ]
+    }, status: :unprocessable_entity
+  end
+
   # GET /api/v1/document_templates/sharepoint_files
   # List available template files from SharePoint
   def sharepoint_files
@@ -241,9 +315,52 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     params.require(:document_template).permit(
       :name, :description, :category,
       :output_format, :output_naming_pattern,
-      :is_active,
+      :is_active, :sort_order,
       data_schema: {}
     )
+  end
+
+  def build_signers(job, signers_params)
+    signers = []
+
+    if signers_params.present?
+      # Build from explicit params
+      signers_params.each do |signer_param|
+        if signer_param[:contact_id].present?
+          contact = Contact.find_by(id: signer_param[:contact_id])
+          signers << { contact: contact, role: signer_param[:role] || "signer" } if contact
+        elsif signer_param[:contact_key].present?
+          contact = resolve_contact_from_job(job, signer_param[:contact_key])
+          signers << { contact: contact, role: signer_param[:role] || signer_param[:contact_key] } if contact
+        elsif signer_param[:email].present?
+          signers << {
+            name: signer_param[:name],
+            email: signer_param[:email],
+            role: signer_param[:role] || "signer"
+          }
+        end
+      end
+    else
+      # Default: use all job clients
+      job.job_contacts.where(role: "client").includes(:contact).each do |jc|
+        signers << { contact: jc.contact, role: "client" } if jc.contact&.email.present?
+      end
+    end
+
+    signers
+  end
+
+  def resolve_contact_from_job(job, key)
+    case key.to_s
+    when "primary_contact", "client_1"
+      job.primary_contact
+    when "secondary_contact", "client_2"
+      job.secondary_contact
+    when "builder", "builder_contact"
+      job.builder_contact
+    else
+      job.job_contacts.find_by(role: key)&.contact
+    end
   end
 
   def template_json(template, include_fields: false)
@@ -255,6 +372,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       output_format: template.output_format,
       output_naming_pattern: template.output_naming_pattern,
       is_active: template.is_active,
+      sort_order: template.sort_order,
       sharepoint_linked: template.sharepoint_linked?,
       sharepoint_path: template.sharepoint_path,
       created_at: template.created_at,

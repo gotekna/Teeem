@@ -1,0 +1,427 @@
+require "net/imap"
+require "mail"
+
+class ImapEmailService
+  attr_reader :credential
+
+  def initialize(credential)
+    @credential = credential
+  end
+
+  # Fetch emails from IMAP server
+  # @param since [Time] Only fetch emails received after this time
+  # @param folder [String] IMAP folder to fetch from (default: INBOX)
+  # @param limit [Integer] Maximum number of emails to fetch
+  # @return [Array<Hash>] Array of email data hashes
+  def fetch_emails(since: nil, folder: "INBOX", limit: 100)
+    emails = []
+
+    with_imap_connection do |imap|
+      imap.select(folder)
+
+      # Build search criteria
+      search_criteria = build_search_criteria(since: since)
+
+      # Search for matching emails
+      message_ids = imap.search(search_criteria)
+
+      # Limit results
+      message_ids = message_ids.last(limit) if limit && message_ids.size > limit
+
+      return emails if message_ids.empty?
+
+      # Fetch email data in batches
+      message_ids.each_slice(50) do |batch|
+        fetch_data = imap.fetch(batch, [
+          "UID",
+          "RFC822",
+          "ENVELOPE",
+          "FLAGS",
+          "INTERNALDATE"
+        ])
+
+        fetch_data&.each do |msg|
+          email_data = parse_email_message(msg, folder)
+          emails << email_data if email_data
+        end
+      end
+    end
+
+    emails
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error fetching emails: #{e.message}"
+    raise
+  end
+
+  # Fetch emails incrementally using UID
+  # @return [Array<Hash>] Array of email data hashes
+  def fetch_new_emails(folder: "INBOX", limit: 500)
+    emails = []
+
+    with_imap_connection do |imap|
+      imap.select(folder)
+
+      # Get emails with UID greater than last synced
+      last_uid = credential.last_uid || 0
+      search_criteria = ["UID", "#{last_uid + 1}:*"]
+
+      message_ids = imap.uid_search(search_criteria)
+      return emails if message_ids.empty?
+
+      # Limit results
+      message_ids = message_ids.first(limit) if limit && message_ids.size > limit
+
+      # Track highest UID for next sync
+      max_uid = message_ids.max
+
+      # Fetch email data
+      message_ids.each_slice(50) do |batch|
+        fetch_data = imap.uid_fetch(batch, [
+          "UID",
+          "RFC822",
+          "ENVELOPE",
+          "FLAGS",
+          "INTERNALDATE"
+        ])
+
+        fetch_data&.each do |msg|
+          email_data = parse_email_message(msg, folder)
+          emails << email_data if email_data
+        end
+      end
+
+      # Update last UID
+      credential.update!(last_uid: max_uid) if max_uid
+    end
+
+    emails
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error fetching new emails: #{e.message}"
+    raise
+  end
+
+  # Sync emails to EmailWarehouse
+  # @param full_sync [Boolean] Whether to do a full sync (all emails) or incremental
+  # @return [Hash] Sync results
+  def sync_to_warehouse(full_sync: false)
+    results = { synced: 0, skipped: 0, errors: 0, new_emails: [] }
+
+    begin
+      emails = if full_sync
+                 fetch_emails(since: 90.days.ago, limit: 1000)
+               else
+                 fetch_new_emails(limit: 500)
+               end
+
+      emails.each do |email_data|
+        begin
+          # Check for existing email by message ID
+          existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])
+
+          if existing
+            results[:skipped] += 1
+            next
+          end
+
+          # Create new email warehouse entry
+          email = EmailWarehouse.create!(
+            internet_message_id: email_data[:internet_message_id],
+            source_type: "imap",
+            imap_credential: credential,
+            subject: email_data[:subject],
+            body_text: email_data[:body_text],
+            body_html: email_data[:body_html],
+            from_email: email_data[:from_email],
+            from_name: email_data[:from_name],
+            to_emails: email_data[:to_emails],
+            cc_emails: email_data[:cc_emails],
+            received_at: email_data[:received_at],
+            has_attachments: email_data[:has_attachments],
+            attachment_count: email_data[:attachment_count],
+            is_read: email_data[:is_read],
+            folder_name: email_data[:folder_name],
+            in_reply_to: email_data[:in_reply_to],
+            references: email_data[:references],
+            first_synced_at: Time.current,
+            last_synced_at: Time.current,
+            synced_by_user: credential.user
+          )
+
+          # Attach files if present
+          attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
+
+          results[:synced] += 1
+          results[:new_emails] << email
+        rescue ActiveRecord::RecordInvalid => e
+          Rails.logger.warn "[ImapEmailService] Skipping invalid email: #{e.message}"
+          results[:skipped] += 1
+        rescue => e
+          Rails.logger.error "[ImapEmailService] Error syncing email: #{e.message}"
+          results[:errors] += 1
+        end
+      end
+
+      credential.mark_sync_success!
+    rescue => e
+      credential.mark_sync_error!(e.message)
+      raise
+    end
+
+    results
+  end
+
+  # Send email via SMTP
+  # @param to [Array<String>] Recipient email addresses
+  # @param subject [String] Email subject
+  # @param body [String] Email body (HTML supported)
+  # @param cc [Array<String>] CC recipients
+  # @param bcc [Array<String>] BCC recipients
+  # @param attachments [Array<Hash>] Array of {filename:, content:, content_type:}
+  # @return [Mail::Message] Sent message
+  def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
+    mail = Mail.new do |m|
+      m.from    credential.email_address
+      m.to      Array(to)
+      m.cc      Array(cc) if cc.present?
+      m.bcc     Array(bcc) if bcc.present?
+      m.subject subject
+
+      # Set reply headers if replying
+      if reply_to_message_id.present?
+        m.in_reply_to = reply_to_message_id
+        m.references = reply_to_message_id
+      end
+
+      # Set body as HTML or text
+      if body.include?("<") && body.include?(">")
+        m.html_part do
+          content_type "text/html; charset=UTF-8"
+          body body
+        end
+        m.text_part do
+          body ActionController::Base.helpers.strip_tags(body)
+        end
+      else
+        m.body body
+      end
+    end
+
+    # Add attachments
+    attachments.each do |attachment|
+      mail.add_file(
+        filename: attachment[:filename],
+        content: attachment[:content]
+      )
+    end
+
+    # Configure SMTP delivery
+    mail.delivery_method :smtp, smtp_settings
+
+    # Send
+    mail.deliver!
+
+    # Save sent email to warehouse
+    save_sent_email_to_warehouse(mail)
+
+    mail
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error sending email: #{e.message}"
+    raise
+  end
+
+  # List available IMAP folders
+  # @return [Array<String>] Folder names
+  def list_folders
+    folders = []
+
+    with_imap_connection do |imap|
+      imap.list("", "*").each do |folder|
+        folders << folder.name
+      end
+    end
+
+    folders.sort
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error listing folders: #{e.message}"
+    []
+  end
+
+  private
+
+  def with_imap_connection
+    imap = Net::IMAP.new(
+      credential.imap_host,
+      port: credential.imap_port,
+      ssl: credential.imap_ssl
+    )
+
+    begin
+      imap.login(credential.username, credential.password)
+      yield imap
+    ensure
+      imap.logout rescue nil
+      imap.disconnect rescue nil
+    end
+  end
+
+  def smtp_settings
+    {
+      address: credential.smtp_host,
+      port: credential.smtp_port,
+      domain: credential.email_address.split("@").last,
+      user_name: credential.username,
+      password: credential.password,
+      authentication: credential.smtp_auth.to_sym,
+      enable_starttls_auto: credential.smtp_port == 587
+    }
+  end
+
+  def build_search_criteria(since: nil)
+    criteria = ["ALL"]
+
+    if since.present?
+      # IMAP date format: DD-Mon-YYYY
+      date_str = since.strftime("%d-%b-%Y")
+      criteria = ["SINCE", date_str]
+    end
+
+    criteria
+  end
+
+  def parse_email_message(msg, folder_name)
+    return nil unless msg
+
+    # Parse the raw RFC822 message using Mail gem
+    raw = msg.attr["RFC822"]
+    return nil unless raw
+
+    mail = Mail.read_from_string(raw)
+    envelope = msg.attr["ENVELOPE"]
+    flags = msg.attr["FLAGS"] || []
+    uid = msg.attr["UID"]
+    internal_date = msg.attr["INTERNALDATE"]
+
+    # Extract message ID
+    message_id = mail.message_id || envelope&.message_id
+    return nil unless message_id.present?
+
+    # Clean message ID (remove angle brackets if present)
+    message_id = message_id.gsub(/[<>]/, "")
+
+    # Extract body
+    body_text = extract_text_body(mail)
+    body_html = extract_html_body(mail)
+
+    # Extract attachments info
+    attachments = extract_attachments(mail)
+
+    {
+      uid: uid,
+      internet_message_id: message_id,
+      subject: mail.subject || envelope&.subject,
+      from_email: mail.from&.first || extract_email_from_envelope(envelope&.from&.first),
+      from_name: extract_name_from_address(mail.from&.first) || envelope&.from&.first&.name,
+      to_emails: mail.to || extract_emails_from_envelope(envelope&.to),
+      cc_emails: mail.cc || extract_emails_from_envelope(envelope&.cc),
+      received_at: mail.date || (internal_date ? Time.parse(internal_date) : Time.current),
+      is_read: flags.include?(:Seen),
+      folder_name: folder_name,
+      in_reply_to: mail.in_reply_to&.gsub(/[<>]/, ""),
+      references: Array(mail.references).map { |r| r.gsub(/[<>]/, "") },
+      has_attachments: attachments.any?,
+      attachment_count: attachments.size,
+      attachments: attachments,
+      body_text: body_text,
+      body_html: body_html
+    }
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error parsing email: #{e.message}"
+    nil
+  end
+
+  def extract_text_body(mail)
+    if mail.multipart?
+      text_part = mail.text_part
+      text_part&.decoded rescue text_part&.body&.to_s
+    else
+      mail.body.decoded rescue mail.body.to_s
+    end
+  end
+
+  def extract_html_body(mail)
+    return nil unless mail.multipart?
+
+    html_part = mail.html_part
+    html_part&.decoded rescue html_part&.body&.to_s
+  end
+
+  def extract_attachments(mail)
+    attachments = []
+
+    mail.attachments.each do |attachment|
+      attachments << {
+        filename: attachment.filename,
+        content_type: attachment.content_type,
+        content: attachment.decoded,
+        size: attachment.decoded.bytesize
+      }
+    end
+
+    attachments
+  rescue => e
+    Rails.logger.warn "[ImapEmailService] Error extracting attachments: #{e.message}"
+    []
+  end
+
+  def extract_email_from_envelope(addr)
+    return nil unless addr
+    "#{addr.mailbox}@#{addr.host}" if addr.mailbox && addr.host
+  end
+
+  def extract_emails_from_envelope(addrs)
+    return [] unless addrs
+    addrs.map { |a| extract_email_from_envelope(a) }.compact
+  end
+
+  def extract_name_from_address(addr)
+    return nil unless addr.is_a?(Mail::Address)
+    addr.display_name
+  end
+
+  def attach_email_files(email, attachments)
+    attachments.each do |attachment|
+      next unless attachment[:content].present?
+
+      email.files.attach(
+        io: StringIO.new(attachment[:content]),
+        filename: attachment[:filename],
+        content_type: attachment[:content_type]
+      )
+    end
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error attaching files: #{e.message}"
+  end
+
+  def save_sent_email_to_warehouse(mail)
+    EmailWarehouse.create!(
+      internet_message_id: mail.message_id.gsub(/[<>]/, ""),
+      source_type: "imap",
+      imap_credential: credential,
+      subject: mail.subject,
+      body_text: mail.text_part&.decoded || mail.body.to_s,
+      body_html: mail.html_part&.decoded,
+      from_email: credential.email_address,
+      from_name: credential.user.name,
+      to_emails: Array(mail.to),
+      cc_emails: Array(mail.cc),
+      received_at: Time.current,
+      sent_at: Time.current,
+      folder_name: "Sent",
+      first_synced_at: Time.current,
+      last_synced_at: Time.current,
+      synced_by_user: credential.user
+    )
+  rescue => e
+    Rails.logger.warn "[ImapEmailService] Could not save sent email to warehouse: #{e.message}"
+  end
+end

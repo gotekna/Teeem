@@ -34,6 +34,7 @@ import {
   History,
   Workflow,
   Loader2,
+  Mail,
 } from "lucide-react";
 import {
   Persona,
@@ -74,6 +75,7 @@ const navigationItems: NavigationItem[] = [
   { name: "Purchase Orders", href: "/purchase_orders", icon: FileText },
   { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
   { name: "Contacts", href: urls.contacts(), icon: Users },
+  { name: "Email", href: "/email", icon: Mail },
   { name: "Price Book", href: urls.pricebook(), icon: Package },
   { name: "Price Histories", href: "/price_histories", icon: History },
   { name: "Documents", href: "/documents", icon: FolderOpen },

@@ -98,5 +98,8 @@ class PurchaseOrderLineItem < ApplicationRecord
     self.description = pricebook_item.item_name if description.blank?
     self.unit_price = pricebook_item.current_price if unit_price.zero?
     self.gst_code = pricebook_item.gst_code if pricebook_item.gst_code.present? && gst_code.blank?
+    # Auto-fill colour from pricebook item if not set
+    self.colour = pricebook_item.colour if colour.blank? && pricebook_item.colour.present?
+    self.colour_code = pricebook_item.colour_code if colour_code.blank? && pricebook_item.colour_code.present?
   end
 end

@@ -115,6 +115,7 @@ export default function WorkflowDesignerPage() {
           initialXml={process?.bpmn_xml as string | undefined}
           processName={(process?.name as string) || "New Workflow"}
           onSave={handleSave}
+          dataLoaded={isNew || !!process}
         />
       </div>
     </div>

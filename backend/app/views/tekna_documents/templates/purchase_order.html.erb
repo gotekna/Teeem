@@ -1,0 +1,406 @@
+<% # Purchase Order Template - Matches existing Tekna format %>
+
+<style>
+  .po-container {
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+    line-height: 1.3;
+    color: #000;
+  }
+
+  .po-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    border-bottom: 2px solid #000;
+    padding-bottom: 10px;
+  }
+
+  .po-header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+
+  .po-logo {
+    height: 50px;
+  }
+
+  .po-title {
+    font-size: 16pt;
+    font-weight: bold;
+  }
+
+  .po-header-right {
+    text-align: right;
+    font-size: 9pt;
+  }
+
+  .po-header-right table {
+    margin-left: auto;
+  }
+
+  .po-header-right td {
+    padding: 2px 5px;
+  }
+
+  .po-header-right td:first-child {
+    font-weight: bold;
+    text-align: right;
+  }
+
+  .po-info-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+    font-size: 8pt;
+  }
+
+  .po-info-box {
+    flex: 1;
+    border: 1px solid #ccc;
+    padding: 8px;
+  }
+
+  .po-info-box h4 {
+    font-size: 8pt;
+    font-weight: bold;
+    margin: 0 0 5px 0;
+    background: #f0f0f0;
+    padding: 3px;
+    margin: -8px -8px 8px -8px;
+  }
+
+  .po-info-box p {
+    margin: 2px 0;
+  }
+
+  .po-info-label {
+    font-weight: bold;
+    display: inline-block;
+    width: 60px;
+  }
+
+  .line-items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+    font-size: 8pt;
+  }
+
+  .line-items-table th {
+    background: #333;
+    color: #fff;
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: bold;
+  }
+
+  .line-items-table th:nth-child(1) { width: 8%; text-align: center; }
+  .line-items-table th:nth-child(2) { width: 42%; }
+  .line-items-table th:nth-child(3) { width: 12%; }
+  .line-items-table th:nth-child(4) { width: 12%; text-align: right; }
+  .line-items-table th:nth-child(5) { width: 8%; text-align: center; }
+  .line-items-table th:nth-child(6) { width: 18%; text-align: right; }
+
+  .line-items-table td {
+    padding: 5px 8px;
+    border-bottom: 1px solid #ddd;
+    vertical-align: top;
+  }
+
+  .line-items-table td:nth-child(1) { text-align: center; }
+  .line-items-table td:nth-child(4) { text-align: right; }
+  .line-items-table td:nth-child(5) { text-align: center; }
+  .line-items-table td:nth-child(6) { text-align: right; }
+
+  .line-items-table tr:nth-child(even) {
+    background: #f9f9f9;
+  }
+
+  .totals-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+  }
+
+  .notes-box {
+    flex: 1;
+    margin-right: 20px;
+  }
+
+  .notes-box h4 {
+    font-weight: bold;
+    margin: 0 0 5px 0;
+    font-size: 9pt;
+  }
+
+  .totals-box {
+    width: 200px;
+    font-size: 9pt;
+  }
+
+  .totals-box table {
+    width: 100%;
+  }
+
+  .totals-box td {
+    padding: 3px 0;
+  }
+
+  .totals-box td:first-child {
+    text-align: right;
+    padding-right: 10px;
+  }
+
+  .totals-box td:last-child {
+    text-align: right;
+    font-weight: bold;
+  }
+
+  .totals-box .total-row {
+    border-top: 2px solid #000;
+    font-size: 10pt;
+  }
+
+  .colour-section {
+    background: #fffde7;
+    border: 1px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 15px;
+    font-size: 9pt;
+  }
+
+  .colour-section h4 {
+    font-weight: bold;
+    margin: 0 0 8px 0;
+    color: #333;
+  }
+
+  .colour-list {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .colour-list li {
+    padding: 2px 0;
+  }
+
+  .remittance-section {
+    font-size: 8pt;
+    margin-bottom: 15px;
+    border-top: 1px solid #000;
+    padding-top: 10px;
+  }
+
+  .remittance-section h4 {
+    font-weight: bold;
+    margin: 0 0 5px 0;
+  }
+
+  .conditions-section {
+    font-size: 7pt;
+    background: #f5f5f5;
+    padding: 10px;
+    border: 1px solid #ddd;
+  }
+
+  .conditions-section h4 {
+    font-weight: bold;
+    margin: 0 0 5px 0;
+    font-size: 8pt;
+  }
+
+  .conditions-section ol {
+    margin: 0;
+    padding-left: 15px;
+  }
+
+  .conditions-section li {
+    margin-bottom: 3px;
+  }
+
+  .delivery-note {
+    font-style: italic;
+    color: #666;
+    font-size: 7pt;
+  }
+</style>
+
+<div class="po-container">
+  <!-- Header -->
+  <div class="po-header">
+    <div class="po-header-left">
+      <% if company[:logo_url].present? %>
+        <img src="<%= company[:logo_url] %>" alt="Logo" class="po-logo">
+      <% end %>
+      <span class="po-title">PURCHASE ORDER</span>
+    </div>
+    <div class="po-header-right">
+      <table>
+        <tr>
+          <td>PURCHASE ORDER:</td>
+          <td><%= purchase_order[:purchase_order_number] %></td>
+        </tr>
+        <tr>
+          <td>QBCC:</td>
+          <td><%= company[:qbcc_license] %></td>
+        </tr>
+        <tr>
+          <td>ABN:</td>
+          <td><%= company[:abn_formatted] %></td>
+        </tr>
+        <% if purchase_order[:required_date].present? %>
+        <tr>
+          <td>PROPOSED DELIVERY:</td>
+          <td><%= purchase_order[:required_date] %></td>
+        </tr>
+        <% end %>
+      </table>
+    </div>
+  </div>
+
+  <!-- Info Row: Delivery | Supplier | Contact -->
+  <div class="po-info-row">
+    <div class="po-info-box">
+      <h4>DELIVERY ADDRESS</h4>
+      <p><%= purchase_order[:delivery_address] || job[:full_address] %></p>
+      <% if job[:suburb].present? %>
+        <p><%= job[:suburb] %> <%= job[:state] %> <%= job[:postcode] %></p>
+      <% end %>
+      <% if job[:lot_number].present? || job[:plan_number].present? %>
+        <p class="delivery-note">Lot <%= job[:lot_number] %> Plan <%= job[:plan_number] %></p>
+      <% end %>
+    </div>
+
+    <div class="po-info-box">
+      <h4>SUPPLIER</h4>
+      <p><strong><%= purchase_order[:supplier][:name] %></strong></p>
+      <% if purchase_order[:supplier][:phone].present? %>
+        <p><%= purchase_order[:supplier][:phone] %></p>
+      <% end %>
+      <% if purchase_order[:supplier][:email].present? %>
+        <p><%= purchase_order[:supplier][:email] %></p>
+      <% end %>
+    </div>
+
+    <div class="po-info-box">
+      <h4>CONTACT</h4>
+      <p class="delivery-note">Please ring Supervisor 3 days prior to delivery to confirm delivery date</p>
+      <% if purchase_order[:site_supervisor][:name].present? %>
+        <p><span class="po-info-label">Sup:</span> <%= purchase_order[:site_supervisor][:name] %></p>
+      <% end %>
+      <% if purchase_order[:site_supervisor][:email].present? %>
+        <p><span class="po-info-label">Email:</span> <%= purchase_order[:site_supervisor][:email] %></p>
+      <% end %>
+      <% if purchase_order[:site_supervisor][:phone].present? %>
+        <p><span class="po-info-label">Mobile:</span> <%= purchase_order[:site_supervisor][:phone] %></p>
+      <% end %>
+    </div>
+  </div>
+
+  <!-- Line Items Table -->
+  <table class="line-items-table">
+    <thead>
+      <tr>
+        <th>QTY</th>
+        <th>DESCRIPTION</th>
+        <th>CODE</th>
+        <th>RATE</th>
+        <th>TAX</th>
+        <th>AMOUNT</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% purchase_order[:line_items].each do |item| %>
+        <tr>
+          <td><%= item[:quantity] %></td>
+          <td><%= item[:description] %></td>
+          <td><%= item[:pricebook_code] %></td>
+          <td><%= item[:unit_price_formatted] %></td>
+          <td><%= item[:gst_code] %></td>
+          <td><%= item[:total_formatted] %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+
+  <!-- Notes and Totals Row -->
+  <div class="totals-row">
+    <div class="notes-box">
+      <h4>NOTES:</h4>
+      <% if purchase_order[:special_instructions].present? %>
+        <p><%= purchase_order[:special_instructions] %></p>
+      <% end %>
+    </div>
+
+    <div class="totals-box">
+      <table>
+        <tr>
+          <td>Sub Total:</td>
+          <td><%= purchase_order[:subtotal] %></td>
+        </tr>
+        <tr>
+          <td>GST:</td>
+          <td><%= purchase_order[:gst] %></td>
+        </tr>
+        <tr class="total-row">
+          <td>Total:</td>
+          <td><%= purchase_order[:total] %></td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Colour Selection Section (SSoT from job) -->
+  <div class="colour-section">
+    <h4>COLOUR:</h4>
+    <% if defined?(colour_selections) && colour_selections[:has_selections] %>
+      <ul class="colour-list">
+        <% colour_selections[:flat_list].each do |selection| %>
+          <li><strong><%= selection[:item].to_s.titleize %>:</strong> <%= selection[:colour] %><%= " (#{selection[:brand]})" if selection[:brand].present? %></li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p>As per colour selection</p>
+    <% end %>
+  </div>
+
+  <!-- Remittance Section -->
+  <div class="remittance-section">
+    <h4>REMITTANCE:</h4>
+    <p>
+      <strong>Invoices to:</strong> <%= company[:company_name] %><br>
+      <strong>Email:</strong> <%= company[:email] %> &nbsp;
+      <strong>Phone:</strong> <%= company[:phone_formatted] %> &nbsp;
+      <strong>Address:</strong> <%= company[:full_address] %>
+    </p>
+    <p><strong>Payment schedule:</strong></p>
+    <ul style="margin: 5px 0; padding-left: 20px; font-size: 7pt;">
+      <li><strong>7-day accounts:</strong> Invoices received before COB Wednesday will be paid the following Thursday.</li>
+      <li><strong>14-day accounts:</strong> Invoices received before COB Wednesday will be paid on the Thursday two weeks later.</li>
+      <li><strong>30-day accounts:</strong> Invoices received before COB on the last day of the month will be paid on the last day of the following month.</li>
+    </ul>
+    <p style="font-size: 7pt;">
+      The correct purchase order number and job address MUST be included on your tax invoice.<br>
+      Tax invoices without these details will be returned to the supplier for correction.<br>
+      Tax invoices exceeding the order total may delay the payment.
+    </p>
+  </div>
+
+  <!-- Conditions Section -->
+  <div class="conditions-section">
+    <h4>CONDITIONS OF ACCEPTANCE</h4>
+    <ol>
+      <li>If the purchase order is incorrect, please contact our office immediately.</li>
+      <li>If additional work/items are required, then a NEW order number must be received.</li>
+      <li>The correct purchase order number and job address MUST be included on your tax invoice. Tax invoices without these details will be returned to the supplier for correction.</li>
+      <li>Processing of order will acknowledge acceptance of these conditions.</li>
+      <li>In the instance the work is not completed by the original supplier in the specified timeframe, '<%= company[:company_name] %>' reserves the right to engage another supplier to complete the work. The new supplier will be paid from the original purchase order amount and any balance of funds will then be paid to the original supplier.</li>
+      <li>Please ensure invoice is made out to <%= company[:company_name] %>.</li>
+      <li>This purchase order is issued pursuant to the terms of the subcontract agreement. By accepting this purchase order you confirm that you agree to these subcontract terms.</li>
+    </ol>
+  </div>
+</div>

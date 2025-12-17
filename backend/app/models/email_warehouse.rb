@@ -10,6 +10,7 @@ class EmailWarehouse < ApplicationRecord
   belongs_to :ssot_owner, class_name: "User", optional: true  # User who owns the SSoT copy
   belongs_to :microsoft_credential, class_name: "OrganizationMicrosoftAppCredential", optional: true
   belongs_to :primary_contact, class_name: "Contact", optional: true
+  belongs_to :imap_credential, optional: true  # For IMAP-sourced emails
 
   # SSoT associations
   has_many :email_recipients, dependent: :destroy
@@ -50,6 +51,11 @@ class EmailWarehouse < ApplicationRecord
   scope :for_microsoft_org, ->(org_name) {
     joins(:microsoft_credential).where(organization_microsoft_app_credentials: { name: org_name })
   }
+
+  # Source type scopes (outlook vs imap)
+  scope :from_outlook, -> { where(source_type: "outlook") }
+  scope :from_imap, -> { where(source_type: "imap") }
+  scope :for_imap_credential, ->(credential_id) { where(imap_credential_id: credential_id) }
 
   # Full-text search scope
   scope :search_text, ->(query) {

@@ -14,6 +14,7 @@ class Job < ApplicationRecord
   # Associations
   has_many :purchase_orders, dependent: :destroy
   has_many :job_claims, dependent: :destroy
+  has_many :job_claim_stages, dependent: :destroy
   has_many :schedule_tasks, dependent: :destroy
   has_one :project, dependent: :destroy
   has_one :one_drive_credential, dependent: :destroy
@@ -27,6 +28,8 @@ class Job < ApplicationRecord
   has_many :document_tasks, dependent: :destroy
   has_many :job_contacts, dependent: :destroy
   has_many :contacts, through: :job_contacts
+  has_many :job_specifications, dependent: :destroy
+  has_many :job_colour_selections, dependent: :destroy
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
   has_many :job_documents, dependent: :destroy
@@ -104,6 +107,7 @@ class Job < ApplicationRecord
   after_create :create_documentation_tabs_from_categories
   after_create :queue_onedrive_folder_creation
   after_create :log_job_created
+  after_create :create_claim_stages_from_template
   after_commit :sync_xero_tracking_option, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
@@ -197,6 +201,44 @@ class Job < ApplicationRecord
   # Get client contact (from invoices)
   def client
     job_contacts.find_by(role: "client")&.contact
+  end
+
+  # Initialize claim stages from template for this job's type
+  def initialize_claim_stages_from_template!
+    return unless job_type_id.present?
+
+    templates = ClaimStageTemplate.where(job_type_id: job_type_id).active.ordered
+    return if templates.empty?
+
+    transaction do
+      job_claim_stages.destroy_all  # Clear existing stages
+
+      templates.each do |template|
+        expected = if contract_value.present? && template.percentage.present?
+                     (contract_value.to_d * template.percentage / 100).round(2)
+                   end
+
+        job_claim_stages.create!(
+          claim_stage_template: template,
+          name: template.name,
+          percentage: template.percentage,
+          expected_amount: expected,
+          sequence_order: template.sequence_order,
+          description: template.description,
+          is_custom: false
+        )
+      end
+    end
+  end
+
+  # Recalculate expected amounts based on current contract value
+  def recalculate_claim_stage_amounts!
+    return unless contract_value.present?
+
+    job_claim_stages.each do |stage|
+      next unless stage.percentage.present?
+      stage.update!(expected_amount: (contract_value.to_d * stage.percentage / 100).round(2))
+    end
   end
 
   # Link client from invoice contacts
@@ -476,5 +518,31 @@ class Job < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error "Failed to log status/stage change activity: #{e.message}"
+  end
+
+  # Auto-create claim stages from template when job is created
+  def create_claim_stages_from_template
+    return unless job_type_id.present?
+
+    templates = ClaimStageTemplate.where(job_type_id: job_type_id).active.ordered
+    return if templates.empty?
+
+    templates.each do |template|
+      expected = if contract_value.present? && template.percentage.present?
+                   (contract_value.to_d * template.percentage / 100).round(2)
+                 end
+
+      job_claim_stages.create!(
+        claim_stage_template: template,
+        name: template.name,
+        percentage: template.percentage,
+        expected_amount: expected,
+        sequence_order: template.sequence_order,
+        description: template.description,
+        is_custom: false
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to create claim stages from template for job ##{id}: #{e.message}"
   end
 end

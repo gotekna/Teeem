@@ -91,7 +91,16 @@ Rails.application.routes.draw do
             post :reorder
           end
         end
+        # Claim Stage Templates (per job type)
+        resources :claim_stage_templates, only: [ :index, :create ] do
+          collection do
+            post :reorder
+          end
+        end
       end
+
+      # Claim Stage Templates (non-nested routes)
+      resources :claim_stage_templates, only: [ :show, :update, :destroy ]
 
       resources :job_status do
         collection do
@@ -133,6 +142,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # Tekna Document Templates (HTML → PDF generation)
+      resources :tekna_documents, only: [] do
+        collection do
+          get :templates
+        end
+        member do
+          get :preview
+          post :generate
+          post :generate_and_send
+        end
+      end
+
       # Leads management
       resources :leads do
         member do
@@ -167,6 +188,22 @@ Rails.application.routes.draw do
         # Job contacts (nested under jobs)
         resources :job_contacts, only: [ :index, :create, :update, :destroy ]
 
+        # Job specifications (nested under jobs)
+        resources :specifications, controller: "job_specifications", only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            post :initialize_from_template
+            post :bulk_update
+          end
+        end
+
+        # Job colour selections (nested under jobs)
+        resources :colour_selections, controller: "job_colour_selections", only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            post :initialize_from_template
+            post :bulk_update
+          end
+        end
+
         # Schedule tasks (nested under jobs)
         resources :schedule_tasks, only: [ :index, :create ] do
           collection do
@@ -198,6 +235,20 @@ Rails.application.routes.draw do
 
         # Job claims (nested under jobs)
         resources :job_claims, only: [ :index, :create ]
+
+        # Job claim stages (progress claims tracking)
+        resources :claim_stages, controller: "job_claim_stages", only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            post :auto_match
+            post :reset_from_template
+            post :reorder
+            post :sync_payments
+          end
+          member do
+            post :match
+            delete :unmatch
+          end
+        end
       end
 
       # Job claims (non-nested routes)
@@ -262,6 +313,21 @@ Rails.application.routes.draw do
         member do
           get :preview
           post :link_sharepoint
+          post :generate_and_send  # Generate document and send for e-signature
+        end
+      end
+
+      # Specification Templates (for job specifications)
+      resources :specification_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get "for_job_type/:job_type_id", action: :for_job_type
+        end
+      end
+
+      # Colour Selection Templates (for job colour selections)
+      resources :colour_selection_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get "for_job_type/:job_type_id", action: :for_job_type
         end
       end
 
@@ -307,6 +373,7 @@ Rails.application.routes.draw do
           post :mark_received
           get :available_documents
           post :attach_documents
+          get :generate_pdf
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]
@@ -530,6 +597,7 @@ Rails.application.routes.draw do
           post :unpublish
           post :duplicate
           get :validate
+          post :test_run
         end
         resources :bpmn_triggers, only: [ :index, :show, :create, :update, :destroy ] do
           member do
@@ -660,6 +728,18 @@ Rails.application.routes.draw do
       resources :email_blacklist, only: [ :index, :create, :update, :destroy ] do
         collection do
           post :test
+        end
+      end
+
+      # IMAP Email Credentials (unified inbox)
+      resources :imap_credentials, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :test
+          get :providers
+          post :send_email
+        end
+        member do
+          post :sync
         end
       end
 

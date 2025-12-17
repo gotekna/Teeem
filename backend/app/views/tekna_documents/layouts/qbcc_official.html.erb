@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= @document_title || "QBCC Document" %></title>
+  <style>
+    /* QBCC Official Document Layout
+       Matches official QBCC document format exactly
+       No Tekna branding - plain official style */
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.4;
+      color: #000000;
+      background: white;
+    }
+
+    @page {
+      size: A4;
+      margin: 20mm 25mm 25mm 25mm;
+    }
+
+    .qbcc-page {
+      width: 100%;
+      min-height: 297mm;
+      padding: 20mm 25mm 25mm 25mm;
+      position: relative;
+      page-break-after: always;
+    }
+
+    .qbcc-page:last-child {
+      page-break-after: auto;
+    }
+
+    /* QBCC Official Header */
+    .qbcc-header {
+      text-align: center;
+      margin-bottom: 20pt;
+      padding-bottom: 10pt;
+      border-bottom: 2px solid #000;
+    }
+
+    .qbcc-logo {
+      font-size: 14pt;
+      font-weight: bold;
+      margin-bottom: 5pt;
+    }
+
+    .qbcc-title {
+      font-size: 16pt;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin: 10pt 0;
+    }
+
+    .qbcc-subtitle {
+      font-size: 10pt;
+      color: #333;
+    }
+
+    /* Typography */
+    h1 {
+      font-size: 14pt;
+      font-weight: bold;
+      margin: 15pt 0 10pt 0;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      font-size: 12pt;
+      font-weight: bold;
+      margin: 12pt 0 8pt 0;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-weight: bold;
+      margin: 10pt 0 6pt 0;
+    }
+
+    p {
+      margin-bottom: 8pt;
+      text-align: justify;
+    }
+
+    /* Tables - QBCC style */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10pt 0;
+      font-size: 10pt;
+    }
+
+    th, td {
+      padding: 6pt 8pt;
+      text-align: left;
+      border: 1pt solid #000;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f0f0f0;
+      font-weight: bold;
+    }
+
+    /* Lists */
+    ol, ul {
+      margin: 8pt 0 8pt 20pt;
+    }
+
+    li {
+      margin-bottom: 4pt;
+    }
+
+    /* Schedule tables */
+    .schedule-table {
+      margin: 15pt 0;
+    }
+
+    .schedule-table th {
+      background: #e0e0e0;
+      text-align: center;
+    }
+
+    .schedule-table .label {
+      width: 40%;
+      background: #f5f5f5;
+    }
+
+    .schedule-table .value {
+      width: 60%;
+    }
+
+    /* Signature section */
+    .signature-section {
+      margin-top: 30pt;
+      page-break-inside: avoid;
+    }
+
+    .signature-box {
+      display: inline-block;
+      width: 45%;
+      vertical-align: top;
+      margin-right: 5%;
+    }
+
+    .signature-line {
+      border-bottom: 1pt solid #000;
+      height: 30pt;
+      margin-bottom: 5pt;
+    }
+
+    .signature-label {
+      font-size: 9pt;
+      color: #333;
+    }
+
+    /* Clause numbering */
+    .clause {
+      margin: 10pt 0;
+    }
+
+    .clause-number {
+      font-weight: bold;
+      margin-right: 10pt;
+    }
+
+    /* Page numbers */
+    .page-number {
+      position: absolute;
+      bottom: 15mm;
+      right: 25mm;
+      font-size: 9pt;
+      color: #666;
+    }
+
+    /* Important notices */
+    .important-notice {
+      border: 2pt solid #000;
+      padding: 10pt;
+      margin: 15pt 0;
+      background: #fff9e6;
+    }
+
+    .important-notice strong {
+      display: block;
+      margin-bottom: 5pt;
+      text-transform: uppercase;
+    }
+
+    /* Print optimizations */
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .qbcc-page {
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="qbcc-page">
+    <%= yield_content %>
+  </div>
+</body>
+</html>

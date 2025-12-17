@@ -141,8 +141,8 @@ class BillInbox < ApplicationRecord
   end
 
   def invoice_file_filename
-    # Use file_name column if stored, or try Active Storage as fallback during migration
-    return attributes["file_name"] if attributes["file_name"].present?
+    # Use original_filename column if stored, or try Active Storage as fallback during migration
+    return original_filename if original_filename.present?
     invoice_file.attached? ? invoice_file.filename.to_s : nil
   end
 

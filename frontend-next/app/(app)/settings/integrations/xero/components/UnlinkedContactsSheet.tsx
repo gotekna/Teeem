@@ -205,7 +205,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent side="right" className="w-[600px] sm:max-w-[600px] p-0">
+      <SheetContent side="right" className="w-[700px] sm:max-w-[700px] p-0">
         <SheetHeader className="p-6 pb-4 border-b">
           <SheetTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500" />
