@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
 
 // Default empty BPMN diagram
@@ -129,16 +130,23 @@ export default function BpmnJsDesigner({
 
   // Fetch recent jobs for test run
   useEffect(() => {
+    console.log("[BPMN] Starting to fetch jobs...");
     const fetchJobs = async () => {
       try {
+        console.log("[BPMN] Calling /api/v1/jobs...");
         const response = await api.get<{ jobs: Job[]; pagination: object }>(
           "/api/v1/jobs?per_page=50"
         );
-        if (response?.jobs) {
+        console.log("[BPMN] Jobs API response:", response);
+        console.log("[BPMN] Jobs array:", response?.jobs);
+        if (response?.jobs && Array.isArray(response.jobs)) {
+          console.log("[BPMN] Setting", response.jobs.length, "jobs");
           setJobs(response.jobs);
+        } else {
+          console.warn("[BPMN] No jobs array in response. Keys:", Object.keys(response || {}));
         }
       } catch (err) {
-        console.error("Failed to fetch jobs:", err);
+        console.error("[BPMN] Failed to fetch jobs:", err);
       }
     };
     fetchJobs();
@@ -567,18 +575,18 @@ export default function BpmnJsDesigner({
         <div className="w-px h-6 bg-border mx-1" />
 
         {/* Test Run Section */}
-        <select
+        <ComboboxDropdown
+          options={jobs.map((job) => ({
+            value: job.id.toString(),
+            label: `${job.job_number ? `${job.job_number} - ` : ""}${job.name}`,
+          }))}
           value={selectedJobId}
-          onChange={(e) => setSelectedJobId(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[200px]"
-        >
-          <option value="">Select job to test...</option>
-          {jobs.map((job) => (
-            <option key={job.id} value={job.id.toString()}>
-              {job.job_number ? `${job.job_number} - ` : ""}{job.name}
-            </option>
-          ))}
-        </select>
+          onChange={setSelectedJobId}
+          placeholder="Select job to test..."
+          searchPlaceholder="Search jobs..."
+          emptyMessage="No jobs found"
+          className="min-w-[250px]"
+        />
 
         <Button
           variant="default"
