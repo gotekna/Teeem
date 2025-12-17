@@ -254,6 +254,7 @@ Rails.application.routes.draw do
             post :match
             delete :unmatch
             post :create_invoice
+            post :generate_pdf
           end
         end
       end

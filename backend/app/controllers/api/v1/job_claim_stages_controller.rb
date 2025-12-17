@@ -4,7 +4,7 @@ module Api
   module V1
     class JobClaimStagesController < ApplicationController
       before_action :set_job
-      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice]
+      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :generate_pdf]
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
@@ -324,6 +324,87 @@ module Api
 
           render json: { success: false, error: "Failed to create invoice: #{e.message}" },
                  status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/jobs/:job_id/claim_stages/:id/generate_pdf
+      # Generate invoice PDF from template
+      def generate_pdf
+        invoice = @stage.external_invoice
+
+        unless invoice
+          return render json: { success: false, error: "No invoice linked to this stage" },
+                       status: :unprocessable_entity
+        end
+
+        # Find invoice template
+        template_id = params[:template_id]
+        template = if template_id.present?
+          DocumentTemplate.find(template_id)
+        else
+          # Default to first active invoice template
+          DocumentTemplate.active.by_category("invoice").first
+        end
+
+        unless template
+          return render json: { success: false, error: "No invoice template found. Please create an invoice template first." },
+                       status: :unprocessable_entity
+        end
+
+        begin
+          # Generate PDF using DocumentGenerator
+          generator = DocumentGenerator.new(template)
+          result = generator.generate(
+            job: @job,
+            contact: @job.primary_contact,
+            invoice: invoice,
+            claim_stage: @stage
+          )
+
+          # Create document record and attach the PDF
+          document = CorporateCompanyDocument.new(
+            title: "Invoice #{invoice.invoice_number}",
+            document_type: "invoice",
+            contact: invoice.contact || @job.primary_contact,
+            documentable: invoice,
+            source: "generated",
+            focus: "job"
+          )
+
+          # Attach the PDF file
+          if result[:pdf_content]
+            document.file.attach(
+              io: StringIO.new(result[:pdf_content]),
+              filename: result[:pdf_filename] || "#{invoice.invoice_number}.pdf",
+              content_type: "application/pdf"
+            )
+          elsif result[:docx_content]
+            document.file.attach(
+              io: StringIO.new(result[:docx_content]),
+              filename: result[:filename],
+              content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
+          end
+
+          document.save!
+
+          render json: {
+            success: true,
+            data: {
+              document_id: document.id,
+              filename: document.file.filename.to_s,
+              url: rails_blob_url(document.file),
+              message: "Invoice PDF generated successfully"
+            }
+          }
+        rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
+          render json: { success: false, error: "PDF generation failed: #{e.message}" },
+                 status: :unprocessable_entity
+        rescue StandardError => e
+          Rails.logger.error("Failed to generate invoice PDF: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render json: { success: false, error: "Failed to generate PDF: #{e.message}" },
+                 status: :internal_server_error
         end
       end
 

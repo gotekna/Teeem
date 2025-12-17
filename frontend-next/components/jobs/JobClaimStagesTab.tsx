@@ -36,6 +36,7 @@ import {
   TrendingUp,
   Plus,
   ExternalLink,
+  FileDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -136,6 +137,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [autoMatching, setAutoMatching] = React.useState(false);
   const [matchingStageId, setMatchingStageId] = React.useState<number | null>(null);
   const [creatingInvoiceId, setCreatingInvoiceId] = React.useState<number | null>(null);
+  const [generatingPdfId, setGeneratingPdfId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
@@ -302,6 +304,58 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       });
     } finally {
       setCreatingInvoiceId(null);
+    }
+  };
+
+  const handleGeneratePdf = async (stage: ClaimStage) => {
+    setGeneratingPdfId(stage.id);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          document_id: number;
+          filename: string;
+          url: string;
+          message: string;
+        };
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/generate_pdf`, {});
+
+      if (!response) {
+        toast({
+          title: "Error",
+          description: "No response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (response.success && response.data) {
+        toast({
+          title: "PDF Generated",
+          description: response.data.message,
+        });
+        // Open the PDF in a new tab
+        if (response.data.url) {
+          window.open(response.data.url, "_blank");
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to generate PDF",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to generate PDF:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate PDF";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingPdfId(null);
     }
   };
 
@@ -492,20 +546,36 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                               {formatDate(stage.invoice.date)}
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleUnmatch(stage.id)}
-                            disabled={matchingStageId === stage.id}
-                            title="Unmatch invoice"
-                          >
-                            {matchingStageId === stage.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Unlink className="h-4 w-4" />
-                            )}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleGeneratePdf(stage)}
+                              disabled={generatingPdfId === stage.id}
+                              title="Generate Invoice PDF"
+                            >
+                              {generatingPdfId === stage.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleUnmatch(stage.id)}
+                              disabled={matchingStageId === stage.id}
+                              title="Unmatch invoice"
+                            >
+                              {matchingStageId === stage.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Unlink className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -569,7 +639,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                             <span className="text-xs text-muted-foreground">
                               {stage.invoice.fully_paid_date
                                 ? `Paid ${formatDate(stage.invoice.fully_paid_date)}`
-                                : formatDate(stage.payment_date)}
+                                : stage.payment_date && formatDate(stage.payment_date)}
                             </span>
                           )}
                           {/* Due Date (if unpaid) */}
@@ -710,7 +780,28 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   );
 }
 
-function PaymentStatusBadge({ status }: { status: string }) {
+function PaymentStatusBadge({
+  status,
+  dueDate,
+}: {
+  status: string;
+  dueDate?: string | null;
+}) {
+  // Check if overdue (unpaid and past due date)
+  const isOverdue =
+    status !== "paid" &&
+    dueDate &&
+    new Date(dueDate) < new Date();
+
+  if (isOverdue) {
+    return (
+      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Overdue
+      </Badge>
+    );
+  }
+
   switch (status) {
     case "paid":
       return (

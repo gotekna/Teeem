@@ -272,9 +272,9 @@ export default function ColourSelectionBuilderPage() {
         );
         if (response?.success && response.data) {
           setTemplate(response.data);
-          // Expand first category by default
+          // Expand ALL categories by default
           if (response.data.categories?.length > 0) {
-            setExpandedCategories(new Set([response.data.categories[0].key]));
+            setExpandedCategories(new Set(response.data.categories.map(c => c.key)));
           }
         }
       } catch (error) {
@@ -288,8 +288,9 @@ export default function ColourSelectionBuilderPage() {
             const defaultTemplate =
               defaultResponse.data.find((t) => t.is_default) || defaultResponse.data[0];
             setTemplate(defaultTemplate);
+            // Expand ALL categories by default
             if (defaultTemplate.categories?.length > 0) {
-              setExpandedCategories(new Set([defaultTemplate.categories[0].key]));
+              setExpandedCategories(new Set(defaultTemplate.categories.map(c => c.key)));
             }
           }
         } catch {
