@@ -280,37 +280,77 @@ function CompanyInfoTab() {
           </p>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-4">
           <Label>Company Logo</Label>
-          {settings.logo_url ? (
-            <div className="flex items-center gap-4">
-              <img
-                src={settings.logo_url}
-                alt="Company Logo"
-                className="h-16 w-auto object-contain border rounded p-1"
-              />
+
+          {/* Logo Preview - Template Size */}
+          {settings.logo_url && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Preview at template size (150px width):</p>
+              <div className="border rounded-lg p-4 bg-white inline-block">
+                <img
+                  src={settings.logo_url}
+                  alt="Company Logo"
+                  style={{ width: '150px', height: 'auto' }}
+                  className="object-contain"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Upload and URL Input */}
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              id="logo_upload"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                // Convert to base64 data URL for now
+                // In production, this should upload to storage
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                  const dataUrl = event.target?.result as string;
+                  handleChange("logo_url", dataUrl);
+                };
+                reader.readAsDataURL(file);
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => document.getElementById('logo_upload')?.click()}
+            >
+              Choose File
+            </Button>
+            {settings.logo_url && (
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="sm"
                 onClick={() => handleChange("logo_url", "")}
+                className="text-red-600 hover:text-red-700"
               >
                 Remove
               </Button>
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">
-              No logo uploaded. Enter a URL below or upload via document management.
-            </div>
-          )}
-          <Input
-            id="logo_url"
-            value={settings.logo_url || ""}
-            onChange={(e) => handleChange("logo_url", e.target.value)}
-            placeholder="https://example.com/logo.png"
-          />
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="logo_url" className="text-xs text-muted-foreground">Or enter URL directly:</Label>
+            <Input
+              id="logo_url"
+              value={settings.logo_url?.startsWith('data:') ? '' : (settings.logo_url || '')}
+              onChange={(e) => handleChange("logo_url", e.target.value)}
+              placeholder="https://example.com/logo.png"
+            />
+          </div>
+
           <p className="text-xs text-muted-foreground">
-            Used in document templates as {"{{builder.logo}}"}
+            Used in document templates as {"{{builder.logo}}"} — Recommended: PNG with transparent background, ~300px wide
           </p>
         </div>
 

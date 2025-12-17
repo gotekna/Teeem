@@ -97,15 +97,22 @@ module Api
           return
         end
 
+        # Sync nodes from XML if needed
+        if @process.bpmn_nodes.empty? && @process.bpmn_xml.present?
+          Rails.logger.info("Test run: Syncing nodes from BPMN XML for process ##{@process.id}")
+          @process.sync_nodes_from_xml!
+        end
+
         # Check that the process has a start node
         unless @process.start_node
-          render json: { success: false, error: "Workflow must have a Start Event" }, status: :unprocessable_entity
+          render json: { success: false, error: "Workflow must have a Start Event. Please add one and save." }, status: :unprocessable_entity
           return
         end
 
         # Check valid structure
-        unless @process.valid_structure?
-          render json: { success: false, error: "Workflow structure is invalid. Check that all nodes are connected." }, status: :unprocessable_entity
+        validation_errors = @process.validate_structure
+        if validation_errors.any?
+          render json: { success: false, error: "Workflow issues: #{validation_errors.join(', ')}" }, status: :unprocessable_entity
           return
         end
 

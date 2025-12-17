@@ -655,8 +655,9 @@ export default function BpmnJsDesigner({
                         const selectedTemplate = templates.find(t => t.id.toString() === getTemplateId());
                         const sharepointPath = selectedTemplate?.sharepoint_path;
                         // Use ?web=1 to open in Word Online for editing
+                        // Encode each path segment separately (don't encode the slashes)
                         const wordOnlineUrl = sharepointPath
-                          ? `https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${encodeURIComponent(sharepointPath)}?web=1`
+                          ? `https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${sharepointPath.split('/').map(segment => encodeURIComponent(segment)).join('/')}?web=1`
                           : null;
                         return (
                           <div className="space-y-2">
