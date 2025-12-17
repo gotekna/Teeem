@@ -39,6 +39,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.received_before(params[:until].to_datetime)
     end
 
+    # Filter by source type (outlook, imap)
+    if params[:source_type].present?
+      emails = emails.where(source_type: params[:source_type])
+    end
+
+    # Filter by IMAP credential
+    if params[:imap_credential_id].present?
+      emails = emails.where(imap_credential_id: params[:imap_credential_id])
+    end
+
     # Pagination
     page = (params[:page] || 1).to_i
     per_page = [ (params[:per_page] || 50).to_i, 200 ].min
@@ -447,19 +457,26 @@ class Api::V1::EmailWarehouseController < ApplicationController
       id: email.id,
       subject: email.subject,
       from_email: email.from_email,
+      from_address: email.from_email,
       from_name: email.from_name,
       display_from: email.display_from,
       to_emails: email.to_emails,
+      to_addresses: email.to_emails,
       cc_emails: email.cc_emails,
       received_at: email.received_at,
       has_attachments: email.has_attachments,
       attachment_count: email.attachment_count,
-      preview_body: email.preview_body(length: 200),
+      snippet: email.preview_body(length: 200),
+      body_preview: email.preview_body(length: 200),
       job_id: email.job_id,
+      job_number: email.job&.job_number,
       match_type: email.match_type,
       match_confidence: email.match_confidence,
       is_latest_in_thread: email.is_latest_in_thread,
-      conversation_id: email.conversation_id
+      is_read: true,
+      conversation_id: email.conversation_id,
+      source_type: email.source_type || "outlook",
+      imap_credential_id: email.imap_credential_id
     }
 
     if include_body
