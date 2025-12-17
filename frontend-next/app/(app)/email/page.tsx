@@ -141,6 +141,10 @@ export default function EmailPage() {
       // Filter by specific account
       if (selectedAccount === "outlook") {
         params.append("source_type", "outlook");
+      } else if (selectedAccount.startsWith("ms365_")) {
+        // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
+        const parts = selectedAccount.split("_");
+        params.append("microsoft_credential_id", parts[1]);
       } else {
         params.append("imap_credential_id", selectedAccount);
       }
@@ -270,15 +274,26 @@ export default function EmailPage() {
   };
 
   const handleEmailClick = async (email: Email) => {
+    if (!email || !email.id) {
+      console.error("Invalid email object:", email);
+      return;
+    }
+
+    // Set selected email immediately so UI updates
     setSelectedEmail(email);
 
     // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
       try {
-        const fullEmail = await api.get<Email>(`/api/v1/email_warehouse/${email.id}`);
-        setSelectedEmail(fullEmail);
+        const response = await api.get<Email | { email: Email }>(`/api/v1/email_warehouse/${email.id}`);
+        // Handle both wrapped and unwrapped response formats
+        const fullEmail = (response as { email?: Email }).email || response as Email;
+        if (fullEmail && fullEmail.id) {
+          setSelectedEmail(fullEmail);
+        }
       } catch (error) {
         console.error("Failed to fetch email:", error);
+        // Keep showing the preview data even if full fetch fails
       }
     }
   };

@@ -73,15 +73,17 @@ class PlanSetService
     raise ProcessingError, "Job folder not found in SharePoint. Please create folder structure first." unless job_folder
 
     # Look for "04 Plans" subfolder
-    items = client.list_folder_items(job_folder[:id])
-    plans_folder = items.find { |item| item[:name] == "04 Plans" && item[:folder].present? }
+    # list_folder_items returns { "value" => [...] } with string keys
+    response = client.list_folder_items(job_folder["id"])
+    items = response["value"] || []
+    plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
 
     if plans_folder
-      plans_folder[:id]
+      plans_folder["id"]
     else
       # Create the 04 Plans folder
-      result = client.create_folder("04 Plans", parent_id: job_folder[:id])
-      result[:id]
+      result = client.create_folder("04 Plans", parent_id: job_folder["id"])
+      result["id"]
     end
   end
 

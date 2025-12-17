@@ -73,6 +73,11 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.where(imap_credential_id: params[:imap_credential_id])
     end
 
+    # Filter by Microsoft 365 credential (org-level app credentials)
+    if params[:microsoft_credential_id].present?
+      emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
+    end
+
     # Pagination
     page = (params[:page] || 1).to_i
     per_page = [ (params[:per_page] || 50).to_i, 200 ].min

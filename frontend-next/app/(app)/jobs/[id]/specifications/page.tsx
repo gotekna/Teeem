@@ -275,11 +275,11 @@ export default function SpecificationBuilderPage() {
   useEffect(() => {
     const loadPricebook = async () => {
       try {
-        const response = await api.get<{ pricebook_items: PricebookItem[] }>(
-          "/api/v1/pricebook_items?per_page=1000"
+        const response = await api.get<{ items: PricebookItem[] }>(
+          "/api/v1/pricebook?per_page=1000"
         );
-        if (response?.pricebook_items) {
-          setPricebookItems(response.pricebook_items);
+        if (response?.items) {
+          setPricebookItems(response.items);
         }
       } catch (error) {
         console.error("Failed to load pricebook:", error);
