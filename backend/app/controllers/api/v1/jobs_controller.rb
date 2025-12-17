@@ -590,26 +590,28 @@ module Api
           return render json: { success: true, data: { plans: [], folder_exists: false } }
         end
 
-        # Find 04 Plans folder
-        items = client.list_folder_items(job_folder[:id])
-        plans_folder = items.find { |item| item[:name] == "04 Plans" && item[:folder].present? }
+        # Find 04 Plans folder - list_folder_items returns { "value" => [...] } with string keys
+        response = client.list_folder_items(job_folder["id"])
+        items = response["value"] || []
+        plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
 
         unless plans_folder
           return render json: { success: true, data: { plans: [], folder_exists: false } }
         end
 
         # List files in 04 Plans
-        plan_files = client.list_folder_items(plans_folder[:id])
-        pdf_files = plan_files.select { |f| f[:file].present? && f[:name]&.end_with?(".pdf") }
+        plan_response = client.list_folder_items(plans_folder["id"])
+        plan_files = plan_response["value"] || []
+        pdf_files = plan_files.select { |f| f["file"].present? && f["name"]&.end_with?(".pdf") }
 
         plans = pdf_files.map do |f|
           {
-            id: f[:id],
-            name: f[:name],
-            web_url: f[:webUrl] || f[:web_url],
-            size: f[:size],
-            modified: f[:lastModifiedDateTime],
-            is_all_plans: f[:name] == "All Plans.pdf"
+            id: f["id"],
+            name: f["name"],
+            web_url: f["webUrl"],
+            size: f["size"],
+            modified: f["lastModifiedDateTime"],
+            is_all_plans: f["name"] == "All Plans.pdf"
           }
         end
 
@@ -621,8 +623,8 @@ module Api
           data: {
             plans: plans,
             folder_exists: true,
-            folder_id: plans_folder[:id],
-            folder_web_url: plans_folder[:webUrl] || plans_folder[:web_url]
+            folder_id: plans_folder["id"],
+            folder_web_url: plans_folder["webUrl"]
           }
         }
       rescue => e
