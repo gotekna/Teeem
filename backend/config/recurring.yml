@@ -162,6 +162,12 @@ cleanup_ephemeral_emails:
   args: [{ dry_run: false, delete_from_outlook: true }]
   schedule: at 3am every day
 
+# Sync IMAP email accounts (unified inbox)
+imap_email_sync:
+  class: ImapSyncJob
+  queue: default
+  schedule: every 15 minutes
+
 # ============================================
 # FOUNDATION SYSTEM HEALTH
 # ============================================

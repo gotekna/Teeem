@@ -373,6 +373,7 @@ Rails.application.routes.draw do
           post :mark_received
           get :available_documents
           post :attach_documents
+          get :generate_pdf
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]
@@ -727,6 +728,18 @@ Rails.application.routes.draw do
       resources :email_blacklist, only: [ :index, :create, :update, :destroy ] do
         collection do
           post :test
+        end
+      end
+
+      # IMAP Email Credentials (unified inbox)
+      resources :imap_credentials, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :test
+          get :providers
+          post :send_email
+        end
+        member do
+          post :sync
         end
       end
 

@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents ]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -405,6 +405,26 @@ module Api
         }
       rescue => e
         render json: { error: e.message }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/purchase_orders/:id/generate_pdf
+      # Generate PDF for this purchase order with colour selections from job (SSoT)
+      def generate_pdf
+        generator = TeknaDocumentGenerator.new(:purchase_order)
+        result = generator.generate(purchase_order: @purchase_order)
+
+        if params[:format] == "html" || params[:preview]
+          render html: result[:html].html_safe
+        else
+          send_data result[:pdf_content],
+            filename: result[:filename],
+            type: "application/pdf",
+            disposition: params[:download] ? "attachment" : "inline"
+        end
+      rescue TeknaDocumentGenerator::GenerationError => e
+        render json: { error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { error: "Failed to generate PDF: #{e.message}" }, status: :internal_server_error
       end
 
       private

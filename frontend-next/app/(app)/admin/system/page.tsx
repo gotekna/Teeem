@@ -38,6 +38,7 @@ import {
   Tag,
   UserCog,
   Palette,
+  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -69,6 +70,7 @@ import { FoldersTabsConfigTab } from "./components/FoldersTabsConfigTab";
 import { WarehouseTab } from "./components/WarehouseTab";
 import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
+import { EmailAccountsTab } from "./components/EmailAccountsTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -104,6 +106,7 @@ const MAIN_TABS = [
   { id: "user-manual", label: "User Manual", icon: BookOpen },
   { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
   { id: "performance", label: "Performance", icon: BarChart },
+  { id: "email-accounts", label: "Email Accounts", icon: Mail },
 ];
 
 const COMPANY_TABS = [
@@ -812,6 +815,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="performance">
             <PerformanceTab />
+          </TabsContent>
+          <TabsContent value="email-accounts">
+            <EmailAccountsTab />
           </TabsContent>
         </div>
       </Tabs>

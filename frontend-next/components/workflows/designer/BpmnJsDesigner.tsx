@@ -131,11 +131,11 @@ export default function BpmnJsDesigner({
   useEffect(() => {
     const fetchJobs = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: Job[] }>(
-          "/api/v1/jobs?limit=50&sort=updated_at&order=desc"
+        const response = await api.get<{ jobs: Job[]; pagination: object }>(
+          "/api/v1/jobs?per_page=50"
         );
-        if (response?.success && response.data) {
-          setJobs(response.data);
+        if (response?.jobs) {
+          setJobs(response.jobs);
         }
       } catch (err) {
         console.error("Failed to fetch jobs:", err);

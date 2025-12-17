@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_043857) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2239,11 +2239,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
     t.bigint "contact_ids", default: [], array: true
     t.bigint "primary_contact_id"
     t.datetime "contacts_matched_at"
+    t.string "source_type", default: "outlook"
+    t.bigint "imap_credential_id"
     t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
     t.index ["contact_ids"], name: "index_email_warehouse_on_contact_ids", using: :gin
     t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
     t.index ["email_classification"], name: "index_email_warehouse_on_email_classification", using: :gin
     t.index ["from_email"], name: "index_email_warehouse_on_from_email"
+    t.index ["imap_credential_id"], name: "index_email_warehouse_on_imap_credential_id"
     t.index ["internet_headers"], name: "index_email_warehouse_on_internet_headers", using: :gin
     t.index ["internet_message_id"], name: "index_email_warehouse_on_internet_message_id", unique: true
     t.index ["is_latest_in_thread"], name: "index_email_warehouse_on_is_latest_in_thread"
@@ -2257,6 +2260,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
     t.index ["received_at"], name: "index_email_warehouse_on_received_at"
     t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
     t.index ["sharepoint_email_file_id"], name: "index_email_warehouse_on_sharepoint_email_file_id"
+    t.index ["source_type"], name: "index_email_warehouse_on_source_type"
     t.index ["ssot_owner_id"], name: "index_email_warehouse_on_ssot_owner_id"
     t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
     t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
@@ -2684,6 +2688,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
     t.index ["fix_type"], name: "index_health_kudos_events_on_fix_type"
     t.index ["record_type", "record_id"], name: "index_health_kudos_events_on_record_type_and_record_id"
     t.index ["user_id"], name: "index_health_kudos_events_on_user_id"
+  end
+
+  create_table "imap_credentials", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "name"
+    t.string "email_address", null: false
+    t.string "imap_host", null: false
+    t.integer "imap_port", default: 993
+    t.boolean "imap_ssl", default: true
+    t.string "smtp_host", null: false
+    t.integer "smtp_port", default: 587
+    t.string "smtp_auth", default: "plain"
+    t.string "username", null: false
+    t.text "encrypted_password"
+    t.string "provider"
+    t.datetime "last_synced_at"
+    t.string "last_sync_status"
+    t.text "last_sync_error"
+    t.integer "sync_interval_minutes", default: 15
+    t.bigint "last_uid"
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_imap_credentials_on_is_active"
+    t.index ["user_id", "email_address"], name: "index_imap_credentials_on_user_id_and_email_address", unique: true
+    t.index ["user_id"], name: "index_imap_credentials_on_user_id"
   end
 
   create_table "implementation_patterns", force: :cascade do |t|
@@ -5781,6 +5811,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
   add_foreign_key "email_recipients", "users"
   add_foreign_key "email_sync_statuses", "users"
   add_foreign_key "email_warehouse", "contacts", column: "primary_contact_id"
+  add_foreign_key "email_warehouse", "imap_credentials"
   add_foreign_key "email_warehouse", "jobs"
   add_foreign_key "email_warehouse", "organization_microsoft_app_credentials", column: "microsoft_credential_id"
   add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"
@@ -5804,6 +5835,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
   add_foreign_key "folder_templates", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
   add_foreign_key "health_kudos_events", "users", on_delete: :nullify
+  add_foreign_key "imap_credentials", "users"
   add_foreign_key "insurance_policies", "corporate_companies", column: "company_id"
   add_foreign_key "intercompany_balances", "corporate_companies", column: "company_id"
   add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"

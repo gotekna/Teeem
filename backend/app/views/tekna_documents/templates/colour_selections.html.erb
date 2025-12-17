@@ -1,285 +1,126 @@
+<% # Colour Selection Template - Pulls from job_colour_selections (SSoT) %>
+
 <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-4);">
-  <h1 style="margin: 0;"><%= @job[:full_address] %></h1>
+  <h1 style="margin: 0;"><%= job[:full_address] %></h1>
   <div style="text-align: right;">
     <div style="font-size: var(--font-size-xl); font-weight: bold; color: var(--color-text-primary);">Colour Selection</div>
-    <div style="font-size: var(--font-size-md); color: var(--color-text-secondary);"><%= @job[:name] || "Façade" %></div>
+    <div style="font-size: var(--font-size-md); color: var(--color-text-secondary);"><%= job[:name] %></div>
   </div>
 </div>
+
+<%
+  # Helper to render a category table
+  def render_category_table(category_key, category_name, items)
+    return "" if items.nil? || items.empty?
+
+    rows = items.map do |item|
+      colour_display = item[:colour_name].present? ? item[:colour_name] : ""
+      colour_display += " (#{item[:colour_brand]})" if item[:colour_brand].present?
+
+      "<tr>
+        <td style='width: 5%; background: #f5f5f5;'></td>
+        <td style='width: 45%;'>#{item[:item_key].to_s.titleize}</td>
+        <td>#{colour_display}</td>
+      </tr>"
+    end.join
+
+    "<table style='width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);'>
+      <tr>
+        <td colspan='3' style='background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);'>#{category_name}</td>
+      </tr>
+      #{rows}
+    </table>"
+  end
+
+  # Category display names
+  category_names = {
+    "facade" => "Facade",
+    "external_walls" => "External Walls",
+    "garage" => "Garage",
+    "roof_gutter_fascia" => "Roof, Gutter, Fascia & Eaves",
+    "windows" => "Windows & Screens",
+    "driveway" => "Driveway, Alfresco & Paths",
+    "entry_doors" => "Entry Doors",
+    "flooring" => "Flooring",
+    "paint" => "Paint",
+    "blinds" => "Blinds",
+    "kitchen" => "Kitchen",
+    "wet_areas" => "Wet Areas",
+    "ensuite" => "Ensuite",
+    "laundry" => "Laundry",
+    "accessibility" => "Accessibility Features"
+  }
+
+  # Split categories into left and right columns
+  left_categories = %w[facade external_walls garage roof_gutter_fascia windows driveway entry_doors]
+  right_categories = %w[flooring paint blinds kitchen wet_areas ensuite laundry accessibility]
+
+  grouped = defined?(colour_selections) && colour_selections[:grouped] ? colour_selections[:grouped] : {}
+%>
 
 <div style="display: flex; gap: var(--space-4); margin-bottom: var(--space-4);">
   <!-- Left Column -->
   <div style="flex: 1;">
-    <table style="width: 100%; font-size: var(--font-size-sm);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Façade</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">"Fine Texture" Cladding</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Horizontal Boarding</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Front Feature Posts</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Letterbox</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">External Walls</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">"Fine Texture" Cladding</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Alfresco Posts</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Garage</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">Garage Door Colour</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Garage Door Profile</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Roof, Gutter, Fascia & Eaves</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">Roof</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Gutters</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Fascia</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Eaves</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Downpipes</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Windows & Screens</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">Window Frames</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Screen Frames</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Driveway, Alfresco & Paths</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">Driveway, Alfresco & Paths</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Clothesline</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Entry Doors</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 45%;">Entrance Door Profile</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Entrance Door Colour</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Laundry Door Colour</td>
-        <td></td>
-      </tr>
-    </table>
+    <% left_categories.each do |cat_key| %>
+      <% items = grouped[cat_key] %>
+      <% if items.present? %>
+        <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
+          <tr>
+            <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);"><%= category_names[cat_key] || cat_key.titleize %></td>
+          </tr>
+          <% items.each do |item| %>
+            <tr>
+              <td style="width: 5%; background: #f5f5f5;"></td>
+              <td style="width: 45%;"><%= item[:item_key].to_s.titleize %></td>
+              <td>
+                <%= item[:colour_name] %>
+                <% if item[:colour_brand].present? %>
+                  <span style="color: #666; font-size: 0.9em;">(<%= item[:colour_brand] %>)</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      <% end %>
+    <% end %>
   </div>
 
   <!-- Right Column -->
   <div style="flex: 1;">
-    <table style="width: 100%; font-size: var(--font-size-sm);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Flooring</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 55%;">Main Area Flooring, Participants & OOA Suites</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Paint</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 55%;">Internal Walls</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Internal Skirting, Architraves & Doors</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Internal Ceiling</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Blinds</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 55%;">Blinds 100% Blockout</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Kitchen</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 55%;">Kitchen Splashback Tiles</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Kitchen Splashback Grout Colour</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Kitchen Tile Pattern</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Kitchen Benchtop</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Kitchen Cabinet - Uppers</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Kitchen Cabinet - Lowers</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Integrated Fridge Cabinetry</td>
-        <td></td>
-      </tr>
-    </table>
-
-    <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
-      <tr>
-        <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);">Participant, OOA - Ensuites & Laundry</td>
-      </tr>
-      <tr>
-        <td style="width: 5%; background: #f5f5f5;"></td>
-        <td style="width: 55%;">Wet Area Floor Tiles</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Wet Area Floor Grout Colour</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Wet Area Wall Tiles</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Wet Area Wall Grout Colour</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Wet Area Wall Tile Pattern</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Ensuite Vanities & Laundry Bench Tops</td>
-        <td></td>
-      </tr>
-      <tr>
-        <td style="background: #f5f5f5;"></td>
-        <td>Ensuite Vanities & Laundry Cabinet - Lowers</td>
-        <td></td>
-      </tr>
-    </table>
+    <% right_categories.each do |cat_key| %>
+      <% items = grouped[cat_key] %>
+      <% if items.present? %>
+        <table style="width: 100%; font-size: var(--font-size-sm); margin-top: var(--space-2);">
+          <tr>
+            <td colspan="3" style="background: #2d5a4a; color: white; font-weight: bold; padding: var(--space-2);"><%= category_names[cat_key] || cat_key.titleize %></td>
+          </tr>
+          <% items.each do |item| %>
+            <tr>
+              <td style="width: 5%; background: #f5f5f5;"></td>
+              <td style="width: 55%;"><%= item[:item_key].to_s.titleize %></td>
+              <td>
+                <%= item[:colour_name] %>
+                <% if item[:colour_brand].present? %>
+                  <span style="color: #666; font-size: 0.9em;">(<%= item[:colour_brand] %>)</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </table>
+      <% end %>
+    <% end %>
   </div>
 </div>
+
+<% if !defined?(colour_selections) || !colour_selections[:has_selections] %>
+<!-- Fallback message when no selections -->
+<div style="padding: var(--space-4); background: #fff3cd; border: 1px solid #ffc107; margin-bottom: var(--space-4);">
+  <p style="margin: 0; color: #856404;">
+    <strong>Note:</strong> No colour selections have been recorded for this job yet.
+    Use the Colour Selection Builder to add selections.
+  </p>
+</div>
+<% end %>
 
 <!-- Colour Swatches Section -->
 <div style="margin: var(--space-4) 0; padding: var(--space-4); background: #f9fafb; border: 1px solid var(--color-border);">
@@ -299,8 +140,8 @@
   <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin: 0;">
     <strong>DISCLAIMER:</strong> All illustrations and floor plans are artistic impressions and should only be used as a visual aid.
     Colour may vary from the actual product. This colour selection should be read in conjunction with the plans and specifications
-    as per the Construction Contract. <%= @company[:name] %> reserves the right to change any product/s for similar product/s
+    as per the Construction Contract. <%= company[:name] %> reserves the right to change any product/s for similar product/s
     depending on supply constraints and availability at the time of construction.
-    <%= @company[:name] %> ABN: <%= @company[:abn] %> QBCC: <%= @company[:qbcc_license] %>
+    <%= company[:name] %> ABN: <%= company[:abn] %> QBCC: <%= company[:qbcc_license] %>
   </p>
 </div>
