@@ -25,11 +25,11 @@ class DocumentGenerator
 
   # Generate document from template with provided data
   # Returns hash with :docx_content, :pdf_content (if applicable), :filename
-  def generate(job: nil, contact: nil, extra_data: {})
-    validate_inputs!(job, contact)
+  def generate(job: nil, contact: nil, invoice: nil, claim_stage: nil, extra_data: {})
+    validate_inputs!(job, contact, invoice)
 
     # Build context data for Sablon
-    context = build_context(job: job, contact: contact, extra_data: extra_data)
+    context = build_context(job: job, contact: contact, invoice: invoice, claim_stage: claim_stage, extra_data: extra_data)
 
     # Download template from SharePoint
     template_content = download_template
@@ -38,7 +38,7 @@ class DocumentGenerator
     docx_content = perform_mail_merge(template_content, context)
 
     # Generate output filename
-    filename = template.generate_output_filename(job: job, contact: contact)
+    filename = template.generate_output_filename(job: job, contact: contact, invoice: invoice)
 
     result = {
       docx_content: docx_content,
@@ -96,7 +96,7 @@ class DocumentGenerator
 
   private
 
-  def validate_inputs!(job, contact)
+  def validate_inputs!(job, contact, invoice = nil)
     case template.category
     when "job"
       raise GenerationError, "Job is required for this template" unless job
@@ -104,6 +104,9 @@ class DocumentGenerator
       raise GenerationError, "Contact is required for this template" unless contact
     when "quote", "contract"
       raise GenerationError, "Job is required for this template" unless job
+    when "invoice"
+      raise GenerationError, "Invoice is required for this template" unless invoice
+      raise GenerationError, "Job is required for invoice templates" unless job
     end
   end
 
@@ -182,7 +185,7 @@ class DocumentGenerator
     raise GenerationError, "PDF conversion failed: #{e.message}"
   end
 
-  def build_context(job: nil, contact: nil, extra_data: {})
+  def build_context(job: nil, contact: nil, invoice: nil, claim_stage: nil, extra_data: {})
     context = {}
 
     # Add job data
@@ -193,6 +196,16 @@ class DocumentGenerator
     # Add contact data
     if contact
       context[:contact] = build_contact_context(contact)
+    end
+
+    # Add invoice data
+    if invoice
+      context[:invoice] = build_invoice_context(invoice)
+    end
+
+    # Add claim stage data
+    if claim_stage
+      context[:claim_stage] = build_claim_stage_context(claim_stage)
     end
 
     # Add job contacts if available
@@ -282,6 +295,80 @@ class DocumentGenerator
       # For headers/footers
       header_line: "#{settings.company_name} | ABN #{format_abn(settings.abn)} | QBCC #{settings.qbcc_license}",
       footer_line: "#{settings.phone} | #{settings.email} | #{settings.address&.gsub("\n", ", ")}"
+    }
+  end
+
+  def build_invoice_context(invoice)
+    return {} unless invoice
+
+    {
+      # Core fields
+      id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      reference: invoice.reference,
+      status: invoice.status&.humanize,
+      status_raw: invoice.status,
+
+      # Dates
+      invoice_date: format_date(invoice.invoice_date),
+      due_date: format_date(invoice.due_date),
+      fully_paid_date: format_date(invoice.fully_paid_date),
+
+      # Amounts
+      subtotal: format_currency(invoice.subtotal),
+      subtotal_raw: invoice.subtotal&.to_f,
+      total_tax: format_currency(invoice.total_tax),
+      total_tax_raw: invoice.total_tax&.to_f,
+      total: format_currency(invoice.total),
+      total_raw: invoice.total&.to_f,
+      amount_due: format_currency(invoice.amount_due),
+      amount_due_raw: invoice.amount_due&.to_f,
+      amount_paid: format_currency(invoice.amount_paid),
+      amount_paid_raw: invoice.amount_paid&.to_f,
+
+      # Currency
+      currency_code: invoice.currency_code || "AUD",
+
+      # Contact info (from invoice)
+      contact_name: invoice.contact_name,
+
+      # Line items (for templates that support tables)
+      line_items: (invoice.line_items || []).map do |item|
+        {
+          description: item["Description"],
+          quantity: item["Quantity"] || 1,
+          unit_amount: format_currency(item["UnitAmount"]),
+          unit_amount_raw: item["UnitAmount"]&.to_f,
+          line_total: format_currency((item["Quantity"] || 1) * (item["UnitAmount"] || 0)),
+          line_total_raw: (item["Quantity"] || 1) * (item["UnitAmount"] || 0),
+          account_code: item["AccountCode"],
+          tax_type: item["TaxType"]
+        }
+      end,
+
+      # For single line item invoices, expose first line item directly
+      description: invoice.line_items&.first&.dig("Description"),
+
+      # Payment status helpers
+      is_paid: invoice.status == "paid",
+      is_overdue: invoice.due_date.present? && invoice.due_date < Date.current && invoice.status != "paid",
+      days_overdue: invoice.due_date.present? && invoice.due_date < Date.current ? (Date.current - invoice.due_date).to_i : 0
+    }
+  end
+
+  def build_claim_stage_context(claim_stage)
+    return {} unless claim_stage
+
+    {
+      id: claim_stage.id,
+      name: claim_stage.name,
+      description: claim_stage.description,
+      percentage: claim_stage.percentage&.to_f,
+      percentage_formatted: claim_stage.percentage.present? ? "#{claim_stage.percentage}%" : "",
+      expected_amount: format_currency(claim_stage.expected_amount),
+      expected_amount_raw: claim_stage.expected_amount&.to_f,
+      sequence_order: claim_stage.sequence_order,
+      is_custom: claim_stage.is_custom
     }
   end
 

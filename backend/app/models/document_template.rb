@@ -53,14 +53,16 @@ class DocumentTemplate < ApplicationRecord
       quote_fields
     when "contract"
       contract_fields
+    when "invoice"
+      invoice_fields
     else
       job_fields + contact_fields
     end
   end
 
   # Generate output filename based on naming pattern
-  # Pattern can include: {date}, {job_number}, {job_title}, {contact_name}, {template_name}
-  def generate_output_filename(job: nil, contact: nil)
+  # Pattern can include: {date}, {job_number}, {job_title}, {contact_name}, {template_name}, {invoice_number}
+  def generate_output_filename(job: nil, contact: nil, invoice: nil)
     pattern = output_naming_pattern.presence || "{template_name}_{date}"
 
     filename = pattern.dup
@@ -69,6 +71,7 @@ class DocumentTemplate < ApplicationRecord
     filename.gsub!("{job_number}", job&.job_number.to_s)
     filename.gsub!("{job_title}", job&.title.to_s.parameterize)
     filename.gsub!("{contact_name}", contact&.display_name.to_s.parameterize)
+    filename.gsub!("{invoice_number}", invoice&.invoice_number.to_s)
 
     # Remove any unreplaced placeholders
     filename.gsub!(/\{[^}]+\}/, "")
@@ -146,6 +149,26 @@ class DocumentTemplate < ApplicationRecord
       contract.progress_payment_schedule
       contract.warranty_period
       contract.defect_liability_period
+    ]
+  end
+
+  def invoice_fields
+    job_fields + contact_fields + %w[
+      invoice.invoice_number
+      invoice.reference
+      invoice.invoice_date
+      invoice.due_date
+      invoice.description
+      invoice.subtotal
+      invoice.total_tax
+      invoice.total
+      invoice.amount_due
+      invoice.amount_paid
+      invoice.status
+      invoice.currency_code
+      claim_stage.name
+      claim_stage.percentage
+      claim_stage.expected_amount
     ]
   end
 end

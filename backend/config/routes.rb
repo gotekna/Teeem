@@ -186,6 +186,7 @@ Rails.application.routes.draw do
           # Plan set management
           get :plan_set
           post :upload_plan_set
+          post :rename_plans
         end
 
         # Job contacts (nested under jobs)

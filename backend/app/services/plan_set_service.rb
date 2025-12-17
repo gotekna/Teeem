@@ -5,9 +5,114 @@ require "hexapdf"
 class PlanSetService
   class ProcessingError < StandardError; end
 
+  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
+
   def initialize(construction, uploaded_file)
     @construction = construction
     @uploaded_file = uploaded_file
+  end
+
+  # Rename existing plans in SharePoint using AI
+  # Returns: { success: true, renamed: [...], skipped: [...], errors: [...] }
+  def rename_existing_plans!
+    credential = OrganizationOneDriveCredential.active_credential
+    raise ProcessingError, "No active OneDrive credential" unless credential
+
+    client = MicrosoftGraphClient.new(credential)
+
+    # Find the job folder
+    job_folder = client.find_job_folder(@construction)
+    raise ProcessingError, "Job folder not found" unless job_folder
+
+    # Find 04 Plans folder
+    response = client.list_folder_items(job_folder["id"])
+    items = response["value"] || []
+    plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+    raise ProcessingError, "04 Plans folder not found" unless plans_folder
+
+    # List files in 04 Plans
+    plan_response = client.list_folder_items(plans_folder["id"])
+    plan_files = plan_response["value"] || []
+    pdf_files = plan_files.select { |f| f["file"].present? && f["name"]&.end_with?(".pdf") }
+
+    renamed = []
+    skipped = []
+    errors = []
+    used_filenames = Set.new
+
+    pdf_files.each do |file|
+      file_id = file["id"]
+      original_name = file["name"]
+
+      # Skip "All Plans.pdf"
+      if original_name == "All Plans.pdf"
+        skipped << { id: file_id, name: original_name, reason: "All Plans file" }
+        used_filenames.add(original_name)
+        next
+      end
+
+      # Skip if already has a good name (not "Page N.pdf")
+      unless original_name.match?(/^Page \d+\.pdf$/i)
+        skipped << { id: file_id, name: original_name, reason: "Already named" }
+        used_filenames.add(original_name)
+        next
+      end
+
+      begin
+        Rails.logger.info "[PlanSetService] Renaming #{original_name}..."
+
+        # Download the file content
+        content = client.download_file(file_id)
+        raise "Failed to download file" unless content
+
+        # Extract sheet info using AI
+        sheet_info = extract_sheet_info_with_ai(content, 1)
+
+        if sheet_info[:sheet_number].blank? && sheet_info[:sheet_name].blank?
+          skipped << { id: file_id, name: original_name, reason: "AI could not extract sheet info" }
+          used_filenames.add(original_name)
+          next
+        end
+
+        # Determine new filename
+        new_filename = determine_filename(sheet_info, 0, used_filenames)
+        used_filenames.add(new_filename)
+
+        # Skip if name wouldn't change
+        if new_filename == original_name
+          skipped << { id: file_id, name: original_name, reason: "Name unchanged" }
+          next
+        end
+
+        # Rename in SharePoint
+        client.rename_file(file_id, new_filename)
+
+        renamed << {
+          id: file_id,
+          original_name: original_name,
+          new_name: new_filename,
+          sheet_number: sheet_info[:sheet_number],
+          sheet_name: sheet_info[:sheet_name]
+        }
+
+        Rails.logger.info "[PlanSetService] Renamed #{original_name} -> #{new_filename}"
+      rescue StandardError => e
+        Rails.logger.error "[PlanSetService] Error renaming #{original_name}: #{e.message}"
+        errors << { id: file_id, name: original_name, error: e.message }
+      end
+    end
+
+    {
+      success: true,
+      renamed: renamed,
+      skipped: skipped,
+      errors: errors
+    }
+  rescue ProcessingError => e
+    { success: false, error: e.message }
+  rescue StandardError => e
+    Rails.logger.error("PlanSetService rename error: #{e.class} - #{e.message}")
+    { success: false, error: "Failed to rename plans: #{e.message}" }
   end
 
   # Process the uploaded PDF plan set
@@ -31,7 +136,7 @@ class PlanSetService
     # Upload the full PDF as "All Plans.pdf"
     all_plans = upload_full_pdf(content, plans_folder_id)
 
-    # Extract and upload individual pages
+    # Extract and upload individual pages (with AI-powered naming)
     pages = extract_and_upload_pages(doc, plans_folder_id)
 
     {
@@ -107,25 +212,28 @@ class PlanSetService
     client = MicrosoftGraphClient.new(credential)
 
     pages = []
+    used_filenames = Set.new([ "All Plans.pdf" ])
 
     doc.pages.count.times do |index|
-      # Get the page label (e.g., "A001", "S-101") or fall back to "Page N"
-      label = doc.pages.page_label(index)
-      filename = if label.present?
-        sanitize_filename("#{label}.pdf")
-      else
-        "Page #{index + 1}.pdf"
-      end
+      Rails.logger.info "[PlanSetService] Processing page #{index + 1} of #{doc.pages.count}"
 
       # Extract single page to new PDF
       page_content = extract_single_page(doc, index)
+
+      # Try to get sheet name using AI vision
+      sheet_info = extract_sheet_info_with_ai(page_content, index + 1)
+
+      # Determine filename
+      filename = determine_filename(sheet_info, index, used_filenames)
+      used_filenames.add(filename)
 
       # Upload to SharePoint
       result = client.upload_file_content(folder_id, filename, page_content)
 
       pages << {
         page_number: index + 1,
-        label: label,
+        sheet_number: sheet_info[:sheet_number],
+        sheet_name: sheet_info[:sheet_name],
         name: filename,
         file_id: result[:id],
         web_url: result[:webUrl] || result[:web_url],
@@ -146,11 +254,150 @@ class PlanSetService
     output.string
   end
 
+  # Use Claude vision to extract sheet info from the plan page
+  def extract_sheet_info_with_ai(pdf_content, page_number)
+    return { sheet_number: nil, sheet_name: nil } unless ENV["ANTHROPIC_API_KEY"].present?
+
+    begin
+      # Convert PDF page to image for vision
+      image_data = pdf_to_image(pdf_content)
+      return { sheet_number: nil, sheet_name: nil } unless image_data
+
+      # Call Claude vision API
+      result = call_claude_vision(image_data, page_number)
+      Rails.logger.info "[PlanSetService] AI extracted: #{result.inspect}"
+      result
+    rescue StandardError => e
+      Rails.logger.error "[PlanSetService] AI extraction failed for page #{page_number}: #{e.message}"
+      { sheet_number: nil, sheet_name: nil }
+    end
+  end
+
+  # Convert PDF to PNG image for Claude vision
+  def pdf_to_image(pdf_content)
+    Tempfile.create([ "plan_page", ".pdf" ], binmode: true) do |pdf_file|
+      pdf_file.write(pdf_content)
+      pdf_file.rewind
+
+      # Use MiniMagick to convert PDF to PNG
+      image = MiniMagick::Image.open(pdf_file.path)
+      image.format "png"
+      image.density 150  # DPI - balance between quality and size
+      image.resize "2000x2000>"  # Limit size for API
+
+      image.to_blob
+    end
+  rescue StandardError => e
+    Rails.logger.error "[PlanSetService] PDF to image conversion failed: #{e.message}"
+    nil
+  end
+
+  def call_claude_vision(image_data, page_number)
+    client = Anthropic::Client.new(access_token: ENV["ANTHROPIC_API_KEY"])
+
+    image_base64 = Base64.strict_encode64(image_data)
+
+    response = client.messages(
+      parameters: {
+        model: CLAUDE_MODEL,
+        max_tokens: 500,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: image_base64
+                }
+              },
+              {
+                type: "text",
+                text: build_sheet_extraction_prompt
+              }
+            ]
+          }
+        ]
+      }
+    )
+
+    parse_sheet_response(response.dig("content", 0, "text"))
+  end
+
+  def build_sheet_extraction_prompt
+    <<~PROMPT
+      This is an architectural/construction plan sheet. Extract the sheet information from the title block (usually in the bottom right corner or right edge).
+
+      Return ONLY valid JSON with no additional text:
+      {
+        "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', 'E01', 'Sheet 1')",
+        "sheet_name": "The sheet title/name (e.g., 'FLOOR PLAN', 'SITE PLAN', 'ELEVATIONS', 'ELECTRICAL LAYOUT')"
+      }
+
+      Important:
+      - sheet_number: Look for codes like A001, A-001, S001, S-001, E01, Sheet 1, Drawing 1, etc.
+      - sheet_name: Look for the main title/description of what the drawing shows
+      - Return null for fields you cannot find
+      - If you see "ISSUE FOR CONSTRUCTION" or similar, that's NOT the sheet name - look for the actual drawing title
+      - Common patterns: The sheet number is often in a box or prominent location in the title block
+    PROMPT
+  end
+
+  def parse_sheet_response(text)
+    return { sheet_number: nil, sheet_name: nil } if text.blank?
+
+    # Extract JSON from response
+    json_match = text.match(/\{[\s\S]*\}/)
+    return { sheet_number: nil, sheet_name: nil } unless json_match
+
+    result = JSON.parse(json_match[0])
+    {
+      sheet_number: result["sheet_number"]&.strip,
+      sheet_name: result["sheet_name"]&.strip
+    }
+  rescue JSON::ParserError => e
+    Rails.logger.error "[PlanSetService] JSON parse error: #{e.message}"
+    { sheet_number: nil, sheet_name: nil }
+  end
+
+  def determine_filename(sheet_info, page_index, used_filenames)
+    # Priority: sheet_number + sheet_name > sheet_number > sheet_name > Page N
+    base_name = if sheet_info[:sheet_number].present? && sheet_info[:sheet_name].present?
+      "#{sheet_info[:sheet_number]} - #{sheet_info[:sheet_name]}"
+    elsif sheet_info[:sheet_number].present?
+      sheet_info[:sheet_number]
+    elsif sheet_info[:sheet_name].present?
+      sheet_info[:sheet_name]
+    else
+      "Page #{page_index + 1}"
+    end
+
+    filename = sanitize_filename("#{base_name}.pdf")
+
+    # Handle duplicate filenames
+    if used_filenames.include?(filename)
+      counter = 2
+      loop do
+        new_filename = sanitize_filename("#{base_name} (#{counter}).pdf")
+        unless used_filenames.include?(new_filename)
+          filename = new_filename
+          break
+        end
+        counter += 1
+      end
+    end
+
+    filename
+  end
+
   def sanitize_filename(filename)
     # Remove or replace invalid characters for filenames
     filename
       .gsub(/[<>:"\/\\|?*]/, "_") # Replace invalid Windows/SharePoint chars
       .gsub(/\s+/, " ")           # Normalize whitespace
+      .truncate(100, omission: ".pdf") # Limit length
       .strip
   end
 end
