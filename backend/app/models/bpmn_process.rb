@@ -229,6 +229,21 @@ class BpmnProcess < ApplicationRecord
       config[prop["name"]] = prop["value"]
     end
 
+    # Check documentation element for JSON config (used by BPMN designer)
+    doc_element = element.at_xpath("documentation")
+    if doc_element&.text.present?
+      doc_text = doc_element.text.strip
+      # Try to parse as JSON if it looks like JSON
+      if doc_text.start_with?("{")
+        begin
+          doc_config = JSON.parse(doc_text)
+          config = doc_config.merge(config) # Extension elements override doc config
+        rescue JSON::ParserError
+          # Not valid JSON, ignore
+        end
+      end
+    end
+
     # For tasks, try to extract task_type from element or default based on name
     if node_type.in?(%w[service_task user_task])
       config["task_type"] ||= "generate_document" # Default for now

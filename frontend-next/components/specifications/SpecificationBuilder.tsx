@@ -1,17 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Save,
   FileText,
   ChevronDown,
   ChevronRight,
-  Plus,
   Loader2,
   Download,
   RefreshCw,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 
@@ -58,13 +58,6 @@ interface SpecificationTemplate {
   job_type_name?: string;
   sections: TemplateSection[];
   is_default: boolean;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  job_type?: { id: number; name: string };
-  job_type_id?: number;
 }
 
 // Section Component
@@ -178,14 +171,16 @@ function SpecificationSection({
   );
 }
 
-// Main Page Component
-export default function SpecificationBuilderPage() {
-  const params = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const jobId = params.id as string;
+// Props for the embeddable component
+interface SpecificationBuilderProps {
+  jobId: number | string;
+  jobTypeId?: number;
+}
 
-  const [job, setJob] = useState<Job | null>(null);
+// Main Embeddable Component
+export function SpecificationBuilder({ jobId, jobTypeId }: SpecificationBuilderProps) {
+  const { toast } = useToast();
+
   const [template, setTemplate] = useState<SpecificationTemplate | null>(null);
   const [specifications, setSpecifications] = useState<Record<string, JobSpecification>>({});
   const [pricebookItems, setPricebookItems] = useState<PricebookItem[]>([]);
@@ -194,57 +189,44 @@ export default function SpecificationBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Load job data
-  useEffect(() => {
-    const loadJob = async () => {
-      try {
-        const response = await api.get<Job>(`/api/v1/jobs/${jobId}`);
-        setJob(response);
-      } catch (error) {
-        console.error("Failed to load job:", error);
-        toast({ title: "Failed to load job", variant: "destructive" });
-      }
-    };
-    loadJob();
-  }, [jobId, toast]);
-
   // Load template based on job type
   useEffect(() => {
-    if (!job?.job_type_id) return;
-
     const loadTemplate = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: SpecificationTemplate }>(
-          `/api/v1/specification_templates/for_job_type/${job.job_type_id}`
+        // Try loading by job type first
+        if (jobTypeId) {
+          const response = await api.get<{ success: boolean; data: SpecificationTemplate }>(
+            `/api/v1/specification_templates/for_job_type/${jobTypeId}`
+          );
+          if (response?.success && response.data) {
+            setTemplate(response.data);
+            // Expand ALL sections by default
+            if (response.data.sections?.length > 0) {
+              setExpandedSections(new Set(response.data.sections.map(s => s.key)));
+            }
+            return;
+          }
+        }
+
+        // Fallback to default template
+        const defaultResponse = await api.get<{ success: boolean; data: SpecificationTemplate[] }>(
+          "/api/v1/specification_templates?active_only=true"
         );
-        if (response?.success && response.data) {
-          setTemplate(response.data);
-          // Expand first section by default
-          if (response.data.sections?.length > 0) {
-            setExpandedSections(new Set([response.data.sections[0].key]));
+        if (defaultResponse?.success && defaultResponse.data?.length > 0) {
+          const defaultTemplate =
+            defaultResponse.data.find((t) => t.is_default) || defaultResponse.data[0];
+          setTemplate(defaultTemplate);
+          // Expand ALL sections by default
+          if (defaultTemplate.sections?.length > 0) {
+            setExpandedSections(new Set(defaultTemplate.sections.map(s => s.key)));
           }
         }
       } catch (error) {
         console.error("Failed to load template:", error);
-        // Try loading default template
-        try {
-          const defaultResponse = await api.get<{ success: boolean; data: SpecificationTemplate[] }>(
-            "/api/v1/specification_templates?active_only=true"
-          );
-          if (defaultResponse?.success && defaultResponse.data?.length > 0) {
-            const defaultTemplate = defaultResponse.data.find((t) => t.is_default) || defaultResponse.data[0];
-            setTemplate(defaultTemplate);
-            if (defaultTemplate.sections?.length > 0) {
-              setExpandedSections(new Set([defaultTemplate.sections[0].key]));
-            }
-          }
-        } catch {
-          console.error("Failed to load default template");
-        }
       }
     };
     loadTemplate();
-  }, [job?.job_type_id]);
+  }, [jobTypeId]);
 
   // Load existing specifications
   useEffect(() => {
@@ -362,50 +344,113 @@ export default function SpecificationBuilderPage() {
 
   // Export PDF
   const handleExportPdf = () => {
-    // Open PDF in new tab
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
     window.open(`${baseUrl}/api/v1/jobs/${jobId}/specifications/generate_pdf?download=true`, "_blank");
   };
 
+  // Custom specifications state
+  const [customSpecs, setCustomSpecs] = useState<Array<{
+    id?: number;
+    name: string;
+    value: string;
+    notes: string;
+  }>>([]);
+
+  // Load custom specifications
+  useEffect(() => {
+    const loadCustomSpecs = async () => {
+      try {
+        const response = await api.get<{
+          success: boolean;
+          data: Array<{ id: number; name: string; value: string; notes: string }>;
+        }>(`/api/v1/jobs/${jobId}/custom_specifications`);
+        if (response?.success && response.data) {
+          setCustomSpecs(response.data);
+        }
+      } catch {
+        // Custom specs endpoint might not exist yet - that's ok
+      }
+    };
+    loadCustomSpecs();
+  }, [jobId]);
+
+  // Add custom spec
+  const addCustomSpec = () => {
+    setCustomSpecs(prev => [...prev, { name: "", value: "", notes: "" }]);
+    setIsDirty(true);
+  };
+
+  // Update custom spec
+  const updateCustomSpec = (index: number, field: string, value: string) => {
+    setCustomSpecs(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+    setIsDirty(true);
+  };
+
+  // Remove custom spec
+  const removeCustomSpec = (index: number) => {
+    setCustomSpecs(prev => prev.filter((_, i) => i !== index));
+    setIsDirty(true);
+  };
+
+  // Save custom specifications
+  const handleSaveCustom = async () => {
+    setSaving(true);
+    try {
+      await api.post(`/api/v1/jobs/${jobId}/custom_specifications/bulk_update`, {
+        custom_specifications: customSpecs.filter(s => s.name || s.value),
+      });
+      toast({ title: "Custom specifications saved" });
+      setIsDirty(false);
+    } catch (error) {
+      console.error("Failed to save custom specifications:", error);
+      toast({ title: "Failed to save custom specifications", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b bg-background p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-xl font-semibold flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Specification Builder
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {job?.name || "Loading..."}
-                {template && <span className="ml-2">({template.name})</span>}
-              </p>
-            </div>
-          </div>
+    <Tabs defaultValue="standard" className="space-y-4">
+      <div className="flex items-center justify-between">
+        <TabsList>
+          <TabsTrigger value="standard">Standard Template</TabsTrigger>
+          <TabsTrigger value="custom">Custom</TabsTrigger>
+        </TabsList>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportPdf}>
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+        </div>
+      </div>
 
+      {/* Standard Template Tab */}
+      <TabsContent value="standard" className="space-y-4">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleInitializeFromTemplate}>
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              {template?.name || "Standard Template"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleInitializeFromTemplate}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Apply Template
             </Button>
-            <Button variant="outline" onClick={handleExportPdf}>
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
-            <Button onClick={handleSave} disabled={saving || !isDirty}>
+            <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
               {saving ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -415,39 +460,123 @@ export default function SpecificationBuilderPage() {
             </Button>
           </div>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-5xl mx-auto">
-          {!template ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-medium">No Template Found</h3>
-                <p className="text-sm text-muted-foreground mt-2">
-                  No specification template found for this job type.
-                  Please create a template in the admin settings first.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {template.sections?.map((section) => (
-                <SpecificationSection
-                  key={section.key}
-                  section={section}
-                  specifications={specifications}
-                  pricebookItems={pricebookItems}
-                  onUpdate={handleUpdate}
-                  isExpanded={expandedSections.has(section.key)}
-                  onToggle={() => toggleSection(section.key)}
-                />
-              ))}
-            </div>
-          )}
+        {!template ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-medium">No Template Found</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                No specification template found for this job type.
+                Please create a template in the admin settings first.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {template.sections?.map((section) => (
+              <SpecificationSection
+                key={section.key}
+                section={section}
+                specifications={specifications}
+                pricebookItems={pricebookItems}
+                onUpdate={handleUpdate}
+                isExpanded={expandedSections.has(section.key)}
+                onToggle={() => toggleSection(section.key)}
+              />
+            ))}
+          </div>
+        )}
+      </TabsContent>
+
+      {/* Custom Tab */}
+      <TabsContent value="custom" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              Custom Specifications
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={addCustomSpec}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Item
+            </Button>
+            <Button size="sm" onClick={handleSaveCustom} disabled={saving || !isDirty}>
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save
+            </Button>
+          </div>
         </div>
-      </div>
-    </div>
+
+        {customSpecs.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-medium">No Custom Specifications</h3>
+              <p className="text-sm text-muted-foreground mt-2">
+                Click "Add Item" to create custom specification entries.
+              </p>
+              <Button variant="outline" className="mt-4" onClick={addCustomSpec}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Item
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {customSpecs.map((spec, index) => (
+                  <div
+                    key={index}
+                    className="grid grid-cols-12 gap-4 items-start py-3 border-b last:border-0"
+                  >
+                    <div className="col-span-3">
+                      <Input
+                        placeholder="Item name..."
+                        value={spec.name}
+                        onChange={(e) => updateCustomSpec(index, "name", e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <Input
+                        placeholder="Value / Selection..."
+                        value={spec.value}
+                        onChange={(e) => updateCustomSpec(index, "value", e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <Textarea
+                        placeholder="Notes..."
+                        value={spec.notes}
+                        onChange={(e) => updateCustomSpec(index, "notes", e.target.value)}
+                        className="min-h-[38px] resize-none"
+                        rows={1}
+                      />
+                    </div>
+                    <div className="col-span-1 flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCustomSpec(index)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </TabsContent>
+    </Tabs>
   );
 }

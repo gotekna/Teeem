@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -547,6 +547,110 @@ module Api
       rescue ActiveRecord::RecordInvalid => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/upload_plan_set
+      # Upload a PDF plan set, split into individual pages named by PDF page labels
+      def upload_plan_set
+        unless params[:file].present?
+          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+        end
+
+        service = PlanSetService.new(@job, params[:file])
+        result = service.process!
+
+        if result[:success]
+          render json: {
+            success: true,
+            data: {
+              all_plans: result[:all_plans],
+              pages: result[:pages],
+              total_pages: result[:total_pages]
+            }
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/jobs/:id/plan_set
+      # Get the list of plans in the 04 Plans folder
+      def plan_set
+        credential = OrganizationOneDriveCredential.active_credential
+        unless credential
+          return render json: { success: false, error: "OneDrive not connected" }, status: :unprocessable_entity
+        end
+
+        client = MicrosoftGraphClient.new(credential)
+
+        # Find the job folder
+        job_folder = client.find_job_folder(@job)
+        unless job_folder
+          return render json: { success: true, data: { plans: [], folder_exists: false } }
+        end
+
+        # Find 04 Plans folder - list_folder_items returns { "value" => [...] } with string keys
+        response = client.list_folder_items(job_folder["id"])
+        items = response["value"] || []
+        plans_folder = items.find { |item| item["name"] == "04 Plans" && item["folder"].present? }
+
+        unless plans_folder
+          return render json: { success: true, data: { plans: [], folder_exists: false } }
+        end
+
+        # List files in 04 Plans
+        plan_response = client.list_folder_items(plans_folder["id"])
+        plan_files = plan_response["value"] || []
+        pdf_files = plan_files.select { |f| f["file"].present? && f["name"]&.end_with?(".pdf") }
+
+        plans = pdf_files.map do |f|
+          {
+            id: f["id"],
+            name: f["name"],
+            web_url: f["webUrl"],
+            size: f["size"],
+            modified: f["lastModifiedDateTime"],
+            is_all_plans: f["name"] == "All Plans.pdf"
+          }
+        end
+
+        # Sort: All Plans first, then alphabetically
+        plans.sort_by! { |p| [ p[:is_all_plans] ? 0 : 1, p[:name] ] }
+
+        render json: {
+          success: true,
+          data: {
+            plans: plans,
+            folder_exists: true,
+            folder_id: plans_folder["id"],
+            folder_web_url: plans_folder["webUrl"]
+          }
+        }
+      rescue => e
+        Rails.logger.error("plan_set error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/rename_plans
+      # Use AI to rename existing plans in 04 Plans folder
+      def rename_plans
+        result = PlanSetService.new(@job, nil).rename_existing_plans!
+
+        if result[:success]
+          render json: {
+            success: true,
+            data: {
+              renamed: result[:renamed],
+              skipped: result[:skipped],
+              errors: result[:errors]
+            }
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      rescue => e
+        Rails.logger.error("rename_plans error: #{e.message}")
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 

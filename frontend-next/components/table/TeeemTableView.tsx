@@ -928,6 +928,23 @@ export default function TeeemTableView({
   const effectiveEnableExport = enableExport || shouldAutoEnable;
   const effectiveEnableSchemaEditor = enableSchemaEditor || shouldAutoEnable;
 
+  // Auto-enabled bulk delete when foundationIdNumeric is available
+  // Pages don't need to wire this up manually - it just works
+  const defaultBulkDelete = useCallback(async (ids: (number | string)[]) => {
+    if (!foundationIdNumeric) return;
+    try {
+      await api.post(`/api/v1/foundations/${foundationIdNumeric}/records/bulk_delete`, {
+        ids: ids.map(id => Number(id))
+      });
+      onRefresh?.();
+    } catch (err) {
+      console.error("Failed to bulk delete:", err);
+      throw err;
+    }
+  }, [foundationIdNumeric, onRefresh]);
+
+  const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
+
   // ============================================================================
   // SESSION STORAGE CACHE - Persists view state across page navigation
   // ============================================================================
@@ -4776,12 +4793,12 @@ export default function TeeemTableView({
                   Xero
                 </Button>
               )}
-              {/* Delete button - bulk delete selected rows */}
-              {onBulkDelete && !viewOnly && (
+              {/* Delete button - bulk delete selected rows (auto-enabled with foundationIdNumeric) */}
+              {effectiveBulkDelete && !viewOnly && (
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => onBulkDelete(Array.from(selectedRows))}
+                  onClick={() => effectiveBulkDelete(Array.from(selectedRows))}
                 >
                   <Trash2 className="h-4 w-4 mr-1" />
                   Delete
@@ -5184,12 +5201,12 @@ export default function TeeemTableView({
               Xero
             </Button>
           )}
-          {/* Delete button */}
-          {onBulkDelete && !viewOnly && (
+          {/* Delete button (auto-enabled with foundationIdNumeric) */}
+          {effectiveBulkDelete && !viewOnly && (
             <Button
               variant="destructive"
               size="sm"
-              onClick={() => onBulkDelete?.(Array.from(selectedRows))}
+              onClick={() => effectiveBulkDelete?.(Array.from(selectedRows))}
             >
               <Trash2 className="h-4 w-4 mr-1" />
               Delete

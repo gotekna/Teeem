@@ -121,6 +121,28 @@ class TeknaDocumentGenerator
       title: "QBCC General Conditions of Contract",
       output_filename: "{date}_qbcc_general_conditions_{job_name}",
       qbcc_required: true
+    },
+
+    # SharePoint-sourced documents (fetched from job folder, not generated)
+    all_plans: {
+      source: :sharepoint,
+      sharepoint_path: "04 Plans/All Plans.pdf",
+      sharepoint_path_alt: "04 Plans/All+Plans.pdf", # Alternative filename (URL encoded)
+      category: "contract",
+      requires: [ :job ],
+      layout: "none",
+      title: "All Plans",
+      output_filename: "All_Plans_{job_name}"
+    },
+
+    # Invoice documents
+    deposit_claim_invoice: {
+      path: "templates/deposit_claim_invoice",
+      category: "invoice",
+      requires: [ :job ],
+      layout: "tekna",
+      title: "Deposit Claim Invoice",
+      output_filename: "{date}_deposit_invoice_{job_name}"
     }
   }.freeze
 
@@ -149,6 +171,11 @@ class TeknaDocumentGenerator
   # Generate document and return hash with html and pdf_content
   def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {})
     validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
+
+    # Handle SharePoint-sourced documents (fetch existing file, don't generate)
+    if template_config[:source] == :sharepoint
+      return fetch_from_sharepoint(job: job)
+    end
 
     context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
     html = render_template(context)
@@ -737,5 +764,65 @@ class TeknaDocumentGenerator
     end
 
     result
+  end
+
+  # Fetch an existing PDF from SharePoint instead of generating
+  # Used for documents like "All Plans" that are uploaded separately
+  def fetch_from_sharepoint(job:)
+    sharepoint_path = template_config[:sharepoint_path]
+    raise GenerationError, "SharePoint path not configured for #{template_key}" unless sharepoint_path
+
+    credential = OrganizationOneDriveCredential.active_credential
+    raise GenerationError, "No active OneDrive credential" unless credential
+
+    client = MicrosoftGraphClient.new(credential)
+
+    # Find the job folder
+    job_folder = client.find_job_folder(job)
+    raise GenerationError, "Job folder not found in SharePoint for #{job.name}" unless job_folder
+
+    # Navigate to the file path
+    path_parts = sharepoint_path.split("/")
+    filename = path_parts.pop
+    current_folder_id = job_folder["id"]
+
+    # Navigate through subfolders
+    path_parts.each do |folder_name|
+      response = client.list_folder_items(current_folder_id)
+      items = response["value"] || []
+      folder = items.find { |item| item["name"] == folder_name && item["folder"].present? }
+      raise GenerationError, "Folder '#{folder_name}' not found in job folder" unless folder
+      current_folder_id = folder["id"]
+    end
+
+    # Find and download the file - try primary filename first, then alternative
+    response = client.list_folder_items(current_folder_id)
+    items = response["value"] || []
+    file = items.find { |item| item["name"] == filename && item["file"].present? }
+
+    # Try alternative filename if primary not found (handles URL encoding variations)
+    if file.nil? && template_config[:sharepoint_path_alt]
+      alt_filename = template_config[:sharepoint_path_alt].split("/").last
+      file = items.find { |item| item["name"] == alt_filename && item["file"].present? }
+    end
+
+    raise GenerationError, "File '#{filename}' not found in #{path_parts.join('/')}" unless file
+
+    pdf_content = client.download_file(file["id"])
+    raise GenerationError, "Failed to download file from SharePoint" unless pdf_content
+
+    {
+      html: nil, # No HTML for SharePoint-sourced files
+      pdf_content: pdf_content,
+      filename: generate_filename(job: job),
+      generated_at: Time.current,
+      template: template_key,
+      title: template_config[:title],
+      source: :sharepoint,
+      sharepoint_file_id: file["id"],
+      sharepoint_web_url: file["webUrl"]
+    }
+  rescue MicrosoftGraphClient::ClientError, MicrosoftGraphClient::AuthenticationError => e
+    raise GenerationError, "SharePoint error: #{e.message}"
   end
 end

@@ -35,6 +35,8 @@ import {
   Receipt,
   TrendingUp,
   Plus,
+  ExternalLink,
+  FileDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -87,13 +89,16 @@ interface ClaimStage {
   // Invoice details
   invoice: {
     id: number;
+    external_id: string | null;
     invoice_number: string;
     reference: string | null;
     total: number;
+    amount_due: number;
     amount_paid: number;
     status: string;
     date: string;
     due_date: string | null;
+    fully_paid_date: string | null;
   } | null;
 }
 
@@ -131,6 +136,8 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
 
   const [autoMatching, setAutoMatching] = React.useState(false);
   const [matchingStageId, setMatchingStageId] = React.useState<number | null>(null);
+  const [creatingInvoiceId, setCreatingInvoiceId] = React.useState<number | null>(null);
+  const [generatingPdfId, setGeneratingPdfId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
@@ -252,6 +259,106 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     setShowMatchDialog(true);
   };
 
+  const handleCreateInvoice = async (stage: ClaimStage) => {
+    setCreatingInvoiceId(stage.id);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          stage: ClaimStage;
+          invoice: { invoice_number: string };
+          message: string;
+        };
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/create_invoice`, {});
+
+      if (!response) {
+        toast({
+          title: "Error",
+          description: "No response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (response.success && response.data) {
+        toast({
+          title: "Invoice Created",
+          description: `Invoice ${response.data.invoice.invoice_number} created and synced to Xero`,
+        });
+        loadData();
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to create invoice",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to create invoice:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to create invoice";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingInvoiceId(null);
+    }
+  };
+
+  const handleGeneratePdf = async (stage: ClaimStage) => {
+    setGeneratingPdfId(stage.id);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          document_id: number;
+          filename: string;
+          url: string;
+          message: string;
+        };
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/generate_pdf`, {});
+
+      if (!response) {
+        toast({
+          title: "Error",
+          description: "No response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (response.success && response.data) {
+        toast({
+          title: "PDF Generated",
+          description: response.data.message,
+        });
+        // Open the PDF in a new tab
+        if (response.data.url) {
+          window.open(response.data.url, "_blank");
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to generate PDF",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to generate PDF:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate PDF";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setGeneratingPdfId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -331,10 +438,10 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">Payment Progress</span>
               <span className="text-sm font-bold text-green-600 dark:text-green-400">
-                {summary.paid_percentage.toFixed(1)}% Paid
+                {(Number(summary.paid_percentage) || 0).toFixed(1)}% Paid
               </span>
             </div>
-            <Progress value={summary.paid_percentage} className="h-3" />
+            <Progress value={Number(summary.paid_percentage) || 0} className="h-3" />
           </CardContent>
         </Card>
       )}
@@ -413,9 +520,21 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                               ) : (
                                 <Link2 className="h-4 w-4 text-blue-500" />
                               )}
-                              <span className="font-medium text-sm">
-                                {stage.invoice.invoice_number}
-                              </span>
+                              {stage.invoice.external_id ? (
+                                <a
+                                  href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${stage.invoice.external_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="font-medium text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                >
+                                  {stage.invoice.invoice_number}
+                                  <ExternalLink className="h-3 w-3" />
+                                </a>
+                              ) : (
+                                <span className="font-medium text-sm">
+                                  {stage.invoice.invoice_number}
+                                </span>
+                              )}
                               {stage.invoice.reference && (
                                 <span className="text-xs text-muted-foreground">
                                   {stage.invoice.reference}
@@ -427,50 +546,111 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                               {formatDate(stage.invoice.date)}
                             </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => handleUnmatch(stage.id)}
-                            disabled={matchingStageId === stage.id}
-                            title="Unmatch invoice"
-                          >
-                            {matchingStageId === stage.id ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Unlink className="h-4 w-4" />
-                            )}
-                          </Button>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleGeneratePdf(stage)}
+                              disabled={generatingPdfId === stage.id}
+                              title="Generate Invoice PDF"
+                            >
+                              {generatingPdfId === stage.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <FileDown className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => handleUnmatch(stage.id)}
+                              disabled={matchingStageId === stage.id}
+                              title="Unmatch invoice"
+                            >
+                              {matchingStageId === stage.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Unlink className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          onClick={() => openMatchDialog(stage)}
-                          disabled={availableInvoices.length === 0}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          {availableInvoices.length > 0
-                            ? "Select Invoice"
-                            : "No Invoices"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {availableInvoices.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8"
+                              onClick={() => openMatchDialog(stage)}
+                            >
+                              <Link2 className="h-4 w-4 mr-1" />
+                              Match
+                            </Button>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => handleCreateInvoice(stage)}
+                            disabled={creatingInvoiceId === stage.id}
+                          >
+                            {creatingInvoiceId === stage.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4 mr-1" />
+                            )}
+                            Create Invoice
+                          </Button>
+                        </div>
                       )}
                     </td>
 
                     {/* Payment Status */}
                     <td className="px-4 py-3 text-right">
-                      {stage.matched ? (
+                      {stage.matched && stage.invoice ? (
                         <div className="flex flex-col items-end gap-1">
-                          <PaymentStatusBadge status={stage.payment_status} />
+                          <PaymentStatusBadge
+                            status={stage.payment_status}
+                            dueDate={stage.invoice.due_date}
+                          />
+                          {/* Amount Outstanding */}
+                          {stage.invoice.amount_due > 0 && stage.payment_status !== "paid" && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <span className="text-muted-foreground">Outstanding:</span>
+                              <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
+                                {formatCurrency(stage.invoice.amount_due)}
+                              </span>
+                            </div>
+                          )}
+                          {/* Amount Paid */}
                           {stage.amount_paid && stage.amount_paid > 0 && (
-                            <span className="text-xs font-mono text-green-600 dark:text-green-400">
-                              {formatCurrency(stage.amount_paid)}
+                            <div className="flex items-center gap-1 text-xs">
+                              <span className="text-muted-foreground">Paid:</span>
+                              <span className="font-mono text-green-600 dark:text-green-400">
+                                {formatCurrency(stage.amount_paid)}
+                              </span>
+                            </div>
+                          )}
+                          {/* Payment/Paid Date */}
+                          {(stage.invoice.fully_paid_date || stage.payment_date) && (
+                            <span className="text-xs text-muted-foreground">
+                              {stage.invoice.fully_paid_date
+                                ? `Paid ${formatDate(stage.invoice.fully_paid_date)}`
+                                : stage.payment_date && formatDate(stage.payment_date)}
                             </span>
                           )}
-                          {stage.payment_date && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(stage.payment_date)}
+                          {/* Due Date (if unpaid) */}
+                          {stage.payment_status !== "paid" && stage.invoice.due_date && (
+                            <span className={cn(
+                              "text-xs",
+                              new Date(stage.invoice.due_date) < new Date()
+                                ? "text-red-500 font-medium"
+                                : "text-muted-foreground"
+                            )}>
+                              Due {formatDate(stage.invoice.due_date)}
                             </span>
                           )}
                           {stage.has_variance && (
@@ -600,7 +780,28 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   );
 }
 
-function PaymentStatusBadge({ status }: { status: string }) {
+function PaymentStatusBadge({
+  status,
+  dueDate,
+}: {
+  status: string;
+  dueDate?: string | null;
+}) {
+  // Check if overdue (unpaid and past due date)
+  const isOverdue =
+    status !== "paid" &&
+    dueDate &&
+    new Date(dueDate) < new Date();
+
+  if (isOverdue) {
+    return (
+      <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Overdue
+      </Badge>
+    );
+  }
+
   switch (status) {
     case "paid":
       return (

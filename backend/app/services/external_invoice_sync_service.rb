@@ -944,16 +944,18 @@ class ExternalInvoiceSyncService
     # Determine if create or update
     if invoice.external_id.present?
       # Update existing invoice
-      result = @api_client.put("Invoices/#{invoice.external_id}", {
-        tenant_id: invoice.tenant_id,
-        body: { Invoices: [ xero_invoice ] }
-      })
+      result = @api_client.post(
+        "Invoices/#{invoice.external_id}",
+        { Invoices: [ xero_invoice ] },
+        { tenant_id: invoice.tenant_id }
+      )
     else
       # Create new invoice
-      result = @api_client.post("Invoices", {
-        tenant_id: invoice.tenant_id,
-        body: { Invoices: [ xero_invoice ] }
-      })
+      result = @api_client.post(
+        "Invoices",
+        { Invoices: [ xero_invoice ] },
+        { tenant_id: invoice.tenant_id }
+      )
     end
 
     unless result[:success]

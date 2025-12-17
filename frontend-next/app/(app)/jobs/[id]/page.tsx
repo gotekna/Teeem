@@ -35,6 +35,7 @@ import {
   Save,
   X,
   FileSignature,
+  Palette,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -50,6 +51,8 @@ import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
 import { StartWorkflowButton } from "@/components/jobs/StartWorkflowButton";
+import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
+import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(
@@ -155,6 +158,8 @@ interface JobStage {
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
   { name: "Contract", slug: "contract", icon: FileSignature },
+  { name: "Specifications", slug: "specifications", icon: FileText },
+  { name: "Colours", slug: "colours", icon: Palette },
   { name: "Claims", slug: "claims", icon: TrendingUp },
   { name: "People", slug: "people", icon: Users },
   { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
@@ -201,130 +206,16 @@ function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline
   }
 }
 
-// Editable Contract Value Card
-function ContractValueCard({
-  value,
-  onSave,
-}: {
-  value: number;
-  onSave: (newValue: number) => Promise<void>;
-}) {
-  const [isEditing, setIsEditing] = React.useState(false);
-  const [editValue, setEditValue] = React.useState(value.toString());
-  const [saving, setSaving] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const savingRef = React.useRef(false);
-
-  React.useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
-
-  // Sync value when prop changes
-  React.useEffect(() => {
-    if (!isEditing) {
-      setEditValue(value.toString());
-    }
-  }, [value, isEditing]);
-
-  const handleSave = async () => {
-    const numValue = parseFloat(editValue.replace(/[^0-9.-]/g, "")) || 0;
-    setSaving(true);
-    savingRef.current = true;
-    try {
-      await onSave(numValue);
-      setIsEditing(false);
-    } catch {
-      // Reset to original value on error
-      setEditValue(value.toString());
-    } finally {
-      setSaving(false);
-      savingRef.current = false;
-    }
-  };
-
-  const handleCancel = () => {
-    setEditValue(value.toString());
-    setIsEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === "Escape") {
-      handleCancel();
-    }
-  };
-
-  const handleCardClick = () => {
-    if (!isEditing) {
-      setIsEditing(true);
-    }
-  };
-
+// Display-only Contract Value Card (SSoT: edit via Contract tab)
+function ContractValueCard({ value }: { value: number }) {
   return (
-    <Card
-      className={`group cursor-pointer transition-colors ${!isEditing ? "hover:bg-muted/50" : ""}`}
-      onClick={handleCardClick}
-    >
+    <Card>
       <CardContent className="pt-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm text-muted-foreground">Contract Value</span>
-          </div>
-          {!isEditing && (
-            <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-          )}
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Contract Value</span>
         </div>
-        {isEditing ? (
-          <div className="mt-2 space-y-2" onClick={(e) => e.stopPropagation()}>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-              <Input
-                ref={inputRef}
-                type="text"
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="pl-7 text-xl font-bold"
-                placeholder="0"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleSave();
-                }}
-                disabled={saving}
-                className="flex-1"
-              >
-                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
-                Save
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleCancel();
-                }}
-                disabled={saving}
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-2xl font-bold mt-1">{formatCurrency(value)}</p>
-        )}
+        <p className="text-2xl font-bold mt-1">{formatCurrency(value)}</p>
       </CardContent>
     </Card>
   );
@@ -925,18 +816,7 @@ export default function JobDetailPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <ContractValueCard
-          value={job.contract_value || 0}
-          onSave={async (newValue) => {
-            try {
-              await api.patch(`/api/v1/jobs/${job.id}`, { job: { contract_value: newValue } });
-              setJob({ ...job, contract_value: newValue });
-            } catch (error) {
-              console.error("Failed to update contract value:", error);
-              throw error;
-            }
-          }}
-        />
+        <ContractValueCard value={job.contract_price || job.contract_value || 0} />
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-2">
@@ -1175,6 +1055,14 @@ export default function JobDetailPage() {
 
         <TabsContent value="contract" className="mt-6">
           <JobContractTab job={job} onUpdate={loadJob} />
+        </TabsContent>
+
+        <TabsContent value="specifications" className="mt-6">
+          <SpecificationBuilder jobId={job.id} jobTypeId={job.job_type_id} />
+        </TabsContent>
+
+        <TabsContent value="colours" className="mt-6">
+          <ColourSelectionBuilder jobId={job.id} jobTypeId={job.job_type_id} />
         </TabsContent>
 
         <TabsContent value="claims" className="mt-6">

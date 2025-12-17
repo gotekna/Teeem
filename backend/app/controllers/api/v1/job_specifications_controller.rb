@@ -119,6 +119,24 @@ module Api
         }
       end
 
+      # GET /api/v1/jobs/:job_id/specifications/generate_pdf
+      def generate_pdf
+        generator = TeknaDocumentGenerator.new(:specifications)
+        result = generator.generate(job: @job)
+
+        if params[:format] == "html" || params[:preview]
+          render html: result[:html].html_safe
+        else
+          send_data result[:pdf],
+                    filename: result[:filename],
+                    type: "application/pdf",
+                    disposition: params[:download] ? "attachment" : "inline"
+        end
+      rescue StandardError => e
+        Rails.logger.error "PDF generation failed: #{e.message}"
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
       private
 
       def set_job

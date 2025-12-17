@@ -593,6 +593,175 @@ namespace :document_templates do
     puts "Templates are now in: SharePoint > Documents > Warehousing > Templates"
   end
 
+  desc "Register HTML templates from TeknaDocumentGenerator into DocumentTemplate model"
+  task register_html_templates: :environment do
+    puts "Registering HTML templates..."
+
+    # Define HTML templates to register (from TeknaDocumentGenerator::TEMPLATES)
+    html_templates = [
+      # Tekna branded documents
+      {
+        name: "Welcome Letter (HTML)",
+        local_template_path: "templates/welcome_letter",
+        category: "letter",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_welcome_letter_{job_title}"
+      },
+      {
+        name: "Specifications (HTML)",
+        local_template_path: "templates/specifications",
+        category: "contract",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_specifications_{job_title}"
+      },
+      {
+        name: "Colour Selections (HTML)",
+        local_template_path: "templates/colour_selections",
+        category: "contract",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_colour_selections_{job_title}"
+      },
+      {
+        name: "Owners Authority (HTML)",
+        local_template_path: "templates/owners_authority",
+        category: "contract",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_owners_authority_{job_title}"
+      },
+      {
+        name: "Spec Acknowledgement (HTML)",
+        local_template_path: "templates/spec_acknowledgement",
+        category: "contract",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_spec_acknowledgement_{job_title}"
+      },
+      {
+        name: "Termite Protection (HTML)",
+        local_template_path: "templates/termite_protection",
+        category: "contract",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_termite_protection_{job_title}"
+      },
+      {
+        name: "Contract Variation (HTML)",
+        local_template_path: "templates/variation",
+        category: "contract",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_variation_{job_title}"
+      },
+      {
+        name: "Practical Completion (HTML)",
+        local_template_path: "templates/practical_completion",
+        category: "certificate",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_practical_completion_{job_title}"
+      },
+      {
+        name: "Purchase Order (HTML)",
+        local_template_path: "templates/purchase_order",
+        category: "job",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_PO_{job_number}_{job_title}"
+      },
+      {
+        name: "Deposit Invoice (HTML)",
+        local_template_path: "templates/deposit_claim_invoice",
+        category: "invoice",
+        layout: "tekna",
+        is_legal_format: false,
+        output_naming_pattern: "{date}_deposit_invoice_{job_title}"
+      }
+    ]
+
+    created = 0
+    skipped = 0
+
+    html_templates.each do |attrs|
+      existing = DocumentTemplate.find_by(name: attrs[:name])
+      if existing
+        puts "  Skipping '#{attrs[:name]}' (already exists)"
+        skipped += 1
+      else
+        DocumentTemplate.create!(
+          name: attrs[:name],
+          template_type: "html",
+          local_template_path: attrs[:local_template_path],
+          category: attrs[:category],
+          layout: attrs[:layout],
+          is_legal_format: attrs[:is_legal_format],
+          output_format: "pdf",
+          output_naming_pattern: attrs[:output_naming_pattern],
+          is_active: true
+        )
+        puts "  Created '#{attrs[:name]}'"
+        created += 1
+      end
+    end
+
+    puts ""
+    puts "Done! Created: #{created}, Skipped: #{skipped}"
+  end
+
+  desc "Mark existing SharePoint templates as legal format where appropriate"
+  task mark_legal_templates: :environment do
+    puts "Marking legal templates..."
+
+    legal_mappings = {
+      "QBCC Contract" => "qbcc",
+      "QBCC Consumer Building Guide" => "qbcc",
+      "QBCC General Conditions" => "qbcc"
+    }
+
+    legal_mappings.each do |name, source|
+      template = DocumentTemplate.find_by(name: name)
+      if template && template.template_type == "word"
+        template.update!(
+          is_legal_format: true,
+          legal_source: source
+        )
+        puts "  Marked '#{name}' as legal (#{source})"
+      else
+        puts "  Skipping '#{name}' (not found or not Word template)"
+      end
+    end
+
+    puts "Done!"
+  end
+
+  desc "Show all document templates with their types (enhanced)"
+  task list_all: :environment do
+    puts ""
+    puts "Document Templates:"
+    puts "=" * 90
+
+    DocumentTemplate.order(:template_type, :name).each do |t|
+      legal = t.is_legal_format ? " [LEGAL: #{t.legal_source}]" : ""
+      sp = t.sharepoint_linked? ? " [SharePoint]" : ""
+      type_badge = "[#{t.template_type.upcase.ljust(6)}]"
+      puts "  #{t.id.to_s.rjust(3)}. #{type_badge} #{t.name}#{legal}#{sp}"
+      puts "       Category: #{t.category}, Layout: #{t.layout || 'default'}, Active: #{t.is_active}"
+      if t.local_template_path.present?
+        puts "       Path: #{t.local_template_path}"
+      end
+    end
+
+    puts ""
+    puts "Summary:"
+    puts "  Word templates:  #{DocumentTemplate.word_templates.count}"
+    puts "  HTML templates:  #{DocumentTemplate.html_templates.count}"
+    puts "  Legal templates: #{DocumentTemplate.legal_templates.count}"
+    puts "  Total:           #{DocumentTemplate.count}"
+  end
+
   desc "Show what fields would be converted (dry run)"
   task convert_fields_preview: :environment do
     require "zip"

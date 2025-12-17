@@ -6,6 +6,30 @@ class Api::V1::EmailWarehouseController < ApplicationController
   def index
     emails = EmailWarehouse.all
 
+    # Filter to only current user's emails (my_emails mode)
+    if params[:my_emails] == "true"
+      user_imap_ids = current_user.imap_credentials.pluck(:id)
+      user_outlook_email = current_user.outlook_credential&.email
+
+      if user_imap_ids.any? && user_outlook_email.present?
+        # User has both IMAP and Outlook - show both
+        emails = emails.where(
+          "(source_type = 'imap' AND imap_credential_id IN (?)) OR (source_type = 'outlook' AND (from_email = ? OR ? = ANY(to_emails)))",
+          user_imap_ids, user_outlook_email, user_outlook_email
+        )
+      elsif user_imap_ids.any?
+        # Only IMAP accounts
+        emails = emails.where(source_type: "imap", imap_credential_id: user_imap_ids)
+      elsif user_outlook_email.present?
+        # Only Outlook
+        emails = emails.where(source_type: "outlook")
+          .where("from_email = ? OR ? = ANY(to_emails)", user_outlook_email, user_outlook_email)
+      else
+        # No accounts connected - return empty
+        emails = emails.none
+      end
+    end
+
     # Filter by job
     if params[:job_id].present?
       emails = emails.for_job(params[:job_id])
@@ -37,6 +61,21 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
     if params[:until].present?
       emails = emails.received_before(params[:until].to_datetime)
+    end
+
+    # Filter by source type (outlook, imap)
+    if params[:source_type].present?
+      emails = emails.where(source_type: params[:source_type])
+    end
+
+    # Filter by IMAP credential
+    if params[:imap_credential_id].present?
+      emails = emails.where(imap_credential_id: params[:imap_credential_id])
+    end
+
+    # Filter by Microsoft 365 credential (org-level app credentials)
+    if params[:microsoft_credential_id].present?
+      emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
     end
 
     # Pagination
@@ -447,19 +486,26 @@ class Api::V1::EmailWarehouseController < ApplicationController
       id: email.id,
       subject: email.subject,
       from_email: email.from_email,
+      from_address: email.from_email,
       from_name: email.from_name,
       display_from: email.display_from,
       to_emails: email.to_emails,
+      to_addresses: email.to_emails,
       cc_emails: email.cc_emails,
       received_at: email.received_at,
       has_attachments: email.has_attachments,
       attachment_count: email.attachment_count,
-      preview_body: email.preview_body(length: 200),
+      snippet: email.preview_body(length: 200),
+      body_preview: email.preview_body(length: 200),
       job_id: email.job_id,
+      job_number: email.job&.job_number,
       match_type: email.match_type,
       match_confidence: email.match_confidence,
       is_latest_in_thread: email.is_latest_in_thread,
-      conversation_id: email.conversation_id
+      is_read: true,
+      conversation_id: email.conversation_id,
+      source_type: email.source_type || "outlook",
+      imap_credential_id: email.imap_credential_id
     }
 
     if include_body

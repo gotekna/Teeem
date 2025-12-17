@@ -49,6 +49,7 @@ export default function BillInboxPage() {
       throw err;
     }
   }, [foundationId, refresh]);
+  // Note: onBulkDelete is auto-enabled by TeeemTableView when foundationIdNumeric is provided
 
   if (isLoading) {
     return (

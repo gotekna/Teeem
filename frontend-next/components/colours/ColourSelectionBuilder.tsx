@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Save,
   Palette,
   ChevronDown,
@@ -60,13 +58,6 @@ interface ColourSelectionTemplate {
   job_type_name?: string;
   categories: TemplateCategory[];
   is_default: boolean;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  job_type?: { id: number; name: string };
-  job_type_id?: number;
 }
 
 // Colour Swatch Component
@@ -231,14 +222,16 @@ function ColourCategory({
   );
 }
 
-// Main Page Component
-export default function ColourSelectionBuilderPage() {
-  const params = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const jobId = params.id as string;
+// Props for the embeddable component
+interface ColourSelectionBuilderProps {
+  jobId: number | string;
+  jobTypeId?: number;
+}
 
-  const [job, setJob] = useState<Job | null>(null);
+// Main Embeddable Component
+export function ColourSelectionBuilder({ jobId, jobTypeId }: ColourSelectionBuilderProps) {
+  const { toast } = useToast();
+
   const [template, setTemplate] = useState<ColourSelectionTemplate | null>(null);
   const [selections, setSelections] = useState<Record<string, JobColourSelection>>({});
   const [pricebookItems, setPricebookItems] = useState<PricebookItem[]>([]);
@@ -247,59 +240,44 @@ export default function ColourSelectionBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Load job data
-  useEffect(() => {
-    const loadJob = async () => {
-      try {
-        const response = await api.get<Job>(`/api/v1/jobs/${jobId}`);
-        setJob(response);
-      } catch (error) {
-        console.error("Failed to load job:", error);
-        toast({ title: "Failed to load job", variant: "destructive" });
-      }
-    };
-    loadJob();
-  }, [jobId, toast]);
-
   // Load template based on job type
   useEffect(() => {
-    if (!job?.job_type_id) return;
-
     const loadTemplate = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: ColourSelectionTemplate }>(
-          `/api/v1/colour_selection_templates/for_job_type/${job.job_type_id}`
+        // Try loading by job type first
+        if (jobTypeId) {
+          const response = await api.get<{ success: boolean; data: ColourSelectionTemplate }>(
+            `/api/v1/colour_selection_templates/for_job_type/${jobTypeId}`
+          );
+          if (response?.success && response.data) {
+            setTemplate(response.data);
+            // Expand ALL categories by default
+            if (response.data.categories?.length > 0) {
+              setExpandedCategories(new Set(response.data.categories.map(c => c.key)));
+            }
+            return;
+          }
+        }
+
+        // Fallback to default template
+        const defaultResponse = await api.get<{ success: boolean; data: ColourSelectionTemplate[] }>(
+          "/api/v1/colour_selection_templates?active_only=true"
         );
-        if (response?.success && response.data) {
-          setTemplate(response.data);
+        if (defaultResponse?.success && defaultResponse.data?.length > 0) {
+          const defaultTemplate =
+            defaultResponse.data.find((t) => t.is_default) || defaultResponse.data[0];
+          setTemplate(defaultTemplate);
           // Expand ALL categories by default
-          if (response.data.categories?.length > 0) {
-            setExpandedCategories(new Set(response.data.categories.map(c => c.key)));
+          if (defaultTemplate.categories?.length > 0) {
+            setExpandedCategories(new Set(defaultTemplate.categories.map(c => c.key)));
           }
         }
       } catch (error) {
         console.error("Failed to load template:", error);
-        // Try loading default template
-        try {
-          const defaultResponse = await api.get<{ success: boolean; data: ColourSelectionTemplate[] }>(
-            "/api/v1/colour_selection_templates?active_only=true"
-          );
-          if (defaultResponse?.success && defaultResponse.data?.length > 0) {
-            const defaultTemplate =
-              defaultResponse.data.find((t) => t.is_default) || defaultResponse.data[0];
-            setTemplate(defaultTemplate);
-            // Expand ALL categories by default
-            if (defaultTemplate.categories?.length > 0) {
-              setExpandedCategories(new Set(defaultTemplate.categories.map(c => c.key)));
-            }
-          }
-        } catch {
-          console.error("Failed to load default template");
-        }
       }
     };
     loadTemplate();
-  }, [job?.job_type_id]);
+  }, [jobTypeId]);
 
   // Load existing colour selections
   useEffect(() => {
@@ -417,92 +395,75 @@ export default function ColourSelectionBuilderPage() {
 
   // Export PDF
   const handleExportPdf = () => {
-    // Open PDF in new tab
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
     window.open(`${baseUrl}/api/v1/jobs/${jobId}/colour_selections/generate_pdf?download=true`, "_blank");
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex-shrink-0 border-b bg-background p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-xl font-semibold flex items-center gap-2">
-                <Palette className="h-5 w-5" />
-                Colour Selection Builder
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                {job?.name || "Loading..."}
-                {template && <span className="ml-2">({template.name})</span>}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleInitializeFromTemplate}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Apply Template
-            </Button>
-            <Button variant="outline" onClick={handleExportPdf}>
-              <Download className="h-4 w-4 mr-2" />
-              Export PDF
-            </Button>
-            <Button onClick={handleSave} disabled={saving || !isDirty}>
-              {saving ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Save
-            </Button>
-          </div>
+    <div className="space-y-4">
+      {/* Action Buttons */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Palette className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
+            {template?.name || "Colour Selection"}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleInitializeFromTemplate}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Apply Template
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportPdf}>
+            <Download className="h-4 w-4 mr-2" />
+            Export PDF
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-2" />
+            )}
+            Save
+          </Button>
         </div>
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4">
-        <div className="max-w-5xl mx-auto">
-          {!template ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Palette className="mx-auto h-12 w-12 text-muted-foreground" />
-                <h3 className="mt-4 text-lg font-medium">No Template Found</h3>
-                <p className="text-sm text-muted-foreground mt-2">
-                  No colour selection template found for this job type.
-                  Please create a template in the admin settings first.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {template.categories?.map((category) => (
-                <ColourCategory
-                  key={category.key}
-                  category={category}
-                  selections={selections}
-                  pricebookItems={pricebookItems}
-                  onUpdate={handleUpdate}
-                  isExpanded={expandedCategories.has(category.key)}
-                  onToggle={() => toggleCategory(category.key)}
-                />
-              ))}
-            </div>
-          )}
+      {!template ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Palette className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-4 text-lg font-medium">No Template Found</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              No colour selection template found for this job type.
+              Please create a template in the admin settings first.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {template.categories?.map((category) => (
+            <ColourCategory
+              key={category.key}
+              category={category}
+              selections={selections}
+              pricebookItems={pricebookItems}
+              onUpdate={handleUpdate}
+              isExpanded={expandedCategories.has(category.key)}
+              onToggle={() => toggleCategory(category.key)}
+            />
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -3,10 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText, PenTool, Plus, Trash2, GripVertical, Users, Settings, Cog, UserCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { api } from "@/lib/api";
 
 // Default empty BPMN diagram
@@ -32,11 +35,28 @@ const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
   </bpmndi:BPMNDiagram>
 </bpmn:definitions>`;
 
+// Workflow-level signing configuration
+interface WorkflowSigningConfig {
+  signers: SignerConfig[];
+  signing_order: number; // 0 = parallel, 1+ = sequential
+  expires_in_days: number;
+  additional_documents?: AdditionalDocument[];
+}
+
+// Additional documents to include in signing package
+interface AdditionalDocument {
+  id: string;
+  type: "template" | "attachment";
+  template_key?: string; // For template type
+  name?: string; // For display
+}
+
 interface BpmnJsDesignerProps {
   processId?: number;
   initialXml?: string;
   processName?: string;
-  onSave?: (xml: string, svg: string, name: string) => Promise<void>;
+  canvasData?: Record<string, unknown>; // Contains workflow signing config
+  onSave?: (xml: string, svg: string, name: string, canvasData?: Record<string, unknown>) => Promise<void>;
   dataLoaded?: boolean; // True when parent has finished loading (even if xml is null)
 }
 
@@ -61,10 +81,87 @@ interface Job {
   job_number?: string;
 }
 
+// Preview job with contacts for showing actual names/emails
+interface JobContact {
+  id: number;
+  display_name: string;
+  email: string;
+  phone?: string;
+}
+
+interface PreviewJobData {
+  job_id: number;
+  job_name: string;
+  primary_contact?: JobContact;
+  secondary_contact?: JobContact;
+  builder_representative?: JobContact;
+}
+
+// Task configuration types
+type TaskType = "generate_document" | "generate_and_send_for_signing" | "attach_sharepoint_file" | "create_xero_invoice";
+type ExecutionMode = "automatic" | "manual";
+
+interface SignerConfig {
+  id: string; // Local UUID for React keys
+  contact_key?: string; // primary_contact, secondary_contact, builder, etc.
+  name?: string;
+  email?: string;
+  role: string;
+  signing_order?: number;
+}
+
+interface TaskConfig {
+  task_type: TaskType;
+  execution_mode: ExecutionMode; // automatic = runs without user action, manual = requires user action
+  template_key?: string;
+  signers?: SignerConfig[];
+  signing_order?: number; // 0 = parallel, 1+ = sequential
+  expires_in_days?: number;
+  store_as_variable?: string;
+  // For attach_sharepoint_file
+  file_path?: string;
+  file_name?: string;
+  folder_name?: string;
+  // For create_xero_invoice
+  invoice_description?: string;
+  invoice_amount?: number;
+  claim_stage?: string; // deposit, frame, lock_up, etc.
+}
+
+// Contact key options for signers
+const CONTACT_KEY_OPTIONS = [
+  { id: "primary_contact", label: "Primary Contact (Client 1)" },
+  { id: "secondary_contact", label: "Secondary Contact (Client 2)" },
+  { id: "builder", label: "Builder Representative" },
+  { id: "witness", label: "Witness" },
+  { id: "guarantor", label: "Guarantor" },
+  { id: "custom", label: "Custom (Enter Name/Email)" },
+];
+
+const SIGNER_ROLE_OPTIONS = [
+  { id: "client", label: "Client" },
+  { id: "builder", label: "Builder" },
+  { id: "witness", label: "Witness" },
+  { id: "guarantor", label: "Guarantor" },
+  { id: "director", label: "Director" },
+  { id: "partner", label: "Partner" },
+];
+
+// Default workflow signing config
+const DEFAULT_SIGNING_CONFIG: WorkflowSigningConfig = {
+  signers: [
+    { id: "default-1", contact_key: "primary_contact", role: "client", signing_order: 1 },
+    { id: "default-2", contact_key: "builder", role: "builder", signing_order: 2 },
+  ],
+  signing_order: 1, // Sequential by default
+  expires_in_days: 30,
+};
+
 export default function BpmnJsDesigner({
   processId,
   initialXml,
   processName = "New Process",
+  canvasData,
   onSave,
   dataLoaded = false,
 }: BpmnJsDesignerProps) {
@@ -79,6 +176,12 @@ export default function BpmnJsDesigner({
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>("");
   const [isTestRunning, setIsTestRunning] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [workflowSigningConfig, setWorkflowSigningConfig] = useState<WorkflowSigningConfig>(
+    (canvasData?.signing_config as WorkflowSigningConfig) || DEFAULT_SIGNING_CONFIG
+  );
+  const [previewJobData, setPreviewJobData] = useState<PreviewJobData | null>(null);
+  const [loadingJobContacts, setLoadingJobContacts] = useState(false);
   const { toast } = useToast();
 
   // Update editable name when prop changes (e.g., data loads from server)
@@ -128,14 +231,14 @@ export default function BpmnJsDesigner({
     fetchTemplates();
   }, []);
 
-  // Fetch recent jobs for test run
+  // Fetch jobs for test run - load all jobs so search works properly
   useEffect(() => {
     console.log("[BPMN] Starting to fetch jobs...");
     const fetchJobs = async () => {
       try {
         console.log("[BPMN] Calling /api/v1/jobs...");
         const response = await api.get<{ jobs: Job[]; pagination: object }>(
-          "/api/v1/jobs?per_page=50"
+          "/api/v1/jobs?per_page=1000"
         );
         console.log("[BPMN] Jobs API response:", response);
         console.log("[BPMN] Jobs array:", response?.jobs);
@@ -151,6 +254,44 @@ export default function BpmnJsDesigner({
     };
     fetchJobs();
   }, []);
+
+  // Fetch job contacts when a job is selected for preview
+  useEffect(() => {
+    if (!selectedJobId) {
+      setPreviewJobData(null);
+      return;
+    }
+
+    const fetchJobContacts = async () => {
+      setLoadingJobContacts(true);
+      try {
+        const response = await api.get<{
+          success?: boolean;
+          id: number;
+          name: string;
+          primary_contact?: { id: number; display_name: string; email: string; phone?: string };
+          secondary_contact?: { id: number; display_name: string; email: string; phone?: string };
+          builder_representative?: { id: number; display_name: string; email: string; phone?: string };
+        }>(`/api/v1/jobs/${selectedJobId}`);
+
+        if (response) {
+          setPreviewJobData({
+            job_id: response.id,
+            job_name: response.name,
+            primary_contact: response.primary_contact,
+            secondary_contact: response.secondary_contact,
+            builder_representative: response.builder_representative,
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch job contacts:", err);
+        setPreviewJobData(null);
+      } finally {
+        setLoadingJobContacts(false);
+      }
+    };
+    fetchJobContacts();
+  }, [selectedJobId]);
 
   // Handle test run
   const handleTestRun = useCallback(async () => {
@@ -341,7 +482,13 @@ export default function BpmnJsDesigner({
       const { xml } = await modelerRef.current.saveXML({ format: true });
       const { svg } = await modelerRef.current.saveSVG();
 
-      await onSave(xml || "", svg || "", editableName);
+      // Include workflow signing config in canvas_data
+      const updatedCanvasData = {
+        ...canvasData,
+        signing_config: workflowSigningConfig,
+      };
+
+      await onSave(xml || "", svg || "", editableName, updatedCanvasData);
       setIsDirty(false);
 
       toast({
@@ -356,7 +503,7 @@ export default function BpmnJsDesigner({
         variant: "destructive",
       });
     }
-  }, [onSave, toast, editableName]);
+  }, [onSave, toast, editableName, canvasData, workflowSigningConfig]);
 
   // Export BPMN XML
   const handleExport = useCallback(async () => {
@@ -447,8 +594,57 @@ export default function BpmnJsDesigner({
   }, [selectedElement]);
 
 
-  // Update service task documentation (stores template_key)
-  const handleTemplateChange = useCallback((templateKey: string) => {
+  // Get current task config from selected element
+  const getTaskConfig = useCallback((): TaskConfig => {
+    const defaultConfig: TaskConfig = { task_type: "generate_document", execution_mode: "manual" };
+    if (!selectedElement?.businessObject) return defaultConfig;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bo = selectedElement.businessObject as any;
+    const docs = bo.documentation;
+
+    if (!docs) return defaultConfig;
+
+    // Handle array of documentation elements (standard BPMN format)
+    if (Array.isArray(docs) && docs.length > 0) {
+      const textContent = docs[0].text || docs[0].body || docs[0];
+      if (typeof textContent === "string") {
+        try {
+          const config = JSON.parse(textContent);
+          // Ensure signers have IDs
+          if (config.signers) {
+            config.signers = config.signers.map((s: SignerConfig, i: number) => ({
+              ...s,
+              id: s.id || `signer-${i}-${Date.now()}`
+            }));
+          }
+          return { ...defaultConfig, ...config };
+        } catch {
+          return defaultConfig;
+        }
+      }
+    }
+
+    // Handle direct object (from local state update)
+    if (typeof docs === "object" && docs.task_type) {
+      return { ...defaultConfig, ...docs };
+    }
+
+    // Handle JSON string
+    if (typeof docs === "string") {
+      try {
+        const config = JSON.parse(docs);
+        return { ...defaultConfig, ...config };
+      } catch {
+        return defaultConfig;
+      }
+    }
+
+    return defaultConfig;
+  }, [selectedElement]);
+
+  // Update service task configuration
+  const updateTaskConfig = useCallback((updates: Partial<TaskConfig>) => {
     if (!modelerRef.current || !selectedElement) return;
 
     const modeling = modelerRef.current.get("modeling");
@@ -457,9 +653,15 @@ export default function BpmnJsDesigner({
     const element = elementRegistry.get(selectedElement.id);
 
     if (element) {
-      // Create proper BPMN documentation element with template key
-      const config = { template_key: templateKey, task_type: "generate_document" };
-      const configJson = JSON.stringify(config);
+      const currentConfig = getTaskConfig();
+      const newConfig = { ...currentConfig, ...updates };
+
+      // Clean up signers for storage (remove local IDs)
+      if (newConfig.signers) {
+        newConfig.signers = newConfig.signers.map(({ id, ...rest }) => rest as SignerConfig);
+      }
+
+      const configJson = JSON.stringify(newConfig);
 
       // Create a documentation element using moddle
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -480,49 +682,175 @@ export default function BpmnJsDesigner({
 
       setIsDirty(true);
     }
-  }, [selectedElement]);
+  }, [selectedElement, getTaskConfig]);
 
-  // Get current template key from selected element
-  const getTemplateKey = useCallback((): string => {
-    if (!selectedElement?.businessObject) return "";
+  // Add a signer
+  const addSigner = useCallback(() => {
+    const config = getTaskConfig();
+    const signers = config.signers || [];
+    const newSigner: SignerConfig = {
+      id: `signer-${Date.now()}`,
+      contact_key: "primary_contact",
+      role: "client",
+      signing_order: signers.length + 1
+    };
+    updateTaskConfig({ signers: [...signers, newSigner] });
+  }, [getTaskConfig, updateTaskConfig]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bo = selectedElement.businessObject as any;
-    const docs = bo.documentation;
+  // Remove a signer
+  const removeSigner = useCallback((signerId: string) => {
+    const config = getTaskConfig();
+    const signers = (config.signers || []).filter(s => s.id !== signerId);
+    // Reorder remaining signers
+    signers.forEach((s, i) => { s.signing_order = i + 1; });
+    updateTaskConfig({ signers });
+  }, [getTaskConfig, updateTaskConfig]);
 
-    if (!docs) return "";
+  // Update a specific signer
+  const updateSigner = useCallback((signerId: string, updates: Partial<SignerConfig>) => {
+    const config = getTaskConfig();
+    const signers = (config.signers || []).map(s =>
+      s.id === signerId ? { ...s, ...updates } : s
+    );
+    updateTaskConfig({ signers });
+  }, [getTaskConfig, updateTaskConfig]);
 
-    // Handle array of documentation elements (standard BPMN format)
-    if (Array.isArray(docs) && docs.length > 0) {
-      const textContent = docs[0].text || docs[0].body || docs[0];
-      if (typeof textContent === "string") {
-        try {
-          const config = JSON.parse(textContent);
-          // Support both new template_key and legacy template_id
-          return config.template_key || config.template_id?.toString() || "";
-        } catch {
-          return "";
-        }
-      }
+  // Move signer up/down (task-level - deprecated, keeping for backwards compat)
+  const moveSigner = useCallback((signerId: string, direction: "up" | "down") => {
+    const config = getTaskConfig();
+    const signers = [...(config.signers || [])];
+    const idx = signers.findIndex(s => s.id === signerId);
+    if (idx === -1) return;
+
+    const newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= signers.length) return;
+
+    // Swap
+    [signers[idx], signers[newIdx]] = [signers[newIdx], signers[idx]];
+    // Update signing order
+    signers.forEach((s, i) => { s.signing_order = i + 1; });
+    updateTaskConfig({ signers });
+  }, [getTaskConfig, updateTaskConfig]);
+
+  // ===== WORKFLOW-LEVEL SIGNER MANAGEMENT =====
+  const addWorkflowSigner = useCallback(() => {
+    const newSigner: SignerConfig = {
+      id: `signer-${Date.now()}`,
+      contact_key: "primary_contact",
+      role: "client",
+      signing_order: workflowSigningConfig.signers.length + 1
+    };
+    setWorkflowSigningConfig(prev => ({
+      ...prev,
+      signers: [...prev.signers, newSigner]
+    }));
+    setIsDirty(true);
+  }, [workflowSigningConfig.signers.length]);
+
+  const removeWorkflowSigner = useCallback((signerId: string) => {
+    setWorkflowSigningConfig(prev => {
+      const signers = prev.signers.filter(s => s.id !== signerId);
+      signers.forEach((s, i) => { s.signing_order = i + 1; });
+      return { ...prev, signers };
+    });
+    setIsDirty(true);
+  }, []);
+
+  const updateWorkflowSigner = useCallback((signerId: string, updates: Partial<SignerConfig>) => {
+    setWorkflowSigningConfig(prev => ({
+      ...prev,
+      signers: prev.signers.map(s => s.id === signerId ? { ...s, ...updates } : s)
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const moveWorkflowSigner = useCallback((signerId: string, direction: "up" | "down") => {
+    setWorkflowSigningConfig(prev => {
+      const signers = [...prev.signers];
+      const idx = signers.findIndex(s => s.id === signerId);
+      if (idx === -1) return prev;
+
+      const newIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (newIdx < 0 || newIdx >= signers.length) return prev;
+
+      [signers[idx], signers[newIdx]] = [signers[newIdx], signers[idx]];
+      signers.forEach((s, i) => { s.signing_order = i + 1; });
+      return { ...prev, signers };
+    });
+    setIsDirty(true);
+  }, []);
+
+  const updateWorkflowSigningOrder = useCallback((sequential: boolean) => {
+    setWorkflowSigningConfig(prev => ({
+      ...prev,
+      signing_order: sequential ? 1 : 0
+    }));
+    setIsDirty(true);
+  }, []);
+
+  const updateWorkflowExpiry = useCallback((days: number) => {
+    setWorkflowSigningConfig(prev => ({
+      ...prev,
+      expires_in_days: days
+    }));
+    setIsDirty(true);
+  }, []);
+
+  // ===== ADDITIONAL DOCUMENTS MANAGEMENT =====
+  const addAdditionalDocument = useCallback((templateKey: string) => {
+    const template = templates.find(t => t.key === templateKey);
+    if (!template) return;
+
+    const newDoc: AdditionalDocument = {
+      id: `doc-${Date.now()}`,
+      type: "template",
+      template_key: templateKey,
+      name: template.name,
+    };
+    setWorkflowSigningConfig(prev => ({
+      ...prev,
+      additional_documents: [...(prev.additional_documents || []), newDoc]
+    }));
+    setIsDirty(true);
+  }, [templates]);
+
+  const removeAdditionalDocument = useCallback((docId: string) => {
+    setWorkflowSigningConfig(prev => ({
+      ...prev,
+      additional_documents: (prev.additional_documents || []).filter(d => d.id !== docId)
+    }));
+    setIsDirty(true);
+  }, []);
+
+  // Get contact details from preview job data based on contact_key
+  const getContactDetails = useCallback((contactKey?: string): JobContact | null => {
+    if (!previewJobData || !contactKey) return null;
+
+    switch (contactKey) {
+      case "primary_contact":
+        return previewJobData.primary_contact || null;
+      case "secondary_contact":
+        return previewJobData.secondary_contact || null;
+      case "builder":
+        return previewJobData.builder_representative || null;
+      default:
+        return null;
     }
+  }, [previewJobData]);
 
-    // Handle direct object (from local state update)
-    if (typeof docs === "object" && (docs.template_key || docs.template_id)) {
-      return docs.template_key || docs.template_id?.toString() || "";
+  // Open document preview in new tab
+  const handlePreviewDocument = useCallback((templateKey: string) => {
+    if (!selectedJobId || !templateKey) {
+      toast({
+        title: "Cannot Preview",
+        description: "Select a job first to preview the document",
+        variant: "destructive",
+      });
+      return;
     }
-
-    // Handle JSON string
-    if (typeof docs === "string") {
-      try {
-        const config = JSON.parse(docs);
-        return config.template_key || config.template_id?.toString() || "";
-      } catch {
-        return "";
-      }
-    }
-
-    return "";
-  }, [selectedElement]);
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    window.open(`${apiUrl}/api/v1/tekna_documents/preview?template_key=${templateKey}&job_id=${selectedJobId}`, "_blank");
+  }, [selectedJobId, toast]);
 
   return (
     <div className="flex flex-col h-full">
@@ -571,6 +899,329 @@ export default function BpmnJsDesigner({
           <Save className="w-4 h-4 mr-1" />
           Save
         </Button>
+
+        {/* Workflow Settings */}
+        <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="sm">
+              <Settings className="w-4 h-4 mr-1" />
+              Settings
+            </Button>
+          </SheetTrigger>
+          <SheetContent className="w-[400px] sm:w-[500px] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Workflow Settings</SheetTitle>
+              <SheetDescription>
+                Configure signing and document package settings for this workflow.
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="space-y-6 mt-6">
+              {/* E-Signature Configuration */}
+              <div className="space-y-4">
+                <h4 className="font-medium flex items-center gap-2">
+                  <PenTool className="h-4 w-4" />
+                  E-Signature Settings
+                </h4>
+
+                {/* Signing Order Mode */}
+                <div className="pl-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm">Signing Order</Label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Parallel</span>
+                      <Switch
+                        checked={workflowSigningConfig.signing_order > 0}
+                        onCheckedChange={updateWorkflowSigningOrder}
+                      />
+                      <span className="text-xs text-muted-foreground">Sequential</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {workflowSigningConfig.signing_order === 0
+                      ? "All signers can sign at the same time"
+                      : "Signers must sign in order (1st, 2nd, 3rd...)"}
+                  </p>
+
+                  {/* Expiry */}
+                  <div>
+                    <Label className="text-sm">Signature Request Expires In</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input
+                        type="number"
+                        value={workflowSigningConfig.expires_in_days}
+                        onChange={(e) => updateWorkflowExpiry(parseInt(e.target.value) || 30)}
+                        min={1}
+                        max={365}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-muted-foreground">days</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Signers List */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Users className="h-4 w-4" />
+                    Default Signers
+                  </h4>
+                  <Button variant="outline" size="sm" onClick={addWorkflowSigner}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add Signer
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  These signers will be used for all documents that require signing in this workflow.
+                </p>
+
+                {/* Job selector for previewing contacts */}
+                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                  <Label className="text-xs font-medium">Preview with Job</Label>
+                  <select
+                    value={selectedJobId}
+                    onChange={(e) => setSelectedJobId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select a job to see contact details...</option>
+                    {jobs.map((job) => (
+                      <option key={job.id} value={job.id.toString()}>
+                        {job.job_number ? `${job.job_number} - ` : ""}{job.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedJobId && previewJobData && (
+                    <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                      <span>✓</span> {previewJobData.job_name}
+                    </div>
+                  )}
+                  {loadingJobContacts && (
+                    <div className="text-xs text-muted-foreground">Loading contacts...</div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {workflowSigningConfig.signers.map((signer, idx) => (
+                    <div key={signer.id} className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {workflowSigningConfig.signing_order > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              #{idx + 1}
+                            </Badge>
+                          )}
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">
+                              {CONTACT_KEY_OPTIONS.find(o => o.id === signer.contact_key)?.label || "Custom Signer"}
+                            </span>
+                            {/* Show actual contact details if job is selected */}
+                            {signer.contact_key && getContactDetails(signer.contact_key) && (
+                              <span className="text-xs text-green-600">
+                                {getContactDetails(signer.contact_key)?.display_name} - {getContactDetails(signer.contact_key)?.email}
+                              </span>
+                            )}
+                            {signer.contact_key && !getContactDetails(signer.contact_key) && selectedJobId && !loadingJobContacts && (
+                              <span className="text-xs text-orange-500">
+                                Not set on selected job
+                              </span>
+                            )}
+                            {signer.contact_key && loadingJobContacts && (
+                              <span className="text-xs text-muted-foreground">
+                                Loading...
+                              </span>
+                            )}
+                            {signer.contact_key && !selectedJobId && (
+                              <span className="text-xs text-muted-foreground">
+                                Select a job to preview contacts
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {workflowSigningConfig.signing_order > 0 && idx > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => moveWorkflowSigner(signer.id, "up")}
+                              title="Move up"
+                            >
+                              <GripVertical className="h-4 w-4 rotate-90" />
+                            </Button>
+                          )}
+                          {workflowSigningConfig.signing_order > 0 && idx < workflowSigningConfig.signers.length - 1 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => moveWorkflowSigner(signer.id, "down")}
+                              title="Move down"
+                            >
+                              <GripVertical className="h-4 w-4 -rotate-90" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => removeWorkflowSigner(signer.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Contact Selection */}
+                      <div>
+                        <Label className="text-xs">Contact</Label>
+                        <select
+                          value={signer.contact_key || "custom"}
+                          onChange={(e) => updateWorkflowSigner(signer.id, {
+                            contact_key: e.target.value === "custom" ? undefined : e.target.value,
+                            name: e.target.value === "custom" ? "" : undefined,
+                            email: e.target.value === "custom" ? "" : undefined
+                          })}
+                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          {CONTACT_KEY_OPTIONS.map((opt) => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Custom name/email if no contact_key */}
+                      {!signer.contact_key && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Name</Label>
+                            <Input
+                              value={signer.name || ""}
+                              onChange={(e) => updateWorkflowSigner(signer.id, { name: e.target.value })}
+                              placeholder="Signer name..."
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Email</Label>
+                            <Input
+                              value={signer.email || ""}
+                              onChange={(e) => updateWorkflowSigner(signer.id, { email: e.target.value })}
+                              placeholder="signer@email.com"
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Role */}
+                      <div>
+                        <Label className="text-xs">Role</Label>
+                        <select
+                          value={signer.role || "client"}
+                          onChange={(e) => updateWorkflowSigner(signer.id, { role: e.target.value })}
+                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          {SIGNER_ROLE_OPTIONS.map((opt) => (
+                            <option key={opt.id} value={opt.id}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+
+                  {workflowSigningConfig.signers.length === 0 && (
+                    <div className="text-center py-6 border rounded-lg bg-muted/20">
+                      <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        No signers configured yet.
+                      </p>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={addWorkflowSigner}>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add First Signer
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Additional Documents Section */}
+              <div className="space-y-4 pt-6 border-t">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Document Package
+                  </h4>
+                  {workflowSigningConfig.additional_documents && workflowSigningConfig.additional_documents.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {workflowSigningConfig.additional_documents.length} doc{workflowSigningConfig.additional_documents.length > 1 ? "s" : ""}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Add additional documents to include in the signing package (like plans, schedules, etc.)
+                </p>
+
+                {/* List of additional documents */}
+                <div className="space-y-2">
+                  {(workflowSigningConfig.additional_documents || []).map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-2 border rounded bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{doc.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => doc.template_key && handlePreviewDocument(doc.template_key)}
+                          disabled={!selectedJobId}
+                          title={selectedJobId ? "Preview document" : "Select a job to preview"}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => removeAdditionalDocument(doc.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add document dropdown */}
+                <div>
+                  <Label className="text-xs">Add Document to Package</Label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        addAdditionalDocument(e.target.value);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select a document template...</option>
+                    {templates
+                      .filter(t => !(workflowSigningConfig.additional_documents || []).some(d => d.template_key === t.key))
+                      .map((template) => (
+                        <option key={template.key} value={template.key}>
+                          {template.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
 
         <div className="w-px h-6 bg-border mx-1" />
 
@@ -643,36 +1294,84 @@ export default function BpmnJsDesigner({
                   />
                 </div>
 
+                {/* Execution Mode - show for Task or ServiceTask */}
+                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (() => {
+                  const taskConfig = getTaskConfig();
+                  const isAutomatic = taskConfig.execution_mode === "automatic";
+
+                  return (
+                    <div className="pt-4 border-t">
+                      <Label className="text-sm font-medium mb-3 block">Execution Mode</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => updateTaskConfig({ execution_mode: "automatic" })}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
+                            isAutomatic
+                              ? "border-primary bg-primary/5"
+                              : "border-muted hover:border-muted-foreground/50"
+                          }`}
+                        >
+                          <Cog className={`h-5 w-5 ${isAutomatic ? "text-primary" : "text-muted-foreground"}`} />
+                          <span className={`text-xs font-medium ${isAutomatic ? "text-primary" : "text-muted-foreground"}`}>
+                            Automatic
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => updateTaskConfig({ execution_mode: "manual" })}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
+                            !isAutomatic
+                              ? "border-primary bg-primary/5"
+                              : "border-muted hover:border-muted-foreground/50"
+                          }`}
+                        >
+                          <UserCheck className={`h-5 w-5 ${!isAutomatic ? "text-primary" : "text-muted-foreground"}`} />
+                          <span className={`text-xs font-medium ${!isAutomatic ? "text-primary" : "text-muted-foreground"}`}>
+                            Manual
+                          </span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {isAutomatic
+                          ? "Runs automatically without user action"
+                          : "Requires user to click to complete"}
+                      </p>
+                    </div>
+                  );
+                })()}
+
                 {/* Service Task Config - show for Task or ServiceTask */}
-                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (
-                  <div className="pt-4 border-t">
-                    <h4 className="font-medium mb-3">Document Generation</h4>
-                    <div className="space-y-2">
-                      <Label htmlFor="template-select">Document Template</Label>
-                      <select
-                        id="template-select"
-                        value={getTemplateKey()}
-                        onChange={(e) => handleTemplateChange(e.target.value)}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="">Select template...</option>
-                        {templates.map((template) => (
-                          <option key={template.key} value={template.key}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
-                      {getTemplateKey() && (() => {
-                        const selectedTemplate = templates.find(t => t.key === getTemplateKey());
-                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-                        return selectedTemplate ? (
-                          <div className="space-y-2">
+                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (() => {
+                  const taskConfig = getTaskConfig();
+                  const selectedTemplate = templates.find(t => t.key === taskConfig.template_key);
+                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+                  const requiresSigning = taskConfig.task_type === "generate_and_send_for_signing";
+
+                  return (
+                    <div className="pt-4 border-t space-y-4">
+                      {/* Document Template */}
+                      <div>
+                        <Label htmlFor="template-select">Document Template</Label>
+                        <select
+                          id="template-select"
+                          value={taskConfig.template_key || ""}
+                          onChange={(e) => updateTaskConfig({ template_key: e.target.value })}
+                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Select template...</option>
+                          {templates.map((template) => (
+                            <option key={template.key} value={template.key}>
+                              {template.name}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedTemplate && (
+                          <div className="mt-2 space-y-2">
                             <p className="text-xs text-muted-foreground">
                               <FileText className="h-3 w-3 inline mr-1" />
                               {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : "QBCC Official"}
                             </p>
                             <Button
-                              variant="default"
+                              variant="outline"
                               size="sm"
                               className="w-full"
                               onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
@@ -681,11 +1380,51 @@ export default function BpmnJsDesigner({
                               Preview Template
                             </Button>
                           </div>
-                        ) : null;
-                      })()}
+                        )}
+                      </div>
+
+                      {/* Requires Signing Checkbox */}
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-2">
+                          <PenTool className="h-4 w-4 text-muted-foreground" />
+                          <Label htmlFor="requires-signing" className="text-sm font-medium cursor-pointer">
+                            Requires Signing
+                          </Label>
+                        </div>
+                        <Switch
+                          id="requires-signing"
+                          checked={requiresSigning}
+                          onCheckedChange={(checked) => updateTaskConfig({
+                            task_type: checked ? "generate_and_send_for_signing" : "generate_document"
+                          })}
+                        />
+                      </div>
+                      {requiresSigning && (
+                        <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                          <p className="text-xs text-muted-foreground">
+                            This document will be sent for e-signature using the workflow&apos;s signing settings.
+                          </p>
+                          <div className="flex items-center gap-2 text-xs">
+                            <Users className="h-3 w-3" />
+                            <span>{workflowSigningConfig.signers.length} signer{workflowSigningConfig.signers.length !== 1 ? "s" : ""}</span>
+                            <span className="text-muted-foreground">•</span>
+                            <span>{workflowSigningConfig.signing_order === 0 ? "Parallel" : "Sequential"}</span>
+                            <span className="text-muted-foreground">•</span>
+                            <span>{workflowSigningConfig.expires_in_days}d expiry</span>
+                          </div>
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs"
+                            onClick={() => setSettingsOpen(true)}
+                          >
+                            Edit signing settings →
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">

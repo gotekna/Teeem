@@ -1037,11 +1037,12 @@ module Api
           # Download file content
           file_content = client.download_file(file_id)
 
-          # Send file to user
+          # Send file to user (inline for preview, attachment for download)
+          disposition = params[:preview] == "true" ? "inline" : "attachment"
           send_data file_content,
             filename: file_metadata["name"],
             type: file_metadata["file"]&.dig("mimeType") || "application/octet-stream",
-            disposition: "attachment"
+            disposition: disposition
 
         rescue MicrosoftGraphClient::AuthenticationError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized

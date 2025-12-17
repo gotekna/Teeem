@@ -34,10 +34,23 @@ class DocumentEsignService
   def execute!
     validate!
 
-    # Step 1: Generate the document
+    # Step 1: Generate the main document
     Rails.logger.info "[DocumentEsignService] Generating document from template: #{template.name}"
     generator = DocumentGenerator.new(template)
     generated = generator.generate(job: job, extra_data: options[:extra_data] || {})
+
+    # Step 1b: Generate additional documents if specified
+    additional_pdfs = generate_additional_documents
+
+    # Step 1c: Combine PDFs if there are additional documents
+    if additional_pdfs.any?
+      Rails.logger.info "[DocumentEsignService] Combining #{additional_pdfs.length + 1} documents into signing package"
+      main_pdf_content = generated[:pdf_content] || generated[:docx_content]
+      all_pdfs = [main_pdf_content] + additional_pdfs
+      combined_content = combine_pdfs(all_pdfs)
+      generated[:pdf_content] = combined_content
+      generated[:pdf_filename] ||= generated[:filename].sub(/\.\w+$/, ".pdf")
+    end
 
     # Step 2: Upload to SharePoint (to job's Documents folder)
     Rails.logger.info "[DocumentEsignService] Uploading to SharePoint"
@@ -156,5 +169,54 @@ class DocumentEsignService
   rescue StandardError => e
     Rails.logger.warn "[DocumentEsignService] Could not calculate document hash: #{e.message}"
     nil
+  end
+
+  # Generate additional documents from template keys
+  def generate_additional_documents
+    template_keys = options[:additional_templates]
+    return [] if template_keys.blank?
+
+    template_keys.filter_map do |key|
+      additional_template = DocumentTemplate.find_by(key: key) || DocumentTemplate.find_by(name: key)
+      unless additional_template
+        Rails.logger.warn "[DocumentEsignService] Additional template not found: #{key}"
+        next
+      end
+
+      Rails.logger.info "[DocumentEsignService] Generating additional document: #{additional_template.name}"
+      generator = DocumentGenerator.new(additional_template)
+      generated = generator.generate(job: job, extra_data: options[:extra_data] || {})
+
+      # Return the PDF content
+      generated[:pdf_content] || generated[:docx_content]
+    rescue StandardError => e
+      Rails.logger.error "[DocumentEsignService] Failed to generate additional document #{key}: #{e.message}"
+      nil
+    end
+  end
+
+  # Combine multiple PDFs into one using HexaPDF
+  def combine_pdfs(pdf_contents)
+    require "hexapdf"
+
+    target = HexaPDF::Document.new
+
+    pdf_contents.each_with_index do |content, index|
+      next unless content.present?
+
+      # Parse each PDF and import its pages
+      begin
+        source = HexaPDF::Document.new(io: StringIO.new(content))
+        source.pages.each { |page| target.pages << target.import(page) }
+        Rails.logger.info "[DocumentEsignService] Added document #{index + 1} (#{source.pages.count} pages)"
+      rescue StandardError => e
+        Rails.logger.warn "[DocumentEsignService] Could not parse document #{index + 1}: #{e.message}"
+      end
+    end
+
+    # Write to string and return
+    output = StringIO.new
+    target.write(output, optimize: true)
+    output.string
   end
 end

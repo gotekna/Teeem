@@ -93,19 +93,54 @@ class OutlookService
     imported_count
   end
 
-  # List available mail folders
+  # List available mail folders (including nested child folders)
   def list_folders
-    url = "#{GRAPH_API_BASE}/me/mailFolders"
+    url = "#{GRAPH_API_BASE}/me/mailFolders?$top=100"
 
     response = make_request(url)
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      data["value"].map { |folder| { id: folder["id"], name: folder["displayName"], unread_count: folder["unreadItemCount"], total_items: folder["totalItemCount"] } }
+      folders = data["value"].map { |folder| build_folder_with_children(folder) }.flatten
+      folders
     else
       Rails.logger.error "Failed to list Outlook folders: #{response.code} - #{response.body}"
       []
     end
+  end
+
+  # Recursively fetch child folders
+  def fetch_child_folders(parent_id, depth = 0)
+    return [] if depth > 3 # Prevent infinite recursion, max 3 levels deep
+
+    url = "#{GRAPH_API_BASE}/me/mailFolders/#{parent_id}/childFolders?$top=100"
+    response = make_request(url)
+
+    if response.is_a?(Net::HTTPSuccess)
+      data = JSON.parse(response.body)
+      data["value"].map { |folder| build_folder_with_children(folder, depth + 1) }.flatten
+    else
+      []
+    end
+  end
+
+  def build_folder_with_children(folder, depth = 0)
+    result = [{
+      id: folder["id"],
+      name: folder["displayName"],
+      unread_count: folder["unreadItemCount"],
+      total_items: folder["totalItemCount"],
+      parent_id: folder["parentFolderId"],
+      depth: depth
+    }]
+
+    # Fetch child folders if this folder has children
+    if folder["childFolderCount"].to_i > 0
+      children = fetch_child_folders(folder["id"], depth)
+      result.concat(children)
+    end
+
+    result
   end
 
   # Delete an email from Outlook
@@ -119,6 +154,52 @@ class OutlookService
     else
       Rails.logger.error "Failed to delete Outlook email: #{response.code} - #{response.body}"
       false
+    end
+  end
+
+  # Send an email via Microsoft Graph API
+  def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [])
+    url = "#{GRAPH_API_BASE}/me/sendMail"
+
+    # Build recipients
+    to_recipients = Array(to).map { |email| { emailAddress: { address: email } } }
+    cc_recipients = Array(cc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+    bcc_recipients = Array(bcc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+
+    message = {
+      subject: subject,
+      body: {
+        contentType: "HTML",
+        content: body
+      },
+      toRecipients: to_recipients
+    }
+
+    message[:ccRecipients] = cc_recipients if cc_recipients.any?
+    message[:bccRecipients] = bcc_recipients if bcc_recipients.any?
+
+    # Add attachments if present
+    if attachments.any?
+      message[:attachments] = attachments.map do |att|
+        {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: att[:name],
+          contentType: att[:content_type],
+          contentBytes: att[:content]
+        }
+      end
+    end
+
+    response = make_request(url, :post, { message: message })
+
+    if response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPAccepted)
+      Rails.logger.info "Sent email via Outlook to: #{to.join(', ')}"
+      { success: true, message_id: SecureRandom.uuid }
+    else
+      error_body = JSON.parse(response.body) rescue { "error" => { "message" => response.body } }
+      error_msg = error_body.dig("error", "message") || "Unknown error"
+      Rails.logger.error "Failed to send Outlook email: #{response.code} - #{error_msg}"
+      { success: false, error: error_msg }
     end
   end
 

@@ -11,7 +11,8 @@ module Bpmn
       "set_variable" => "Bpmn::Tasks::SetVariableTask",
       "create_esign_request" => "Bpmn::Tasks::CreateESignRequestTask",
       "wait_for_signatures" => "Bpmn::Tasks::WaitForSignaturesTask",
-      "generate_and_send_for_signing" => "Bpmn::Tasks::GenerateAndSendForSigningTask"
+      "generate_and_send_for_signing" => "Bpmn::Tasks::GenerateAndSendForSigningTask",
+      "attach_sharepoint_file" => "Bpmn::Tasks::AttachSharepointFileTask"
     }.freeze
 
     def self.execute(token)

@@ -183,6 +183,10 @@ Rails.application.routes.draw do
           post :analyze, to: "job_estimator#analyze"
           # Merge jobs
           post :merge
+          # Plan set management
+          get :plan_set
+          post :upload_plan_set
+          post :rename_plans
         end
 
         # Job contacts (nested under jobs)
@@ -193,6 +197,7 @@ Rails.application.routes.draw do
           collection do
             post :initialize_from_template
             post :bulk_update
+            get :generate_pdf
           end
         end
 
@@ -201,6 +206,7 @@ Rails.application.routes.draw do
           collection do
             post :initialize_from_template
             post :bulk_update
+            get :generate_pdf
           end
         end
 
@@ -247,6 +253,8 @@ Rails.application.routes.draw do
           member do
             post :match
             delete :unmatch
+            post :create_invoice
+            post :generate_pdf
           end
         end
       end
@@ -328,6 +336,17 @@ Rails.application.routes.draw do
       resources :colour_selection_templates, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           get "for_job_type/:job_type_id", action: :for_job_type
+        end
+      end
+
+      # Invoice Templates (code-driven invoice PDF generation)
+      resources :invoice_templates do
+        collection do
+          get :default_sections
+        end
+        member do
+          post :duplicate
+          post :set_default
         end
       end
 
@@ -736,7 +755,9 @@ Rails.application.routes.draw do
         collection do
           post :test
           get :providers
+          get :all_accounts
           post :send_email
+          get :folders  # Fetch folders for a specific account (pass account_id param)
         end
         member do
           post :sync

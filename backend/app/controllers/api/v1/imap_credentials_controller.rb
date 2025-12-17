@@ -1,5 +1,5 @@
 class Api::V1::ImapCredentialsController < ApplicationController
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :test_connection]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts
@@ -110,6 +110,227 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }
   end
 
+  # GET /api/v1/imap_credentials/folders
+  # Get folders for a specific account (Outlook, MS365 org, or IMAP)
+  def folders
+    account_id = params[:account_id]
+    mailbox_email = params[:mailbox_email]  # For ms365 accounts
+
+    if account_id == "outlook"
+      # Fetch Outlook folders via Graph API (user's personal OAuth)
+      unless current_user.outlook_credential&.valid_credential?
+        return render json: {
+          success: false,
+          error: "Outlook not connected or token expired"
+        }, status: :unprocessable_entity
+      end
+
+      outlook = OutlookService.new(current_user)
+      folders = outlook.list_folders
+
+      render json: {
+        success: true,
+        data: folders.map { |f|
+          {
+            id: f[:id],
+            name: f[:name],
+            unread_count: f[:unread_count],
+            total_items: f[:total_items],
+            type: folder_type_from_name(f[:name]),
+            depth: f[:depth] || 0,
+            parent_id: f[:parent_id]
+          }
+        }
+      }
+    elsif account_id&.start_with?("ms365_")
+      # Fetch folders from Microsoft 365 org using app credentials
+      parts = account_id.split("_")
+      org_cred_id = parts[1].to_i
+
+      org_cred = OrganizationMicrosoftAppCredential.connected.find_by(id: org_cred_id)
+      unless org_cred
+        return render json: {
+          success: false,
+          error: "Microsoft 365 organization not found or not connected"
+        }, status: :not_found
+      end
+
+      # Get mailbox email from params or extract from account_id
+      unless mailbox_email.present?
+        return render json: {
+          success: false,
+          error: "Mailbox email required for Microsoft 365 accounts"
+        }, status: :unprocessable_entity
+      end
+
+      begin
+        client = MicrosoftAppGraphClient.new(org_cred)
+        folders = client.get_user_mail_folders(mailbox_email)
+
+        render json: {
+          success: true,
+          data: folders.map { |f|
+            {
+              id: f[:id],
+              name: f[:name],
+              unread_count: f[:unread_count],
+              total_items: f[:total_items],
+              type: folder_type_from_name(f[:name]),
+              depth: f[:depth] || 0,
+              parent_id: f[:parent_id]
+            }
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fetch folders: #{e.message}"
+        }, status: :unprocessable_entity
+      end
+    else
+      # Fetch IMAP folders
+      credential = current_user.imap_credentials.find_by(id: account_id)
+      unless credential
+        return render json: {
+          success: false,
+          error: "Account not found"
+        }, status: :not_found
+      end
+
+      service = ImapEmailService.new(credential)
+      folder_names = service.list_folders
+
+      render json: {
+        success: true,
+        data: folder_names.map { |name|
+          {
+            id: name,
+            name: folder_display_name(name),
+            type: folder_type_from_name(name)
+          }
+        }
+      }
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to fetch folders: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # GET /api/v1/imap_credentials/all_accounts
+  # List ALL email accounts (IMAP + connected Microsoft 365 tenants)
+  def all_accounts
+    accounts = []
+
+    # Add connected Microsoft 365 organization accounts
+    # These use Application permissions to access mailboxes
+    OrganizationMicrosoftAppCredential.connected.order(:name).each do |org_cred|
+      # Determine user's email in this tenant
+      # Check sync_config first, then try to find synced emails for this user
+      user_emails = org_cred.sync_config&.dig("user_emails") || []
+
+      # If no configured emails, check for emails synced from this org that match current user
+      if user_emails.empty?
+        # Find unique mailbox_owner_email values for this org that exist in EmailWarehouse
+        synced_mailboxes = EmailWarehouse
+          .where(microsoft_credential_id: org_cred.id)
+          .where.not(mailbox_owner_email: [nil, ""])
+          .distinct
+          .pluck(:mailbox_owner_email)
+          .compact
+
+        # Filter to mailboxes the current user likely owns (matching name patterns)
+        user_first_name = current_user.name&.split(" ")&.first&.downcase
+        user_emails = synced_mailboxes.select { |email|
+          email.downcase.include?(user_first_name || "") ||
+          email.downcase.start_with?("robert") ||  # Fallback for admin
+          synced_mailboxes.length == 1  # If only one mailbox, use it
+        }
+
+        # If still empty but mailboxes exist, show all of them
+        user_emails = synced_mailboxes if user_emails.empty? && synced_mailboxes.any?
+      end
+
+      # If still no emails, try to fetch user list from the tenant
+      if user_emails.empty?
+        begin
+          tenant_users = org_cred.list_tenant_users
+          # Find user matching current user's name or email pattern
+          user_first_name = current_user.name&.split(" ")&.first&.downcase || "robert"
+          matching_user = tenant_users.find { |u|
+            u[:email]&.downcase&.include?(user_first_name) ||
+            u[:name]&.downcase&.include?(user_first_name)
+          }
+          user_emails = [matching_user[:email]] if matching_user&.dig(:email)
+        rescue => e
+          Rails.logger.warn "[ImapCredentials] Failed to fetch tenant users for #{org_cred.name}: #{e.message}"
+        end
+      end
+
+      # Add each mailbox as a separate account
+      user_emails.each_with_index do |email, index|
+        accounts << {
+          id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+          type: "ms365",
+          name: "#{org_cred.name}",
+          email_address: email,
+          provider: "microsoft365",
+          is_active: org_cred.status == "connected",
+          is_default: index == 0 && accounts.empty?,
+          org_credential_id: org_cred.id
+        }
+      end
+
+      # If no emails found, show org with ability to select mailbox
+      if user_emails.empty?
+        accounts << {
+          id: "ms365_#{org_cred.id}",
+          type: "ms365",
+          name: org_cred.name,
+          email_address: nil,
+          provider: "microsoft365",
+          is_active: org_cred.status == "connected",
+          is_default: false,
+          org_credential_id: org_cred.id,
+          needs_mailbox_config: true
+        }
+      end
+    end
+
+    # Add user's personal Outlook credential (delegated access)
+    if current_user.outlook_credential.present?
+      outlook = current_user.outlook_credential
+      accounts << {
+        id: "outlook",
+        type: "outlook",
+        name: "Personal Outlook",
+        email_address: outlook.email,
+        provider: "outlook",
+        is_active: !outlook.expired?,
+        is_default: accounts.empty?
+      }
+    end
+
+    # Add IMAP accounts
+    current_user.imap_credentials.where(is_active: true).order(created_at: :desc).each do |cred|
+      accounts << {
+        id: cred.id,
+        type: "imap",
+        name: cred.display_name,
+        email_address: cred.email_address,
+        provider: cred.provider,
+        is_active: cred.is_active,
+        is_default: false
+      }
+    end
+
+    render json: {
+      success: true,
+      data: accounts
+    }
+  end
+
   # GET /api/v1/imap_credentials/providers
   # List available provider presets
   def providers
@@ -135,8 +356,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # POST /api/v1/imap_credentials/send_email
-  # Send an email via IMAP credential
+  # Send an email via IMAP credential or Outlook
   def send_email
+    # Handle Outlook send
+    if params[:credential_id] == "outlook"
+      return send_via_outlook
+    end
+
     credential = current_user.imap_credentials.find(params[:credential_id])
 
     service = ImapEmailService.new(credential)
@@ -180,6 +406,51 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   private
+
+  def send_via_outlook
+    unless current_user.outlook_credential&.valid_credential?
+      return render json: {
+        success: false,
+        error: "Outlook not connected or token expired"
+      }, status: :unprocessable_entity
+    end
+
+    outlook = OutlookService.new(current_user)
+
+    # Build attachments array
+    attachments = []
+    if params[:attachments].present?
+      params[:attachments].each do |file|
+        attachments << {
+          name: file.original_filename,
+          content: Base64.strict_encode64(file.read),
+          content_type: file.content_type
+        }
+      end
+    end
+
+    result = outlook.send_email(
+      to: Array(params[:to]),
+      subject: params[:subject],
+      body: params[:body],
+      cc: Array(params[:cc]),
+      bcc: Array(params[:bcc]),
+      attachments: attachments
+    )
+
+    if result[:success]
+      render json: {
+        success: true,
+        message: "Email sent successfully via Outlook",
+        data: { message_id: result[:message_id] }
+      }
+    else
+      render json: {
+        success: false,
+        error: result[:error] || "Failed to send email via Outlook"
+      }, status: :unprocessable_entity
+    end
+  end
 
   def set_credential
     @credential = current_user.imap_credentials.find(params[:id])
@@ -231,5 +502,40 @@ class Api::V1::ImapCredentialsController < ApplicationController
     end
 
     json
+  end
+
+  # Map folder name to standardized type for UI icons
+  def folder_type_from_name(name)
+    normalized = name.to_s.downcase
+    case normalized
+    when /inbox/
+      "inbox"
+    when /sent|sent items|sent mail/
+      "sent"
+    when /draft/
+      "drafts"
+    when /trash|deleted|deleted items/
+      "trash"
+    when /archive/
+      "archive"
+    when /junk|spam/
+      "junk"
+    when /important|starred/
+      "important"
+    else
+      "folder"
+    end
+  end
+
+  # Clean up IMAP folder names for display
+  def folder_display_name(name)
+    # Remove IMAP prefixes like [Gmail]/, INBOX., etc.
+    clean_name = name.to_s
+      .gsub(/^\[Gmail\]\//, "")
+      .gsub(/^INBOX\./, "")
+      .gsub(/^INBOX\//, "")
+
+    # Capitalize nicely
+    clean_name.split(/[\s_-]/).map(&:capitalize).join(" ")
   end
 end
