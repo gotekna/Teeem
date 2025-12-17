@@ -102,14 +102,14 @@ module Api
           # Check both as default supplier AND in price history
           default_supplier_ids = Contact.joins("INNER JOIN pricebook ON pricebook.default_supplier_id = contacts.id")
                                         .where(pricebook: { category: params[:category], is_active: true })
-                                        .where("'supplier' = ANY(contacts.roles)")
+                                        .where("contacts.roles LIKE '%supplier%'")
                                         .distinct
                                         .pluck(:id)
 
           price_history_supplier_ids = Contact.joins("INNER JOIN price_histories ON price_histories.supplier_id = contacts.id")
                                               .joins("INNER JOIN pricebook ON pricebook.id = price_histories.pricebook_item_id")
                                               .where(pricebook: { category: params[:category], is_active: true })
-                                              .where("'supplier' = ANY(contacts.roles)")
+                                              .where("contacts.roles LIKE '%supplier%'")
                                               .distinct
                                               .pluck(:id)
 
@@ -120,12 +120,12 @@ module Api
           # Get ALL suppliers (contacts) that appear in either default_supplier_id or price_histories
           default_supplier_ids = Contact.joins("INNER JOIN pricebook ON pricebook.default_supplier_id = contacts.id")
                                         .where(pricebook: { is_active: true })
-                                        .where("'supplier' = ANY(contacts.roles)")
+                                        .where("contacts.roles LIKE '%supplier%'")
                                         .distinct
                                         .pluck(:id)
 
           price_history_supplier_ids = Contact.joins(:price_histories)
-                                              .where("'supplier' = ANY(contacts.roles)")
+                                              .where("contacts.roles LIKE '%supplier%'")
                                               .distinct
                                               .pluck(:id)
 
