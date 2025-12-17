@@ -12,6 +12,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Plus,
   Play,
@@ -23,6 +31,12 @@ import {
   CheckCircle,
   XCircle,
   Upload,
+  Clock,
+  AlertCircle,
+  StopCircle,
+  Building,
+  RefreshCw,
+  Eye,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { formatDistanceToNow } from "date-fns";
 
 interface BpmnProcessSummary {
   id: number;
@@ -54,12 +69,43 @@ interface ApiResponse {
   errors?: string[];
 }
 
+interface WorkflowInstance {
+  id: number;
+  process_id: number;
+  process_name: string;
+  subject_type: string;
+  subject_id: number;
+  subject_name: string;
+  status: "active" | "completed" | "failed" | "cancelled" | "suspended";
+  progress: number;
+  current_node?: string;
+  current_nodes: string[];
+  pending_tasks: number;
+  active_tokens: number;
+  waiting_tokens: number;
+  error_message?: string;
+  started_at: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+interface InstancesApiResponse {
+  success: boolean;
+  instances: WorkflowInstance[];
+  total: number;
+}
+
 export default function BpmnProcessesPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [processes, setProcesses] = useState<BpmnProcessSummary[]>([]);
+  const [instances, setInstances] = useState<WorkflowInstance[]>([]);
+  const [instancesTotal, setInstancesTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [instancesLoading, setInstancesLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [activeTab, setActiveTab] = useState("processes");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const fetchProcesses = useCallback(async () => {
@@ -90,9 +136,82 @@ export default function BpmnProcessesPage() {
     }
   }, [toast]);
 
+  const fetchInstances = useCallback(async () => {
+    setInstancesLoading(true);
+    try {
+      const statusParam = statusFilter !== "all" ? `&status=${statusFilter}` : "";
+      const response = await api.get<InstancesApiResponse>(
+        `/api/v1/bpmn_process_instances?limit=50${statusParam}`
+      );
+      if (response?.success) {
+        setInstances(response.instances || []);
+        setInstancesTotal(response.total || 0);
+      }
+    } catch (error) {
+      console.error("Failed to fetch instances:", error);
+      toast({ title: "Error", description: "Failed to load workflow instances", variant: "destructive" });
+    } finally {
+      setInstancesLoading(false);
+    }
+  }, [statusFilter, toast]);
+
   useEffect(() => {
     fetchProcesses();
   }, [fetchProcesses]);
+
+  useEffect(() => {
+    if (activeTab === "instances") {
+      fetchInstances();
+    }
+  }, [activeTab, fetchInstances]);
+
+  const handleCancelInstance = async (instanceId: number) => {
+    if (!confirm("Are you sure you want to cancel this workflow instance?")) return;
+    try {
+      const response = await api.post<{ success: boolean }>(`/api/v1/bpmn_process_instances/${instanceId}/cancel`, {
+        reason: "Cancelled by user",
+      });
+      if (response?.success) {
+        toast({ title: "Success", description: "Workflow instance cancelled" });
+        fetchInstances();
+      }
+    } catch (error) {
+      console.error("Failed to cancel instance:", error);
+      toast({ title: "Error", description: "Failed to cancel workflow instance", variant: "destructive" });
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Play className="h-4 w-4 text-blue-500" />;
+      case "completed":
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "failed":
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case "cancelled":
+        return <StopCircle className="h-4 w-4 text-gray-500" />;
+      case "suspended":
+        return <Pause className="h-4 w-4 text-yellow-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, string> = {
+      active: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
+      completed: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+      failed: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
+      cancelled: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+      suspended: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300",
+    };
+    return (
+      <Badge className={variants[status] || variants.cancelled}>
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </Badge>
+    );
+  };
 
   const handleCreate = async () => {
     try {
@@ -219,7 +338,7 @@ export default function BpmnProcessesPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">BPMN Workflows</h1>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Design and manage automated business processes
           </p>
         </div>
@@ -242,23 +361,43 @@ export default function BpmnProcessesPage() {
         />
       </div>
 
-      {processes.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <Workflow className="mb-4 h-12 w-12 text-slate-400" />
-            <h3 className="mb-2 text-lg font-medium">No workflows yet</h3>
-            <p className="mb-4 text-sm text-slate-500">
-              Create your first workflow to automate business processes
-            </p>
-            <Button onClick={handleCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Workflow
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {processes.map((process) => (
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="processes" className="gap-2">
+            <Workflow className="h-4 w-4" />
+            Processes
+            {processes.length > 0 && (
+              <Badge variant="secondary" className="ml-1">{processes.length}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="instances" className="gap-2">
+            <Play className="h-4 w-4" />
+            Instances
+            {instancesTotal > 0 && (
+              <Badge variant="secondary" className="ml-1">{instancesTotal}</Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Processes Tab */}
+        <TabsContent value="processes">
+          {processes.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <Workflow className="mb-4 h-12 w-12 text-slate-400" />
+                <h3 className="mb-2 text-lg font-medium">No workflows yet</h3>
+                <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+                  Create your first workflow to automate business processes
+                </p>
+                <Button onClick={handleCreate}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Workflow
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {processes.map((process) => (
             <Card key={process.id} className="group relative">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -359,7 +498,7 @@ export default function BpmnProcessesPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 text-xs text-slate-500">
+                <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                   Updated{" "}
                   {new Date(process.updatedAt).toLocaleDateString("en-AU", {
                     day: "numeric",
@@ -370,8 +509,129 @@ export default function BpmnProcessesPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
-      )}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Instances Tab */}
+        <TabsContent value="instances">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Workflow Instances</CardTitle>
+                  <CardDescription>All workflow executions</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Filter status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="failed">Failed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                      <SelectItem value="suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={fetchInstances} disabled={instancesLoading}>
+                    <RefreshCw className={`h-4 w-4 ${instancesLoading ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {instancesLoading && instances.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-slate-500 dark:text-slate-400">Loading instances...</div>
+                </div>
+              ) : instances.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Play className="mb-4 h-12 w-12 text-slate-400" />
+                  <h3 className="mb-2 text-lg font-medium">No workflow instances</h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Run a workflow from the designer or from a job page
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {instances.map((instance) => (
+                    <div
+                      key={instance.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 dark:border-slate-700"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                          {getStatusIcon(instance.status)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{instance.process_name}</p>
+                            <span className="text-xs text-slate-500 dark:text-slate-400">#{instance.id}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                            <Building className="h-3 w-3" />
+                            <span>{instance.subject_name || `${instance.subject_type} #${instance.subject_id}`}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            <span>Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}</span>
+                            {instance.current_node && (
+                              <>
+                                <span>•</span>
+                                <span>At: {instance.current_node}</span>
+                              </>
+                            )}
+                          </div>
+                          {instance.error_message && (
+                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{instance.error_message}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {instance.pending_tasks > 0 && (
+                          <Badge variant="outline" className="text-orange-600 border-orange-300 dark:border-orange-700">
+                            {instance.pending_tasks} pending
+                          </Badge>
+                        )}
+                        {getStatusBadge(instance.status)}
+                        {instance.status !== "completed" && instance.status !== "cancelled" && instance.status !== "failed" && (
+                          <Badge variant="outline">{Math.round(instance.progress)}%</Badge>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/workflows/designer/${instance.process_id}`)}
+                            >
+                              <Eye className="mr-2 h-4 w-4" />
+                              View Process
+                            </DropdownMenuItem>
+                            {instance.status === "active" && (
+                              <DropdownMenuItem
+                                onClick={() => handleCancelInstance(instance.id)}
+                                className="text-red-600"
+                              >
+                                <StopCircle className="mr-2 h-4 w-4" />
+                                Cancel
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

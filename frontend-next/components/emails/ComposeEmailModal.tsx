@@ -32,11 +32,14 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 
-interface ImapCredential {
-  id: number;
+interface EmailAccount {
+  id: number | string;
+  type: "outlook" | "imap";
   name: string;
   email_address: string;
   provider: string;
+  is_active: boolean;
+  is_default?: boolean;
 }
 
 interface ComposeEmailModalProps {
@@ -58,7 +61,7 @@ export function ComposeEmailModal({
   replyToMessageId,
   onSent,
 }: ComposeEmailModalProps) {
-  const [accounts, setAccounts] = useState<ImapCredential[]>([]);
+  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
@@ -95,15 +98,16 @@ export function ComposeEmailModal({
   const fetchAccounts = async () => {
     setLoading(true);
     try {
-      const response = await api.get<{ success: boolean; data: (ImapCredential & { is_active: boolean })[] }>("/api/v1/imap_credentials");
+      const response = await api.get<{ success: boolean; data: EmailAccount[] }>("/api/v1/imap_credentials/all_accounts");
       const activeAccounts = (response.data || []).filter(
         (a) => a.is_active
       );
       setAccounts(activeAccounts);
 
-      // Auto-select first account if only one
-      if (activeAccounts.length === 1) {
-        setFormData((prev) => ({ ...prev, credential_id: String(activeAccounts[0].id) }));
+      // Auto-select default account (Outlook) or first account
+      const defaultAccount = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
+      if (defaultAccount) {
+        setFormData((prev) => ({ ...prev, credential_id: String(defaultAccount.id) }));
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);

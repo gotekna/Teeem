@@ -122,6 +122,52 @@ class OutlookService
     end
   end
 
+  # Send an email via Microsoft Graph API
+  def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [])
+    url = "#{GRAPH_API_BASE}/me/sendMail"
+
+    # Build recipients
+    to_recipients = Array(to).map { |email| { emailAddress: { address: email } } }
+    cc_recipients = Array(cc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+    bcc_recipients = Array(bcc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+
+    message = {
+      subject: subject,
+      body: {
+        contentType: "HTML",
+        content: body
+      },
+      toRecipients: to_recipients
+    }
+
+    message[:ccRecipients] = cc_recipients if cc_recipients.any?
+    message[:bccRecipients] = bcc_recipients if bcc_recipients.any?
+
+    # Add attachments if present
+    if attachments.any?
+      message[:attachments] = attachments.map do |att|
+        {
+          "@odata.type": "#microsoft.graph.fileAttachment",
+          name: att[:name],
+          contentType: att[:content_type],
+          contentBytes: att[:content]
+        }
+      end
+    end
+
+    response = make_request(url, :post, { message: message })
+
+    if response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPAccepted)
+      Rails.logger.info "Sent email via Outlook to: #{to.join(', ')}"
+      { success: true, message_id: SecureRandom.uuid }
+    else
+      error_body = JSON.parse(response.body) rescue { "error" => { "message" => response.body } }
+      error_msg = error_body.dig("error", "message") || "Unknown error"
+      Rails.logger.error "Failed to send Outlook email: #{response.code} - #{error_msg}"
+      { success: false, error: error_msg }
+    end
+  end
+
   # Move email to a different folder
   def move_to_folder(message_id, destination_folder_id)
     url = "#{GRAPH_API_BASE}/me/messages/#{message_id}/move"

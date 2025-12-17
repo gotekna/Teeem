@@ -1316,6 +1316,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_043857) do
     t.datetime "acn_verified_at"
     t.integer "xero_linked_count", default: 0
     t.string "xero_tenant_names", default: [], array: true
+    t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
     t.index ["company_group_id"], name: "index_contacts_on_company_group_id"

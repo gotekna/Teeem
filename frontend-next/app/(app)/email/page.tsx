@@ -57,12 +57,14 @@ interface Email {
   }>;
 }
 
-interface ImapCredential {
-  id: number;
+interface EmailAccount {
+  id: number | string;
+  type: "outlook" | "imap";
   name: string;
   email_address: string;
   provider: string;
   is_active: boolean;
+  is_default?: boolean;
 }
 
 interface Pagination {
@@ -74,7 +76,7 @@ interface Pagination {
 
 export default function EmailPage() {
   const [emails, setEmails] = useState<Email[]>([]);
-  const [accounts, setAccounts] = useState<ImapCredential[]>([]);
+  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
@@ -103,26 +105,20 @@ export default function EmailPage() {
         params.append("search", search);
       }
 
-      // Filter by IMAP credential if selected
-      if (selectedAccount && selectedAccount !== "all" && selectedAccount !== "outlook") {
-        params.append("imap_credential_id", selectedAccount);
+      // Filter by source type or IMAP credential
+      if (selectedAccount && selectedAccount !== "all") {
+        if (selectedAccount === "outlook") {
+          params.append("source_type", "outlook");
+        } else {
+          params.append("imap_credential_id", selectedAccount);
+        }
       }
 
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(
         `/api/v1/email_warehouse?${params.toString()}`
       );
 
-      // Filter by source if outlook selected
-      let filteredEmails = response.emails || [];
-      if (selectedAccount === "outlook") {
-        filteredEmails = filteredEmails.filter(e => e.source_type === "outlook");
-      } else if (selectedAccount && selectedAccount !== "all") {
-        filteredEmails = filteredEmails.filter(
-          e => e.source_type === "imap" && String(e.imap_credential_id) === selectedAccount
-        );
-      }
-
-      setEmails(filteredEmails);
+      setEmails(response.emails || []);
       setPagination(response.pagination);
     } catch (error) {
       console.error("Failed to fetch emails:", error);
@@ -133,8 +129,8 @@ export default function EmailPage() {
 
   const fetchAccounts = async () => {
     try {
-      const response = await api.get<{ success: boolean; data: ImapCredential[] }>(
-        "/api/v1/imap_credentials"
+      const response = await api.get<{ success: boolean; data: EmailAccount[] }>(
+        "/api/v1/imap_credentials/all_accounts"
       );
       setAccounts((response.data || []).filter(a => a.is_active));
     } catch (error) {
@@ -198,9 +194,14 @@ export default function EmailPage() {
 
   const getSourceBadge = (email: Email) => {
     if (email.source_type === "outlook") {
-      return <Badge variant="outline" className="text-xs">Outlook</Badge>;
+      const outlookAccount = accounts.find(a => a.type === "outlook");
+      return (
+        <Badge variant="outline" className="text-xs">
+          {outlookAccount?.email_address || "Outlook"}
+        </Badge>
+      );
     }
-    const account = accounts.find(a => a.id === email.imap_credential_id);
+    const account = accounts.find(a => a.type === "imap" && a.id === email.imap_credential_id);
     return (
       <Badge variant="secondary" className="text-xs">
         {account?.name || account?.email_address || "IMAP"}
@@ -251,9 +252,8 @@ export default function EmailPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All accounts</SelectItem>
-            <SelectItem value="outlook">Outlook (Microsoft 365)</SelectItem>
             {accounts.map((account) => (
-              <SelectItem key={account.id} value={String(account.id)}>
+              <SelectItem key={String(account.id)} value={String(account.id)}>
                 {account.name || account.email_address}
               </SelectItem>
             ))}

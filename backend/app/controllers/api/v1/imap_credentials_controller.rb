@@ -110,6 +110,44 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }
   end
 
+  # GET /api/v1/imap_credentials/all_accounts
+  # List ALL email accounts (IMAP + connected Outlook)
+  def all_accounts
+    accounts = []
+
+    # Add connected Outlook account if exists
+    if current_user.outlook_credential.present?
+      outlook = current_user.outlook_credential
+      accounts << {
+        id: "outlook",
+        type: "outlook",
+        name: "Outlook (Microsoft 365)",
+        email_address: outlook.email,
+        provider: "outlook",
+        is_active: !outlook.expired?,
+        is_default: true
+      }
+    end
+
+    # Add IMAP accounts
+    current_user.imap_credentials.where(is_active: true).order(created_at: :desc).each do |cred|
+      accounts << {
+        id: cred.id,
+        type: "imap",
+        name: cred.display_name,
+        email_address: cred.email_address,
+        provider: cred.provider,
+        is_active: cred.is_active,
+        is_default: false
+      }
+    end
+
+    render json: {
+      success: true,
+      data: accounts
+    }
+  end
+
   # GET /api/v1/imap_credentials/providers
   # List available provider presets
   def providers
@@ -135,8 +173,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # POST /api/v1/imap_credentials/send_email
-  # Send an email via IMAP credential
+  # Send an email via IMAP credential or Outlook
   def send_email
+    # Handle Outlook send
+    if params[:credential_id] == "outlook"
+      return send_via_outlook
+    end
+
     credential = current_user.imap_credentials.find(params[:credential_id])
 
     service = ImapEmailService.new(credential)
@@ -180,6 +223,51 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   private
+
+  def send_via_outlook
+    unless current_user.outlook_credential&.valid_credential?
+      return render json: {
+        success: false,
+        error: "Outlook not connected or token expired"
+      }, status: :unprocessable_entity
+    end
+
+    outlook = OutlookService.new(current_user)
+
+    # Build attachments array
+    attachments = []
+    if params[:attachments].present?
+      params[:attachments].each do |file|
+        attachments << {
+          name: file.original_filename,
+          content: Base64.strict_encode64(file.read),
+          content_type: file.content_type
+        }
+      end
+    end
+
+    result = outlook.send_email(
+      to: Array(params[:to]),
+      subject: params[:subject],
+      body: params[:body],
+      cc: Array(params[:cc]),
+      bcc: Array(params[:bcc]),
+      attachments: attachments
+    )
+
+    if result[:success]
+      render json: {
+        success: true,
+        message: "Email sent successfully via Outlook",
+        data: { message_id: result[:message_id] }
+      }
+    else
+      render json: {
+        success: false,
+        error: result[:error] || "Failed to send email via Outlook"
+      }, status: :unprocessable_entity
+    end
+  end
 
   def set_credential
     @credential = current_user.imap_credentials.find(params[:id])

@@ -736,6 +736,7 @@ Rails.application.routes.draw do
         collection do
           post :test
           get :providers
+          get :all_accounts
           post :send_email
         end
         member do
