@@ -1,5 +1,5 @@
 class Api::V1::DocumentTemplatesController < ApplicationController
-  before_action :set_document_template, only: [ :show, :update, :destroy, :preview, :link_sharepoint ]
+  before_action :set_document_template, only: [ :show, :update, :destroy, :preview, :link_sharepoint, :generate_and_send ]
 
   # GET /api/v1/document_templates
   def index
@@ -162,6 +162,80 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         errors: [ "Failed to verify SharePoint file: #{e.message}" ]
       }, status: :unprocessable_entity
     end
+  end
+
+  # POST /api/v1/document_templates/:id/generate_and_send
+  # Generate document from template and send for e-signature
+  def generate_and_send
+    job = Job.find_by(id: params[:job_id])
+
+    unless job
+      render json: {
+        success: false,
+        errors: [ "Job not found" ]
+      }, status: :not_found
+      return
+    end
+
+    unless @document_template.sharepoint_linked?
+      render json: {
+        success: false,
+        errors: [ "Template not linked to SharePoint file" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    # Build signers from params or from job contacts
+    signers = build_signers(job, params[:signers])
+
+    if signers.empty?
+      render json: {
+        success: false,
+        errors: [ "At least one signer is required" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    # Execute the service
+    service = DocumentEsignService.new(
+      template: @document_template,
+      job: job,
+      signers: signers,
+      title: params[:title],
+      description: params[:description],
+      message_to_signers: params[:message_to_signers],
+      signing_order: params[:signing_order]&.to_i || 0,
+      expires_in_days: params[:expires_in_days]&.to_i || 30,
+      auto_send: params[:auto_send] != false,
+      extra_data: params[:extra_data]&.to_unsafe_h || {}
+    )
+
+    result = service.execute!
+
+    render json: {
+      success: true,
+      message: "Document generated and sent for e-signature",
+      e_signature_request: {
+        id: result[:e_signature_request].id,
+        request_number: result[:request_number],
+        status: result[:status],
+        signers_count: result[:signers_count]
+      },
+      document: {
+        filename: result[:document_filename],
+        sharepoint_id: result[:document_sharepoint_id]
+      }
+    }
+  rescue DocumentEsignService::Error => e
+    render json: {
+      success: false,
+      errors: [ e.message ]
+    }, status: :unprocessable_entity
+  rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
+    render json: {
+      success: false,
+      errors: [ "Document generation failed: #{e.message}" ]
+    }, status: :unprocessable_entity
   end
 
   # GET /api/v1/document_templates/sharepoint_files
