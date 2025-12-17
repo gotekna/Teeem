@@ -38,12 +38,12 @@ class XeroAttachmentSyncService
   end
 
   def sync_invoice_pdf
-    # Check if PDF already exists - skip API call if we have it
+    # Check if PDF already exists in SharePoint - skip API call if we have it
     external_doc_id = "xero:#{external_invoice.external_id}:pdf"
     existing_pdf = CorporateCompanyDocument.find_by(source: "xero", external_id: external_doc_id)
 
-    if existing_pdf.present? && existing_pdf.file.attached?
-      Rails.logger.info("[XeroAttachmentSync] PDF already synced, skipping: #{existing_pdf.title}")
+    if existing_pdf.present? && existing_pdf.sharepoint_file_id.present?
+      Rails.logger.info("[XeroAttachmentSync] PDF already synced to SharePoint, skipping: #{existing_pdf.title}")
       results[:pdf] = existing_pdf
       results[:skipped] = true
       return

@@ -364,9 +364,10 @@ export default function DocumentTemplatesPage() {
                         {template.sharepoint_path && (
                           <Button variant="ghost" size="sm" asChild>
                             <a
-                              href={`https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${encodeURIComponent(template.sharepoint_path)}`}
+                              href={`https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${template.sharepoint_path.split('/').map(s => encodeURIComponent(s)).join('/')}?web=1`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              title="Edit in Word Online"
                             >
                               <ExternalLink className="h-4 w-4" />
                             </a>

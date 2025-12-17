@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_013331) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -368,6 +368,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.jsonb "ocr_extraction_result"
     t.jsonb "comparison_data"
     t.jsonb "contact_comparison_data", default: {}
+    t.string "sharepoint_file_id"
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
     t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
     t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
@@ -375,6 +376,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.index ["external_invoice_id"], name: "index_bill_inboxes_on_external_invoice_id"
     t.index ["match_status"], name: "index_bill_inboxes_on_match_status"
     t.index ["matched_purchase_order_id"], name: "index_bill_inboxes_on_matched_purchase_order_id"
+    t.index ["sharepoint_file_id"], name: "index_bill_inboxes_on_sharepoint_file_id"
     t.index ["status"], name: "index_bill_inboxes_on_status"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
@@ -809,6 +811,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.string "message_type", default: "text"
     t.string "file_url"
     t.string "file_name"
+    t.string "sharepoint_file_id"
     t.index ["case_id"], name: "index_chat_messages_on_case_id"
     t.index ["channel", "created_at"], name: "index_chat_messages_on_channel_and_created_at"
     t.index ["contact_id"], name: "index_chat_messages_on_contact_id"
@@ -818,6 +821,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.index ["project_id", "created_at"], name: "index_chat_messages_on_project_id_and_created_at"
     t.index ["project_id"], name: "index_chat_messages_on_project_id"
     t.index ["recipient_user_id"], name: "index_chat_messages_on_recipient_user_id"
+    t.index ["sharepoint_file_id"], name: "index_chat_messages_on_sharepoint_file_id"
     t.index ["user_id"], name: "index_chat_messages_on_user_id"
   end
 
@@ -2471,6 +2475,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.datetime "synced_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sharepoint_file_id"
     t.index ["category"], name: "index_financial_transactions_on_category"
     t.index ["company_id", "status"], name: "index_financial_transactions_on_company_id_and_status"
     t.index ["company_id", "transaction_date"], name: "idx_on_company_id_transaction_date_f27cab6995"
@@ -2479,6 +2484,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.index ["job_id", "transaction_date"], name: "index_financial_transactions_on_job_id_and_transaction_date"
     t.index ["job_id"], name: "index_financial_transactions_on_job_id"
     t.index ["keepr_journal_id"], name: "index_financial_transactions_on_keepr_journal_id"
+    t.index ["sharepoint_file_id"], name: "index_financial_transactions_on_sharepoint_file_id"
     t.index ["status"], name: "index_financial_transactions_on_status"
     t.index ["transaction_date"], name: "index_financial_transactions_on_transaction_date"
     t.index ["transaction_type"], name: "index_financial_transactions_on_transaction_type"
@@ -3382,6 +3388,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.bigint "pay_now_weekly_limit_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "sharepoint_file_id"
+    t.jsonb "proof_photos_sharepoint_ids", default: []
     t.index ["approved_by_builder_id"], name: "index_pay_now_requests_on_approved_by_builder_id"
     t.index ["contact_id", "status"], name: "index_pay_now_requests_on_contact_and_status"
     t.index ["contact_id"], name: "index_pay_now_requests_on_contact_id"
@@ -3393,6 +3401,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
     t.index ["requested_by_portal_user_id"], name: "index_pay_now_requests_on_requested_by_portal_user_id"
     t.index ["requested_payment_date"], name: "index_pay_now_requests_on_requested_payment_date"
     t.index ["reviewed_by_supervisor_id"], name: "index_pay_now_requests_on_reviewed_by_supervisor_id"
+    t.index ["sharepoint_file_id"], name: "index_pay_now_requests_on_sharepoint_file_id"
     t.index ["status", "created_at"], name: "index_pay_now_requests_on_status_and_created_at"
     t.index ["status"], name: "index_pay_now_requests_on_status"
   end

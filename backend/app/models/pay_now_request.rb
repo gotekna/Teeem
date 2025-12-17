@@ -65,6 +65,7 @@ class PayNowRequest < ApplicationRecord
   after_create :reserve_weekly_limit
   after_create :notify_supervisors
   after_update :handle_status_changes, if: :saved_change_to_status?
+  after_commit :upload_files_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
 
   # Scopes
   scope :pending, -> { where(status: "pending") }
@@ -299,5 +300,14 @@ class PayNowRequest < ApplicationRecord
 
   def notify_supervisors
     PayNowNotificationJob.perform_later(id, "submitted")
+  end
+
+  def should_upload_to_sharepoint?
+    (invoice_file.attached? && sharepoint_file_id.blank?) ||
+      (proof_photos.attached? && proof_photos_sharepoint_ids.blank?)
+  end
+
+  def upload_files_to_sharepoint
+    PayNowSharepointUploadJob.perform_later(id)
   end
 end

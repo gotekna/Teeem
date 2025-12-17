@@ -11,6 +11,9 @@ class ChatMessage < ApplicationRecord
   validates :content, presence: true
   validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
 
+  # Upload to SharePoint after file is attached
+  after_commit :upload_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
+
   scope :in_channel, ->(channel) { where(channel: channel).order(created_at: :asc) }
   scope :for_project, ->(project_id) { where(project_id: project_id).order(created_at: :asc) }
   scope :for_job, ->(job_id) { where(job_id: job_id).order(created_at: :asc) }
@@ -45,5 +48,32 @@ class ChatMessage < ApplicationRecord
     else
       created_at.strftime("%b %d, %Y at %I:%M %p")
     end
+  end
+
+  def has_file?
+    sharepoint_file_id.present?
+  end
+
+  def download_file
+    return nil unless sharepoint_file_id.present?
+
+    credential = OrganizationOneDriveCredential.active_credential
+    return nil unless credential
+
+    client = MicrosoftGraphClient.new(credential)
+    client.download_file(sharepoint_file_id)
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("[ChatMessage] SharePoint download failed for #{id}: #{e.message}")
+    nil
+  end
+
+  private
+
+  def should_upload_to_sharepoint?
+    file.attached? && sharepoint_file_id.blank?
+  end
+
+  def upload_to_sharepoint
+    ChatMessageSharepointUploadJob.perform_later(id)
   end
 end

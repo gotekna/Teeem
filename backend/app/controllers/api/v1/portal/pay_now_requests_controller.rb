@@ -170,10 +170,11 @@ module Api
 
           render json: {
             success: true,
-            message: "Documents uploaded successfully",
+            message: "Documents uploaded successfully - files uploading to SharePoint",
             data: {
-              invoice_file_url: @request.invoice_file.attached? ? url_for(@request.invoice_file) : nil,
-              proof_photos_count: @request.proof_photos.count
+              has_invoice: @request.invoice_file.attached?,
+              proof_photos_count: @request.proof_photos.count,
+              upload_pending: @request.sharepoint_file_id.blank?
             }
           }
         end
@@ -270,8 +271,9 @@ module Api
               reference_number: request.payment.reference_number
             } : nil,
             paid_at: request.paid_at,
-            invoice_file_url: request.invoice_file.attached? ? url_for(request.invoice_file) : nil,
-            proof_photos: request.proof_photos.map { |photo| url_for(photo) }
+            has_invoice: request.sharepoint_file_id.present?,
+            sharepoint_file_id: request.sharepoint_file_id,
+            proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || []
           }
         end
 

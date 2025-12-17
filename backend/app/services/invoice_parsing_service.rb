@@ -15,7 +15,7 @@ class InvoiceParsingService
   end
 
   def extract!
-    return {} unless @bill.invoice_file.attached?
+    return {} unless @bill.sharepoint_file_id.present?
 
     Rails.logger.info "[InvoiceParsing] Starting extraction for BillInbox ##{@bill.id}"
 
@@ -57,11 +57,11 @@ class InvoiceParsingService
   private
 
   def extract_pdf_text
-    # Download raw bytes directly - bypasses ActiveStorage integrity check
-    # which can fail when checksums don't match (common with SharePoint storage)
-    content = @bill.invoice_file.download
+    # Download from SharePoint (SSoT)
+    content = @bill.download_invoice_file
+    return "" unless content
 
-    if @bill.content_type == "application/pdf"
+    if @bill.invoice_file_content_type == "application/pdf"
       # Write to temp file for PDF::Reader
       Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |temp_file|
         temp_file.write(content)
@@ -77,7 +77,8 @@ class InvoiceParsingService
 
   # Convert PDF to PNG image for vision-based extraction
   def pdf_to_image
-    content = @bill.invoice_file.download
+    content = @bill.download_invoice_file
+    return nil unless content
 
     Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |pdf_file|
       pdf_file.write(content)
@@ -196,17 +197,18 @@ class InvoiceParsingService
     # Use Claude's vision capability for accurate field location detection
     # PDFs are converted to PNG first, images are used directly
 
-    if @bill.content_type == "application/pdf"
+    if @bill.invoice_file_content_type == "application/pdf"
       # Convert PDF to image for vision processing
       image_content = pdf_to_image
       raise "Failed to convert PDF to image" if image_content.nil?
       image_data = Base64.strict_encode64(image_content)
       media_type = "image/png"
     else
-      # Use image directly
-      content = @bill.invoice_file.download
+      # Use image directly from SharePoint
+      content = @bill.download_invoice_file
+      raise "Failed to download image from SharePoint" if content.nil?
       image_data = Base64.strict_encode64(content)
-      media_type = @bill.content_type
+      media_type = @bill.invoice_file_content_type
     end
 
     [

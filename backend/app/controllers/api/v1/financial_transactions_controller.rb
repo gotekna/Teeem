@@ -246,12 +246,11 @@ module Api
           can_delete: transaction.can_delete?
         }
 
-        if include_receipt && transaction.receipt.attached?
+        if include_receipt && transaction.sharepoint_file_id.present?
           data[:receipt] = {
-            url: rails_blob_url(transaction.receipt),
-            filename: transaction.receipt.filename.to_s,
-            content_type: transaction.receipt.content_type,
-            byte_size: transaction.receipt.byte_size
+            has_receipt: true,
+            sharepoint_file_id: transaction.sharepoint_file_id,
+            filename: transaction.receipt.attached? ? transaction.receipt.filename.to_s : nil
           }
         end
 

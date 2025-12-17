@@ -263,30 +263,14 @@ class XeroAttachmentUploadJob < ApplicationJob
     end
   end
 
-  # Download document content from storage (Active Storage, OneDrive, URL, etc.)
+  # Download document content from SharePoint (SSoT - no fallbacks)
   def download_document_content(document)
-    # Option 1: Active Storage attachment
-    if document.file.attached?
-      return document.file.download
+    unless document.sharepoint_file_id.present?
+      Rails.logger.error("[XeroAttachmentUploadJob] No sharepoint_file_id for document #{document.id}")
+      return nil
     end
 
-    # Option 2: OneDrive file
-    if document.sharepoint_file_id.present?
-      return download_from_onedrive(document)
-    end
-
-    # Option 3: SharePoint URL
-    if document.share_point_url.present?
-      return download_from_sharepoint(document)
-    end
-
-    # Option 4: Direct URL
-    if document.url.present?
-      return download_from_url(document.url)
-    end
-
-    Rails.logger.warn("[XeroAttachmentUploadJob] No downloadable content for document #{document.id}")
-    nil
+    download_from_onedrive(document)
   rescue StandardError => e
     Rails.logger.error("[XeroAttachmentUploadJob] Error downloading document #{document.id}: #{e.message}")
     nil

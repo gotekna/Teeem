@@ -14,7 +14,7 @@ class OcrExtractionService
   end
 
   def extract!
-    return {} unless @bill.invoice_file.attached?
+    return {} unless @bill.sharepoint_file_id.present?
 
     Rails.logger.info "[OCR] Starting OCR extraction for BillInbox ##{@bill.id}"
 
@@ -47,7 +47,8 @@ class OcrExtractionService
   private
 
   def pdf_to_images
-    content = @bill.invoice_file.download
+    content = @bill.download_invoice_file
+    raise "Failed to download file from SharePoint" if content.nil?
 
     images = []
 

@@ -52,16 +52,14 @@ module Api
       def show
         invoice = ExternalInvoice.find(params[:id])
 
-        # Check if PDF is available in warehouse (SSoT)
-        # Use mapped document_type (e.g., "bill" -> "Purchases") to match XeroAttachmentSyncService
+        # Check if PDF is available in SharePoint (SSoT)
         pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.file&.attached?
+        has_pdf = pdf_doc&.sharepoint_file_id.present?
 
         render json: {
           success: true,
           data: serialize_invoice(invoice, include_details: true).merge(
             has_pdf: has_pdf,
-            pdf_url: has_pdf ? Rails.application.routes.url_helpers.rails_blob_url(pdf_doc.file, disposition: "inline", host: ENV.fetch("RAILS_HOST", "localhost:3001")) : nil,
             pdf_synced_at: pdf_doc&.created_at&.iso8601
           )
         }
@@ -74,16 +72,14 @@ module Api
       def by_external_id
         invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
 
-        # Check if PDF is available in warehouse
-        # Use mapped document_type (e.g., "bill" -> "Purchases") to match XeroAttachmentSyncService
+        # Check if PDF is available in SharePoint (SSoT)
         pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
-        has_pdf = pdf_doc&.file&.attached?
+        has_pdf = pdf_doc&.sharepoint_file_id.present?
 
         render json: {
           success: true,
           data: serialize_invoice(invoice, include_details: true).merge(
             has_pdf: has_pdf,
-            pdf_url: has_pdf ? Rails.application.routes.url_helpers.rails_blob_url(pdf_doc.file, disposition: "inline", host: ENV.fetch("RAILS_HOST", "localhost:3001")) : nil,
             pdf_synced_at: pdf_doc&.created_at&.iso8601
           )
         }
@@ -511,7 +507,7 @@ module Api
       def attachments
         invoice = ExternalInvoice.find(params[:id])
 
-        # Return documents linked to this invoice
+        # Return documents linked to this invoice (SharePoint SSoT)
         documents = invoice.corporate_company_documents.map do |doc|
           {
             id: doc.id,
@@ -521,7 +517,8 @@ module Api
             folder: doc.folder,
             file_size: doc.file_size,
             mime_type: doc.mime_type,
-            url: doc.file.attached? ? rails_blob_url(doc.file) : nil,
+            has_file: doc.sharepoint_file_id.present?,
+            sharepoint_file_id: doc.sharepoint_file_id,
             created_at: doc.created_at.iso8601
           }
         end

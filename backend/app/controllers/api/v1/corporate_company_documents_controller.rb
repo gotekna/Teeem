@@ -218,24 +218,22 @@ module Api
 
       # GET /api/v1/company_documents/:id/preview
       # Returns an embeddable preview URL for OneDrive files
+      # No fallback - fail fast if SharePoint doesn't work
       def preview
         unless @document.sharepoint_file_id.present?
           return render json: {
             success: false,
-            error: "No OneDrive file available for preview",
-            fallback_url: @document.file_url
-          }, status: :unprocessable_entity
+            error: "No SharePoint file ID - document not synced"
+          }, status: :not_found
         end
 
         begin
-          # Get the active OneDrive credential (corporate SharePoint)
           credential = OrganizationOneDriveCredential.active_credential
           unless credential
             return render json: {
               success: false,
-              error: "OneDrive not configured",
-              fallback_url: @document.file_url
-            }, status: :unprocessable_entity
+              error: "OneDrive credentials not available"
+            }, status: :service_unavailable
           end
 
           client = MicrosoftGraphClient.new(credential)
@@ -251,30 +249,26 @@ module Api
           else
             render json: {
               success: false,
-              error: "Preview not available for this file type",
-              fallback_url: @document.file_url
+              error: "Preview not available for this file type"
             }, status: :unprocessable_entity
           end
         rescue MicrosoftGraphClient::AuthenticationError => e
           Rails.logger.error "OneDrive auth error getting preview: #{e.message}"
           render json: {
             success: false,
-            error: "OneDrive authentication error",
-            fallback_url: @document.file_url
+            error: "OneDrive authentication error: #{e.message}"
           }, status: :unauthorized
         rescue MicrosoftGraphClient::APIError => e
           Rails.logger.error "OneDrive API error getting preview: #{e.message}"
           render json: {
             success: false,
-            error: "Failed to get preview from OneDrive",
-            fallback_url: @document.file_url
-          }, status: :unprocessable_entity
+            error: "SharePoint API error: #{e.message}"
+          }, status: :bad_gateway
         rescue ActiveRecord::Encryption::Errors::Decryption => e
           Rails.logger.error "OneDrive credential decryption error: #{e.message}"
           render json: {
             success: false,
-            error: "OneDrive credentials not available in this environment",
-            fallback_url: @document.file_url
+            error: "OneDrive credentials not available in this environment"
           }, status: :service_unavailable
         end
       end

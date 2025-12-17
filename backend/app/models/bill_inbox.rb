@@ -39,6 +39,7 @@ class BillInbox < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults, on: :create
+  after_commit :upload_to_sharepoint, on: [:create, :update], if: :should_upload_to_sharepoint?
 
   # Instance methods
   def extract_invoice_data!
@@ -125,15 +126,38 @@ class BillInbox < ApplicationRecord
   end
 
   def has_invoice_file?
-    invoice_file.attached?
+    sharepoint_file_id.present?
   end
 
   def invoice_file_content_type
-    invoice_file.attached? ? invoice_file.content_type : nil
+    # Return stored mime type or detect from filename
+    return nil unless has_invoice_file?
+    case invoice_file_filename&.downcase
+    when /\.pdf$/ then "application/pdf"
+    when /\.png$/ then "image/png"
+    when /\.jpe?g$/ then "image/jpeg"
+    else "application/octet-stream"
+    end
   end
 
   def invoice_file_filename
+    # Use file_name column if stored, or try Active Storage as fallback during migration
+    return attributes["file_name"] if attributes["file_name"].present?
     invoice_file.attached? ? invoice_file.filename.to_s : nil
+  end
+
+  # Download invoice file from SharePoint (SSoT)
+  def download_invoice_file
+    return nil unless sharepoint_file_id.present?
+
+    credential = OrganizationOneDriveCredential.active_credential
+    return nil unless credential
+
+    client = MicrosoftGraphClient.new(credential)
+    client.download_file(sharepoint_file_id)
+  rescue MicrosoftGraphClient::APIError => e
+    Rails.logger.error("[BillInbox] SharePoint download failed for #{id}: #{e.message}")
+    nil
   end
 
   private
@@ -143,5 +167,14 @@ class BillInbox < ApplicationRecord
     self.status ||= "pending"
     self.match_status ||= "unmatched"
     self.currency ||= "AUD"
+  end
+
+  def should_upload_to_sharepoint?
+    # Upload if we have an Active Storage file but no SharePoint ID yet
+    invoice_file.attached? && sharepoint_file_id.blank?
+  end
+
+  def upload_to_sharepoint
+    BillInboxSharepointUploadJob.perform_later(id)
   end
 end
