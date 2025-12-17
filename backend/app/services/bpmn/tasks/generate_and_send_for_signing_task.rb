@@ -58,14 +58,21 @@ module Bpmn
         title = get_config("title", interpolate_value: true) || "#{template.name} - #{job.name}"
         log_info("Generating document and sending for signature: #{title}")
 
-        # Build signers
-        signers = build_signers(job)
+        # Get workflow-level signing config (SSoT)
+        workflow_signing = workflow_signing_config
+
+        # Build signers (workflow-level first, then task-level for backwards compat)
+        signers = build_signers(job, workflow_signing)
 
         if signers.empty?
           raise "No signers configured for e-signature request"
         end
 
-        # Execute the service
+        # Get additional documents from workflow config
+        additional_docs = workflow_signing["additional_documents"] || []
+        log_info("Document package: 1 main + #{additional_docs.length} additional documents")
+
+        # Execute the service - use workflow-level config for order/expiry
         service = DocumentEsignService.new(
           template: template,
           job: job,
@@ -73,11 +80,12 @@ module Bpmn
           title: title,
           description: get_config("description", interpolate_value: true),
           message_to_signers: get_config("message_to_signers", interpolate_value: true),
-          signing_order: @config["signing_order"] || 0,
-          expires_in_days: @config["expires_in_days"] || 30,
+          signing_order: workflow_signing["signing_order"] || @config["signing_order"] || 0,
+          expires_in_days: workflow_signing["expires_in_days"] || @config["expires_in_days"] || 30,
           auto_send: @config["auto_send"] != false,
           destination_folder: get_config("destination_folder", interpolate_value: true),
-          extra_data: @config["extra_data"] || {}
+          extra_data: @config["extra_data"] || {},
+          additional_templates: additional_docs.filter_map { |doc| doc["template_key"] }
         )
 
         result = service.execute!
@@ -125,8 +133,17 @@ module Bpmn
         @subject.job if @subject.respond_to?(:job)
       end
 
-      def build_signers(job)
-        signers_config = @config["signers"]
+      # Get workflow-level signing config from process canvas_data
+      def workflow_signing_config
+        return {} unless @instance&.bpmn_process
+
+        canvas_data = @instance.bpmn_process.canvas_data || {}
+        canvas_data["signing_config"] || {}
+      end
+
+      def build_signers(job, workflow_signing = {})
+        # Priority: workflow-level signers (SSoT) > task-level signers > job clients default
+        signers_config = workflow_signing["signers"].presence || @config["signers"]
 
         # Default to job clients if no signers specified
         if signers_config.blank?
@@ -137,7 +154,7 @@ module Bpmn
         end
 
         signers_config.filter_map do |signer_config|
-          build_signer(job, signer_config)
+          build_signer(job, signer_config.with_indifferent_access)
         end
       end
 

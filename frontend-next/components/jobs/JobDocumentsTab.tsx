@@ -153,8 +153,18 @@ interface JobDocumentsTabProps {
   jobTitle?: string;
 }
 
+// Plan file interface
+interface PlanFile {
+  id: string;
+  name: string;
+  web_url: string;
+  size?: number;
+  modified?: string;
+  is_all_plans: boolean;
+}
+
 export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
-  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles">("tasks");
+  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles" | "plans">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<OneDriveFolder[]>([]);
@@ -189,6 +199,12 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [analyzingDocs, setAnalyzingDocs] = useState(false);
   const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
 
+  // Plans tab state
+  const [plans, setPlans] = useState<PlanFile[]>([]);
+  const [loadingPlans, setLoadingPlans] = useState(false);
+  const [uploadingPlan, setUploadingPlan] = useState(false);
+  const [plansFolderUrl, setPlansFolderUrl] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -663,8 +679,102 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     if (viewMode === "allfiles" && orgStatus.connected) {
       loadAllFiles();
     }
-     
+
   }, [viewMode, orgStatus.connected]);
+
+  // Load plans when switching to the Plans tab
+  useEffect(() => {
+    if (viewMode === "plans" && orgStatus.connected) {
+      loadPlans();
+    }
+  }, [viewMode, orgStatus.connected]);
+
+  // Load plans from 04 Plans folder
+  const loadPlans = async () => {
+    try {
+      setLoadingPlans(true);
+      const response = await api.get<{
+        success: boolean;
+        data: {
+          plans: PlanFile[];
+          folder_exists: boolean;
+          folder_web_url?: string;
+        };
+      }>(`/api/v1/jobs/${jobId}/plan_set`);
+
+      if (response.success && response.data) {
+        setPlans(response.data.plans || []);
+        setPlansFolderUrl(response.data.folder_web_url || null);
+      }
+    } catch (err) {
+      console.error("Failed to load plans:", err);
+      setError("Failed to load plans");
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
+  // Upload a plan set PDF
+  const uploadPlanSet = async (file: File) => {
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Please upload a PDF file");
+      return;
+    }
+
+    try {
+      setUploadingPlan(true);
+      setError(null);
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await api.postFormData<{
+        success: boolean;
+        error?: string;
+        data?: {
+          all_plans: { name: string; file_id: string; web_url: string };
+          pages: Array<{ name: string; file_id: string; web_url: string }>;
+          total_pages: number;
+        };
+      }>(`/api/v1/jobs/${jobId}/upload_plan_set`, formData);
+
+      if (response.success) {
+        setMessage({
+          type: "success",
+          text: `Successfully uploaded ${response.data?.total_pages || 0} plan pages`,
+        });
+        // Reload plans list
+        loadPlans();
+      } else {
+        setError(response.error || "Failed to upload plan set");
+      }
+    } catch (err) {
+      console.error("Failed to upload plan set:", err);
+      setError("Failed to upload plan set");
+    } finally {
+      setUploadingPlan(false);
+    }
+  };
+
+  // Handle drag and drop for plans
+  const handlePlanDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      uploadPlanSet(files[0]);
+    }
+  };
+
+  const handlePlanDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handlePlanDragLeave = () => {
+    setDragOver(false);
+  };
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -1376,6 +1486,148 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
+  // Plans View - displays plans from 04 Plans folder
+  const renderPlansView = () => {
+    return (
+      <div className="space-y-6">
+        {/* Drop Zone */}
+        <Card>
+          <CardContent className="p-6">
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragOver
+                  ? "border-primary bg-primary/5"
+                  : "border-muted-foreground/25 hover:border-muted-foreground/50"
+              }`}
+              onDrop={handlePlanDrop}
+              onDragOver={handlePlanDragOver}
+              onDragLeave={handlePlanDragLeave}
+            >
+              {uploadingPlan ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
+                  <p className="text-lg font-medium">Processing plan set...</p>
+                  <p className="text-sm text-muted-foreground">
+                    Extracting pages and uploading to SharePoint
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-lg font-medium mb-1">Drop PDF Plan Set Here</p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    The PDF will be split into individual pages, named from PDF page labels
+                  </p>
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadPlanSet(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Button variant="outline" asChild>
+                      <span>
+                        <Upload className="h-4 w-4 mr-2" />
+                        Browse Files
+                      </span>
+                    </Button>
+                  </label>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Plans List */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Folder className="h-5 w-5 text-blue-500" />
+                Plans ({plans.length})
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadPlans}
+                  disabled={loadingPlans}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loadingPlans ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+                {plansFolderUrl && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                  >
+                    <a href={plansFolderUrl} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open in SharePoint
+                    </a>
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loadingPlans ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : plans.length === 0 ? (
+              <div className="py-12 text-center">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No plans uploaded yet.</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Drop a PDF plan set above to get started.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {plans.map((plan) => (
+                  <a
+                    key={plan.id}
+                    href={plan.web_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`group flex flex-col items-center p-4 rounded-lg border transition-colors hover:bg-muted/50 ${
+                      plan.is_all_plans
+                        ? "border-primary/50 bg-primary/5"
+                        : "border-border"
+                    }`}
+                  >
+                    <div className={`h-16 w-16 rounded-lg flex items-center justify-center mb-2 ${
+                      plan.is_all_plans
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    }`}>
+                      <FileText className="h-8 w-8" />
+                    </div>
+                    <p className="text-sm font-medium text-center truncate w-full" title={plan.name}>
+                      {plan.name}
+                    </p>
+                    {plan.is_all_plans && (
+                      <Badge variant="secondary" className="mt-1 text-xs">
+                        Full Set
+                      </Badge>
+                    )}
+                    <ExternalLink className="h-4 w-4 mt-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Messages */}
@@ -1422,11 +1674,20 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           <Folder className="h-4 w-4 mr-2" />
           All Files
         </Button>
+        <Button
+          variant={viewMode === "plans" ? "default" : "ghost"}
+          size="sm"
+          onClick={() => setViewMode("plans")}
+        >
+          <FileText className="h-4 w-4 mr-2" />
+          Plans
+        </Button>
       </div>
 
       {viewMode === "tasks" && renderTasksView()}
       {viewMode === "onedrive" && renderOneDriveView()}
       {viewMode === "allfiles" && renderAllFilesView()}
+      {viewMode === "plans" && renderPlansView()}
 
       {/* Import Legacy Files Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>

@@ -183,6 +183,9 @@ Rails.application.routes.draw do
           post :analyze, to: "job_estimator#analyze"
           # Merge jobs
           post :merge
+          # Plan set management
+          get :plan_set
+          post :upload_plan_set
         end
 
         # Job contacts (nested under jobs)

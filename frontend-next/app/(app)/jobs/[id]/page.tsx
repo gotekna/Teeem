@@ -35,6 +35,7 @@ import {
   Save,
   X,
   FileSignature,
+  Palette,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -155,6 +156,8 @@ interface JobStage {
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
   { name: "Contract", slug: "contract", icon: FileSignature },
+  { name: "Specifications", slug: "specifications", icon: FileText },
+  { name: "Colours", slug: "colours", icon: Palette },
   { name: "Claims", slug: "claims", icon: TrendingUp },
   { name: "People", slug: "people", icon: Users },
   { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
@@ -1175,6 +1178,38 @@ export default function JobDetailPage() {
 
         <TabsContent value="contract" className="mt-6">
           <JobContractTab job={job} onUpdate={loadJob} />
+        </TabsContent>
+
+        <TabsContent value="specifications" className="mt-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Specifications</CardTitle>
+              <Button onClick={() => router.push(`/jobs/${jobId}/specifications`)}>
+                Open Specification Builder
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Define and manage job specifications. Click the button above to open the full Specification Builder.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="colours" className="mt-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Colour Selections</CardTitle>
+              <Button onClick={() => router.push(`/jobs/${jobId}/colours`)}>
+                Open Colour Selection Builder
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Define and manage colour selections for this job. Click the button above to open the full Colour Selection Builder.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="claims" className="mt-6">
