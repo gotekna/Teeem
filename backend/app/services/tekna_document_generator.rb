@@ -127,6 +127,7 @@ class TeknaDocumentGenerator
     all_plans: {
       source: :sharepoint,
       sharepoint_path: "04 Plans/All Plans.pdf",
+      sharepoint_path_alt: "04 Plans/All+Plans.pdf", # Alternative filename (URL encoded)
       category: "contract",
       requires: [ :job ],
       layout: "none",
@@ -794,10 +795,17 @@ class TeknaDocumentGenerator
       current_folder_id = folder["id"]
     end
 
-    # Find and download the file
+    # Find and download the file - try primary filename first, then alternative
     response = client.list_folder_items(current_folder_id)
     items = response["value"] || []
     file = items.find { |item| item["name"] == filename && item["file"].present? }
+
+    # Try alternative filename if primary not found (handles URL encoding variations)
+    if file.nil? && template_config[:sharepoint_path_alt]
+      alt_filename = template_config[:sharepoint_path_alt].split("/").last
+      file = items.find { |item| item["name"] == alt_filename && item["file"].present? }
+    end
+
     raise GenerationError, "File '#{filename}' not found in #{path_parts.join('/')}" unless file
 
     pdf_content = client.download_file(file["id"])
