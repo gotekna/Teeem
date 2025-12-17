@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText, PenTool, Plus, Trash2, GripVertical, Users, Settings } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText, PenTool, Plus, Trash2, GripVertical, Users, Settings, Cog, UserCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
@@ -99,6 +99,7 @@ interface PreviewJobData {
 
 // Task configuration types
 type TaskType = "generate_document" | "generate_and_send_for_signing";
+type ExecutionMode = "automatic" | "manual";
 
 interface SignerConfig {
   id: string; // Local UUID for React keys
@@ -111,6 +112,7 @@ interface SignerConfig {
 
 interface TaskConfig {
   task_type: TaskType;
+  execution_mode: ExecutionMode; // automatic = runs without user action, manual = requires user action
   template_key?: string;
   signers?: SignerConfig[];
   signing_order?: number; // 0 = parallel, 1+ = sequential
@@ -586,7 +588,7 @@ export default function BpmnJsDesigner({
 
   // Get current task config from selected element
   const getTaskConfig = useCallback((): TaskConfig => {
-    const defaultConfig: TaskConfig = { task_type: "generate_document" };
+    const defaultConfig: TaskConfig = { task_type: "generate_document", execution_mode: "manual" };
     if (!selectedElement?.businessObject) return defaultConfig;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1283,6 +1285,51 @@ export default function BpmnJsDesigner({
                     className="mt-1"
                   />
                 </div>
+
+                {/* Execution Mode - show for Task or ServiceTask */}
+                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (() => {
+                  const taskConfig = getTaskConfig();
+                  const isAutomatic = taskConfig.execution_mode === "automatic";
+
+                  return (
+                    <div className="pt-4 border-t">
+                      <Label className="text-sm font-medium mb-3 block">Execution Mode</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => updateTaskConfig({ execution_mode: "automatic" })}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
+                            isAutomatic
+                              ? "border-primary bg-primary/5"
+                              : "border-muted hover:border-muted-foreground/50"
+                          }`}
+                        >
+                          <Cog className={`h-5 w-5 ${isAutomatic ? "text-primary" : "text-muted-foreground"}`} />
+                          <span className={`text-xs font-medium ${isAutomatic ? "text-primary" : "text-muted-foreground"}`}>
+                            Automatic
+                          </span>
+                        </button>
+                        <button
+                          onClick={() => updateTaskConfig({ execution_mode: "manual" })}
+                          className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
+                            !isAutomatic
+                              ? "border-primary bg-primary/5"
+                              : "border-muted hover:border-muted-foreground/50"
+                          }`}
+                        >
+                          <UserCheck className={`h-5 w-5 ${!isAutomatic ? "text-primary" : "text-muted-foreground"}`} />
+                          <span className={`text-xs font-medium ${!isAutomatic ? "text-primary" : "text-muted-foreground"}`}>
+                            Manual
+                          </span>
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {isAutomatic
+                          ? "Runs automatically without user action"
+                          : "Requires user to click to complete"}
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 {/* Service Task Config - show for Task or ServiceTask */}
                 {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (() => {
