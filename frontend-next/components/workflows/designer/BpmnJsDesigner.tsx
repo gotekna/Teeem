@@ -967,6 +967,31 @@ export default function BpmnJsDesigner({
                   These signers will be used for all documents that require signing in this workflow.
                 </p>
 
+                {/* Job selector for previewing contacts */}
+                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                  <Label className="text-xs font-medium">Preview with Job</Label>
+                  <select
+                    value={selectedJobId}
+                    onChange={(e) => setSelectedJobId(e.target.value)}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="">Select a job to see contact details...</option>
+                    {jobs.map((job) => (
+                      <option key={job.id} value={job.id.toString()}>
+                        {job.job_number ? `${job.job_number} - ` : ""}{job.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedJobId && previewJobData && (
+                    <div className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                      <span>✓</span> {previewJobData.job_name}
+                    </div>
+                  )}
+                  {loadingJobContacts && (
+                    <div className="text-xs text-muted-foreground">Loading contacts...</div>
+                  )}
+                </div>
+
                 <div className="space-y-3">
                   {workflowSigningConfig.signers.map((signer, idx) => (
                     <div key={signer.id} className="border rounded-lg p-3 bg-muted/30 space-y-3">
@@ -1127,16 +1152,6 @@ export default function BpmnJsDesigner({
                 <p className="text-xs text-muted-foreground">
                   Add additional documents to include in the signing package (like plans, schedules, etc.)
                 </p>
-                {selectedJobId && previewJobData && (
-                  <div className="text-xs bg-blue-50 dark:bg-blue-950 p-2 rounded border border-blue-200 dark:border-blue-800">
-                    <span className="font-medium">Preview Job:</span> {previewJobData.job_name}
-                  </div>
-                )}
-                {!selectedJobId && (
-                  <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                    Select a job (below) to preview documents and see contact details
-                  </div>
-                )}
 
                 {/* List of additional documents */}
                 <div className="space-y-2">

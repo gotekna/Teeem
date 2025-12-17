@@ -24,6 +24,7 @@ import {
   FileText,
   Paperclip,
   Eye,
+  Calendar,
   ShieldCheck,
   Settings,
   RefreshCw,
@@ -205,6 +206,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [uploadingPlan, setUploadingPlan] = useState(false);
   const [plansFolderUrl, setPlansFolderUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanFile | null>(null);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -1486,15 +1488,32 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
+  // Format date for display
+  const formatPlanDate = (dateString?: string) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
   // Plans View - displays plans from 04 Plans folder
   const renderPlansView = () => {
+    // Separate "All Plans" from individual pages
+    const allPlans = plans.find((p) => p.is_all_plans);
+    const individualPlans = plans.filter((p) => !p.is_all_plans);
+
     return (
-      <div className="space-y-6">
-        {/* Drop Zone */}
+      <div className="space-y-4">
+        {/* Drop Zone - compact when plans exist */}
         <Card>
-          <CardContent className="p-6">
+          <CardContent className={plans.length > 0 ? "p-4" : "p-6"}>
             <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+              className={`border-2 border-dashed rounded-lg transition-colors ${
+                plans.length > 0 ? "p-4" : "p-8"
+              } text-center ${
                 dragOver
                   ? "border-primary bg-primary/5"
                   : "border-muted-foreground/25 hover:border-muted-foreground/50"
@@ -1505,19 +1524,25 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             >
               {uploadingPlan ? (
                 <div className="flex flex-col items-center">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary mb-3" />
-                  <p className="text-lg font-medium">Processing plan set...</p>
+                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                  <p className="font-medium">Processing plan set...</p>
                   <p className="text-sm text-muted-foreground">
                     Extracting pages and uploading to SharePoint
                   </p>
                 </div>
               ) : (
-                <>
-                  <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-lg font-medium mb-1">Drop PDF Plan Set Here</p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    The PDF will be split into individual pages, named from PDF page labels
-                  </p>
+                <div className={`flex ${plans.length > 0 ? "items-center justify-center gap-4" : "flex-col items-center"}`}>
+                  <Upload className={`${plans.length > 0 ? "h-6 w-6" : "h-10 w-10 mb-3"} text-muted-foreground`} />
+                  <div className={plans.length > 0 ? "" : "text-center"}>
+                    <p className={`font-medium ${plans.length > 0 ? "text-sm" : "text-lg mb-1"}`}>
+                      {plans.length > 0 ? "Drop PDF to upload new plan set" : "Drop PDF Plan Set Here"}
+                    </p>
+                    {plans.length === 0 && (
+                      <p className="text-sm text-muted-foreground mb-4">
+                        The PDF will be split into individual pages
+                      </p>
+                    )}
+                  </div>
                   <label className="cursor-pointer">
                     <input
                       type="file"
@@ -1529,101 +1554,195 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                         e.target.value = "";
                       }}
                     />
-                    <Button variant="outline" asChild>
+                    <Button variant="outline" size={plans.length > 0 ? "sm" : "default"} asChild>
                       <span>
                         <Upload className="h-4 w-4 mr-2" />
-                        Browse Files
+                        Browse
                       </span>
                     </Button>
                   </label>
-                </>
+                </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Plans List */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Folder className="h-5 w-5 text-blue-500" />
-                Plans ({plans.length})
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={loadPlans}
-                  disabled={loadingPlans}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loadingPlans ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-                {plansFolderUrl && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    asChild
-                  >
-                    <a href={plansFolderUrl} target="_blank" rel="noopener noreferrer">
+        {/* Plans Split View - List + Preview */}
+        {plans.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Left Panel - Plans List */}
+            <Card className="h-[600px] flex flex-col">
+              <CardHeader className="pb-3 shrink-0">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Folder className="h-5 w-5 text-blue-500" />
+                    Plans ({plans.length})
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadPlans}
+                      disabled={loadingPlans}
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loadingPlans ? "animate-spin" : ""}`} />
+                    </Button>
+                    {plansFolderUrl && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(plansFolderUrl, "_blank")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-y-auto p-0">
+                {loadingPlans ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {/* All Plans entry - always first */}
+                    {allPlans && (
+                      <div
+                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                          selectedPlan?.id === allPlans.id
+                            ? "bg-primary/10 border-l-2 border-l-primary"
+                            : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => setSelectedPlan(allPlans)}
+                      >
+                        <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                          <FileText className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{allPlans.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="secondary" className="text-xs">Full Set</Badge>
+                            {allPlans.modified && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatPlanDate(allPlans.modified)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Individual plan pages */}
+                    {individualPlans.map((plan) => (
+                      <div
+                        key={plan.id}
+                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
+                          selectedPlan?.id === plan.id
+                            ? "bg-primary/10 border-l-2 border-l-primary"
+                            : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => setSelectedPlan(plan)}
+                      >
+                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate" title={plan.name}>
+                            {plan.name}
+                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            {plan.size && <span>{formatFileSize(plan.size)}</span>}
+                            {plan.modified && (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatPlanDate(plan.modified)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Right Panel - Preview */}
+            <Card className="h-[600px] flex flex-col">
+              <CardHeader className="pb-3 shrink-0">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base">
+                    {selectedPlan ? "Preview" : "Select a Plan"}
+                  </CardTitle>
+                  {selectedPlan && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(selectedPlan.web_url, "_blank")}
+                    >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       Open in SharePoint
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loadingPlans ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : plans.length === 0 ? (
-              <div className="py-12 text-center">
-                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">No plans uploaded yet.</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Drop a PDF plan set above to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                {plans.map((plan) => (
-                  <a
-                    key={plan.id}
-                    href={plan.web_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`group flex flex-col items-center p-4 rounded-lg border transition-colors hover:bg-muted/50 ${
-                      plan.is_all_plans
-                        ? "border-primary/50 bg-primary/5"
-                        : "border-border"
-                    }`}
-                  >
-                    <div className={`h-16 w-16 rounded-lg flex items-center justify-center mb-2 ${
-                      plan.is_all_plans
-                        ? "bg-primary/10 text-primary"
-                        : "bg-muted text-muted-foreground"
-                    }`}>
-                      <FileText className="h-8 w-8" />
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="flex-1 overflow-hidden p-0">
+                {selectedPlan ? (
+                  <div className="h-full flex flex-col">
+                    {/* Plan Info */}
+                    <div className="px-4 pb-3 border-b shrink-0">
+                      <h3 className="font-medium truncate" title={selectedPlan.name}>
+                        {selectedPlan.name}
+                      </h3>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                        {selectedPlan.is_all_plans && (
+                          <Badge variant="secondary">Full Set</Badge>
+                        )}
+                        {selectedPlan.size && (
+                          <span>{formatFileSize(selectedPlan.size)}</span>
+                        )}
+                        {selectedPlan.modified && (
+                          <span className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {formatPlanDate(selectedPlan.modified)}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-sm font-medium text-center truncate w-full" title={plan.name}>
-                      {plan.name}
-                    </p>
-                    {plan.is_all_plans && (
-                      <Badge variant="secondary" className="mt-1 text-xs">
-                        Full Set
-                      </Badge>
-                    )}
-                    <ExternalLink className="h-4 w-4 mt-2 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    {/* PDF Preview iframe */}
+                    <div className="flex-1 bg-muted/20">
+                      <iframe
+                        src={`${selectedPlan.web_url}?action=embedview`}
+                        className="w-full h-full border-0"
+                        title={`Preview: ${selectedPlan.name}`}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
+                    <FileText className="h-16 w-16 mb-4 opacity-50" />
+                    <p>Select a plan from the list to preview</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Empty state when no plans */}
+        {plans.length === 0 && !loadingPlans && (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+              <p className="text-muted-foreground">No plans uploaded yet.</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Drop a PDF plan set above to get started.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   };
