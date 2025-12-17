@@ -111,12 +111,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # GET /api/v1/imap_credentials/folders
-  # Get folders for a specific account (Outlook or IMAP)
+  # Get folders for a specific account (Outlook, MS365 org, or IMAP)
   def folders
     account_id = params[:account_id]
+    mailbox_email = params[:mailbox_email]  # For ms365 accounts
 
     if account_id == "outlook"
-      # Fetch Outlook folders via Graph API
+      # Fetch Outlook folders via Graph API (user's personal OAuth)
       unless current_user.outlook_credential&.valid_credential?
         return render json: {
           success: false,
@@ -141,6 +142,51 @@ class Api::V1::ImapCredentialsController < ApplicationController
           }
         }
       }
+    elsif account_id&.start_with?("ms365_")
+      # Fetch folders from Microsoft 365 org using app credentials
+      parts = account_id.split("_")
+      org_cred_id = parts[1].to_i
+
+      org_cred = OrganizationMicrosoftAppCredential.connected.find_by(id: org_cred_id)
+      unless org_cred
+        return render json: {
+          success: false,
+          error: "Microsoft 365 organization not found or not connected"
+        }, status: :not_found
+      end
+
+      # Get mailbox email from params or extract from account_id
+      unless mailbox_email.present?
+        return render json: {
+          success: false,
+          error: "Mailbox email required for Microsoft 365 accounts"
+        }, status: :unprocessable_entity
+      end
+
+      begin
+        client = MicrosoftAppGraphClient.new(org_cred)
+        folders = client.get_user_mail_folders(mailbox_email)
+
+        render json: {
+          success: true,
+          data: folders.map { |f|
+            {
+              id: f[:id],
+              name: f[:name],
+              unread_count: f[:unread_count],
+              total_items: f[:total_items],
+              type: folder_type_from_name(f[:name]),
+              depth: f[:depth] || 0,
+              parent_id: f[:parent_id]
+            }
+          }
+        }
+      rescue => e
+        render json: {
+          success: false,
+          error: "Failed to fetch folders: #{e.message}"
+        }, status: :unprocessable_entity
+      end
     else
       # Fetch IMAP folders
       credential = current_user.imap_credentials.find_by(id: account_id)

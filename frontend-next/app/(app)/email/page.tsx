@@ -57,12 +57,13 @@ interface Email {
 
 interface EmailAccount {
   id: number | string;
-  type: "outlook" | "imap";
+  type: "outlook" | "imap" | "ms365";
   name: string;
-  email_address: string;
+  email_address: string | null;
   provider: string;
   is_active: boolean;
   is_default?: boolean;
+  org_credential_id?: number;
 }
 
 interface Pagination {
@@ -156,16 +157,23 @@ export default function EmailPage() {
     }
   }, [search, selectedAccount]);
 
-  const fetchFolders = async (accountId: string) => {
+  const fetchFolders = async (accountId: string, account?: EmailAccount) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {
       return; // Already loaded or loading
     }
 
+    // Find account if not provided
+    const acct = account || accounts.find(a => String(a.id) === accountId);
+
     setLoadingFolders(prev => new Set(prev).add(accountId));
     try {
-      const response = await api.get<{ success: boolean; data: EmailFolder[] }>(
-        `/api/v1/imap_credentials/folders?account_id=${accountId}`
-      );
+      // Build URL with mailbox_email for ms365 accounts
+      let url = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
+      if (acct?.type === "ms365" && acct?.email_address) {
+        url += `&mailbox_email=${encodeURIComponent(acct.email_address)}`;
+      }
+
+      const response = await api.get<{ success: boolean; data: EmailFolder[] }>(url);
       if (response.success && response.data) {
         setAccountFolders(prev => ({
           ...prev,
@@ -211,8 +219,8 @@ export default function EmailPage() {
         const accountId = String(defaultAccount.id);
         setSelectedAccount(accountId);
         setExpandedAccounts(new Set([accountId]));
-        // Fetch folders for default account
-        fetchFolders(accountId);
+        // Fetch folders for default account (pass account for ms365 type)
+        fetchFolders(accountId, defaultAccount);
       }
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
@@ -282,14 +290,15 @@ export default function EmailPage() {
     setComposeOpen(true);
   };
 
-  const toggleAccountExpanded = (accountId: string) => {
+  const toggleAccountExpanded = (accountId: string, account?: EmailAccount) => {
     const newExpanded = new Set(expandedAccounts);
     if (newExpanded.has(accountId)) {
       newExpanded.delete(accountId);
     } else {
       newExpanded.add(accountId);
-      // Fetch folders when expanding
-      fetchFolders(accountId);
+      // Fetch folders when expanding (pass account for ms365 type)
+      const acct = account || accounts.find(a => String(a.id) === accountId);
+      fetchFolders(accountId, acct);
     }
     setExpandedAccounts(newExpanded);
   };
@@ -302,7 +311,11 @@ export default function EmailPage() {
 
   const getSelectedAccountName = () => {
     const account = accounts.find(a => String(a.id) === selectedAccount);
-    return account?.email_address || "Select mailbox";
+    if (!account) return "Select mailbox";
+    if (account.type === "ms365") {
+      return account.email_address ? `${account.name} - ${account.email_address}` : account.name;
+    }
+    return account.email_address || account.name;
   };
 
   return (
@@ -328,7 +341,7 @@ export default function EmailPage() {
               <div key={String(account.id)} className="mb-1">
                 {/* Account Header */}
                 <button
-                  onClick={() => toggleAccountExpanded(String(account.id))}
+                  onClick={() => toggleAccountExpanded(String(account.id), account)}
                   className={cn(
                     "w-full flex items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors",
                     selectedAccount === String(account.id) && "bg-muted"
@@ -340,7 +353,20 @@ export default function EmailPage() {
                     <ChevronUp className="h-4 w-4 shrink-0 rotate-180" />
                   )}
                   <Mail className="h-4 w-4 shrink-0" />
-                  <span className="truncate flex-1 text-left">{account.email_address}</span>
+                  <div className="truncate flex-1 text-left">
+                    {account.type === "ms365" ? (
+                      <>
+                        <span className="font-medium">{account.name}</span>
+                        {account.email_address && (
+                          <span className="text-xs text-muted-foreground ml-1">
+                            ({account.email_address})
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span>{account.email_address || account.name}</span>
+                    )}
+                  </div>
                 </button>
 
                 {/* Folders */}

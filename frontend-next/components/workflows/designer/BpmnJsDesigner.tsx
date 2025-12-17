@@ -3,10 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, Eye, Play, Loader2, FileText, PenTool, Plus, Trash2, GripVertical, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
 // Default empty BPMN diagram
@@ -60,6 +62,46 @@ interface Job {
   name: string;
   job_number?: string;
 }
+
+// Task configuration types
+type TaskType = "generate_document" | "generate_and_send_for_signing";
+
+interface SignerConfig {
+  id: string; // Local UUID for React keys
+  contact_key?: string; // primary_contact, secondary_contact, builder, etc.
+  name?: string;
+  email?: string;
+  role: string;
+  signing_order?: number;
+}
+
+interface TaskConfig {
+  task_type: TaskType;
+  template_key?: string;
+  signers?: SignerConfig[];
+  signing_order?: number; // 0 = parallel, 1+ = sequential
+  expires_in_days?: number;
+  store_as_variable?: string;
+}
+
+// Contact key options for signers
+const CONTACT_KEY_OPTIONS = [
+  { id: "primary_contact", label: "Primary Contact (Client 1)" },
+  { id: "secondary_contact", label: "Secondary Contact (Client 2)" },
+  { id: "builder", label: "Builder Representative" },
+  { id: "witness", label: "Witness" },
+  { id: "guarantor", label: "Guarantor" },
+  { id: "custom", label: "Custom (Enter Name/Email)" },
+];
+
+const SIGNER_ROLE_OPTIONS = [
+  { id: "client", label: "Client" },
+  { id: "builder", label: "Builder" },
+  { id: "witness", label: "Witness" },
+  { id: "guarantor", label: "Guarantor" },
+  { id: "director", label: "Director" },
+  { id: "partner", label: "Partner" },
+];
 
 export default function BpmnJsDesigner({
   processId,
@@ -447,8 +489,57 @@ export default function BpmnJsDesigner({
   }, [selectedElement]);
 
 
-  // Update service task documentation (stores template_key)
-  const handleTemplateChange = useCallback((templateKey: string) => {
+  // Get current task config from selected element
+  const getTaskConfig = useCallback((): TaskConfig => {
+    const defaultConfig: TaskConfig = { task_type: "generate_document" };
+    if (!selectedElement?.businessObject) return defaultConfig;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bo = selectedElement.businessObject as any;
+    const docs = bo.documentation;
+
+    if (!docs) return defaultConfig;
+
+    // Handle array of documentation elements (standard BPMN format)
+    if (Array.isArray(docs) && docs.length > 0) {
+      const textContent = docs[0].text || docs[0].body || docs[0];
+      if (typeof textContent === "string") {
+        try {
+          const config = JSON.parse(textContent);
+          // Ensure signers have IDs
+          if (config.signers) {
+            config.signers = config.signers.map((s: SignerConfig, i: number) => ({
+              ...s,
+              id: s.id || `signer-${i}-${Date.now()}`
+            }));
+          }
+          return { ...defaultConfig, ...config };
+        } catch {
+          return defaultConfig;
+        }
+      }
+    }
+
+    // Handle direct object (from local state update)
+    if (typeof docs === "object" && docs.task_type) {
+      return { ...defaultConfig, ...docs };
+    }
+
+    // Handle JSON string
+    if (typeof docs === "string") {
+      try {
+        const config = JSON.parse(docs);
+        return { ...defaultConfig, ...config };
+      } catch {
+        return defaultConfig;
+      }
+    }
+
+    return defaultConfig;
+  }, [selectedElement]);
+
+  // Update service task configuration
+  const updateTaskConfig = useCallback((updates: Partial<TaskConfig>) => {
     if (!modelerRef.current || !selectedElement) return;
 
     const modeling = modelerRef.current.get("modeling");
@@ -457,9 +548,15 @@ export default function BpmnJsDesigner({
     const element = elementRegistry.get(selectedElement.id);
 
     if (element) {
-      // Create proper BPMN documentation element with template key
-      const config = { template_key: templateKey, task_type: "generate_document" };
-      const configJson = JSON.stringify(config);
+      const currentConfig = getTaskConfig();
+      const newConfig = { ...currentConfig, ...updates };
+
+      // Clean up signers for storage (remove local IDs)
+      if (newConfig.signers) {
+        newConfig.signers = newConfig.signers.map(({ id, ...rest }) => rest as SignerConfig);
+      }
+
+      const configJson = JSON.stringify(newConfig);
 
       // Create a documentation element using moddle
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -480,49 +577,55 @@ export default function BpmnJsDesigner({
 
       setIsDirty(true);
     }
-  }, [selectedElement]);
+  }, [selectedElement, getTaskConfig]);
 
-  // Get current template key from selected element
-  const getTemplateKey = useCallback((): string => {
-    if (!selectedElement?.businessObject) return "";
+  // Add a signer
+  const addSigner = useCallback(() => {
+    const config = getTaskConfig();
+    const signers = config.signers || [];
+    const newSigner: SignerConfig = {
+      id: `signer-${Date.now()}`,
+      contact_key: "primary_contact",
+      role: "client",
+      signing_order: signers.length + 1
+    };
+    updateTaskConfig({ signers: [...signers, newSigner] });
+  }, [getTaskConfig, updateTaskConfig]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bo = selectedElement.businessObject as any;
-    const docs = bo.documentation;
+  // Remove a signer
+  const removeSigner = useCallback((signerId: string) => {
+    const config = getTaskConfig();
+    const signers = (config.signers || []).filter(s => s.id !== signerId);
+    // Reorder remaining signers
+    signers.forEach((s, i) => { s.signing_order = i + 1; });
+    updateTaskConfig({ signers });
+  }, [getTaskConfig, updateTaskConfig]);
 
-    if (!docs) return "";
+  // Update a specific signer
+  const updateSigner = useCallback((signerId: string, updates: Partial<SignerConfig>) => {
+    const config = getTaskConfig();
+    const signers = (config.signers || []).map(s =>
+      s.id === signerId ? { ...s, ...updates } : s
+    );
+    updateTaskConfig({ signers });
+  }, [getTaskConfig, updateTaskConfig]);
 
-    // Handle array of documentation elements (standard BPMN format)
-    if (Array.isArray(docs) && docs.length > 0) {
-      const textContent = docs[0].text || docs[0].body || docs[0];
-      if (typeof textContent === "string") {
-        try {
-          const config = JSON.parse(textContent);
-          // Support both new template_key and legacy template_id
-          return config.template_key || config.template_id?.toString() || "";
-        } catch {
-          return "";
-        }
-      }
-    }
+  // Move signer up/down
+  const moveSigner = useCallback((signerId: string, direction: "up" | "down") => {
+    const config = getTaskConfig();
+    const signers = [...(config.signers || [])];
+    const idx = signers.findIndex(s => s.id === signerId);
+    if (idx === -1) return;
 
-    // Handle direct object (from local state update)
-    if (typeof docs === "object" && (docs.template_key || docs.template_id)) {
-      return docs.template_key || docs.template_id?.toString() || "";
-    }
+    const newIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (newIdx < 0 || newIdx >= signers.length) return;
 
-    // Handle JSON string
-    if (typeof docs === "string") {
-      try {
-        const config = JSON.parse(docs);
-        return config.template_key || config.template_id?.toString() || "";
-      } catch {
-        return "";
-      }
-    }
-
-    return "";
-  }, [selectedElement]);
+    // Swap
+    [signers[idx], signers[newIdx]] = [signers[newIdx], signers[idx]];
+    // Update signing order
+    signers.forEach((s, i) => { s.signing_order = i + 1; });
+    updateTaskConfig({ signers });
+  }, [getTaskConfig, updateTaskConfig]);
 
   return (
     <div className="flex flex-col h-full">
@@ -644,35 +747,71 @@ export default function BpmnJsDesigner({
                 </div>
 
                 {/* Service Task Config - show for Task or ServiceTask */}
-                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (
-                  <div className="pt-4 border-t">
-                    <h4 className="font-medium mb-3">Document Generation</h4>
-                    <div className="space-y-2">
-                      <Label htmlFor="template-select">Document Template</Label>
-                      <select
-                        id="template-select"
-                        value={getTemplateKey()}
-                        onChange={(e) => handleTemplateChange(e.target.value)}
-                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      >
-                        <option value="">Select template...</option>
-                        {templates.map((template) => (
-                          <option key={template.key} value={template.key}>
-                            {template.name}
-                          </option>
-                        ))}
-                      </select>
-                      {getTemplateKey() && (() => {
-                        const selectedTemplate = templates.find(t => t.key === getTemplateKey());
-                        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-                        return selectedTemplate ? (
-                          <div className="space-y-2">
+                {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (() => {
+                  const taskConfig = getTaskConfig();
+                  const selectedTemplate = templates.find(t => t.key === taskConfig.template_key);
+                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+                  const isSigning = taskConfig.task_type === "generate_and_send_for_signing";
+
+                  return (
+                    <div className="pt-4 border-t space-y-4">
+                      {/* Task Type Selection */}
+                      <div>
+                        <Label className="text-sm font-medium">Task Type</Label>
+                        <div className="mt-2 space-y-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="task-type"
+                              checked={taskConfig.task_type === "generate_document"}
+                              onChange={() => updateTaskConfig({ task_type: "generate_document", signers: undefined })}
+                              className="h-4 w-4"
+                            />
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">Generate Document</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="task-type"
+                              checked={isSigning}
+                              onChange={() => updateTaskConfig({
+                                task_type: "generate_and_send_for_signing",
+                                signers: [{ id: `signer-${Date.now()}`, contact_key: "primary_contact", role: "client", signing_order: 1 }],
+                                signing_order: 0
+                              })}
+                              className="h-4 w-4"
+                            />
+                            <PenTool className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm">Generate & Send for Signing</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Document Template */}
+                      <div>
+                        <Label htmlFor="template-select">Document Template</Label>
+                        <select
+                          id="template-select"
+                          value={taskConfig.template_key || ""}
+                          onChange={(e) => updateTaskConfig({ template_key: e.target.value })}
+                          className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          <option value="">Select template...</option>
+                          {templates.map((template) => (
+                            <option key={template.key} value={template.key}>
+                              {template.name}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedTemplate && (
+                          <div className="mt-2 space-y-2">
                             <p className="text-xs text-muted-foreground">
                               <FileText className="h-3 w-3 inline mr-1" />
                               {selectedTemplate.category} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : "QBCC Official"}
                             </p>
                             <Button
-                              variant="default"
+                              variant="outline"
                               size="sm"
                               className="w-full"
                               onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
@@ -681,11 +820,164 @@ export default function BpmnJsDesigner({
                               Preview Template
                             </Button>
                           </div>
-                        ) : null;
-                      })()}
+                        )}
+                      </div>
+
+                      {/* E-Signature Config - only show when signing type selected */}
+                      {isSigning && (
+                        <>
+                          {/* Signing Order Mode */}
+                          <div className="pt-4 border-t">
+                            <div className="flex items-center justify-between">
+                              <Label className="text-sm font-medium">Signing Order</Label>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Parallel</span>
+                                <Switch
+                                  checked={(taskConfig.signing_order || 0) > 0}
+                                  onCheckedChange={(checked) => updateTaskConfig({ signing_order: checked ? 1 : 0 })}
+                                />
+                                <span className="text-xs text-muted-foreground">Sequential</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {(taskConfig.signing_order || 0) === 0
+                                ? "All signers can sign at the same time"
+                                : "Signers must sign in order (1st, 2nd, 3rd...)"}
+                            </p>
+                          </div>
+
+                          {/* Signers List */}
+                          <div className="pt-4 border-t">
+                            <div className="flex items-center justify-between mb-3">
+                              <Label className="text-sm font-medium flex items-center gap-2">
+                                <Users className="h-4 w-4" />
+                                Signers
+                              </Label>
+                              <Button variant="outline" size="sm" onClick={addSigner}>
+                                <Plus className="h-3 w-3 mr-1" />
+                                Add
+                              </Button>
+                            </div>
+
+                            <div className="space-y-3">
+                              {(taskConfig.signers || []).map((signer, idx) => (
+                                <div key={signer.id} className="border rounded-lg p-3 bg-muted/30 space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      {(taskConfig.signing_order || 0) > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          #{idx + 1}
+                                        </Badge>
+                                      )}
+                                      <span className="text-sm font-medium">
+                                        {CONTACT_KEY_OPTIONS.find(o => o.id === signer.contact_key)?.label || "Signer"}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {(taskConfig.signing_order || 0) > 0 && idx > 0 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6"
+                                          onClick={() => moveSigner(signer.id, "up")}
+                                        >
+                                          <GripVertical className="h-3 w-3 rotate-90" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 text-destructive hover:text-destructive"
+                                        onClick={() => removeSigner(signer.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  {/* Contact Selection */}
+                                  <div>
+                                    <Label className="text-xs">Contact</Label>
+                                    <select
+                                      value={signer.contact_key || "custom"}
+                                      onChange={(e) => updateSigner(signer.id, {
+                                        contact_key: e.target.value === "custom" ? undefined : e.target.value,
+                                        name: e.target.value === "custom" ? "" : undefined,
+                                        email: e.target.value === "custom" ? "" : undefined
+                                      })}
+                                      className="w-full mt-1 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                                    >
+                                      {CONTACT_KEY_OPTIONS.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  {/* Custom name/email if no contact_key */}
+                                  {!signer.contact_key && (
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <Label className="text-xs">Name</Label>
+                                        <Input
+                                          value={signer.name || ""}
+                                          onChange={(e) => updateSigner(signer.id, { name: e.target.value })}
+                                          placeholder="Name..."
+                                          className="h-7 text-xs mt-1"
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs">Email</Label>
+                                        <Input
+                                          value={signer.email || ""}
+                                          onChange={(e) => updateSigner(signer.id, { email: e.target.value })}
+                                          placeholder="Email..."
+                                          className="h-7 text-xs mt-1"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Role */}
+                                  <div>
+                                    <Label className="text-xs">Role</Label>
+                                    <select
+                                      value={signer.role || "client"}
+                                      onChange={(e) => updateSigner(signer.id, { role: e.target.value })}
+                                      className="w-full mt-1 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                                    >
+                                      {SIGNER_ROLE_OPTIONS.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {(taskConfig.signers || []).length === 0 && (
+                                <p className="text-xs text-muted-foreground text-center py-4">
+                                  No signers configured. Click &quot;Add&quot; to add signers.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expiry */}
+                          <div className="pt-4 border-t">
+                            <Label className="text-xs">Expires In (Days)</Label>
+                            <Input
+                              type="number"
+                              value={taskConfig.expires_in_days || 30}
+                              onChange={(e) => updateTaskConfig({ expires_in_days: parseInt(e.target.value) || 30 })}
+                              min={1}
+                              max={365}
+                              className="h-8 text-sm mt-1 w-24"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
