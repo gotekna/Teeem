@@ -52,9 +52,18 @@ module Api
       def show
         invoice = ExternalInvoice.find(params[:id])
 
+        # Check if PDF is available in warehouse (SSoT)
+        # Use mapped document_type (e.g., "bill" -> "Purchases") to match XeroAttachmentSyncService
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.file&.attached?
+
         render json: {
           success: true,
-          data: serialize_invoice(invoice, include_details: true)
+          data: serialize_invoice(invoice, include_details: true).merge(
+            has_pdf: has_pdf,
+            pdf_url: has_pdf ? Rails.application.routes.url_helpers.rails_blob_url(pdf_doc.file, disposition: "inline", host: ENV.fetch("RAILS_HOST", "localhost:3001")) : nil,
+            pdf_synced_at: pdf_doc&.created_at&.iso8601
+          )
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
@@ -66,7 +75,8 @@ module Api
         invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
 
         # Check if PDF is available in warehouse
-        pdf_doc = invoice.corporate_company_documents.find_by(document_type: invoice.invoice_type)
+        # Use mapped document_type (e.g., "bill" -> "Purchases") to match XeroAttachmentSyncService
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
         has_pdf = pdf_doc&.file&.attached?
 
         render json: {
@@ -433,7 +443,8 @@ module Api
         invoice = ExternalInvoice.find(params[:id])
 
         # Check warehouse first (SSoT) - look for PDF linked to this invoice
-        existing_pdf = invoice.corporate_company_documents.find_by(document_type: invoice.invoice_type)
+        # Use mapped document_type (e.g., "bill" -> "Purchases") to match XeroAttachmentSyncService
+        existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
         if existing_pdf&.file&.attached?
           # Return existing PDF from warehouse
@@ -492,12 +503,32 @@ module Api
 
       private
 
+      # Maps invoice_type to the document_type used in CorporateCompanyDocument
+      # Must match XeroAttachmentSyncService.document_type_for_invoice
+      def document_type_for(invoice_type)
+        case invoice_type
+        when "sales_invoice" then "Sales Document"
+        when "bill" then "Purchases"
+        when "quote" then "Estimation"
+        when "credit_note" then "other"
+        else "other"
+        end
+      end
+
       def serialize_invoice(invoice, include_details: false)
+        # Look up tenant name from SyncConfiguration
+        tenant_name = nil
+        if invoice.tenant_id.present?
+          config = SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          tenant_name = config&.xero_tenant_name
+        end
+
         data = {
           id: invoice.id,
           source: invoice.source,
           external_id: invoice.external_id,
           tenant_id: invoice.tenant_id,
+          tenant_name: tenant_name,
           invoice_number: invoice.invoice_number,
           reference: invoice.reference,
           invoice_type: invoice.invoice_type,

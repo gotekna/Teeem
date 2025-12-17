@@ -2,24 +2,24 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
+import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
   Building2,
-  Calendar,
   FileText,
   CreditCard,
   ExternalLink,
   Download,
-  RefreshCw,
   FileWarning,
+  RefreshCw,
   CheckCircle2,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 
 // Types for external invoice data (from Xero)
 interface LineItem {
@@ -80,15 +80,17 @@ interface ExternalInvoice {
   tenant_name?: string;
 }
 
-// Status color mapping - matching bills page
+// Status colors - matching bills page exactly
 const statusColors: Record<string, string> = {
-  PAID: "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-400",
-  AUTHORISED: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
-  APPROVED: "bg-green-100 text-green-700 dark:bg-green-400/10 dark:text-green-400",
-  DRAFT: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
-  SUBMITTED: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
-  DELETED: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
-  VOIDED: "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-400",
+  PAID: "bg-emerald-600 text-white",
+  AUTHORISED: "bg-blue-600 text-white",
+  APPROVED: "bg-green-600 text-white",
+  DRAFT: "bg-gray-500 text-white",
+  SUBMITTED: "bg-yellow-500 text-white",
+  DELETED: "bg-red-600 text-white",
+  VOIDED: "bg-red-600 text-white",
+  pending: "bg-yellow-100 text-yellow-700 dark:bg-yellow-400/10 dark:text-yellow-500",
+  extracted: "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-400",
 };
 
 export default function InvoiceDetailPage() {
@@ -100,12 +102,28 @@ export default function InvoiceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   useEffect(() => {
     if (invoiceId) {
       loadInvoice();
     }
   }, [invoiceId]);
+
+  // Load PDF when invoice data is available and has_pdf is true
+  useEffect(() => {
+    if (invoice?.has_pdf && invoice.pdf_url) {
+      loadPdf();
+    }
+
+    // Cleanup blob URL on unmount
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [invoice?.id, invoice?.has_pdf]);
 
   const loadInvoice = async () => {
     setLoading(true);
@@ -138,6 +156,35 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const loadPdf = async () => {
+    if (!invoice) return;
+    setPdfLoading(true);
+    setPdfError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${getApiBaseUrl()}/api/v1/external_invoices/${invoice.id}/pdf`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load PDF");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setPdfBlobUrl(url);
+    } catch (error) {
+      console.error("Failed to load PDF:", error);
+      setPdfError(error instanceof Error ? error.message : "Failed to load PDF");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
   const formatCurrency = (amount: number, currency: string = "AUD") => {
     return new Intl.NumberFormat("en-AU", {
       style: "currency",
@@ -154,21 +201,18 @@ export default function InvoiceDetailPage() {
     });
   };
 
-  const isBill = invoice?.invoice_type === "bill" || invoice?.invoice_type === "ACCPAY";
-  const isOverdue = invoice?.due_date && new Date(invoice.due_date) < new Date() && invoice.status !== "PAID";
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-100px)]">
-        <Spinner className="h-8 w-8" />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Spinner />
       </div>
     );
   }
 
-  if (error || !invoice) {
+  if (!invoice) {
     return (
-      <div className="flex flex-col gap-4 p-4">
-        <Button variant="ghost" size="sm" className="w-fit" onClick={() => router.back()}>
+      <div className="space-y-6">
+        <Button variant="ghost" size="sm" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>
@@ -184,6 +228,21 @@ export default function InvoiceDetailPage() {
       </div>
     );
   }
+
+  const isBill = invoice.invoice_type === "bill" || invoice.invoice_type === "ACCPAY";
+  const isOverdue = invoice.due_date && new Date(invoice.due_date) < new Date() && invoice.status !== "PAID";
+  const totalPaid = invoice.amount_paid || 0;
+
+  const handleDownload = () => {
+    if (pdfBlobUrl) {
+      const link = document.createElement("a");
+      link.href = pdfBlobUrl;
+      link.download = `${invoice.invoice_number || 'invoice'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
 
   return (
     <div className="flex gap-4 p-2 w-full overflow-hidden -mt-4">
@@ -218,7 +277,7 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
           </div>
-          {/* Right - Invoice # and Status */}
+          {/* Right - Invoice/PO/Match */}
           <div className="flex items-center gap-1">
             {/* Invoice Number Box */}
             <div className="px-2 py-1 bg-gray-700 text-white rounded min-w-[80px]">
@@ -227,8 +286,13 @@ export default function InvoiceDetailPage() {
               </div>
               <div className="font-bold text-sm font-mono">{invoice.invoice_number || "-"}</div>
             </div>
+            {/* PO Number Box - placeholder for Xero invoices */}
+            <div className="px-2 py-1 bg-purple-600 text-white rounded min-w-[80px]">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">PO #</div>
+              <div className="font-bold text-sm font-mono">-</div>
+            </div>
             {/* Status Badge */}
-            <Badge className={`${statusColors[invoice.status?.toUpperCase()] || statusColors.DRAFT} h-[42px] px-3 text-sm font-semibold`}>
+            <Badge className={`${statusColors[invoice.status?.toUpperCase()] || statusColors.pending} h-[42px] px-3 text-sm font-semibold flex items-center`}>
               {invoice.status?.toUpperCase()}
             </Badge>
             {/* Refresh Button */}
@@ -250,30 +314,18 @@ export default function InvoiceDetailPage() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs flex-wrap">
                 <span className="font-mono font-bold text-emerald-700">
-                  {formatCurrency(invoice.total, invoice.currency_code)}
+                  {formatCurrency(invoice.amount_due > 0 ? invoice.amount_due : invoice.total, invoice.currency_code)}
                 </span>
-                {invoice.amount_paid > 0 && (
-                  <>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="text-green-600">
-                      Paid: {formatCurrency(invoice.amount_paid, invoice.currency_code)}
-                    </span>
-                  </>
-                )}
-                {invoice.amount_due > 0 && (
-                  <>
-                    <span className="text-muted-foreground">|</span>
-                    <span className="text-red-600 font-semibold">
-                      Due: {formatCurrency(invoice.amount_due, invoice.currency_code)}
-                    </span>
-                  </>
-                )}
+                <span className="text-muted-foreground">|</span>
+                <span className="font-mono text-muted-foreground">
+                  {invoice.contact?.bank_bsb ? `${invoice.contact.bank_bsb}/${invoice.contact.bank_account_number}` : "No bank"}
+                </span>
                 <span className="text-muted-foreground">|</span>
                 <span className={isOverdue ? "text-red-600 font-semibold" : ""}>
                   {formatDate(invoice.due_date)}
                   {isOverdue && " (Overdue)"}
                 </span>
-                <Badge className={`${statusColors[invoice.status?.toUpperCase()] || statusColors.DRAFT} text-[10px] px-1.5 py-0`}>
+                <Badge className={`${statusColors[invoice.status?.toUpperCase()] || statusColors.pending} text-[10px] px-1.5 py-0`}>
                   {invoice.status?.toUpperCase()}
                 </Badge>
               </div>
@@ -294,7 +346,7 @@ export default function InvoiceDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Details Grid - A4 proportioned panels */}
+        {/* Details Grid - EXACT same structure as bills page (grid-cols-2) */}
         <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
           {/* Invoice Details - A4 Portrait */}
           <Card className="overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]">
@@ -363,7 +415,7 @@ export default function InvoiceDetailPage() {
                   </p>
                   <p className="font-mono font-bold">
                     {(() => {
-                      const abn = invoice.contact.abn;
+                      const abn = invoice.contact?.abn || "";
                       const clean = abn.replace(/\s/g, '');
                       return clean.length === 11 ? `${clean.slice(0,2)} ${clean.slice(2,5)} ${clean.slice(5,8)} ${clean.slice(8)}` : abn;
                     })()}
@@ -382,31 +434,38 @@ export default function InvoiceDetailPage() {
                 </div>
               )}
 
-              {/* Amounts Section */}
-              <div className="pt-2 border-t space-y-1">
-                <div className="flex justify-between items-center p-1.5 rounded bg-gray-50 dark:bg-gray-800">
+              <Separator className="my-2" />
+
+              {/* Amounts */}
+              <div className="space-y-1">
+                <div className="flex justify-between p-1.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200">
                   <span className="text-muted-foreground">Subtotal</span>
                   <span className="font-mono font-bold">{formatCurrency(invoice.subtotal, invoice.currency_code)}</span>
                 </div>
-                <div className="flex justify-between items-center p-1.5 rounded bg-gray-50 dark:bg-gray-800">
-                  <span className="text-muted-foreground">Tax (GST)</span>
+                <div className="flex justify-between p-1.5 rounded bg-gray-50 dark:bg-gray-800 border border-gray-200">
+                  <span className="text-muted-foreground">GST</span>
                   <span className="font-mono font-bold">{formatCurrency(invoice.total_tax, invoice.currency_code)}</span>
                 </div>
-                <div className="flex justify-between items-center p-1.5 rounded bg-emerald-100 dark:bg-emerald-900/40 border-2 border-emerald-400">
-                  <span className="font-semibold text-emerald-700">Total</span>
-                  <span className="font-mono font-bold text-lg text-emerald-700">{formatCurrency(invoice.total, invoice.currency_code)}</span>
+                <Separator className="my-1" />
+                <div className="flex justify-between p-2 font-bold text-sm rounded bg-green-200 dark:bg-green-900/50 border-2 border-green-500 shadow-md">
+                  <span className="flex items-center gap-1">
+                    Total
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  </span>
+                  <span className="font-mono text-lg">{formatCurrency(invoice.total, invoice.currency_code)}</span>
                 </div>
-                {invoice.amount_paid > 0 && (
-                  <div className="flex justify-between items-center p-1.5 rounded bg-green-100 dark:bg-green-900/40">
-                    <span className="text-green-700">Paid</span>
-                    <span className="font-mono font-bold text-green-700">-{formatCurrency(invoice.amount_paid, invoice.currency_code)}</span>
-                  </div>
-                )}
-                {invoice.amount_due > 0 && (
-                  <div className="flex justify-between items-center p-1.5 rounded bg-red-100 dark:bg-red-900/40 border-2 border-red-400">
-                    <span className="font-semibold text-red-700">Amount Due</span>
-                    <span className="font-mono font-bold text-lg text-red-700">{formatCurrency(invoice.amount_due, invoice.currency_code)}</span>
-                  </div>
+
+                {totalPaid > 0 && (
+                  <>
+                    <div className="flex justify-between text-green-600 p-1">
+                      <span>Paid</span>
+                      <span className="font-mono">-{formatCurrency(totalPaid, invoice.currency_code)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium p-1 bg-blue-50 dark:bg-blue-900/20 rounded">
+                      <span>Remaining</span>
+                      <span className="font-mono">{formatCurrency(invoice.amount_due, invoice.currency_code)}</span>
+                    </div>
+                  </>
                 )}
               </div>
 
@@ -419,25 +478,27 @@ export default function InvoiceDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Line Items / Payments - Second A4 Panel */}
+          {/* Line Items / Payments Panel - SAME structure as PO panel */}
           <Card className="overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]">
             <CardHeader className="py-2 px-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Line Items & Payments
+              <CardTitle className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4" />
+                  Line Items & Payments
+                </span>
               </CardTitle>
             </CardHeader>
-            <CardContent className="px-3 py-0 text-xs space-y-4">
+            <CardContent className="space-y-4 px-3 py-0 text-xs">
               {/* Line Items */}
               {invoice.line_items && invoice.line_items.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-sm mb-2 text-muted-foreground uppercase tracking-wide">Line Items</h4>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Line Items ({invoice.line_items.length})</p>
                   <div className="space-y-1">
                     {invoice.line_items.map((item, index) => (
                       <div key={index} className="p-2 rounded border bg-gray-50 dark:bg-gray-800">
                         <div className="flex justify-between items-start">
                           <div className="flex-1 min-w-0 pr-2">
-                            <p className="font-medium truncate">{item.Description}</p>
+                            <p className="font-medium truncate">{item.Description || "No description"}</p>
                             {item.AccountCode && (
                               <p className="text-[10px] text-muted-foreground">Account: {item.AccountCode}</p>
                             )}
@@ -458,7 +519,8 @@ export default function InvoiceDetailPage() {
               {/* Payments */}
               {invoice.payments && invoice.payments.length > 0 && (
                 <div>
-                  <h4 className="font-semibold text-sm mb-2 text-muted-foreground uppercase tracking-wide">Payments</h4>
+                  <Separator className="my-2" />
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Payments ({invoice.payments.length})</p>
                   <div className="space-y-1">
                     {invoice.payments.map((payment) => (
                       <div key={payment.PaymentID} className="p-2 rounded border bg-green-50 dark:bg-green-900/20">
@@ -506,16 +568,16 @@ export default function InvoiceDetailPage() {
             {pdfLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30 h-full">
                 <Spinner />
-                <p className="text-sm text-muted-foreground mt-4">Loading PDF...</p>
+                <p className="text-sm text-muted-foreground mt-4">Loading {isBill ? "bill" : "invoice"}...</p>
               </div>
-            ) : invoice.has_pdf && invoice.pdf_url ? (
+            ) : pdfBlobUrl && !pdfError ? (
               <div className="relative w-full h-full border rounded-lg overflow-hidden">
                 <div className="absolute top-2 right-2 z-10 flex gap-1">
                   <Button
                     variant="secondary"
                     size="sm"
                     className="h-7 px-2 text-xs shadow"
-                    onClick={() => window.open(invoice.pdf_url!, "_blank")}
+                    onClick={() => window.open(pdfBlobUrl, "_blank")}
                   >
                     <ExternalLink className="h-3 w-3 mr-1" />
                     Open
@@ -524,32 +586,40 @@ export default function InvoiceDetailPage() {
                     variant="secondary"
                     size="sm"
                     className="h-7 px-2 text-xs shadow"
-                    asChild
+                    onClick={handleDownload}
                   >
-                    <a href={invoice.pdf_url} download>
-                      <Download className="h-3 w-3 mr-1" />
-                      Download
-                    </a>
+                    <Download className="h-3 w-3 mr-1" />
+                    Download
                   </Button>
                 </div>
-                <iframe
-                  src={invoice.pdf_url}
+                <PDFViewer
+                  url={`${getApiBaseUrl()}/api/v1/external_invoices/${invoice.id}/pdf`}
                   className="w-full h-full"
-                  title={`PDF preview for ${invoice.invoice_number}`}
+                  fallbackUrl={pdfBlobUrl}
+                  onError={(e) => setPdfError(e.message)}
                 />
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-12 text-center border rounded-lg bg-muted/30 h-full">
                 <FileWarning className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">PDF Not Available</h3>
+                <h3 className="text-lg font-medium">
+                  {pdfError ? "Error Loading PDF" : "No PDF File"}
+                </h3>
                 <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                  The PDF for this {isBill ? "bill" : "invoice"} has not been synced from Xero yet.
-                  PDFs are synced automatically in the background.
+                  {pdfError
+                    ? pdfError
+                    : `The PDF for this ${isBill ? "bill" : "invoice"} has not been synced from Xero yet.`}
                 </p>
-                {invoice.pdf_synced_at && (
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Last sync attempt: {new Date(invoice.pdf_synced_at).toLocaleString("en-AU")}
-                  </p>
+                {invoice.has_pdf && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => loadPdf()}
+                    disabled={pdfLoading}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry Loading
+                  </Button>
                 )}
               </div>
             )}
