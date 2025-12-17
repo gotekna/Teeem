@@ -262,6 +262,7 @@ Rails.application.routes.draw do
         member do
           get :preview
           post :link_sharepoint
+          post :generate_and_send  # Generate document and send for e-signature
         end
       end
 

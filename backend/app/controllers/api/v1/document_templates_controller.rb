@@ -320,6 +320,49 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     )
   end
 
+  def build_signers(job, signers_params)
+    signers = []
+
+    if signers_params.present?
+      # Build from explicit params
+      signers_params.each do |signer_param|
+        if signer_param[:contact_id].present?
+          contact = Contact.find_by(id: signer_param[:contact_id])
+          signers << { contact: contact, role: signer_param[:role] || "signer" } if contact
+        elsif signer_param[:contact_key].present?
+          contact = resolve_contact_from_job(job, signer_param[:contact_key])
+          signers << { contact: contact, role: signer_param[:role] || signer_param[:contact_key] } if contact
+        elsif signer_param[:email].present?
+          signers << {
+            name: signer_param[:name],
+            email: signer_param[:email],
+            role: signer_param[:role] || "signer"
+          }
+        end
+      end
+    else
+      # Default: use all job clients
+      job.job_contacts.where(role: "client").includes(:contact).each do |jc|
+        signers << { contact: jc.contact, role: "client" } if jc.contact&.email.present?
+      end
+    end
+
+    signers
+  end
+
+  def resolve_contact_from_job(job, key)
+    case key.to_s
+    when "primary_contact", "client_1"
+      job.primary_contact
+    when "secondary_contact", "client_2"
+      job.secondary_contact
+    when "builder", "builder_contact"
+      job.builder_contact
+    else
+      job.job_contacts.find_by(role: key)&.contact
+    end
+  end
+
   def template_json(template, include_fields: false)
     json = {
       id: template.id,
