@@ -331,10 +331,10 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">Payment Progress</span>
               <span className="text-sm font-bold text-green-600 dark:text-green-400">
-                {summary.paid_percentage.toFixed(1)}% Paid
+                {(Number(summary.paid_percentage) || 0).toFixed(1)}% Paid
               </span>
             </div>
-            <Progress value={summary.paid_percentage} className="h-3" />
+            <Progress value={Number(summary.paid_percentage) || 0} className="h-3" />
           </CardContent>
         </Card>
       )}
