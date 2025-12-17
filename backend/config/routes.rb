@@ -188,6 +188,22 @@ Rails.application.routes.draw do
         # Job contacts (nested under jobs)
         resources :job_contacts, only: [ :index, :create, :update, :destroy ]
 
+        # Job specifications (nested under jobs)
+        resources :specifications, controller: "job_specifications", only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            post :initialize_from_template
+            post :bulk_update
+          end
+        end
+
+        # Job colour selections (nested under jobs)
+        resources :colour_selections, controller: "job_colour_selections", only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            post :initialize_from_template
+            post :bulk_update
+          end
+        end
+
         # Schedule tasks (nested under jobs)
         resources :schedule_tasks, only: [ :index, :create ] do
           collection do
@@ -298,6 +314,20 @@ Rails.application.routes.draw do
           get :preview
           post :link_sharepoint
           post :generate_and_send  # Generate document and send for e-signature
+        end
+      end
+
+      # Specification Templates (for job specifications)
+      resources :specification_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get "for_job_type/:job_type_id", action: :for_job_type
+        end
+      end
+
+      # Colour Selection Templates (for job colour selections)
+      resources :colour_selection_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          get "for_job_type/:job_type_id", action: :for_job_type
         end
       end
 

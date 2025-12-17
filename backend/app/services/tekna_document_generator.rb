@@ -85,6 +85,14 @@ class TeknaDocumentGenerator
       title: "Practical Completion Certificate",
       output_filename: "{date}_practical_completion_{job_name}"
     },
+    purchase_order: {
+      path: "templates/purchase_order",
+      category: "operations",
+      requires: [ :purchase_order ],
+      layout: "tekna",
+      title: "Purchase Order",
+      output_filename: "{date}_PO_{po_number}_{job_name}"
+    },
 
     # QBCC Official documents (exact recreation of official format)
     qbcc_contract: {
@@ -139,17 +147,17 @@ class TeknaDocumentGenerator
   end
 
   # Generate document and return hash with html and pdf_content
-  def generate(job: nil, contact: nil, extra_data: {})
-    validate_requirements!(job: job, contact: contact, extra_data: extra_data)
+  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {})
+    validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
 
-    context = build_context(job: job, contact: contact, extra_data: extra_data)
+    context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
     html = render_template(context)
     pdf_content = convert_to_pdf(html)
 
     {
       html: html,
       pdf_content: pdf_content,
-      filename: generate_filename(job: job, extra_data: extra_data),
+      filename: generate_filename(job: job, purchase_order: purchase_order, extra_data: extra_data),
       generated_at: Time.current,
       template: template_key,
       title: template_config[:title]
@@ -167,20 +175,22 @@ class TeknaDocumentGenerator
 
   private
 
-  def validate_requirements!(job:, contact:, extra_data:)
+  def validate_requirements!(job:, contact:, purchase_order:, extra_data:)
     template_config[:requires].each do |requirement|
       case requirement
       when :job
         raise GenerationError, "Job is required for #{template_config[:title]}" unless job
       when :contact
         raise GenerationError, "Contact is required for #{template_config[:title]}" unless contact
+      when :purchase_order
+        raise GenerationError, "Purchase order is required for #{template_config[:title]}" unless purchase_order
       when :variation_data
         raise GenerationError, "Variation data is required for #{template_config[:title]}" unless extra_data[:variation]
       end
     end
   end
 
-  def build_context(job:, contact:, extra_data:, preview_mode: false)
+  def build_context(job:, contact:, purchase_order: nil, extra_data:, preview_mode: false)
     context = {}
 
     # Build job context
@@ -201,6 +211,29 @@ class TeknaDocumentGenerator
         context[:client_names] = build_smart_client_names(client_contacts)
         context[:client_first_names] = build_smart_field(client_contacts, :first)
         context[:contract_parties] = build_contract_parties(client_contacts)
+      end
+
+      # Build colour selections (SSoT)
+      if job.respond_to?(:job_colour_selections)
+        context[:colour_selections] = build_colour_selections_context(job)
+      end
+
+      # Build specifications (SSoT)
+      if job.respond_to?(:job_specifications)
+        context[:specifications] = build_specifications_context(job)
+      end
+    end
+
+    # Build purchase order context
+    if purchase_order
+      context[:purchase_order] = build_purchase_order_context(purchase_order)
+      # Also include job context from PO if not already set
+      if purchase_order.job && !job
+        context[:job] = build_job_context(purchase_order.job)
+        # Add colour selections from the PO's job
+        if purchase_order.job.respond_to?(:job_colour_selections)
+          context[:colour_selections] = build_colour_selections_context(purchase_order.job)
+        end
       end
     end
 
@@ -351,6 +384,173 @@ class TeknaDocumentGenerator
     }
   end
 
+  def build_purchase_order_context(po)
+    return {} unless po
+
+    # Get supplier info
+    supplier = po.supplier
+    supplier_info = if supplier
+      {
+        id: supplier.id,
+        name: supplier.display_name,
+        email: supplier.try(:email),
+        phone: supplier.try(:office_phone) || supplier.try(:mobile_phone),
+        address: supplier.try(:address)
+      }
+    else
+      {}
+    end
+
+    # Get site supervisor info from job
+    job = po.job
+    site_supervisor = if job
+      {
+        name: job.try(:site_supervisor_name),
+        email: job.try(:site_supervisor_email),
+        phone: job.try(:site_supervisor_phone)
+      }
+    else
+      {}
+    end
+
+    # Build line items with colour from pricebook (SSoT)
+    line_items = po.line_items.includes(:pricebook_item).map do |item|
+      {
+        id: item.id,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total: (item.quantity || 0) * (item.unit_price || 0),
+        total_formatted: format_currency((item.quantity || 0) * (item.unit_price || 0)),
+        unit_price_formatted: format_currency(item.unit_price),
+        gst_code: item.gst_code || "GST",
+        notes: item.notes,
+        # SSoT: colour comes from pricebook item or line item override
+        colour: item.try(:colour) || item.pricebook_item&.try(:colour),
+        colour_code: item.try(:colour_code) || item.pricebook_item&.try(:colour_code),
+        colour_brand: item.try(:colour_brand) || item.pricebook_item&.try(:colour_brand),
+        pricebook_code: item.pricebook_item&.item_code
+      }
+    end
+
+    # Calculate totals
+    subtotal = line_items.sum { |i| i[:total] }
+    gst = subtotal * 0.1
+    total = subtotal + gst
+
+    {
+      id: po.id,
+      purchase_order_number: po.purchase_order_number,
+      status: po.status,
+      description: po.description,
+
+      # Dates
+      required_date: format_date(po.required_date),
+      required_on_site_date: format_date(po.required_on_site_date),
+      ordered_date: format_date(po.ordered_date),
+      expected_delivery_date: format_date(po.expected_delivery_date),
+      created_at: format_date(po.created_at),
+
+      # Delivery
+      delivery_address: po.delivery_address || job&.try(:full_address),
+      special_instructions: po.special_instructions,
+
+      # Financial
+      subtotal: format_currency(subtotal),
+      subtotal_raw: subtotal,
+      gst: format_currency(gst),
+      gst_raw: gst,
+      total: format_currency(total),
+      total_raw: total,
+      budget: format_currency(po.budget),
+
+      # Related
+      supplier: supplier_info,
+      site_supervisor: site_supervisor,
+      line_items: line_items,
+      line_items_count: line_items.size,
+
+      # Task reference
+      ted_task: po.ted_task
+    }
+  end
+
+  def build_colour_selections_context(job)
+    return {} unless job.respond_to?(:job_colour_selections)
+
+    selections = job.job_colour_selections.includes(:pricebook_item).order(:category_key, :position)
+
+    # Group by category
+    grouped = selections.group_by(&:category_key).transform_values do |items|
+      items.map do |item|
+        {
+          item_key: item.item_key,
+          colour_name: item.display_colour,
+          colour_code: item.display_code,
+          colour_brand: item.display_brand,
+          notes: item.notes,
+          pricebook_item_name: item.pricebook_item&.item_name,
+          pricebook_item_code: item.pricebook_item&.item_code
+        }
+      end
+    end
+
+    # Also create a formatted string for simple display (for PO COLOUR field)
+    colour_summary = selections.map do |s|
+      "#{s.item_key.titleize}: #{s.display_colour}"
+    end.join("\n")
+
+    {
+      grouped: grouped,
+      flat_list: selections.map do |item|
+        {
+          category: item.category_key,
+          item: item.item_key,
+          colour: item.display_colour,
+          code: item.display_code,
+          brand: item.display_brand
+        }
+      end,
+      summary: colour_summary,
+      has_selections: selections.any?
+    }
+  end
+
+  def build_specifications_context(job)
+    return {} unless job.respond_to?(:job_specifications)
+
+    specs = job.job_specifications.includes(:pricebook_item).order(:section_key, :position)
+
+    # Group by section
+    grouped = specs.group_by(&:section_key).transform_values do |items|
+      items.map do |item|
+        {
+          item_key: item.item_key,
+          value: item.display_value,
+          price: format_currency(item.price),
+          price_raw: item.price,
+          colour: item.colour,
+          notes: item.notes,
+          pricebook_item_code: item.pricebook_item&.item_code
+        }
+      end
+    end
+
+    {
+      grouped: grouped,
+      flat_list: specs.map do |item|
+        {
+          section: item.section_key,
+          item: item.item_key,
+          value: item.display_value,
+          price: item.price,
+          colour: item.colour
+        }
+      end,
+      has_specifications: specs.any?
+    }
+  end
+
   def render_template(context)
     renderer = TeknaTemplateRenderer.new
     layout = "layouts/#{template_config[:layout]}"
@@ -377,14 +577,15 @@ class TeknaDocumentGenerator
     }
   end
 
-  def generate_filename(job:, extra_data:)
+  def generate_filename(job:, purchase_order: nil, extra_data:)
     pattern = template_config[:output_filename]
     filename = pattern.dup
 
     filename.gsub!("{date}", Date.current.strftime("%Y%m%d"))
-    filename.gsub!("{job_name}", job&.name.to_s.parameterize.presence || "draft")
+    filename.gsub!("{job_name}", job&.name.to_s.parameterize.presence || purchase_order&.job&.name.to_s.parameterize.presence || "draft")
     filename.gsub!("{job_number}", job&.try(:job_number).to_s)
     filename.gsub!("{variation_number}", extra_data.dig(:variation, :number).to_s)
+    filename.gsub!("{po_number}", purchase_order&.purchase_order_number.to_s)
 
     "#{filename}.pdf"
   end
