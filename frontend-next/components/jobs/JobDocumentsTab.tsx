@@ -207,6 +207,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [plansFolderUrl, setPlansFolderUrl] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanFile | null>(null);
+  const [renamingPlans, setRenamingPlans] = useState(false);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -776,6 +777,48 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
 
   const handlePlanDragLeave = () => {
     setDragOver(false);
+  };
+
+  // Rename existing plans using AI
+  const renamePlansWithAI = async () => {
+    try {
+      setRenamingPlans(true);
+      setError(null);
+
+      const response = await api.post<{
+        success: boolean;
+        error?: string;
+        data?: {
+          renamed: Array<{ original_name: string; new_name: string }>;
+          skipped: Array<{ name: string; reason: string }>;
+          errors: Array<{ name: string; error: string }>;
+        };
+      }>(`/api/v1/jobs/${jobId}/rename_plans`);
+
+      if (response?.success && response?.data) {
+        const { renamed, skipped, errors } = response.data;
+        if (renamed.length > 0) {
+          setMessage({
+            type: "success",
+            text: `Renamed ${renamed.length} plan(s). ${skipped.length} skipped, ${errors.length} errors.`,
+          });
+        } else if (skipped.length > 0) {
+          setMessage({
+            type: "success",
+            text: `No plans renamed. ${skipped.length} skipped (already named or AI couldn't extract info).`,
+          });
+        }
+        // Reload plans list
+        loadPlans();
+      } else {
+        setError(response?.error || "Failed to rename plans");
+      }
+    } catch (err) {
+      console.error("Failed to rename plans:", err);
+      setError("Failed to rename plans");
+    } finally {
+      setRenamingPlans(false);
+    }
   };
 
   const getStatusBadge = (task: DocumentTask) => {
@@ -1579,6 +1622,19 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                     Plans ({plans.length})
                   </CardTitle>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={renamePlansWithAI}
+                      disabled={renamingPlans || loadingPlans}
+                    >
+                      {renamingPlans ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                      ) : (
+                        <Sparkles className="h-4 w-4 mr-1" />
+                      )}
+                      Rename with AI
+                    </Button>
                     <Button
                       variant="ghost"
                       size="sm"

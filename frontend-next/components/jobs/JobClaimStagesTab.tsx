@@ -92,10 +92,12 @@ interface ClaimStage {
     invoice_number: string;
     reference: string | null;
     total: number;
+    amount_due: number;
     amount_paid: number;
     status: string;
     date: string;
     due_date: string | null;
+    fully_paid_date: string | null;
   } | null;
 }
 
@@ -538,17 +540,47 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
 
                     {/* Payment Status */}
                     <td className="px-4 py-3 text-right">
-                      {stage.matched ? (
+                      {stage.matched && stage.invoice ? (
                         <div className="flex flex-col items-end gap-1">
-                          <PaymentStatusBadge status={stage.payment_status} />
+                          <PaymentStatusBadge
+                            status={stage.payment_status}
+                            dueDate={stage.invoice.due_date}
+                          />
+                          {/* Amount Outstanding */}
+                          {stage.invoice.amount_due > 0 && stage.payment_status !== "paid" && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <span className="text-muted-foreground">Outstanding:</span>
+                              <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
+                                {formatCurrency(stage.invoice.amount_due)}
+                              </span>
+                            </div>
+                          )}
+                          {/* Amount Paid */}
                           {stage.amount_paid && stage.amount_paid > 0 && (
-                            <span className="text-xs font-mono text-green-600 dark:text-green-400">
-                              {formatCurrency(stage.amount_paid)}
+                            <div className="flex items-center gap-1 text-xs">
+                              <span className="text-muted-foreground">Paid:</span>
+                              <span className="font-mono text-green-600 dark:text-green-400">
+                                {formatCurrency(stage.amount_paid)}
+                              </span>
+                            </div>
+                          )}
+                          {/* Payment/Paid Date */}
+                          {(stage.invoice.fully_paid_date || stage.payment_date) && (
+                            <span className="text-xs text-muted-foreground">
+                              {stage.invoice.fully_paid_date
+                                ? `Paid ${formatDate(stage.invoice.fully_paid_date)}`
+                                : formatDate(stage.payment_date)}
                             </span>
                           )}
-                          {stage.payment_date && (
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(stage.payment_date)}
+                          {/* Due Date (if unpaid) */}
+                          {stage.payment_status !== "paid" && stage.invoice.due_date && (
+                            <span className={cn(
+                              "text-xs",
+                              new Date(stage.invoice.due_date) < new Date()
+                                ? "text-red-500 font-medium"
+                                : "text-muted-foreground"
+                            )}>
+                              Due {formatDate(stage.invoice.due_date)}
                             </span>
                           )}
                           {stage.has_variance && (

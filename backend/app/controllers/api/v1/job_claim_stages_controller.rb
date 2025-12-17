@@ -385,10 +385,12 @@ module Api
             invoice_number: invoice.invoice_number,
             reference: invoice.reference,
             total: invoice.total&.to_f,
+            amount_due: invoice.amount_due&.to_f,
             amount_paid: invoice.amount_paid&.to_f,
             status: invoice.status,
             date: invoice.invoice_date,
-            due_date: invoice.due_date
+            due_date: invoice.due_date,
+            fully_paid_date: invoice.fully_paid_date
           } : nil,
 
           created_at: stage.created_at,
