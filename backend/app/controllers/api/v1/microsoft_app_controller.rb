@@ -86,11 +86,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Check if org with this name already exists AND is active
-    # Only update if there's an active record, otherwise create new
-    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name, is_active: true)
+    # Check if org with this name already exists (active OR inactive)
+    # Reuse existing record to prevent duplicates when reconnecting
+    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
     if existing
-      # Update existing active credential instead of creating new
+      # Reactivate and update existing credential
       existing.update!(
         client_id: client_id,
         client_secret: client_secret,
@@ -144,10 +144,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }, status: :unprocessable_entity
     end
 
-    # Check if org with this name already exists AND is active
-    # Only update if there's an active record, otherwise create new
-    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name, is_active: true)
+    # Check if org with this name already exists (active OR inactive)
+    # Reuse existing record to prevent duplicates when reconnecting
+    existing = OrganizationMicrosoftAppCredential.find_by(name: org_name)
     if existing
+      # Reactivate and update existing credential
       existing.update!(
         client_id: client_id,
         client_secret: client_secret,

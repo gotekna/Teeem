@@ -782,9 +782,9 @@ export default function NewJobPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Main Details */}
-          <Card className="lg:col-span-2">
+          <Card>
             <CardHeader>
               <CardTitle>Job Details</CardTitle>
               <CardDescription>Basic information about the job</CardDescription>
@@ -943,110 +943,327 @@ export default function NewJobPage() {
             </CardContent>
           </Card>
 
-          {/* Project Settings */}
+          {/* People - in the same row */}
           <Card>
             <CardHeader>
-              <CardTitle>Project Settings</CardTitle>
-              <CardDescription>Type, status, stage and financial details</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                People
+              </CardTitle>
+              <CardDescription>Assign clients, referrer, and team members</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {loadingLookups ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <CardContent>
+              <div className="space-y-6">
+                {/* Clients */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-indigo-500" />
+                    Clients
+                  </h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="client1">Client 1 (Primary)</Label>
+                    <ComboboxDropdown
+                      placeholder="Search contacts..."
+                      items={contactItems}
+                      selectedItem={selectedContacts.client1 ? {
+                        id: selectedContacts.client1.id.toString(),
+                        label: selectedContacts.client1.display_name || selectedContacts.client1.company_name || "",
+                      } : undefined}
+                      onSelect={(item) => {
+                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        handleContactSelect("client1", contact || null);
+                      }}
+                      isLoading={loadingContacts}
+                      clearable
+                      onClear={() => handleContactSelect("client1", null)}
+                      searchInTrigger
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="client2">Client 2</Label>
+                    <ComboboxDropdown
+                      placeholder="Search contacts..."
+                      items={contactItems}
+                      selectedItem={selectedContacts.client2 ? {
+                        id: selectedContacts.client2.id.toString(),
+                        label: selectedContacts.client2.display_name || selectedContacts.client2.company_name || "",
+                      } : undefined}
+                      onSelect={(item) => {
+                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        handleContactSelect("client2", contact || null);
+                      }}
+                      isLoading={loadingContacts}
+                      clearable
+                      onClear={() => handleContactSelect("client2", null)}
+                      searchInTrigger
+                    />
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="job_type_id">Job Type *</Label>
-                    <Select
-                      value={formData.job_type_id}
-                      onValueChange={(value) => handleChange("job_type_id", value)}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select job type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {jobTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.id.toString()}>
-                            {type.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
 
+                {/* Referral & Sales */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <User className="h-4 w-4 text-green-500" />
+                    Referral & Sales
+                  </h3>
                   <div className="space-y-2">
-                    <Label htmlFor="job_status_id">Job Status *</Label>
-                    <Select
-                      value={formData.job_status_id}
-                      onValueChange={(value) => handleChange("job_status_id", value)}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {jobStatuses.map((status) => (
-                          <SelectItem key={status.id} value={status.id.toString()}>
-                            {status.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="job_stage_id">Job Stage</Label>
-                    <Select
-                      value={formData.job_stage_id}
-                      onValueChange={(value) => handleChange("job_stage_id", value)}
-                      disabled={jobStages.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder={jobStages.length === 0 ? "No stages available" : "Select stage"} />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {jobStages.map((stage) => (
-                          <SelectItem key={stage.id} value={stage.id.toString()}>
-                            {stage.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {jobStages.length === 0 && formData.job_type_id && formData.job_status_id && (
-                      <p className="text-xs text-muted-foreground">
-                        No stages configured for this type and status combination
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="contract_value">Contract Value ($)</Label>
-                    <Input
-                      id="contract_value"
-                      type="number"
-                      placeholder="e.g., 500000"
-                      value={formData.contract_value}
-                      onChange={(e) => handleChange("contract_value", e.target.value)}
+                    <Label htmlFor="referrer">Referrer</Label>
+                    <ComboboxDropdown
+                      placeholder="Search contacts..."
+                      items={contactItems}
+                      selectedItem={selectedContacts.referrer ? {
+                        id: selectedContacts.referrer.id.toString(),
+                        label: selectedContacts.referrer.display_name || selectedContacts.referrer.company_name || "",
+                      } : undefined}
+                      onSelect={(item) => {
+                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        handleContactSelect("referrer", contact || null);
+                      }}
+                      isLoading={loadingContacts}
+                      clearable
+                      onClear={() => handleContactSelect("referrer", null)}
+                      searchInTrigger
                     />
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Brief description of the project..."
-                      value={formData.description}
-                      onChange={(e) => handleChange("description", e.target.value)}
-                      rows={3}
+                    <Label htmlFor="external_sales">External Sales</Label>
+                    <ComboboxDropdown
+                      placeholder="Search contacts..."
+                      items={contactItems}
+                      selectedItem={selectedContacts.external_sales ? {
+                        id: selectedContacts.external_sales.id.toString(),
+                        label: selectedContacts.external_sales.display_name || selectedContacts.external_sales.company_name || "",
+                      } : undefined}
+                      onSelect={(item) => {
+                        const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
+                        handleContactSelect("external_sales", contact || null);
+                      }}
+                      isLoading={loadingContacts}
+                      clearable
+                      onClear={() => handleContactSelect("external_sales", null)}
+                      searchInTrigger
                     />
                   </div>
-                </>
-              )}
+                </div>
+
+                {/* Internal Team */}
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <Users className="h-4 w-4 text-orange-500" />
+                    Internal Team
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="supervisor" className="flex items-center gap-1 text-xs">
+                        <Wrench className="h-3 w-3" />
+                        Supervisor
+                      </Label>
+                      <Select
+                        value={peopleData.supervisor_id?.toString() || ""}
+                        onValueChange={(value) => handleUserSelect("supervisor", value ? parseInt(value) : null)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userItems.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="site_coordinator" className="flex items-center gap-1 text-xs">
+                        <ClipboardList className="h-3 w-3" />
+                        Site Coordinator
+                      </Label>
+                      <Select
+                        value={peopleData.site_coordinator_id?.toString() || ""}
+                        onValueChange={(value) => handleUserSelect("site_coordinator", value ? parseInt(value) : null)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userItems.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="estimator" className="flex items-center gap-1 text-xs">
+                        <Calculator className="h-3 w-3" />
+                        Estimator
+                      </Label>
+                      <Select
+                        value={peopleData.estimator_id?.toString() || ""}
+                        onValueChange={(value) => handleUserSelect("estimator", value ? parseInt(value) : null)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userItems.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="internal_sales" className="flex items-center gap-1 text-xs">
+                        <DollarSign className="h-3 w-3" />
+                        Internal Sales
+                      </Label>
+                      <Select
+                        value={peopleData.internal_sales_id?.toString() || ""}
+                        onValueChange={(value) => handleUserSelect("internal_sales", value ? parseInt(value) : null)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userItems.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="coordinator" className="flex items-center gap-1 text-xs">
+                        <ClipboardList className="h-3 w-3" />
+                        Client Coordinator
+                      </Label>
+                      <Select
+                        value={peopleData.coordinator_id?.toString() || ""}
+                        onValueChange={(value) => handleUserSelect("coordinator", value ? parseInt(value) : null)}
+                      >
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {userItems.map((user) => (
+                            <SelectItem key={user.id} value={user.id}>
+                              {user.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
+
+        {/* Project Settings - Full width below */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle>Project Settings</CardTitle>
+            <CardDescription>Type, status, stage and financial details</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingLookups ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="job_type_id">Job Type *</Label>
+                  <Select
+                    value={formData.job_type_id}
+                    onValueChange={(value) => handleChange("job_type_id", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select job type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="job_status_id">Job Status *</Label>
+                  <Select
+                    value={formData.job_status_id}
+                    onValueChange={(value) => handleChange("job_status_id", value)}
+                    required
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobStatuses.map((status) => (
+                        <SelectItem key={status.id} value={status.id.toString()}>
+                          {status.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="job_stage_id">Job Stage</Label>
+                  <Select
+                    value={formData.job_stage_id}
+                    onValueChange={(value) => handleChange("job_stage_id", value)}
+                    disabled={jobStages.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={jobStages.length === 0 ? "No stages" : "Select stage"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobStages.map((stage) => (
+                        <SelectItem key={stage.id} value={stage.id.toString()}>
+                          {stage.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contract_value">Contract Value ($)</Label>
+                  <Input
+                    id="contract_value"
+                    type="number"
+                    placeholder="e.g., 500000"
+                    value={formData.contract_value}
+                    onChange={(e) => handleChange("contract_value", e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2 lg:col-span-1 md:col-span-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Brief description..."
+                    value={formData.description}
+                    onChange={(e) => handleChange("description", e.target.value)}
+                    rows={1}
+                    className="min-h-[40px]"
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Email Notes Section - Only shown when coming from email proposal */}
         {proposal?.extracted_data && (
@@ -1182,234 +1399,6 @@ export default function NewJobPage() {
             </CardContent>
           </Card>
         )}
-
-        {/* People */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              People
-            </CardTitle>
-            <CardDescription>Assign clients, referrer, and team members to this job</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* External Contacts */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-indigo-500" />
-                  Clients
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="client1">Client 1 (Primary)</Label>
-                  <ComboboxDropdown
-                    placeholder="Search contacts..."
-                    items={contactItems}
-                    selectedItem={selectedContacts.client1 ? {
-                      id: selectedContacts.client1.id.toString(),
-                      label: selectedContacts.client1.display_name || selectedContacts.client1.company_name || "",
-                    } : undefined}
-                    onSelect={(item) => {
-                      const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
-                      handleContactSelect("client1", contact || null);
-                    }}
-                    isLoading={loadingContacts}
-                    clearable
-                    onClear={() => handleContactSelect("client1", null)}
-                    searchInTrigger
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="client2">Client 2</Label>
-                  <ComboboxDropdown
-                    placeholder="Search contacts..."
-                    items={contactItems}
-                    selectedItem={selectedContacts.client2 ? {
-                      id: selectedContacts.client2.id.toString(),
-                      label: selectedContacts.client2.display_name || selectedContacts.client2.company_name || "",
-                    } : undefined}
-                    onSelect={(item) => {
-                      const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
-                      handleContactSelect("client2", contact || null);
-                    }}
-                    isLoading={loadingContacts}
-                    clearable
-                    onClear={() => handleContactSelect("client2", null)}
-                    searchInTrigger
-                  />
-                </div>
-              </div>
-
-              {/* Referrer & External Sales */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <User className="h-4 w-4 text-green-500" />
-                  Referral & Sales
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="referrer">Referrer</Label>
-                  <ComboboxDropdown
-                    placeholder="Search contacts..."
-                    items={contactItems}
-                    selectedItem={selectedContacts.referrer ? {
-                      id: selectedContacts.referrer.id.toString(),
-                      label: selectedContacts.referrer.display_name || selectedContacts.referrer.company_name || "",
-                    } : undefined}
-                    onSelect={(item) => {
-                      const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
-                      handleContactSelect("referrer", contact || null);
-                    }}
-                    isLoading={loadingContacts}
-                    clearable
-                    onClear={() => handleContactSelect("referrer", null)}
-                    searchInTrigger
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="external_sales">External Sales</Label>
-                  <ComboboxDropdown
-                    placeholder="Search contacts..."
-                    items={contactItems}
-                    selectedItem={selectedContacts.external_sales ? {
-                      id: selectedContacts.external_sales.id.toString(),
-                      label: selectedContacts.external_sales.display_name || selectedContacts.external_sales.company_name || "",
-                    } : undefined}
-                    onSelect={(item) => {
-                      const contact = allContacts.find((c: Contact) => c.id.toString() === item.id);
-                      handleContactSelect("external_sales", contact || null);
-                    }}
-                    isLoading={loadingContacts}
-                    clearable
-                    onClear={() => handleContactSelect("external_sales", null)}
-                    searchInTrigger
-                  />
-                </div>
-              </div>
-
-              {/* Internal Team */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold flex items-center gap-2">
-                  <Users className="h-4 w-4 text-orange-500" />
-                  Internal Team
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="supervisor" className="flex items-center gap-1">
-                    <Wrench className="h-3 w-3" />
-                    Supervisor
-                  </Label>
-                  <Select
-                    value={peopleData.supervisor_id?.toString() || ""}
-                    onValueChange={(value) => handleUserSelect("supervisor", value ? parseInt(value) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select supervisor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userItems.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="site_coordinator" className="flex items-center gap-1">
-                    <ClipboardList className="h-3 w-3" />
-                    Site Coordinator
-                  </Label>
-                  <Select
-                    value={peopleData.site_coordinator_id?.toString() || ""}
-                    onValueChange={(value) => handleUserSelect("site_coordinator", value ? parseInt(value) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select site coordinator" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userItems.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="estimator" className="flex items-center gap-1">
-                    <Calculator className="h-3 w-3" />
-                    Estimator
-                  </Label>
-                  <Select
-                    value={peopleData.estimator_id?.toString() || ""}
-                    onValueChange={(value) => handleUserSelect("estimator", value ? parseInt(value) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select estimator" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userItems.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="internal_sales" className="flex items-center gap-1">
-                    <DollarSign className="h-3 w-3" />
-                    Internal Sales
-                  </Label>
-                  <Select
-                    value={peopleData.internal_sales_id?.toString() || ""}
-                    onValueChange={(value) => handleUserSelect("internal_sales", value ? parseInt(value) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select internal sales" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userItems.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="coordinator" className="flex items-center gap-1">
-                    <ClipboardList className="h-3 w-3" />
-                    Client Coordinator
-                  </Label>
-                  <Select
-                    value={peopleData.coordinator_id?.toString() || ""}
-                    onValueChange={(value) => handleUserSelect("coordinator", value ? parseInt(value) : null)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select coordinator" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {userItems.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-4 mt-6">

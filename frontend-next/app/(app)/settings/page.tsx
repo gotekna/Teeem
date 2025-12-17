@@ -20,8 +20,6 @@ import {
   Shield,
   CreditCard,
   Link2,
-  Palette,
-  Mail,
   Key,
   Upload,
   Loader2,
@@ -76,11 +74,6 @@ interface TrainingStats {
   certificates_earned: number;
 }
 
-interface MicrosoftStatus {
-  connected: boolean;
-  email?: string;
-}
-
 interface XeroStatus {
   connected: boolean;
   organization_name?: string;
@@ -108,7 +101,6 @@ function SettingsPageContent() {
   });
   const [trainingModules, setTrainingModules] = React.useState<TrainingModule[]>([]);
   const [trainingStats, setTrainingStats] = React.useState<TrainingStats | null>(null);
-  const [microsoftStatus, setMicrosoftStatus] = React.useState<MicrosoftStatus | null>(null);
   const [xeroStatus, setXeroStatus] = React.useState<XeroStatus | null>(null);
 
   // Profile form state
@@ -144,16 +136,7 @@ function SettingsPageContent() {
   React.useEffect(() => {
     const fetchSettings = async () => {
       // Note: Organization settings moved to System Admin (/admin/system)
-      // User settings API endpoint not yet implemented - using defaults
-
-      // Fetch Microsoft status - silently default to not connected on any error
-      try {
-        const msData = await api.get<MicrosoftStatus>("/api/v1/microsoft/status");
-        setMicrosoftStatus(msData || { connected: false });
-      } catch {
-        // Silently default to not connected - don't log errors for expected failures
-        setMicrosoftStatus({ connected: false });
-      }
+      // Microsoft 365 org-wide access is managed in Admin System → Connections
 
       // Fetch Xero status - silently default to not connected on any error
       try {
@@ -549,37 +532,7 @@ function SettingsPageContent() {
         {/* Integrations Tab */}
         <TabsContent value="integrations">
           <div className="space-y-4">
-            <Card
-              className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => router.push("/settings/integrations/microsoft")}
-            >
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-blue-100 rounded-lg">
-                      <Mail className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">Microsoft 365</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Outlook, OneDrive, Calendar
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {microsoftStatus?.connected ? (
-                      <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Connected
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary">Not Connected</Badge>
-                    )}
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Microsoft 365 org-wide access is managed in Admin System → Connections */}
 
             <Card
               className="cursor-pointer hover:bg-accent/50 transition-colors"

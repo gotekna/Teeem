@@ -872,16 +872,6 @@ export function DeveloperToolsTab() {
                   </div>
                   <ExternalLink className="h-4 w-4 text-muted-foreground" />
                 </Link>
-                <Link
-                  href="/brand-guidelines"
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted transition-colors"
-                >
-                  <div>
-                    <p className="font-medium">Brand Guidelines</p>
-                    <p className="text-xs text-muted-foreground">Typography, colors, and design system</p>
-                  </div>
-                  <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                </Link>
               </CardContent>
             </Card>
           </div>
