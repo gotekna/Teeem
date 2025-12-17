@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= @document_title || "Tekna Homes Document" %></title>
+  <style>
+    /* Design tokens from SSoT */
+    <%= design_tokens_css %>
+
+    /* A4 Page setup */
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    html, body {
+      width: 210mm;
+      min-height: 297mm;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: var(--doc-padding);
+      position: relative;
+      page-break-after: always;
+      background: white;
+    }
+
+    .page:last-child {
+      page-break-after: auto;
+    }
+
+    /* Tekna branded header */
+    <%= tekna_header_css %>
+
+    /* Tekna branded footer */
+    <%= tekna_footer_css %>
+
+    /* Content area - leave space for footer */
+    .document-content {
+      padding-bottom: 60px;
+    }
+
+    /* Signature blocks */
+    <%= signature_css %>
+
+    /* QBCC notice */
+    <%= qbcc_notice_css %>
+
+    /* Print optimizations */
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <%= render "header" %>
+
+    <div class="document-content">
+      <%= yield_content %>
+    </div>
+
+    <%= render "footer" %>
+  </div>
+</body>
+</html>

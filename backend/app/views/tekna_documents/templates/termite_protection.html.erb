@@ -1,0 +1,148 @@
+<h1>Termite Management System</h1>
+
+<p style="color: var(--color-text-secondary);">
+  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
+  Date: <%= format_date(today, :long) %>
+</p>
+
+<h2>Property Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
+    <td><%= @job[:full_address] %></td>
+  </tr>
+  <% if @job[:lot_number].present? %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Lot/Plan</strong></td>
+    <td>Lot <%= @job[:lot_number] %> on Plan <%= @job[:plan_number] %></td>
+  </tr>
+  <% end %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Client(s)</strong></td>
+    <td><%= @client_names %></td>
+  </tr>
+</table>
+
+<h2>Termite Management System Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>System Type</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Product Name</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Installation Company</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Installer Name</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Licence Number</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Installation Date</strong></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Warranty Period</strong></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>System Description</h2>
+
+<p>
+  The termite management system installed at this property complies with the
+  requirements of the Building Code of Australia (BCA) and Australian Standard
+  AS 3660.1 - Termite Management.
+</p>
+
+<h3>Protection Areas</h3>
+
+<table>
+  <tr>
+    <th style="width: 40%;">Area</th>
+    <th style="width: 30%;">Protection Method</th>
+    <th>Notes</th>
+  </tr>
+  <tr>
+    <td>Slab Perimeter</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Slab Penetrations</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Expansion Joints</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>External Walls</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Subfloor (if applicable)</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>Important Owner Information</h2>
+
+<div style="background: #fff3cd; border: 1px solid #ffc107; padding: var(--space-4); margin: var(--space-4) 0;">
+  <strong>WARNING:</strong> Termite management systems require ongoing maintenance
+  and regular inspections to remain effective.
+</div>
+
+<h3>Your Responsibilities</h3>
+
+<ol>
+  <li>
+    <strong>Annual Inspections:</strong> Engage a licensed pest inspector to conduct
+    annual termite inspections of your property.
+  </li>
+  <li>
+    <strong>Maintain the System:</strong> Do not disturb, damage, or breach the
+    termite management system through excavation, landscaping, or construction.
+  </li>
+  <li>
+    <strong>Maintain Clearances:</strong> Keep gardens, mulch, and soil at least
+    75mm below the weep holes and damp proof course.
+  </li>
+  <li>
+    <strong>Report Issues:</strong> If you notice termite activity or damage to
+    the system, contact a licensed pest controller immediately.
+  </li>
+  <li>
+    <strong>Keep Records:</strong> Maintain all inspection reports and warranty
+    documents for future reference and property transfer.
+  </li>
+</ol>
+
+<h2>Acknowledgement</h2>
+
+<p>
+  I/We acknowledge that:
+</p>
+
+<ul>
+  <li>I/We have been provided with information about the termite management system</li>
+  <li>I/We understand my/our responsibilities for ongoing maintenance</li>
+  <li>I/We have received the manufacturer's warranty documentation</li>
+  <li>I/We understand that failure to maintain the system may void the warranty</li>
+</ul>
+
+<%= render "signature_block" %>

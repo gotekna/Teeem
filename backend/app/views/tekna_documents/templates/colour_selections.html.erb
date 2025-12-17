@@ -1,0 +1,154 @@
+<h1>Colour Selections</h1>
+
+<p style="color: var(--color-text-secondary);">
+  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
+  Date: <%= format_date(today, :long) %>
+</p>
+
+<h2>Property Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
+    <td><%= @job[:full_address] %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Client(s)</strong></td>
+    <td><%= @client_names %></td>
+  </tr>
+</table>
+
+<h2>External Selections</h2>
+
+<table>
+  <tr>
+    <th style="width: 35%;">Item</th>
+    <th style="width: 35%;">Selection</th>
+    <th>Code/Reference</th>
+  </tr>
+  <tr>
+    <td>Roof Tiles/Sheets</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Fascia & Gutter</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>External Render</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>External Paint</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Brickwork</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Window Frames</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Garage Door</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Front Door</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Driveway</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>Internal Selections</h2>
+
+<table>
+  <tr>
+    <th style="width: 35%;">Item</th>
+    <th style="width: 35%;">Selection</th>
+    <th>Code/Reference</th>
+  </tr>
+  <tr>
+    <td>Internal Paint - Walls</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Internal Paint - Trim</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Floor Tiles - Main</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Floor Tiles - Bathroom</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Carpet</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Kitchen Benchtop</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Kitchen Splashback</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Kitchen Cabinetry</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Bathroom Tiles - Wall</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Bathroom Vanity</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Internal Doors</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Door Hardware</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+<h2>Acknowledgement</h2>
+
+<p>
+  I/We acknowledge that the above colour selections have been made by me/us and
+  form part of the building contract. I/We understand that any changes to these
+  selections after signing may incur additional costs and delays.
+</p>
+
+<%= render "signature_block" %>

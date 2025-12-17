@@ -55,6 +55,7 @@ gem "pdf-reader", "~> 2.12"  # PDF text extraction for email attachments
 gem "business_time", "~> 0.13"  # Business days calculation for bill approval workflows
 gem "hexapdf", "~> 0.42"  # PDF manipulation for splitting documents
 gem "sablon", "~> 0.4"  # DOCX mail merge for document templates
+gem "grover", "~> 1.1"  # HTML → PDF via Puppeteer (Tekna document templates)
 
 # Image management and scraping
 gem "cloudinary", "~> 2.1"  # Cloud image storage and CDN

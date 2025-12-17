@@ -1,0 +1,115 @@
+<h1>Specification Acknowledgement</h1>
+
+<p style="color: var(--color-text-secondary);">
+  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
+  Date: <%= format_date(today, :long) %>
+</p>
+
+<h2>Property Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
+    <td><%= @job[:full_address] %></td>
+  </tr>
+  <% if @job[:lot_number].present? %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Lot/Plan</strong></td>
+    <td>Lot <%= @job[:lot_number] %> on Plan <%= @job[:plan_number] %></td>
+  </tr>
+  <% end %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Client(s)</strong></td>
+    <td><%= @client_names %></td>
+  </tr>
+</table>
+
+<h2>Acknowledgement</h2>
+
+<p>
+  I/We, <strong><%= @client_names %></strong>, acknowledge and confirm that:
+</p>
+
+<ol>
+  <li>
+    I/We have received and reviewed the following contract documents:
+    <ul style="margin-top: var(--space-2);">
+      <li>Building Contract</li>
+      <li>Contract Specifications</li>
+      <li>Plans and Drawings</li>
+      <li>Colour Selections</li>
+      <li>QBCC Consumer Building Guide</li>
+      <li>QBCC General Conditions</li>
+    </ul>
+  </li>
+  <li>
+    I/We have had the opportunity to ask questions and seek clarification on any
+    aspects of the specifications I/we did not understand.
+  </li>
+  <li>
+    I/We understand that the specifications form part of the building contract
+    and any changes or variations may incur additional costs.
+  </li>
+  <li>
+    I/We understand that all selections (colours, fittings, fixtures) must be
+    made within the timeframes specified in the contract to avoid delays.
+  </li>
+  <li>
+    I/We have been advised of the standard inclusions and exclusions applicable
+    to the contract.
+  </li>
+</ol>
+
+<h2>Allowances</h2>
+
+<p>
+  I/We acknowledge that the following allowances have been included in the contract price:
+</p>
+
+<table>
+  <tr>
+    <th style="width: 50%;">Item</th>
+    <th style="width: 25%;">Allowance (inc. GST)</th>
+    <th>Notes</th>
+  </tr>
+  <tr>
+    <td>Floor Coverings</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Light Fittings</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Kitchen Appliances</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Landscaping</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Driveway & Paths</td>
+    <td></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td>Fencing</td>
+    <td></td>
+    <td></td>
+  </tr>
+</table>
+
+<p>
+  I/We understand that if the actual cost of items exceeds the allowance, I/we will
+  be responsible for paying the difference. If the actual cost is less than the
+  allowance, the difference will be credited.
+</p>
+
+<%= render "qbcc_clause" %>
+
+<%= render "signature_block" %>

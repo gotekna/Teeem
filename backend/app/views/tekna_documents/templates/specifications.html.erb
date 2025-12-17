@@ -1,0 +1,92 @@
+<h1>Specifications</h1>
+
+<p style="color: var(--color-text-secondary);">
+  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
+  Date: <%= format_date(today, :long) %>
+</p>
+
+<h2>Property Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
+    <td><%= @job[:full_address] %></td>
+  </tr>
+  <% if @job[:lot_number].present? %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Lot Number</strong></td>
+    <td><%= @job[:lot_number] %></td>
+  </tr>
+  <% end %>
+  <% if @job[:plan_number].present? %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Plan Number</strong></td>
+    <td><%= @job[:plan_number] %></td>
+  </tr>
+  <% end %>
+  <% if @job[:council].present? %>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Council</strong></td>
+    <td><%= @job[:council] %></td>
+  </tr>
+  <% end %>
+</table>
+
+<h2>Contract Details</h2>
+
+<table>
+  <tr>
+    <td style="width: 35%; background: #f5f5f5;"><strong>Client(s)</strong></td>
+    <td><%= @client_names %></td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Contract Price</strong></td>
+    <td><%= @job[:contract_price] %> (inc. GST)</td>
+  </tr>
+  <tr>
+    <td style="background: #f5f5f5;"><strong>Contract Date</strong></td>
+    <td><%= @job[:contract_date] %></td>
+  </tr>
+</table>
+
+<h2>Build Specifications</h2>
+
+<p>
+  The following specifications form part of the building contract and should be
+  read in conjunction with the plans and any other contract documents.
+</p>
+
+<%# Placeholder for specification sections - can be expanded %>
+<h3>1. Site Works</h3>
+<p>As per plans and engineering specifications.</p>
+
+<h3>2. Concrete</h3>
+<p>As per plans and engineering specifications.</p>
+
+<h3>3. Framing</h3>
+<p>As per plans and engineering specifications.</p>
+
+<h3>4. Roofing</h3>
+<p>As per plans and selections.</p>
+
+<h3>5. External Cladding</h3>
+<p>As per plans and selections.</p>
+
+<h3>6. Windows & Doors</h3>
+<p>As per plans and selections.</p>
+
+<h3>7. Internal Linings</h3>
+<p>As per plans and specifications.</p>
+
+<h3>8. Electrical</h3>
+<p>As per plans and electrical layout.</p>
+
+<h3>9. Plumbing</h3>
+<p>As per plans and hydraulic drawings.</p>
+
+<h3>10. Fixtures & Fittings</h3>
+<p>As per selections and allowances.</p>
+
+<%= render "qbcc_clause" %>
+
+<%= render "signature_block" %>

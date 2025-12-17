@@ -133,6 +133,18 @@ Rails.application.routes.draw do
         end
       end
 
+      # Tekna Document Templates (HTML → PDF generation)
+      resources :tekna_documents, only: [] do
+        collection do
+          get :templates
+        end
+        member do
+          get :preview
+          post :generate
+          post :generate_and_send
+        end
+      end
+
       # Leads management
       resources :leads do
         member do

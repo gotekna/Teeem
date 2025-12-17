@@ -1,0 +1,78 @@
+<div class="signature-block">
+  <h3>Signatures</h3>
+
+  <div class="signature-row">
+    <%# Builder signature %>
+    <div class="signature-party">
+      <p><strong>Builder:</strong> <%= @company[:name] %></p>
+      <p>ABN: <%= @company[:abn_formatted] %></p>
+      <p>QBCC Licence: <%= @company[:qbcc_license] %></p>
+
+      <div class="signature-line"></div>
+      <p class="signature-label">Signature</p>
+
+      <div class="signature-line" style="height: 25px;"></div>
+      <p class="signature-label">Date</p>
+    </div>
+
+    <%# Client signature(s) %>
+    <div class="signature-party">
+      <% if @client_1.present? %>
+        <p><strong>Client:</strong> <%= @client_1[:display_name] %></p>
+        <% if @client_1[:abn].present? %>
+          <p>ABN: <%= format_abn(@client_1[:abn]) %></p>
+        <% end %>
+
+        <div class="signature-line"></div>
+        <p class="signature-label">Signature</p>
+
+        <div class="signature-line" style="height: 25px;"></div>
+        <p class="signature-label">Date</p>
+      <% else %>
+        <p><strong>Client:</strong></p>
+        <div class="signature-line"></div>
+        <p class="signature-label">Signature</p>
+
+        <div class="signature-line" style="height: 25px;"></div>
+        <p class="signature-label">Date</p>
+      <% end %>
+    </div>
+  </div>
+
+  <%# Second client if applicable %>
+  <% if @has_multiple_clients && @client_2.present? %>
+    <div class="signature-row">
+      <div class="signature-party">
+        <p><strong>Client 2:</strong> <%= @client_2[:display_name] %></p>
+        <% if @client_2[:abn].present? %>
+          <p>ABN: <%= format_abn(@client_2[:abn]) %></p>
+        <% end %>
+
+        <div class="signature-line"></div>
+        <p class="signature-label">Signature</p>
+
+        <div class="signature-line" style="height: 25px;"></div>
+        <p class="signature-label">Date</p>
+      </div>
+      <div class="signature-party"></div>
+    </div>
+  <% end %>
+
+  <%# Witness section %>
+  <div class="witness-section">
+    <h4>Witness</h4>
+    <div class="signature-row">
+      <div class="signature-party">
+        <div class="signature-line"></div>
+        <p class="signature-label">Witness Signature</p>
+
+        <div class="signature-line" style="height: 25px;"></div>
+        <p class="signature-label">Witness Name (Print)</p>
+
+        <div class="signature-line" style="height: 25px;"></div>
+        <p class="signature-label">Date</p>
+      </div>
+      <div class="signature-party"></div>
+    </div>
+  </div>
+</div>
