@@ -11,7 +11,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     # Filter by active status
     templates = templates.active if params[:active_only] == "true"
 
-    templates = templates.order(:category, :name)
+    templates = templates.order(:category, :sort_order, :name)
 
     render json: {
       success: true,
@@ -315,7 +315,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     params.require(:document_template).permit(
       :name, :description, :category,
       :output_format, :output_naming_pattern,
-      :is_active,
+      :is_active, :sort_order,
       data_schema: {}
     )
   end
@@ -372,6 +372,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       output_format: template.output_format,
       output_naming_pattern: template.output_naming_pattern,
       is_active: template.is_active,
+      sort_order: template.sort_order,
       sharepoint_linked: template.sharepoint_linked?,
       sharepoint_path: template.sharepoint_path,
       created_at: template.created_at,
