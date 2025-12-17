@@ -98,7 +98,7 @@ interface PreviewJobData {
 }
 
 // Task configuration types
-type TaskType = "generate_document" | "generate_and_send_for_signing";
+type TaskType = "generate_document" | "generate_and_send_for_signing" | "attach_sharepoint_file" | "create_xero_invoice";
 type ExecutionMode = "automatic" | "manual";
 
 interface SignerConfig {
@@ -118,6 +118,14 @@ interface TaskConfig {
   signing_order?: number; // 0 = parallel, 1+ = sequential
   expires_in_days?: number;
   store_as_variable?: string;
+  // For attach_sharepoint_file
+  file_path?: string;
+  file_name?: string;
+  folder_name?: string;
+  // For create_xero_invoice
+  invoice_description?: string;
+  invoice_amount?: number;
+  claim_stage?: string; // deposit, frame, lock_up, etc.
 }
 
 // Contact key options for signers
