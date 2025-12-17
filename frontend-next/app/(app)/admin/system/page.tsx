@@ -158,9 +158,15 @@ function CompanyInfoTab() {
       sunday: false,
     },
   });
+  const [originalSettings, setOriginalSettings] = React.useState<CompanySettings | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [message, setMessage] = React.useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const hasChanges = React.useMemo(() => {
+    if (!originalSettings) return false;
+    return JSON.stringify(settings) !== JSON.stringify(originalSettings);
+  }, [settings, originalSettings]);
 
   React.useEffect(() => {
     loadSettings();
@@ -170,6 +176,7 @@ function CompanyInfoTab() {
     try {
       const response = await api.get<CompanySettings>("/api/v1/company_settings");
       setSettings(response);
+      setOriginalSettings(response);
     } catch (error) {
       console.debug("Company settings unavailable:", error);
       setMessage({ type: "error", text: "Failed to load settings" });
@@ -185,6 +192,7 @@ function CompanyInfoTab() {
 
     try {
       await api.put("/api/v1/company_settings", { company_setting: settings });
+      setOriginalSettings(settings);
       setMessage({ type: "success", text: "Settings saved successfully!" });
     } catch (error) {
       console.error("Failed to save settings:", error);
@@ -208,6 +216,25 @@ function CompanyInfoTab() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Sticky save bar when there are unsaved changes */}
+      {hasChanges && (
+        <div className="sticky top-0 z-10 -mx-4 px-4 py-3 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between">
+          <span className="text-sm text-amber-800 dark:text-amber-200 font-medium">
+            You have unsaved changes
+          </span>
+          <Button type="submit" size="sm" disabled={saving}>
+            {saving ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
+          </Button>
+        </div>
+      )}
+
       {message && (
         <div
           className={cn(

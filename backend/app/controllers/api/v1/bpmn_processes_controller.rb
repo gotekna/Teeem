@@ -1,7 +1,7 @@
 module Api
   module V1
     class BpmnProcessesController < ApplicationController
-      before_action :set_process, only: [ :show, :update, :destroy, :publish, :unpublish, :duplicate, :validate ]
+      before_action :set_process, only: [ :show, :update, :destroy, :publish, :unpublish, :duplicate, :validate, :test_run ]
 
       def index
         @processes = BpmnProcess.includes(:bpmn_nodes, :bpmn_edges, :bpmn_triggers)
@@ -85,6 +85,76 @@ module Api
           valid: errors.empty?,
           errors: errors
         }
+      end
+
+      # POST /api/v1/bpmn_processes/:id/test_run
+      # Create a test instance of the workflow for a specific job
+      def test_run
+        job = Job.find_by(id: params[:job_id])
+
+        unless job
+          render json: { success: false, error: "Job not found" }, status: :not_found
+          return
+        end
+
+        # Check that the process has a start node
+        unless @process.start_node
+          render json: { success: false, error: "Workflow must have a Start Event" }, status: :unprocessable_entity
+          return
+        end
+
+        # Check valid structure
+        unless @process.valid_structure?
+          render json: { success: false, error: "Workflow structure is invalid. Check that all nodes are connected." }, status: :unprocessable_entity
+          return
+        end
+
+        begin
+          # Start the process instance using the engine (bypasses publish requirement for test)
+          instance = ActiveRecord::Base.transaction do
+            inst = BpmnProcessInstance.create!(
+              bpmn_process: @process,
+              subject: job,
+              status: "active",
+              started_at: Time.current,
+              variables: {
+                job_id: job.id,
+                test_run: true,
+                "_triggered_by" => "test_run",
+                "_started_at" => Time.current.iso8601,
+                "_subject_type" => "Job",
+                "_subject_id" => job.id
+              }
+            )
+
+            # Create initial token at start event
+            token = inst.bpmn_tokens.create!(
+              current_node: @process.start_node,
+              status: "active",
+              arrived_at: Time.current
+            )
+
+            # Advance token past start event
+            Bpmn::EngineService.advance_token(token)
+
+            inst
+          end
+
+          render json: {
+            success: true,
+            instance_id: instance.id,
+            status: instance.reload.status,
+            message: "Test run started",
+            job: {
+              id: job.id,
+              name: job.name,
+              job_number: job.try(:job_number)
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Test run failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+          render json: { success: false, error: "Test run failed: #{e.message}" }, status: :unprocessable_entity
+        end
       end
 
       # POST /api/v1/bpmn_processes/import

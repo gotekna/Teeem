@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, ExternalLink } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, ExternalLink, Play, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -52,6 +52,12 @@ interface DocumentTemplate {
   sharepoint_path?: string;
 }
 
+interface Job {
+  id: number;
+  name: string;
+  job_number?: string;
+}
+
 export default function BpmnJsDesigner({
   processId,
   initialXml,
@@ -67,6 +73,9 @@ export default function BpmnJsDesigner({
   const [isLoaded, setIsLoaded] = useState(false);
   const [editableName, setEditableName] = useState(processName || "New Workflow");
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>("");
+  const [isTestRunning, setIsTestRunning] = useState(false);
   const { toast } = useToast();
 
   // Update editable name when prop changes (e.g., data loads from server)
@@ -115,6 +124,61 @@ export default function BpmnJsDesigner({
     };
     fetchTemplates();
   }, []);
+
+  // Fetch recent jobs for test run
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: Job[] }>(
+          "/api/v1/jobs?limit=50&sort=updated_at&order=desc"
+        );
+        if (response?.success && response.data) {
+          setJobs(response.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch jobs:", err);
+      }
+    };
+    fetchJobs();
+  }, []);
+
+  // Handle test run
+  const handleTestRun = useCallback(async () => {
+    if (!processId || !selectedJobId) {
+      toast({
+        title: "Cannot Test",
+        description: "Please save the workflow and select a job first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsTestRunning(true);
+    try {
+      const response = await api.post<{ success: boolean; instance_id?: number; error?: string }>(
+        `/api/v1/bpmn_processes/${processId}/test_run`,
+        { job_id: selectedJobId }
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Test Run Started",
+          description: `Workflow instance #${response.instance_id} created for job`,
+        });
+      } else {
+        throw new Error(response?.error || "Test run failed");
+      }
+    } catch (err) {
+      console.error("Test run failed:", err);
+      toast({
+        title: "Test Run Failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestRunning(false);
+    }
+  }, [processId, selectedJobId, toast]);
 
   // Track initialization
   const initializedRef = useRef(false);
@@ -495,6 +559,37 @@ export default function BpmnJsDesigner({
         <Button onClick={handleSave} disabled={!isDirty}>
           <Save className="w-4 h-4 mr-1" />
           Save
+        </Button>
+
+        <div className="w-px h-6 bg-border mx-1" />
+
+        {/* Test Run Section */}
+        <select
+          value={selectedJobId}
+          onChange={(e) => setSelectedJobId(e.target.value)}
+          className="h-9 rounded-md border border-input bg-background px-3 text-sm min-w-[200px]"
+        >
+          <option value="">Select job to test...</option>
+          {jobs.map((job) => (
+            <option key={job.id} value={job.id.toString()}>
+              {job.job_number ? `${job.job_number} - ` : ""}{job.name}
+            </option>
+          ))}
+        </select>
+
+        <Button
+          variant="default"
+          onClick={handleTestRun}
+          disabled={!processId || !selectedJobId || isTestRunning}
+          title={!processId ? "Save workflow first" : !selectedJobId ? "Select a job" : isDirty ? "Has unsaved changes" : "Run workflow test"}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          {isTestRunning ? (
+            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+          ) : (
+            <Play className="w-4 h-4 mr-1" />
+          )}
+          Test Run
         </Button>
       </div>
 

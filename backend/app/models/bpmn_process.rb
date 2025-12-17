@@ -127,4 +127,113 @@ class BpmnProcess < ApplicationRecord
   def valid_structure?
     validate_structure.empty?
   end
+
+  # Sync nodes and edges from BPMN XML
+  # Call this before test run if nodes are empty but XML exists
+  def sync_nodes_from_xml!
+    return unless bpmn_xml.present?
+
+    doc = Nokogiri::XML(bpmn_xml)
+    doc.remove_namespaces!
+
+    transaction do
+      # Clear existing nodes and edges
+      bpmn_edges.destroy_all
+      bpmn_nodes.destroy_all
+
+      node_map = {} # Map XML IDs to database node IDs
+
+      # Parse process elements
+      process = doc.at_xpath("//process")
+      return unless process
+
+      # Create nodes from BPMN elements
+      process.children.each do |element|
+        node_type = bpmn_element_to_node_type(element.name)
+        next unless node_type
+
+        node_key = element["id"]
+        name = element["name"]
+
+        # Get position from diagram
+        shape = doc.at_xpath("//BPMNShape[@bpmnElement='#{node_key}']")
+        bounds = shape&.at_xpath("Bounds")
+        pos_x = bounds ? bounds["x"].to_f : 0
+        pos_y = bounds ? bounds["y"].to_f : 0
+
+        # Extract config from element attributes/children
+        config = extract_node_config(element, node_type)
+
+        node = bpmn_nodes.create!(
+          node_key: node_key,
+          node_type: node_type,
+          name: name,
+          position_x: pos_x,
+          position_y: pos_y,
+          config: config
+        )
+
+        node_map[node_key] = node.id
+      end
+
+      # Create edges from sequence flows
+      process.xpath("sequenceFlow").each do |flow|
+        edge_key = flow["id"]
+        source_key = flow["sourceRef"]
+        target_key = flow["targetRef"]
+        name = flow["name"]
+
+        source_id = node_map[source_key]
+        target_id = node_map[target_key]
+
+        next unless source_id && target_id
+
+        # Check for condition expression
+        condition = flow.at_xpath("conditionExpression")&.text
+
+        bpmn_edges.create!(
+          edge_key: edge_key,
+          source_node_id: source_id,
+          target_node_id: target_id,
+          name: name,
+          condition_expression: condition
+        )
+      end
+    end
+
+    reload
+  end
+
+  private
+
+  def bpmn_element_to_node_type(element_name)
+    {
+      "startEvent" => "start_event",
+      "endEvent" => "end_event",
+      "task" => "service_task",
+      "serviceTask" => "service_task",
+      "userTask" => "user_task",
+      "exclusiveGateway" => "exclusive_gateway",
+      "parallelGateway" => "parallel_gateway",
+      "inclusiveGateway" => "inclusive_gateway",
+      "intermediateCatchEvent" => "timer_event",
+      "intermediateThrowEvent" => "message_event"
+    }[element_name]
+  end
+
+  def extract_node_config(element, node_type)
+    config = {}
+
+    # Look for extensionElements with custom properties
+    element.xpath("extensionElements/properties/property").each do |prop|
+      config[prop["name"]] = prop["value"]
+    end
+
+    # For tasks, try to extract task_type from element or default based on name
+    if node_type.in?(%w[service_task user_task])
+      config["task_type"] ||= "generate_document" # Default for now
+    end
+
+    config
+  end
 end

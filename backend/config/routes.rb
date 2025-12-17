@@ -531,6 +531,7 @@ Rails.application.routes.draw do
           post :unpublish
           post :duplicate
           get :validate
+          post :test_run
         end
         resources :bpmn_triggers, only: [ :index, :show, :create, :update, :destroy ] do
           member do
