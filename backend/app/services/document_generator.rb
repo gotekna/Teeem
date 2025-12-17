@@ -18,10 +18,23 @@ class DocumentGenerator
 
   attr_reader :template, :graph_client
 
+  class CredentialError < StandardError; end
+
   def initialize(template, graph_client: nil)
     @template = template
-    @graph_client = graph_client || MicrosoftAppGraphClient.new
+    @graph_client = graph_client || create_graph_client
   end
+
+  private
+
+  def create_graph_client
+    MicrosoftAppGraphClient.new
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.error("Microsoft credential decryption failed: #{e.message}")
+    raise CredentialError, "Microsoft credentials expired or invalid. Please reconnect OneDrive in Admin > System > Connections."
+  end
+
+  public
 
   # Generate document from template with provided data
   # Returns hash with :docx_content, :pdf_content (if applicable), :filename
@@ -120,6 +133,9 @@ class DocumentGenerator
       drive_id: template.sharepoint_drive_id,
       item_id: template.sharepoint_item_id
     )
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.error("Microsoft credential decryption failed during download: #{e.message}")
+    raise CredentialError, "Microsoft credentials expired or invalid. Please reconnect OneDrive in Admin > System > Connections."
   rescue MicrosoftAppGraphClient::ApiError => e
     raise TemplateError, "Failed to download template: #{e.message}"
   end

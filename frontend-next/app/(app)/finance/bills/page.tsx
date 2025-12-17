@@ -49,19 +49,7 @@ export default function BillInboxPage() {
       throw err;
     }
   }, [foundationId, refresh]);
-
-  const handleBulkDelete = useCallback(async (ids: (number | string)[]) => {
-    if (!foundationId) return;
-    try {
-      await api.post(`/api/v1/foundations/${foundationId}/records/bulk_delete`, {
-        ids: ids.map(id => Number(id))
-      });
-      refresh();
-    } catch (err) {
-      console.error("Failed to delete bills:", err);
-      throw err;
-    }
-  }, [foundationId, refresh]);
+  // Note: onBulkDelete is auto-enabled by TeeemTableView when foundationIdNumeric is provided
 
   if (isLoading) {
     return (
@@ -82,7 +70,6 @@ export default function BillInboxPage() {
         onRefresh={refresh}
         onRowClick={handleRowClick}
         onRowUpdate={handleRowUpdate}
-        onBulkDelete={handleBulkDelete}
         leftActions={
           <>
             <Button variant="ghost" size="sm" asChild>

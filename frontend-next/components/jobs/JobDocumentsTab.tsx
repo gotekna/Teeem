@@ -48,7 +48,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { api } from "@/lib/api";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 interface OrgStatus {
   loading: boolean;
@@ -1753,20 +1754,16 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
               </CardHeader>
               <CardContent className="flex-1 overflow-hidden p-0">
                 {selectedPlan ? (
-                  <div className="h-full flex flex-col">
-                    {/* Embedded PDF Preview */}
-                    <iframe
-                      key={selectedPlan.id}
-                      src={`${selectedPlan.web_url}?action=embedview`}
-                      className="w-full flex-1 border-0 rounded-lg"
-                      title={selectedPlan.name}
-                      allowFullScreen
-                    />
-                  </div>
+                  <PDFViewer
+                    key={selectedPlan.id}
+                    url={`${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${selectedPlan.id}&preview=true`}
+                    fallbackUrl={selectedPlan.web_url}
+                    className="h-full"
+                  />
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <FileText className="h-16 w-16 mb-4 opacity-50" />
-                    <p>Select a plan from the list to view details</p>
+                    <p>Select a plan from the list to preview</p>
                   </div>
                 )}
               </CardContent>

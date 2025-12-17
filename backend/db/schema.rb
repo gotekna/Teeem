@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_084817) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_233226) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1887,7 +1887,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_084817) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "sort_order", default: 0, null: false
+    t.string "template_type", default: "word", null: false
+    t.string "local_template_path"
+    t.string "layout"
+    t.boolean "is_legal_format", default: false, null: false
+    t.string "legal_source"
     t.index ["category", "sort_order"], name: "index_document_templates_on_category_and_sort_order"
+    t.index ["is_legal_format"], name: "index_document_templates_on_is_legal_format"
+    t.index ["template_type"], name: "index_document_templates_on_template_type"
   end
 
   create_table "document_type_folders", force: :cascade do |t|

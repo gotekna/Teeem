@@ -1,9 +1,10 @@
 module Bpmn
   module Tasks
-    # GenerateDocumentTask - Generate documents from Word templates
+    # GenerateDocumentTask - Generate documents from templates (Word, HTML, PDF)
     #
     # Config options:
     #   template_id: ID of DocumentTemplate to use
+    #   template_name: Name of template (alternative to ID)
     #   output_filename: Override filename pattern (optional)
     #   destination_folder: SharePoint folder path for upload (optional)
     #   store_as_variable: Variable name to store result (optional)
@@ -12,19 +13,25 @@ module Bpmn
     #
     # Subject: Job (required) - The job to generate document for
     #
+    # Supports multiple template types via UnifiedDocumentGenerator:
+    #   - word: SharePoint Word templates with Sablon mail-merge
+    #   - html: Local HTML/ERB templates with Grover PDF conversion
+    #   - pdf_overlay: PDF form filling (future HIA support)
+    #   - sharepoint_fetch: Fetch existing files from SharePoint
+    #
     class GenerateDocumentTask < BaseTask
       def execute
         template = resolve_template
         raise "No template specified (provide template_id or template_name)" unless template
 
-        log_info("Generating document from template '#{template.name}' (#{template.category})")
+        log_info("Generating document from template '#{template.name}' (#{template.category}, type: #{template.template_type})")
 
         # Get job and contact from subject/config
         job = resolve_job
         contact = resolve_contact
 
-        # Create generator and generate document
-        generator = DocumentGenerator.new(template)
+        # Create unified generator - routes to appropriate engine based on template_type
+        generator = UnifiedDocumentGenerator.new(template)
 
         result = if destination_folder.present?
                    generator.generate_and_upload(
@@ -51,26 +58,34 @@ module Bpmn
           set_variable(@config["store_as_variable"], {
             template_id: template.id,
             template_name: template.name,
+            template_type: template.template_type,
             filename: result[:filename],
-            pdf_filename: result[:pdf_filename],
-            generated_at: result[:generated_at].iso8601,
+            pdf_filename: result[:pdf_filename] || result[:filename],
+            generated_at: result[:generated_at]&.iso8601 || Time.current.iso8601,
             uploaded_files: result[:uploaded_files]&.map { |f| f.slice(:id, :name, :web_url, :type) }
           })
         end
 
-        log_info("Document generated: #{result[:filename]}")
+        log_info("Document generated: #{result[:filename]} (#{template.template_type})")
 
         {
           success: true,
           template_id: template.id,
           template_name: template.name,
+          template_type: template.template_type,
           filename: result[:filename],
-          pdf_filename: result[:pdf_filename],
-          generated_at: result[:generated_at].iso8601,
+          pdf_filename: result[:pdf_filename] || result[:filename],
+          generated_at: result[:generated_at]&.iso8601 || Time.current.iso8601,
           uploaded_files: result[:uploaded_files]&.map { |f| f.slice(:id, :name, :web_url, :type) }
         }
+      rescue DocumentGenerator::CredentialError => e
+        log_error("Credential error: #{e.message}")
+        raise
       rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
         log_error("Document generation failed: #{e.message}")
+        raise
+      rescue UnifiedDocumentGenerator::UnsupportedTypeError => e
+        log_error("Unsupported template type: #{e.message}")
         raise
       end
 

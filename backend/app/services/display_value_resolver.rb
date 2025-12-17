@@ -3,14 +3,11 @@
 class DisplayValueResolver
   class << self
     # Get the best display value for any ActiveRecord model
-    # Order of preference: display_name > full_name > name > title > ID fallback
+    # Order of preference: display_name > name > title > subject > ID fallback
     def resolve(record)
       return "Unknown" if record.nil?
 
       # Try display_name first (standard convention across app)
-      return record.display_name if record.respond_to?(:display_name)
-
-      # Try full_name (contacts, persons)
       return record.display_name if record.respond_to?(:display_name) && record.display_name.present?
 
       # Try name (most models)
@@ -18,6 +15,9 @@ class DisplayValueResolver
 
       # Try title (documents, items)
       return record.title if record.respond_to?(:title) && record.title.present?
+
+      # Try subject (emails, messages)
+      return record.subject if record.respond_to?(:subject) && record.subject.present?
 
       # Fallback to ID
       "#{record.class.name} ##{record.id}"
