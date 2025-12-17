@@ -70,8 +70,12 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
       const response = await api.get<{ success: boolean; data: UnlinkedContactsData }>(
         "/api/v1/xero/unlinked_contacts"
       );
-      if (response.success) {
+      console.log("Unlinked contacts response:", response);
+      if (response?.success && response?.data) {
         setData(response.data);
+      } else {
+        console.error("Invalid response format:", response);
+        toast.error("Invalid response from server");
       }
     } catch (error) {
       console.error("Failed to fetch unlinked contacts:", error);

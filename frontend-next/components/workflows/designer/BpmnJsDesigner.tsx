@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
-import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { Save, Download, Upload, ZoomIn, ZoomOut, Maximize, ExternalLink } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
@@ -35,7 +35,7 @@ interface BpmnJsDesignerProps {
   processId?: number;
   initialXml?: string;
   processName?: string;
-  onSave?: (xml: string, svg: string) => Promise<void>;
+  onSave?: (xml: string, svg: string, name: string) => Promise<void>;
 }
 
 interface SelectedElement {
@@ -62,8 +62,37 @@ export default function BpmnJsDesigner({
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [editableName, setEditableName] = useState(processName || "New Workflow");
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const { toast } = useToast();
+
+  // Update editable name when prop changes (e.g., data loads from server)
+  useEffect(() => {
+    if (processName) {
+      setEditableName(processName);
+    }
+  }, [processName]);
+
+  // Prevent keyboard events in input fields from reaching BPMN canvas
+  // This must be at document level with capture to run before bpmn-js handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isEditable = target.tagName === "INPUT" ||
+                        target.tagName === "TEXTAREA" ||
+                        target.tagName === "SELECT" ||
+                        target.isContentEditable;
+
+      // If typing in an editable field, stop bpmn-js from handling it
+      if (isEditable) {
+        e.stopImmediatePropagation();
+      }
+    };
+
+    // Add at document level with capture - must be added before bpmn-js initializes
+    document.addEventListener("keydown", handleKeyDown, true);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
+  }, []);
 
   // Fetch document templates
   useEffect(() => {
@@ -234,10 +263,7 @@ export default function BpmnJsDesigner({
       const { xml } = await modelerRef.current.saveXML({ format: true });
       const { svg } = await modelerRef.current.saveSVG();
 
-      console.log("Saving XML:", xml?.substring(0, 500));
-      console.log("XML length:", xml?.length);
-
-      await onSave(xml || "", svg || "");
+      await onSave(xml || "", svg || "", editableName);
       setIsDirty(false);
 
       toast({
@@ -252,7 +278,7 @@ export default function BpmnJsDesigner({
         variant: "destructive",
       });
     }
-  }, [onSave, toast]);
+  }, [onSave, toast, editableName]);
 
   // Export BPMN XML
   const handleExport = useCallback(async () => {
@@ -264,13 +290,13 @@ export default function BpmnJsDesigner({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${processName}.bpmn`;
+      a.download = `${editableName}.bpmn`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Failed to export:", err);
     }
-  }, [processName]);
+  }, [editableName]);
 
   // Import BPMN XML
   const handleImport = useCallback(() => {
@@ -424,7 +450,15 @@ export default function BpmnJsDesigner({
       {/* Toolbar */}
       <div className="flex items-center gap-2 p-2 border-b bg-background">
         <div className="flex items-center gap-1">
-          <span className="text-sm font-medium mr-2">{processName}</span>
+          <Input
+            value={editableName}
+            onChange={(e) => {
+              setEditableName(e.target.value);
+              setIsDirty(true);
+            }}
+            className="text-sm font-medium h-8 w-48"
+            placeholder="Workflow name..."
+          />
           {isDirty && <span className="text-xs text-muted-foreground">(unsaved)</span>}
         </div>
 
@@ -494,15 +528,6 @@ export default function BpmnJsDesigner({
                     id="element-name"
                     value={selectedElement.name || ""}
                     onChange={(e) => handleNameChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
-                      // Prevent BPMN delete shortcut
-                      if (e.key === "Delete" || e.key === "Backspace") {
-                        e.stopPropagation();
-                      }
-                    }}
-                    onKeyUp={(e) => e.stopPropagation()}
-                    onKeyPress={(e) => e.stopPropagation()}
                     placeholder="Enter name..."
                     className="mt-1"
                   />
