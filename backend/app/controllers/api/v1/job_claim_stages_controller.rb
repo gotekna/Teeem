@@ -4,7 +4,7 @@ module Api
   module V1
     class JobClaimStagesController < ApplicationController
       before_action :set_job
-      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch]
+      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice]
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
@@ -199,6 +199,132 @@ module Api
             stages: stages.map { |s| stage_json(s) }
           }
         }
+      end
+
+      # POST /api/v1/jobs/:job_id/claim_stages/:id/create_invoice
+      # Create a sales invoice in TEEEM and sync to Xero
+      def create_invoice
+        # Validate stage doesn't already have an invoice
+        if @stage.external_invoice_id.present?
+          return render json: { success: false, error: "Stage already has an invoice linked" },
+                        status: :unprocessable_entity
+        end
+
+        # Get the client contact for the invoice
+        client = @job.client
+        unless client
+          return render json: { success: false, error: "Job has no client contact assigned. Please add a client first." },
+                        status: :unprocessable_entity
+        end
+
+        # Get Xero credential for tenant_id
+        xero_credential = XeroCredential.current
+        unless xero_credential
+          return render json: { success: false, error: "No Xero connection configured" },
+                        status: :unprocessable_entity
+        end
+
+        # Find the Xero contact ID for this client
+        warehouse_contact = WarehouseContact.find_by(contact_id: client.id, tenant_id: xero_credential.tenant_id)
+        external_contact_id = warehouse_contact&.xero_id
+
+        # If no warehouse contact, try legacy ContactExternalLink
+        unless external_contact_id
+          link = ContactExternalLink.find_by(contact_id: client.id, source: "xero", tenant_id: xero_credential.tenant_id)
+          external_contact_id = link&.external_contact_id
+        end
+
+        unless external_contact_id
+          return render json: {
+            success: false,
+            error: "Client '#{client.display_name}' is not linked to Xero. Please sync contacts first."
+          }, status: :unprocessable_entity
+        end
+
+        # Build invoice attributes
+        amount = @stage.expected_amount || 0
+        description = "#{@stage.name} - #{@job.name}"
+        reference = params[:reference] || "#{@job.job_number}-#{@stage.name}"
+        due_days = (params[:due_days] || 14).to_i
+
+        # Get tracking data if job has Xero tracking option
+        tracking_data = []
+        if @job.xero_tracking_option_name.present?
+          tracking_data = [{
+            "Name" => "Jobs", # Standard tracking category name
+            "Option" => @job.xero_tracking_option_name
+          }]
+        end
+
+        begin
+          # Create ExternalInvoice in TEEEM
+          invoice = ExternalInvoice.create!(
+            source: "xero",
+            tenant_id: xero_credential.tenant_id,
+            invoice_type: "sales_invoice",
+            status: "draft",
+            invoice_date: Date.current,
+            due_date: Date.current + due_days.days,
+            contact_id: client.id,
+            external_contact_id: external_contact_id,
+            contact_name: client.display_name,
+            job_id: @job.id,
+            reference: reference,
+            subtotal: amount,
+            total_tax: 0, # Will be calculated by Xero based on tax type
+            total: amount,
+            amount_due: amount,
+            amount_paid: 0,
+            currency_code: "AUD",
+            line_items: [{
+              "Description" => description,
+              "Quantity" => 1,
+              "UnitAmount" => amount.to_f,
+              "AccountCode" => "200", # Default sales account
+              "TaxType" => "OUTPUT", # GST on Income
+              "Tracking" => tracking_data
+            }],
+            tracking_data: tracking_data,
+            created_in_teeem: true,
+            pending_push: true,
+            sync_direction: "export_only",
+            sync_enabled: true,
+            teeem_updated_at: Time.current
+          )
+
+          # Link invoice to claim stage
+          matcher = ClaimStageMatcherService.new(@job)
+          matcher.manual_match(@stage, invoice)
+
+          # Push to Xero
+          sync_service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: xero_credential.tenant_id)
+          sync_service.send(:push_invoice_to_xero, invoice)
+
+          # Reload to get updated data from Xero response
+          invoice.reload
+          @stage.reload
+
+          render json: {
+            success: true,
+            data: {
+              stage: stage_json(@stage),
+              invoice: {
+                id: invoice.id,
+                invoice_number: invoice.invoice_number,
+                external_id: invoice.external_id,
+                total: invoice.total&.to_f,
+                status: invoice.status
+              },
+              message: "Invoice created and synced to Xero"
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to create invoice for claim stage #{@stage.id}: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+
+          render json: { success: false, error: "Failed to create invoice: #{e.message}" },
+                 status: :unprocessable_entity
+        end
       end
 
       private

@@ -131,6 +131,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
 
   const [autoMatching, setAutoMatching] = React.useState(false);
   const [matchingStageId, setMatchingStageId] = React.useState<number | null>(null);
+  const [creatingInvoiceId, setCreatingInvoiceId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
@@ -250,6 +251,45 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     setSelectedStage(stage);
     setSelectedInvoiceId("");
     setShowMatchDialog(true);
+  };
+
+  const handleCreateInvoice = async (stage: ClaimStage) => {
+    setCreatingInvoiceId(stage.id);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          stage: ClaimStage;
+          invoice: { invoice_number: string };
+          message: string;
+        };
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/create_invoice`, {});
+
+      if (response.success && response.data) {
+        toast({
+          title: "Invoice Created",
+          description: `Invoice ${response.data.invoice.invoice_number} created and synced to Xero`,
+        });
+        loadData();
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to create invoice",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to create invoice:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to create invoice";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setCreatingInvoiceId(null);
+    }
   };
 
   if (loading) {
@@ -443,18 +483,33 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          onClick={() => openMatchDialog(stage)}
-                          disabled={availableInvoices.length === 0}
-                        >
-                          <Plus className="h-4 w-4 mr-1" />
-                          {availableInvoices.length > 0
-                            ? "Select Invoice"
-                            : "No Invoices"}
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {availableInvoices.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8"
+                              onClick={() => openMatchDialog(stage)}
+                            >
+                              <Link2 className="h-4 w-4 mr-1" />
+                              Match
+                            </Button>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => handleCreateInvoice(stage)}
+                            disabled={creatingInvoiceId === stage.id}
+                          >
+                            {creatingInvoiceId === stage.id ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <Plus className="h-4 w-4 mr-1" />
+                            )}
+                            Create Invoice
+                          </Button>
+                        </div>
                       )}
                     </td>
 

@@ -249,6 +249,7 @@ Rails.application.routes.draw do
           member do
             post :match
             delete :unmatch
+            post :create_invoice
           end
         end
       end
