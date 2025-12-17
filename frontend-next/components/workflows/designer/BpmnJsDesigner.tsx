@@ -36,6 +36,7 @@ interface BpmnJsDesignerProps {
   initialXml?: string;
   processName?: string;
   onSave?: (xml: string, svg: string, name: string) => Promise<void>;
+  dataLoaded?: boolean; // True when parent has finished loading (even if xml is null)
 }
 
 interface SelectedElement {
@@ -56,6 +57,7 @@ export default function BpmnJsDesigner({
   initialXml,
   processName = "New Process",
   onSave,
+  dataLoaded = false,
 }: BpmnJsDesignerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -140,10 +142,11 @@ export default function BpmnJsDesigner({
       return;
     }
 
-    // Wait for initialXml if processId exists (editing existing workflow)
-    // For new workflows, initialXml will be undefined and that's fine
-    if (processId && !initialXml && !xmlLoadedRef.current) {
-      console.log(`[${myInitId}] Waiting for initialXml to load...`);
+    // Wait for data to load if processId exists (editing existing workflow)
+    // For new workflows (no processId), we can start immediately
+    // dataLoaded tells us the query completed (even if xml is null)
+    if (processId && !dataLoaded && !xmlLoadedRef.current) {
+      console.log(`[${myInitId}] Waiting for data to load... (dataLoaded: ${dataLoaded})`);
       return; // Wait for query to complete
     }
 
@@ -252,9 +255,9 @@ export default function BpmnJsDesigner({
         initializedRef.current = false;
       }
     };
-  // Note: initialXml in deps so effect re-runs when XML loads from parent query
+  // Note: dataLoaded in deps so effect re-runs when data loads from parent query
   // The initCounterRef ensures only the latest init attempt succeeds
-  }, [toast, initialXml, processId]);
+  }, [toast, initialXml, processId, dataLoaded]);
 
   // Save handler
   const handleSave = useCallback(async () => {

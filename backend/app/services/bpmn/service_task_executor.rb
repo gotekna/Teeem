@@ -10,7 +10,8 @@ module Bpmn
       "call_webhook" => "Bpmn::Tasks::CallWebhookTask",
       "set_variable" => "Bpmn::Tasks::SetVariableTask",
       "create_esign_request" => "Bpmn::Tasks::CreateESignRequestTask",
-      "wait_for_signatures" => "Bpmn::Tasks::WaitForSignaturesTask"
+      "wait_for_signatures" => "Bpmn::Tasks::WaitForSignaturesTask",
+      "generate_and_send_for_signing" => "Bpmn::Tasks::GenerateAndSendForSigningTask"
     }.freeze
 
     def self.execute(token)
