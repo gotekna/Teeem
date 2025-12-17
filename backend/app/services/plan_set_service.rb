@@ -40,7 +40,10 @@ class PlanSetService
     errors = []
     used_filenames = Set.new
 
-    pdf_files.each do |file|
+    # Sort files by name to maintain order (Page 1.pdf, Page 2.pdf, etc.)
+    sorted_files = pdf_files.sort_by { |f| f["name"] }
+
+    sorted_files.each_with_index do |file, index|
       file_id = file["id"]
       original_name = file["name"]
 
@@ -58,6 +61,9 @@ class PlanSetService
         next
       end
 
+      # Extract page number from original filename for ordering
+      page_num = original_name.match(/Page (\d+)\.pdf/i)&.[](1)&.to_i || (index + 1)
+
       begin
         Rails.logger.info "[PlanSetService] Renaming #{original_name}..."
 
@@ -66,7 +72,7 @@ class PlanSetService
         raise "Failed to download file" unless content
 
         # Extract sheet info using AI
-        sheet_info = extract_sheet_info_with_ai(content, 1)
+        sheet_info = extract_sheet_info_with_ai(content, page_num)
 
         if sheet_info[:sheet_number].blank? && sheet_info[:sheet_name].blank?
           skipped << { id: file_id, name: original_name, reason: "AI could not extract sheet info" }
@@ -74,8 +80,8 @@ class PlanSetService
           next
         end
 
-        # Determine new filename
-        new_filename = determine_filename(sheet_info, 0, used_filenames)
+        # Determine new filename (use page_num - 1 as index since determine_filename adds 1)
+        new_filename = determine_filename(sheet_info, page_num - 1, used_filenames)
         used_filenames.add(new_filename)
 
         # Skip if name wouldn't change
@@ -92,7 +98,9 @@ class PlanSetService
           original_name: original_name,
           new_name: new_filename,
           sheet_number: sheet_info[:sheet_number],
-          sheet_name: sheet_info[:sheet_name]
+          sheet_name: sheet_info[:sheet_name],
+          sheet_date: sheet_info[:sheet_date],
+          sheet_issue: sheet_info[:sheet_issue]
         }
 
         Rails.logger.info "[PlanSetService] Renamed #{original_name} -> #{new_filename}"
@@ -234,6 +242,8 @@ class PlanSetService
         page_number: index + 1,
         sheet_number: sheet_info[:sheet_number],
         sheet_name: sheet_info[:sheet_name],
+        sheet_date: sheet_info[:sheet_date],
+        sheet_issue: sheet_info[:sheet_issue],
         name: filename,
         file_id: result[:id],
         web_url: result[:webUrl] || result[:web_url],
@@ -256,12 +266,12 @@ class PlanSetService
 
   # Use Claude vision to extract sheet info from the plan page
   def extract_sheet_info_with_ai(pdf_content, page_number)
-    return { sheet_number: nil, sheet_name: nil } unless ENV["ANTHROPIC_API_KEY"].present?
+    return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } unless ENV["ANTHROPIC_API_KEY"].present?
 
     begin
       # Convert PDF page to image for vision
       image_data = pdf_to_image(pdf_content)
-      return { sheet_number: nil, sheet_name: nil } unless image_data
+      return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } unless image_data
 
       # Call Claude vision API
       result = call_claude_vision(image_data, page_number)
@@ -269,7 +279,7 @@ class PlanSetService
       result
     rescue StandardError => e
       Rails.logger.error "[PlanSetService] AI extraction failed for page #{page_number}: #{e.message}"
-      { sheet_number: nil, sheet_name: nil }
+      { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil }
     end
   end
 
@@ -332,46 +342,60 @@ class PlanSetService
 
       Return ONLY valid JSON with no additional text:
       {
-        "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', 'E01', 'Sheet 1')",
-        "sheet_name": "The sheet title/name (e.g., 'FLOOR PLAN', 'SITE PLAN', 'ELEVATIONS', 'ELECTRICAL LAYOUT')"
+        "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', 'E01', 'Sheet 1', '01')",
+        "sheet_name": "The sheet title/name (e.g., 'FLOOR PLAN', 'SITE PLAN', 'Perspective 5 Wategos')",
+        "sheet_date": "The date on the drawing (e.g., '15/12/2025', '2025-12-15')",
+        "sheet_issue": "The issue/revision status (e.g., 'Working Drawings', 'For Construction', 'Preliminary')"
       }
 
       Important:
-      - sheet_number: Look for codes like A001, A-001, S001, S-001, E01, Sheet 1, Drawing 1, etc.
-      - sheet_name: Look for the main title/description of what the drawing shows
+      - sheet_number: Look for codes like A001, A-001, S001, S-001, E01, Sheet 1, Drawing 1, 01, 02, etc.
+      - sheet_name: Look for the main title/description of what the drawing shows (e.g., "Perspective 5 Wategos", "Ground Floor Plan")
+      - sheet_date: Look for "Date:" or a date field in the title block
+      - sheet_issue: Look for "Issue:", "Rev:", "Revision:" or status like "Working Drawings", "For Construction"
       - Return null for fields you cannot find
-      - If you see "ISSUE FOR CONSTRUCTION" or similar, that's NOT the sheet name - look for the actual drawing title
-      - Common patterns: The sheet number is often in a box or prominent location in the title block
+      - Do NOT include the issue/revision in the sheet_name - they are separate fields
     PROMPT
   end
 
   def parse_sheet_response(text)
-    return { sheet_number: nil, sheet_name: nil } if text.blank?
+    return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } if text.blank?
 
     # Extract JSON from response
     json_match = text.match(/\{[\s\S]*\}/)
-    return { sheet_number: nil, sheet_name: nil } unless json_match
+    return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } unless json_match
 
     result = JSON.parse(json_match[0])
     {
       sheet_number: result["sheet_number"]&.strip,
-      sheet_name: result["sheet_name"]&.strip
+      sheet_name: result["sheet_name"]&.strip,
+      sheet_date: result["sheet_date"]&.strip,
+      sheet_issue: result["sheet_issue"]&.strip
     }
   rescue JSON::ParserError => e
     Rails.logger.error "[PlanSetService] JSON parse error: #{e.message}"
-    { sheet_number: nil, sheet_name: nil }
+    { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil }
   end
 
   def determine_filename(sheet_info, page_index, used_filenames)
-    # Priority: sheet_number + sheet_name > sheet_number > sheet_name > Page N
-    base_name = if sheet_info[:sheet_number].present? && sheet_info[:sheet_name].present?
+    # Always prefix with page number to maintain order (01, 02, 03...)
+    page_prefix = format("%02d", page_index + 1)
+
+    # Build name from sheet_number or sheet_name
+    name_part = if sheet_info[:sheet_number].present? && sheet_info[:sheet_name].present?
       "#{sheet_info[:sheet_number]} - #{sheet_info[:sheet_name]}"
-    elsif sheet_info[:sheet_number].present?
-      sheet_info[:sheet_number]
     elsif sheet_info[:sheet_name].present?
       sheet_info[:sheet_name]
+    elsif sheet_info[:sheet_number].present?
+      sheet_info[:sheet_number]
     else
-      "Page #{page_index + 1}"
+      nil
+    end
+
+    base_name = if name_part.present?
+      "#{page_prefix} - #{name_part}"
+    else
+      "#{page_prefix} - Page #{page_index + 1}"
     end
 
     filename = sanitize_filename("#{base_name}.pdf")
