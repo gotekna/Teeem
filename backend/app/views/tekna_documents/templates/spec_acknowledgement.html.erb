@@ -1,115 +1,61 @@
-<h1>Specification Acknowledgement</h1>
+<h1>Specification of Works Acknowledgement</h1>
 
-<p style="color: var(--color-text-secondary);">
-  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
-  Date: <%= format_date(today, :long) %>
+<p style="color: var(--color-text-secondary);"><%= format_date(today, :long) %></p>
+
+<p>
+  This Specification of Works document forms part of the contract made between the Owner and Builder.
 </p>
+
+<p>
+  The Owner acknowledges receiving the Specification of Works Document, and that this document
+  has been read and understood.
+</p>
+
+<h2>Authorised Works</h2>
+
+<p>I authorise and request the following works to be carried out:</p>
+
+<ul>
+  <li>Organise a builder's site evaluation</li>
+  <li>Order soil test</li>
+  <li>Order footing design</li>
+  <li>Order masonry articulation layout</li>
+  <li>Prepare Builder file and council documentation</li>
+  <li>Order Energy Efficiency</li>
+  <li>Order wind classification</li>
+  <li>Order structural certificate (if required)</li>
+  <li>Prepare full working drawings</li>
+  <li>Obtain council approval</li>
+  <li>Arrange colour selection</li>
+</ul>
 
 <h2>Property Details</h2>
 
-<table>
-  <tr>
-    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
-    <td><%= @job[:full_address] %></td>
-  </tr>
-  <% if @job[:lot_number].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Lot/Plan</strong></td>
-    <td>Lot <%= @job[:lot_number] %> on Plan <%= @job[:plan_number] %></td>
-  </tr>
-  <% end %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Client(s)</strong></td>
-    <td><%= @client_names %></td>
-  </tr>
-</table>
-
-<h2>Acknowledgement</h2>
-
-<p>
-  I/We, <strong><%= @client_names %></strong>, acknowledge and confirm that:
+<p style="font-size: var(--font-size-lg); font-weight: bold; padding: var(--space-4); background: #f5f5f5; border: 1px solid var(--color-border);">
+  <%= @job[:full_address] %>
 </p>
 
-<ol>
-  <li>
-    I/We have received and reviewed the following contract documents:
-    <ul style="margin-top: var(--space-2);">
-      <li>Building Contract</li>
-      <li>Contract Specifications</li>
-      <li>Plans and Drawings</li>
-      <li>Colour Selections</li>
-      <li>QBCC Consumer Building Guide</li>
-      <li>QBCC General Conditions</li>
-    </ul>
-  </li>
-  <li>
-    I/We have had the opportunity to ask questions and seek clarification on any
-    aspects of the specifications I/we did not understand.
-  </li>
-  <li>
-    I/We understand that the specifications form part of the building contract
-    and any changes or variations may incur additional costs.
-  </li>
-  <li>
-    I/We understand that all selections (colours, fittings, fixtures) must be
-    made within the timeframes specified in the contract to avoid delays.
-  </li>
-  <li>
-    I/We have been advised of the standard inclusions and exclusions applicable
-    to the contract.
-  </li>
-</ol>
+<h2>Additional Authorisations</h2>
 
-<h2>Allowances</h2>
+<p>In relation to my property to be built in accordance with this specification, I authorize the builder/builder's representative to:</p>
 
-<p>
-  I/We acknowledge that the following allowances have been included in the contract price:
-</p>
+<ul>
+  <li>Lodge plans and collect same on my behalf</li>
+  <li>Obtain Covenant Approval if Required</li>
+</ul>
 
-<table>
-  <tr>
-    <th style="width: 50%;">Item</th>
-    <th style="width: 25%;">Allowance (inc. GST)</th>
-    <th>Notes</th>
-  </tr>
-  <tr>
-    <td>Floor Coverings</td>
-    <td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>Light Fittings</td>
-    <td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>Kitchen Appliances</td>
-    <td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>Landscaping</td>
-    <td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>Driveway & Paths</td>
-    <td></td>
-    <td></td>
-  </tr>
-  <tr>
-    <td>Fencing</td>
-    <td></td>
-    <td></td>
-  </tr>
-</table>
-
-<p>
-  I/We understand that if the actual cost of items exceeds the allowance, I/we will
-  be responsible for paying the difference. If the actual cost is less than the
-  allowance, the difference will be credited.
-</p>
-
-<%= render "qbcc_clause" %>
+<div style="margin: var(--space-8) 0; padding: var(--space-4); background: #f0f9ff; border: 1px solid #bae6fd;">
+  <p style="margin: 0;">
+    <strong>I acknowledge that this Specification of Works has been thoroughly reviewed and
+    fully understood prior to signing.</strong>
+  </p>
+</div>
 
 <%= render "signature_block" %>
+
+<div style="margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+  <p style="margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted);">
+    <strong><%= @job[:full_address] %></strong><br>
+    <%= @company[:name] %> | QBCC Licence <%= @company[:qbcc_license] %>
+  </p>
+</div>

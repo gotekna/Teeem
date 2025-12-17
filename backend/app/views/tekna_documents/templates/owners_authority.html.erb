@@ -1,89 +1,41 @@
 <h1>Owner's Authority to Obtain Information</h1>
 
-<p style="color: var(--color-text-secondary);">
-  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
-  Date: <%= format_date(today, :long) %>
-</p>
-
-<h2>Property Details</h2>
-
-<table>
-  <tr>
-    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
-    <td><%= @job[:full_address] %></td>
-  </tr>
-  <% if @job[:lot_number].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Lot/Plan</strong></td>
-    <td>Lot <%= @job[:lot_number] %> on Plan <%= @job[:plan_number] %></td>
-  </tr>
-  <% end %>
-</table>
-
-<h2>Owner Details</h2>
-
-<table>
-  <tr>
-    <td style="width: 35%; background: #f5f5f5;"><strong>Owner Name(s)</strong></td>
-    <td><%= @client_names %></td>
-  </tr>
-  <% if @client_1.present? && @client_1[:address].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Address</strong></td>
-    <td><%= @client_1[:full_address] %></td>
-  </tr>
-  <% end %>
-  <% if @client_1.present? && @client_1[:phone].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Phone</strong></td>
-    <td><%= @client_1[:phone] %></td>
-  </tr>
-  <% end %>
-  <% if @client_1.present? && @client_1[:email].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Email</strong></td>
-    <td><%= @client_1[:email] %></td>
-  </tr>
-  <% end %>
-</table>
-
-<h2>Authority</h2>
+<p style="color: var(--color-text-secondary);"><%= format_date(today, :long) %></p>
 
 <p>
-  I/We, <strong><%= @client_names %></strong>, being the registered owner(s) of the
-  property described above, hereby authorise <strong><%= @company[:name] %></strong>
-  (QBCC Licence No. <%= @company[:qbcc_license] %>) to:
+  I hereby authorize and direct representatives of <%= @company[:name] %> to liaise directly
+  with the Seller's/Developer's Legal Department, and release to them all and any information,
+  notices and/or correspondence relevant to my purchase of the land situated at the address
+  below as and when required, to ensure the successful completion of both the Land Contract
+  and the Building Contract to be signed by me.
 </p>
 
-<ol>
-  <li>
-    Obtain any information from the relevant local council or authority relating to
-    the above property, including but not limited to:
-    <ul style="margin-top: var(--space-2);">
-      <li>Property searches and rates information</li>
-      <li>Building and planning approvals</li>
-      <li>Development applications and conditions</li>
-      <li>Infrastructure charges and requirements</li>
-      <li>Easements and encumbrances</li>
-    </ul>
-  </li>
-  <li>
-    Make enquiries and obtain information from utility providers regarding services
-    to the property including water, sewerage, electricity, gas, and telecommunications.
-  </li>
-  <li>
-    Obtain soil tests, surveys, and other site investigations as required for the
-    construction of the dwelling.
-  </li>
-  <li>
-    Submit applications and obtain approvals on my/our behalf as required for the
-    construction of the dwelling.
-  </li>
-</ol>
+<h2>Job Address</h2>
+
+<p style="font-size: var(--font-size-lg); font-weight: bold; padding: var(--space-4); background: #f5f5f5; border: 1px solid var(--color-border);">
+  <%= @job[:full_address] %>
+</p>
 
 <p>
-  This authority remains in force until the completion of the building works or until
-  revoked in writing by me/us.
+  I acknowledge and understand that the signing of this authority in no way constitutes a
+  relationship between the developer and myself in relation to the purchase of the dwelling,
+  nor does it release me from my obligations to always communicate directly with
+  <%= @company[:name] %> in relation to the building contract or any other subsequent
+  paperwork associated with the building project.
 </p>
+
+<div style="margin: var(--space-8) 0; padding: var(--space-4); background: #f0f9ff; border: 1px solid #bae6fd;">
+  <p style="margin: 0;">
+    <strong>I acknowledge that the Owner's Authority has been thoroughly reviewed and fully
+    understood prior to signing.</strong>
+  </p>
+</div>
 
 <%= render "signature_block" %>
+
+<div style="margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+  <p style="margin: 0; font-size: var(--font-size-sm); color: var(--color-text-muted);">
+    <strong><%= @job[:full_address] %></strong><br>
+    <%= @company[:name] %> | QBCC Licence <%= @company[:qbcc_license] %>
+  </p>
+</div>

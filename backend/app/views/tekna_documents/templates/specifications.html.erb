@@ -1,92 +1,395 @@
-<h1>Specifications</h1>
+<h1><%= @job[:full_address] %></h1>
 
-<p style="color: var(--color-text-secondary);">
-  Job: <%= @job[:job_number] %> | <%= @job[:name] %><br>
-  Date: <%= format_date(today, :long) %>
-</p>
+<h2>Contents</h2>
 
-<h2>Property Details</h2>
+<div style="column-count: 2; column-gap: var(--space-8); margin: var(--space-4) 0;">
+  <ol style="margin: 0; padding-left: var(--space-4);">
+    <li>General</li>
+    <li>Site Works</li>
+    <li>Termite Management and Control</li>
+    <li>Sign Off Requirements</li>
+    <li>Concrete Works (Slab)</li>
+    <li>Drainer</li>
+    <li>Cladding</li>
+    <li>Windows and Sliding Doors</li>
+    <li>Roof</li>
+    <li>Gutters/Fascia and Eaves</li>
+    <li>Framing</li>
+    <li>Internal Walls and Ceilings</li>
+    <li>Door Jambs</li>
+    <li>Doors</li>
+    <li>Door Furniture</li>
+    <li>Garage</li>
+    <li>Kitchen</li>
+    <li>Appliances</li>
+    <li>Internal Fixing Timbers</li>
+    <li>Linen Cupboard</li>
+    <li>Windows and Associated Doors</li>
+    <li>Wardrobes</li>
+    <li>Participant's & OOA's Ensuite Fittings</li>
+    <li>Toilet/s</li>
+    <li>Laundry</li>
+    <li>Grab Rails / Participant Towel Rail</li>
+    <li>Floor Coverings and Wet Area Tiling</li>
+    <li>External Painting</li>
+    <li>Internal Painting</li>
+    <li>Electrical</li>
+    <li>NBN Points</li>
+    <li>TV Points</li>
+    <li>Solar System and Battery</li>
+    <li>Smoke Alarms</li>
+    <li>Hot Water</li>
+    <li>Fire System</li>
+    <li>External Inclusions</li>
+    <li>Handover Requirements</li>
+    <li>Turf Care and Maintenance</li>
+  </ol>
+</div>
 
-<table>
-  <tr>
-    <td style="width: 35%; background: #f5f5f5;"><strong>Site Address</strong></td>
-    <td><%= @job[:full_address] %></td>
-  </tr>
-  <% if @job[:lot_number].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Lot Number</strong></td>
-    <td><%= @job[:lot_number] %></td>
-  </tr>
-  <% end %>
-  <% if @job[:plan_number].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Plan Number</strong></td>
-    <td><%= @job[:plan_number] %></td>
-  </tr>
-  <% end %>
-  <% if @job[:council].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Council</strong></td>
-    <td><%= @job[:council] %></td>
-  </tr>
-  <% end %>
-</table>
+<div style="page-break-after: always;"></div>
 
-<h2>Contract Details</h2>
+<h2>01. General</h2>
+<ul>
+  <li>QBCC Contract</li>
+  <li>In reference to Item 2, of this QBCC Schedule in the contract, it is noted that this construction will be certified as Class 1(b), therefore the Queensland Home Warranty Scheme will not be applicable. The QBCC insurance premium has not been included in the construction price</li>
+  <li>Full Working Drawings</li>
+  <li>Soil Test and Slab Design - builders choice</li>
+  <li>Local council approval</li>
+  <li>Sewerage & storm water connection to suit 6m setback</li>
+  <li>Electrical mains connection single phase to suit 6m setback</li>
+  <li>Energy efficiency to local authority standards</li>
+  <li>Final building certification to local council approval</li>
+  <li>Termite treatment to Australian standards</li>
+  <li>Unless otherwise specified, the works shall be constructed in accordance with the building ACT 1975 (as amended) appendix 4 and where appropriate the AS1684-2010 timber framing code</li>
+  <li>Unless otherwise specified, the proprietor is responsible to provide the house site clear of any obstructions to building including removal of long grass, shrubs, and trees where necessary</li>
+  <li>Unless stated otherwise, the contract price includes provision for the house water supply to be available from an existing local authority (within one metre) prior to commencement of construction</li>
+  <li>Water usage during the construction period will be at the owner's expense</li>
+  <li>The contract is based on mains power already being available on site prior to construction</li>
+  <li>Designed wind loading of the works to be N3 as nominated on working drawings</li>
+  <li>Statutory obligations, notices, approvals and fees - the following applications, notices, approvals and/or fees are the responsibility of the proprietor. NBN connection fee for single home only</li>
+  <li>Engineers soil report is provided by the builder</li>
+  <li>The builder cannot guarantee the energy rating of the home until it goes through the energy rating process which is taken out prior to submitting to council for building approval. The design of the home, its orientation, climate/location, content of insulation including building material all play a major role in the energy ratings result. In a case where the final design does not meet the 6-star rating and may require additional insulation, ceiling fans, window tinting etc. To meet the standard, these will be considered as a provisional sum and have not been included in the contract price</li>
+  <li>All items supplied by the owner are at their own risk and the owner indemnifies the builder against all damage and/or loss and liabilities. Any delays caused by owner supplied products may incur extensions of times (EOT's) and penalties</li>
+  <li>All care will be taken to supply the products nominated in the specification or in the colour selection</li>
+  <li>However, due to ongoing supply issues the builder reserves the right to substitute products and materials at their discretion. The builder will always endeavour to supply similar products or products of equal or better quality and of similar value</li>
+  <li>Any variations must be in writing and signed by both parties. Approved variations are to be paid within the terms of the relevant progress claim. After signing of contracts and plans, admin costs may be charged for additional variations</li>
+  <li>Any request for variations will incur an administration fee of $1,500 for structural variations and $500 for non-structural variations. The administration fee will apply irrespective of acceptance or rejection of variation by the owner</li>
+  <li>Please note any changes made in Annexure A of the contract will take precedence over this standard specification document</li>
+  <li>Keys will be handed over on receipt of cleared funds for final payment and all extra</li>
+</ul>
 
-<table>
-  <tr>
-    <td style="width: 35%; background: #f5f5f5;"><strong>Client(s)</strong></td>
-    <td><%= @client_names %></td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Contract Price</strong></td>
-    <td><%= @job[:contract_price] %> (inc. GST)</td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Contract Date</strong></td>
-    <td><%= @job[:contract_date] %></td>
-  </tr>
-</table>
+<h2>02. Site Works</h2>
+<ul>
+  <li>All site works up to 450mm cut/fill over house pad</li>
+  <li>Site excavation to allow for boxing the slab in the location as shown on the drawing</li>
+  <li>Surplus excavated material, spoil, etc. To be spread over or stockpiled on site</li>
+  <li>All left over builder's rubbish to be removed from site by builder</li>
+  <li>The contract is based on all boundary pegs already being in place</li>
+  <li>No allowance for retaining wall unless shown on the contract plans. If required by council or any other reason they will be constructed at the proprietor's cost unless they are specifically included in the contract</li>
+  <li>No allowance has been made for excavation in rock or other foreign matter not easily removed by standard digging equipment as determined solely by the builder. The proprietor may incur extra costs including but not limited to machine hire, labour and extra materials should such rock or foreign matter be revealed</li>
+</ul>
 
-<h2>Build Specifications</h2>
+<h2>03. Termite Management and Control</h2>
+<ul>
+  <li>The builder will include a full termite treatment system to the property</li>
+  <li>Please refer to termite protection documentation</li>
+</ul>
+<p><strong>Homeowner/s termite control agreement:</strong></p>
+<ul>
+  <li>Agrees to have the house inspected yearly by a competent pest control operator and to seek to comply with the advice of that operator</li>
+  <li>Agrees to comply with all conditions of warranty</li>
+  <li>Are aware that if they do not keep this agreement, both the product warranty and the state's statutory warranty may be voided</li>
+</ul>
 
-<p>
-  The following specifications form part of the building contract and should be
-  read in conjunction with the plans and any other contract documents.
-</p>
+<h2>04. Sign Off Requirements</h2>
+<p>The owner/s hereby acknowledge/s that the builder will not commence work until all required forms and plans are signed off.</p>
+<p><strong>The following items are required to be signed off:</strong></p>
+<ul>
+  <li>Full working drawings</li>
+  <li>Colour selection form (internal and external)</li>
+  <li>Owner/s Authority to Obtain Information</li>
+  <li>Specification of Works Acknowledgement</li>
+  <li>Variations</li>
+  <li>Cabinetry drawings (can be part of the full working drawings)</li>
+</ul>
 
-<%# Placeholder for specification sections - can be expanded %>
-<h3>1. Site Works</h3>
-<p>As per plans and engineering specifications.</p>
+<h2>05. Concrete Works (Slab)</h2>
+<ul>
+  <li>Site classification up to H1</li>
+  <li>Reinforced concrete slab as per engineer design</li>
+  <li>Engineer designed slab and (footing if applicable)</li>
+</ul>
 
-<h3>2. Concrete</h3>
-<p>As per plans and engineering specifications.</p>
+<h2>06. Drainer</h2>
+<ul>
+  <li>Sewerage to be in accordance with sewerage and water supply act amendments act 1981, local authority requirements and approved drainage</li>
+  <li>Stormwater to street channel to a standard 6lm setback. If stormwater pits are needed there will be an additional cost</li>
+</ul>
 
-<h3>3. Framing</h3>
-<p>As per plans and engineering specifications.</p>
+<h2>07. Cladding</h2>
+<ul>
+  <li>Light weight cladding as per plan</li>
+  <li>James Hardie Axon Cladding 133 Smooth</li>
+  <li>James Hardie Fine Texture Cladding</li>
+</ul>
 
-<h3>4. Roofing</h3>
-<p>As per plans and selections.</p>
+<h2>08. Windows and Sliding Doors</h2>
+<ul>
+  <li>Powder coated aluminium frames and doors as per colour selection & plan</li>
+  <li>Key locks to all windows if not automated</li>
+  <li>Aluminium frame with fiberglass mesh to all windows excluding doors</li>
+  <li>Manually Operated Roller and Vertical Blinds</li>
+</ul>
 
-<h3>5. External Cladding</h3>
-<p>As per plans and selections.</p>
+<h2>09. Roof</h2>
+<ul>
+  <li>Colorbond® Roof - pre-painted corrugated sheet metal roofing to comply with AS1562.1. NCC 2019 as per plan</li>
+  <li>Anticon ceiling insulation to comply with energy efficiency report</li>
+</ul>
 
-<h3>6. Windows & Doors</h3>
-<p>As per plans and selections.</p>
+<h2>10. Gutters/Fascia and Eaves</h2>
+<ul>
+  <li>Colorbond® Fascia as per Plan & Colour Selection</li>
+  <li>Colorbond® Gutter as per Plan & Colour Selection</li>
+  <li>Eaves to be lined with 4.5mm fibre cement sheeting where applicable</li>
+</ul>
 
-<h3>7. Internal Linings</h3>
-<p>As per plans and specifications.</p>
+<h2>11. Framing</h2>
+<ul>
+  <li>Structural timbers shall be seasoned pine as per national construction code of Australia</li>
+  <li>Wind loading N3</li>
+  <li>Wall wrap sisalation to all external walls as required by energy efficiency report</li>
+  <li>Ply – 12mm ply to Participant Ensuite & Laundry walls as shown on the contract plans to accommodate grab rails</li>
+  <li>Hoist Support - 4 x support studs to be in each corner of the Participant Suite wall frames to allow for the future installation of a hoist system with min load capacity of 250kg</li>
+</ul>
 
-<h3>8. Electrical</h3>
-<p>As per plans and electrical layout.</p>
+<h2>12. Internal Walls and Ceilings</h2>
+<ul>
+  <li>Walls: 10mm plasterboard fixed to manufactures specification</li>
+  <li>Ceilings: 10mm plasterboard fixed to manufactures specification</li>
+  <li>Wet areas: 6mm villa board fixed to manufactures specification</li>
+  <li>Cornices: 90mm cornices</li>
+  <li>2440mm or 2740mm ceiling height as per plan</li>
+</ul>
 
-<h3>9. Plumbing</h3>
-<p>As per plans and hydraulic drawings.</p>
+<h2>13. Door Jambs</h2>
+<ul>
+  <li>External door jambs to be primed pine and painted</li>
+  <li>Internal door jambs to be FJ pine and painted</li>
+</ul>
 
-<h3>10. Fixtures & Fittings</h3>
-<p>As per selections and allowances.</p>
+<h2>14. Doors</h2>
+<ul>
+  <li>Front entrance door size as per plan with clear glass & paint grade – PMAD 104</li>
+  <li>Internal hinged doors and cavity sliding doors flush panel - paint grade</li>
+  <li>Rear External Door – Aluminium frame with glass panel – plan specific</li>
+  <li>External hinged flush panel paint grade – plan specific</li>
+  <li>Laundry External Doors – plan specific</li>
+</ul>
 
-<%= render "qbcc_clause" %>
+<h2>15. Door Furniture</h2>
+<ul>
+  <li>External Entry Door Handle - Yale Simplicity Series Passage Leverset (Lever 2) No Latch</li>
+  <li>External Entry Doors Accessories - Dorma Kaba Mortice Door Lock (or similar)</li>
+  <li>External Entry Door Seals - Raven RP8SI Automatic Door Bottom Seal 1220MM Bronze Anodised</li>
+  <li>Internal Passage - Yale Simplicity Series Passage Leverset (Lever 2) No Latch</li>
+  <li>Internal Passage Latch (Manual Doors only) - Dorma Tubular Latch 60mm Satin Stainless Steel</li>
+  <li>Internal Privacy (to OOA room only) - Yale Simplicity Privacy Lever Set 2 SS</li>
+  <li>Doorstops - 75mm DS1 cushioned door stops</li>
+</ul>
+
+<h2>16. Garage</h2>
+<ul>
+  <li>Garage door to be automated 2400mm x 4800mm (double) or 2400mm x 2400mm (single) panel lift with 2 remote handsets + 1 wall control switch from builders selected range. Exact sizing as per plan</li>
+  <li>Storage areas shown in garage are open areas unless otherwise stated (no cabinetry) and plan specific</li>
+</ul>
+
+<h2>17. Kitchen</h2>
+<ul>
+  <li>Kitchen bench, cupboards and overhead cupboards as per plan</li>
+  <li>34mm laminated benchtops from builders' range to kitchen</li>
+  <li>Laminated cupboard doors as per colour selection</li>
+  <li>White melamine finish to interior & shelves</li>
+  <li>Adjustable laminated table</li>
+  <li>Pull down shelves as shown on plan</li>
+  <li>Pull out Pantry as per plan</li>
+  <li>1 and 3/4 bowl stainless steel sink (drop-in) - builders range</li>
+  <li>Benelli Freedom Sink Mixer 230mm lever spout</li>
+  <li>Dishwasher provision; power point & water connection</li>
+  <li>Handles; brushed stainless steel – NDIS design standard builders' range</li>
+  <li>Hafele Integrated Refrigerator/Freezers</li>
+</ul>
+
+<h2>18. Appliances</h2>
+<ul>
+  <li>Hafele Oven Function Side Open Left or Right Hinged 60cm</li>
+  <li>Hafele 60cm Induction Cooktop</li>
+  <li>Hafele Milano Undermount Rangehood</li>
+  <li>Fisher & Paykel Integrated Dishwasher Drawer to match cabinetry</li>
+</ul>
+
+<h2>19. Internal Fixing Timbers</h2>
+<ul>
+  <li>FJ pine architraves; 42mm x 11mm</li>
+  <li>FJ pine skirting; 68mm x 11mm</li>
+</ul>
+
+<h2>20. Linen Cupboard</h2>
+<ul>
+  <li>Four (4) melamine finish shelves with vinyl sliding doors or as per plan</li>
+  <li>Broom cupboard (if shown on plan) one top shelf if shown</li>
+</ul>
+
+<h2>21. Windows and Associated Doors</h2>
+<ul>
+  <li>Windows & doors fixed panels and sliding panels will be hung at builders' discretion unless stated otherwise. All bathroom & ensuite windows will be obscure unless stated otherwise</li>
+  <li>Any panel work above windows to be fibre cement infill sheets</li>
+  <li>Window schedule as per plan with window locks</li>
+  <li>Frame colour selected from builder's range</li>
+</ul>
+
+<h2>22. Wardrobes</h2>
+<ul>
+  <li>Aluminium frame and tracks with vinyl sliding doors with full length overhead shelf and 1 hanging rail</li>
+</ul>
+
+<h2>23. Participant's & OOA's Ensuite Fittings</h2>
+<ul>
+  <li>METLAM Shower Curtain Track Micro L Shape</li>
+  <li>Paco Jaanson Care Shower on Grab Rail</li>
+  <li>METLAM Shower Curtain Box Stripe Polyester - White</li>
+  <li>Paco Jaanson Rondo Wall Mixer with 170mm Lever</li>
+  <li>Mirror above vanity with polished chrome micro-framed edge - full length of vanity approximately 1000mm high</li>
+  <li>Paco Jaanson 500mm Roma semi-recessed ceramic basin</li>
+  <li>Paco Jaanson Rondo Basin Mixer with 170mm Lever</li>
+  <li>Laminated 34mm benchtop - builders range as per plan</li>
+  <li>Shower Grate</li>
+  <li>Wish Toilet Roll Holder – chrome</li>
+</ul>
+
+<h2>24. Toilet/s</h2>
+<ul>
+  <li>Fienza Delta Care 800 BTW Suite, S-Trap 90-280mm with Blue Seat</li>
+</ul>
+
+<h2>25. Laundry</h2>
+<ul>
+  <li>Project 45Ltr Flush line Laundry Tub with Single Bypass 2 Hole</li>
+  <li>Benelli Freedom Sink Mixer with 230mm Lever Spout</li>
+  <li>Washing machine C/D w/- non-return valve</li>
+</ul>
+
+<h2>26. Grab Rails / Participant Towel Rail</h2>
+<ul>
+  <li>Paco Jaanson 450mm straight</li>
+  <li>Paco Jaanson 600mm straight</li>
+  <li>Paco Jaanson 900mm straight</li>
+</ul>
+
+<h2>27. Floor Coverings and Wet Area Tiling</h2>
+<ul>
+  <li>All tiles from builders range as per colour selection</li>
+  <li>Floor to ceiling tiled walls</li>
+  <li>Floor tile laying is allowed in standard square direction</li>
+  <li>Wall tile pattern lay is as per colour selection</li>
+  <li>Duraplank Vinyl 1200mm x 190mm – Royal Oak in Kitchen, Living, Dining, Participant suite, OOA suite, Study as per plans</li>
+  <li>National Tiles – Atlas Ice Matt 450x450 Pressed Edge tile in Participant and OOA ensuite as per plans</li>
+  <li>Grout colour to match tile</li>
+  <li>Tile Edge Finish Painted to match wall colour</li>
+  <li>National Tiles 100x300mm – White Gloss pressed edged tile in Kitchen as per plans</li>
+  <li>The shower floor to be bedded and tiled</li>
+  <li>Tiled splash back to full length of vanity</li>
+</ul>
+
+<h2>28. External Painting</h2>
+<ul>
+  <li>External painting by builder in low sheen finish</li>
+  <li>Colours as per colour selection</li>
+  <li>Painting to Australian standards</li>
+</ul>
+
+<h2>29. Internal Painting</h2>
+<ul>
+  <li>Ceilings & cornices builders' white flat</li>
+  <li>Walls low sheen as per colour selection</li>
+  <li>Architraves – acrylic gloss as per colour selection</li>
+  <li>Skirting – acrylic gloss as per colour selection</li>
+  <li>Internal doors - acrylic gloss as per colour selection</li>
+  <li>Paint colours from Tekna builders' range</li>
+  <li>Painting to Australian standards</li>
+</ul>
+
+<h2>30. Electrical</h2>
+<ul>
+  <li>As per electrical plan</li>
+  <li>Light switches, downlights, power points and fans as per electrical plan and plan specific and using our NDIS design standard builders' range</li>
+  <li>Split system air conditioner:
+    <ul>
+      <li>2.5kw to participants room & OOA's Room</li>
+      <li>Depending on size of living room either 5kw, 6kw or 7.1kw to living room</li>
+      <li>Refer to plan for size</li>
+    </ul>
+  </li>
+  <li>If fan/lights are specified by owner, the builder takes no responsibility for rattling or noisy fittings</li>
+  <li>The builder does not provide warranty for light globes</li>
+  <li>The builder does not guarantee the exact location of power points, light fittings, or air conditioning vents. The electrician may be required to adjust locations on site due to site constraints or building requirements</li>
+</ul>
+
+<h2>31. NBN Points</h2>
+<ul>
+  <li>As per plan</li>
+</ul>
+
+<h2>32. TV Points</h2>
+<ul>
+  <li>TV antenna with outlets - as per plan</li>
+</ul>
+
+<h2>33. Solar System and Battery</h2>
+<ul>
+  <li>Solar System and battery storage</li>
+</ul>
+
+<h2>34. Smoke Alarms</h2>
+<ul>
+  <li>Smoke alarms hard wired to meter box as per plan</li>
+</ul>
+
+<h2>35. Hot Water</h2>
+<ul>
+  <li>Chromagen – 280 Midea - 280ltr Heat Pump</li>
+</ul>
+
+<h2>36. Fire System</h2>
+<ul>
+  <li>Provide, install and commission an Auscoast Fire Services Automatic Sprinkler System, Brooks Smoke Alarms with interfaced Brooks Residential Fire Indicator Panel</li>
+</ul>
+
+<h2>37. External Inclusions</h2>
+<ul>
+  <li>Letterbox from builders' selected range and painted as per colour selection</li>
+  <li>Single fold down clothesline, positioned at builders' discretion</li>
+  <li>Unsealed exposed aggregate driveway, porch slab, alfresco slab</li>
+  <li>Landscaping - builders range</li>
+  <li>Turf to rear and front boundaries (to be installed 1 week prior to handover) - builders range</li>
+  <li>Fencing as required to complete - builders range</li>
+  <li>Two external taps</li>
+</ul>
+
+<h2>38. Handover Requirements</h2>
+<p>Tekna Homes has implemented two handover inspections for the owner/s to complete. A set time and date will be arranged for these inspections and the owner/s can take as little or as much time to complete the 1st inspection. It is very important to take as much time as possible on the 1st inspection, as this will impact on our subcontractors revisiting to site and may have additional costs if not defected in the 1st inspection.</p>
+<ul>
+  <li>1st inspection inspects entire house to identify any defects</li>
+  <li>2nd inspection checks all defects have been completed from 1st inspection</li>
+</ul>
+
+<h2>39. Turf Care and Maintenance</h2>
+<p>The owner/s hereby acknowledge/s that the builder is obligated to lay turf prior to handover. Following handover, it is the responsibility of the owner and/or property manager to maintain.</p>
+<ul>
+  <li>I/we understand that it is recommended that turf is watered every day for the first two (2) weeks (periods of rain should not be considered substitution)</li>
+  <li>The turf should be thoroughly soaked for the first two (2) weeks - during hot weather, frequent light watering is suggested until you can see the turf has rooted down</li>
+  <li>I/we understand that turf tends to temporarily "die off" in places before striking permanent roots, and that this is not due to faulty product</li>
+  <li>In reference to properties that are handed directly to a property manager (either by Tekna Homes or the owner) it is mandatory that the above recommendations are followed. If your property manager cannot personally commit to this, we recommend an external garden maintenance company be included in the landlord's agreement</li>
+</ul>
 
 <%= render "signature_block" %>
