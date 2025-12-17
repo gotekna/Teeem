@@ -509,9 +509,23 @@ export default function NewJobPage() {
 
         setJobStages(stagesData?.stages || []);
 
-        // Set first stage as default if available
+        // Set default stage
         if (stagesData?.stages && stagesData.stages.length > 0) {
-          setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+          // If coming from email proposal, default to "Needs Pricing" stage
+          if (proposalId) {
+            const needsPricingStage = stagesData.stages.find(
+              s => s.name.toLowerCase() === "needs pricing"
+            );
+            if (needsPricingStage) {
+              setFormData(prev => ({ ...prev, job_stage_id: needsPricingStage.id.toString() }));
+            } else {
+              // Fallback to first stage if "Needs Pricing" doesn't exist
+              setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+            }
+          } else {
+            // Default to first stage for manual job creation
+            setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+          }
         } else {
           setFormData(prev => ({ ...prev, job_stage_id: "" }));
         }
@@ -944,18 +958,18 @@ export default function NewJobPage() {
           </Card>
 
           {/* Project Settings - Middle column */}
-          <Card>
+          <Card className="flex flex-col">
             <CardHeader>
               <CardTitle>Project Settings</CardTitle>
               <CardDescription>Type, status, stage and financial details</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col">
               {loadingLookups ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="flex-1 flex flex-col space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="job_type_id">Job Type *</Label>
                     <Select
@@ -1027,15 +1041,14 @@ export default function NewJobPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="flex-1 flex flex-col space-y-2">
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
                       placeholder="Brief description..."
                       value={formData.description}
                       onChange={(e) => handleChange("description", e.target.value)}
-                      rows={3}
-                      className="min-h-[80px]"
+                      className="flex-1 min-h-[120px] resize-none"
                     />
                   </div>
                 </div>
