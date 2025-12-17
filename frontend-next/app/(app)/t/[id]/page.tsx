@@ -13,7 +13,7 @@ import { Plus, ArrowLeft } from "lucide-react";
 
 // Table ID to route mapping for legacy compatibility
 const TABLE_ROUTES: Record<number, { name: string; apiEndpoint: string; itemRoute: string }> = {
-  1: { name: "Gold Standard", apiEndpoint: "/api/v1/gold_standard_table", itemRoute: "/admin/system?tab=gold-standard" },
+  1: { name: "Components", apiEndpoint: "/api/v1/gold_standard_table", itemRoute: "/admin/system?tab=components" },
   204: { name: "Jobs", apiEndpoint: "/api/v1/jobs", itemRoute: "/jobs" },
   205: { name: "Pricebook", apiEndpoint: "/api/v1/pricebook", itemRoute: "/pricebook" },
   214: { name: "Contacts", apiEndpoint: "/api/v1/contacts", itemRoute: "/contacts" },

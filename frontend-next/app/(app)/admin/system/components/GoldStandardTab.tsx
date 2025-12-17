@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +46,13 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Receipt,
+  Wallet,
+  Building2,
+  ImageIcon,
+  DollarSign,
+  FolderTree,
+  Copy,
 } from "lucide-react";
 import {
   Dialog,
@@ -62,13 +69,16 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
+import { BillsInvoiceViewer, BillDetail } from "@/components/invoice/BillsInvoiceViewer";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 
 interface ColumnType {
   columnName: string;
@@ -822,7 +832,7 @@ function GoldStandardDataTab() {
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
-        foundationId="gold-standard"
+        foundationId="components"
         foundationIdNumeric={1}
         tableName="Gold Standard Table"
         onView={handleView}
@@ -1462,6 +1472,104 @@ function GoldStandardTableTab() {
   );
 }
 
+// Gold Standard Bills/Invoice Tab - Uses the SSoT BillsInvoiceViewer component
+function GoldStandardBillsInvoiceTab() {
+  const { toast } = useToast();
+  const [bills, setBills] = React.useState<BillDetail[]>([]);
+  const [selectedBill, setSelectedBill] = React.useState<BillDetail | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  // Load bills on mount
+  React.useEffect(() => {
+    loadBills();
+  }, []);
+
+  const loadBills = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; bills: BillDetail[] }>("/api/v1/bill_inbox?per_page=20");
+      if (response?.bills && response.bills.length > 0) {
+        setBills(response.bills);
+        // Select the first bill with a PDF if available
+        const billWithPdf = response.bills.find(b => b["has_invoice_file?"]) || response.bills[0];
+        setSelectedBill(billWithPdf);
+      }
+    } catch (error) {
+      console.error("Failed to load bills:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load bills. Make sure you have bills in the system.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="h-full">
+      {/* SSoT Component - BillsInvoiceViewer is THE ONE component for bill viewing */}
+      <BillsInvoiceViewer
+        bill={selectedBill}
+        bills={bills}
+        onBillSelect={setSelectedBill}
+        onRefresh={loadBills}
+        showLiveDataBadge={true}
+        loading={loading}
+        height="calc(100vh - 200px)"
+      />
+
+      {/* Info Box */}
+      {!loading && selectedBill && (
+        <Card className="bg-muted/50 mt-4">
+          <CardContent className="flex gap-3 pt-6">
+            <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">SSoT Component:</p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>This is THE ONE component for bills/invoice viewing</li>
+                <li>Changes to BillsInvoiceViewer are reflected here AND in Finance → Bills</li>
+                <li>Located at: <code className="text-xs bg-muted px-1 rounded">components/invoice/BillsInvoiceViewer.tsx</code></li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// Gold SharePoint Path Viewer Tab - Uses the SSoT SharePointPathConfigurator component
+function GoldSharePointPathViewerTab() {
+  return (
+    <div className="space-y-4">
+      {/* SSoT Component - loads/saves from backend API */}
+      <SharePointPathConfigurator
+        defaultScope="job"
+        showAllScopes={true}
+        showBrowser={true}
+        showSaveButton={true}
+      />
+
+      {/* Info Box */}
+      <Card className="bg-muted/50">
+        <CardContent className="flex gap-3 pt-6">
+          <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">SSoT Component:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>This is THE ONE component for SharePoint path configuration</li>
+              <li>Templates are loaded from and saved to the backend API</li>
+              <li>Changes here are reflected everywhere this component is used</li>
+              <li>Located at: <code className="text-xs bg-muted px-1 rounded">components/ui/sharepoint-path-configurator.tsx</code></li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function SyncCheckTab() {
   const [syncData, setSyncData] = React.useState<SyncData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1664,6 +1772,14 @@ export function GoldStandardTab() {
           <Database className="h-4 w-4" />
           Gold Standard Table
         </TabsTrigger>
+        <TabsTrigger value="invoice" className="flex items-center gap-2">
+          <Receipt className="h-4 w-4" />
+          Gold Bills/Invoice Viewer
+        </TabsTrigger>
+        <TabsTrigger value="sharepoint-paths" className="flex items-center gap-2">
+          <FolderTree className="h-4 w-4" />
+          Gold SharePoint Path Viewer
+        </TabsTrigger>
         <TabsTrigger value="column-info" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Column Info
@@ -1676,6 +1792,14 @@ export function GoldStandardTab() {
 
       <TabsContent value="table" className="flex-1 min-h-0 mt-4">
         <GoldStandardDataTab />
+      </TabsContent>
+
+      <TabsContent value="invoice" className="flex-1 min-h-0 mt-4 overflow-auto">
+        <GoldStandardBillsInvoiceTab />
+      </TabsContent>
+
+      <TabsContent value="sharepoint-paths" className="flex-1 min-h-0 mt-4 overflow-auto">
+        <GoldSharePointPathViewerTab />
       </TabsContent>
 
       <TabsContent value="column-info" className="flex-1 min-h-0 mt-4 overflow-auto">

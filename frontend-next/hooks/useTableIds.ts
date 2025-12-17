@@ -137,7 +137,7 @@ export function useTableIds(): {
     // Fallback to known mappings (Foundation-based tables only)
     // NOTE: Companies (353) removed - uses CorporateCompany Rails model, not Foundation
     const fallbackSlugs: Record<number, string> = {
-      1: 'gold-standard',
+      1: 'components',
       204: 'jobs',
       218: 'tasks',
       205: 'pricebook',
@@ -167,7 +167,7 @@ export function getTableSlug(tableId: number): string {
   }
   // Fallback to known mappings (Foundation-based tables only)
   const fallbackSlugs: Record<number, string> = {
-    1: 'gold-standard',
+    1: 'components',
     204: 'jobs',
     218: 'tasks',
     205: 'pricebook',

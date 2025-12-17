@@ -93,7 +93,7 @@ const MAIN_TABS = [
   { id: "brand-guidelines", label: "Brand Guidelines", icon: Palette },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
-  { id: "gold-standard", label: "Gold Standard View", icon: Star },
+  { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
@@ -798,7 +798,7 @@ function SystemAdminPageContent() {
           <TabsContent value="supervisor-checklist">
             <SupervisorChecklistTab />
           </TabsContent>
-          <TabsContent value="gold-standard" className="flex-1 min-h-0 h-full">
+          <TabsContent value="components" className="flex-1 min-h-0 h-full">
             <GoldStandardTab />
           </TabsContent>
           <TabsContent value="developer-tools">

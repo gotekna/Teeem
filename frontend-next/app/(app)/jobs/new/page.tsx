@@ -509,9 +509,23 @@ export default function NewJobPage() {
 
         setJobStages(stagesData?.stages || []);
 
-        // Set first stage as default if available
+        // Set default stage
         if (stagesData?.stages && stagesData.stages.length > 0) {
-          setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+          // If coming from email proposal, default to "Needs Pricing" stage
+          if (proposalId) {
+            const needsPricingStage = stagesData.stages.find(
+              s => s.name.toLowerCase() === "needs pricing"
+            );
+            if (needsPricingStage) {
+              setFormData(prev => ({ ...prev, job_stage_id: needsPricingStage.id.toString() }));
+            } else {
+              // Fallback to first stage if "Needs Pricing" doesn't exist
+              setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+            }
+          } else {
+            // Default to first stage for manual job creation
+            setFormData(prev => ({ ...prev, job_stage_id: stagesData.stages[0].id.toString() }));
+          }
         } else {
           setFormData(prev => ({ ...prev, job_stage_id: "" }));
         }
@@ -782,7 +796,7 @@ export default function NewJobPage() {
       </div>
 
       <form onSubmit={handleSubmit}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Details */}
           <Card>
             <CardHeader>
@@ -943,7 +957,106 @@ export default function NewJobPage() {
             </CardContent>
           </Card>
 
-          {/* People - in the same row */}
+          {/* Project Settings - Middle column */}
+          <Card className="flex flex-col">
+            <CardHeader>
+              <CardTitle>Project Settings</CardTitle>
+              <CardDescription>Type, status, stage and financial details</CardDescription>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col">
+              {loadingLookups ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="flex-1 flex flex-col space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="job_type_id">Job Type *</Label>
+                    <Select
+                      value={formData.job_type_id}
+                      onValueChange={(value) => handleChange("job_type_id", value)}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select job type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id.toString()}>
+                            {type.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="job_status_id">Job Status *</Label>
+                    <Select
+                      value={formData.job_status_id}
+                      onValueChange={(value) => handleChange("job_status_id", value)}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobStatuses.map((status) => (
+                          <SelectItem key={status.id} value={status.id.toString()}>
+                            {status.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="job_stage_id">Job Stage</Label>
+                    <Select
+                      value={formData.job_stage_id}
+                      onValueChange={(value) => handleChange("job_stage_id", value)}
+                      disabled={jobStages.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={jobStages.length === 0 ? "No stages" : "Select stage"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobStages.map((stage) => (
+                          <SelectItem key={stage.id} value={stage.id.toString()}>
+                            {stage.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="contract_value">Contract Value ($)</Label>
+                    <Input
+                      id="contract_value"
+                      type="number"
+                      placeholder="e.g., 500000"
+                      value={formData.contract_value}
+                      onChange={(e) => handleChange("contract_value", e.target.value)}
+                    />
+                  </div>
+
+                  <div className="flex-1 flex flex-col space-y-2">
+                    <Label htmlFor="description">Description</Label>
+                    <Textarea
+                      id="description"
+                      placeholder="Brief description..."
+                      value={formData.description}
+                      onChange={(e) => handleChange("description", e.target.value)}
+                      className="flex-1 min-h-[120px] resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* People - Right column */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -1164,106 +1277,6 @@ export default function NewJobPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Project Settings - Full width below */}
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle>Project Settings</CardTitle>
-            <CardDescription>Type, status, stage and financial details</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loadingLookups ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="job_type_id">Job Type *</Label>
-                  <Select
-                    value={formData.job_type_id}
-                    onValueChange={(value) => handleChange("job_type_id", value)}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select job type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="job_status_id">Job Status *</Label>
-                  <Select
-                    value={formData.job_status_id}
-                    onValueChange={(value) => handleChange("job_status_id", value)}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobStatuses.map((status) => (
-                        <SelectItem key={status.id} value={status.id.toString()}>
-                          {status.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="job_stage_id">Job Stage</Label>
-                  <Select
-                    value={formData.job_stage_id}
-                    onValueChange={(value) => handleChange("job_stage_id", value)}
-                    disabled={jobStages.length === 0}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={jobStages.length === 0 ? "No stages" : "Select stage"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobStages.map((stage) => (
-                        <SelectItem key={stage.id} value={stage.id.toString()}>
-                          {stage.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="contract_value">Contract Value ($)</Label>
-                  <Input
-                    id="contract_value"
-                    type="number"
-                    placeholder="e.g., 500000"
-                    value={formData.contract_value}
-                    onChange={(e) => handleChange("contract_value", e.target.value)}
-                  />
-                </div>
-
-                <div className="space-y-2 lg:col-span-1 md:col-span-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Brief description..."
-                    value={formData.description}
-                    onChange={(e) => handleChange("description", e.target.value)}
-                    rows={1}
-                    className="min-h-[40px]"
-                  />
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Email Notes Section - Only shown when coming from email proposal */}
         {proposal?.extracted_data && (

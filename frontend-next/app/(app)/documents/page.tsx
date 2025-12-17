@@ -102,7 +102,7 @@ export default function DocumentsPage() {
           onClick={() => router.push("/settings/integrations/microsoft")}
         >
           <Cloud className="h-4 w-4 mr-2" />
-          Connect OneDrive
+          Connect SharePoint
         </Button>
       )}
       <Button>
