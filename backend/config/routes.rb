@@ -91,7 +91,16 @@ Rails.application.routes.draw do
             post :reorder
           end
         end
+        # Claim Stage Templates (per job type)
+        resources :claim_stage_templates, only: [ :index, :create ] do
+          collection do
+            post :reorder
+          end
+        end
       end
+
+      # Claim Stage Templates (non-nested routes)
+      resources :claim_stage_templates, only: [ :show, :update, :destroy ]
 
       resources :job_status do
         collection do
@@ -210,6 +219,20 @@ Rails.application.routes.draw do
 
         # Job claims (nested under jobs)
         resources :job_claims, only: [ :index, :create ]
+
+        # Job claim stages (progress claims tracking)
+        resources :claim_stages, controller: "job_claim_stages", only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            post :auto_match
+            post :reset_from_template
+            post :reorder
+            post :sync_payments
+          end
+          member do
+            post :match
+            delete :unmatch
+          end
+        end
       end
 
       # Job claims (non-nested routes)

@@ -157,8 +157,9 @@ class TeknaDocumentGenerator
   end
 
   # Generate HTML only (for preview)
+  # When no job is provided, uses placeholder data for template preview
   def preview(job: nil, contact: nil, extra_data: {})
-    context = build_context(job: job, contact: contact, extra_data: extra_data)
+    context = build_context(job: job, contact: contact, extra_data: extra_data, preview_mode: true)
     render_template(context)
   end
 
@@ -177,12 +178,14 @@ class TeknaDocumentGenerator
     end
   end
 
-  def build_context(job:, contact:, extra_data:)
+  def build_context(job:, contact:, extra_data:, preview_mode: false)
     context = {}
 
-    # Build job context
+    # Build job context (use placeholder if preview mode with no job)
     if job
       context[:job] = build_job_context(job)
+    elsif preview_mode
+      context[:job] = build_placeholder_job_context
 
       # Build client contexts
       if job.respond_to?(:job_contacts)

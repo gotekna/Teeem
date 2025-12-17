@@ -68,6 +68,7 @@ import { ContactTypesTab } from "./components/ContactTypesTab";
 import { FoldersTabsConfigTab } from "./components/FoldersTabsConfigTab";
 import { WarehouseTab } from "./components/WarehouseTab";
 import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
+import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -116,6 +117,7 @@ const COMPANY_TABS = [
   { id: "job-setup", label: "Job Setup" },
   { id: "workflow-config", label: "Workflow Config" },
   { id: "doc-setup", label: "Doc Setup" },
+  { id: "doc-templates", label: "Doc Templates" },
 ];
 
 interface CompanySettings {
@@ -652,6 +654,9 @@ function CompanySettingsTab() {
           </TabsContent>
           <TabsContent value="doc-setup">
             <DocSetupTab />
+          </TabsContent>
+          <TabsContent value="doc-templates">
+            <DocumentTemplatesTab />
           </TabsContent>
         </div>
       </Tabs>

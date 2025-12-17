@@ -3,6 +3,8 @@
 module Api
   module V1
     class TeknaDocumentsController < ApplicationController
+      # Allow unauthenticated access for viewing templates and previews
+      skip_before_action :authorize_request, only: [ :templates, :preview ]
       before_action :set_job, only: [ :preview, :generate ]
       before_action :set_contact, only: [ :preview, :generate ]
 
@@ -22,13 +24,13 @@ module Api
         render json: { success: true, data: templates }
       end
 
-      # GET /api/v1/tekna_documents/:key/preview
+      # GET /api/v1/tekna_documents/:id/preview
       # Returns HTML preview for a template
       def preview
-        template_key = params[:key].to_sym
+        template_key = params[:id].to_sym
 
         unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-          return render json: { success: false, error: "Template not found: #{params[:key]}" }, status: :not_found
+          return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
         end
 
         generator = TeknaDocumentGenerator.new(template_key)
@@ -48,13 +50,13 @@ module Api
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
-      # POST /api/v1/tekna_documents/:key/generate
+      # POST /api/v1/tekna_documents/:id/generate
       # Generates PDF and returns for download
       def generate
-        template_key = params[:key].to_sym
+        template_key = params[:id].to_sym
 
         unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-          return render json: { success: false, error: "Template not found: #{params[:key]}" }, status: :not_found
+          return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
         end
 
         generator = TeknaDocumentGenerator.new(template_key)
@@ -73,13 +75,13 @@ module Api
         render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
-      # POST /api/v1/tekna_documents/:key/generate_and_send
+      # POST /api/v1/tekna_documents/:id/generate_and_send
       # Generates PDF and sends for e-signature
       def generate_and_send
-        template_key = params[:key].to_sym
+        template_key = params[:id].to_sym
 
         unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-          return render json: { success: false, error: "Template not found: #{params[:key]}" }, status: :not_found
+          return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
         end
 
         # Generate the PDF

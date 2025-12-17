@@ -45,6 +45,8 @@ import {
   Search,
   Filter,
   Building,
+  Percent,
+  Receipt,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -89,6 +91,17 @@ interface Suburb {
   state: string;
   council: string | null;
   position: number;
+  is_active: boolean;
+}
+
+interface ClaimStageTemplate {
+  id: number;
+  job_type_id: number;
+  name: string;
+  percentage: number;
+  sequence_order: number;
+  description: string | null;
+  invoice_match_pattern: string | null;
   is_active: boolean;
 }
 
@@ -399,6 +412,86 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
   );
 }
 
+// Claim Stage Item (sortable)
+function ClaimStageItem({
+  stage,
+  index,
+  onEdit,
+  onDelete,
+}: {
+  stage: ClaimStageTemplate;
+  index: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: stage.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center gap-3 p-2 rounded-md border bg-background transition-all",
+        isDragging && "opacity-50 shadow-lg scale-[1.02] z-50 border-primary"
+      )}
+    >
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+        <span className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-muted rounded">
+          {index + 1}
+        </span>
+      </div>
+
+      {/* Stage name */}
+      <span className="flex-1 text-sm font-medium truncate">{stage.name}</span>
+
+      {/* Percentage */}
+      <Badge variant="secondary" className="shrink-0">
+        {stage.percentage}%
+      </Badge>
+
+      {/* Match pattern indicator */}
+      {stage.invoice_match_pattern && (
+        <Badge variant="outline" className="text-xs shrink-0 max-w-[100px] truncate" title={stage.invoice_match_pattern}>
+          {stage.invoice_match_pattern}
+        </Badge>
+      )}
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onEdit}>
+          <Pencil className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 text-destructive hover:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function JobSetupTab() {
   const { toast } = useToast();
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
@@ -430,6 +523,20 @@ export function JobSetupTab() {
     postcode: "",
     state: "QLD",
     council: "",
+  });
+
+  // Claim Stages state
+  const [claimStages, setClaimStages] = React.useState<ClaimStageTemplate[]>([]);
+  const [claimStagesLoading, setClaimStagesLoading] = React.useState(false);
+  const [selectedJobTypeId, setSelectedJobTypeId] = React.useState<number | null>(null);
+  const [showClaimStageDialog, setShowClaimStageDialog] = React.useState(false);
+  const [editingClaimStage, setEditingClaimStage] = React.useState<ClaimStageTemplate | null>(null);
+  const [claimStageSaving, setClaimStageSaving] = React.useState(false);
+  const [claimStageFormData, setClaimStageFormData] = React.useState({
+    name: "",
+    percentage: "",
+    invoice_match_pattern: "",
+    description: "",
   });
 
   const COLORS = [
@@ -498,6 +605,132 @@ export function JobSetupTab() {
       setSuburbsLoading(false);
     }
   };
+
+  const loadClaimStages = async (jobTypeId: number) => {
+    setClaimStagesLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { templates: ClaimStageTemplate[]; total_percentage: number }
+      }>(`/api/v1/job_types/${jobTypeId}/claim_stage_templates`);
+      if (response.success && response.data) {
+        setClaimStages(response.data.templates || []);
+      }
+    } catch (error) {
+      console.error("Failed to load claim stages:", error);
+      setClaimStages([]);
+    } finally {
+      setClaimStagesLoading(false);
+    }
+  };
+
+  const handleJobTypeSelect = (jobTypeId: string) => {
+    const id = parseInt(jobTypeId, 10);
+    setSelectedJobTypeId(id);
+    loadClaimStages(id);
+  };
+
+  const handleAddClaimStage = () => {
+    setEditingClaimStage(null);
+    setClaimStageFormData({
+      name: "",
+      percentage: "",
+      invoice_match_pattern: "",
+      description: "",
+    });
+    setShowClaimStageDialog(true);
+  };
+
+  const handleEditClaimStage = (stage: ClaimStageTemplate) => {
+    setEditingClaimStage(stage);
+    setClaimStageFormData({
+      name: stage.name,
+      percentage: String(stage.percentage),
+      invoice_match_pattern: stage.invoice_match_pattern || "",
+      description: stage.description || "",
+    });
+    setShowClaimStageDialog(true);
+  };
+
+  const handleSaveClaimStage = async () => {
+    if (!claimStageFormData.name || !claimStageFormData.percentage) {
+      toast({ title: "Error", description: "Name and percentage are required", variant: "destructive" });
+      return;
+    }
+
+    const percentage = parseFloat(claimStageFormData.percentage);
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) {
+      toast({ title: "Error", description: "Percentage must be between 0 and 100", variant: "destructive" });
+      return;
+    }
+
+    setClaimStageSaving(true);
+    try {
+      const payload = {
+        claim_stage_template: {
+          name: claimStageFormData.name,
+          percentage: percentage,
+          invoice_match_pattern: claimStageFormData.invoice_match_pattern || null,
+          description: claimStageFormData.description || null,
+        },
+      };
+
+      if (editingClaimStage) {
+        await api.patch(`/api/v1/claim_stage_templates/${editingClaimStage.id}`, payload);
+        toast({ title: "Success", description: "Claim stage updated" });
+      } else if (selectedJobTypeId) {
+        await api.post(`/api/v1/job_types/${selectedJobTypeId}/claim_stage_templates`, payload);
+        toast({ title: "Success", description: "Claim stage created" });
+      }
+
+      setShowClaimStageDialog(false);
+      if (selectedJobTypeId) {
+        loadClaimStages(selectedJobTypeId);
+      }
+    } catch (error) {
+      console.error("Failed to save claim stage:", error);
+      toast({ title: "Error", description: "Failed to save claim stage", variant: "destructive" });
+    } finally {
+      setClaimStageSaving(false);
+    }
+  };
+
+  const handleDeleteClaimStage = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this claim stage?")) return;
+
+    try {
+      await api.delete(`/api/v1/claim_stage_templates/${id}`);
+      toast({ title: "Success", description: "Claim stage deleted" });
+      if (selectedJobTypeId) {
+        loadClaimStages(selectedJobTypeId);
+      }
+    } catch (error) {
+      console.error("Failed to delete claim stage:", error);
+      toast({ title: "Error", description: "Failed to delete claim stage", variant: "destructive" });
+    }
+  };
+
+  const handleReorderClaimStages = async (newOrder: ClaimStageTemplate[]) => {
+    // Optimistic update
+    setClaimStages(newOrder);
+
+    try {
+      await api.post(`/api/v1/job_types/${selectedJobTypeId}/claim_stage_templates/reorder`, {
+        order_ids: newOrder.map((s) => s.id),
+      });
+      toast({ title: "Order saved" });
+    } catch (error) {
+      console.error("Failed to reorder:", error);
+      toast({ title: "Error", description: "Failed to save order", variant: "destructive" });
+      if (selectedJobTypeId) {
+        loadClaimStages(selectedJobTypeId);
+      }
+    }
+  };
+
+  const totalClaimPercentage = React.useMemo(() => {
+    return claimStages.reduce((sum, s) => sum + (s.percentage || 0), 0);
+  }, [claimStages]);
 
   // Suburb stats
   const suburbStats = React.useMemo(() => {
@@ -861,6 +1094,211 @@ export function JobSetupTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Claim Stages Section */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base">Claim Stage Templates</CardTitle>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                value={selectedJobTypeId?.toString() || ""}
+                onValueChange={handleJobTypeSelect}
+              >
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Select job type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {jobTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: type.color }}
+                        />
+                        {type.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedJobTypeId && (
+                <Button size="sm" onClick={handleAddClaimStage}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Stage
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Configure claim stages for each job type. These define progress payment milestones.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {!selectedJobTypeId ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Select a job type to view and manage claim stages.
+            </div>
+          ) : claimStagesLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : claimStages.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No claim stages configured for this job type. Click Add Stage to create one.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary */}
+              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Total:</span>
+                  <span
+                    className={cn(
+                      "text-sm font-bold",
+                      Math.abs(totalClaimPercentage - 100) < 0.01
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-amber-600 dark:text-amber-400"
+                    )}
+                  >
+                    {totalClaimPercentage.toFixed(1)}%
+                  </span>
+                  {Math.abs(totalClaimPercentage - 100) >= 0.01 && (
+                    <Badge variant="outline" className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-600">
+                      Should be 100%
+                    </Badge>
+                  )}
+                </div>
+                <Badge variant="outline" className="text-xs">
+                  {claimStages.length} stages
+                </Badge>
+              </div>
+
+              {/* Stages List */}
+              <DndContext
+                sensors={useSensors(
+                  useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+                  useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+                )}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => {
+                  const { active, over } = event;
+                  if (over && active.id !== over.id) {
+                    const oldIndex = claimStages.findIndex((s) => s.id === active.id);
+                    const newIndex = claimStages.findIndex((s) => s.id === over.id);
+                    const newOrder = arrayMove(claimStages, oldIndex, newIndex);
+                    newOrder.forEach((s, i) => (s.sequence_order = i));
+                    handleReorderClaimStages(newOrder);
+                  }
+                }}
+              >
+                <SortableContext
+                  items={claimStages.map((s) => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-1">
+                    {claimStages.map((stage, index) => (
+                      <ClaimStageItem
+                        key={stage.id}
+                        stage={stage}
+                        index={index}
+                        onEdit={() => handleEditClaimStage(stage)}
+                        onDelete={() => handleDeleteClaimStage(stage.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Claim Stage Dialog */}
+      <Dialog open={showClaimStageDialog} onOpenChange={setShowClaimStageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingClaimStage ? "Edit Claim Stage" : "Add Claim Stage"}
+            </DialogTitle>
+            <DialogDescription>
+              Configure the claim stage template. Match pattern helps auto-match Xero invoices.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="stage-name">Stage Name *</Label>
+                <Input
+                  id="stage-name"
+                  placeholder="e.g., Deposit, Slab, Frame"
+                  value={claimStageFormData.name}
+                  onChange={(e) => setClaimStageFormData({ ...claimStageFormData, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="stage-percentage">Percentage *</Label>
+                <div className="relative">
+                  <Input
+                    id="stage-percentage"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    placeholder="15.00"
+                    value={claimStageFormData.percentage}
+                    onChange={(e) => setClaimStageFormData({ ...claimStageFormData, percentage: e.target.value })}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">%</span>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stage-pattern">Invoice Match Pattern</Label>
+              <Input
+                id="stage-pattern"
+                placeholder="e.g., deposit|dep (regex pattern)"
+                value={claimStageFormData.invoice_match_pattern}
+                onChange={(e) => setClaimStageFormData({ ...claimStageFormData, invoice_match_pattern: e.target.value })}
+              />
+              <p className="text-xs text-muted-foreground">
+                Regex pattern to auto-match Xero invoices. Use | for OR (e.g., &quot;deposit|dep&quot;).
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stage-description">Description</Label>
+              <Input
+                id="stage-description"
+                placeholder="Optional description"
+                value={claimStageFormData.description}
+                onChange={(e) => setClaimStageFormData({ ...claimStageFormData, description: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowClaimStageDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveClaimStage} disabled={claimStageSaving}>
+              {claimStageSaving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : editingClaimStage ? (
+                "Update"
+              ) : (
+                "Create"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Suburb Dialog */}
       <Dialog open={showSuburbDialog} onOpenChange={setShowSuburbDialog}>
