@@ -121,9 +121,11 @@ const COMPANY_TABS = [
 interface CompanySettings {
   company_name: string;
   abn: string;
+  qbcc_license: string;
   email: string;
   phone: string;
   address: string;
+  logo_url: string;
   timezone: string;
   working_days: {
     monday: boolean;
@@ -140,9 +142,11 @@ function CompanyInfoTab() {
   const [settings, setSettings] = React.useState<CompanySettings>({
     company_name: "",
     abn: "",
+    qbcc_license: "",
     email: "",
     phone: "",
     address: "",
+    logo_url: "",
     timezone: "Australia/Brisbane",
     working_days: {
       monday: true,
@@ -237,6 +241,53 @@ function CompanyInfoTab() {
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="qbcc_license">QBCC License</Label>
+          <Input
+            id="qbcc_license"
+            value={settings.qbcc_license || ""}
+            onChange={(e) => handleChange("qbcc_license", e.target.value)}
+            placeholder="e.g. 123456"
+          />
+          <p className="text-xs text-muted-foreground">
+            Queensland Building and Construction Commission license number
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Company Logo</Label>
+          {settings.logo_url ? (
+            <div className="flex items-center gap-4">
+              <img
+                src={settings.logo_url}
+                alt="Company Logo"
+                className="h-16 w-auto object-contain border rounded p-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => handleChange("logo_url", "")}
+              >
+                Remove
+              </Button>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No logo uploaded. Enter a URL below or upload via document management.
+            </div>
+          )}
+          <Input
+            id="logo_url"
+            value={settings.logo_url || ""}
+            onChange={(e) => handleChange("logo_url", e.target.value)}
+            placeholder="https://example.com/logo.png"
+          />
+          <p className="text-xs text-muted-foreground">
+            Used in document templates as {"{{builder.logo}}"}
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="timezone">Timezone</Label>
           <p className="text-sm text-muted-foreground">
             This timezone will be used for calculating working days, displaying dates, and scheduling tasks.
@@ -312,6 +363,44 @@ function CompanyInfoTab() {
             onChange={(e) => handleChange("address", e.target.value)}
             className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
+        </div>
+      </div>
+
+      {/* Template Tags Reference */}
+      <div className="mt-8 p-4 bg-muted/50 rounded-lg border">
+        <h3 className="font-semibold mb-3">Document Template Tags</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Use these tags in your document templates. They will be replaced with the values above.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm font-mono">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.display_name}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Company name</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.abn}}"}</span>
+            <span className="text-xs text-muted-foreground/70">ABN</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.qbcc_license}}"}</span>
+            <span className="text-xs text-muted-foreground/70">QBCC License</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.phone}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Phone number</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.email}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Email</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.address}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Address</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.logo}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Logo image</span>
+          </div>
         </div>
       </div>
 
