@@ -29,9 +29,24 @@ export function formatEmpty(): React.ReactNode {
 
 /**
  * Display single line text
+ * Also handles objects with display value (defensive for misconfigured columns)
  */
 export function displaySingleLineText(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
+
+  // Handle objects with display value (backend may return {id, display} objects)
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    const displayValue = obj.display_value || obj.display || obj.name || obj.display_name;
+    if (displayValue) {
+      return <span className="text-[11px]">{String(displayValue)}</span>;
+    }
+    // If object has only id, show that
+    if (obj.id !== undefined && Object.keys(obj).length <= 2) {
+      return <span className="text-[11px]">{String(obj.id)}</span>;
+    }
+  }
+
   return <span className="text-[11px]">{String(value)}</span>;
 }
 
@@ -137,9 +152,24 @@ export function displayNumber(value: unknown): React.ReactNode {
 
 /**
  * Display whole number
+ * Also handles objects with {id, display} format (backend expands _id columns)
  */
 export function displayWholeNumber(value: unknown): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
+
+  // Handle objects with display value (backend returns {id, display} for _id columns)
+  if (typeof value === "object" && value !== null) {
+    const obj = value as Record<string, unknown>;
+    const displayValue = obj.display_value || obj.display || obj.name || obj.display_name;
+    if (displayValue) {
+      return <span className="text-[11px]">{String(displayValue)}</span>;
+    }
+    // If object has id but no display, show the id
+    if (obj.id !== undefined) {
+      return <span className="text-[11px] tabular-nums">{String(obj.id)}</span>;
+    }
+  }
+
   const num = typeof value === "number" ? value : parseInt(String(value), 10);
   if (isNaN(num)) return <span className="text-[11px]">{String(value)}</span>;
   return <span className="text-[11px] tabular-nums">{Math.floor(num).toLocaleString("en-AU")}</span>;
