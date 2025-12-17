@@ -339,6 +339,17 @@ Rails.application.routes.draw do
         end
       end
 
+      # Invoice Templates (code-driven invoice PDF generation)
+      resources :invoice_templates do
+        collection do
+          get :default_sections
+        end
+        member do
+          post :duplicate
+          post :set_default
+        end
+      end
+
       # E-Signature Requests
       resources :e_signature_requests, only: [ :index, :show, :create, :update, :destroy ] do
         member do

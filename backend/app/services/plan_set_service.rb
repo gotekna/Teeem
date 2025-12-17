@@ -54,15 +54,15 @@ class PlanSetService
         next
       end
 
-      # Skip if already has a good name (not "Page N.pdf")
-      unless original_name.match?(/^Page \d+\.pdf$/i)
+      # Skip if already has a good name (not "Page N.pdf" - handle URL encoding with + or space)
+      unless original_name.match?(/^Page[\s\+]\d+\.pdf$/i)
         skipped << { id: file_id, name: original_name, reason: "Already named" }
         used_filenames.add(original_name)
         next
       end
 
-      # Extract page number from original filename for ordering
-      page_num = original_name.match(/Page (\d+)\.pdf/i)&.[](1)&.to_i || (index + 1)
+      # Extract page number from original filename for ordering (handle + or space)
+      page_num = original_name.match(/Page[\s\+](\d+)\.pdf/i)&.[](1)&.to_i || (index + 1)
 
       begin
         Rails.logger.info "[PlanSetService] Renaming #{original_name}..."

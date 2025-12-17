@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_043857) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_084817) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2817,6 +2817,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_043857) do
     t.index ["related_company_id", "as_of_date"], name: "idx_on_related_company_id_as_of_date_a4e1451467"
     t.index ["related_company_id"], name: "index_intercompany_balances_on_related_company_id"
     t.index ["source"], name: "index_intercompany_balances_on_source"
+  end
+
+  create_table "invoice_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.jsonb "sections", default: []
+    t.string "logo_url"
+    t.string "primary_color", default: "#1f2937"
+    t.string "accent_color", default: "#4f46e5"
+    t.string "font_family", default: "Inter, sans-serif"
+    t.string "paper_size", default: "A4"
+    t.string "orientation", default: "portrait"
+    t.jsonb "margins", default: {"top"=>20, "left"=>20, "right"=>20, "bottom"=>20}
+    t.string "output_naming_pattern", default: "{invoice_number}_{date}"
+    t.boolean "is_active", default: true, null: false
+    t.boolean "is_default", default: false, null: false
+    t.text "default_terms"
+    t.text "default_notes"
+    t.text "footer_text"
+    t.string "bank_name"
+    t.string "bank_bsb"
+    t.string "bank_account_number"
+    t.string "bank_account_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_invoice_templates_on_is_active"
+    t.index ["is_default"], name: "index_invoice_templates_on_is_default"
   end
 
   create_table "job_activities", force: :cascade do |t|
