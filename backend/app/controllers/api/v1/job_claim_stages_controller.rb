@@ -328,7 +328,7 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/:id/generate_pdf
-      # Generate invoice PDF from template
+      # Generate invoice PDF from code-driven InvoiceTemplate
       def generate_pdf
         invoice = @stage.external_invoice
 
@@ -337,13 +337,12 @@ module Api
                        status: :unprocessable_entity
         end
 
-        # Find invoice template
+        # Find invoice template (code-driven JSONB template)
         template_id = params[:template_id]
         template = if template_id.present?
-          DocumentTemplate.find(template_id)
+          InvoiceTemplate.find(template_id)
         else
-          # Default to first active invoice template
-          DocumentTemplate.active.by_category("invoice").first
+          InvoiceTemplate.default
         end
 
         unless template
@@ -352,39 +351,31 @@ module Api
         end
 
         begin
-          # Generate PDF using DocumentGenerator
-          generator = DocumentGenerator.new(template)
+          # Generate PDF using InvoicePdfGenerator (code-driven templates)
+          generator = InvoicePdfGenerator.new(template: template)
           result = generator.generate(
-            job: @job,
-            contact: @job.primary_contact,
             invoice: invoice,
+            job: @job,
+            contact: @job.client || @job.primary_contact,
             claim_stage: @stage
           )
 
           # Create document record and attach the PDF
           document = CorporateCompanyDocument.new(
-            title: "Invoice #{invoice.invoice_number}",
+            title: "Invoice #{invoice.invoice_number || 'Draft'}",
             document_type: "invoice",
-            contact: invoice.contact || @job.primary_contact,
+            contact: invoice.contact || @job.client || @job.primary_contact,
             documentable: invoice,
             source: "generated",
             focus: "job"
           )
 
           # Attach the PDF file
-          if result[:pdf_content]
-            document.file.attach(
-              io: StringIO.new(result[:pdf_content]),
-              filename: result[:pdf_filename] || "#{invoice.invoice_number}.pdf",
-              content_type: "application/pdf"
-            )
-          elsif result[:docx_content]
-            document.file.attach(
-              io: StringIO.new(result[:docx_content]),
-              filename: result[:filename],
-              content_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
-          end
+          document.file.attach(
+            io: StringIO.new(result[:pdf_content]),
+            filename: result[:filename],
+            content_type: "application/pdf"
+          )
 
           document.save!
 
@@ -394,10 +385,11 @@ module Api
               document_id: document.id,
               filename: document.file.filename.to_s,
               url: rails_blob_url(document.file),
+              template_name: template.name,
               message: "Invoice PDF generated successfully"
             }
           }
-        rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
+        rescue InvoicePdfGenerator::GenerationError => e
           render json: { success: false, error: "PDF generation failed: #{e.message}" },
                  status: :unprocessable_entity
         rescue StandardError => e
