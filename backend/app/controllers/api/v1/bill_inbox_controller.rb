@@ -44,11 +44,14 @@ module Api
         bills = bills.recent.limit(per_page).offset((page - 1) * per_page)
 
         render json: {
-          bills: bills.as_json(include: {
-            corporate_company: {},
-            supplier: {},
-            matched_purchase_order: {}
-          }),
+          bills: bills.as_json(
+            include: {
+              corporate_company: {},
+              supplier: {},
+              matched_purchase_order: {}
+            },
+            methods: [ :has_invoice_file?, :invoice_file_content_type, :invoice_file_filename ]
+          ),
           meta: {
             total_count: total_count,
             total_pages: total_pages,

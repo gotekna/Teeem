@@ -50,8 +50,9 @@ import {
   Wallet,
   Building2,
   ImageIcon,
-  ExternalLink,
   DollarSign,
+  FolderTree,
+  Copy,
 } from "lucide-react";
 import {
   Dialog,
@@ -76,6 +77,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 
 interface ColumnType {
   columnName: string;
@@ -1932,6 +1934,122 @@ function GoldStandardBillsInvoiceTab() {
   );
 }
 
+// Gold SharePoint Path Viewer Tab - Uses the existing SharePointFolderBrowser component
+function GoldSharePointPathViewerTab() {
+  const { toast } = useToast();
+  const [selectedPath, setSelectedPath] = React.useState<string | null>(null);
+  const [copiedPath, setCopiedPath] = React.useState<string | null>(null);
+
+  const copyPath = (path: string) => {
+    navigator.clipboard.writeText(path);
+    setCopiedPath(path);
+    toast({
+      title: "Copied!",
+      description: "Path copied to clipboard",
+    });
+    // Clear copied state after 2 seconds
+    setTimeout(() => {
+      setCopiedPath(null);
+    }, 2000);
+  };
+
+  const handleFolderSelect = (folder: { id: string; name: string; web_url?: string; child_count: number } | null, path: string) => {
+    setSelectedPath(path);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <FolderTree className="h-5 w-5 text-blue-600" />
+            Gold SharePoint Path Viewer
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Browse and copy SharePoint folder paths for document management
+          </p>
+        </div>
+      </div>
+
+      {/* Selected Path Display */}
+      {selectedPath && (
+        <Card className={cn(
+          "border-primary/20",
+          copiedPath === selectedPath ? "bg-green-50 dark:bg-green-900/20" : "bg-primary/5"
+        )}>
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-muted-foreground mb-1">Selected Path:</p>
+                <code className="text-sm font-mono bg-background px-2 py-1 rounded border block truncate">
+                  {selectedPath}
+                </code>
+              </div>
+              <Button
+                variant={copiedPath === selectedPath ? "default" : "outline"}
+                size="sm"
+                onClick={() => copyPath(selectedPath)}
+                className="shrink-0"
+              >
+                {copiedPath === selectedPath ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SharePoint Browser - using existing component */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <FolderTree className="h-5 w-5" />
+            Folder Structure
+          </CardTitle>
+          <CardDescription>
+            Select a SharePoint site and browse folders. Click to select, click arrow to expand.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-4">
+          <SharePointFolderBrowser
+            onSelect={handleFolderSelect}
+            selectedFolderId={null}
+            rootFolder="" // Empty string to show all folders (not restricted to Teeem)
+            className="h-[400px]"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Info Box */}
+      <Card className="bg-muted/50">
+        <CardContent className="flex gap-3 pt-6">
+          <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">Usage Notes:</p>
+            <ul className="list-disc list-inside space-y-1">
+              <li>Use the dropdown to switch between OneDrive and SharePoint sites</li>
+              <li>Click on a folder row to select it and see the full path above</li>
+              <li>Click the arrow icon to expand/collapse folders</li>
+              <li>Use the Copy button to copy the selected path to clipboard</li>
+              <li>Paths can be used for document references and configurations</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function SyncCheckTab() {
   const [syncData, setSyncData] = React.useState<SyncData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -2138,6 +2256,10 @@ export function GoldStandardTab() {
           <Receipt className="h-4 w-4" />
           Gold Bills/Invoice Viewer
         </TabsTrigger>
+        <TabsTrigger value="sharepoint-paths" className="flex items-center gap-2">
+          <FolderTree className="h-4 w-4" />
+          Gold SharePoint Path Viewer
+        </TabsTrigger>
         <TabsTrigger value="column-info" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Column Info
@@ -2154,6 +2276,10 @@ export function GoldStandardTab() {
 
       <TabsContent value="invoice" className="flex-1 min-h-0 mt-4 overflow-auto">
         <GoldStandardBillsInvoiceTab />
+      </TabsContent>
+
+      <TabsContent value="sharepoint-paths" className="flex-1 min-h-0 mt-4 overflow-auto">
+        <GoldSharePointPathViewerTab />
       </TabsContent>
 
       <TabsContent value="column-info" className="flex-1 min-h-0 mt-4 overflow-auto">
