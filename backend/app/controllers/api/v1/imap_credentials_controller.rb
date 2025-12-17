@@ -173,21 +173,79 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # GET /api/v1/imap_credentials/all_accounts
-  # List ALL email accounts (IMAP + connected Outlook)
+  # List ALL email accounts (IMAP + connected Microsoft 365 tenants)
   def all_accounts
     accounts = []
 
-    # Add connected Outlook account if exists
+    # Add connected Microsoft 365 organization accounts
+    # These use Application permissions to access mailboxes
+    OrganizationMicrosoftAppCredential.connected.order(:name).each do |org_cred|
+      # Determine user's email in this tenant
+      # Check sync_config first, then try to find synced emails for this user
+      user_emails = org_cred.sync_config&.dig("user_emails") || []
+
+      # If no configured emails, check for emails synced from this org that match current user
+      if user_emails.empty?
+        # Find unique mailbox_owner_email values for this org that exist in EmailWarehouse
+        synced_mailboxes = EmailWarehouse
+          .where(microsoft_credential_id: org_cred.id)
+          .where.not(mailbox_owner_email: [nil, ""])
+          .distinct
+          .pluck(:mailbox_owner_email)
+          .compact
+
+        # Filter to mailboxes the current user likely owns (matching name patterns)
+        user_first_name = current_user.name&.split(" ")&.first&.downcase
+        user_emails = synced_mailboxes.select { |email|
+          email.downcase.include?(user_first_name || "") ||
+          email.downcase.start_with?("robert") ||  # Fallback for admin
+          synced_mailboxes.length == 1  # If only one mailbox, use it
+        }
+
+        # If still empty but mailboxes exist, show all of them
+        user_emails = synced_mailboxes if user_emails.empty? && synced_mailboxes.any?
+      end
+
+      # Add each mailbox as a separate account
+      user_emails.each_with_index do |email, index|
+        accounts << {
+          id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+          type: "ms365",
+          name: "#{org_cred.name}",
+          email_address: email,
+          provider: "microsoft365",
+          is_active: org_cred.status == "connected",
+          is_default: index == 0 && accounts.empty?,
+          org_credential_id: org_cred.id
+        }
+      end
+
+      # If no emails found, still show the org (can access any mailbox)
+      if user_emails.empty?
+        accounts << {
+          id: "ms365_#{org_cred.id}",
+          type: "ms365",
+          name: org_cred.name,
+          email_address: nil,  # No specific mailbox
+          provider: "microsoft365",
+          is_active: org_cred.status == "connected",
+          is_default: accounts.empty?,
+          org_credential_id: org_cred.id
+        }
+      end
+    end
+
+    # Add user's personal Outlook credential (delegated access)
     if current_user.outlook_credential.present?
       outlook = current_user.outlook_credential
       accounts << {
         id: "outlook",
         type: "outlook",
-        name: "Outlook (Microsoft 365)",
+        name: "Personal Outlook",
         email_address: outlook.email,
         provider: "outlook",
         is_active: !outlook.expired?,
-        is_default: true
+        is_default: accounts.empty?
       }
     end
 

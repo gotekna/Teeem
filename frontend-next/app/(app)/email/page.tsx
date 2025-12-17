@@ -7,12 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Mail,
   Search,
   RefreshCw,
@@ -120,7 +114,6 @@ export default function EmailPage() {
   const [selectedFolderId, setSelectedFolderId] = useState<string>("");
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ to: string; subject: string; messageId?: string } | null>(null);
 
@@ -264,8 +257,8 @@ export default function EmailPage() {
 
   const handleEmailClick = async (email: Email) => {
     setSelectedEmail(email);
-    setSheetOpen(true);
 
+    // Fetch full email content if not loaded
     if (!email.body_html && !email.body_text) {
       try {
         const fullEmail = await api.get<Email>(`/api/v1/email_warehouse/${email.id}`);
@@ -395,41 +388,40 @@ export default function EmailPage() {
         </div>
       </div>
 
-      {/* Main Content - Email List */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Middle - Email List */}
+      <div className="w-[400px] border-r flex flex-col shrink-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b shrink-0 bg-background">
-          <div className="flex items-center gap-3">
-            <h1 className="text-lg font-semibold">
+        <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-medium truncate text-sm">
               {getSelectedAccountName()}
-            </h1>
-            {selectedAccount && (
-              <Badge variant="secondary" className="capitalize">
+            </span>
+            {selectedFolder && (
+              <Badge variant="secondary" className="text-xs shrink-0">
                 {selectedFolder}
               </Badge>
             )}
-            <span className="text-sm text-muted-foreground">
-              {pagination.total} emails
-            </span>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || !selectedAccount}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-              Sync
+          <div className="flex items-center gap-1 shrink-0">
+            <span className="text-xs text-muted-foreground mr-1">
+              {pagination.total}
+            </span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSync} disabled={syncing || !selectedAccount}>
+              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
 
         {/* Search */}
-        <div className="flex items-center gap-4 px-4 py-2 border-b shrink-0">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="px-3 py-2 border-b shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Search emails..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && fetchEmails(1)}
-              className="pl-9"
+              className="pl-8 h-8 text-sm"
             />
           </div>
         </div>
@@ -438,8 +430,8 @@ export default function EmailPage() {
         <div className="flex-1 overflow-auto">
           {!selectedAccount ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Mail className="h-12 w-12 mb-4 opacity-50" />
-              <p>Select a mailbox to view emails</p>
+              <Mail className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">Select a mailbox</p>
             </div>
           ) : loading ? (
             <div className="flex items-center justify-center py-12">
@@ -447,40 +439,47 @@ export default function EmailPage() {
             </div>
           ) : emails.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Inbox className="h-12 w-12 mb-4 opacity-50" />
-              <p>No emails in {selectedFolder}</p>
+              <Inbox className="h-8 w-8 mb-2 opacity-50" />
+              <p className="text-sm">No emails</p>
             </div>
           ) : (
             <div className="divide-y">
               {emails.map((email) => (
                 <div
                   key={email.id}
-                  className="px-4 py-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                  className={cn(
+                    "px-3 py-2.5 cursor-pointer transition-colors border-l-2",
+                    selectedEmail?.id === email.id
+                      ? "bg-primary/10 border-l-primary"
+                      : "hover:bg-muted/50 border-l-transparent",
+                    !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
+                  )}
                   onClick={() => handleEmailClick(email)}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className={`font-medium truncate ${!email.is_read ? "font-semibold" : ""}`}>
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className={cn(
+                          "text-sm truncate",
+                          !email.is_read ? "font-semibold" : "font-medium"
+                        )}>
                           {email.from_name || email.from_email || email.from_address}
                         </span>
                         {email.has_attachments && (
-                          <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        )}
-                        {email.job_number && (
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            {email.job_number}
-                          </Badge>
+                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                         )}
                       </div>
-                      <p className={`text-sm truncate ${!email.is_read ? "font-medium" : ""}`}>
+                      <p className={cn(
+                        "text-sm truncate",
+                        !email.is_read ? "font-medium" : ""
+                      )}>
                         {email.subject || "(No subject)"}
                       </p>
-                      <p className="text-sm text-muted-foreground truncate">
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">
                         {email.snippet || email.body_preview}
                       </p>
                     </div>
-                    <div className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                    <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
                       {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
                     </div>
                   </div>
@@ -492,44 +491,50 @@ export default function EmailPage() {
 
         {/* Pagination */}
         {pagination.total_pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t shrink-0">
-            <p className="text-sm text-muted-foreground">
-              Page {pagination.page} of {pagination.total_pages}
+          <div className="flex items-center justify-between px-3 py-2 border-t shrink-0">
+            <p className="text-xs text-muted-foreground">
+              {pagination.page}/{pagination.total_pages}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
                 disabled={pagination.page === 1}
                 onClick={() => fetchEmails(pagination.page - 1)}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-3.5 w-3.5" />
               </Button>
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
                 disabled={pagination.page === pagination.total_pages}
                 onClick={() => fetchEmails(pagination.page + 1)}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </Button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Email Detail Sheet */}
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-          {selectedEmail && (
-            <>
-              <SheetHeader>
-                <SheetTitle className="text-lg font-medium pr-8">
-                  {selectedEmail.subject || "(No subject)"}
-                </SheetTitle>
-              </SheetHeader>
-              <div className="mt-6 space-y-4">
-                <div className="flex items-start justify-between">
+      {/* Right - Reading Pane */}
+      <div className="flex-1 flex flex-col min-w-0 bg-background">
+        {selectedEmail ? (
+          <>
+            {/* Email Header */}
+            <div className="px-6 py-4 border-b shrink-0">
+              <h1 className="text-xl font-semibold mb-3">
+                {selectedEmail.subject || "(No subject)"}
+              </h1>
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-medium text-primary">
+                      {(selectedEmail.from_name || selectedEmail.from_email || "?")[0].toUpperCase()}
+                    </span>
+                  </div>
                   <div>
                     <p className="font-medium">
                       {selectedEmail.from_name || selectedEmail.from_email || selectedEmail.from_address}
@@ -541,47 +546,56 @@ export default function EmailPage() {
                       To: {(selectedEmail.to_addresses || selectedEmail.to_emails)?.join(", ")}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(selectedEmail.received_at), "PPpp")}
-                    </p>
-                  </div>
                 </div>
-
-                {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2 p-3 bg-muted/50 rounded-md">
-                    {selectedEmail.attachments.map((att) => (
-                      <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
-                        <Paperclip className="h-3 w-3" />
-                        {att.name}
-                      </Badge>
-                    ))}
+                <div className="text-right shrink-0">
+                  <p className="text-sm text-muted-foreground">
+                    {format(new Date(selectedEmail.received_at), "PPpp")}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 justify-end">
+                    <Button size="sm" onClick={() => handleReply(selectedEmail)}>
+                      Reply
+                    </Button>
                   </div>
-                )}
-
-                <div className="border-t pt-4">
-                  {selectedEmail.body_html ? (
-                    <div
-                      className="prose prose-sm dark:prose-invert max-w-none"
-                      dangerouslySetInnerHTML={{ __html: selectedEmail.body_html }}
-                    />
-                  ) : (
-                    <pre className="whitespace-pre-wrap text-sm font-sans">
-                      {selectedEmail.body_text || selectedEmail.snippet}
-                    </pre>
-                  )}
-                </div>
-
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button onClick={() => handleReply(selectedEmail)}>
-                    Reply
-                  </Button>
                 </div>
               </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+            </div>
+
+            {/* Attachments */}
+            {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
+              <div className="px-6 py-3 border-b shrink-0">
+                <div className="flex flex-wrap gap-2">
+                  {selectedEmail.attachments.map((att) => (
+                    <Badge key={att.id} variant="secondary" className="flex items-center gap-1">
+                      <Paperclip className="h-3 w-3" />
+                      {att.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Email Body */}
+            <div className="flex-1 overflow-auto px-6 py-4">
+              {selectedEmail.body_html ? (
+                <div
+                  className="prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: selectedEmail.body_html }}
+                />
+              ) : (
+                <pre className="whitespace-pre-wrap text-sm font-sans">
+                  {selectedEmail.body_text || selectedEmail.snippet}
+                </pre>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
+            <Mail className="h-16 w-16 mb-4 opacity-30" />
+            <p className="text-lg">Select an email to read</p>
+            <p className="text-sm mt-1">Choose an email from the list to view its contents</p>
+          </div>
+        )}
+      </div>
 
       {/* Compose Modal */}
       <ComposeEmailModal

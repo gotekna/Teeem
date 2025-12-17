@@ -10,11 +10,11 @@ module Api
       def index
         stages = @job.job_claim_stages.includes(:claim_stage_template, :external_invoice).ordered
 
-        # Summary calculations
+        # Summary calculations (handle nil values)
         contract_value = @job.contract_value.to_d
-        total_expected = stages.sum(&:expected_amount).to_d
-        total_invoiced = stages.sum(&:amount_invoiced).to_d
-        total_paid = stages.sum(&:amount_paid).to_d
+        total_expected = stages.sum { |s| s.expected_amount.to_d }
+        total_invoiced = stages.sum { |s| s.amount_invoiced.to_d }
+        total_paid = stages.sum { |s| s.amount_paid.to_d }
 
         render json: {
           success: true,
