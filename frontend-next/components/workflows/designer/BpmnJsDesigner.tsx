@@ -537,13 +537,13 @@ export default function BpmnJsDesigner({
                 {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (
                   <div className="pt-4 border-t">
                     <h4 className="font-medium mb-3">Document Generation</h4>
-                    <div>
+                    <div className="space-y-2">
                       <Label htmlFor="template-select">Word Template</Label>
                       <select
                         id="template-select"
                         value={getTemplateId()}
                         onChange={(e) => handleTemplateChange(e.target.value)}
-                        className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                       >
                         <option value="">Select template...</option>
                         {templates.map((template) => (
@@ -552,6 +552,17 @@ export default function BpmnJsDesigner({
                           </option>
                         ))}
                       </select>
+                      {getTemplateId() && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => window.open(`/admin/document-templates?edit=${getTemplateId()}`, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          View/Edit Template
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -130,6 +131,9 @@ const FIELD_REFERENCE: FieldGroup[] = [
 
 export default function DocumentTemplatesPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const editTemplateId = searchParams.get("edit");
+
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
@@ -142,6 +146,17 @@ export default function DocumentTemplatesPage() {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // Auto-select template from URL parameter
+  useEffect(() => {
+    if (editTemplateId && templates.length > 0) {
+      const template = templates.find(t => t.id.toString() === editTemplateId);
+      if (template) {
+        setSelectedTemplate(template);
+        setActiveTab("templates");
+      }
+    }
+  }, [editTemplateId, templates]);
 
   const fetchTemplates = async () => {
     try {

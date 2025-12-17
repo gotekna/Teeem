@@ -439,6 +439,7 @@ module Api
 
       # GET /api/v1/external_invoices/:id/pdf
       # Returns or fetches the PDF for this invoice
+      # Uses send_data to stream file directly (avoids CORS issues with redirect)
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
@@ -447,15 +448,22 @@ module Api
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
         if existing_pdf&.file&.attached?
-          # Return existing PDF from warehouse
-          redirect_to rails_blob_url(existing_pdf.file, disposition: "inline"), allow_other_host: true
+          # Stream existing PDF from warehouse directly (avoids CORS issues with redirect)
+          send_data existing_pdf.file.download,
+                    filename: existing_pdf.file.filename.to_s,
+                    type: existing_pdf.file.content_type || "application/pdf",
+                    disposition: "inline"
         else
           # Fetch from Xero on-demand and store in warehouse
           service = XeroAttachmentSyncService.new(invoice)
           result = service.sync!
 
           if result[:pdf]&.file&.attached?
-            redirect_to rails_blob_url(result[:pdf].file, disposition: "inline"), allow_other_host: true
+            # Stream the newly synced PDF directly
+            send_data result[:pdf].file.download,
+                      filename: result[:pdf].file.filename.to_s,
+                      type: result[:pdf].file.content_type || "application/pdf",
+                      disposition: "inline"
           else
             error_msg = result[:errors].first || "PDF not available from Xero"
             render json: { success: false, error: error_msg }, status: :not_found
@@ -463,6 +471,9 @@ module Api
         end
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
+      rescue ActiveStorage::FileNotFoundError => e
+        Rails.logger.error("PDF file not found in storage for invoice #{params[:id]}: #{e.message}")
+        render json: { success: false, error: "PDF file not found in storage" }, status: :not_found
       rescue StandardError => e
         Rails.logger.error("PDF fetch failed: #{e.message}")
         render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
