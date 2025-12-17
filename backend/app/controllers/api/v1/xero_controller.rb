@@ -1503,13 +1503,13 @@ module Api
           # ============================================
           # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
           # ============================================
-          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have onedrive_file_id set)
-          # onedrive_file_id is set by OneDrive after successful upload - this is the SSoT
+          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have sharepoint_file_id set)
+          # sharepoint_file_id is set by OneDrive after successful upload - this is the SSoT
           # expected_onedrive_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
           sharepoint_query = CorporateCompanyDocument.where(source: "xero")
                                                     .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
-                                                    .where.not(onedrive_file_id: nil)  # SSoT: Actually uploaded
+                                                    .where.not(sharepoint_file_id: nil)  # SSoT: Actually uploaded
                                                     .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
             sharepoint_query = sharepoint_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
@@ -1529,7 +1529,7 @@ module Api
 
           sharepoint_docs_query = CorporateCompanyDocument.where(source: "xero")
                                                          .where(documentable_type: "ExternalInvoice")
-                                                         .where.not(onedrive_file_id: nil)
+                                                         .where.not(sharepoint_file_id: nil)
           if tenant_id.present?
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                          .where(external_invoices: { tenant_id: tenant_id })
@@ -2111,6 +2111,153 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/unlinked_contacts
+      # Returns grouped unlinked Xero contacts with potential TEEEM contact matches
+      def unlinked_contacts
+        begin
+          # Get all unlinked invoices grouped by contact_name
+          unlinked = ExternalInvoice.where(contact_id: nil)
+            .where.not(contact_name: [ nil, "", "No Contact" ])
+            .group(:contact_name, :external_contact_id)
+            .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
+            .order("invoice_count DESC")
+
+          # Build response with potential matches for each
+          contacts_with_matches = unlinked.map do |record|
+            name = record.contact_name
+            potential_matches = find_potential_teeem_matches(name)
+
+            {
+              xero_contact_name: name,
+              xero_contact_id: record.external_contact_id,
+              invoice_count: record.invoice_count,
+              total_amount: record.total_amount&.to_f || 0,
+              potential_matches: potential_matches,
+              best_match: potential_matches.first
+            }
+          end
+
+          render json: {
+            success: true,
+            data: {
+              total_unlinked: contacts_with_matches.size,
+              total_invoices: contacts_with_matches.sum { |c| c[:invoice_count] },
+              contacts: contacts_with_matches
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero unlinked_contacts error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to get unlinked contacts: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/link_unlinked_contact
+      # Links all invoices with a given Xero contact name to a TEEEM contact
+      # Can optionally create a new contact if create_new: true
+      def link_unlinked_contact
+        xero_contact_name = params[:xero_contact_name]
+        contact_id = params[:contact_id]
+        create_new = params[:create_new] == true || params[:create_new] == "true"
+
+        unless xero_contact_name.present?
+          return render json: { success: false, error: "xero_contact_name is required" }, status: :bad_request
+        end
+
+        unless contact_id.present? || create_new
+          return render json: { success: false, error: "contact_id or create_new is required" }, status: :bad_request
+        end
+
+        begin
+          ActiveRecord::Base.transaction do
+            # Find the TEEEM contact (or create new)
+            if create_new
+              # Create a new contact with the Xero contact name
+              @contact = Contact.create!(
+                display_name: xero_contact_name,
+                is_active: true
+              )
+            else
+              @contact = Contact.find(contact_id)
+            end
+
+            # Update all unlinked invoices with this contact name
+            updated_count = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+              .update_all(contact_id: @contact.id)
+
+            render json: {
+              success: true,
+              data: {
+                contact_id: @contact.id,
+                contact_name: @contact.display_name,
+                invoices_linked: updated_count,
+                created_new: create_new
+              }
+            }
+          end
+        rescue ActiveRecord::RecordNotFound
+          render json: { success: false, error: "Contact not found" }, status: :not_found
+        rescue StandardError => e
+          Rails.logger.error("Xero link_unlinked_contact error: #{e.message}")
+          render json: { success: false, error: "Failed to link contact: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/xero/auto_match_contacts
+      # Automatically matches unlinked Xero contacts to TEEEM contacts by name
+      def auto_match_contacts
+        begin
+          matched_count = 0
+          skipped_count = 0
+          results = []
+
+          # Get all unique unlinked contact names
+          unlinked = ExternalInvoice.where(contact_id: nil)
+            .where.not(contact_name: [ nil, "", "No Contact" ])
+            .distinct
+            .pluck(:contact_name)
+
+          unlinked.each do |xero_name|
+            # Try to find exact match first
+            teeem_contact = Contact.find_by("LOWER(display_name) = ?", xero_name.downcase)
+
+            # Try company name match
+            teeem_contact ||= Contact.find_by("LOWER(company_name_or_trust) = ?", xero_name.downcase)
+
+            if teeem_contact
+              # Link all invoices with this name
+              count = ExternalInvoice.where(contact_id: nil, contact_name: xero_name)
+                .update_all(contact_id: teeem_contact.id)
+
+              matched_count += 1
+              results << {
+                xero_name: xero_name,
+                matched_to: teeem_contact.display_name,
+                contact_id: teeem_contact.id,
+                invoices_linked: count
+              }
+            else
+              skipped_count += 1
+            end
+          end
+
+          render json: {
+            success: true,
+            data: {
+              matched_count: matched_count,
+              skipped_count: skipped_count,
+              results: results
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero auto_match_contacts error: #{e.message}")
+          render json: { success: false, error: "Failed to auto-match: #{e.message}" }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Calculate Xero data statistics for sync dashboard
@@ -2329,155 +2476,6 @@ module Api
 
         nil
       end
-
-      # GET /api/v1/xero/unlinked_contacts
-      # Returns grouped unlinked Xero contacts with potential TEEEM contact matches
-      def unlinked_contacts
-        begin
-          # Get all unlinked invoices grouped by contact_name
-          unlinked = ExternalInvoice.where(contact_id: nil)
-            .where.not(contact_name: [ nil, "", "No Contact" ])
-            .group(:contact_name, :external_contact_id)
-            .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
-            .order("invoice_count DESC")
-
-          # Build response with potential matches for each
-          contacts_with_matches = unlinked.map do |record|
-            name = record.contact_name
-            potential_matches = find_potential_teeem_matches(name)
-
-            {
-              xero_contact_name: name,
-              xero_contact_id: record.external_contact_id,
-              invoice_count: record.invoice_count,
-              total_amount: record.total_amount&.to_f || 0,
-              potential_matches: potential_matches,
-              best_match: potential_matches.first
-            }
-          end
-
-          render json: {
-            success: true,
-            data: {
-              total_unlinked: contacts_with_matches.size,
-              total_invoices: contacts_with_matches.sum { |c| c[:invoice_count] },
-              contacts: contacts_with_matches
-            }
-          }
-        rescue StandardError => e
-          Rails.logger.error("Xero unlinked_contacts error: #{e.message}")
-          Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to get unlinked contacts: #{e.message}"
-          }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/xero/link_unlinked_contact
-      # Links all invoices with a given Xero contact name to a TEEEM contact
-      # Can optionally create a new contact if create_new: true
-      def link_unlinked_contact
-        xero_contact_name = params[:xero_contact_name]
-        contact_id = params[:contact_id]
-        create_new = params[:create_new] == true || params[:create_new] == "true"
-
-        unless xero_contact_name.present?
-          return render json: { success: false, error: "xero_contact_name is required" }, status: :bad_request
-        end
-
-        unless contact_id.present? || create_new
-          return render json: { success: false, error: "contact_id or create_new is required" }, status: :bad_request
-        end
-
-        begin
-          ActiveRecord::Base.transaction do
-            # Find the TEEEM contact (or create new)
-            if create_new
-              # Create a new contact with the Xero contact name
-              @contact = Contact.create!(
-                display_name: xero_contact_name,
-                is_active: true
-              )
-            else
-              @contact = Contact.find(contact_id)
-            end
-
-            # Update all unlinked invoices with this contact name
-            updated_count = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
-              .update_all(contact_id: @contact.id)
-
-            render json: {
-              success: true,
-              data: {
-                contact_id: @contact.id,
-                contact_name: @contact.display_name,
-                invoices_linked: updated_count,
-                created_new: create_new
-              }
-            }
-          end
-        rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Contact not found" }, status: :not_found
-        rescue StandardError => e
-          Rails.logger.error("Xero link_unlinked_contact error: #{e.message}")
-          render json: { success: false, error: "Failed to link contact: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
-      # POST /api/v1/xero/auto_match_contacts
-      # Automatically matches unlinked Xero contacts to TEEEM contacts by name
-      def auto_match_contacts
-        begin
-          matched_count = 0
-          skipped_count = 0
-          results = []
-
-          # Get all unique unlinked contact names
-          unlinked = ExternalInvoice.where(contact_id: nil)
-            .where.not(contact_name: [ nil, "", "No Contact" ])
-            .distinct
-            .pluck(:contact_name)
-
-          unlinked.each do |xero_name|
-            # Try to find exact match first
-            teeem_contact = Contact.find_by("LOWER(display_name) = ?", xero_name.downcase)
-
-            # Try company name match
-            teeem_contact ||= Contact.find_by("LOWER(company_name_or_trust) = ?", xero_name.downcase)
-
-            if teeem_contact
-              # Link all invoices with this name
-              count = ExternalInvoice.where(contact_id: nil, contact_name: xero_name)
-                .update_all(contact_id: teeem_contact.id)
-
-              matched_count += 1
-              results << {
-                xero_name: xero_name,
-                matched_to: teeem_contact.display_name,
-                contact_id: teeem_contact.id,
-                invoices_linked: count
-              }
-            else
-              skipped_count += 1
-            end
-          end
-
-          render json: {
-            success: true,
-            data: {
-              matched_count: matched_count,
-              skipped_count: skipped_count,
-              results: results
-            }
-          }
-        rescue StandardError => e
-          Rails.logger.error("Xero auto_match_contacts error: #{e.message}")
-          render json: { success: false, error: "Failed to auto-match: #{e.message}" }, status: :internal_server_error
-        end
-      end
-
-      private
 
       # Find potential TEEEM contact matches for a Xero contact name
       def find_potential_teeem_matches(xero_name)

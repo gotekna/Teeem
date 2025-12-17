@@ -102,12 +102,12 @@ class DocumentVerificationService
     return false unless analysis[:suggested_name].present?
 
     # Rename file in SharePoint if name changed
-    if analysis[:suggested_name] != @document.title && @document.onedrive_file_id.present?
+    if analysis[:suggested_name] != @document.title && @document.sharepoint_file_id.present?
       begin
         credential = OrganizationOneDriveCredential.active_credential
         if credential
           client = MicrosoftGraphClient.new(credential)
-          client.rename_file(@document.onedrive_file_id, analysis[:suggested_name])
+          client.rename_file(@document.sharepoint_file_id, analysis[:suggested_name])
           Rails.logger.info("Auto-renamed SharePoint file to: #{analysis[:suggested_name]}")
         end
       rescue StandardError => e
@@ -152,7 +152,7 @@ class DocumentVerificationService
   end
 
   def validate_file_available!
-    unless @document.onedrive_file_id.present?
+    unless @document.sharepoint_file_id.present?
       raise FileNotFoundError, "No OneDrive file ID available for this document"
     end
   end
@@ -162,7 +162,7 @@ class DocumentVerificationService
     raise OneDriveError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(@document.onedrive_file_id)
+    content = client.download_file(@document.sharepoint_file_id)
 
     raise FileNotFoundError, "Failed to download file content" if content.blank?
     raise FileTooLargeError, "File too large (#{content.bytesize} bytes)" if content.bytesize > MAX_FILE_SIZE

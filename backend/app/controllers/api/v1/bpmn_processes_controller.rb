@@ -134,6 +134,7 @@ module Api
       def process_params
         params.require(:bpmn_process).permit(
           :name, :description, :workflow_definition_id,
+          :bpmn_xml, :svg_preview,
           canvas_data: {}
         )
       end
@@ -204,6 +205,8 @@ module Api
           published_at: process.published_at,
           version: process.version,
           canvas_data: process.canvas_data,
+          bpmn_xml: process.bpmn_xml,
+          svg_preview: process.svg_preview,
           nodes: process.bpmn_nodes.map { |n| serialize_node(n) },
           edges: process.bpmn_edges.map { |e| serialize_edge(e) },
           triggers: process.bpmn_triggers.map { |t| serialize_trigger(t) },

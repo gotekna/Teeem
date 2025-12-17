@@ -52,9 +52,16 @@ module Api
       def show
         invoice = ExternalInvoice.find(params[:id])
 
+        # Check if PDF is available in SharePoint (SSoT)
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.sharepoint_file_id.present?
+
         render json: {
           success: true,
-          data: serialize_invoice(invoice, include_details: true)
+          data: serialize_invoice(invoice, include_details: true).merge(
+            has_pdf: has_pdf,
+            pdf_synced_at: pdf_doc&.created_at&.iso8601
+          )
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
@@ -65,15 +72,14 @@ module Api
       def by_external_id
         invoice = ExternalInvoice.find_by!(external_id: params[:external_id])
 
-        # Check if PDF is available in warehouse
-        pdf_doc = invoice.corporate_company_documents.find_by(document_type: invoice.invoice_type)
-        has_pdf = pdf_doc&.file&.attached?
+        # Check if PDF is available in SharePoint (SSoT)
+        pdf_doc = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
+        has_pdf = pdf_doc&.sharepoint_file_id.present?
 
         render json: {
           success: true,
           data: serialize_invoice(invoice, include_details: true).merge(
             has_pdf: has_pdf,
-            pdf_url: has_pdf ? Rails.application.routes.url_helpers.rails_blob_url(pdf_doc.file, disposition: "inline", host: ENV.fetch("RAILS_HOST", "localhost:3001")) : nil,
             pdf_synced_at: pdf_doc&.created_at&.iso8601
           )
         }
@@ -428,28 +434,48 @@ module Api
       end
 
       # GET /api/v1/external_invoices/:id/pdf
-      # Returns or fetches the PDF for this invoice
+      # Returns PDF from SharePoint via sharepoint_file_id (SSoT)
+      # No fallback - fail fast if SharePoint doesn't work
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
-        # Check warehouse first (SSoT) - look for PDF linked to this invoice
-        existing_pdf = invoice.corporate_company_documents.find_by(document_type: invoice.invoice_type)
+        # Check warehouse for existing PDF linked to this invoice
+        existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
-        if existing_pdf&.file&.attached?
-          # Return existing PDF from warehouse
-          redirect_to rails_blob_url(existing_pdf.file, disposition: "inline"), allow_other_host: true
-        else
-          # Fetch from Xero on-demand and store in warehouse
-          service = XeroAttachmentSyncService.new(invoice)
-          result = service.sync!
-
-          if result[:pdf]&.file&.attached?
-            redirect_to rails_blob_url(result[:pdf].file, disposition: "inline"), allow_other_host: true
-          else
-            error_msg = result[:errors].first || "PDF not available from Xero"
-            render json: { success: false, error: error_msg }, status: :not_found
+        if existing_pdf&.sharepoint_file_id.present?
+          content = fetch_from_sharepoint(existing_pdf.sharepoint_file_id)
+          if content
+            send_data content,
+                      filename: existing_pdf.file_name || "invoice.pdf",
+                      type: "application/pdf",
+                      disposition: "inline"
+            return
           end
+          # SharePoint fetch failed - return error, don't fallback
+          render json: { success: false, error: "SharePoint fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
+          return
         end
+
+        # No PDF in warehouse - fetch from Xero on-demand and store
+        service = XeroAttachmentSyncService.new(invoice)
+        result = service.sync!
+
+        if result[:pdf]&.sharepoint_file_id.present?
+          content = fetch_from_sharepoint(result[:pdf].sharepoint_file_id)
+          if content
+            send_data content,
+                      filename: result[:pdf].file_name || "invoice.pdf",
+                      type: "application/pdf",
+                      disposition: "inline"
+            return
+          end
+          render json: { success: false, error: "SharePoint fetch failed after Xero sync" }, status: :service_unavailable
+          return
+        end
+
+        # Xero sync failed or no sharepoint_file_id
+        error_msg = result[:errors].first || "PDF not available - no sharepoint_file_id"
+        render json: { success: false, error: error_msg }, status: :not_found
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
       rescue StandardError => e
@@ -457,12 +483,31 @@ module Api
         render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
       end
 
+      # Fetch file content from SharePoint using OrganizationOneDriveCredential
+      # This bypasses Active Storage's SharePointService which has config issues
+      def fetch_from_sharepoint(file_id)
+        credential = OrganizationOneDriveCredential.active_credential
+        return nil unless credential&.valid_credential?
+
+        graph_client = MicrosoftGraphClient.new(credential)
+        graph_client.download_file(file_id)
+      rescue MicrosoftGraphClient::AuthenticationError => e
+        Rails.logger.error("SharePoint auth failed: #{e.message}")
+        nil
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.error("SharePoint API error: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("SharePoint fetch error: #{e.message}")
+        nil
+      end
+
       # GET /api/v1/external_invoices/:id/attachments
       # List all attachments for this invoice
       def attachments
         invoice = ExternalInvoice.find(params[:id])
 
-        # Return documents linked to this invoice
+        # Return documents linked to this invoice (SharePoint SSoT)
         documents = invoice.corporate_company_documents.map do |doc|
           {
             id: doc.id,
@@ -472,7 +517,8 @@ module Api
             folder: doc.folder,
             file_size: doc.file_size,
             mime_type: doc.mime_type,
-            url: doc.file.attached? ? rails_blob_url(doc.file) : nil,
+            has_file: doc.sharepoint_file_id.present?,
+            sharepoint_file_id: doc.sharepoint_file_id,
             created_at: doc.created_at.iso8601
           }
         end
@@ -492,12 +538,32 @@ module Api
 
       private
 
+      # Maps invoice_type to the document_type used in CorporateCompanyDocument
+      # Must match XeroAttachmentSyncService.document_type_for_invoice
+      def document_type_for(invoice_type)
+        case invoice_type
+        when "sales_invoice" then "Sales Document"
+        when "bill" then "Purchases"
+        when "quote" then "Estimation"
+        when "credit_note" then "other"
+        else "other"
+        end
+      end
+
       def serialize_invoice(invoice, include_details: false)
+        # Look up tenant name from SyncConfiguration
+        tenant_name = nil
+        if invoice.tenant_id.present?
+          config = SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+          tenant_name = config&.xero_tenant_name
+        end
+
         data = {
           id: invoice.id,
           source: invoice.source,
           external_id: invoice.external_id,
           tenant_id: invoice.tenant_id,
+          tenant_name: tenant_name,
           invoice_number: invoice.invoice_number,
           reference: invoice.reference,
           invoice_type: invoice.invoice_type,

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +66,28 @@ interface FieldGroup {
 // Available merge fields organized by category
 const FIELD_REFERENCE: FieldGroup[] = [
   {
+    name: "✨ Smart Tags (Letters)",
+    description: "Use for LETTERS - shows owner names for companies",
+    fields: [
+      { path: "dear", description: "Complete greeting - handles any client combo", example: "Dear Keith & John," },
+      { path: "client_names", description: "All client names formatted", example: "ABC Pty Ltd (Keith Miller) & John Smith" },
+      { path: "client_first_names", description: "First names (owner's for companies)", example: "Keith & John" },
+      { path: "client_last_names", description: "Last names (owner's for companies)", example: "Miller & Smith" },
+      { path: "client_display_names", description: "Display names with company", example: "Keith Miller (ABC Pty Ltd) & John Smith" },
+      { path: "client_emails", description: "All client emails", example: "keith@abc.com, john@example.com" },
+      { path: "client_phones", description: "All client phone numbers", example: "0400 111 222, 0400 333 444" },
+    ],
+  },
+  {
+    name: "📄 Contract Tags",
+    description: "Use for CONTRACTS - shows company names, NOT owner names",
+    fields: [
+      { path: "contract_dear", description: "Formal greeting using company names", example: "Dear ABC Pty Ltd & John," },
+      { path: "contract_client_names", description: "Formal names (company only, no owner)", example: "ABC Pty Ltd & John Smith" },
+      { path: "contract_parties", description: "Party names with ABN for contracts", example: "ABC Pty Ltd ABN 12 345 678 901 & John Smith" },
+    ],
+  },
+  {
     name: "Job",
     description: "Job/Project information",
     fields: [
@@ -88,8 +111,8 @@ const FIELD_REFERENCE: FieldGroup[] = [
     ],
   },
   {
-    name: "Clients",
-    description: "Client/Buyer information - loops through all clients",
+    name: "Clients (Loop)",
+    description: "Loop through each client individually",
     isLoop: true,
     fields: [
       { path: "display_name", description: "Full name", example: "John Smith" },
@@ -98,11 +121,31 @@ const FIELD_REFERENCE: FieldGroup[] = [
       { path: "email", description: "Email address", example: "john@example.com" },
       { path: "phone", description: "Phone number", example: "0400 123 456" },
       { path: "mobile", description: "Mobile number", example: "0400 123 456" },
+      { path: "company_name", description: "Company name (if company)", example: "ABC Pty Ltd" },
+      { path: "abn", description: "ABN", example: "12 345 678 901" },
+      { path: "is_company", description: "True if entity is a company", example: "true/false" },
+      { path: "is_person", description: "True if entity is a person", example: "true/false" },
+      { path: "owner_first_name", description: "Owner's first name (for companies)", example: "Keith" },
+      { path: "owner_name", description: "Owner's full name (for companies)", example: "Keith Miller" },
       { path: "address_line_1", description: "Address line 1", example: "123 Main Street" },
       { path: "suburb", description: "Suburb", example: "Brisbane" },
       { path: "state", description: "State", example: "QLD" },
       { path: "postcode", description: "Postcode", example: "4000" },
       { path: "full_address", description: "Complete address", example: "123 Main Street, Brisbane QLD 4000" },
+    ],
+  },
+  {
+    name: "Client 1 / Client 2",
+    description: "Direct access to primary and secondary client",
+    fields: [
+      { path: "client_1.display_name", description: "Primary client name", example: "John Smith" },
+      { path: "client_1.first_name", description: "Primary client first name", example: "John" },
+      { path: "client_1.email", description: "Primary client email", example: "john@example.com" },
+      { path: "client_1.company_name", description: "Primary client company", example: "ABC Pty Ltd" },
+      { path: "client_1.owner_first_name", description: "Company owner first name", example: "Keith" },
+      { path: "client_2.display_name", description: "Secondary client name", example: "Jane Smith" },
+      { path: "client_2.first_name", description: "Secondary client first name", example: "Jane" },
+      { path: "client_2.email", description: "Secondary client email", example: "jane@example.com" },
     ],
   },
   {
@@ -130,11 +173,14 @@ const FIELD_REFERENCE: FieldGroup[] = [
 
 export default function DocumentTemplatesPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  const editTemplateId = searchParams.get("edit");
+
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<DocumentTemplate | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(["Job", "Clients"]);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(["✨ Smart Tags (Letters)", "📄 Contract Tags"]);
   const [previewJobId, setPreviewJobId] = useState<string>("");
   const [previewing, setPreviewing] = useState(false);
   const [activeTab, setActiveTab] = useState<"templates" | "fields" | "preview">("templates");
@@ -142,6 +188,17 @@ export default function DocumentTemplatesPage() {
   useEffect(() => {
     fetchTemplates();
   }, []);
+
+  // Auto-select template from URL parameter
+  useEffect(() => {
+    if (editTemplateId && templates.length > 0) {
+      const template = templates.find(t => t.id.toString() === editTemplateId);
+      if (template) {
+        setSelectedTemplate(template);
+        setActiveTab("templates");
+      }
+    }
+  }, [editTemplateId, templates]);
 
   const fetchTemplates = async () => {
     try {
@@ -307,9 +364,10 @@ export default function DocumentTemplatesPage() {
                         {template.sharepoint_path && (
                           <Button variant="ghost" size="sm" asChild>
                             <a
-                              href={`https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${encodeURIComponent(template.sharepoint_path)}`}
+                              href={`https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${template.sharepoint_path.split('/').map(s => encodeURIComponent(s)).join('/')}?web=1`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              title="Edit in Word Online"
                             >
                               <ExternalLink className="h-4 w-4" />
                             </a>
@@ -442,45 +500,76 @@ export default function DocumentTemplatesPage() {
             </CardContent>
           </Card>
 
-          {/* Example Template */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Example: Multi-Client Letter</CardTitle>
-              <CardDescription>
-                How to structure a template that works with 1, 2, or more clients
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <pre className="rounded-lg bg-slate-900 p-4 text-sm text-slate-100 overflow-x-auto">
-{`Dear {{#clients}}{{display_name}}{{#unless @last}}, {{/unless}}{{/clients}},
+          {/* Example Templates */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span>✨</span> Letter Template
+                </CardTitle>
+                <CardDescription>
+                  Uses owner names for companies (friendly/personal)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-slate-100 overflow-x-auto whitespace-pre-wrap">
+{`{{dear}}
 
-Re: {{job.address}}
+Re: {{job.full_address}}
 
-Thank you for choosing {{builder.display_name}} for your new home at:
-
-    {{job.full_address}}
-    Lot: {{job.lot}}
-    Plan: {{job.plan_number}}
+Thank you for choosing us for your new home.
 
 Contract Details:
-    Contract Price: {{job.contract_price}}
+    Price: {{job.contract_price}}
     Deposit: {{job.deposit}}
-    Contract Date: {{job.contract_date}}
 
-Client Details:
-{{#clients}}
-    Name: {{display_name}}
-    Email: {{email}}
-    Phone: {{phone}}
-{{/clients}}
-
-Document generated on {{generated_date}}.
+To: {{client_names}}
+Emails: {{client_emails}}
 
 Kind regards,
 {{builder.display_name}}`}
-              </pre>
-            </CardContent>
-          </Card>
+                </pre>
+                <p className="mt-3 text-xs text-slate-500">
+                  Output for company with owner: &quot;Dear Keith, ... To: ABC Pty Ltd (Keith Miller)&quot;
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <span>📄</span> Contract Template
+                </CardTitle>
+                <CardDescription>
+                  Uses company names only (formal/legal)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="rounded-lg bg-slate-900 p-4 text-sm text-slate-100 overflow-x-auto whitespace-pre-wrap">
+{`BUILDING CONTRACT
+
+Between:
+{{contract_parties}}
+("the Owner")
+
+And:
+{{builder.display_name}}
+ABN: {{builder.abn}}
+("the Builder")
+
+Property: {{job.full_address}}
+Contract Price: {{job.contract_price}}
+
+{{contract_dear}}
+
+This contract is made on {{job.contract_date}}.`}
+                </pre>
+                <p className="mt-3 text-xs text-slate-500">
+                  Output for company: &quot;ABC Pty Ltd ABN 12 345 678 901&quot; (no owner name)
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
 

@@ -32,14 +32,14 @@ export default function WorkflowDesignerPage() {
 
   // Save mutation
   const saveMutation = useMutation({
-    mutationFn: async ({ xml, svg }: { xml: string; svg: string }) => {
+    mutationFn: async ({ xml, svg, name }: { xml: string; svg: string; name: string }) => {
       if (isNew) {
         // Create new process
         const response = await api.post<{ success: boolean; bpmn_process: Record<string, unknown> }>(
           "/api/v1/bpmn_processes",
           {
             bpmn_process: {
-              name: "New Workflow",
+              name,
               bpmn_xml: xml,
               svg_preview: svg,
             },
@@ -52,6 +52,7 @@ export default function WorkflowDesignerPage() {
           `/api/v1/bpmn_processes/${processId}`,
           {
             bpmn_process: {
+              name,
               bpmn_xml: xml,
               svg_preview: svg,
             },
@@ -69,8 +70,8 @@ export default function WorkflowDesignerPage() {
     },
   });
 
-  const handleSave = async (xml: string, svg: string) => {
-    await saveMutation.mutateAsync({ xml, svg });
+  const handleSave = async (xml: string, svg: string, name: string) => {
+    await saveMutation.mutateAsync({ xml, svg, name });
   };
 
   if (isLoading && !isNew) {

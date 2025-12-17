@@ -74,7 +74,7 @@ class DocumentSplitService
     raise FileNotFoundError, "No active OneDrive credential" unless credential
 
     client = MicrosoftGraphClient.new(credential)
-    content = client.download_file(@document.onedrive_file_id)
+    content = client.download_file(@document.sharepoint_file_id)
 
     raise FileNotFoundError, "Failed to download file content" if content.blank?
 
@@ -152,18 +152,18 @@ class DocumentSplitService
     client = MicrosoftGraphClient.new(credential)
 
     # Get parent folder from original file
-    file_info = client.get_item(@document.onedrive_file_id)
+    file_info = client.get_item(@document.sharepoint_file_id)
     file_info.dig("parentReference", "id")
   end
 
-  def create_document_record(split_config, onedrive_file_id, file_size)
+  def create_document_record(split_config, sharepoint_file_id, file_size)
     CorporateCompanyDocument.create!(
       company_id: @document.company_id,
       title: split_config[:title],
       folder: split_config[:folder] || @document.folder,
       document_type: split_config[:document_type],
       source: "split",
-      onedrive_file_id: onedrive_file_id,
+      sharepoint_file_id: sharepoint_file_id,
       file_size: file_size,
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],

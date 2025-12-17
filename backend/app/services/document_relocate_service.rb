@@ -14,14 +14,14 @@ class DocumentRelocateService
   # - Moving to different company folder (company_id change)
   # - Moving to different subfolder (folder change)
   def relocate!(new_company_id: nil, new_folder: nil, new_title: nil)
-    return { success: true, skipped: true, reason: "No OneDrive file" } unless @document.onedrive_file_id.present?
+    return { success: true, skipped: true, reason: "No OneDrive file" } unless @document.sharepoint_file_id.present?
     return { success: false, error: "No OneDrive credential" } unless @client
 
     actions = []
     drive_id = @credential.drive_id
 
     # Get current file info
-    current_file = @client.get("/drives/#{drive_id}/items/#{@document.onedrive_file_id}")
+    current_file = @client.get("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}")
 
     # Determine what needs to change
     needs_rename = new_title.present? && new_title != @document.title
@@ -62,7 +62,7 @@ class DocumentRelocateService
 
     # Execute the update if there are changes
     if update_payload.present?
-      @client.patch("/drives/#{drive_id}/items/#{@document.onedrive_file_id}", update_payload)
+      @client.patch("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}", update_payload)
 
       # Update the document record
       updates = {}

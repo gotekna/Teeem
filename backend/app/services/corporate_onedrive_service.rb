@@ -467,9 +467,9 @@ class CorporateOnedriveService
     document_type_string = parent_folder_name.upcase
 
     # Create or update company document record
-    # Find by onedrive_file_id only (unique constraint), then update company if needed
+    # Find by sharepoint_file_id only (unique constraint), then update company if needed
     company_doc = CorporateCompanyDocument.find_or_initialize_by(
-      onedrive_file_id: doc["id"]
+      sharepoint_file_id: doc["id"]
     )
     # Update company_id to the correct company (may have been synced to wrong company before)
     company_doc.company = company

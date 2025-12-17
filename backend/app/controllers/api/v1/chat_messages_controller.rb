@@ -113,8 +113,9 @@ class Api::V1::ChatMessagesController < ApplicationController
 
     messages_with_files = @messages.map do |msg|
       json = msg.as_json(include: { user: {} }, methods: :formatted_timestamp)
-      if msg.file.attached?
-        json[:file_url] = url_for(msg.file)
+      if msg.sharepoint_file_id.present?
+        json[:has_file] = true
+        json[:sharepoint_file_id] = msg.sharepoint_file_id
         json[:file_name] = msg.file_name
       end
       json
@@ -135,11 +136,13 @@ class Api::V1::ChatMessagesController < ApplicationController
     end
 
     if @message.save
-      # Include file URL in response if file is attached
+      # SharePoint upload happens via after_commit callback
       response_data = @message.as_json(include: { user: {} }, methods: :formatted_timestamp)
       if @message.file.attached?
-        response_data[:file_url] = url_for(@message.file)
+        # File is being uploaded to SharePoint async
+        response_data[:has_file] = true
         response_data[:file_name] = @message.file_name
+        response_data[:upload_pending] = @message.sharepoint_file_id.blank?
       end
       render json: response_data, status: :created
     else

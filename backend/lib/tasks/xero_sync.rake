@@ -454,13 +454,13 @@ namespace :xero do
 
     # Show current status first
     total_xero_docs = CorporateCompanyDocument.where(source: "xero").count
-    with_sharepoint = CorporateCompanyDocument.where(source: "xero").where.not(onedrive_file_id: nil).count
-    without_sharepoint = CorporateCompanyDocument.where(source: "xero").where(onedrive_file_id: nil).count
+    with_sharepoint = CorporateCompanyDocument.where(source: "xero").where.not(sharepoint_file_id: nil).count
+    without_sharepoint = CorporateCompanyDocument.where(source: "xero").where(sharepoint_file_id: nil).count
 
     # Count how many have attached files (need to check in Ruby)
     docs_needing_upload = CorporateCompanyDocument
       .where(source: "xero")
-      .where(onedrive_file_id: nil)
+      .where(sharepoint_file_id: nil)
       .select { |d| d.file.attached? }
       .count
 
@@ -498,7 +498,7 @@ namespace :xero do
     end
 
     # Show updated status
-    updated_with_sharepoint = CorporateCompanyDocument.where(source: "xero").where.not(onedrive_file_id: nil).count
+    updated_with_sharepoint = CorporateCompanyDocument.where(source: "xero").where.not(sharepoint_file_id: nil).count
     puts ""
     puts "Updated Status:"
     puts "  Now on SharePoint: #{updated_with_sharepoint} (+#{updated_with_sharepoint - with_sharepoint})"

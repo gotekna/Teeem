@@ -77,7 +77,7 @@ namespace :corporate do
       all_documents.each do |file|
         begin
           # Check if already synced
-          existing = company.company_documents.find_by(onedrive_file_id: file["id"])
+          existing = company.company_documents.find_by(sharepoint_file_id: file["id"])
 
           if existing
             puts "  ⏭️  Skipped (already synced): #{file['name']}"
@@ -97,8 +97,8 @@ namespace :corporate do
             document_type: "other",
             file_name: filename,
             file_size: file["size"],
-            onedrive_file_id: file["id"],
-            onedrive_download_url: file["webUrl"],
+            sharepoint_file_id: file["id"],
+            sharepoint_download_url: file["webUrl"],
             company_code: code,
             storage_type: "electronic",
             folder: file[:folder_path] || "Tekna Drafting"

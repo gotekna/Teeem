@@ -294,13 +294,10 @@ module Api
           } : nil,
           paid_at: request.paid_at,
           attachments: {
-            invoice_file_url: request.invoice_file.attached? ? url_for(request.invoice_file) : nil,
-            proof_photos: request.proof_photos.map { |photo|
-              {
-                url: url_for(photo),
-                filename: photo.filename.to_s
-              }
-            }
+            has_invoice: request.sharepoint_file_id.present?,
+            sharepoint_file_id: request.sharepoint_file_id,
+            proof_photos_sharepoint_ids: request.proof_photos_sharepoint_ids || [],
+            proof_photos_count: request.proof_photos_sharepoint_ids&.count || 0
           },
           weekly_limit: request.pay_now_weekly_limit ? {
             id: request.pay_now_weekly_limit.id,

@@ -47,7 +47,7 @@ class DocumentDuplicateService
         created_at: doc.created_at,
         file_size: doc.file_size,
         ai_status: doc.ai_verification_status,
-        onedrive_file_id: doc.onedrive_file_id,
+        sharepoint_file_id: doc.sharepoint_file_id,
         content_preview: extract_content_preview(doc)
       }
     end
@@ -217,19 +217,19 @@ class DocumentDuplicateService
       created_at: doc.created_at,
       file_size: doc.file_size,
       ai_verification_status: doc.ai_verification_status,
-      onedrive_file_id: doc.onedrive_file_id
+      sharepoint_file_id: doc.sharepoint_file_id
     }
   end
 
   def self.extract_content_preview(doc)
-    return nil unless doc.onedrive_file_id.present?
+    return nil unless doc.sharepoint_file_id.present?
 
     begin
       credential = OrganizationOneDriveCredential.active_credential
       return nil unless credential
 
       client = MicrosoftGraphClient.new(credential)
-      content = client.download_file(doc.onedrive_file_id)
+      content = client.download_file(doc.sharepoint_file_id)
 
       # Extract text preview based on file type
       if doc.title&.end_with?(".pdf")
@@ -294,7 +294,7 @@ class DocumentDuplicateService
         Created: #{d[:created_at]}
         File Size: #{d[:file_size]} bytes
         AI Status: #{d[:ai_status]}
-        OneDrive ID: #{d[:onedrive_file_id]}
+        OneDrive ID: #{d[:sharepoint_file_id]}
         Content Preview: #{d[:content_preview] || "(could not extract)"}
       DOC
     end.join("\n---\n")
@@ -412,11 +412,11 @@ class DocumentDuplicateService
     doc = CorporateCompanyDocument.find(document_id)
 
     # Rename in SharePoint
-    if doc.onedrive_file_id.present?
+    if doc.sharepoint_file_id.present?
       credential = OrganizationOneDriveCredential.active_credential
       if credential
         client = MicrosoftGraphClient.new(credential)
-        client.rename_file(doc.onedrive_file_id, new_name)
+        client.rename_file(doc.sharepoint_file_id, new_name)
       end
     end
 
@@ -463,7 +463,7 @@ class DocumentDuplicateService
         {
           id: doc.id,
           title: doc.title,
-          content: client.download_file(doc.onedrive_file_id)
+          content: client.download_file(doc.sharepoint_file_id)
         }
       end
 
@@ -483,18 +483,18 @@ class DocumentDuplicateService
       merged_content = output.string
 
       # Upload merged PDF (replace the keep document)
-      file_info = client.get_item(keep_doc.onedrive_file_id)
+      file_info = client.get_item(keep_doc.sharepoint_file_id)
       parent_folder_id = file_info.dig("parentReference", "id")
 
       # Delete original keep file first
-      client.delete_file(keep_doc.onedrive_file_id) rescue nil
+      client.delete_file(keep_doc.sharepoint_file_id) rescue nil
 
       # Upload merged file with same name
       result = client.upload_file_content(parent_folder_id, keep_doc.title, merged_content)
 
       # Update keep document record
       keep_doc.update!(
-        onedrive_file_id: result[:id],
+        sharepoint_file_id: result[:id],
         file_size: merged_content.bytesize,
         ai_verification_status: "pending", # Re-verify merged doc
         ai_analysis_notes: "Merged from #{docs.count} documents: #{docs.pluck(:id).join(', ')}"
@@ -503,9 +503,9 @@ class DocumentDuplicateService
       # Delete other documents from SharePoint and database
       other_docs.each do |doc|
         begin
-          client.delete_file(doc.onedrive_file_id) if doc.onedrive_file_id.present?
+          client.delete_file(doc.sharepoint_file_id) if doc.sharepoint_file_id.present?
         rescue StandardError => e
-          Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
+          Rails.logger.warn("Could not delete SharePoint file #{doc.sharepoint_file_id}: #{e.message}")
         end
         doc.destroy
       end
@@ -553,11 +553,11 @@ class DocumentDuplicateService
 
       begin
         # Rename in SharePoint
-        if doc.onedrive_file_id.present?
+        if doc.sharepoint_file_id.present?
           credential = OrganizationOneDriveCredential.active_credential
           if credential
             client = MicrosoftGraphClient.new(credential)
-            client.rename_file(doc.onedrive_file_id, new_name)
+            client.rename_file(doc.sharepoint_file_id, new_name)
           end
         end
 
@@ -580,16 +580,16 @@ class DocumentDuplicateService
   def self.permanently_delete(document_ids)
     CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
       # Delete from SharePoint
-      if doc.onedrive_file_id.present?
+      if doc.sharepoint_file_id.present?
         begin
           credential = OrganizationOneDriveCredential.active_credential
           if credential
             client = MicrosoftGraphClient.new(credential)
-            client.delete_file(doc.onedrive_file_id)
-            Rails.logger.info("Permanently deleted SharePoint file: #{doc.onedrive_file_id}")
+            client.delete_file(doc.sharepoint_file_id)
+            Rails.logger.info("Permanently deleted SharePoint file: #{doc.sharepoint_file_id}")
           end
         rescue StandardError => e
-          Rails.logger.warn("Could not delete SharePoint file #{doc.onedrive_file_id}: #{e.message}")
+          Rails.logger.warn("Could not delete SharePoint file #{doc.sharepoint_file_id}: #{e.message}")
           # Continue with database deletion even if SharePoint fails
         end
       end
@@ -623,11 +623,11 @@ class DocumentDuplicateService
     new_name = doc.title.sub(DELETE_PREFIX, "")
 
     # Rename in SharePoint
-    if doc.onedrive_file_id.present?
+    if doc.sharepoint_file_id.present?
       credential = OrganizationOneDriveCredential.active_credential
       if credential
         client = MicrosoftGraphClient.new(credential)
-        client.rename_file(doc.onedrive_file_id, new_name)
+        client.rename_file(doc.sharepoint_file_id, new_name)
       end
     end
 

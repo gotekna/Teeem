@@ -87,26 +87,22 @@ module Api
       end
 
       # GET /api/v1/bill_inbox/:id/download
-      # Params:
-      #   disposition: "inline" (default) or "attachment" (to open in system app)
+      # Downloads from SharePoint (SSoT) - no Active Storage fallback
       def download
-        unless @bill.invoice_file.attached?
-          return render json: { error: "No invoice file attached" }, status: :not_found
+        unless @bill.sharepoint_file_id.present?
+          return render json: { error: "No SharePoint file ID - file not uploaded yet" }, status: :not_found
         end
 
-        begin
-          # disposition=attachment will trigger download/open in system app
-          disposition = params[:disposition] == "attachment" ? "attachment" : "inline"
-
-          # Stream the file
-          send_data @bill.invoice_file.download,
-                    filename: @bill.invoice_file.filename.to_s,
-                    type: @bill.invoice_file.content_type,
-                    disposition: disposition
-        rescue ActiveStorage::FileNotFoundError => e
-          Rails.logger.error("File not found in storage for BillInbox #{@bill.id}: #{e.message}")
-          render json: { error: "Invoice file not found in storage" }, status: :not_found
+        content = @bill.download_invoice_file
+        unless content
+          return render json: { error: "Failed to download from SharePoint" }, status: :service_unavailable
         end
+
+        disposition = params[:disposition] == "attachment" ? "attachment" : "inline"
+        send_data content,
+                  filename: @bill.invoice_file_filename || "invoice.pdf",
+                  type: @bill.invoice_file_content_type || "application/pdf",
+                  disposition: disposition
       end
 
       # POST /api/v1/bill_inbox
@@ -115,11 +111,8 @@ module Api
         @bill.source = "upload"
 
         if @bill.save
-          # Queue extraction if file is attached
-          if @bill.invoice_file.attached?
-            InvoiceExtractionJob.perform_later(@bill.id)
-          end
-
+          # SharePoint upload happens via after_commit callback
+          # Extraction will be queued after SharePoint upload completes (in the job)
           render json: @bill, status: :created
         else
           render json: { errors: @bill.errors.full_messages }, status: :unprocessable_entity
@@ -147,8 +140,8 @@ module Api
 
       # POST /api/v1/bill_inbox/:id/extract
       def extract
-        unless @bill.invoice_file.attached?
-          return render json: { error: "No invoice file attached" }, status: :unprocessable_entity
+        unless @bill.sharepoint_file_id.present?
+          return render json: { error: "No SharePoint file - upload not complete" }, status: :unprocessable_entity
         end
 
         InvoiceExtractionJob.perform_later(@bill.id)

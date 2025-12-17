@@ -354,7 +354,7 @@ class CorporateOneDriveService
     document_type = DocumentType.find_by(name: parsed[:type])
 
     company_document = company.corporate_company_documents.find_or_initialize_by(
-      onedrive_file_id: file_id
+      sharepoint_file_id: file_id
     )
 
     company_document.assign_attributes(
@@ -366,7 +366,7 @@ class CorporateOneDriveService
       year: parsed[:date]&.year,
       folder: file.dig("parentReference", "path")&.split("/").last,
       storage_type: "electronic",
-      onedrive_file_id: file_id,
+      sharepoint_file_id: file_id,
       onedrive_web_url: file["webUrl"],
       company_code: extract_company_code(file["name"], company)
     )

@@ -18,7 +18,7 @@ namespace :xero do
     end
 
     # Update sharepoint sync status
-    last_sharepoint = CorporateCompanyDocument.where(source: "xero", documentable_type: "ExternalInvoice").where.not(onedrive_file_id: nil).maximum(:updated_at)
+    last_sharepoint = CorporateCompanyDocument.where(source: "xero", documentable_type: "ExternalInvoice").where.not(sharepoint_file_id: nil).maximum(:updated_at)
     if last_sharepoint
       sync = XeroSyncStatus.find_or_initialize_by(sync_type: "sharepoint")
       sync.update!(status: "success", last_synced_at: last_sharepoint, next_sync_at: 5.minutes.from_now)
