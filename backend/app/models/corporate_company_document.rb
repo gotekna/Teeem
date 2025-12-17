@@ -43,7 +43,7 @@ class CorporateCompanyDocument < ApplicationRecord
   # Legacy hardcoded document types for backward compatibility
   LEGACY_DOCUMENT_TYPES = %w[constitution minutes loan_agreement security_deed setup share_certificate
                              tax_return financial_statement insurance_policy asic share_registry trust_deed
-                             financial tax insurance contract certificate other].freeze
+                             financial tax insurance contract certificate invoice quote other].freeze
 
   # Returns all allowed document types (from database + legacy hardcoded)
   def self.allowed_document_types
