@@ -64,6 +64,7 @@ interface EmailAccount {
   is_active: boolean;
   is_default?: boolean;
   org_credential_id?: number;
+  needs_mailbox_config?: boolean;
 }
 
 interface Pagination {
@@ -164,6 +165,11 @@ export default function EmailPage() {
 
     // Find account if not provided
     const acct = account || accounts.find(a => String(a.id) === accountId);
+
+    // Skip if account needs mailbox configuration
+    if (acct?.needs_mailbox_config) {
+      return;
+    }
 
     setLoadingFolders(prev => new Set(prev).add(accountId));
     try {
@@ -372,7 +378,12 @@ export default function EmailPage() {
                 {/* Folders */}
                 {expandedAccounts.has(String(account.id)) && (
                   <div className="ml-4 border-l pl-2">
-                    {loadingFolders.has(String(account.id)) ? (
+                    {account.needs_mailbox_config ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        <p>Mailbox not configured</p>
+                        <p className="mt-1">Configure in Admin → System → Microsoft</p>
+                      </div>
+                    ) : loadingFolders.has(String(account.id)) ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
                         Loading folders...
                       </div>

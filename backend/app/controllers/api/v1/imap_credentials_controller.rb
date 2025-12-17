@@ -252,6 +252,22 @@ class Api::V1::ImapCredentialsController < ApplicationController
         user_emails = synced_mailboxes if user_emails.empty? && synced_mailboxes.any?
       end
 
+      # If still no emails, try to fetch user list from the tenant
+      if user_emails.empty?
+        begin
+          tenant_users = org_cred.list_tenant_users
+          # Find user matching current user's name or email pattern
+          user_first_name = current_user.name&.split(" ")&.first&.downcase || "robert"
+          matching_user = tenant_users.find { |u|
+            u[:email]&.downcase&.include?(user_first_name) ||
+            u[:name]&.downcase&.include?(user_first_name)
+          }
+          user_emails = [matching_user[:email]] if matching_user&.dig(:email)
+        rescue => e
+          Rails.logger.warn "[ImapCredentials] Failed to fetch tenant users for #{org_cred.name}: #{e.message}"
+        end
+      end
+
       # Add each mailbox as a separate account
       user_emails.each_with_index do |email, index|
         accounts << {
@@ -266,17 +282,18 @@ class Api::V1::ImapCredentialsController < ApplicationController
         }
       end
 
-      # If no emails found, still show the org (can access any mailbox)
+      # If no emails found, show org with ability to select mailbox
       if user_emails.empty?
         accounts << {
           id: "ms365_#{org_cred.id}",
           type: "ms365",
           name: org_cred.name,
-          email_address: nil,  # No specific mailbox
+          email_address: nil,
           provider: "microsoft365",
           is_active: org_cred.status == "connected",
-          is_default: accounts.empty?,
-          org_credential_id: org_cred.id
+          is_default: false,
+          org_credential_id: org_cred.id,
+          needs_mailbox_config: true
         }
       end
     end
