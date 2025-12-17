@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,12 +20,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
   Building2,
-  Calendar,
   DollarSign,
   FileText,
   CheckCircle,
   XCircle,
-  Clock,
   AlertTriangle,
   Link2,
   Wand2,
@@ -36,8 +34,6 @@ import {
   Download,
   Eye,
   FileWarning,
-  ImageIcon,
-  Maximize2,
   X,
   ScanText,
   Wallet,
@@ -45,6 +41,7 @@ import {
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer, FieldHighlight } from "@/components/ui/pdf-viewer";
 import { ContactComparisonCard } from "@/components/invoice/ContactComparisonCard";
+import { BillDetail } from "@/components/invoice/BillsInvoiceViewer";
 import { CheckCircle2, XCircle as XCircle2, MapPin } from "lucide-react";
 
 // Normalize ABN for comparison (remove spaces, dashes, and non-digit characters)
@@ -149,101 +146,7 @@ interface ComparisonData {
   timestamp: string;
 }
 
-interface BillDetail {
-  id: number;
-  invoice_number: string;
-  supplier_name_raw: string;
-  total_amount: number;
-  subtotal: number;
-  tax_amount: number;
-  due_date: string;
-  invoice_date: string;
-  status: string;
-  match_status: string;
-  variance_amount: number | null;
-  variance_percent: number | null;
-  ai_confidence: number | null;
-  source: string;
-  email_subject: string | null;
-  email_from: string | null;
-  email_received_at: string | null;
-  notes: string | null;
-  rejection_reason: string | null;
-  approved_at: string | null;
-  remaining_balance: number;
-  status_color: string;
-  extracted_at: string | null;
-  ai_extraction_result: AIExtractionResult | null;
-  ocr_extraction_result: OcrExtractionResult | null;
-  comparison_data: ComparisonData | null;
-  xero_tenant_name: string | null;
-  corporate_company: {
-    id: number;
-    name: string;
-    code: string;
-    abn: string;
-  } | null;
-  detected_company: {
-    id: number;
-    name: string;
-    code: string;
-    abn: string;
-  } | null;
-  supplier: {
-    id: number;
-    display_name: string;
-    abn: string;
-    bank_bsb: string;
-    bank_account_number: string;
-    // Trust account fields for lawyers, accountants, real estate agents, etc.
-    has_trust_account?: boolean;
-    trust_bsb?: string;
-    trust_account_number?: string;
-    trust_account_name?: string;
-    payment_terms?: string; // e.g., "7 days", "Net 30", "EOM+30"
-  } | null;
-  matched_purchase_order: {
-    id: number;
-    purchase_order_number: string;
-    total: number;
-    status: string;
-    payment_terms?: string; // e.g., "Net 30", "7 days", "EOM+30"
-    supplier: {
-      id: number;
-      display_name: string;
-    };
-  } | null;
-  approved_by: {
-    id: number;
-    first_name: string;
-    last_name: string;
-    email: string;
-  } | null;
-  bill_payments: Array<{
-    id: number;
-    amount: number;
-    status: string;
-    payee_name: string;
-    bill_payment_batch: {
-      id: number;
-      batch_reference: string;
-      status: string;
-    } | null;
-  }>;
-  "has_invoice_file?": boolean;
-  invoice_file_content_type: string | null;
-  invoice_file_filename: string | null;
-  contact_comparison_data: {
-    fields: Record<string, {
-      extracted: string | null;
-      stored: string | null;
-      display_name: string;
-      status: "match" | "different" | "add";
-    }>;
-    has_updates: boolean;
-    compared_at: string;
-  } | null;
-}
+// BillDetail is imported from @/components/invoice/BillsInvoiceViewer (SSoT)
 
 const statusColors: Record<string, string> = {
   pending: "bg-gray-100 text-gray-700 dark:bg-gray-400/10 dark:text-gray-400",
@@ -268,7 +171,6 @@ const matchStatusColors: Record<string, string> = {
 
 export default function BillDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const billId = params.id as string;
 
   const [bill, setBill] = useState<BillDetail | null>(null);
