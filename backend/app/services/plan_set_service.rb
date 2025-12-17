@@ -12,6 +12,11 @@ class PlanSetService
     @uploaded_file = uploaded_file
   end
 
+  # Wrapper method without bang for easier shell access
+  def rename_existing_plans
+    rename_existing_plans!
+  end
+
   # Rename existing plans in SharePoint using AI
   # Returns: { success: true, renamed: [...], skipped: [...], errors: [...] }
   def rename_existing_plans!
