@@ -25,6 +25,8 @@ class PricebookItem < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :needs_pricing, -> { where(needs_pricing_review: true) }
   scope :by_category, ->(category) { where(category: category) if category.present? }
+  scope :by_colour, ->(colour) { where(colour: colour) if colour.present? }
+  scope :with_colour, -> { where.not(colour: [nil, ""]) }
   scope :by_supplier, ->(supplier_id) {
     return all if supplier_id.blank?
 

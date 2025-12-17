@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_041627) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -838,6 +838,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.index ["job_type_id", "name"], name: "idx_claim_stage_templates_unique_name", unique: true
     t.index ["job_type_id", "sequence_order"], name: "idx_claim_stage_templates_ordering"
     t.index ["job_type_id"], name: "index_claim_stage_templates_on_job_type_id"
+  end
+
+  create_table "colour_selection_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.bigint "job_type_id"
+    t.jsonb "categories", default: []
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_type_id"], name: "index_colour_selection_templates_on_job_type_id"
   end
 
   create_table "column_type_definitions", force: :cascade do |t|
@@ -2850,6 +2861,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.index ["xero_invoice_id"], name: "index_job_claims_on_xero_invoice_id", unique: true
   end
 
+  create_table "job_colour_selections", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "category_key", null: false
+    t.string "item_key", null: false
+    t.bigint "pricebook_item_id"
+    t.string "colour_name"
+    t.string "colour_code"
+    t.string "colour_brand"
+    t.text "notes"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "category_key", "item_key"], name: "idx_job_colours_unique", unique: true
+    t.index ["job_id"], name: "index_job_colour_selections_on_job_id"
+    t.index ["pricebook_item_id"], name: "index_job_colour_selections_on_pricebook_item_id"
+  end
+
   create_table "job_contacts", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "contact_id"
@@ -2963,6 +2991,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.index ["job_id", "contact_id"], name: "index_job_people_on_job_id_and_contact_id", unique: true
     t.index ["job_id", "is_primary"], name: "index_job_people_on_job_id_and_is_primary"
     t.index ["job_id"], name: "index_job_people_on_job_id"
+  end
+
+  create_table "job_specifications", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "section_key", null: false
+    t.string "item_key", null: false
+    t.bigint "pricebook_item_id"
+    t.string "custom_value"
+    t.text "notes"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "section_key", "item_key"], name: "idx_job_specs_unique", unique: true
+    t.index ["job_id"], name: "index_job_specifications_on_job_id"
+    t.index ["pricebook_item_id"], name: "index_job_specifications_on_pricebook_item_id"
   end
 
   create_table "job_stages", force: :cascade do |t|
@@ -3314,6 +3357,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.index ["view_name"], name: "index_mv_refresh_logs_on_view_name"
   end
 
+  create_table "ndis_addendums", force: :cascade do |t|
+    t.string "document_type", null: false
+    t.string "section_key"
+    t.string "title", null: false
+    t.text "content", null: false
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type"], name: "index_ndis_addendums_on_document_type"
+  end
+
   create_table "notifications", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "notification_type", null: false
@@ -3619,9 +3674,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.string "qr_code_file_id"
     t.integer "category_id"
     t.decimal "supplier_price", precision: 10, scale: 2
+    t.string "colour"
+    t.string "colour_code"
+    t.string "colour_brand"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebook_on_category"
     t.index ["category_id"], name: "index_pricebook_on_category_id"
+    t.index ["colour"], name: "index_pricebook_on_colour"
     t.index ["default_supplier_id"], name: "index_pricebook_on_default_supplier_id"
     t.index ["image_fetch_status"], name: "index_pricebook_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebook_on_image_file_id"
@@ -3809,6 +3868,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "gst_code", default: "GST"
+    t.string "colour"
+    t.string "colour_code"
+    t.string "spec_reference"
     t.index ["pricebook_item_id"], name: "index_purchase_order_line_items_on_pricebook_item_id"
     t.index ["purchase_order_id", "line_number"], name: "index_po_line_items_on_po_and_line_num"
     t.index ["purchase_order_id"], name: "index_purchase_order_line_items_on_purchase_order_id"
@@ -4579,6 +4641,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
     t.index ["expires_at"], name: "index_solid_queue_semaphores_on_expires_at"
     t.index ["key", "value"], name: "index_solid_queue_semaphores_on_key_and_value"
     t.index ["key"], name: "index_solid_queue_semaphores_on_key", unique: true
+  end
+
+  create_table "specification_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.bigint "job_type_id"
+    t.jsonb "sections", default: []
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
   end
 
   create_table "subcontractor_accounts", force: :cascade do |t|
@@ -5620,6 +5693,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
   add_foreign_key "chat_messages", "projects"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "claim_stage_templates", "job_types"
+  add_foreign_key "colour_selection_templates", "job_types"
   add_foreign_key "columns", "column_type_definitions"
   add_foreign_key "columns", "foundations"
   add_foreign_key "company_approval_rules", "bpmn_processes"
@@ -5740,6 +5814,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
   add_foreign_key "job_claim_stages", "jobs"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
+  add_foreign_key "job_colour_selections", "jobs"
+  add_foreign_key "job_colour_selections", "pricebook", column: "pricebook_item_id"
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
@@ -5751,6 +5827,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
   add_foreign_key "job_documents", "users", column: "rename_approved_by_id", on_delete: :nullify
   add_foreign_key "job_people", "contacts"
   add_foreign_key "job_people", "jobs"
+  add_foreign_key "job_specifications", "jobs"
+  add_foreign_key "job_specifications", "pricebook", column: "pricebook_item_id"
   add_foreign_key "job_status_stages", "job_stages"
   add_foreign_key "job_status_stages", "job_status"
   add_foreign_key "job_status_stages", "job_types"
@@ -5884,6 +5962,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_033134) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "specification_templates", "job_types"
   add_foreign_key "subcontractor_accounts", "contacts", column: "invited_by_contact_id"
   add_foreign_key "subcontractor_accounts", "portal_users"
   add_foreign_key "subcontractor_invoices", "accounting_integrations"
