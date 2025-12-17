@@ -6,6 +6,30 @@ class Api::V1::EmailWarehouseController < ApplicationController
   def index
     emails = EmailWarehouse.all
 
+    # Filter to only current user's emails (my_emails mode)
+    if params[:my_emails] == "true"
+      user_imap_ids = current_user.imap_credentials.pluck(:id)
+      user_outlook_email = current_user.outlook_credential&.email
+
+      if user_imap_ids.any? && user_outlook_email.present?
+        # User has both IMAP and Outlook - show both
+        emails = emails.where(
+          "(source_type = 'imap' AND imap_credential_id IN (?)) OR (source_type = 'outlook' AND (from_email = ? OR ? = ANY(to_emails)))",
+          user_imap_ids, user_outlook_email, user_outlook_email
+        )
+      elsif user_imap_ids.any?
+        # Only IMAP accounts
+        emails = emails.where(source_type: "imap", imap_credential_id: user_imap_ids)
+      elsif user_outlook_email.present?
+        # Only Outlook
+        emails = emails.where(source_type: "outlook")
+          .where("from_email = ? OR ? = ANY(to_emails)", user_outlook_email, user_outlook_email)
+      else
+        # No accounts connected - return empty
+        emails = emails.none
+      end
+    end
+
     # Filter by job
     if params[:job_id].present?
       emails = emails.for_job(params[:job_id])

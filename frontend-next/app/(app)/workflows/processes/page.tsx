@@ -95,6 +95,37 @@ interface InstancesApiResponse {
   total: number;
 }
 
+interface WorkflowToken {
+  id: number;
+  node_id: number;
+  node_key: string;
+  node_name: string;
+  node_type: string;
+  status: "active" | "waiting" | "completed" | "failed";
+  arrived_at: string;
+  completed_at?: string;
+}
+
+interface WorkflowTask {
+  id: number;
+  node_id: number;
+  node_name: string;
+  task_type: string;
+  status: "pending" | "in_progress" | "completed" | "failed" | "cancelled";
+  assigned_to_name?: string;
+  due_date?: string;
+  is_overdue: boolean;
+  started_at?: string;
+  completed_at?: string;
+  error_message?: string;
+}
+
+interface InstanceDetail extends WorkflowInstance {
+  tokens: WorkflowToken[];
+  tasks: WorkflowTask[];
+  variables: Record<string, unknown>;
+}
+
 export default function BpmnProcessesPage() {
   const router = useRouter();
   const { toast } = useToast();
@@ -106,6 +137,9 @@ export default function BpmnProcessesPage() {
   const [importing, setImporting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [activeTab, setActiveTab] = useState("processes");
+  const [expandedInstanceId, setExpandedInstanceId] = useState<number | null>(null);
+  const [instanceDetail, setInstanceDetail] = useState<InstanceDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const fetchProcesses = useCallback(async () => {
@@ -178,6 +212,65 @@ export default function BpmnProcessesPage() {
     } catch (error) {
       console.error("Failed to cancel instance:", error);
       toast({ title: "Error", description: "Failed to cancel workflow instance", variant: "destructive" });
+    }
+  };
+
+  const fetchInstanceDetail = async (instanceId: number) => {
+    setDetailLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; instance: InstanceDetail }>(
+        `/api/v1/bpmn_process_instances/${instanceId}`
+      );
+      if (response?.success) {
+        setInstanceDetail(response.instance);
+      }
+    } catch (error) {
+      console.error("Failed to fetch instance detail:", error);
+      toast({ title: "Error", description: "Failed to load instance details", variant: "destructive" });
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const toggleInstanceExpansion = (instanceId: number) => {
+    if (expandedInstanceId === instanceId) {
+      setExpandedInstanceId(null);
+      setInstanceDetail(null);
+    } else {
+      setExpandedInstanceId(instanceId);
+      fetchInstanceDetail(instanceId);
+    }
+  };
+
+  const getTokenStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-500";
+      case "active":
+        return "bg-blue-500";
+      case "waiting":
+        return "bg-yellow-500";
+      case "failed":
+        return "bg-red-500";
+      default:
+        return "bg-gray-400";
+    }
+  };
+
+  const getTaskStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "text-green-600 dark:text-green-400";
+      case "in_progress":
+        return "text-blue-600 dark:text-blue-400";
+      case "pending":
+        return "text-yellow-600 dark:text-yellow-400";
+      case "failed":
+        return "text-red-600 dark:text-red-400";
+      case "cancelled":
+        return "text-gray-500 dark:text-gray-400";
+      default:
+        return "text-gray-500";
     }
   };
 

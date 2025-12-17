@@ -414,6 +414,13 @@ export default function ColourSelectionBuilderPage() {
     }
   };
 
+  // Export PDF
+  const handleExportPdf = () => {
+    // Open PDF in new tab
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    window.open(`${baseUrl}/api/v1/jobs/${jobId}/colour_selections/generate_pdf?download=true`, "_blank");
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -448,7 +455,7 @@ export default function ColourSelectionBuilderPage() {
               <RefreshCw className="h-4 w-4 mr-2" />
               Apply Template
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExportPdf}>
               <Download className="h-4 w-4 mr-2" />
               Export PDF
             </Button>

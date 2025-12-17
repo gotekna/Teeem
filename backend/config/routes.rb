@@ -193,6 +193,7 @@ Rails.application.routes.draw do
           collection do
             post :initialize_from_template
             post :bulk_update
+            get :generate_pdf
           end
         end
 
@@ -201,6 +202,7 @@ Rails.application.routes.draw do
           collection do
             post :initialize_from_template
             post :bulk_update
+            get :generate_pdf
           end
         end
 

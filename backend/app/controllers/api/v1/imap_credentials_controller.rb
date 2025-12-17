@@ -1,5 +1,5 @@
 class Api::V1::ImapCredentialsController < ApplicationController
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :test_connection]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts
