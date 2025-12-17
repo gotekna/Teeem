@@ -111,10 +111,9 @@ export default function InvoiceDetailPage() {
     }
   }, [invoiceId]);
 
-  // Load PDF when invoice data is available
-  // Always try to load - backend will sync from Xero if needed
+  // Load PDF when invoice data is available - matches Bills page pattern
   useEffect(() => {
-    if (invoice?.id) {
+    if (invoice?.id && !pdfBlobUrl && !pdfLoading) {
       loadPdf();
     }
 
@@ -124,7 +123,7 @@ export default function InvoiceDetailPage() {
         URL.revokeObjectURL(pdfBlobUrl);
       }
     };
-  }, [invoice?.id]);
+  }, [invoice?.id, pdfBlobUrl, pdfLoading]);
 
   const loadInvoice = async () => {
     setLoading(true);
