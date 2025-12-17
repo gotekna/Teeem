@@ -93,19 +93,54 @@ class OutlookService
     imported_count
   end
 
-  # List available mail folders
+  # List available mail folders (including nested child folders)
   def list_folders
-    url = "#{GRAPH_API_BASE}/me/mailFolders"
+    url = "#{GRAPH_API_BASE}/me/mailFolders?$top=100"
 
     response = make_request(url)
 
     if response.is_a?(Net::HTTPSuccess)
       data = JSON.parse(response.body)
-      data["value"].map { |folder| { id: folder["id"], name: folder["displayName"], unread_count: folder["unreadItemCount"], total_items: folder["totalItemCount"] } }
+      folders = data["value"].map { |folder| build_folder_with_children(folder) }.flatten
+      folders
     else
       Rails.logger.error "Failed to list Outlook folders: #{response.code} - #{response.body}"
       []
     end
+  end
+
+  # Recursively fetch child folders
+  def fetch_child_folders(parent_id, depth = 0)
+    return [] if depth > 3 # Prevent infinite recursion, max 3 levels deep
+
+    url = "#{GRAPH_API_BASE}/me/mailFolders/#{parent_id}/childFolders?$top=100"
+    response = make_request(url)
+
+    if response.is_a?(Net::HTTPSuccess)
+      data = JSON.parse(response.body)
+      data["value"].map { |folder| build_folder_with_children(folder, depth + 1) }.flatten
+    else
+      []
+    end
+  end
+
+  def build_folder_with_children(folder, depth = 0)
+    result = [{
+      id: folder["id"],
+      name: folder["displayName"],
+      unread_count: folder["unreadItemCount"],
+      total_items: folder["totalItemCount"],
+      parent_id: folder["parentFolderId"],
+      depth: depth
+    }]
+
+    # Fetch child folders if this folder has children
+    if folder["childFolderCount"].to_i > 0
+      children = fetch_child_folders(folder["id"], depth)
+      result.concat(children)
+    end
+
+    result
   end
 
   # Delete an email from Outlook

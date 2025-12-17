@@ -135,7 +135,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
             name: f[:name],
             unread_count: f[:unread_count],
             total_items: f[:total_items],
-            type: folder_type_from_name(f[:name])
+            type: folder_type_from_name(f[:name]),
+            depth: f[:depth] || 0,
+            parent_id: f[:parent_id]
           }
         }
       }

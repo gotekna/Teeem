@@ -84,6 +84,8 @@ interface EmailFolder {
   type: string;
   unread_count?: number;
   total_items?: number;
+  depth?: number;
+  parent_id?: string;
 }
 
 // Map folder type to icon
@@ -363,19 +365,21 @@ export default function EmailPage() {
                       (accountFolders[String(account.id)] || []).map((folder) => {
                         const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
                         const isSelected = selectedAccount === String(account.id) && selectedFolderId === folder.id;
+                        const depth = folder.depth || 0;
                         return (
                           <button
                             key={folder.id}
                             onClick={() => selectAccountFolder(String(account.id), folder)}
                             className={cn(
-                              "w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors rounded-sm",
+                              "w-full flex items-center gap-2 py-1.5 text-sm hover:bg-muted/50 transition-colors rounded-sm",
                               isSelected && "bg-primary/10 text-primary font-medium"
                             )}
+                            style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: '12px' }}
                           >
-                            <Icon className="h-4 w-4" />
+                            <Icon className="h-4 w-4 shrink-0" />
                             <span className="flex-1 text-left truncate">{folder.name}</span>
                             {folder.unread_count !== undefined && folder.unread_count > 0 && (
-                              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center">
+                              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center shrink-0">
                                 {folder.unread_count}
                               </Badge>
                             )}
