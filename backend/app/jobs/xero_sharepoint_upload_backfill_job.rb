@@ -26,7 +26,7 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
     scope = CorporateCompanyDocument
       .where(source: "xero")
       .where("external_id LIKE ?", "xero:%:pdf")  # Only PDFs, not attachments
-      .where(onedrive_file_id: nil)
+      .where(sharepoint_file_id: nil)
       .includes(:contact, :documentable)
       .order(created_at: :desc)  # Newest first - process recent PDFs quickly
 
@@ -115,7 +115,7 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
         )
 
         if upload_result && upload_result[:id]
-          doc.update!(onedrive_file_id: upload_result[:id])
+          doc.update!(sharepoint_file_id: upload_result[:id])
           stats[:uploaded] += 1
           Rails.logger.info("[XeroSharepointUploadBackfill] Uploaded: #{filename} -> #{upload_result[:web_url]}")
         else

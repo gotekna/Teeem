@@ -120,23 +120,43 @@ module Api
       end
 
       # GET /api/v1/company_documents/:id/download
+      # Downloads file from SharePoint via sharepoint_file_id (SSoT)
       def download
-        if @document.file.attached?
-          redirect_to rails_blob_path(@document.file, disposition: "attachment")
-        elsif @document.file_url.present?
-          redirect_to @document.file_url
-        else
+        unless @document.sharepoint_file_id.present?
+          return render json: {
+            success: false,
+            error: "No SharePoint file ID - document not synced to SharePoint"
+          }, status: :not_found
+        end
+
+        begin
+          credential = OrganizationOneDriveCredential.active_credential
+          unless credential
+            return render json: {
+              success: false,
+              error: "OneDrive credentials not available"
+            }, status: :service_unavailable
+          end
+
+          client = MicrosoftGraphClient.new(credential)
+          file_content = client.download_file(@document.sharepoint_file_id)
+
+          send_data file_content,
+            type: @document.mime_type || "application/octet-stream",
+            disposition: "attachment",
+            filename: @document.file_name || "document"
+        rescue MicrosoftGraphClient::APIError => e
           render json: {
             success: false,
-            error: "No file available for download"
-          }, status: :not_found
+            error: "SharePoint download failed: #{e.message}"
+          }, status: :bad_gateway
         end
       end
 
       # GET /api/v1/company_documents/:id/content
       # Proxies the actual file content from OneDrive (for PDF editor CORS bypass)
       def content
-        unless @document.onedrive_file_id.present?
+        unless @document.sharepoint_file_id.present?
           return render json: {
             success: false,
             error: "No OneDrive file available"
@@ -153,7 +173,7 @@ module Api
           end
 
           client = MicrosoftGraphClient.new(credential)
-          file_content = client.download_file(@document.onedrive_file_id)
+          file_content = client.download_file(@document.sharepoint_file_id)
 
           # Determine content type from file extension
           content_type = case @document.file_name&.downcase
@@ -199,7 +219,7 @@ module Api
       # GET /api/v1/company_documents/:id/preview
       # Returns an embeddable preview URL for OneDrive files
       def preview
-        unless @document.onedrive_file_id.present?
+        unless @document.sharepoint_file_id.present?
           return render json: {
             success: false,
             error: "No OneDrive file available for preview",
@@ -219,7 +239,7 @@ module Api
           end
 
           client = MicrosoftGraphClient.new(credential)
-          preview_url = client.get_preview_url(@document.onedrive_file_id)
+          preview_url = client.get_preview_url(@document.sharepoint_file_id)
 
           if preview_url
             render json: {
@@ -286,7 +306,7 @@ module Api
       # Triggers AI analysis of document naming
       def ai_verify
         # Check if OneDrive file exists
-        unless @document.onedrive_file_id.present?
+        unless @document.sharepoint_file_id.present?
           return render json: {
             success: false,
             error: "No OneDrive file available for this document"
@@ -532,7 +552,7 @@ module Api
 
           if create_new
             # Create a new document in the same folder
-            file_info = client.get_item(@document.onedrive_file_id)
+            file_info = client.get_item(@document.sharepoint_file_id)
             parent_folder_id = file_info.dig("parentReference", "id")
 
             result = client.upload_file_content(parent_folder_id, new_filename, content)
@@ -544,7 +564,7 @@ module Api
               folder: @document.folder,
               document_type: params[:document_type] || @document.document_type,
               source: "edited",
-              onedrive_file_id: result[:id],
+              sharepoint_file_id: result[:id],
               file_size: content.bytesize,
               financial_years: @document.financial_years,
               ai_verification_status: "pending",
@@ -561,7 +581,7 @@ module Api
             }
           else
             # Replace existing file
-            client.update_file_content(@document.onedrive_file_id, content)
+            client.update_file_content(@document.sharepoint_file_id, content)
 
             # Update document record
             @document.update!(

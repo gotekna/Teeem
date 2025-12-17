@@ -200,6 +200,29 @@ class DocumentGenerator
       context[:client_1] = build_contact_context(job.primary_contact) if job.respond_to?(:primary_contact) && job.primary_contact
       context[:client_2] = build_contact_context(job.secondary_contact) if job.respond_to?(:secondary_contact) && job.secondary_contact
       context[:builder] = build_contact_context(job.builder_contact) if job.respond_to?(:builder_contact) && job.builder_contact
+
+      # Add clients array for looping (all contacts with role: "client")
+      client_contacts = job.job_contacts.where(role: "client").includes(:contact).map(&:contact).compact
+      context[:clients] = client_contacts.map { |c| build_contact_context(c) }
+      context[:has_multiple_clients] = client_contacts.size > 1
+      context[:client_count] = client_contacts.size
+
+      # Pre-computed multi-client fields (comma-separated for easy use)
+      context[:multi_client] = build_multi_client_context(client_contacts)
+
+      # THE ONE TAGS - handles everything automatically (LETTERS - uses owner names for companies)
+      context[:dear] = build_smart_greeting(client_contacts)                    # "Dear John & Jane," or "Dear Keith," (owner)
+      context[:client_names] = build_smart_client_names(client_contacts)        # "John Smith" or "ABC Pty Ltd (Keith Miller)"
+      context[:client_first_names] = build_smart_field(client_contacts, :first) # "John & Jane" or "Keith" (owner)
+      context[:client_last_names] = build_smart_field(client_contacts, :last)   # "Smith & Jones" or "Miller" (owner)
+      context[:client_display_names] = build_smart_field(client_contacts, :display) # "John Smith" or "Keith Miller (ABC Pty Ltd)"
+      context[:client_emails] = client_contacts.map(&:email).compact.join(", ") # "john@x.com, jane@x.com"
+      context[:client_phones] = client_contacts.map { |c| c.mobile_phone || c.office_phone }.compact.join(", ")
+
+      # CONTRACT TAGS - formal company names, NO personal names for companies
+      context[:contract_dear] = build_contract_greeting(client_contacts)            # "Dear ABC Pty Ltd," (NOT "Dear Keith,")
+      context[:contract_client_names] = build_contract_client_names(client_contacts) # "ABC Pty Ltd" (NOT "ABC Pty Ltd (Keith Miller)")
+      context[:contract_parties] = build_contract_parties(client_contacts)          # "ABC Pty Ltd ABN 12 345 678 901"
     end
 
     # Add extra data
@@ -278,6 +301,8 @@ class DocumentGenerator
   def build_contact_context(contact)
     return {} unless contact
 
+    entity_type = contact.try(:entity_type)
+
     {
       # Name fields
       id: contact.id,
@@ -287,6 +312,14 @@ class DocumentGenerator
       last_name: contact.try(:last_name),
       middle_name: contact.try(:middle_name),
       name: contact.display_name, # Short alias
+
+      # Entity type for conditionals
+      entity_type: entity_type,
+      is_company: entity_type == "company",
+      is_person: entity_type == "person",
+      is_sole_trader: entity_type == "sole_trader",
+      is_trust: entity_type == "trust",
+      is_individual: entity_type.in?(%w[person sole_trader]), # Person or sole trader
 
       # Contact details
       email: contact.try(:email),
@@ -303,6 +336,14 @@ class DocumentGenerator
       company: contact.try(:company_name_or_trust),
       abn: contact.try(:abn),
       acn: contact.try(:acn),
+
+      # Owner/Employee info (for companies)
+      has_owner: contact.try(:employees)&.any?,
+      owner: build_owner_context(contact),
+      owner_name: contact.try(:employees)&.first&.display_name,
+      owner_first_name: contact.try(:employees)&.first&.first_name,
+      owner_last_name: contact.try(:employees)&.first&.last_name,
+      owner_email: contact.try(:employees)&.first&.email,
 
       # Address - contact uses single address field + city/state/postcode
       address: contact.try(:address),
@@ -326,6 +367,252 @@ class DocumentGenerator
     parts = [ contact.try(:address) ]
     parts << [ contact.try(:city), contact.try(:state), contact.try(:postcode) ].compact.reject(&:blank?).join(" ")
     parts.compact.reject(&:blank?).join(", ")
+  end
+
+  def build_owner_context(contact)
+    return {} unless contact.try(:employees)&.any?
+
+    owner = contact.employees.first
+    {
+      display_name: owner.display_name,
+      first_name: owner.first_name,
+      last_name: owner.last_name,
+      email: owner.email,
+      phone: owner.office_phone || owner.mobile_phone,
+      mobile: owner.mobile_phone
+    }
+  end
+
+  # Build pre-computed multi-client fields for easy template use
+  # Usage: {{multi_client.first_name}} => "John, Jane & Michael"
+  def build_multi_client_context(contacts)
+    return {} if contacts.empty?
+
+    {
+      # Names - smart formatting based on entity type
+      first_name: format_multi_list(contacts.map { |c| smart_first_name(c) }),
+      display_name: format_multi_list(contacts.map(&:display_name)),
+      full_name: format_multi_list(contacts.map(&:display_name)),
+
+      # For companies, show company name; for people, show first name
+      greeting_name: format_multi_list(contacts.map { |c| smart_greeting_name(c) }),
+
+      # Contact details (first available for each)
+      email: contacts.map(&:email).compact.join(", "),
+      phone: contacts.map { |c| c.office_phone || c.mobile_phone }.compact.join(", "),
+      mobile: contacts.map(&:mobile_phone).compact.join(", "),
+
+      # Addresses
+      full_address: format_multi_list(contacts.map { |c| build_full_address(c) }.compact.uniq),
+
+      # Business
+      abn: contacts.map(&:abn).compact.join(", "),
+      company_name: format_multi_list(contacts.select { |c| c.entity_type == "company" }.map(&:company_name_or_trust).compact),
+
+      # Counts and flags
+      count: contacts.size,
+      is_multiple: contacts.size > 1,
+      is_single: contacts.size == 1,
+      has_company: contacts.any? { |c| c.entity_type == "company" },
+      all_companies: contacts.all? { |c| c.entity_type == "company" },
+      all_individuals: contacts.all? { |c| c.entity_type.in?(%w[person sole_trader]) }
+    }
+  end
+
+  # Smart first name: use owner's first name for companies, otherwise contact's first name
+  def smart_first_name(contact)
+    if contact.entity_type == "company"
+      # For companies, try to get owner's first name
+      owner = contact.employees.first
+      owner&.first_name || contact.company_name_or_trust
+    else
+      contact.first_name || contact.display_name
+    end
+  end
+
+  # Smart greeting name: friendly name for "Dear X" salutations
+  def smart_greeting_name(contact)
+    case contact.entity_type
+    when "company"
+      owner = contact.employees.first
+      if owner&.first_name.present?
+        owner.first_name
+      else
+        contact.company_name_or_trust
+      end
+    when "trust"
+      contact.company_name_or_trust || contact.display_name
+    else
+      contact.first_name || contact.display_name
+    end
+  end
+
+  # Format list: "A", "A & B", "A, B & C"
+  def format_multi_list(items)
+    items = items.compact.reject(&:blank?)
+    case items.size
+    when 0 then ""
+    when 1 then items.first
+    when 2 then items.join(" & ")
+    else
+      "#{items[0..-2].join(', ')} & #{items.last}"
+    end
+  end
+
+  # THE ONE TAG: {{dear}} - Complete greeting that handles everything
+  # Output: "Dear John," or "Dear John & Jane," or "Dear Keith," (for company owner)
+  def build_smart_greeting(contacts)
+    return "Dear Sir/Madam," if contacts.empty?
+
+    names = contacts.map { |c| smart_greeting_name(c) }
+    "Dear #{format_multi_list(names)},"
+  end
+
+  # THE ONE TAG: {{client_names}} - Full display names for formal use
+  # Output: "John Smith" or "John Smith & Jane Smith" or "ABC Pty Ltd (Keith Miller)"
+  def build_smart_client_names(contacts)
+    return "" if contacts.empty?
+
+    names = contacts.map { |c| smart_formal_name(c) }
+    format_multi_list(names)
+  end
+
+  # Smart formal name for contracts/legal docs
+  def smart_formal_name(contact)
+    case contact.entity_type
+    when "company"
+      owner = contact.employees.first
+      if owner
+        "#{contact.company_name_or_trust} (#{owner.display_name})"
+      else
+        contact.company_name_or_trust || contact.display_name
+      end
+    when "trust"
+      contact.company_name_or_trust || contact.display_name
+    else
+      contact.display_name
+    end
+  end
+
+  # Build smart field - uses owner info for companies
+  def build_smart_field(contacts, field_type)
+    return "" if contacts.empty?
+
+    names = contacts.map do |contact|
+      case field_type
+      when :first
+        smart_first_name(contact)
+      when :last
+        smart_last_name(contact)
+      when :display
+        smart_display_name(contact)
+      else
+        contact.display_name
+      end
+    end
+
+    format_multi_list(names)
+  end
+
+  # Smart last name: use owner's last name for companies
+  def smart_last_name(contact)
+    if contact.entity_type == "company"
+      owner = contact.employees.first
+      owner&.last_name || contact.company_name_or_trust
+    else
+      contact.last_name || contact.display_name
+    end
+  end
+
+  # Smart display name: use owner's name for companies, with company in brackets
+  def smart_display_name(contact)
+    if contact.entity_type == "company"
+      owner = contact.employees.first
+      if owner
+        "#{owner.display_name} (#{contact.company_name_or_trust})"
+      else
+        contact.company_name_or_trust || contact.display_name
+      end
+    else
+      contact.display_name
+    end
+  end
+
+  # =============================================================================
+  # CONTRACT TAGS - Formal company names, NO personal names for companies
+  # Use these for contracts where you need "ABC Pty Ltd" not "Keith Miller"
+  # =============================================================================
+
+  # CONTRACT TAG: {{contract_dear}} - Formal greeting using company names
+  # Output: "Dear ABC Pty Ltd," (NOT "Dear Keith,")
+  def build_contract_greeting(contacts)
+    return "Dear Sir/Madam," if contacts.empty?
+
+    names = contacts.map { |c| contract_greeting_name(c) }
+    "Dear #{format_multi_list(names)},"
+  end
+
+  # For contracts: use company name for companies, first name for individuals
+  def contract_greeting_name(contact)
+    case contact.entity_type
+    when "company"
+      contact.company_name_or_trust || contact.display_name
+    when "trust"
+      contact.company_name_or_trust || contact.display_name
+    else
+      contact.first_name || contact.display_name
+    end
+  end
+
+  # CONTRACT TAG: {{contract_client_names}} - Formal names for contracts
+  # Output: "ABC Pty Ltd" or "John Smith & ABC Pty Ltd" (NO owner names in brackets)
+  def build_contract_client_names(contacts)
+    return "" if contacts.empty?
+
+    names = contacts.map { |c| contract_formal_name(c) }
+    format_multi_list(names)
+  end
+
+  # For contracts: company name only (no owner), or display name for individuals
+  def contract_formal_name(contact)
+    case contact.entity_type
+    when "company", "trust"
+      contact.company_name_or_trust || contact.display_name
+    else
+      contact.display_name
+    end
+  end
+
+  # CONTRACT TAG: {{contract_parties}} - Full party names with ABN for contracts
+  # Output: "ABC Pty Ltd ABN 12 345 678 901" or "John Smith"
+  def build_contract_parties(contacts)
+    return "" if contacts.empty?
+
+    parties = contacts.map { |c| contract_party_name(c) }
+    format_multi_list(parties)
+  end
+
+  # Build party name with ABN for contracts
+  def contract_party_name(contact)
+    case contact.entity_type
+    when "company", "trust"
+      name = contact.company_name_or_trust || contact.display_name
+      if contact.abn.present?
+        "#{name} ABN #{format_abn(contact.abn)}"
+      else
+        name
+      end
+    else
+      contact.display_name
+    end
+  end
+
+  # Format ABN with spaces: "12345678901" => "12 345 678 901"
+  def format_abn(abn)
+    return abn unless abn.present?
+    digits = abn.to_s.gsub(/\D/, "")
+    return abn if digits.length != 11
+    "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
   end
 
   def format_currency(amount)

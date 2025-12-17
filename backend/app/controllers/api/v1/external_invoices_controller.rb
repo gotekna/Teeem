@@ -438,45 +438,72 @@ module Api
       end
 
       # GET /api/v1/external_invoices/:id/pdf
-      # Returns or fetches the PDF for this invoice
-      # Uses send_data to stream file directly (avoids CORS issues with redirect)
+      # Returns PDF from SharePoint via sharepoint_file_id (SSoT)
+      # No fallback - fail fast if SharePoint doesn't work
       def pdf
         invoice = ExternalInvoice.find(params[:id])
 
-        # Check warehouse first (SSoT) - look for PDF linked to this invoice
-        # Use mapped document_type (e.g., "bill" -> "Purchases") to match XeroAttachmentSyncService
+        # Check warehouse for existing PDF linked to this invoice
         existing_pdf = invoice.corporate_company_documents.find_by(document_type: document_type_for(invoice.invoice_type))
 
-        if existing_pdf&.file&.attached?
-          # Stream existing PDF from warehouse directly (avoids CORS issues with redirect)
-          send_data existing_pdf.file.download,
-                    filename: existing_pdf.file.filename.to_s,
-                    type: existing_pdf.file.content_type || "application/pdf",
-                    disposition: "inline"
-        else
-          # Fetch from Xero on-demand and store in warehouse
-          service = XeroAttachmentSyncService.new(invoice)
-          result = service.sync!
-
-          if result[:pdf]&.file&.attached?
-            # Stream the newly synced PDF directly
-            send_data result[:pdf].file.download,
-                      filename: result[:pdf].file.filename.to_s,
-                      type: result[:pdf].file.content_type || "application/pdf",
+        if existing_pdf&.sharepoint_file_id.present?
+          content = fetch_from_sharepoint(existing_pdf.sharepoint_file_id)
+          if content
+            send_data content,
+                      filename: existing_pdf.file_name || "invoice.pdf",
+                      type: "application/pdf",
                       disposition: "inline"
-          else
-            error_msg = result[:errors].first || "PDF not available from Xero"
-            render json: { success: false, error: error_msg }, status: :not_found
+            return
           end
+          # SharePoint fetch failed - return error, don't fallback
+          render json: { success: false, error: "SharePoint fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
+          return
         end
+
+        # No PDF in warehouse - fetch from Xero on-demand and store
+        service = XeroAttachmentSyncService.new(invoice)
+        result = service.sync!
+
+        if result[:pdf]&.sharepoint_file_id.present?
+          content = fetch_from_sharepoint(result[:pdf].sharepoint_file_id)
+          if content
+            send_data content,
+                      filename: result[:pdf].file_name || "invoice.pdf",
+                      type: "application/pdf",
+                      disposition: "inline"
+            return
+          end
+          render json: { success: false, error: "SharePoint fetch failed after Xero sync" }, status: :service_unavailable
+          return
+        end
+
+        # Xero sync failed or no sharepoint_file_id
+        error_msg = result[:errors].first || "PDF not available - no sharepoint_file_id"
+        render json: { success: false, error: error_msg }, status: :not_found
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Invoice not found" }, status: :not_found
-      rescue ActiveStorage::FileNotFoundError => e
-        Rails.logger.error("PDF file not found in storage for invoice #{params[:id]}: #{e.message}")
-        render json: { success: false, error: "PDF file not found in storage" }, status: :not_found
       rescue StandardError => e
         Rails.logger.error("PDF fetch failed: #{e.message}")
         render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
+      end
+
+      # Fetch file content from SharePoint using OrganizationOneDriveCredential
+      # This bypasses Active Storage's SharePointService which has config issues
+      def fetch_from_sharepoint(file_id)
+        credential = OrganizationOneDriveCredential.active_credential
+        return nil unless credential&.valid_credential?
+
+        graph_client = MicrosoftGraphClient.new(credential)
+        graph_client.download_file(file_id)
+      rescue MicrosoftGraphClient::AuthenticationError => e
+        Rails.logger.error("SharePoint auth failed: #{e.message}")
+        nil
+      rescue MicrosoftGraphClient::APIError => e
+        Rails.logger.error("SharePoint API error: #{e.message}")
+        nil
+      rescue StandardError => e
+        Rails.logger.error("SharePoint fetch error: #{e.message}")
+        nil
       end
 
       # GET /api/v1/external_invoices/:id/attachments

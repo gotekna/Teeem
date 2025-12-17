@@ -4941,7 +4941,7 @@ export default function TeeemTableView({
       </div>
 
       {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
-      {savedViews.length > 0 && (
+      {(savedViews.length > 0 || groupByColumn) && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 px-4">
           {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
           {groupByColumn && (

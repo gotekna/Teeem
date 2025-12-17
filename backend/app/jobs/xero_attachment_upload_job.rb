@@ -271,7 +271,7 @@ class XeroAttachmentUploadJob < ApplicationJob
     end
 
     # Option 2: OneDrive file
-    if document.onedrive_file_id.present?
+    if document.sharepoint_file_id.present?
       return download_from_onedrive(document)
     end
 
@@ -303,7 +303,7 @@ class XeroAttachmentUploadJob < ApplicationJob
 
     # Use Microsoft Graph API to download
     client = MicrosoftGraphClient.new(ms_credential)
-    client.download_file(document.onedrive_file_id)
+    client.download_file(document.sharepoint_file_id)
   rescue StandardError => e
     Rails.logger.error("[XeroAttachmentUploadJob] OneDrive download failed: #{e.message}")
     nil

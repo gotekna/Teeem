@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_16_234602) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_012141) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -938,7 +938,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_234602) do
     t.string "company_code"
     t.string "source", default: "manual"
     t.bigint "document_type_id"
-    t.string "onedrive_file_id"
+    t.string "sharepoint_file_id"
     t.string "onedrive_download_url"
     t.datetime "last_modified_at"
     t.string "expected_onedrive_path"
@@ -1446,7 +1446,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_234602) do
     t.string "storage_type"
     t.string "filed_by"
     t.bigint "document_type_id"
-    t.string "onedrive_file_id"
+    t.string "sharepoint_file_id"
     t.string "onedrive_download_url"
     t.datetime "last_modified_at"
     t.string "expected_onedrive_path"
@@ -1504,7 +1504,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_16_234602) do
     t.index ["folder"], name: "index_corporate_company_documents_on_folder"
     t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
-    t.index ["onedrive_file_id"], name: "index_corporate_company_documents_on_onedrive_file_id", unique: true, where: "(onedrive_file_id IS NOT NULL)"
+    t.index ["sharepoint_file_id"], name: "index_corporate_company_documents_on_sharepoint_file_id", unique: true, where: "(sharepoint_file_id IS NOT NULL)"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"
     t.index ["storage_type"], name: "index_corporate_company_documents_on_storage_type"

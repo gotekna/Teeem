@@ -594,6 +594,36 @@ class MicrosoftAppGraphClient
     })
   end
 
+  # Copy a file to a new location
+  # Returns the new item details
+  def copy_file(drive_id:, item_id:, destination_folder_path:, new_name: nil)
+    # Get the item details first to get the name if not provided
+    item = get_drive_item(drive_id, item_id)
+    filename = new_name || item["name"]
+
+    # Download the content
+    content = get_drive_item_content(drive_id: drive_id, item_id: item_id)
+
+    # Upload to new location
+    upload_file_content(nil, drive_id, destination_folder_path, filename, content)
+  end
+
+  # Move a file to a new location (copy + delete original)
+  def move_file(drive_id:, item_id:, destination_folder_path:, new_name: nil)
+    # Copy to new location
+    new_item = copy_file(
+      drive_id: drive_id,
+      item_id: item_id,
+      destination_folder_path: destination_folder_path,
+      new_name: new_name
+    )
+
+    # Delete the original
+    delete_drive_item(drive_id: drive_id, item_id: item_id)
+
+    new_item
+  end
+
   private
 
   def access_token

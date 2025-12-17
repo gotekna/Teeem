@@ -1,6 +1,6 @@
-# One-time job to backfill onedrive_file_id for existing Xero documents
+# One-time job to backfill sharepoint_file_id for existing Xero documents
 # These documents were uploaded to SharePoint before v423, so they exist on SharePoint
-# but don't have their onedrive_file_id tracked in the database
+# but don't have their sharepoint_file_id tracked in the database
 class XeroDocumentBackfillJob < ApplicationJob
   queue_as :low
 
@@ -20,7 +20,7 @@ class XeroDocumentBackfillJob < ApplicationJob
     # Find documents that need backfilling
     scope = CorporateCompanyDocument
       .where(source: "xero")
-      .where(onedrive_file_id: nil)
+      .where(sharepoint_file_id: nil)
       .where.not(expected_onedrive_path: nil)
       .order(created_at: :desc)
 
@@ -53,7 +53,7 @@ class XeroDocumentBackfillJob < ApplicationJob
           if dry_run
             Rails.logger.info("[XeroDocumentBackfill] [DRY RUN] Would update document #{doc.id} (#{doc.title}) with OneDrive ID: #{file_info[:id]}")
           else
-            doc.update!(onedrive_file_id: file_info[:id])
+            doc.update!(sharepoint_file_id: file_info[:id])
             Rails.logger.info("[XeroDocumentBackfill] Updated document #{doc.id} (#{doc.title}) with OneDrive ID: #{file_info[:id]}")
           end
         else

@@ -48,6 +48,7 @@ interface SelectedElement {
 interface DocumentTemplate {
   id: number;
   name: string;
+  sharepoint_path?: string;
 }
 
 export default function BpmnJsDesigner({
@@ -552,17 +553,42 @@ export default function BpmnJsDesigner({
                           </option>
                         ))}
                       </select>
-                      {getTemplateId() && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => window.open(`/admin/document-templates?edit=${getTemplateId()}`, '_blank')}
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View/Edit Template
-                        </Button>
-                      )}
+                      {getTemplateId() && (() => {
+                        const selectedTemplate = templates.find(t => t.id.toString() === getTemplateId());
+                        const sharepointPath = selectedTemplate?.sharepoint_path;
+                        // Use ?web=1 to open in Word Online for editing
+                        const wordOnlineUrl = sharepointPath
+                          ? `https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents/${encodeURIComponent(sharepointPath)}?web=1`
+                          : null;
+                        return (
+                          <div className="space-y-2">
+                            {sharepointPath && (
+                              <p className="text-xs text-muted-foreground break-all">
+                                📁 {sharepointPath}
+                              </p>
+                            )}
+                            {wordOnlineUrl && (
+                              <Button
+                                variant="default"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => window.open(wordOnlineUrl, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4 mr-2" />
+                                Edit in Word Online
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => window.open(`/admin/document-templates?edit=${getTemplateId()}`, '_blank')}
+                            >
+                              View Merge Fields
+                            </Button>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}

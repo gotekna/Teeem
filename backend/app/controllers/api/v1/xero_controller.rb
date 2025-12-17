@@ -1503,13 +1503,13 @@ module Api
           # ============================================
           # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
           # ============================================
-          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have onedrive_file_id set)
-          # onedrive_file_id is set by OneDrive after successful upload - this is the SSoT
+          # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have sharepoint_file_id set)
+          # sharepoint_file_id is set by OneDrive after successful upload - this is the SSoT
           # expected_onedrive_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
           sharepoint_query = CorporateCompanyDocument.where(source: "xero")
                                                     .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
-                                                    .where.not(onedrive_file_id: nil)  # SSoT: Actually uploaded
+                                                    .where.not(sharepoint_file_id: nil)  # SSoT: Actually uploaded
                                                     .where(documentable_type: "ExternalInvoice")
           if tenant_id.present?
             sharepoint_query = sharepoint_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
@@ -1529,7 +1529,7 @@ module Api
 
           sharepoint_docs_query = CorporateCompanyDocument.where(source: "xero")
                                                          .where(documentable_type: "ExternalInvoice")
-                                                         .where.not(onedrive_file_id: nil)
+                                                         .where.not(sharepoint_file_id: nil)
           if tenant_id.present?
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                          .where(external_invoices: { tenant_id: tenant_id })

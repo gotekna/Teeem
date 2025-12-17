@@ -111,7 +111,7 @@ class XeroAttachmentSyncService
 
       # Update document with OneDrive file ID if upload succeeded
       if upload_result && upload_result[:id]
-        document.update(onedrive_file_id: upload_result[:id])
+        document.update(sharepoint_file_id: upload_result[:id])
         Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
       end
     else
@@ -221,7 +221,7 @@ class XeroAttachmentSyncService
 
       # Update document with OneDrive file ID if upload succeeded
       if upload_result && upload_result[:id]
-        document.update(onedrive_file_id: upload_result[:id])
+        document.update(sharepoint_file_id: upload_result[:id])
         Rails.logger.info("[XeroAttachmentSync] Updated document with OneDrive file ID: #{upload_result[:id]}")
       end
     else
