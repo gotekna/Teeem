@@ -359,15 +359,14 @@ class PlanSetService
       Return ONLY valid JSON with no additional text:
       {
         "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', '01', '03a')",
-        "sheet_name": "The FULL sheet title including project name (e.g., 'Perspective 5 Wategos', 'Ground Floor Plan 5 Wategos')",
+        "sheet_name": "The drawing type/title (e.g., 'Perspective', 'Ground Floor Plan', 'Elevation 1')",
         "sheet_date": "The date on the drawing (e.g., '15/12/2025')",
         "sheet_issue": "The issue/revision status (e.g., 'Working Drawings', 'For Construction', 'Contract Drawings')"
       }
 
       CRITICAL INSTRUCTIONS:
-      - sheet_name: Extract the FULL title from the title block. Include the project name if present.
-        Examples: "Perspective 5 Wategos", "Ground Floor Plan", "Kitchen Cabinetry Detail"
-        Do NOT just say "PERSPECTIVE" - include the full descriptive name.
+      - sheet_name: The drawing TYPE only (e.g., "Perspective", "Ground Floor Plan", "Elevation 1", "Electrical", "Cabinetry Detail")
+        Do NOT include project address or job name - just the drawing type.
       - sheet_number: Just the number/code (e.g., "01", "03a", "A3", "101-KIT")
       - sheet_date: Look for "Date:" field
       - sheet_issue: Look for "Issue:" field (e.g., "Working Drawings", "Contract Drawings", "For Construction")
@@ -398,12 +397,14 @@ class PlanSetService
     # Always prefix with page number to maintain order (01, 02, 03...)
     page_prefix = format("%02d", page_index + 1)
 
-    # Use sheet_name as the primary name (it should include full description)
-    # Only fall back to sheet_number if no name is available
+    # Get short project name from job (e.g., "5 Wategos" from "Lot 5 (0) Wategos Street Tingalpa 4173 QLD")
+    project_name = short_project_name
+
+    # Use sheet_name as the primary name, append project name
     name_part = if sheet_info[:sheet_name].present?
-      sheet_info[:sheet_name]
+      project_name.present? ? "#{sheet_info[:sheet_name]} #{project_name}" : sheet_info[:sheet_name]
     elsif sheet_info[:sheet_number].present?
-      sheet_info[:sheet_number]
+      project_name.present? ? "#{sheet_info[:sheet_number]} #{project_name}" : sheet_info[:sheet_number]
     else
       nil
     end
@@ -439,5 +440,23 @@ class PlanSetService
       .gsub(/\s+/, " ")           # Normalize whitespace
       .truncate(100, omission: ".pdf") # Limit length
       .strip
+  end
+
+  # Extract short project name from job (e.g., "5 Wategos" from "Lot 5 (0) Wategos Street Tingalpa 4173 QLD")
+  def short_project_name
+    return nil unless @construction&.name.present?
+
+    name = @construction.name
+
+    # Try to extract "Lot N Street" pattern -> "N Street"
+    # Example: "Lot 5 (0) Wategos Street Tingalpa 4173 QLD" -> "5 Wategos"
+    if match = name.match(/Lot\s+(\d+)[^a-zA-Z]*([A-Za-z]+)/i)
+      "#{match[1]} #{match[2]}"
+    # Try to extract street number and name
+    elsif match = name.match(/^(\d+)\s+([A-Za-z]+)/i)
+      "#{match[1]} #{match[2]}"
+    else
+      nil
+    end
   end
 end
