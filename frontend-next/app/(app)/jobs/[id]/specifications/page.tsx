@@ -83,8 +83,8 @@ function SpecificationSection({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const pricebookOptions = pricebookItems.map((item) => ({
-    value: item.id.toString(),
+  const pricebookItems2 = pricebookItems.map((item) => ({
+    id: item.id.toString(),
     label: `${item.item_code} - ${item.item_name}${item.colour ? ` (${item.colour})` : ""}`,
   }));
 
@@ -131,16 +131,22 @@ function SpecificationSection({
                   </div>
                   <div className="col-span-5">
                     <ComboboxDropdown
-                      options={pricebookOptions}
-                      value={spec.pricebook_item_id?.toString() || ""}
-                      onChange={(value) =>
+                      items={pricebookItems2}
+                      selectedItem={spec.pricebook_item_id ? pricebookItems2.find(p => p.id === spec.pricebook_item_id?.toString()) : undefined}
+                      onSelect={(item) =>
                         onUpdate(specKey, {
-                          pricebook_item_id: value ? parseInt(value) : undefined,
+                          pricebook_item_id: parseInt(item.id),
                         })
                       }
                       placeholder="Select from pricebook..."
-                      emptyMessage="No matching items"
+                      emptyResults="No matching items"
                       searchPlaceholder="Search pricebook..."
+                      clearable
+                      onClear={() =>
+                        onUpdate(specKey, {
+                          pricebook_item_id: undefined,
+                        })
+                      }
                     />
                     {!spec.pricebook_item_id && (
                       <Input

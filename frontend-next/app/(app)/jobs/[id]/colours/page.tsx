@@ -104,10 +104,10 @@ function ColourCategory({
   onToggle: () => void;
 }) {
   // Filter pricebook items that have colours
-  const colourOptions = pricebookItems
+  const colourItems = pricebookItems
     .filter((item) => item.colour)
     .map((item) => ({
-      value: item.id.toString(),
+      id: item.id.toString(),
       label: `${item.item_name} - ${item.colour}${item.colour_brand ? ` (${item.colour_brand})` : ""}`,
     }));
 
@@ -154,28 +154,28 @@ function ColourCategory({
                   </div>
                   <div className="col-span-4">
                     <ComboboxDropdown
-                      options={colourOptions}
-                      value={sel.pricebook_item_id?.toString() || ""}
-                      onChange={(value) => {
-                        if (value) {
-                          const pricebookItem = pricebookItems.find(
-                            (p) => p.id.toString() === value
-                          );
-                          onUpdate(selKey, {
-                            pricebook_item_id: parseInt(value),
-                            colour_name: pricebookItem?.colour,
-                            colour_code: pricebookItem?.colour_code,
-                            colour_brand: pricebookItem?.colour_brand,
-                          });
-                        } else {
-                          onUpdate(selKey, {
-                            pricebook_item_id: undefined,
-                          });
-                        }
+                      items={colourItems}
+                      selectedItem={sel.pricebook_item_id ? colourItems.find(c => c.id === sel.pricebook_item_id?.toString()) : undefined}
+                      onSelect={(item) => {
+                        const pricebookItem = pricebookItems.find(
+                          (p) => p.id.toString() === item.id
+                        );
+                        onUpdate(selKey, {
+                          pricebook_item_id: parseInt(item.id),
+                          colour_name: pricebookItem?.colour,
+                          colour_code: pricebookItem?.colour_code,
+                          colour_brand: pricebookItem?.colour_brand,
+                        });
                       }}
                       placeholder="Select from pricebook..."
-                      emptyMessage="No matching colours"
+                      emptyResults="No matching colours"
                       searchPlaceholder="Search colours..."
+                      clearable
+                      onClear={() => {
+                        onUpdate(selKey, {
+                          pricebook_item_id: undefined,
+                        });
+                      }}
                     />
                   </div>
                   <div className="col-span-2">

@@ -576,15 +576,15 @@ export default function BpmnJsDesigner({
 
         {/* Test Run Section */}
         <ComboboxDropdown
-          options={jobs.map((job) => ({
-            value: job.id.toString(),
+          items={jobs.map((job) => ({
+            id: job.id.toString(),
             label: `${job.job_number ? `${job.job_number} - ` : ""}${job.name}`,
           }))}
-          value={selectedJobId}
-          onChange={setSelectedJobId}
+          selectedItem={selectedJobId ? { id: selectedJobId, label: jobs.find(j => j.id.toString() === selectedJobId)?.name || "" } : undefined}
+          onSelect={(item) => setSelectedJobId(item.id)}
           placeholder="Select job to test..."
           searchPlaceholder="Search jobs..."
-          emptyMessage="No jobs found"
+          emptyResults="No jobs found"
           className="min-w-[250px]"
         />
 
