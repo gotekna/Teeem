@@ -15,7 +15,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
     render json: {
       success: true,
-      document_templates: templates.map { |t| template_json(t) }
+      data: templates.map { |t| template_json(t) }
     }
   end
 
@@ -23,7 +23,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
   def show
     render json: {
       success: true,
-      document_template: template_json(@document_template, include_fields: true)
+      data: template_json(@document_template, include_fields: true)
     }
   end
 
@@ -34,7 +34,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     if template.save
       render json: {
         success: true,
-        document_template: template_json(template)
+        data: template_json(template)
       }, status: :created
     else
       render json: {
@@ -49,7 +49,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     if @document_template.update(document_template_params)
       render json: {
         success: true,
-        document_template: template_json(@document_template)
+        data: template_json(@document_template)
       }
     else
       render json: {
@@ -104,6 +104,11 @@ class Api::V1::DocumentTemplatesController < ApplicationController
               filename: result[:filename],
               type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
               disposition: "attachment"
+  rescue DocumentGenerator::CredentialError => e
+    render json: {
+      success: false,
+      errors: [ e.message ]
+    }, status: :service_unavailable
   rescue DocumentGenerator::GenerationError, DocumentGenerator::TemplateError => e
     render json: {
       success: false,
@@ -149,7 +154,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
 
       render json: {
         success: true,
-        document_template: template_json(@document_template),
+        data: template_json(@document_template),
         sharepoint_file: {
           name: item[:name],
           web_url: item[:web_url],
@@ -226,6 +231,11 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         sharepoint_id: result[:document_sharepoint_id]
       }
     }
+  rescue DocumentGenerator::CredentialError => e
+    render json: {
+      success: false,
+      errors: [ e.message ]
+    }, status: :service_unavailable
   rescue DocumentEsignService::Error => e
     render json: {
       success: false,
@@ -316,6 +326,8 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       :name, :description, :category,
       :output_format, :output_naming_pattern,
       :is_active, :sort_order,
+      :template_type, :local_template_path, :layout,
+      :is_legal_format, :legal_source,
       data_schema: {}
     )
   end
@@ -375,6 +387,12 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       sort_order: template.sort_order,
       sharepoint_linked: template.sharepoint_linked?,
       sharepoint_path: template.sharepoint_path,
+      # New unified template fields
+      template_type: template.template_type,
+      local_template_path: template.local_template_path,
+      layout: template.layout,
+      is_legal_format: template.is_legal_format,
+      legal_source: template.legal_source,
       created_at: template.created_at,
       updated_at: template.updated_at
     }
