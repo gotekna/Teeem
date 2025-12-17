@@ -53,6 +53,7 @@ import {
   DollarSign,
   FolderTree,
   Copy,
+  X,
 } from "lucide-react";
 import {
   Dialog,
@@ -79,6 +80,9 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
+
+// Foundation ID for document_types table
+const DOCUMENT_TYPES_FOUNDATION_ID = 454;
 
 interface ColumnType {
   columnName: string;
@@ -1570,6 +1574,537 @@ function GoldSharePointPathViewerTab() {
   );
 }
 
+// Gold Document Types Tab - Shows the document type editor component
+function GoldDocumentTypesTab() {
+  return <GoldDocumentTypeEditor />;
+}
+
+// Embedded Document Type Editor Component
+function GoldDocumentTypeEditor() {
+  const { toast } = useToast();
+  const [documentTypes, setDocumentTypes] = React.useState<Array<{ id: number; name: string; abbreviation?: string; scope?: string }>>([]);
+  const [selectedId, setSelectedId] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [documentType, setDocumentType] = React.useState<any>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  // Drag and drop state
+  const [draggedPlaceholder, setDraggedPlaceholder] = React.useState<string | null>(null);
+  const [draggedFromField, setDraggedFromField] = React.useState<"file_name" | "display_name" | "source" | null>(null);
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [dropTarget, setDropTarget] = React.useState<{ field: "file_name" | "display_name"; index: number } | null>(null);
+
+  // Display options
+  const [displayNameSameAsFileName, setDisplayNameSameAsFileName] = React.useState(true);
+  const [showFullDescription, setShowFullDescription] = React.useState(true);
+  const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
+  const [placeholderSearch, setPlaceholderSearch] = React.useState("");
+  const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
+
+  // Preview company
+  const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
+  const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
+
+  // Placeholder definitions
+  const BASE_PLACEHOLDERS = {
+    company: [
+      { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
+      { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
+      { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
+      { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
+      { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
+      { code: "{Period}", example: "Q1", longCode: "{PeriodLong}", longExample: "Q1 Jul-Sep", color: "purple" },
+      { code: "{Year}", example: "25", longCode: "{YearLong}", longExample: "2025", color: "purple" },
+      { code: "{Day}", example: "09", longCode: "{DayLong}", longExample: "9th", color: "purple" },
+      { code: "{MonthYear}", example: "Oct-25", longCode: "{MonthYearLong}", longExample: "October 2025", color: "purple" },
+      { code: "{YYYYMMDD}", example: "2025-10-09", longCode: "{DateISO}", longExample: "2025-10-09", color: "purple" },
+      { code: "{DDMMYYYY}", example: "09-10-2025", longCode: "{DateAU}", longExample: "9 October 2025", color: "purple" },
+      { code: "{Date}", example: "17-12-2025", color: "purple" },
+      { code: "{Description}", example: "Example", color: "purple" },
+    ],
+    job: [
+      { code: "{JobCode}", example: "J069", color: "orange" },
+      { code: "{JobTitle}", example: "83 West Ridge", color: "orange" },
+      { code: "{CertType}", example: "Occupancy", color: "orange" },
+      { code: "{Consultant}", example: "ABC Eng", color: "orange" },
+      { code: "{Number}", example: "01", color: "orange" },
+      { code: "{Date}", example: "17-12-2025", color: "orange" },
+      { code: "{Description}", example: "Example", color: "orange" },
+      { code: "{Category}", example: "Plans", color: "orange" },
+    ]
+  };
+
+  // Load document types list
+  React.useEffect(() => {
+    loadDocumentTypes();
+    loadCompanies();
+  }, []);
+
+  const loadDocumentTypes = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+      if (response.success && Array.isArray(response.data)) {
+        const sorted = response.data
+          .map((dt: any) => ({ id: dt.id, name: dt.name, abbreviation: dt.abbreviation, scope: dt.scope || "company" }))
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setDocumentTypes(sorted);
+        // Select first one by default
+        if (sorted.length > 0) {
+          setSelectedId(sorted[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load document types:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadCompanies = async () => {
+    try {
+      const response = await api.get<any>('/api/v1/companies');
+      const companiesData = response.data?.companies || response.companies || response.data || response;
+      if (Array.isArray(companiesData)) {
+        const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
+        setCompanies(corporateLinkedCompanies);
+        if (corporateLinkedCompanies.length > 0) {
+          const teknaHomes = corporateLinkedCompanies.find((c: any) =>
+            c.code === "TH" || c.name?.toLowerCase().includes("tekna")
+          );
+          setPreviewCompanyId(teknaHomes ? teknaHomes.id : corporateLinkedCompanies[0].id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load companies:", error);
+    }
+  };
+
+  // Load selected document type details
+  React.useEffect(() => {
+    if (selectedId) {
+      loadDocumentType(selectedId);
+    }
+  }, [selectedId]);
+
+  const loadDocumentType = async (id: number) => {
+    try {
+      const response = await api.get<{ data: any }>(`/api/v1/document_types/${id}`);
+      setDocumentType(response.data);
+    } catch (error) {
+      console.error("Failed to load document type:", error);
+    }
+  };
+
+  const updateField = (field: string, value: any) => {
+    if (!documentType) return;
+    setDocumentType({ ...documentType, [field]: value });
+  };
+
+  const handleSave = async () => {
+    if (!documentType) return;
+    try {
+      setSaving(true);
+      await api.patch(`/api/v1/document_types/${documentType.id}`, {
+        document_type: documentType
+      });
+      toast({ title: "Success", description: "Document type saved successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save document type", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Parse tokens from value
+  const parseTokens = (value: string): { type: "text" | "placeholder"; value: string }[] => {
+    if (!value) return [];
+    const tokens: { type: "text" | "placeholder"; value: string }[] = [];
+    const regex = /(\{[^}]+\})/g;
+    let lastIndex = 0;
+    let match;
+    while ((match = regex.exec(value)) !== null) {
+      if (match.index > lastIndex) {
+        const textValue = value.slice(lastIndex, match.index);
+        if (textValue.trim()) {
+          tokens.push({ type: "text", value: textValue.trim() });
+        }
+      }
+      tokens.push({ type: "placeholder", value: match[0] });
+      lastIndex = regex.lastIndex;
+    }
+    if (lastIndex < value.length) {
+      const textValue = value.slice(lastIndex);
+      if (textValue.trim()) {
+        tokens.push({ type: "text", value: textValue.trim() });
+      }
+    }
+    return tokens;
+  };
+
+  const rebuildFromTokens = (tokens: { type: "text" | "placeholder"; value: string }[]): string => {
+    if (tokens.length === 0) return "";
+    return tokens.map((token, index) => {
+      if (index === 0) return token.value.trimStart();
+      const prevToken = tokens[index - 1];
+      if (prevToken.type === "placeholder") {
+        return " " + token.value.trimStart();
+      }
+      if (token.type === "placeholder" && !prevToken.value.endsWith(" ")) {
+        return " " + token.value;
+      }
+      return token.value;
+    }).join("").trim();
+  };
+
+  // Get available placeholders based on scope
+  const getAvailablePlaceholders = () => {
+    const scope = documentType?.scope || "company";
+    const docTypePlaceholder = {
+      code: "{DocTypeCode}",
+      example: documentType?.abbreviation || "AA",
+      longCode: "{DocTypeName}",
+      longExample: documentType?.name?.replace(/^[A-Z0-9]+\s*-\s*/, "").trim() || "Accountant Advice",
+      color: "blue" as const
+    };
+
+    let basePlaceholders;
+    if (scope === "both") {
+      basePlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
+    } else {
+      basePlaceholders = BASE_PLACEHOLDERS[scope as keyof typeof BASE_PLACEHOLDERS] || BASE_PLACEHOLDERS.company;
+    }
+
+    const placeholders = [docTypePlaceholder, ...basePlaceholders];
+
+    if (placeholderSearch.trim()) {
+      const search = placeholderSearch.toLowerCase();
+      return placeholders.filter((p: any) =>
+        p.code.toLowerCase().includes(search) ||
+        p.longCode?.toLowerCase().includes(search) ||
+        p.example?.toLowerCase().includes(search)
+      );
+    }
+    return placeholders;
+  };
+
+  const getPlaceholderColor = (placeholder: string): string => {
+    if (placeholder === "{DocTypeCode}" || placeholder === "{DocTypeName}") return "blue";
+    const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
+    const found = allPlaceholders.find(p => p.code === placeholder || p.longCode === placeholder);
+    return found?.color || "purple";
+  };
+
+  const generatePreview = (value: string): string => {
+    if (!value) return "";
+    let preview = value;
+    const selectedCompany = previewCompanyId ? companies.find(c => c.id === previewCompanyId) : null;
+    preview = preview.replace(/\{DocTypeCode\}/g, documentType?.abbreviation || "");
+    preview = preview.replace(/\{DocTypeName\}/g, documentType?.name?.replace(/^[A-Z0-9]+\s*-\s*/, "").trim() || "");
+    preview = preview.replace(/\{CompanyCode\}/g, selectedCompany?.code || "TH");
+    preview = preview.replace(/\{CompanyName\}/g, selectedCompany?.name || "Tekna Homes");
+    preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
+    preview = preview.replace(/\{Description\}/g, "Example");
+    return preview.trim();
+  };
+
+  // Drag handlers
+  const handleDragStartFromSource = (e: React.DragEvent, placeholder: string) => {
+    setDraggedPlaceholder(placeholder);
+    setDraggedFromField("source");
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", placeholder);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPlaceholder(null);
+    setDraggedFromField(null);
+    setDraggedIndex(null);
+    setDropTarget(null);
+  };
+
+  const handleDropOnContainer = (e: React.DragEvent, field: "file_name" | "display_name") => {
+    e.preventDefault();
+    if (!documentType) return;
+    const placeholder = e.dataTransfer.getData("text/plain");
+    if (!placeholder || draggedFromField !== "source") return;
+    const currentValue = documentType[field] || "";
+    const newValue = currentValue + (currentValue ? " " : "") + placeholder;
+    updateField(field, newValue);
+    handleDragEnd();
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+
+  const removeToken = (field: "file_name" | "display_name", index: number) => {
+    if (!documentType) return;
+    const tokens = parseTokens(documentType[field] || "");
+    const newTokens = tokens.filter((_, i) => i !== index);
+    updateField(field, rebuildFromTokens(newTokens));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex gap-4">
+      {/* Left: Document Type Selector */}
+      <div className="w-64 shrink-0 border rounded-lg p-3 max-h-[calc(100vh-300px)] overflow-auto">
+        <Label className="text-sm font-semibold mb-2 block">Select Document Type</Label>
+        <div className="space-y-1">
+          {documentTypes.map(dt => (
+            <button
+              key={dt.id}
+              onClick={() => setSelectedId(dt.id)}
+              className={cn(
+                "w-full text-left px-3 py-2 rounded text-sm transition-colors",
+                selectedId === dt.id
+                  ? "bg-primary text-primary-foreground"
+                  : "hover:bg-muted"
+              )}
+            >
+              <div className="font-medium truncate">{dt.abbreviation || "—"}</div>
+              <div className="text-xs opacity-70 truncate">{dt.name}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: Editor */}
+      <div className="flex-1 min-w-0 overflow-auto">
+        {documentType ? (
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  {documentType.name}
+                  {documentType.abbreviation && (
+                    <Badge variant="outline" className="font-mono">{documentType.abbreviation}</Badge>
+                  )}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Scope: {documentType.scope || "company"} • {documentType.documents_count || 0} documents
+                </p>
+              </div>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Save Changes
+              </Button>
+            </div>
+
+            {/* Preview Company */}
+            <div className="flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground shrink-0">Preview Company:</Label>
+              <select
+                value={previewCompanyId?.toString() || ""}
+                onChange={(e) => setPreviewCompanyId(e.target.value ? parseInt(e.target.value) : null)}
+                className="h-8 px-2 text-sm border rounded bg-background"
+              >
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.code} - {c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex gap-4">
+              {/* File Name / Display Name builders */}
+              <div className="flex-1 space-y-4">
+                {/* File Name */}
+                <div className="space-y-2">
+                  <Label>File Name</Label>
+                  <div
+                    className={cn(
+                      "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
+                      draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
+                    )}
+                    onDrop={(e) => handleDropOnContainer(e, "file_name")}
+                    onDragOver={handleDragOver}
+                  >
+                    {parseTokens(documentType.file_name || "").map((token, index) => (
+                      <Badge
+                        key={index}
+                        className={cn(
+                          "font-mono text-xs px-3 py-1.5",
+                          token.type === "placeholder"
+                            ? getPlaceholderColor(token.value) === "blue"
+                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              : getPlaceholderColor(token.value) === "orange"
+                                ? "bg-orange-100 text-orange-700 border-orange-300"
+                                : "bg-purple-100 text-purple-700 border-purple-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                        )}
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline" />
+                        {token.value}
+                        <button onClick={() => removeToken("file_name", index)} className="ml-2 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {parseTokens(documentType.file_name || "").length === 0 && (
+                      <span className="text-sm text-muted-foreground">Drag placeholders here</span>
+                    )}
+                  </div>
+                  <div className="text-sm p-2 bg-green-50 rounded border border-green-200">
+                    <span className="text-muted-foreground">Preview: </span>
+                    <span className="font-mono font-semibold text-green-700">
+                      {generatePreview(documentType.file_name || "") || "(empty)"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Display Name */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Display Name</Label>
+                    <div className="flex items-center gap-4 text-sm">
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={removeCompanyName} onCheckedChange={(c) => setRemoveCompanyName(!!c)} />
+                        <span className="text-muted-foreground">Hide Company</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={displayNameSameAsFileName} onCheckedChange={(c) => setDisplayNameSameAsFileName(!!c)} />
+                        <span className="text-muted-foreground">Same as File Name</span>
+                      </label>
+                      <label className="flex items-center gap-1.5 cursor-pointer">
+                        <Checkbox checked={showFullDescription} onCheckedChange={(c) => setShowFullDescription(!!c)} />
+                        <span className="text-muted-foreground">Full Description</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div
+                    className={cn(
+                      "min-h-[60px] p-3 border rounded-md bg-background flex flex-wrap gap-1 items-center transition-colors",
+                      displayNameSameAsFileName && "opacity-50 pointer-events-none",
+                      !displayNameSameAsFileName && draggedFromField && "border-dashed border-2 border-green-400 bg-green-50/50"
+                    )}
+                    onDrop={(e) => !displayNameSameAsFileName && handleDropOnContainer(e, "display_name")}
+                    onDragOver={handleDragOver}
+                  >
+                    {parseTokens(documentType.display_name || "").map((token, index) => (
+                      <Badge
+                        key={index}
+                        className={cn(
+                          "font-mono text-xs px-3 py-1.5",
+                          token.type === "placeholder"
+                            ? getPlaceholderColor(token.value) === "blue"
+                              ? "bg-blue-100 text-blue-700 border-blue-300"
+                              : getPlaceholderColor(token.value) === "orange"
+                                ? "bg-orange-100 text-orange-700 border-orange-300"
+                                : "bg-purple-100 text-purple-700 border-purple-300"
+                            : "bg-gray-100 text-gray-700 border-gray-300"
+                        )}
+                      >
+                        <GripVertical className="h-3 w-3 mr-1 inline" />
+                        {token.value}
+                        <button onClick={() => removeToken("display_name", index)} className="ml-2 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                    {parseTokens(documentType.display_name || "").length === 0 && (
+                      <span className="text-sm text-muted-foreground">Drag placeholders here</span>
+                    )}
+                  </div>
+                  <div className="text-sm p-2 bg-green-50 rounded border border-green-200">
+                    <span className="text-muted-foreground">Preview: </span>
+                    <span className="font-mono font-semibold text-green-700">
+                      {generatePreview(documentType.display_name || "") || "(empty)"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Placeholders Panel */}
+              <div className="w-64 shrink-0">
+                <div className="p-3 bg-muted/30 rounded-lg border sticky top-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label className="text-xs font-semibold">Placeholders</Label>
+                    <Input
+                      placeholder="Search..."
+                      value={placeholderSearch}
+                      onChange={(e) => setPlaceholderSearch(e.target.value)}
+                      className="h-6 text-xs flex-1"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="flex items-center gap-1 cursor-pointer">
+                      <Checkbox
+                        checked={hidePlaceholderDescriptions}
+                        onCheckedChange={(c) => setHidePlaceholderDescriptions(!!c)}
+                        className="h-3 w-3"
+                      />
+                      <span className="text-[10px] text-muted-foreground">Hide descriptions</span>
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 text-[9px] font-semibold text-muted-foreground mb-1">
+                    <div>SHORT</div>
+                    <div>LONG</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5 max-h-[400px] overflow-y-auto">
+                    {getAvailablePlaceholders().map((p: any) => (
+                      <React.Fragment key={p.code}>
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStartFromSource(e, p.code)}
+                          onDragEnd={handleDragEnd}
+                          className={cn(
+                            "cursor-grab px-1.5 py-1 rounded border text-[10px]",
+                            p.color === "blue" ? "bg-blue-50 border-blue-200" :
+                            p.color === "orange" ? "bg-orange-50 border-orange-200" :
+                            "bg-purple-50 border-purple-200"
+                          )}
+                        >
+                          <div className="font-mono font-medium">{(p.label || p.code).replace(/[{}]/g, '')}</div>
+                          {!hidePlaceholderDescriptions && (
+                            <div className="text-muted-foreground truncate">{p.example}</div>
+                          )}
+                        </div>
+                        {p.longCode ? (
+                          <div
+                            draggable
+                            onDragStart={(e) => handleDragStartFromSource(e, p.longCode)}
+                            onDragEnd={handleDragEnd}
+                            className={cn(
+                              "cursor-grab px-1.5 py-1 rounded border text-[10px]",
+                              p.color === "blue" ? "bg-blue-50 border-blue-200" :
+                              p.color === "orange" ? "bg-orange-50 border-orange-200" :
+                              "bg-purple-50 border-purple-200"
+                            )}
+                          >
+                            <div className="font-mono font-medium truncate">{p.longCode.replace(/[{}]/g, '')}</div>
+                            {!hidePlaceholderDescriptions && (
+                              <div className="text-muted-foreground truncate">{p.longExample}</div>
+                            )}
+                          </div>
+                        ) : <div />}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-64 text-muted-foreground">
+            Select a document type to edit
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SyncCheckTab() {
   const [syncData, setSyncData] = React.useState<SyncData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1766,11 +2301,15 @@ function SyncCheckTab() {
 
 export function GoldStandardTab() {
   return (
-    <Tabs defaultValue="table" className="flex flex-col h-full">
-      <TabsList className="shrink-0">
+    <Tabs defaultValue="table" className="space-y-4">
+      <TabsList className="flex-wrap h-auto gap-1">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
           Gold Standard Table
+        </TabsTrigger>
+        <TabsTrigger value="document-types" className="flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Gold Document Types
         </TabsTrigger>
         <TabsTrigger value="invoice" className="flex items-center gap-2">
           <Receipt className="h-4 w-4" />
@@ -1790,23 +2329,27 @@ export function GoldStandardTab() {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="table" className="flex-1 min-h-0 mt-4">
+      <TabsContent value="table" className="mt-0">
         <GoldStandardDataTab />
       </TabsContent>
 
-      <TabsContent value="invoice" className="flex-1 min-h-0 mt-4 overflow-auto">
+      <TabsContent value="document-types" className="mt-0">
+        <GoldDocumentTypesTab />
+      </TabsContent>
+
+      <TabsContent value="invoice" className="mt-0">
         <GoldStandardBillsInvoiceTab />
       </TabsContent>
 
-      <TabsContent value="sharepoint-paths" className="flex-1 min-h-0 mt-4 overflow-auto">
+      <TabsContent value="sharepoint-paths" className="mt-0">
         <GoldSharePointPathViewerTab />
       </TabsContent>
 
-      <TabsContent value="column-info" className="flex-1 min-h-0 mt-4 overflow-auto">
+      <TabsContent value="column-info" className="mt-0">
         <GoldStandardTableTab />
       </TabsContent>
 
-      <TabsContent value="sync-check" className="flex-1 min-h-0 mt-4 overflow-auto">
+      <TabsContent value="sync-check" className="mt-0">
         <SyncCheckTab />
       </TabsContent>
     </Tabs>
