@@ -162,6 +162,8 @@ interface PlanFile {
   size?: number;
   modified?: string;
   is_all_plans: boolean;
+  sheet_issue?: string;
+  sheet_date?: string;
 }
 
 export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
@@ -1708,14 +1710,19 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                           <p className="font-medium text-sm truncate" title={plan.name}>
                             {plan.name}
                           </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            {plan.size && <span>{formatFileSize(plan.size)}</span>}
-                            {plan.modified && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                            {plan.sheet_issue && (
+                              <Badge variant="outline" className="text-xs">
+                                {plan.sheet_issue}
+                              </Badge>
+                            )}
+                            {plan.sheet_date && (
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {formatPlanDate(plan.modified)}
+                                {plan.sheet_date}
                               </span>
                             )}
+                            {plan.size && <span>{formatFileSize(plan.size)}</span>}
                           </div>
                         </div>
                       </div>
@@ -1744,42 +1751,47 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
                   )}
                 </div>
               </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0">
+              <CardContent className="flex-1 overflow-hidden p-4">
                 {selectedPlan ? (
                   <div className="h-full flex flex-col">
                     {/* Plan Info */}
-                    <div className="px-4 pb-3 border-b shrink-0">
-                      <h3 className="font-medium truncate" title={selectedPlan.name}>
+                    <div className="flex-1 flex flex-col items-center justify-center text-center">
+                      <div className="h-24 w-24 rounded-lg bg-muted flex items-center justify-center mb-4">
+                        <FileText className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                      <h3 className="font-medium text-lg mb-2" title={selectedPlan.name}>
                         {selectedPlan.name}
                       </h3>
-                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground mb-4 flex-wrap justify-center">
                         {selectedPlan.is_all_plans && (
                           <Badge variant="secondary">Full Set</Badge>
+                        )}
+                        {selectedPlan.sheet_issue && (
+                          <Badge variant="outline">{selectedPlan.sheet_issue}</Badge>
                         )}
                         {selectedPlan.size && (
                           <span>{formatFileSize(selectedPlan.size)}</span>
                         )}
-                        {selectedPlan.modified && (
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {formatPlanDate(selectedPlan.modified)}
-                          </span>
-                        )}
                       </div>
-                    </div>
-                    {/* PDF Preview iframe */}
-                    <div className="flex-1 bg-muted/20">
-                      <iframe
-                        src={`${selectedPlan.web_url}?action=embedview`}
-                        className="w-full h-full border-0"
-                        title={`Preview: ${selectedPlan.name}`}
-                      />
+                      {selectedPlan.sheet_date && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+                          <Calendar className="h-4 w-4" />
+                          <span>Date: {selectedPlan.sheet_date}</span>
+                        </div>
+                      )}
+                      <Button
+                        onClick={() => window.open(selectedPlan.web_url, "_blank")}
+                        className="mt-2"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View in SharePoint
+                      </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <FileText className="h-16 w-16 mb-4 opacity-50" />
-                    <p>Select a plan from the list to preview</p>
+                    <p>Select a plan from the list to view details</p>
                   </div>
                 )}
               </CardContent>

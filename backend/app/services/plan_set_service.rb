@@ -342,19 +342,20 @@ class PlanSetService
 
       Return ONLY valid JSON with no additional text:
       {
-        "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', 'E01', 'Sheet 1', '01')",
-        "sheet_name": "The sheet title/name (e.g., 'FLOOR PLAN', 'SITE PLAN', 'Perspective 5 Wategos')",
-        "sheet_date": "The date on the drawing (e.g., '15/12/2025', '2025-12-15')",
-        "sheet_issue": "The issue/revision status (e.g., 'Working Drawings', 'For Construction', 'Preliminary')"
+        "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', '01', '03a')",
+        "sheet_name": "The FULL sheet title including project name (e.g., 'Perspective 5 Wategos', 'Ground Floor Plan 5 Wategos')",
+        "sheet_date": "The date on the drawing (e.g., '15/12/2025')",
+        "sheet_issue": "The issue/revision status (e.g., 'Working Drawings', 'For Construction', 'Contract Drawings')"
       }
 
-      Important:
-      - sheet_number: Look for codes like A001, A-001, S001, S-001, E01, Sheet 1, Drawing 1, 01, 02, etc.
-      - sheet_name: Look for the main title/description of what the drawing shows (e.g., "Perspective 5 Wategos", "Ground Floor Plan")
-      - sheet_date: Look for "Date:" or a date field in the title block
-      - sheet_issue: Look for "Issue:", "Rev:", "Revision:" or status like "Working Drawings", "For Construction"
+      CRITICAL INSTRUCTIONS:
+      - sheet_name: Extract the FULL title from the title block. Include the project name if present.
+        Examples: "Perspective 5 Wategos", "Ground Floor Plan", "Kitchen Cabinetry Detail"
+        Do NOT just say "PERSPECTIVE" - include the full descriptive name.
+      - sheet_number: Just the number/code (e.g., "01", "03a", "A3", "101-KIT")
+      - sheet_date: Look for "Date:" field
+      - sheet_issue: Look for "Issue:" field (e.g., "Working Drawings", "Contract Drawings", "For Construction")
       - Return null for fields you cannot find
-      - Do NOT include the issue/revision in the sheet_name - they are separate fields
     PROMPT
   end
 
@@ -381,10 +382,9 @@ class PlanSetService
     # Always prefix with page number to maintain order (01, 02, 03...)
     page_prefix = format("%02d", page_index + 1)
 
-    # Build name from sheet_number or sheet_name
-    name_part = if sheet_info[:sheet_number].present? && sheet_info[:sheet_name].present?
-      "#{sheet_info[:sheet_number]} - #{sheet_info[:sheet_name]}"
-    elsif sheet_info[:sheet_name].present?
+    # Use sheet_name as the primary name (it should include full description)
+    # Only fall back to sheet_number if no name is available
+    name_part = if sheet_info[:sheet_name].present?
       sheet_info[:sheet_name]
     elsif sheet_info[:sheet_number].present?
       sheet_info[:sheet_number]
