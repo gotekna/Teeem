@@ -48,6 +48,7 @@ import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
+import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
 import { StartWorkflowButton } from "@/components/jobs/StartWorkflowButton";
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
@@ -154,6 +155,7 @@ interface JobStage {
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
   { name: "Contract", slug: "contract", icon: FileSignature },
+  { name: "Claims", slug: "claims", icon: TrendingUp },
   { name: "People", slug: "people", icon: Users },
   { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
   { name: "Estimates", slug: "estimates", icon: FileText },
@@ -1173,6 +1175,10 @@ export default function JobDetailPage() {
 
         <TabsContent value="contract" className="mt-6">
           <JobContractTab job={job} onUpdate={loadJob} />
+        </TabsContent>
+
+        <TabsContent value="claims" className="mt-6">
+          <JobClaimStagesTab jobId={job.id} contractValue={job.contract_value} />
         </TabsContent>
 
         <TabsContent value="people" className="mt-6">

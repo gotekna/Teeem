@@ -1,93 +1,76 @@
-<h1>Welcome to Tekna Homes</h1>
+<h1>Welcome Letter</h1>
 
 <p style="color: var(--color-text-secondary);"><%= format_date(today, :long) %></p>
 
 <p><%= @dear %></p>
 
 <p>
-  Congratulations on choosing <%= @company[:name] %> to build your new home at
-  <strong><%= @job[:full_address] %></strong>.
+  On behalf of the team at <%= @company[:name] %>, we would like to extend a warm welcome and
+  express our excitement about the opportunity to work with you on your new property at
+  <strong><%= @job[:full_address] %></strong>. We are committed to delivering a high-quality
+  home that meets all your expectations.
 </p>
 
 <p>
-  We are delighted to welcome you to the <%= @company[:name] %> family and look forward
-  to working with you throughout the construction of your new home.
+  Included are several documents and links that detail the terms and conditions of our
+  partnership for your review and sign:
 </p>
 
-<h2>Your Build Team</h2>
+<h2>Attached Documents & Links</h2>
 
-<table>
-  <tr>
-    <td style="width: 40%; background: #f5f5f5;"><strong>Site Supervisor</strong></td>
-    <td><%= @job[:site_supervisor_name] || "To be assigned" %></td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Contact Phone</strong></td>
-    <td><%= @job[:site_supervisor_phone] || @company[:phone_formatted] %></td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Office Email</strong></td>
-    <td><%= @company[:email] %></td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Office Phone</strong></td>
-    <td><%= @company[:phone_formatted] %></td>
-  </tr>
-</table>
-
-<h2>Project Details</h2>
-
-<table>
-  <tr>
-    <td style="width: 40%; background: #f5f5f5;"><strong>Job Number</strong></td>
-    <td><%= @job[:job_number] %></td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Site Address</strong></td>
-    <td><%= @job[:full_address] %></td>
-  </tr>
-  <% if @job[:lot_number].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Lot/Plan</strong></td>
-    <td>Lot <%= @job[:lot_number] %> on Plan <%= @job[:plan_number] %></td>
-  </tr>
-  <% end %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Contract Price</strong></td>
-    <td><%= @job[:contract_price] %> (inc. GST)</td>
-  </tr>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Contract Date</strong></td>
-    <td><%= @job[:contract_date] %></td>
-  </tr>
-  <% if @job[:build_period].present? %>
-  <tr>
-    <td style="background: #f5f5f5;"><strong>Build Period</strong></td>
-    <td><%= @job[:build_period] %></td>
-  </tr>
-  <% end %>
-</table>
-
-<h2>What Happens Next?</h2>
-
-<ol>
-  <li>Your site supervisor will contact you to arrange an initial site meeting</li>
-  <li>We will submit your plans to council for approval (if not already approved)</li>
-  <li>Once approved, we will schedule your site start date</li>
-  <li>You will receive regular progress updates throughout your build</li>
-</ol>
+<ul style="list-style: none; padding: 0; margin: var(--space-4) 0;">
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Welcome Letter</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Consumer Building Guide</strong> -
+    <a href="https://www.qbcc.qld.gov.au/resources/guide/consumer-building-guide" target="_blank">QBCC Consumer Building Guide</a>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>General Conditions</strong> -
+    <a href="https://www.qbcc.qld.gov.au/resources/template/general-conditions-contract" target="_blank">QBCC General Conditions</a>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>QBCC Building Contract</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Specification</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Building Plans</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Owner's Authority to Obtain Information</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Specification of Works Acknowledgement</strong>
+  </li>
+  <li style="padding: var(--space-2) 0; border-bottom: 1px solid var(--color-border);">
+    <strong>Termite Protection System</strong>
+  </li>
+  <li style="padding: var(--space-2) 0;">
+    <strong>Colour Selection</strong>
+  </li>
+</ul>
 
 <p>
-  If you have any questions at any time, please don't hesitate to contact our office
-  on <strong><%= @company[:phone_formatted] %></strong> or email
-  <strong><%= @company[:email] %></strong>.
+  We kindly ask that you carefully review each document and sign where required. By doing so,
+  you acknowledge that these documents have been thoroughly reviewed and fully understood.
+  If you have any questions or require further clarification, please feel free to reach out to us.
 </p>
 
 <p>
-  We look forward to building your dream home.
+  We are excited to begin this journey with you and are here to assist every step of the way.
 </p>
 
 <p style="margin-top: var(--space-8);">
-  Kind regards,<br><br>
-  <strong>The <%= @company[:name] %> Team</strong>
+  Best regards,<br><br>
+  <strong><%= @company[:name] %> Team</strong>
 </p>
+
+<div style="margin-top: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--color-border);">
+  <p style="margin: 0;">
+    <strong><%= @job[:full_address] %></strong><br>
+    Owner: <%= @client_names %>
+  </p>
+</div>

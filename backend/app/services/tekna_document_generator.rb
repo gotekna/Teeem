@@ -157,8 +157,10 @@ class TeknaDocumentGenerator
   end
 
   # Generate HTML only (for preview)
-  # When no job is provided, uses placeholder data for template preview
+  # When no job is provided, uses the first available job as sample data
   def preview(job: nil, contact: nil, extra_data: {})
+    # Use first job as sample if none provided
+    job ||= Job.includes(:job_contacts => :contact).first
     context = build_context(job: job, contact: contact, extra_data: extra_data, preview_mode: true)
     render_template(context)
   end
@@ -181,13 +183,11 @@ class TeknaDocumentGenerator
   def build_context(job:, contact:, extra_data:, preview_mode: false)
     context = {}
 
-    # Build job context (use placeholder if preview mode with no job)
+    # Build job context
     if job
       context[:job] = build_job_context(job)
-    elsif preview_mode
-      context[:job] = build_placeholder_job_context
 
-      # Build client contexts
+      # Build client contexts from job
       if job.respond_to?(:job_contacts)
         client_contacts = job.job_contacts.where(role: "client").includes(:contact).map(&:contact).compact
         context[:clients] = client_contacts.map { |c| build_contact_context(c) }

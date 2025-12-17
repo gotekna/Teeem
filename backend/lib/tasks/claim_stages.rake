@@ -38,6 +38,11 @@ namespace :claim_stages do
       "Residential" => residential_stages,
       "Residential Build" => residential_stages,
       "New Build" => residential_stages,
+      "House" => residential_stages,
+      "Duplex" => residential_stages,
+      "Townhouse" => residential_stages,
+      "NDIS House" => residential_stages,
+      "NDIS Units" => residential_stages,
       "Kitchen" => kitchen_stages,
       "Kitchen Renovation" => kitchen_stages
     }
@@ -67,6 +72,14 @@ namespace :claim_stages do
 
     puts ""
     puts "Done! Created templates for #{created_count} job types, skipped #{skipped_count}."
+  end
+
+  desc "Reset all templates to defaults (deletes existing and recreates)"
+  task reset_all: :environment do
+    puts "Resetting all claim stage templates..."
+    ClaimStageTemplate.delete_all
+    puts "Deleted all existing templates. Running seed_defaults..."
+    Rake::Task["claim_stages:seed_defaults"].invoke
   end
 
   desc "Show claim stage templates summary"
