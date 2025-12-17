@@ -386,7 +386,7 @@ module Api
             total: invoice.total&.to_f,
             amount_paid: invoice.amount_paid&.to_f,
             status: invoice.status,
-            date: invoice.date,
+            date: invoice.invoice_date,
             due_date: invoice.due_date
           } : nil,
 
@@ -406,7 +406,7 @@ module Api
             total: invoice.total&.to_f,
             amount_paid: invoice.amount_paid&.to_f,
             status: invoice.status,
-            date: invoice.date
+            date: invoice.invoice_date
           }
         end
       end
