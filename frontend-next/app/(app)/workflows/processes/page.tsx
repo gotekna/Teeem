@@ -37,6 +37,10 @@ import {
   Building,
   RefreshCw,
   Eye,
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Circle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -653,70 +657,192 @@ export default function BpmnProcessesPage() {
                   {instances.map((instance) => (
                     <div
                       key={instance.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 dark:border-slate-700"
+                      className="border rounded-lg dark:border-slate-700 overflow-hidden"
                     >
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
-                          {getStatusIcon(instance.status)}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium">{instance.process_name}</p>
-                            <span className="text-xs text-slate-500 dark:text-slate-400">#{instance.id}</span>
+                      {/* Instance Header - Clickable */}
+                      <div
+                        className="flex items-center justify-between p-4 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => toggleInstanceExpansion(instance.id)}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 rounded-full bg-slate-100 dark:bg-slate-800">
+                            {getStatusIcon(instance.status)}
                           </div>
-                          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                            <Building className="h-3 w-3" />
-                            <span>{instance.subject_name || `${instance.subject_type} #${instance.subject_id}`}</span>
-                          </div>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            <span>Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}</span>
-                            {instance.current_node && (
-                              <>
-                                <span>•</span>
-                                <span>At: {instance.current_node}</span>
-                              </>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium">{instance.process_name}</p>
+                              <span className="text-xs text-slate-500 dark:text-slate-400">#{instance.id}</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                              <Building className="h-3 w-3" />
+                              <span>{instance.subject_name || `${instance.subject_type} #${instance.subject_id}`}</span>
+                            </div>
+                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              <span>Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}</span>
+                              {instance.current_node && (
+                                <>
+                                  <span>•</span>
+                                  <span>At: {instance.current_node}</span>
+                                </>
+                              )}
+                            </div>
+                            {instance.error_message && (
+                              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{instance.error_message}</p>
                             )}
                           </div>
-                          {instance.error_message && (
-                            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{instance.error_message}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {instance.pending_tasks > 0 && (
+                            <Badge variant="outline" className="text-orange-600 border-orange-300 dark:border-orange-700">
+                              {instance.pending_tasks} pending
+                            </Badge>
+                          )}
+                          {getStatusBadge(instance.status)}
+                          {instance.status !== "completed" && instance.status !== "cancelled" && instance.status !== "failed" && (
+                            <Badge variant="outline">{Math.round(instance.progress)}%</Badge>
+                          )}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => router.push(`/workflows/designer/${instance.process_id}`)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                View Process
+                              </DropdownMenuItem>
+                              {instance.status === "active" && (
+                                <DropdownMenuItem
+                                  onClick={() => handleCancelInstance(instance.id)}
+                                  className="text-red-600"
+                                >
+                                  <StopCircle className="mr-2 h-4 w-4" />
+                                  Cancel
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                          {expandedInstanceId === instance.id ? (
+                            <ChevronDown className="h-5 w-5 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="h-5 w-5 text-slate-400" />
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {instance.pending_tasks > 0 && (
-                          <Badge variant="outline" className="text-orange-600 border-orange-300 dark:border-orange-700">
-                            {instance.pending_tasks} pending
-                          </Badge>
-                        )}
-                        {getStatusBadge(instance.status)}
-                        {instance.status !== "completed" && instance.status !== "cancelled" && instance.status !== "failed" && (
-                          <Badge variant="outline">{Math.round(instance.progress)}%</Badge>
-                        )}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => router.push(`/workflows/designer/${instance.process_id}`)}
-                            >
-                              <Eye className="mr-2 h-4 w-4" />
-                              View Process
-                            </DropdownMenuItem>
-                            {instance.status === "active" && (
-                              <DropdownMenuItem
-                                onClick={() => handleCancelInstance(instance.id)}
-                                className="text-red-600"
-                              >
-                                <StopCircle className="mr-2 h-4 w-4" />
-                                Cancel
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
+
+                      {/* Expanded Step Details */}
+                      {expandedInstanceId === instance.id && (
+                        <div className="border-t dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4">
+                          {detailLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+                            </div>
+                          ) : instanceDetail ? (
+                            <div className="space-y-4">
+                              {/* Tokens/Steps Timeline */}
+                              <div>
+                                <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                  <Workflow className="h-4 w-4" />
+                                  Workflow Steps
+                                </h4>
+                                {instanceDetail.tokens.length === 0 ? (
+                                  <p className="text-sm text-slate-500 dark:text-slate-400">No steps recorded yet</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {instanceDetail.tokens.map((token, idx) => (
+                                      <div
+                                        key={token.id}
+                                        className="flex items-center gap-3"
+                                      >
+                                        {/* Status indicator */}
+                                        <div className="flex flex-col items-center">
+                                          <div className={`w-3 h-3 rounded-full ${getTokenStatusColor(token.status)}`} />
+                                          {idx < instanceDetail.tokens.length - 1 && (
+                                            <div className="w-0.5 h-6 bg-slate-200 dark:bg-slate-700 mt-1" />
+                                          )}
+                                        </div>
+                                        {/* Step info */}
+                                        <div className="flex-1 flex items-center justify-between py-1">
+                                          <div>
+                                            <span className="text-sm font-medium">{token.node_name}</span>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                              ({token.node_type})
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Badge
+                                              variant="outline"
+                                              className={
+                                                token.status === "completed" ? "border-green-500 text-green-600 dark:text-green-400" :
+                                                token.status === "active" ? "border-blue-500 text-blue-600 dark:text-blue-400" :
+                                                token.status === "failed" ? "border-red-500 text-red-600 dark:text-red-400" :
+                                                "border-yellow-500 text-yellow-600 dark:text-yellow-400"
+                                              }
+                                            >
+                                              {token.status}
+                                            </Badge>
+                                            {token.completed_at && (
+                                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                {formatDistanceToNow(new Date(token.completed_at), { addSuffix: true })}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Tasks */}
+                              {instanceDetail.tasks.length > 0 && (
+                                <div className="pt-2 border-t dark:border-slate-700">
+                                  <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                                    <Clock className="h-4 w-4" />
+                                    Tasks
+                                  </h4>
+                                  <div className="space-y-2">
+                                    {instanceDetail.tasks.map((task) => (
+                                      <div
+                                        key={task.id}
+                                        className="flex items-center justify-between p-2 bg-white dark:bg-slate-800 rounded border dark:border-slate-700"
+                                      >
+                                        <div>
+                                          <span className="text-sm font-medium">{task.node_name}</span>
+                                          {task.assigned_to_name && (
+                                            <span className="text-xs text-slate-500 dark:text-slate-400 ml-2">
+                                              → {task.assigned_to_name}
+                                            </span>
+                                          )}
+                                          {task.error_message && (
+                                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">{task.error_message}</p>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {task.is_overdue && (
+                                            <Badge variant="destructive" className="text-xs">Overdue</Badge>
+                                          )}
+                                          <Badge
+                                            variant="outline"
+                                            className={getTaskStatusColor(task.status)}
+                                          >
+                                            {task.status === "in_progress" ? "In Progress" : task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">Failed to load details</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

@@ -128,14 +128,14 @@ export default function BpmnJsDesigner({
     fetchTemplates();
   }, []);
 
-  // Fetch recent jobs for test run
+  // Fetch jobs for test run - load all jobs so search works properly
   useEffect(() => {
     console.log("[BPMN] Starting to fetch jobs...");
     const fetchJobs = async () => {
       try {
         console.log("[BPMN] Calling /api/v1/jobs...");
         const response = await api.get<{ jobs: Job[]; pagination: object }>(
-          "/api/v1/jobs?per_page=50"
+          "/api/v1/jobs?per_page=1000"
         );
         console.log("[BPMN] Jobs API response:", response);
         console.log("[BPMN] Jobs array:", response?.jobs);

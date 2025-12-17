@@ -740,6 +740,7 @@ Rails.application.routes.draw do
           get :providers
           get :all_accounts
           post :send_email
+          get :folders  # Fetch folders for a specific account (pass account_id param)
         end
         member do
           post :sync

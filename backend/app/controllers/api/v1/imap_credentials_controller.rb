@@ -110,6 +110,66 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }
   end
 
+  # GET /api/v1/imap_credentials/folders
+  # Get folders for a specific account (Outlook or IMAP)
+  def folders
+    account_id = params[:account_id]
+
+    if account_id == "outlook"
+      # Fetch Outlook folders via Graph API
+      unless current_user.outlook_credential&.valid_credential?
+        return render json: {
+          success: false,
+          error: "Outlook not connected or token expired"
+        }, status: :unprocessable_entity
+      end
+
+      outlook = OutlookService.new(current_user)
+      folders = outlook.list_folders
+
+      render json: {
+        success: true,
+        data: folders.map { |f|
+          {
+            id: f[:id],
+            name: f[:name],
+            unread_count: f[:unread_count],
+            total_items: f[:total_items],
+            type: folder_type_from_name(f[:name])
+          }
+        }
+      }
+    else
+      # Fetch IMAP folders
+      credential = current_user.imap_credentials.find_by(id: account_id)
+      unless credential
+        return render json: {
+          success: false,
+          error: "Account not found"
+        }, status: :not_found
+      end
+
+      service = ImapEmailService.new(credential)
+      folder_names = service.list_folders
+
+      render json: {
+        success: true,
+        data: folder_names.map { |name|
+          {
+            id: name,
+            name: folder_display_name(name),
+            type: folder_type_from_name(name)
+          }
+        }
+      }
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to fetch folders: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
   # GET /api/v1/imap_credentials/all_accounts
   # List ALL email accounts (IMAP + connected Outlook)
   def all_accounts
@@ -319,5 +379,40 @@ class Api::V1::ImapCredentialsController < ApplicationController
     end
 
     json
+  end
+
+  # Map folder name to standardized type for UI icons
+  def folder_type_from_name(name)
+    normalized = name.to_s.downcase
+    case normalized
+    when /inbox/
+      "inbox"
+    when /sent|sent items|sent mail/
+      "sent"
+    when /draft/
+      "drafts"
+    when /trash|deleted|deleted items/
+      "trash"
+    when /archive/
+      "archive"
+    when /junk|spam/
+      "junk"
+    when /important|starred/
+      "important"
+    else
+      "folder"
+    end
+  end
+
+  # Clean up IMAP folder names for display
+  def folder_display_name(name)
+    # Remove IMAP prefixes like [Gmail]/, INBOX., etc.
+    clean_name = name.to_s
+      .gsub(/^\[Gmail\]\//, "")
+      .gsub(/^INBOX\./, "")
+      .gsub(/^INBOX\//, "")
+
+    # Capitalize nicely
+    clean_name.split(/[\s_-]/).map(&:capitalize).join(" ")
   end
 end

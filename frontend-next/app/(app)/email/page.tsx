@@ -78,18 +78,31 @@ interface Pagination {
   total_pages: number;
 }
 
-// Folder structure for each mailbox
-const FOLDERS = [
-  { id: "inbox", name: "Inbox", icon: Inbox },
-  { id: "sent", name: "Sent", icon: Send },
-  { id: "drafts", name: "Drafts", icon: FileText },
-  { id: "archive", name: "Archive", icon: Archive },
-  { id: "trash", name: "Trash", icon: Trash2 },
-];
+interface EmailFolder {
+  id: string;
+  name: string;
+  type: string;
+  unread_count?: number;
+  total_items?: number;
+}
+
+// Map folder type to icon
+const FOLDER_ICONS: Record<string, typeof Inbox> = {
+  inbox: Inbox,
+  sent: Send,
+  drafts: FileText,
+  archive: Archive,
+  trash: Trash2,
+  junk: Trash2,
+  important: Star,
+  folder: FileText,
+};
 
 export default function EmailPage() {
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
+  const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
+  const [loadingFolders, setLoadingFolders] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
@@ -101,7 +114,8 @@ export default function EmailPage() {
 
   const [search, setSearch] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<string>("");
-  const [selectedFolder, setSelectedFolder] = useState<string>("inbox");
+  const [selectedFolder, setSelectedFolder] = useState<string>("");
+  const [selectedFolderId, setSelectedFolderId] = useState<string>("");
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -147,6 +161,47 @@ export default function EmailPage() {
     }
   }, [search, selectedAccount]);
 
+  const fetchFolders = async (accountId: string) => {
+    if (accountFolders[accountId] || loadingFolders.has(accountId)) {
+      return; // Already loaded or loading
+    }
+
+    setLoadingFolders(prev => new Set(prev).add(accountId));
+    try {
+      const response = await api.get<{ success: boolean; data: EmailFolder[] }>(
+        `/api/v1/imap_credentials/folders?account_id=${accountId}`
+      );
+      if (response.success && response.data) {
+        setAccountFolders(prev => ({
+          ...prev,
+          [accountId]: response.data
+        }));
+
+        // Auto-select inbox folder if this is the selected account
+        if (accountId === selectedAccount) {
+          const inboxFolder = response.data.find(f => f.type === "inbox");
+          if (inboxFolder) {
+            setSelectedFolder(inboxFolder.name);
+            setSelectedFolderId(inboxFolder.id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch folders:", error);
+      // Set empty array to prevent retry loops
+      setAccountFolders(prev => ({
+        ...prev,
+        [accountId]: []
+      }));
+    } finally {
+      setLoadingFolders(prev => {
+        const next = new Set(prev);
+        next.delete(accountId);
+        return next;
+      });
+    }
+  };
+
   const fetchAccounts = async () => {
     try {
       const response = await api.get<{ success: boolean; data: EmailAccount[] }>(
@@ -158,8 +213,11 @@ export default function EmailPage() {
       // Auto-expand and select first account
       if (activeAccounts.length > 0) {
         const defaultAccount = activeAccounts.find(a => a.is_default) || activeAccounts[0];
-        setSelectedAccount(String(defaultAccount.id));
-        setExpandedAccounts(new Set([String(defaultAccount.id)]));
+        const accountId = String(defaultAccount.id);
+        setSelectedAccount(accountId);
+        setExpandedAccounts(new Set([accountId]));
+        // Fetch folders for default account
+        fetchFolders(accountId);
       }
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
@@ -235,13 +293,16 @@ export default function EmailPage() {
       newExpanded.delete(accountId);
     } else {
       newExpanded.add(accountId);
+      // Fetch folders when expanding
+      fetchFolders(accountId);
     }
     setExpandedAccounts(newExpanded);
   };
 
-  const selectAccountFolder = (accountId: string, folderId: string) => {
+  const selectAccountFolder = (accountId: string, folder: EmailFolder) => {
     setSelectedAccount(accountId);
-    setSelectedFolder(folderId);
+    setSelectedFolder(folder.name);
+    setSelectedFolderId(folder.id);
   };
 
   const getSelectedAccountName = () => {
@@ -290,23 +351,38 @@ export default function EmailPage() {
                 {/* Folders */}
                 {expandedAccounts.has(String(account.id)) && (
                   <div className="ml-4 border-l pl-2">
-                    {FOLDERS.map((folder) => {
-                      const Icon = folder.icon;
-                      const isSelected = selectedAccount === String(account.id) && selectedFolder === folder.id;
-                      return (
-                        <button
-                          key={folder.id}
-                          onClick={() => selectAccountFolder(String(account.id), folder.id)}
-                          className={cn(
-                            "w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors rounded-sm",
-                            isSelected && "bg-primary/10 text-primary font-medium"
-                          )}
-                        >
-                          <Icon className="h-4 w-4" />
-                          <span>{folder.name}</span>
-                        </button>
-                      );
-                    })}
+                    {loadingFolders.has(String(account.id)) ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        Loading folders...
+                      </div>
+                    ) : (accountFolders[String(account.id)] || []).length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        No folders found
+                      </div>
+                    ) : (
+                      (accountFolders[String(account.id)] || []).map((folder) => {
+                        const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
+                        const isSelected = selectedAccount === String(account.id) && selectedFolderId === folder.id;
+                        return (
+                          <button
+                            key={folder.id}
+                            onClick={() => selectAccountFolder(String(account.id), folder)}
+                            className={cn(
+                              "w-full flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-muted/50 transition-colors rounded-sm",
+                              isSelected && "bg-primary/10 text-primary font-medium"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span className="flex-1 text-left truncate">{folder.name}</span>
+                            {folder.unread_count !== undefined && folder.unread_count > 0 && (
+                              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center">
+                                {folder.unread_count}
+                              </Badge>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
                   </div>
                 )}
               </div>
