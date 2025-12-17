@@ -230,12 +230,104 @@ class DocumentGenerator
       context[key] = value
     end
 
+    # Add company settings
+    context[:company] = build_company_context
+
     # Add common fields
     context[:generated_date] = Date.current.strftime("%d/%m/%Y")
     context[:generated_datetime] = Time.current.strftime("%d/%m/%Y %I:%M %p")
     context[:current_year] = Date.current.year.to_s
 
     context
+  end
+
+  def build_company_context
+    settings = CorporateCompanySetting.instance
+
+    # Parse address into components if it contains newlines or commas
+    address_parts = parse_address(settings.address)
+
+    {
+      # Core company info
+      name: settings.company_name,
+      company_name: settings.company_name,
+      abn: settings.abn,
+      abn_formatted: format_abn(settings.abn),
+      qbcc: settings.qbcc_license,
+      qbcc_license: settings.qbcc_license,
+      gst_number: settings.gst_number,
+
+      # Contact details
+      email: settings.email,
+      phone: settings.phone,
+      phone_formatted: format_phone(settings.phone),
+      website: settings.website,
+
+      # Address - full and parsed
+      address: settings.address,
+      address_line_1: address_parts[:line_1],
+      address_line_2: address_parts[:line_2],
+      street: address_parts[:street],
+      suburb: address_parts[:suburb],
+      city: address_parts[:suburb], # Alias
+      state: address_parts[:state],
+      postcode: address_parts[:postcode],
+      full_address: settings.address&.gsub("\n", ", "),
+
+      # Logo URLs (for reference - images need special handling in Word)
+      logo_url: settings.logo_url,
+      logo_mobile: settings.logo_mobile,
+      logo_dark: settings.logo_dark,
+
+      # For headers/footers
+      header_line: "#{settings.company_name} | ABN #{format_abn(settings.abn)} | QBCC #{settings.qbcc_license}",
+      footer_line: "#{settings.phone} | #{settings.email} | #{settings.address&.gsub("\n", ", ")}"
+    }
+  end
+
+  def parse_address(address)
+    return { line_1: "", line_2: "", street: "", suburb: "", state: "", postcode: "" } unless address.present?
+
+    # Try to parse address like "160 Alperton Road\nBurbank QLD 4156"
+    lines = address.split(/[\n,]/).map(&:strip).reject(&:blank?)
+
+    result = {
+      line_1: lines[0] || "",
+      line_2: lines[1..].join(", "),
+      street: lines[0] || "",
+      suburb: "",
+      state: "",
+      postcode: ""
+    }
+
+    # Try to parse last line as "Suburb STATE Postcode"
+    if lines.length > 1
+      last_line = lines.last
+      # Match patterns like "Burbank QLD 4156" or "Brisbane, QLD 4000"
+      if match = last_line.match(/^(.+?)\s+([A-Z]{2,3})\s+(\d{4})$/)
+        result[:suburb] = match[1].strip
+        result[:state] = match[2]
+        result[:postcode] = match[3]
+      elsif match = last_line.match(/^(.+?),?\s+([A-Z]{2,3}),?\s+(\d{4})$/)
+        result[:suburb] = match[1].strip
+        result[:state] = match[2]
+        result[:postcode] = match[3]
+      end
+    end
+
+    result
+  end
+
+  def format_phone(phone)
+    return phone unless phone.present?
+    digits = phone.to_s.gsub(/\D/, "")
+    return phone if digits.length != 10
+    # Format as 04XX XXX XXX or 07 XXXX XXXX
+    if digits.start_with?("04")
+      "#{digits[0..3]} #{digits[4..6]} #{digits[7..9]}"
+    else
+      "#{digits[0..1]} #{digits[2..5]} #{digits[6..9]}"
+    end
   end
 
   def build_job_context(job)

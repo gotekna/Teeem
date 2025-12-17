@@ -11,8 +11,11 @@ module Api
           gst_number: settings.gst_number,
           email: settings.email,
           phone: settings.phone,
+          website: settings.website,
           address: settings.address,
           logo_url: settings.logo_url,
+          logo_mobile: settings.logo_mobile,
+          logo_dark: settings.logo_dark,
           timezone: settings.timezone,
           working_days: settings.working_days
         }
@@ -33,8 +36,11 @@ module Api
               gst_number: settings.gst_number,
               email: settings.email,
               phone: settings.phone,
+              website: settings.website,
               address: settings.address,
               logo_url: settings.logo_url,
+              logo_mobile: settings.logo_mobile,
+              logo_dark: settings.logo_dark,
               timezone: settings.timezone,
               working_days: settings.working_days
             }
@@ -112,8 +118,11 @@ module Api
           :gst_number,
           :email,
           :phone,
+          :website,
           :address,
           :logo_url,
+          :logo_mobile,
+          :logo_dark,
           :timezone,
           :twilio_account_sid,
           :twilio_auth_token,

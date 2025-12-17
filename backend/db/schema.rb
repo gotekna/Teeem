@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_17_022834) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_17_024959) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1580,6 +1580,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_17_022834) do
     t.string "people_documents_base_path", default: "teeem/Corporate/People"
     t.string "job_documents_base_path", default: "TEEEM Jobs"
     t.string "qbcc_license"
+    t.string "logo_mobile"
+    t.string "logo_dark"
+    t.string "website"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|

@@ -124,8 +124,11 @@ interface CompanySettings {
   qbcc_license: string;
   email: string;
   phone: string;
+  website: string;
   address: string;
   logo_url: string;
+  logo_mobile: string;
+  logo_dark: string;
   timezone: string;
   working_days: {
     monday: boolean;
@@ -145,8 +148,11 @@ function CompanyInfoTab() {
     qbcc_license: "",
     email: "",
     phone: "",
+    website: "",
     address: "",
     logo_url: "",
+    logo_mobile: "",
+    logo_dark: "",
     timezone: "Australia/Brisbane",
     working_days: {
       monday: true,
@@ -280,78 +286,137 @@ function CompanyInfoTab() {
           </p>
         </div>
 
-        <div className="space-y-4">
-          <Label>Company Logo</Label>
+        {/* Logo Variants Section */}
+        <div className="space-y-6 p-4 border rounded-lg bg-muted/30">
+          <div>
+            <h3 className="font-semibold mb-1">Company Logos</h3>
+            <p className="text-xs text-muted-foreground">
+              Upload different logo variants for various uses. Recommended: PNG with transparent background.
+            </p>
+          </div>
 
-          {/* Logo Preview - Template Size */}
-          {settings.logo_url && (
-            <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Preview at template size (150px width):</p>
-              <div className="border rounded-lg p-4 bg-white inline-block">
-                <img
-                  src={settings.logo_url}
-                  alt="Company Logo"
-                  style={{ width: '150px', height: 'auto' }}
-                  className="object-contain"
+          {/* Primary Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Primary Logo (Documents & Letterhead)</Label>
+            <div className="flex items-start gap-4">
+              <div className="border rounded-lg p-3 bg-white min-w-[180px] min-h-[80px] flex items-center justify-center">
+                {settings.logo_url ? (
+                  <img src={settings.logo_url} alt="Primary Logo" style={{ maxWidth: '150px', maxHeight: '60px' }} className="object-contain" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No logo</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <input type="file" id="logo_upload" accept="image/*" className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => handleChange("logo_url", event.target?.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('logo_upload')?.click()}>
+                    Choose File
+                  </Button>
+                  {settings.logo_url && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleChange("logo_url", "")} className="text-red-600">
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  value={settings.logo_url?.startsWith('data:') ? '' : (settings.logo_url || '')}
+                  onChange={(e) => handleChange("logo_url", e.target.value)}
+                  placeholder="Or enter URL..."
+                  className="text-xs"
                 />
               </div>
             </div>
-          )}
-
-          {/* Upload and URL Input */}
-          <div className="flex items-center gap-3">
-            <input
-              type="file"
-              id="logo_upload"
-              accept="image/*"
-              className="hidden"
-              onChange={async (e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-
-                // Convert to base64 data URL for now
-                // In production, this should upload to storage
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                  const dataUrl = event.target?.result as string;
-                  handleChange("logo_url", dataUrl);
-                };
-                reader.readAsDataURL(file);
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => document.getElementById('logo_upload')?.click()}
-            >
-              Choose File
-            </Button>
-            {settings.logo_url && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => handleChange("logo_url", "")}
-                className="text-red-600 hover:text-red-700"
-              >
-                Remove
-              </Button>
-            )}
           </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="logo_url" className="text-xs text-muted-foreground">Or enter URL directly:</Label>
-            <Input
-              id="logo_url"
-              value={settings.logo_url?.startsWith('data:') ? '' : (settings.logo_url || '')}
-              onChange={(e) => handleChange("logo_url", e.target.value)}
-              placeholder="https://example.com/logo.png"
-            />
+          {/* Mobile Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Mobile Logo (Icon/Mark Only)</Label>
+            <div className="flex items-start gap-4">
+              <div className="border rounded-lg p-3 bg-white min-w-[80px] min-h-[80px] flex items-center justify-center">
+                {settings.logo_mobile ? (
+                  <img src={settings.logo_mobile} alt="Mobile Logo" style={{ maxWidth: '50px', maxHeight: '50px' }} className="object-contain" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No logo</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <input type="file" id="logo_mobile_upload" accept="image/*" className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => handleChange("logo_mobile", event.target?.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('logo_mobile_upload')?.click()}>
+                    Choose File
+                  </Button>
+                  {settings.logo_mobile && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleChange("logo_mobile", "")} className="text-red-600">
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  value={settings.logo_mobile?.startsWith('data:') ? '' : (settings.logo_mobile || '')}
+                  onChange={(e) => handleChange("logo_mobile", e.target.value)}
+                  placeholder="Or enter URL..."
+                  className="text-xs"
+                />
+              </div>
+            </div>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Used in document templates as {"{{builder.logo}}"} — Recommended: PNG with transparent background, ~300px wide
-          </p>
+          {/* Dark Mode Logo */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Dark Mode Logo (Light/White Version)</Label>
+            <div className="flex items-start gap-4">
+              <div className="border rounded-lg p-3 bg-slate-800 min-w-[180px] min-h-[80px] flex items-center justify-center">
+                {settings.logo_dark ? (
+                  <img src={settings.logo_dark} alt="Dark Mode Logo" style={{ maxWidth: '150px', maxHeight: '60px' }} className="object-contain" />
+                ) : (
+                  <span className="text-xs text-slate-400">No logo</span>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <div className="flex gap-2">
+                  <input type="file" id="logo_dark_upload" accept="image/*" className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => handleChange("logo_dark", event.target?.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('logo_dark_upload')?.click()}>
+                    Choose File
+                  </Button>
+                  {settings.logo_dark && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => handleChange("logo_dark", "")} className="text-red-600">
+                      Remove
+                    </Button>
+                  )}
+                </div>
+                <Input
+                  value={settings.logo_dark?.startsWith('data:') ? '' : (settings.logo_dark || '')}
+                  onChange={(e) => handleChange("logo_dark", e.target.value)}
+                  placeholder="Or enter URL..."
+                  className="text-xs"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -422,6 +487,17 @@ function CompanyInfoTab() {
         </div>
 
         <div className="space-y-2">
+          <Label htmlFor="website">Website</Label>
+          <Input
+            id="website"
+            type="url"
+            value={settings.website || ""}
+            onChange={(e) => handleChange("website", e.target.value)}
+            placeholder="https://www.example.com.au"
+          />
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="address">Address</Label>
           <textarea
             id="address"
@@ -461,12 +537,24 @@ function CompanyInfoTab() {
             <span className="text-xs text-muted-foreground/70">Email</span>
           </div>
           <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.website}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Website</span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-muted-foreground">{"{{builder.address}}"}</span>
             <span className="text-xs text-muted-foreground/70">Address</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">{"{{builder.logo}}"}</span>
-            <span className="text-xs text-muted-foreground/70">Logo image</span>
+            <span className="text-xs text-muted-foreground/70">Primary logo</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.logo_mobile}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Mobile logo</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">{"{{builder.logo_dark}}"}</span>
+            <span className="text-xs text-muted-foreground/70">Dark mode logo</span>
           </div>
         </div>
       </div>
