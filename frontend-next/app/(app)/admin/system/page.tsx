@@ -90,7 +90,7 @@ const MAIN_TABS = [
   { id: "brand-guidelines", label: "Brand Guidelines", icon: Palette },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
-  { id: "gold-standard", label: "Gold Standard View", icon: Star },
+  { id: "gold-standard", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },

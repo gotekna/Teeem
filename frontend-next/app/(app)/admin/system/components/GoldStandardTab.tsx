@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +46,12 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Receipt,
+  Wallet,
+  Building2,
+  ImageIcon,
+  ExternalLink,
+  DollarSign,
 } from "lucide-react";
 import {
   Dialog,
@@ -62,6 +68,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
 import {
   Accordion,
@@ -1462,6 +1469,469 @@ function GoldStandardTableTab() {
   );
 }
 
+// Bill interface for the Gold Standard Bills/Invoice Tab
+interface BillDetail {
+  id: number;
+  invoice_number: string;
+  supplier_name_raw: string;
+  total_amount: number;
+  subtotal: number;
+  tax_amount: number;
+  due_date: string;
+  invoice_date: string;
+  status: string;
+  match_status: string;
+  variance_amount: number | null;
+  variance_percent: number | null;
+  ai_confidence: number | null;
+  remaining_balance: number;
+  ai_extraction_result: {
+    invoice_number?: string;
+    invoice_date?: string;
+    due_date?: string;
+    subtotal?: number;
+    tax_amount?: number;
+    total_amount?: number;
+    supplier_name?: string;
+    supplier_abn?: string;
+    billing_company_name?: string;
+    payment_reference?: string;
+    balance_due?: number;
+    trust_deduction?: number;
+    supplier_bank_bsb?: string;
+    supplier_bank_account?: string;
+    field_locations?: Record<string, { x: number; y: number; width: number; height: number; page: number }>;
+  } | null;
+  comparison_data: {
+    fields: Record<string, {
+      ai_value: string | number;
+      ocr_match: string | null;
+      coordinates: { x: number; y: number; width: number; height: number; page: number } | null;
+      match_confidence: number;
+      exact_match: boolean;
+    }>;
+    overall_match_rate: number;
+  } | null;
+  corporate_company: { id: number; name: string; code: string; abn: string } | null;
+  supplier: {
+    id: number;
+    display_name: string;
+    abn: string;
+    bank_bsb: string;
+    bank_account_number: string;
+    has_trust_account?: boolean;
+    payment_terms?: string;
+  } | null;
+  matched_purchase_order: {
+    id: number;
+    purchase_order_number: string;
+    total: number;
+    status: string;
+    payment_terms?: string;
+  } | null;
+  "has_invoice_file?": boolean;
+  invoice_file_content_type: string | null;
+}
+
+// Gold Standard Bills/Invoice Tab - LIVE data from real bills
+function GoldStandardBillsInvoiceTab() {
+  const { toast } = useToast();
+  const [bills, setBills] = React.useState<BillDetail[]>([]);
+  const [selectedBill, setSelectedBill] = React.useState<BillDetail | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [pdfBlobUrl, setPdfBlobUrl] = React.useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = React.useState(false);
+  const [highlightedField, setHighlightedField] = React.useState<string | null>(null);
+
+  // Load bills on mount
+  React.useEffect(() => {
+    loadBills();
+  }, []);
+
+  // Load PDF when bill changes
+  React.useEffect(() => {
+    if (selectedBill?.["has_invoice_file?"]) {
+      loadPdf(selectedBill.id);
+    } else {
+      setPdfBlobUrl(null);
+    }
+  }, [selectedBill?.id]);
+
+  const loadBills = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get<{ success: boolean; bills: BillDetail[] }>("/api/v1/bill_inbox?per_page=20");
+      if (response?.bills && response.bills.length > 0) {
+        setBills(response.bills);
+        // Select the first bill with a PDF if available
+        const billWithPdf = response.bills.find(b => b["has_invoice_file?"]) || response.bills[0];
+        setSelectedBill(billWithPdf);
+      }
+    } catch (error) {
+      console.error("Failed to load bills:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load bills. Make sure you have bills in the system.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPdf = async (billId: number) => {
+    setPdfLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const baseUrl = typeof window !== 'undefined' ?
+        (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001') : '';
+      const response = await fetch(`${baseUrl}/api/v1/bill_inbox/${billId}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPdfBlobUrl(url);
+      }
+    } catch (error) {
+      console.error("Failed to load PDF:", error);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  // Build highlights from OCR/AI data
+  const pdfHighlights = React.useMemo(() => {
+    if (!selectedBill) return [];
+    const highlights: Array<{ id: string; x: number; y: number; width: number; height: number; page: number; label: string; color: string; focused: boolean }> = [];
+    const fieldLabels: Record<string, string> = {
+      supplier_name: "Supplier", invoice_number: "Invoice #", invoice_date: "Date",
+      due_date: "Due Date", total_amount: "Total", subtotal: "Subtotal", tax_amount: "GST",
+    };
+
+    // Add OCR coordinates
+    const compFields = selectedBill.comparison_data?.fields || {};
+    Object.entries(compFields).forEach(([name, data]) => {
+      if (data?.coordinates) {
+        highlights.push({
+          id: name, ...data.coordinates, page: data.coordinates.page || 1,
+          label: fieldLabels[name] || name, color: "#10b981", focused: name === highlightedField
+        });
+      }
+    });
+
+    // Add AI field locations
+    const aiLocs = selectedBill.ai_extraction_result?.field_locations || {};
+    Object.entries(aiLocs).forEach(([name, loc]) => {
+      if (loc && !compFields[name]?.coordinates) {
+        highlights.push({
+          id: name, ...loc, page: loc.page || 1,
+          label: fieldLabels[name] || name, color: "#eab308", focused: name === highlightedField
+        });
+      }
+    });
+    return highlights;
+  }, [selectedBill, highlightedField]);
+
+  const formatCurrency = (amount: number | null | undefined) => {
+    if (amount == null) return "-";
+    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount);
+  };
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return "-";
+    return new Date(dateStr).toLocaleDateString("en-AU");
+  };
+
+  const statusColors: Record<string, string> = {
+    pending: "bg-gray-100 text-gray-700", extracted: "bg-cyan-100 text-cyan-700",
+    approval_pending: "bg-yellow-100 text-yellow-700", approved: "bg-green-100 text-green-700",
+    paid: "bg-emerald-100 text-emerald-700", rejected: "bg-red-100 text-red-700",
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!selectedBill) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-center">
+        <Receipt className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+        <h3 className="text-lg font-medium">No Bills Found</h3>
+        <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+          Add bills to the system via Finance → Bills to see them here.
+        </p>
+        <Button variant="outline" className="mt-4" onClick={loadBills}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+    );
+  }
+
+  const bill = selectedBill;
+  const ai = bill.ai_extraction_result || {};
+  const matchRate = bill.comparison_data?.overall_match_rate;
+
+  return (
+    <div className="flex gap-4 p-2 w-full overflow-hidden">
+      {/* LEFT HALF - Header + Details */}
+      <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden">
+        {/* Bill Selector */}
+        <div className="flex items-center gap-2 shrink-0">
+          <select
+            className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            value={bill.id}
+            onChange={(e) => {
+              const b = bills.find(b => b.id === Number(e.target.value));
+              if (b) setSelectedBill(b);
+            }}
+          >
+            {bills.map(b => (
+              <option key={b.id} value={b.id}>
+                #{b.invoice_number || b.id} - {b.supplier_name_raw || "Unknown"} - {formatCurrency(b.total_amount)}
+              </option>
+            ))}
+          </select>
+          <Button variant="outline" size="sm" onClick={loadBills}>
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Header Bar */}
+        <div className="flex items-center justify-between p-1 shrink-0 bg-muted/30 rounded">
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1 bg-blue-600 text-white rounded min-w-[140px]">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Pay From</div>
+              <div className="font-bold text-sm truncate">{bill.corporate_company?.name || "Company"}</div>
+            </div>
+            <span className="text-gray-500 text-lg">→</span>
+            <div className="px-3 py-1 bg-green-600 text-white rounded min-w-[140px]">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Pay To</div>
+              <div className="font-bold text-sm truncate">{bill.supplier?.display_name || bill.supplier_name_raw || "Supplier"}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="px-2 py-1 bg-gray-700 text-white rounded min-w-[80px]">
+              <div className="text-[10px] uppercase tracking-wide opacity-80">Invoice #</div>
+              <div className="font-bold text-sm font-mono">{bill.invoice_number || "-"}</div>
+            </div>
+            {bill.matched_purchase_order && (
+              <div className="px-2 py-1 bg-purple-600 text-white rounded min-w-[80px]">
+                <div className="text-[10px] uppercase tracking-wide opacity-80">PO #</div>
+                <div className="font-bold text-sm font-mono">{bill.matched_purchase_order.purchase_order_number}</div>
+              </div>
+            )}
+            {matchRate != null && (
+              <div className={cn("px-2 py-1 text-white rounded min-w-[70px]", matchRate >= 90 ? "bg-green-600" : matchRate >= 70 ? "bg-yellow-600" : "bg-red-600")}>
+                <div className="text-[10px] uppercase tracking-wide opacity-80">Match %</div>
+                <div className="font-bold text-sm font-mono">{Math.round(matchRate)}%</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Payment Confirmation Bar */}
+        <Card className="shrink-0">
+          <CardContent className="py-1.5 px-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs flex-wrap">
+                <span className="font-mono font-bold text-emerald-700">{formatCurrency(bill.remaining_balance || bill.total_amount)}</span>
+                {ai.trust_deduction && ai.trust_deduction > 0 && (
+                  <div className="flex items-center gap-1 px-1.5 py-0.5 bg-purple-200 dark:bg-purple-900/50 rounded text-[10px] border border-purple-400">
+                    <Wallet className="h-3 w-3 text-purple-700" />
+                    <span className="text-purple-700 font-semibold">Trust: -{formatCurrency(ai.trust_deduction)}</span>
+                  </div>
+                )}
+                <span className="text-muted-foreground">|</span>
+                <span>{formatDate(bill.due_date)}</span>
+                <Badge className={cn("text-[10px] px-1.5 py-0", statusColors[bill.status] || "bg-gray-100")}>{bill.status}</Badge>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs">Amend</Button>
+                <Button variant="outline" size="sm" className="h-6 px-2 text-xs text-red-600">Reject</Button>
+                <Button size="sm" className="h-6 px-2 text-xs bg-green-600 hover:bg-green-700">Approve</Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Details Grid */}
+        <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 overflow-auto">
+          {/* Invoice Details Card */}
+          <Card className="overflow-auto">
+            <CardHeader className="py-2 px-3">
+              <CardTitle className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Invoice Details
+                </span>
+                <Badge variant="outline" className="text-[10px]">LIVE DATA</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 px-3 py-0 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("invoice_number")}>
+                  <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    Invoice # <CheckCircle className="h-3 w-3 text-green-600" />
+                  </p>
+                  <p className="font-mono font-bold">{bill.invoice_number || ai.invoice_number || "-"}</p>
+                </div>
+                <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("invoice_date")}>
+                  <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    Invoice Date <CheckCircle className="h-3 w-3 text-green-600" />
+                  </p>
+                  <p className="font-bold">{formatDate(bill.invoice_date)}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("due_date")}>
+                  <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    Due Date <CheckCircle className="h-3 w-3 text-green-600" />
+                  </p>
+                  <p className="font-bold">{formatDate(bill.due_date)}</p>
+                </div>
+                <div className="p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("supplier_abn")}>
+                  <p className="text-[10px] text-muted-foreground uppercase flex items-center gap-1">
+                    Supplier ABN <CheckCircle className="h-3 w-3 text-green-600" />
+                  </p>
+                  <p className="font-mono font-bold">{bill.supplier?.abn || ai.supplier_abn || "-"}</p>
+                </div>
+              </div>
+
+              <div className="border-t my-2" />
+
+              <div className="space-y-1">
+                <div className="flex justify-between p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("subtotal")}>
+                  <span className="text-muted-foreground flex items-center gap-1">Subtotal <CheckCircle className="h-3 w-3 text-green-600" /></span>
+                  <span className="font-mono font-bold">{formatCurrency(bill.subtotal)}</span>
+                </div>
+                <div className="flex justify-between p-1.5 rounded bg-green-100 dark:bg-green-900/40 border-2 border-green-400 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("tax_amount")}>
+                  <span className="text-muted-foreground flex items-center gap-1">GST <CheckCircle className="h-3 w-3 text-green-600" /></span>
+                  <span className="font-mono font-bold">{formatCurrency(bill.tax_amount)}</span>
+                </div>
+                <div className="border-t my-1" />
+                <div className="flex justify-between p-2 font-bold text-sm rounded bg-green-200 dark:bg-green-900/50 border-2 border-green-500 cursor-pointer hover:scale-[1.02] transition-all" onClick={() => setHighlightedField("total_amount")}>
+                  <span className="flex items-center gap-1">Total <CheckCircle className="h-4 w-4 text-green-600" /></span>
+                  <span className="font-mono text-lg">{formatCurrency(bill.total_amount)}</span>
+                </div>
+
+                {ai.trust_deduction && ai.trust_deduction > 0 && (
+                  <div className="flex justify-between p-2 rounded bg-purple-100 dark:bg-purple-900/40 border-2 border-purple-400">
+                    <span className="flex items-center gap-1 text-purple-700 font-medium">
+                      <Wallet className="h-4 w-4" /> Less Funds in Trust
+                    </span>
+                    <span className="font-mono font-bold text-purple-700">-{formatCurrency(ai.trust_deduction)}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between p-2 rounded bg-emerald-200 dark:bg-emerald-900/50 border-2 border-emerald-500 font-bold text-sm">
+                  <span className="flex items-center gap-1 text-emerald-800">
+                    <DollarSign className="h-4 w-4" /> Balance Due
+                  </span>
+                  <span className="font-mono text-lg text-emerald-800">{formatCurrency(bill.remaining_balance || bill.total_amount)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Purchase Order Card */}
+          <Card className={cn("overflow-auto", bill.matched_purchase_order ? "border-2 border-green-500 bg-green-50 dark:bg-green-900/20" : "")}>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Purchase Order
+                </span>
+                {bill.matched_purchase_order ? (
+                  <Badge className="bg-green-600 text-white">
+                    <CheckCircle className="h-3 w-3 mr-1" /> MATCHED
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary">No PO</Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {bill.matched_purchase_order ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                      <p className="text-[10px] text-muted-foreground uppercase">PO Number</p>
+                      <p className="font-bold text-sm text-blue-600 font-mono">{bill.matched_purchase_order.purchase_order_number}</p>
+                    </div>
+                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                      <p className="text-[10px] text-muted-foreground uppercase">Payment Terms</p>
+                      <p className="font-medium text-sm text-blue-600">{bill.matched_purchase_order.payment_terms || bill.supplier?.payment_terms || "-"}</p>
+                    </div>
+                  </div>
+                  <div className="border-t my-2" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                      <p className="text-[10px] text-muted-foreground uppercase">PO Total</p>
+                      <p className="font-mono font-bold text-sm">{formatCurrency(bill.matched_purchase_order.total)}</p>
+                    </div>
+                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded">
+                      <p className="text-[10px] text-muted-foreground uppercase">Invoice Total</p>
+                      <p className="font-mono font-bold text-sm">{formatCurrency(bill.total_amount)}</p>
+                    </div>
+                  </div>
+                  <div className={cn("p-2 rounded border", bill.variance_amount === 0 ? "bg-green-100 border-green-300" : "bg-yellow-100 border-yellow-300")}>
+                    <p className="text-[10px] text-muted-foreground uppercase">Variance</p>
+                    <p className={cn("font-mono font-bold text-sm", bill.variance_amount === 0 ? "text-green-600" : "text-yellow-600")}>
+                      {formatCurrency(bill.variance_amount || 0)} ({bill.variance_percent?.toFixed(1) || 0}%)
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-sm">No purchase order matched to this invoice</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* RIGHT HALF - PDF Preview */}
+      <div className="flex-1 min-w-[400px] sticky top-0 h-[calc(100vh-200px)]">
+        <Card className="h-full w-full">
+          <CardContent className="p-2 h-full">
+            {pdfLoading ? (
+              <div className="flex flex-col items-center justify-center h-full">
+                <Loader2 className="h-8 w-8 animate-spin mb-2" />
+                <p className="text-sm text-muted-foreground">Loading invoice...</p>
+              </div>
+            ) : pdfBlobUrl ? (
+              <div className="relative w-full h-full border rounded-lg overflow-hidden">
+                <PDFViewer
+                  url={pdfBlobUrl}
+                  className="w-full h-full"
+                  showToolbar={true}
+                  highlights={pdfHighlights}
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center border rounded-lg bg-muted/30">
+                <ImageIcon className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
+                <h3 className="text-lg font-medium">No PDF Available</h3>
+                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                  This bill doesn&apos;t have an attached invoice file.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 function SyncCheckTab() {
   const [syncData, setSyncData] = React.useState<SyncData | null>(null);
   const [loading, setLoading] = React.useState(true);
@@ -1664,6 +2134,10 @@ export function GoldStandardTab() {
           <Database className="h-4 w-4" />
           Gold Standard Table
         </TabsTrigger>
+        <TabsTrigger value="invoice" className="flex items-center gap-2">
+          <Receipt className="h-4 w-4" />
+          Gold Bills/Invoice Viewer
+        </TabsTrigger>
         <TabsTrigger value="column-info" className="flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Column Info
@@ -1676,6 +2150,10 @@ export function GoldStandardTab() {
 
       <TabsContent value="table" className="flex-1 min-h-0 mt-4">
         <GoldStandardDataTab />
+      </TabsContent>
+
+      <TabsContent value="invoice" className="flex-1 min-h-0 mt-4 overflow-auto">
+        <GoldStandardBillsInvoiceTab />
       </TabsContent>
 
       <TabsContent value="column-info" className="flex-1 min-h-0 mt-4 overflow-auto">
