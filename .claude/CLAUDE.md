@@ -156,20 +156,87 @@ When I say something seems impossible, that's your cue to ultrathink harder. The
 
 ## 🔴 CRITICAL: Standard UI Components (SSoT)
 
-**BEFORE creating any UI, use THE ONE component for each use case:**
+**THE SINGLE SOURCE OF TRUTH:** `frontend-next/lib/component-registry.ts`
 
-| Need | THE ONE | Location | Never Use |
-|------|---------|----------|-----------|
-| **Data Table** | `TeeemTableView` | `components/table/TeeemTableView.tsx` | `data-table.tsx` |
-| **Simple Dropdown** | `Select` | `components/ui/select.tsx` | - |
-| **Searchable Select** | `ComboboxDropdown` | `components/ui/combobox-dropdown.tsx` | `combobox.tsx` |
-| **Multi-Select** | `MultipleSelector` | `components/ui/multiple-selector.tsx` | `multi-select-combobox.tsx` |
-| **Loading Spinner** | `Spinner` | `components/ui/spinner.tsx` | `loader.tsx` |
-| **Side Panel** | `Sheet` | `components/ui/sheet.tsx` | `drawer.tsx` |
-| **Modal Dialog** | `Dialog` | `components/ui/dialog.tsx` | - |
-| **Collapsible** | `Accordion` | `components/ui/accordion.tsx` | `collapsible.tsx` |
-| **Tooltip** | `Tooltip` | `components/ui/tooltip.tsx` | - |
-| **Small Overlay** | `Popover` | `components/ui/popover.tsx` | - |
+Before creating ANY UI component:
+1. Check the registry: `cat frontend-next/lib/component-registry.ts`
+2. If THE ONE exists, use it. NEVER create duplicates.
+3. Visual reference: `/admin/system?tab=components` → UI Components tab
+
+### Quick Reference (34 Standard Components)
+
+**Tier 1: Core Primitives**
+| Need | THE ONE | Import Path |
+|------|---------|-------------|
+| Button | `Button` | `@/components/ui/button` |
+| Card | `Card` | `@/components/ui/card` |
+| Badge | `Badge` | `@/components/ui/badge` |
+| Text Input | `Input` | `@/components/ui/input` |
+| Form Label | `Label` | `@/components/ui/label` |
+| Simple Dropdown | `Select` | `@/components/ui/select` |
+| Modal Dialog | `Dialog` | `@/components/ui/dialog` |
+| Tab Navigation | `Tabs` | `@/components/ui/tabs` |
+| Table Primitives | `Table` | `@/components/ui/table` |
+| Loading Spinner | `Spinner` | `@/components/ui/spinner` |
+
+**Tier 2: Form Controls**
+| Need | THE ONE | Import Path |
+|------|---------|-------------|
+| Multi-line Input | `Textarea` | `@/components/ui/textarea` |
+| Checkbox | `Checkbox` | `@/components/ui/checkbox` |
+| Toggle Switch | `Switch` | `@/components/ui/switch` |
+| Searchable Select | `ComboboxDropdown` | `@/components/ui/combobox-dropdown` |
+| Multi-Select | `MultipleSelector` | `@/components/ui/multiple-selector` |
+
+**Tier 3: Overlays & Layout**
+| Need | THE ONE | Import Path |
+|------|---------|-------------|
+| Small Overlay | `Popover` | `@/components/ui/popover` |
+| Progress Bar | `Progress` | `@/components/ui/progress` |
+| Data Table | `TeeemTableView` | `@/components/table/TeeemTableView` |
+| Side Panel | `Sheet` | `@/components/ui/sheet` |
+| Collapsible | `Accordion` | `@/components/ui/accordion` |
+| Tooltip | `Tooltip` | `@/components/ui/tooltip` |
+
+**Tier 4: Specialized**
+| Need | THE ONE | Import Path |
+|------|---------|-------------|
+| PDF Viewing | `PDFViewer` | `@/components/ui/pdf-viewer` |
+| PDF Editing | `PDFEditor` | `@/components/ui/pdf-editor` |
+| SharePoint Browse | `SharePointFolderBrowser` | `@/components/ui/sharepoint-folder-browser` |
+| SharePoint Config | `SharePointPathConfigurator` | `@/components/ui/sharepoint-path-configurator` |
+| Invoice Viewing | `BillsInvoiceViewer` | `@/components/invoice/BillsInvoiceViewer` |
+| Document Preview | `DocumentPreviewModal` | `@/components/corporate/DocumentPreviewModal` |
+
+**Tier 5: Patterns**
+| Need | THE ONE | Import Path |
+|------|---------|-------------|
+| Drag Handle | `DragHandle` | `@/components/ui/dnd` |
+| Sortable List | `SortableList` | `@/components/ui/dnd` |
+| Sortable Item | `SortableItem` | `@/components/ui/dnd` |
+| Position Badge | `PositionBadge` | `@/components/ui/dnd` |
+| Token Builder | `TokenBuilder` | `@/components/ui/tokens` |
+| Token Palette | `TokenPalette` | `@/components/ui/tokens` |
+| Token Badge | `TokenBadge` | `@/components/ui/tokens` |
+
+### DEPRECATED (Never Use)
+| Deprecated | Use Instead |
+|------------|-------------|
+| `combobox.tsx` | `ComboboxDropdown` |
+| `loader.tsx` | `Spinner` |
+| `drawer.tsx` | `Sheet` |
+| `collapsible.tsx` | `Accordion` |
+| `data-table.tsx` | `TeeemTableView` |
+
+### Adding New Standard Components
+Tell Claude: **"Add [ComponentName] as a standard component"**
+
+Claude will:
+1. Check if it exists in `/components/ui/`
+2. Verify no duplicates (SSoT check)
+3. Add to `component-registry.ts`
+4. Create demo in playground
+5. Update this table
 
 **Migration Policy:** "Fix it when you touch it" - When editing a file that uses a deprecated component, update the import to THE ONE.
 

@@ -734,11 +734,33 @@ export function FoldersTab() {
 
   const loadSharePointConfig = async () => {
     try {
-      const response = await api.get<{ sharepoint: SharePointConfig }>("/api/v1/microsoft/connections");
-      setSharePointConfig(response?.sharepoint || null);
-      // Set initial folder path for edit dialog
-      if (response?.sharepoint?.root_folder) {
-        setNewFolderPath(response.sharepoint.root_folder);
+      // SSoT: Load from CorporateCompanySetting
+      const response = await api.get<{ success: boolean; data: {
+        configured: boolean;
+        site_url: string | null;
+        site_id: string | null;
+        drive_id: string | null;
+        drive_name: string | null;
+        root_path: string;
+        paths: { jobs: string; people: string; company: string; contacts: string };
+      } }>("/api/v1/corporate_company_settings/sharepoint");
+
+      if (response?.success && response.data) {
+        // Map SSoT fields to FoldersTab SharePointConfig format
+        const config: SharePointConfig = {
+          connected: response.data.configured,
+          url: response.data.site_url || undefined,
+          document_library: response.data.drive_name || "Shared Documents",
+          root_folder: response.data.paths?.jobs || "TEEEM Jobs",
+          drive_id: response.data.drive_id || undefined,
+        };
+        setSharePointConfig(config);
+        // Set initial folder path for edit dialog
+        if (config.root_folder) {
+          setNewFolderPath(config.root_folder);
+        }
+      } else {
+        setSharePointConfig({ connected: false });
       }
     } catch (error) {
       console.error("Failed to load SharePoint config:", error);

@@ -57,6 +57,57 @@ const eslintConfig = defineConfig([
       "react-hooks/static-components": "off",
     }
   },
+  // ==========================================================================
+  // COMPONENT SSoT ENFORCEMENT
+  // Warn when importing deprecated components - use THE ONE instead
+  // See: frontend-next/lib/component-registry.ts for the full list
+  // ==========================================================================
+  {
+    rules: {
+      "no-restricted-imports": ["warn", {
+        paths: [
+          {
+            name: "@/components/ui/combobox",
+            message: "DEPRECATED: Use ComboboxDropdown from @/components/ui/combobox-dropdown instead. See component-registry.ts"
+          },
+          {
+            name: "@/components/ui/loader",
+            message: "DEPRECATED: Use Spinner from @/components/ui/spinner instead. See component-registry.ts"
+          },
+          {
+            name: "@/components/ui/drawer",
+            message: "DEPRECATED: Use Sheet from @/components/ui/sheet instead. See component-registry.ts"
+          },
+          {
+            name: "@/components/ui/collapsible",
+            message: "DEPRECATED: Use Accordion from @/components/ui/accordion instead. See component-registry.ts"
+          },
+          {
+            name: "@/components/ui/data-table",
+            message: "DEPRECATED: Use TeeemTableView from @/components/table/TeeemTableView instead. See component-registry.ts"
+          },
+        ],
+        patterns: [
+          {
+            group: ["**/components/ui/combobox", "**/combobox.tsx"],
+            message: "DEPRECATED: Use ComboboxDropdown instead"
+          },
+          {
+            group: ["**/components/ui/loader", "**/loader.tsx"],
+            message: "DEPRECATED: Use Spinner instead"
+          },
+          {
+            group: ["**/components/ui/drawer", "**/drawer.tsx"],
+            message: "DEPRECATED: Use Sheet instead"
+          },
+          {
+            group: ["**/components/ui/collapsible", "**/collapsible.tsx"],
+            message: "DEPRECATED: Use Accordion instead"
+          },
+        ]
+      }]
+    }
+  },
 ]);
 
 export default eslintConfig;
