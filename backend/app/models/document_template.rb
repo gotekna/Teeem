@@ -1,25 +1,58 @@
 # frozen_string_literal: true
 
 # DocumentTemplate stores document templates that can be filled with Job/Contact data.
-# Supports multiple template types: Word (SharePoint), HTML (local ERB), PDF overlay (future).
 #
-# Template Types:
-#   word            - Word templates from SharePoint, mail-merged with Sablon
-#   html            - Local HTML/ERB templates, rendered with Grover (HTML→PDF)
-#   pdf_overlay     - PDF form filling (future HIA support)
-#   sharepoint_fetch - Passthrough from SharePoint (e.g., All Plans PDF)
+# ============================================================================
+# IMPORTANT: TEMPLATE STRATEGY (December 2024)
+# ============================================================================
 #
-# Template Syntax (Sablon for Word):
-#   {{job.title}}                    - Simple field
-#   {{contact.display_name}}         - Nested field
-#   {{#items}}...{{/items}}          - Loops
-#   {{#if has_warranty}}...{{/if}}   - Conditionals
+# We use TWO template types. Word templates were DEPRECATED and removed.
+#
+# 1. HTML TEMPLATES (template_type: "html")
+#    - For Tekna-branded documents (Welcome Letter, Colour Selections, etc.)
+#    - Stored locally in app/views/tekna_documents/templates/
+#    - Rendered with ERB, converted to PDF via Grover (Puppeteer)
+#    - Full control over styling and layout
+#
+# 2. PDF OVERLAY (template_type: "pdf_overlay")
+#    - For QBCC and HIA legal documents (contracts, consumer guides, etc.)
+#    - These are OFFICIAL regulatory documents - we CANNOT modify the layout
+#    - The regulatory body (QBCC/HIA) provides the PDF template
+#    - We only fill in form fields (client name, address, prices, etc.)
+#    - Uses HexaPDF or pdf-forms gem for form filling
+#
+# WHY NOT WORD TEMPLATES?
+#    - Required SharePoint connection (fragile, 404 errors when files moved)
+#    - Sablon gem had compatibility issues
+#    - Hard to version control templates stored in SharePoint
+#    - HTML gives us full control and is git-tracked
+#
+# DEPRECATED (DO NOT USE):
+#    - word            - SharePoint Word templates (REMOVED Dec 2024)
+#    - sharepoint_fetch - Direct SharePoint file passthrough (REMOVED)
+#
+# ============================================================================
+#
+# Template Syntax (ERB for HTML templates):
+#   <%= @job.title %>                - Simple field
+#   <%= @contact.display_name %>     - Contact field
+#   <% @items.each do |item| %>      - Loops
+#   <% if @job.has_warranty? %>      - Conditionals
 #
 class DocumentTemplate < ApplicationRecord
   # Constants
   CATEGORIES = %w[job contact quote invoice contract letter report certificate].freeze
   OUTPUT_FORMATS = %w[docx pdf both].freeze
+
+  # ACTIVE template types (use these):
+  #   - html        → Tekna-branded documents, full control
+  #   - pdf_overlay → QBCC/HIA legal documents, form filling only
+  #
+  # DEPRECATED (kept for migration, DO NOT use for new templates):
+  #   - word            → Was SharePoint Word templates (removed Dec 2024)
+  #   - sharepoint_fetch → Was direct SharePoint passthrough (removed Dec 2024)
   TEMPLATE_TYPES = %w[word html pdf_overlay sharepoint_fetch].freeze
+  ACTIVE_TEMPLATE_TYPES = %w[html pdf_overlay].freeze
   LEGAL_SOURCES = %w[qbcc hia].freeze
   LAYOUTS = %w[tekna qbcc_official hia_official none].freeze
 
@@ -47,6 +80,9 @@ class DocumentTemplate < ApplicationRecord
   end
 
   # Template type helpers
+  #
+  # DEPRECATED: Word templates were removed Dec 2024. See class header for details.
+  # This method exists for backwards compatibility during migration.
   def word_template?
     template_type == "word"
   end
@@ -59,8 +95,20 @@ class DocumentTemplate < ApplicationRecord
     template_type == "pdf_overlay"
   end
 
+  # DEPRECATED: SharePoint fetch was removed Dec 2024. See class header for details.
   def sharepoint_fetch_template?
     template_type == "sharepoint_fetch"
+  end
+
+  # Check if this template uses a deprecated type (word or sharepoint_fetch)
+  # These templates need to be migrated to html or pdf_overlay
+  def deprecated_template_type?
+    %w[word sharepoint_fetch].include?(template_type)
+  end
+
+  # Check if this template uses an active (supported) type
+  def active_template_type?
+    ACTIVE_TEMPLATE_TYPES.include?(template_type)
   end
 
   # Legal document helpers
@@ -72,11 +120,18 @@ class DocumentTemplate < ApplicationRecord
     legal_source == "hia"
   end
 
+  # DEPRECATED: Word/SharePoint templates were removed Dec 2024.
+  # This method will return nil and log a warning.
+  # Migrate templates to html or pdf_overlay type instead.
+  #
   # Download template file from SharePoint
   # Returns binary content of the DOCX file
   def download_template_content
+    Rails.logger.warn "[DocumentTemplate] DEPRECATED: Attempted to download Word template '#{name}' (ID: #{id}). " \
+                      "Word templates were removed Dec 2024. Migrate to html or pdf_overlay type."
     return nil unless sharepoint_linked?
 
+    # NOTE: This will likely fail with 404 as SharePoint files were removed
     client = MicrosoftAppGraphClient.new
     client.get_drive_item_content(
       site_id: sharepoint_site_id,
