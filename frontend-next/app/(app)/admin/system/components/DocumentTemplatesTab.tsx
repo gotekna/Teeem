@@ -17,21 +17,30 @@ import {
   FileSpreadsheet,
   Cloud,
   ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// HTML templates from TeknaDocuments (for preview)
-interface HtmlTemplate {
-  key: string;
+// SSoT Templates from TeknaDocumentGenerator (the source of truth)
+interface SsotTemplate {
+  id: string;
+  template_key: string;
   name: string;
   category: string;
+  template_type: string;
   layout: string;
+  is_active: boolean;
+  is_ssot: boolean;
   requires: string[];
+  output_filename: string;
+  qbcc_required: boolean;
+  preview_url: string;
 }
 
-// Database templates (unified view)
-interface DbTemplate {
+// Legacy database templates (deprecated)
+interface LegacyTemplate {
   id: number;
   name: string;
   category: string;
@@ -42,23 +51,25 @@ interface DbTemplate {
   is_active: boolean;
   sharepoint_linked: boolean;
   local_template_path: string | null;
+  is_legacy?: boolean;
+  is_deprecated?: boolean;
 }
 
 interface TemplateGroup {
   title: string;
   description: string;
   icon: React.ElementType;
-  templates: HtmlTemplate[];
+  templates: SsotTemplate[];
 }
 
 export function DocumentTemplatesTab() {
-  const [htmlTemplates, setHtmlTemplates] = React.useState<HtmlTemplate[]>([]);
-  const [dbTemplates, setDbTemplates] = React.useState<DbTemplate[]>([]);
+  const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);
+  const [legacyTemplates, setLegacyTemplates] = React.useState<LegacyTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedTemplate, setSelectedTemplate] = React.useState<HtmlTemplate | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = React.useState<SsotTemplate | null>(null);
   const [previewHtml, setPreviewHtml] = React.useState<string>("");
   const [previewLoading, setPreviewLoading] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<string>("all");
+  const [activeTab, setActiveTab] = React.useState<string>("ssot");
 
   const apiUrl = getApiBaseUrl();
 
@@ -70,20 +81,20 @@ export function DocumentTemplatesTab() {
     try {
       setLoading(true);
 
-      // Load HTML templates (for preview functionality)
-      const htmlResponse = await api.get<{ success: boolean; data: HtmlTemplate[] }>(
-        "/api/v1/tekna_documents/templates"
-      );
-      if (htmlResponse?.success && htmlResponse.data) {
-        setHtmlTemplates(htmlResponse.data);
-      }
+      // Load SSoT templates from TeknaDocumentGenerator (the source of truth)
+      const response = await api.get<{
+        success: boolean;
+        data: (SsotTemplate | LegacyTemplate)[];
+        ssot_count: number;
+        legacy_count: number;
+      }>("/api/v1/document_templates?include_legacy=true");
 
-      // Load all DB templates
-      const dbResponse = await api.get<{ success: boolean; data: DbTemplate[] }>(
-        "/api/v1/document_templates"
-      );
-      if (dbResponse?.success && dbResponse.data) {
-        setDbTemplates(dbResponse.data);
+      if (response?.success && response.data) {
+        // Separate SSoT templates from legacy
+        const ssot = response.data.filter((t): t is SsotTemplate => 'is_ssot' in t && t.is_ssot);
+        const legacy = response.data.filter((t): t is LegacyTemplate => 'is_legacy' in t && t.is_legacy);
+        setSsotTemplates(ssot);
+        setLegacyTemplates(legacy);
       }
     } catch (error) {
       console.error("Failed to load templates:", error);
@@ -92,13 +103,13 @@ export function DocumentTemplatesTab() {
     }
   };
 
-  const loadPreview = async (template: HtmlTemplate) => {
+  const loadPreview = async (template: SsotTemplate) => {
     setSelectedTemplate(template);
     setPreviewLoading(true);
     setPreviewHtml("");
 
     try {
-      const response = await fetch(`${apiUrl}/api/v1/tekna_documents/${template.key}/preview?format=html`);
+      const response = await fetch(`${apiUrl}/api/v1/tekna_documents/${template.template_key}/preview?format=html`);
       if (response.ok) {
         const html = await response.text();
         setPreviewHtml(html);
@@ -111,10 +122,11 @@ export function DocumentTemplatesTab() {
     }
   };
 
-  // Group HTML templates by layout (for preview tab)
+  // Group SSoT templates by layout (for preview tab)
   const templateGroups: TemplateGroup[] = React.useMemo(() => {
-    const teknaTemplates = htmlTemplates.filter(t => t.layout === "tekna");
-    const qbccTemplates = htmlTemplates.filter(t => t.layout === "qbcc_official");
+    const teknaTemplates = ssotTemplates.filter(t => t.layout === "tekna");
+    const qbccTemplates = ssotTemplates.filter(t => t.layout === "qbcc_official");
+    const sharepointTemplates = ssotTemplates.filter(t => t.template_type === "sharepoint_fetch");
 
     return [
       {
@@ -129,13 +141,19 @@ export function DocumentTemplatesTab() {
         icon: Scale,
         templates: qbccTemplates,
       },
-    ];
-  }, [htmlTemplates]);
+      {
+        title: "SharePoint Sourced",
+        description: "Documents fetched from job folders in SharePoint",
+        icon: Cloud,
+        templates: sharepointTemplates,
+      },
+    ].filter(g => g.templates.length > 0);
+  }, [ssotTemplates]);
 
-  // Filter DB templates by type
-  const wordTemplates = dbTemplates.filter(t => t.template_type === "word");
-  const htmlDbTemplates = dbTemplates.filter(t => t.template_type === "html");
-  const legalTemplates = dbTemplates.filter(t => t.is_legal_format);
+  // Filter templates by category for stats
+  const htmlTemplateCount = ssotTemplates.filter(t => t.template_type === "html").length;
+  const qbccTemplateCount = ssotTemplates.filter(t => t.qbcc_required).length;
+  const legacyCount = legacyTemplates.length;
 
   const getTemplateTypeIcon = (type: string) => {
     switch (type) {
@@ -147,18 +165,17 @@ export function DocumentTemplatesTab() {
     }
   };
 
-  const getTemplateTypeBadge = (template: DbTemplate) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      word: "default",
-      html: "secondary",
-      pdf_overlay: "outline",
-      sharepoint_fetch: "outline",
-    };
-    return (
-      <Badge variant={variants[template.template_type] || "outline"} className="text-xs">
-        {template.template_type.toUpperCase()}
-      </Badge>
-    );
+  const getLayoutBadge = (layout: string, qbccRequired?: boolean) => {
+    if (qbccRequired) {
+      return <Badge variant="destructive" className="text-xs">QBCC</Badge>;
+    }
+    if (layout === "tekna") {
+      return <Badge className="bg-blue-600 text-white text-xs">TEKNA</Badge>;
+    }
+    if (layout === "none") {
+      return <Badge variant="outline" className="text-xs">PASSTHROUGH</Badge>;
+    }
+    return <Badge variant="secondary" className="text-xs">{layout.toUpperCase()}</Badge>;
   };
 
   if (loading) {
@@ -176,7 +193,7 @@ export function DocumentTemplatesTab() {
         <div>
           <h2 className="text-lg font-semibold">Document Templates</h2>
           <p className="text-sm text-muted-foreground">
-            Unified view of all document templates (Word, HTML, PDF)
+            SSoT: Templates from TeknaDocumentGenerator (code-based)
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={loadAllTemplates}>
@@ -191,10 +208,10 @@ export function DocumentTemplatesTab() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{dbTemplates.length}</p>
-                <p className="text-xs text-muted-foreground">Total Templates</p>
+                <p className="text-2xl font-bold">{ssotTemplates.length}</p>
+                <p className="text-xs text-muted-foreground">SSoT Templates</p>
               </div>
-              <FileText className="h-8 w-8 text-muted-foreground/30" />
+              <CheckCircle2 className="h-8 w-8 text-green-500/30" />
             </div>
           </CardContent>
         </Card>
@@ -202,10 +219,10 @@ export function DocumentTemplatesTab() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{wordTemplates.length}</p>
-                <p className="text-xs text-muted-foreground">Word (SharePoint)</p>
+                <p className="text-2xl font-bold">{htmlTemplateCount}</p>
+                <p className="text-xs text-muted-foreground">HTML Templates</p>
               </div>
-              <FileSpreadsheet className="h-8 w-8 text-blue-500/30" />
+              <FileCode className="h-8 w-8 text-blue-500/30" />
             </div>
           </CardContent>
         </Card>
@@ -213,21 +230,21 @@ export function DocumentTemplatesTab() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-2xl font-bold">{htmlDbTemplates.length}</p>
-                <p className="text-xs text-muted-foreground">HTML (Local)</p>
-              </div>
-              <FileCode className="h-8 w-8 text-green-500/30" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">{legalTemplates.length}</p>
-                <p className="text-xs text-muted-foreground">Legal (QBCC/HIA)</p>
+                <p className="text-2xl font-bold">{qbccTemplateCount}</p>
+                <p className="text-xs text-muted-foreground">QBCC Documents</p>
               </div>
               <ShieldCheck className="h-8 w-8 text-amber-500/30" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-2xl font-bold text-muted-foreground">{legacyCount}</p>
+                <p className="text-xs text-muted-foreground">Legacy (Deprecated)</p>
+              </div>
+              <AlertCircle className="h-8 w-8 text-red-500/30" />
             </div>
           </CardContent>
         </Card>
@@ -235,50 +252,54 @@ export function DocumentTemplatesTab() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="all">All Templates</TabsTrigger>
-          <TabsTrigger value="word">Word ({wordTemplates.length})</TabsTrigger>
-          <TabsTrigger value="html">HTML ({htmlDbTemplates.length})</TabsTrigger>
-          <TabsTrigger value="preview">HTML Preview</TabsTrigger>
+          <TabsTrigger value="ssot">SSoT Templates ({ssotTemplates.length})</TabsTrigger>
+          <TabsTrigger value="preview">Preview</TabsTrigger>
+          <TabsTrigger value="legacy" className="text-muted-foreground">Legacy ({legacyCount})</TabsTrigger>
         </TabsList>
 
-        {/* All Templates Tab */}
-        <TabsContent value="all" className="mt-4">
+        {/* SSoT Templates Tab */}
+        <TabsContent value="ssot" className="mt-4">
           <Card>
-            <CardContent className="pt-4">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                SSoT Templates (TeknaDocumentGenerator)
+              </CardTitle>
+              <CardDescription>
+                Source of truth for all document templates. Code-based, version-controlled.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-2">
-                {dbTemplates.map((template) => {
+                {ssotTemplates.map((template) => {
                   const Icon = getTemplateTypeIcon(template.template_type);
                   return (
-                    <div
+                    <button
                       key={template.id}
-                      className="flex items-center justify-between p-3 rounded-md hover:bg-muted/50"
+                      onClick={() => loadPreview(template)}
+                      className={cn(
+                        "w-full flex items-center justify-between p-3 rounded-md text-left transition-colors",
+                        selectedTemplate?.template_key === template.template_key
+                          ? "bg-primary/10 border border-primary/20"
+                          : "hover:bg-muted/50"
+                      )}
                     >
                       <div className="flex items-center gap-3">
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <div className="font-medium text-sm flex items-center gap-2">
                             {template.name}
-                            {template.is_legal_format && (
-                              <Badge variant="destructive" className="text-xs">
-                                LEGAL
-                              </Badge>
-                            )}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {template.category} • {template.layout || "default"}
-                            {template.sharepoint_linked && " • SharePoint"}
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {template.template_key} • {template.category}
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {getTemplateTypeBadge(template)}
-                        {!template.is_active && (
-                          <Badge variant="outline" className="text-xs text-muted-foreground">
-                            Inactive
-                          </Badge>
-                        )}
+                        {getLayoutBadge(template.layout, template.qbcc_required)}
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -286,91 +307,54 @@ export function DocumentTemplatesTab() {
           </Card>
         </TabsContent>
 
-        {/* Word Templates Tab */}
-        <TabsContent value="word" className="mt-4">
-          <Card>
+        {/* Legacy Templates Tab */}
+        <TabsContent value="legacy" className="mt-4">
+          <Card className="border-destructive/30">
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5" />
-                Word Templates (SharePoint)
+              <CardTitle className="text-base flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                Legacy Templates (Deprecated)
               </CardTitle>
               <CardDescription>
-                Templates stored in SharePoint, processed with Sablon mail-merge
+                Database templates from old Word/SharePoint system. No longer used. Will be removed.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                {wordTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="flex items-center justify-between p-3 rounded-md hover:bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileSpreadsheet className="h-4 w-4 text-blue-500" />
-                      <div>
-                        <div className="font-medium text-sm flex items-center gap-2">
-                          {template.name}
-                          {template.is_legal_format && (
-                            <Badge variant="destructive" className="text-xs">
-                              {template.legal_source?.toUpperCase()}
+              {legacyTemplates.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No legacy templates found.</p>
+              ) : (
+                <div className="space-y-2">
+                  {legacyTemplates.map((template) => (
+                    <div
+                      key={template.id}
+                      className="flex items-center justify-between p-3 rounded-md bg-muted/30 opacity-60"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium text-sm flex items-center gap-2">
+                            {template.name}
+                            <Badge variant="outline" className="text-xs text-destructive">
+                              DEPRECATED
                             </Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {template.category}
-                          {template.sharepoint_linked && " • Linked to SharePoint"}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {template.category} • {template.template_type}
+                          </div>
                         </div>
                       </div>
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        {template.sharepoint_linked ? "SharePoint" : "Not Linked"}
+                      </Badge>
                     </div>
-                    <Badge variant={template.sharepoint_linked ? "default" : "outline"} className="text-xs">
-                      {template.sharepoint_linked ? "Connected" : "Not Linked"}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* HTML Templates Tab */}
-        <TabsContent value="html" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <FileCode className="h-5 w-5" />
-                HTML Templates (Local)
-              </CardTitle>
-              <CardDescription>
-                Templates stored in codebase, rendered with Grover (HTML to PDF)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {htmlDbTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="flex items-center justify-between p-3 rounded-md hover:bg-muted/50"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FileCode className="h-4 w-4 text-green-500" />
-                      <div>
-                        <div className="font-medium text-sm">{template.name}</div>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {template.local_template_path || "N/A"}
-                        </div>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {template.layout || "default"}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* HTML Preview Tab */}
+        {/* Preview Tab */}
         <TabsContent value="preview" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Template List */}
@@ -390,11 +374,11 @@ export function DocumentTemplatesTab() {
                     <div className="space-y-1">
                       {group.templates.map((template) => (
                         <button
-                          key={template.key}
+                          key={template.template_key}
                           onClick={() => loadPreview(template)}
                           className={cn(
                             "w-full flex items-center justify-between p-3 rounded-md text-left transition-colors",
-                            selectedTemplate?.key === template.key
+                            selectedTemplate?.template_key === template.template_key
                               ? "bg-primary/10 border border-primary/20"
                               : "hover:bg-muted/50"
                           )}
@@ -409,9 +393,7 @@ export function DocumentTemplatesTab() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                              {template.layout === "tekna" ? "Tekna" : "QBCC"}
-                            </Badge>
+                            {getLayoutBadge(template.layout, template.qbcc_required)}
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           </div>
                         </button>
@@ -433,7 +415,7 @@ export function DocumentTemplatesTab() {
                       </CardTitle>
                       {selectedTemplate && (
                         <CardDescription className="text-xs">
-                          {selectedTemplate.key} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : "QBCC Official"}
+                          {selectedTemplate.template_key} • {selectedTemplate.layout === "tekna" ? "Tekna Branded" : selectedTemplate.layout === "qbcc_official" ? "QBCC Official" : "Passthrough"}
                         </CardDescription>
                       )}
                     </div>
@@ -442,7 +424,7 @@ export function DocumentTemplatesTab() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
+                          onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.template_key}/preview?format=html`, '_blank')}
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           Full Preview
@@ -483,21 +465,30 @@ export function DocumentTemplatesTab() {
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
-              <h4 className="font-medium text-sm mb-2">HTML Templates</h4>
+              <h4 className="font-medium text-sm mb-2">SSoT Location</h4>
               <p className="text-xs text-muted-foreground font-mono">
-                backend/app/views/tekna_documents/templates/
+                TeknaDocumentGenerator::TEMPLATES
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                backend/app/services/tekna_document_generator.rb
               </p>
             </div>
             <div>
-              <h4 className="font-medium text-sm mb-2">Word Templates</h4>
-              <p className="text-xs text-muted-foreground">
-                SharePoint: Warehousing/Templates/
+              <h4 className="font-medium text-sm mb-2">HTML Templates</h4>
+              <p className="text-xs text-muted-foreground font-mono">
+                app/views/tekna_documents/templates/
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Layouts: tekna.html.erb, qbcc_official.html.erb
               </p>
             </div>
             <div>
               <h4 className="font-medium text-sm mb-2">Available Merge Fields</h4>
               <p className="text-xs text-muted-foreground">
-                @job, @company, @client_names, @dear, @client_1, @client_2
+                @job, @company, @client_names, @dear, @clients
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                @colour_selections, @specifications
               </p>
             </div>
           </div>

@@ -8,9 +8,15 @@ module Bpmn
     # It generates a document from a template, uploads to SharePoint, creates an
     # e-signature request, and sends it to the specified signers.
     #
+    # ============================================================================
+    # SSoT: Uses TeknaDocumentGenerator for document generation (Dec 2024)
+    # ============================================================================
+    #
     # Config options:
-    #   template_id: ID of the DocumentTemplate to use
-    #   template_name: Alternative - find template by name (if template_id not provided)
+    #   template_key: Key from TeknaDocumentGenerator::TEMPLATES (SSoT - PREFERRED)
+    #                 Examples: "welcome_letter", "specifications", "qbcc_contract"
+    #   template_id: DEPRECATED - ID of the DocumentTemplate to use
+    #   template_name: DEPRECATED - find template by name
     #   title: Title for the e-signature request (supports interpolation)
     #   description: Description (optional, supports interpolation)
     #   message_to_signers: Custom message for signers (optional, supports interpolation)
@@ -30,41 +36,40 @@ module Bpmn
     #   - role: Role label (client, builder, witness, etc.)
     #   - signing_order: Order for sequential signing
     #
-    # Example BPMN config:
+    # Example BPMN config (NEW - template_key):
     #   {
-    #     "template_name": "QBCC Contract",
-    #     "title": "Contract for {{job.name}}",
+    #     "template_key": "welcome_letter",
+    #     "title": "Welcome Letter for {{job.name}}",
     #     "signers": [
-    #       { "contact_key": "primary_contact", "role": "client" },
-    #       { "contact_key": "secondary_contact", "role": "client" }
+    #       { "contact_key": "primary_contact", "role": "client" }
     #     ],
-    #     "signing_order": 0,
-    #     "store_as_variable": "contract_esign"
+    #     "store_as_variable": "welcome_esign"
     #   }
+    #
+    # Available template_keys (from TeknaDocumentGenerator::TEMPLATES):
+    #   - welcome_letter, specifications, colour_selections, owners_authority
+    #   - spec_acknowledgement, termite_protection, variation, practical_completion
+    #   - qbcc_contract, qbcc_consumer_guide, qbcc_general_conditions
+    #   - deposit_claim_invoice, purchase_order
     #
     class GenerateAndSendForSigningTask < BaseTask
       def execute
-        template = find_template
         job = resolve_job
-
-        unless template
-          raise "Document template not found"
-        end
-
-        # Check for deprecated template types (Word templates removed Dec 2024)
-        if template.deprecated_template_type?
-          raise "Template '#{template.name}' uses deprecated type '#{template.template_type}'. " \
-                "Word/SharePoint templates were removed Dec 2024. " \
-                "Please migrate this template to 'html' (for Tekna-branded docs) or " \
-                "'pdf_overlay' (for QBCC/HIA legal docs). " \
-                "See DocumentTemplate model for details."
-        end
+        template_key = resolve_template_key
 
         unless job
           raise "Job is required for document generation"
         end
 
-        title = get_config("title", interpolate_value: true) || "#{template.name} - #{job.name}"
+        unless template_key
+          raise "template_key is required. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+        end
+
+        # Get template config for title
+        template_config = TeknaDocumentGenerator::TEMPLATES[template_key]
+        template_title = template_config&.dig(:title) || template_key.to_s.titleize
+
+        title = get_config("title", interpolate_value: true) || "#{template_title} - #{job.name}"
         log_info("Generating document and sending for signature: #{title}")
 
         # Get workflow-level signing config (SSoT)
@@ -81,9 +86,9 @@ module Bpmn
         additional_docs = workflow_signing["additional_documents"] || []
         log_info("Document package: 1 main + #{additional_docs.length} additional documents")
 
-        # Execute the service - use workflow-level config for order/expiry
+        # Execute the service using template_key (SSoT)
         service = DocumentEsignService.new(
-          template: template,
+          template_key: template_key,
           job: job,
           signers: signers,
           title: title,
@@ -127,14 +132,74 @@ module Bpmn
 
       private
 
-      def find_template
-        if @config["template_id"].present?
-          DocumentTemplate.find_by(id: @config["template_id"])
-        elsif @config["template_name"].present?
-          DocumentTemplate.find_by(name: @config["template_name"])
-        else
-          raise "Either template_id or template_name must be provided"
+      # Resolve template_key from config
+      # SSoT: Prefers template_key, falls back to mapping template_name for backwards compatibility
+      def resolve_template_key
+        # Direct template_key (preferred)
+        if @config["template_key"].present?
+          key = @config["template_key"].to_sym
+          unless TeknaDocumentGenerator::TEMPLATES.key?(key)
+            raise "Unknown template_key: #{key}. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+          end
+          return key
         end
+
+        # DEPRECATED: Map template_name to template_key for backwards compatibility
+        if @config["template_name"].present?
+          name = @config["template_name"].to_s
+          key = map_template_name_to_key(name)
+          if key
+            log_info("DEPRECATED: Mapped template_name '#{name}' to template_key '#{key}'. Update workflow to use template_key directly.")
+            return key
+          else
+            raise "Could not map template_name '#{name}' to a template_key. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+          end
+        end
+
+        # DEPRECATED: template_id is no longer supported
+        if @config["template_id"].present?
+          raise "template_id is deprecated. Use template_key instead. Available: #{TeknaDocumentGenerator::TEMPLATES.keys.join(', ')}"
+        end
+
+        nil
+      end
+
+      # Map old template names to new template keys
+      # This provides backwards compatibility for existing workflows
+      TEMPLATE_NAME_MAP = {
+        # Exact matches
+        "Welcome Letter" => :welcome_letter,
+        "Specifications" => :specifications,
+        "Colour Selections" => :colour_selections,
+        "Owner's Authority to Obtain Information" => :owners_authority,
+        "Owners Authority to Obtain Information" => :owners_authority,
+        "Specification of Works Acknowledgement" => :spec_acknowledgement,
+        "Termite Protection System" => :termite_protection,
+        "Contract Variation" => :variation,
+        "Practical Completion Certificate" => :practical_completion,
+        "QBCC Contract" => :qbcc_contract,
+        "QBCC Building Contract" => :qbcc_contract,
+        "QBCC Consumer Building Guide" => :qbcc_consumer_guide,
+        "QBCC General Conditions" => :qbcc_general_conditions,
+        "QBCC General Conditions of Contract" => :qbcc_general_conditions,
+        "Deposit Claim Invoice" => :deposit_claim_invoice,
+        "Purchase Order" => :purchase_order
+      }.freeze
+
+      def map_template_name_to_key(name)
+        # Try exact match first
+        return TEMPLATE_NAME_MAP[name] if TEMPLATE_NAME_MAP.key?(name)
+
+        # Try case-insensitive match
+        TEMPLATE_NAME_MAP.each do |template_name, key|
+          return key if template_name.downcase == name.downcase
+        end
+
+        # Try converting name to key format (snake_case)
+        possible_key = name.parameterize(separator: "_").to_sym
+        return possible_key if TeknaDocumentGenerator::TEMPLATES.key?(possible_key)
+
+        nil
       end
 
       def resolve_job

@@ -5,9 +5,13 @@
 # This service combines document generation with the e-signature system
 # to provide a seamless "generate and send for signing" workflow.
 #
-# Usage:
+# ============================================================================
+# SSoT: Uses TeknaDocumentGenerator for document generation (Dec 2024)
+# ============================================================================
+#
+# Usage (NEW - template_key):
 #   service = DocumentEsignService.new(
-#     template: template,
+#     template_key: :welcome_letter,  # Uses TeknaDocumentGenerator (SSoT)
 #     job: job,
 #     signers: [
 #       { contact: primary_contact, role: "client" },
@@ -15,16 +19,22 @@
 #     ]
 #   )
 #   result = service.execute!
-#   # result[:e_signature_request] - The created request
-#   # result[:document_url] - SharePoint URL to the document
+#
+# Usage (DEPRECATED - template object):
+#   service = DocumentEsignService.new(
+#     template: template,  # DocumentTemplate object (deprecated)
+#     job: job,
+#     signers: [...]
+#   )
 #
 class DocumentEsignService
   class Error < StandardError; end
 
-  attr_reader :template, :job, :signers, :options
+  attr_reader :template, :template_key, :job, :signers, :options
 
-  def initialize(template:, job:, signers: [], **options)
+  def initialize(template: nil, template_key: nil, job:, signers: [], **options)
     @template = template
+    @template_key = template_key&.to_sym
     @job = job
     @signers = signers
     @options = options
@@ -35,9 +45,8 @@ class DocumentEsignService
     validate!
 
     # Step 1: Generate the main document
-    Rails.logger.info "[DocumentEsignService] Generating document from template: #{template.name}"
-    generator = DocumentGenerator.new(template)
-    generated = generator.generate(job: job, extra_data: options[:extra_data] || {})
+    # SSoT: Use TeknaDocumentGenerator (template_key) or deprecated DocumentGenerator (template)
+    generated = generate_document
 
     # Step 1b: Generate additional documents if specified
     additional_pdfs = generate_additional_documents
@@ -83,10 +92,20 @@ class DocumentEsignService
   private
 
   def validate!
-    raise Error, "Template is required" unless template
+    raise Error, "Template or template_key is required" unless template || template_key
     raise Error, "Job is required" unless job
-    raise Error, "Template is not linked to SharePoint" unless template.sharepoint_linked?
     raise Error, "At least one signer is required" if signers.empty?
+
+    # Validate template_key exists in TeknaDocumentGenerator
+    if template_key && !TeknaDocumentGenerator::TEMPLATES.key?(template_key)
+      available = TeknaDocumentGenerator::TEMPLATES.keys.join(", ")
+      raise Error, "Unknown template_key: #{template_key}. Available: #{available}"
+    end
+
+    # DEPRECATED: Only validate SharePoint for old-style templates
+    if template && !template_key
+      raise Error, "Template is not linked to SharePoint" unless template.sharepoint_linked?
+    end
 
     signers.each do |signer|
       if signer[:contact]
@@ -97,8 +116,42 @@ class DocumentEsignService
     end
   end
 
+  # Generate document using SSoT (TeknaDocumentGenerator) or deprecated path
+  def generate_document
+    if template_key
+      # SSoT: Use TeknaDocumentGenerator
+      Rails.logger.info "[DocumentEsignService] Generating document from TeknaDocumentGenerator: #{template_key}"
+      generator = TeknaDocumentGenerator.new(template_key)
+      result = generator.generate(job: job, extra_data: options[:extra_data] || {})
+
+      {
+        pdf_content: result[:pdf_content],
+        filename: result[:filename],
+        title: result[:title]
+      }
+    else
+      # DEPRECATED: Use old DocumentGenerator (Word templates)
+      Rails.logger.warn "[DocumentEsignService] DEPRECATED: Using DocumentGenerator for template #{template.name}. Migrate to template_key."
+      generator = DocumentGenerator.new(template)
+      generator.generate(job: job, extra_data: options[:extra_data] || {})
+    end
+  end
+
+  # Get template name for display
+  def template_name
+    if template_key
+      TeknaDocumentGenerator::TEMPLATES.dig(template_key, :title) || template_key.to_s.titleize
+    else
+      template&.name || "Unknown"
+    end
+  end
+
   def upload_to_sharepoint(generated)
-    graph_client = MicrosoftAppGraphClient.new
+    # Get SharePoint credentials - use org credential (SSoT) or template's IDs (deprecated)
+    credential = OrganizationSharePointCredential.active_credential
+    raise Error, "No active SharePoint credential configured" unless credential
+
+    graph_client = MicrosoftGraphClient.new(credential)
 
     # Determine destination folder (job's Documents folder or specified folder)
     folder_path = options[:destination_folder] || build_job_folder_path
@@ -107,9 +160,11 @@ class DocumentEsignService
     content = generated[:pdf_content] || generated[:docx_content]
     filename = generated[:pdf_filename] || generated[:filename]
 
-    graph_client.upload_file_content(
-      template.sharepoint_site_id,
-      template.sharepoint_drive_id,
+    # Use organization's SharePoint site/drive (SSoT)
+    site_id = credential.site_id
+    drive_id = credential.drive_id
+
+    graph_client.upload_file(
       folder_path,
       filename,
       content
@@ -124,8 +179,11 @@ class DocumentEsignService
   end
 
   def create_esign_request(uploaded_file, document_filename)
+    # Get SharePoint credential for site/drive IDs
+    credential = OrganizationSharePointCredential.active_credential
+
     request = ESignatureRequest.new(
-      title: options[:title] || "#{template.name} - #{job.name}",
+      title: options[:title] || "#{template_name} - #{job.name}",
       description: options[:description],
       documentable: job,
       created_by_id: Current.user&.id,
@@ -134,8 +192,8 @@ class DocumentEsignService
       message_to_signers: options[:message_to_signers],
       send_reminders: options[:send_reminders] != false,
       original_sharepoint_file_id: uploaded_file[:id],
-      sharepoint_site_id: template.sharepoint_site_id,
-      sharepoint_drive_id: template.sharepoint_drive_id
+      sharepoint_site_id: credential&.site_id,
+      sharepoint_drive_id: credential&.drive_id
     )
 
     # Add signers
@@ -159,12 +217,11 @@ class DocumentEsignService
   end
 
   def calculate_document_hash(file_id)
-    graph_client = MicrosoftAppGraphClient.new
-    content = graph_client.get_drive_item_content(
-      site_id: template.sharepoint_site_id,
-      drive_id: template.sharepoint_drive_id,
-      item_id: file_id
-    )
+    credential = OrganizationSharePointCredential.active_credential
+    return nil unless credential
+
+    graph_client = MicrosoftGraphClient.new(credential)
+    content = graph_client.download_file(file_id)
     Digest::SHA256.hexdigest(content)
   rescue StandardError => e
     Rails.logger.warn "[DocumentEsignService] Could not calculate document hash: #{e.message}"
@@ -172,23 +229,26 @@ class DocumentEsignService
   end
 
   # Generate additional documents from template keys
+  # SSoT: Uses TeknaDocumentGenerator for all additional documents
   def generate_additional_documents
-    template_keys = options[:additional_templates]
-    return [] if template_keys.blank?
+    additional_keys = options[:additional_templates]
+    return [] if additional_keys.blank?
 
-    template_keys.filter_map do |key|
-      additional_template = DocumentTemplate.find_by(key: key) || DocumentTemplate.find_by(name: key)
-      unless additional_template
-        Rails.logger.warn "[DocumentEsignService] Additional template not found: #{key}"
+    additional_keys.filter_map do |key|
+      key_sym = key.to_sym
+
+      # Validate template exists in TeknaDocumentGenerator
+      unless TeknaDocumentGenerator::TEMPLATES.key?(key_sym)
+        Rails.logger.warn "[DocumentEsignService] Additional template not found in TeknaDocumentGenerator: #{key}"
         next
       end
 
-      Rails.logger.info "[DocumentEsignService] Generating additional document: #{additional_template.name}"
-      generator = DocumentGenerator.new(additional_template)
+      Rails.logger.info "[DocumentEsignService] Generating additional document: #{key}"
+      generator = TeknaDocumentGenerator.new(key_sym)
       generated = generator.generate(job: job, extra_data: options[:extra_data] || {})
 
       # Return the PDF content
-      generated[:pdf_content] || generated[:docx_content]
+      generated[:pdf_content]
     rescue StandardError => e
       Rails.logger.error "[DocumentEsignService] Failed to generate additional document #{key}: #{e.message}"
       nil

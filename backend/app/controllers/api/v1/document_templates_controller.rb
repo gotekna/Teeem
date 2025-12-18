@@ -1,21 +1,137 @@
 class Api::V1::DocumentTemplatesController < ApplicationController
   before_action :set_document_template, only: [ :show, :update, :destroy, :preview, :link_sharepoint, :generate_and_send ]
 
+  # ============================================================================
+  # SSoT: TeknaDocumentGenerator::TEMPLATES is the source of truth for templates
+  # The DocumentTemplate model (database) is DEPRECATED - Dec 2024
+  # ============================================================================
+
   # GET /api/v1/document_templates
+  # Returns templates from TeknaDocumentGenerator::TEMPLATES (SSoT)
+  # Plus legacy database templates for backwards compatibility
   def index
-    templates = DocumentTemplate.all
+    # SSoT: TeknaDocumentGenerator templates (active)
+    ssot_templates = TeknaDocumentGenerator::TEMPLATES.map do |key, config|
+      {
+        id: "ssot_#{key}",
+        template_key: key.to_s,
+        name: config[:title] || key.to_s.titleize,
+        category: config[:category],
+        template_type: config[:source] == :sharepoint ? "sharepoint_fetch" : "html",
+        layout: config[:layout],
+        is_active: true,
+        is_ssot: true,
+        requires: config[:requires],
+        output_filename: config[:output_filename],
+        qbcc_required: config[:qbcc_required] || false,
+        preview_url: "/api/v1/tekna_documents/#{key}/preview?format=html"
+      }
+    end
 
-    # Filter by category
-    templates = templates.by_category(params[:category]) if params[:category].present?
+    # Filter SSoT templates by category
+    if params[:category].present?
+      ssot_templates = ssot_templates.select { |t| t[:category] == params[:category] }
+    end
 
-    # Filter by active status
-    templates = templates.active if params[:active_only] == "true"
+    # Also include legacy database templates (marked as deprecated)
+    legacy_templates = []
+    if params[:include_legacy] == "true"
+      templates = DocumentTemplate.all
+      templates = templates.by_category(params[:category]) if params[:category].present?
+      templates = templates.active if params[:active_only] == "true"
+      templates = templates.order(:category, :sort_order, :name)
+      legacy_templates = templates.map { |t| template_json(t).merge(is_legacy: true, is_deprecated: true) }
+    end
 
-    templates = templates.order(:category, :sort_order, :name)
+    all_templates = ssot_templates + legacy_templates
 
     render json: {
       success: true,
-      data: templates.map { |t| template_json(t) }
+      data: all_templates,
+      ssot_count: ssot_templates.count,
+      legacy_count: legacy_templates.count,
+      message: "Templates now sourced from TeknaDocumentGenerator (SSoT). Database templates are deprecated."
+    }
+  end
+
+  # GET /api/v1/document_templates/ssot
+  # Returns ONLY templates from TeknaDocumentGenerator::TEMPLATES
+  def ssot
+    templates = TeknaDocumentGenerator::TEMPLATES.map do |key, config|
+      {
+        template_key: key.to_s,
+        name: config[:title] || key.to_s.titleize,
+        category: config[:category],
+        template_type: config[:source] == :sharepoint ? "sharepoint_fetch" : "html",
+        layout: config[:layout],
+        path: config[:path],
+        requires: config[:requires],
+        output_filename: config[:output_filename],
+        qbcc_required: config[:qbcc_required] || false,
+        preview_url: "/api/v1/tekna_documents/#{key}/preview?format=html"
+      }
+    end
+
+    # Filter by category
+    templates = templates.select { |t| t[:category] == params[:category] } if params[:category].present?
+
+    # Group by category for UI
+    grouped = templates.group_by { |t| t[:category] }
+
+    render json: {
+      success: true,
+      data: {
+        templates: templates,
+        grouped: grouped,
+        categories: templates.map { |t| t[:category] }.uniq.compact.sort
+      }
+    }
+  end
+
+  # GET /api/v1/document_templates/ssot/:template_key
+  # Get details for a specific SSoT template
+  def ssot_show
+    key = params[:template_key].to_sym
+
+    unless TeknaDocumentGenerator::TEMPLATES.key?(key)
+      return render json: {
+        success: false,
+        error: "Template not found: #{params[:template_key]}",
+        available: TeknaDocumentGenerator::TEMPLATES.keys.map(&:to_s)
+      }, status: :not_found
+    end
+
+    config = TeknaDocumentGenerator::TEMPLATES[key]
+
+    # Read the template file content for editing
+    template_path = Rails.root.join("app/views/tekna_documents/#{config[:path]}.html.erb")
+    template_content = File.exist?(template_path) ? File.read(template_path) : nil
+
+    # Read the layout file content
+    layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{config[:layout]}.html.erb")
+    layout_content = File.exist?(layout_path) ? File.read(layout_path) : nil
+
+    render json: {
+      success: true,
+      data: {
+        template_key: key.to_s,
+        name: config[:title] || key.to_s.titleize,
+        category: config[:category],
+        template_type: config[:source] == :sharepoint ? "sharepoint_fetch" : "html",
+        layout: config[:layout],
+        path: config[:path],
+        requires: config[:requires],
+        output_filename: config[:output_filename],
+        qbcc_required: config[:qbcc_required] || false,
+        preview_url: "/api/v1/tekna_documents/#{key}/preview?format=html",
+        # For editor
+        template_file_path: template_path.to_s,
+        template_content: template_content,
+        layout_file_path: layout_path.to_s,
+        layout_content: layout_content,
+        # Available layouts
+        available_layouts: %w[tekna qbcc_official none]
+      }
     }
   end
 

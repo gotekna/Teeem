@@ -329,10 +329,13 @@ Rails.application.routes.draw do
       end
 
       # Document Templates for mail merge
+      # SSoT: TeknaDocumentGenerator::TEMPLATES is the source of truth (Dec 2024)
       resources :document_templates, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           get :categories
           get :sharepoint_files
+          get :ssot  # SSoT templates from TeknaDocumentGenerator
+          get "ssot/:template_key", to: "document_templates#ssot_show", as: :ssot_template
         end
         member do
           get :preview
