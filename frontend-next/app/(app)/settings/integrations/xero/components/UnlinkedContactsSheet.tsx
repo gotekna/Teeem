@@ -331,14 +331,15 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                               {contact.potential_matches.map((match) => (
                                 <div
                                   key={match.id}
-                                  className="flex items-center justify-between p-2 bg-background rounded-lg border"
+                                  className="flex items-center justify-between gap-2 p-2 bg-background rounded-lg border"
                                 >
-                                  <div className="flex items-center gap-2">
-                                    {getMatchBadge(match.match_type, match.score)}
-                                    <span className="font-medium">{match.name}</span>
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="shrink-0">{getMatchBadge(match.match_type, match.score)}</span>
+                                    <span className="font-medium truncate">{match.name}</span>
                                   </div>
                                   <Button
                                     size="sm"
+                                    className="shrink-0"
                                     onClick={() =>
                                       handleLink(contact.xero_contact_name, match.id)
                                     }
