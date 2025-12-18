@@ -51,6 +51,15 @@ module Bpmn
           raise "Document template not found"
         end
 
+        # Check for deprecated template types (Word templates removed Dec 2024)
+        if template.deprecated_template_type?
+          raise "Template '#{template.name}' uses deprecated type '#{template.template_type}'. " \
+                "Word/SharePoint templates were removed Dec 2024. " \
+                "Please migrate this template to 'html' (for Tekna-branded docs) or " \
+                "'pdf_overlay' (for QBCC/HIA legal docs). " \
+                "See DocumentTemplate model for details."
+        end
+
         unless job
           raise "Job is required for document generation"
         end

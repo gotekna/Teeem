@@ -361,17 +361,20 @@ export function ScheduleMasterTab() {
 
   // Group task templates by category
   const taskTemplatesByCategory = React.useMemo(() => {
+    if (!Array.isArray(taskTemplates)) return {};
+
     const grouped: Record<string, TaskTemplate[]> = {};
     taskTemplates.forEach((template) => {
       const cat = template.category || "Other";
       if (!grouped[cat]) grouped[cat] = [];
       grouped[cat].push(template);
     });
-    // Sort each category by sequence_order
+    // Sort each category by sequence_order (create new sorted arrays)
+    const sorted: Record<string, TaskTemplate[]> = {};
     Object.keys(grouped).forEach((cat) => {
-      grouped[cat].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0));
+      sorted[cat] = [...grouped[cat]].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0));
     });
-    return grouped;
+    return sorted;
   }, [taskTemplates]);
 
   if (loading) {
@@ -448,10 +451,10 @@ export function ScheduleMasterTab() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">
-                          {(template.tasks || []).length} tasks
+                          {(Array.isArray(template.tasks) ? template.tasks : []).length} tasks
                         </Badge>
                         <Badge variant="outline">
-                          {getTotalDuration(template.tasks || [])} days
+                          {getTotalDuration(Array.isArray(template.tasks) ? template.tasks : [])} days
                         </Badge>
                         <Button
                           variant="ghost"
@@ -492,8 +495,8 @@ export function ScheduleMasterTab() {
                   {expandedTemplate === template.id && (
                     <CardContent>
                       <div className="border rounded-lg divide-y">
-                        {(template.tasks || [])
-                          .sort((a, b) => a.position - b.position)
+                        {[...(Array.isArray(template.tasks) ? template.tasks : [])]
+                          .sort((a, b) => (a.position || 0) - (b.position || 0))
                           .map((task, index) => (
                             <div
                               key={task.id}

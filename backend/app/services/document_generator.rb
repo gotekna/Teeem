@@ -3,9 +3,30 @@
 require "sablon"
 require "tempfile"
 
-# DocumentGenerator generates documents from Word templates using Sablon mail merge.
+# ============================================================================
+# DEPRECATED: This class uses Word templates which were removed December 2024
+# ============================================================================
 #
-# Usage:
+# DO NOT USE THIS CLASS FOR NEW CODE.
+#
+# Use instead:
+#   - HtmlDocumentEngine (app/services/engines/html_document_engine.rb)
+#     For Tekna-branded documents using local ERB templates
+#
+#   - PdfOverlayEngine (app/services/engines/pdf_overlay_engine.rb)
+#     For QBCC/HIA legal documents where we fill PDF form fields
+#
+# WHY DEPRECATED:
+#   - Word templates stored in SharePoint were fragile (404 errors when files moved)
+#   - Sablon gem had compatibility issues
+#   - HTML templates are git-tracked and give full control
+#   - Legal documents (QBCC/HIA) must use their official PDF format
+#
+# This class is kept for reference and potential future migration needs.
+# See DocumentTemplate model for the full template strategy explanation.
+# ============================================================================
+#
+# OLD Usage (deprecated):
 #   generator = DocumentGenerator.new(template)
 #   result = generator.generate(job: job, contact: contact)
 #   # result[:docx_content] - DOCX binary content
@@ -38,7 +59,12 @@ class DocumentGenerator
 
   # Generate document from template with provided data
   # Returns hash with :docx_content, :pdf_content (if applicable), :filename
+  #
+  # DEPRECATED: Word templates were removed Dec 2024. This will likely fail.
+  # Use HtmlDocumentEngine or PdfOverlayEngine instead.
   def generate(job: nil, contact: nil, invoice: nil, claim_stage: nil, extra_data: {})
+    Rails.logger.warn "[DocumentGenerator] DEPRECATED: Generating Word document for template '#{template.name}' (ID: #{template.id}). " \
+                      "Word templates were removed Dec 2024. Migrate to html or pdf_overlay type."
     validate_inputs!(job, contact, invoice)
 
     # Build context data for Sablon

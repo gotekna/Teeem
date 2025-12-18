@@ -69,8 +69,18 @@ class DocumentTemplate < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :by_category, ->(category) { where(category: category) }
   scope :by_type, ->(type) { where(template_type: type) }
+
+  # DEPRECATED: Use html_templates or pdf_overlay_templates instead
   scope :word_templates, -> { where(template_type: "word") }
+
+  # Active template types (use these)
   scope :html_templates, -> { where(template_type: "html") }
+  scope :pdf_overlay_templates, -> { where(template_type: "pdf_overlay") }
+
+  # Find templates that need migration to active types
+  # Run: DocumentTemplate.needs_migration.each { |t| puts "#{t.id}: #{t.name}" }
+  scope :needs_migration, -> { where(template_type: %w[word sharepoint_fetch]) }
+
   scope :legal_templates, -> { where(is_legal_format: true) }
   scope :tekna_branded, -> { where(is_legal_format: false) }
 
