@@ -94,30 +94,35 @@ class TeknaDocumentGenerator
       output_filename: "{date}_PO_{po_number}_{job_name}"
     },
 
-    # QBCC Official documents (exact recreation of official format)
+    # QBCC Official documents (PDF overlay - uses official QBCC PDFs)
+    # These use the actual QBCC PDF templates with form filling/text overlay
+    # SSoT: PDF templates stored in app/views/tekna_documents/templates/qbcc/
     qbcc_contract: {
-      path: "templates/qbcc/contract",
+      source: :pdf_overlay,
+      pdf_template: "qbcc_contract.pdf",
       category: "contract",
       requires: [ :job ],
-      layout: "qbcc_official",
+      layout: "none",
       title: "QBCC Building Contract",
       output_filename: "{date}_qbcc_contract_{job_name}",
       qbcc_required: true
     },
     qbcc_consumer_guide: {
-      path: "templates/qbcc/consumer_guide",
+      source: :pdf_overlay,
+      pdf_template: "qbcc_consumer_guide.pdf",
       category: "contract",
       requires: [ :job ],
-      layout: "qbcc_official",
+      layout: "none",
       title: "QBCC Consumer Building Guide",
       output_filename: "{date}_qbcc_consumer_guide_{job_name}",
       qbcc_required: true
     },
     qbcc_general_conditions: {
-      path: "templates/qbcc/general_conditions",
+      source: :pdf_overlay,
+      pdf_template: "qbcc_general_conditions.pdf",
       category: "contract",
       requires: [ :job ],
-      layout: "qbcc_official",
+      layout: "none",
       title: "QBCC General Conditions of Contract",
       output_filename: "{date}_qbcc_general_conditions_{job_name}",
       qbcc_required: true
@@ -175,6 +180,11 @@ class TeknaDocumentGenerator
     # Handle SharePoint-sourced documents (fetch existing file, don't generate)
     if template_config[:source] == :sharepoint
       return fetch_from_sharepoint(job: job)
+    end
+
+    # Handle PDF overlay documents (QBCC official PDFs with form filling)
+    if template_config[:source] == :pdf_overlay
+      return generate_pdf_overlay(job: job, contact: contact, extra_data: extra_data)
     end
 
     context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
@@ -768,6 +778,27 @@ class TeknaDocumentGenerator
 
   # Fetch an existing PDF from SharePoint instead of generating
   # Used for documents like "All Plans" that are uploaded separately
+  # Generate PDF using overlay engine (for QBCC official documents)
+  # Uses HexaPDF to fill form fields and overlay text on official PDF templates
+  def generate_pdf_overlay(job:, contact:, extra_data:)
+    engine = Engines::PdfOverlayEngine.new(template_key)
+    pdf_content = engine.generate(job: job, contact: contact, extra_data: extra_data)
+
+    {
+      html: nil, # No HTML for PDF overlay documents
+      pdf_content: pdf_content,
+      filename: generate_filename(job: job, extra_data: extra_data),
+      generated_at: Time.current,
+      template: template_key,
+      title: template_config[:title],
+      source: :pdf_overlay
+    }
+  rescue Engines::PdfOverlayEngine::TemplateNotFoundError => e
+    raise GenerationError, "PDF template not found: #{e.message}"
+  rescue Engines::PdfOverlayEngine::OverlayError => e
+    raise GenerationError, "PDF overlay failed: #{e.message}"
+  end
+
   def fetch_from_sharepoint(job:)
     sharepoint_path = template_config[:sharepoint_path]
     raise GenerationError, "SharePoint path not configured for #{template_key}" unless sharepoint_path

@@ -144,7 +144,7 @@ export function ColumnEditorModal({
       setLoadingTables(true);
       try {
         const response = await api.get<{ success: boolean; foundations: Array<{ id: number; name: string }> }>("/api/v1/foundations");
-        if (response?.foundations) {
+        if (response?.foundations && Array.isArray(response.foundations)) {
           setAvailableTables(response.foundations.sort((a, b) => a.name.localeCompare(b.name)));
         }
       } catch (error) {
