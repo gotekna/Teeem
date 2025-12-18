@@ -252,6 +252,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       const formData = new FormData();
       formData.append("file", file);
 
+      // Debug logging
+      const token = localStorage.getItem('token');
+      console.log('[PlanUpload] File:', file.name, file.size, file.type);
+      console.log('[PlanUpload] Token present:', !!token);
+      console.log('[PlanUpload] FormData file:', formData.get('file'));
+
       setProcessingProgress("Splitting PDF and analyzing with AI...");
 
       // Long timeout for AI processing of multi-page PDFs (5 minutes)
