@@ -2186,8 +2186,11 @@ module Api
             # Find the TEEEM contact (or create new)
             if create_new
               # Create a new contact with the Xero contact name
+              # Default to "company" entity_type since most Xero contacts are businesses
               @contact = Contact.create!(
                 display_name: xero_contact_name,
+                company_name_or_trust: xero_contact_name,
+                entity_type: "company",
                 is_active: true
               )
             else
