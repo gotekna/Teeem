@@ -586,7 +586,7 @@ export function ContactTypesTab() {
             <h3 className="font-semibold">Contact Documents Path</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Select the OneDrive folder where documents associated with contacts should be stored.
+            Select the SharePoint folder where documents associated with contacts should be stored.
             This path will be used when uploading or linking documents to contact records.
           </p>
           <div className="flex gap-2">

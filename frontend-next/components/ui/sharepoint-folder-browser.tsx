@@ -188,7 +188,7 @@ export function SharePointFolderBrowser({
   // Drive/Site selection state
   const [sites, setSites] = React.useState<SharePointSite[]>([]);
   const [currentDrive, setCurrentDrive] = React.useState<string>("personal");
-  const [currentDriveName, setCurrentDriveName] = React.useState<string>("My OneDrive");
+  const [currentDriveName, setCurrentDriveName] = React.useState<string>("My SharePoint");
   const [loadingSites, setLoadingSites] = React.useState(true);
   const [switchingDrive, setSwitchingDrive] = React.useState(false);
   const [creatingFolder, setCreatingFolder] = React.useState(false);
@@ -253,7 +253,7 @@ export function SharePointFolderBrowser({
       } else {
         // Fallback to personal OneDrive only if no SharePoint available
         setCurrentDrive("personal");
-        setCurrentDriveName(statusResponse.drive_name || "My OneDrive");
+        setCurrentDriveName(statusResponse.drive_name || "My SharePoint");
       }
     } catch (err) {
       console.error("Failed to load SharePoint sites:", err);
@@ -371,7 +371,7 @@ export function SharePointFolderBrowser({
     try {
       if (driveId === "personal") {
         await api.post("/api/v1/organization_onedrive/use_personal_drive");
-        setCurrentDriveName("My OneDrive");
+        setCurrentDriveName("My SharePoint");
       } else {
         const site = sites.find((s) => s.id === driveId);
         if (!site?.name) throw new Error("Site not found");
@@ -402,18 +402,18 @@ export function SharePointFolderBrowser({
       <div className={cn("flex flex-col items-center justify-center p-8 text-center", className)}>
         <AlertCircle className={cn("h-8 w-8 mb-2", isNotConnected ? "text-amber-500" : "text-destructive")} />
         <p className={cn("text-sm mb-2", isNotConnected ? "text-amber-600" : "text-destructive")}>
-          {isNotConnected ? "OneDrive not connected" : error}
+          {isNotConnected ? "SharePoint not connected" : error}
         </p>
         {isNotConnected ? (
           <>
             <p className="text-xs text-muted-foreground mb-4">
-              Connect your OneDrive/SharePoint in Settings to browse folders
+              Connect your SharePoint in Settings to browse folders
             </p>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" asChild>
                 <a href="/settings/integrations/microsoft" target="_blank">
                   <Cloud className="h-4 w-4 mr-2" />
-                  Connect OneDrive
+                  Connect SharePoint
                 </a>
               </Button>
               <Button variant="ghost" size="sm" onClick={loadRootFolders}>
@@ -490,7 +490,7 @@ export function SharePointFolderBrowser({
             <SelectItem value="personal">
               <div className="flex items-center gap-2">
                 <Cloud className="h-4 w-4 text-blue-500" />
-                <span>My OneDrive</span>
+                <span>My SharePoint</span>
               </div>
             </SelectItem>
             {sites.map((site) => (

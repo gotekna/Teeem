@@ -256,7 +256,7 @@ export default function SystemHealthPage() {
       },
       integrations: [
         { id: "xero", name: "Xero", status: "disconnected", status_message: "Not connected", action_label: "Connect", action_type: "connect", href: "/settings/integrations/xero" },
-        { id: "onedrive", name: "OneDrive", status: "connected", status_message: "Connected", action_label: "View", action_type: "view", href: "/settings/integrations" },
+        { id: "sharepoint", name: "SharePoint", status: "connected", status_message: "Connected", action_label: "View", action_type: "view", href: "/settings/integrations" },
         { id: "email", name: "Email", status: "connected", status_message: "Synced", action_label: "View", action_type: "view", href: "/settings/integrations" },
         { id: "abn", name: "ABN Lookup", status: "connected", status_message: "Available" },
       ],

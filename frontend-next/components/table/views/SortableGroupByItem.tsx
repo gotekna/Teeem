@@ -1,12 +1,22 @@
 "use client";
 
+/**
+ * SortableGroupByItem - Sortable item for group by columns
+ *
+ * Uses DnD primitives from @/components/ui/dnd for consistency.
+ * See: frontend-next/lib/component-registry.ts
+ */
+
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
-import { GripVertical, X } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
 
 interface Column {
   id: number;
@@ -51,17 +61,12 @@ export function SortableGroupByItem({
       style={style}
       className={cn(
         "flex items-center gap-2 relative",
-        isDragging && "opacity-50 shadow-lg scale-105 z-50 border-primary bg-primary/10 p-2 rounded border",
-        isOver && !isDragging && "border-t-4 border-t-primary pt-3 mt-1"
+        isDragging && DRAGGING_CLASSES + " p-2 rounded border",
+        isOver && !isDragging && DROP_TARGET_CLASSES
       )}
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </div>
+      {/* DnD Primitive: DragHandle */}
+      <DragHandle {...attributes} {...listeners} size="md" />
       <div className="flex-1">
         <ComboboxDropdown
           items={columns.map(c => ({

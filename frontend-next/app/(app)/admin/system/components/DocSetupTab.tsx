@@ -403,7 +403,7 @@ export function DocSetupTab() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="folder_path">OneDrive Folder Path (Optional)</Label>
+              <Label htmlFor="folder_path">SharePoint Folder Path (Optional)</Label>
               <Input
                 id="folder_path"
                 placeholder="e.g., /Documents/Contracts"
@@ -411,7 +411,7 @@ export function DocSetupTab() {
                 onChange={(e) => setFormData({ ...formData, folder_path: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Map this category to a specific OneDrive folder for automatic file sync.
+                Map this category to a specific SharePoint folder for automatic file sync.
               </p>
             </div>
           </div>

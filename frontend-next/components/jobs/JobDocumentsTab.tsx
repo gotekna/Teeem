@@ -62,7 +62,8 @@ interface JobFolderStatus {
   jobFolderId?: string;
 }
 
-interface OneDriveItem {
+// RENAMED: OneDriveItem → SharePointItem, OneDriveFolder → SharePointFolder
+interface SharePointItem {
   id: string;
   name: string;
   webUrl: string;
@@ -76,7 +77,7 @@ interface OneDriveItem {
   size?: number;
 }
 
-interface OneDriveFolder {
+interface SharePointFolder {
   id: string;
   name: string;
   webUrl: string;
@@ -154,10 +155,10 @@ interface JobDocumentsTabProps {
 }
 
 export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
-  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles">("tasks");
+  const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
-  const [folders, setFolders] = useState<OneDriveFolder[]>([]);
+  const [folders, setFolders] = useState<SharePointFolder[]>([]);
   const [creatingFolders, setCreatingFolders] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
@@ -171,7 +172,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [folderPath, setFolderPath] = useState<FolderPath[]>([]);
-  const [folderContents, setFolderContents] = useState<OneDriveItem[]>([]);
+  const [folderContents, setFolderContents] = useState<SharePointItem[]>([]);
   const [loadingContents, setLoadingContents] = useState(false);
 
   // Legacy import state
@@ -247,7 +248,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       const response = await api.get<{
         job_folder_web_url?: string;
         job_folder_id?: string;
-        items?: OneDriveFolder[];
+        items?: SharePointFolder[];
       }>(`/api/v1/organization_onedrive/job_folders?job_id=${jobId}`);
 
       if (response) {
@@ -332,7 +333,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const loadFolderContents = async (folderId: string, folderName: string) => {
     try {
       setLoadingContents(true);
-      const response = await api.get<{ items: OneDriveItem[] }>(
+      const response = await api.get<{ items: SharePointItem[] }>(
         `/api/v1/organization_onedrive/folder_contents?folder_id=${folderId}&job_id=${jobId}`
       );
 
@@ -844,8 +845,8 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
-  // OneDrive View
-  const renderOneDriveView = () => {
+  // SharePoint View
+  const renderSharePointView = () => {
     if (orgStatus.loading) {
       return (
         <div className="flex items-center justify-center py-12">
@@ -1406,9 +1407,9 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           Document Tasks
         </Button>
         <Button
-          variant={viewMode === "onedrive" ? "default" : "ghost"}
+          variant={viewMode === "sharepoint" ? "default" : "ghost"}
           size="sm"
-          onClick={() => setViewMode("onedrive")}
+          onClick={() => setViewMode("sharepoint")}
         >
           <Cloud className="h-4 w-4 mr-2" />
           SharePoint Folders
@@ -1424,7 +1425,7 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       </div>
 
       {viewMode === "tasks" && renderTasksView()}
-      {viewMode === "onedrive" && renderOneDriveView()}
+      {viewMode === "sharepoint" && renderSharePointView()}
       {viewMode === "allfiles" && renderAllFilesView()}
 
       {/* Import Legacy Files Modal */}

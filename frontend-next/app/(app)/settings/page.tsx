@@ -579,7 +579,7 @@ function SettingsPageContent() {
                     <div>
                       <h3 className="font-medium">Documents</h3>
                       <p className="text-sm text-muted-foreground">
-                        Configure OneDrive storage paths
+                        Configure SharePoint storage paths
                       </p>
                     </div>
                   </div>

@@ -196,7 +196,7 @@ export default function DocumentSidePanel({
                 </p>
                 <p className="text-sm text-center mb-4">
                   {document.onedrive_file_id
-                    ? "Could not load OneDrive preview"
+                    ? "Could not load SharePoint preview"
                     : "This file type cannot be previewed inline"}
                 </p>
                 <div className="flex gap-2">

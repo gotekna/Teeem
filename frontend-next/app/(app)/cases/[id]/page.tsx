@@ -622,7 +622,7 @@ export default function CaseDetailPage() {
       console.error("Failed to create folder:", error);
       toast({
         title: "Error",
-        description: "Failed to create case folder. Make sure OneDrive is connected.",
+        description: "Failed to create case folder. Make sure SharePoint is connected.",
         variant: "destructive",
       });
     } finally {
@@ -2181,7 +2181,7 @@ export default function CaseDetailPage() {
                     onClick={() => window.open(caseFolderInfo.web_url, "_blank")}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Open in OneDrive
+                    Open in SharePoint
                   </Button>
                 )}
               </CardHeader>
@@ -2199,7 +2199,7 @@ export default function CaseDetailPage() {
                         {caseFolderInfo.folder_path}
                       </p>
                       <p className="text-xs text-green-600 dark:text-green-400">
-                        Folder created in OneDrive
+                        Folder created in SharePoint
                       </p>
                     </div>
                   </div>
@@ -2336,7 +2336,7 @@ export default function CaseDetailPage() {
                     <div className="text-center py-4 text-muted-foreground">
                       <FolderInput className="h-6 w-6 mx-auto mb-2 opacity-50" />
                       <p className="text-sm">No source folders selected</p>
-                      <p className="text-xs mt-1">Add folders from OneDrive to scan for documents</p>
+                      <p className="text-xs mt-1">Add folders from SharePoint to scan for documents</p>
                     </div>
                   )
                 ) : (

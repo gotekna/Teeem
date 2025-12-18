@@ -80,7 +80,7 @@ export default function DocumentSettingsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif">Document Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Configure OneDrive base paths for document storage
+            Configure SharePoint base paths for document storage
           </p>
         </div>
       </div>
@@ -98,9 +98,9 @@ export default function DocumentSettingsPage() {
       {/* Settings Card */}
       <Card>
         <CardHeader>
-          <CardTitle>OneDrive Base Paths</CardTitle>
+          <CardTitle>SharePoint Base Paths</CardTitle>
           <CardDescription>
-            Specify the root folders in OneDrive where documents will be organized by scope
+            Specify the root folders in SharePoint where documents will be organized by scope
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -47,7 +47,7 @@ export default function DocumentsPage() {
     { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
     { id: "3", name: "Compliance", path: "/compliance", documents_count: 5 },
   ]);
-  const [oneDriveConnected] = useState(false);
+  const [sharePointConnected] = useState(false);
 
   // Use foundation hook for active tab's document type
   const { foundation, records, isLoading, refresh } = useFoundationBySlug(DOCUMENT_TYPES[activeTab]);
@@ -93,10 +93,10 @@ export default function DocumentsPage() {
     </Button>
   );
 
-  // Left actions with OneDrive + Upload buttons
+  // Left actions with SharePoint + Upload buttons
   const documentsLeftActions = (
     <div className="flex items-center gap-2">
-      {!oneDriveConnected && (
+      {!sharePointConnected && (
         <Button
           variant="outline"
           onClick={() => router.push("/settings/integrations/microsoft")}
@@ -134,16 +134,16 @@ export default function DocumentsPage() {
         </div>
 
         <TabsContent value={activeTab} className="flex-1 min-h-0 mt-6 px-4">
-          {/* OneDrive Status */}
-          {oneDriveConnected && (
+          {/* SharePoint Status */}
+          {sharePointConnected && (
             <Card className="bg-blue-50 border-blue-200">
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
                   <Cloud className="h-5 w-5 text-blue-600" />
                   <div className="flex-1">
-                    <p className="font-medium text-blue-900">OneDrive Connected</p>
+                    <p className="font-medium text-blue-900">SharePoint Connected</p>
                     <p className="text-sm text-blue-700">
-                      Documents are synced with your Microsoft OneDrive
+                      Documents are synced with your Microsoft SharePoint
                     </p>
                   </div>
                   <Button

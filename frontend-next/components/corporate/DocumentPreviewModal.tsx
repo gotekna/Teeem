@@ -2133,7 +2133,7 @@ export default function DocumentPreviewModal({
                   </p>
                   <p className="text-sm mb-4 text-center">
                     {document.onedrive_file_id
-                      ? "Could not load OneDrive preview."
+                      ? "Could not load SharePoint preview."
                       : "This file type cannot be previewed inline."}
                   </p>
                   {document.file_url && (

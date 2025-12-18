@@ -1,61 +1,7 @@
-"use client";
+// BACKWARDS COMPATIBILITY REDIRECT
+// This file exists for backwards compatibility during the OneDrive → SharePoint rename
+// All navigation should use /sharepoint instead
+//
+// TODO: Remove this file after all references are updated
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-
-export default function OneDrivePage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Get screen dimensions
-    const screenWidth = window.screen.width;
-    const screenHeight = window.screen.height;
-
-    // Set window size (80% of screen)
-    const windowWidth = Math.floor(screenWidth * 0.8);
-    const windowHeight = Math.floor(screenHeight * 0.8);
-
-    // Center the window
-    const left = Math.floor((screenWidth - windowWidth) / 2);
-    const top = Math.floor((screenHeight - windowHeight) / 2);
-
-    // Window features for a more app-like experience
-    const windowFeatures = `
-      width=${windowWidth},
-      height=${windowHeight},
-      left=${left},
-      top=${top},
-      menubar=no,
-      toolbar=no,
-      location=no,
-      status=yes,
-      scrollbars=yes,
-      resizable=yes
-    `.replace(/\s+/g, "");
-
-    // Open OneDrive in a popup window (SharePoint OneDrive for Business)
-    const oneDriveWindow = window.open(
-      "https://gotekna-my.sharepoint.com/my?login_hint=robert%40tekna%2Ecom%2Eau&source=waffle",
-      "OneDriveApp",
-      windowFeatures
-    );
-
-    // Focus the new window if it opened successfully
-    if (oneDriveWindow) {
-      oneDriveWindow.focus();
-    }
-
-    // Navigate back to the previous page
-    router.back();
-  }, [router]);
-
-  return (
-    <div className="flex h-full items-center justify-center bg-background">
-      <div className="text-center">
-        <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="mt-4 text-muted-foreground">Opening OneDrive...</p>
-      </div>
-    </div>
-  );
-}
+export { default } from "@/app/(app)/sharepoint/page";
