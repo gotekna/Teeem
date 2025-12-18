@@ -5,7 +5,7 @@
 #
 # RENAMED: OrganizationOneDriveCredential → OrganizationSharePointCredential
 # Alias kept for backwards compatibility
-class OrganizationSharepointCredential < ApplicationRecord
+class OrganizationSharePointCredential < ApplicationRecord
   self.table_name = "organization_one_drive_credentials"  # Keep existing table
 
   # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)

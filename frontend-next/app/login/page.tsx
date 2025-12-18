@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { Spinner } from "@/components/ui/spinner";
+import { getApiBaseUrl } from "@/lib/api";
 import Link from "next/link";
 
 function LoginForm() {
@@ -58,8 +59,7 @@ function LoginForm() {
   };
 
   const handleMicrosoftLogin = () => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-    window.location.href = `${apiUrl}/auth/microsoft_office365`;
+    window.location.href = `${getApiBaseUrl()}/auth/microsoft_office365`;
   };
 
   if (loading) {
