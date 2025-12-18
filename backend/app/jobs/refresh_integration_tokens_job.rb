@@ -77,7 +77,7 @@ class RefreshIntegrationTokensJob < ApplicationJob
   def refresh_onedrive_tokens
     # Proactively refresh tokens expiring in the next HOUR
     # Ultra thinking: 4x buffer vs 15-min job interval - tokens never get close to expiring
-    OrganizationOneDriveCredential.active.each do |credential|
+    OrganizationSharePointCredential.active.each do |credential|
       next unless credential.token_expires_at.present?
       next unless credential.token_expires_at <= 1.hour.from_now
 

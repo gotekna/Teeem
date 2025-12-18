@@ -28,7 +28,7 @@ module Bpmn
 
         log_info("Attaching SharePoint file for job #{job.id}")
 
-        credential = OrganizationOneDriveCredential.active_credential
+        credential = OrganizationSharePointCredential.active_credential
         raise "No active OneDrive credential" unless credential
 
         client = MicrosoftGraphClient.new(credential)

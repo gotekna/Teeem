@@ -176,7 +176,7 @@ class BankStatementReport < ApplicationRecord
   # Warehousing/Bank Statements/Xero Generated/{bank_account_name}/{FY}/{filename}
   # This keeps Xero-generated statements separate from bank-produced (official) statements
   def upload_to_sharepoint(content, filename)
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     unless credential.present?
       Rails.logger.warn("[BankStatementReport] No SharePoint credentials found - skipping upload")
       return nil

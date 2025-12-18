@@ -352,7 +352,7 @@ class XeroAttachmentSyncService
     return nil unless external_invoice.contact.present?
 
     begin
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = OrganizationSharePointCredential.active_credential
       return nil unless credential.present?
 
       # MicrosoftGraphClient.new automatically refreshes expired tokens via ensure_valid_token!

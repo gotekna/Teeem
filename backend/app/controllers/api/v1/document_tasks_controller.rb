@@ -54,7 +54,7 @@ module Api
 
         # Try to upload to SharePoint first
         begin
-          credential = OrganizationOneDriveCredential.active_credential
+          credential = OrganizationSharePointCredential.active_credential
           if credential&.valid_credential?
             client = MicrosoftGraphClient.new(credential)
 

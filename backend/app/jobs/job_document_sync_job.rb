@@ -14,7 +14,7 @@ class JobDocumentSyncJob < ApplicationJob
   retry_on MicrosoftGraphClient::APIError, wait: :exponentially_longer, attempts: 3
 
   def perform(job_id = nil)
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     unless credential
       Rails.logger.warn("[JobDocumentSync] No active OneDrive credential found")
       return { success: false, error: "No OneDrive credential" }

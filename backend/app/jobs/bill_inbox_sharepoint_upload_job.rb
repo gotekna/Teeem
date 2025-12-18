@@ -11,7 +11,7 @@ class BillInboxSharepointUploadJob < ApplicationJob
 
     Rails.logger.info("[BillInboxSharepointUpload] Uploading file for BillInbox #{bill_inbox_id}")
 
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     unless credential
       Rails.logger.error("[BillInboxSharepointUpload] No active OneDrive credential")
       return

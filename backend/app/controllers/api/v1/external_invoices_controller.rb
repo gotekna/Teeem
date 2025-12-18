@@ -483,10 +483,10 @@ module Api
         render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
       end
 
-      # Fetch file content from SharePoint using OrganizationOneDriveCredential
+      # Fetch file content from SharePoint using OrganizationSharePointCredential
       # This bypasses Active Storage's SharePointService which has config issues
       def fetch_from_sharepoint(file_id)
-        credential = OrganizationOneDriveCredential.active_credential
+        credential = OrganizationSharePointCredential.active_credential
         return nil unless credential&.valid_credential?
 
         graph_client = MicrosoftGraphClient.new(credential)

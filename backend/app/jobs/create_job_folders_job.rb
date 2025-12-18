@@ -26,7 +26,7 @@ class CreateJobFoldersJob < ApplicationJob
     construction.update!(onedrive_folder_creation_status: "processing")
 
     # Get organization OneDrive credential
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
 
     unless credential&.valid_credential?
       construction.update!(

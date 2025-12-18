@@ -279,7 +279,7 @@ class BalanceSheetReportService
   end
 
   def upload_to_sharepoint(content, filename)
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     unless credential.present?
       Rails.logger.warn("[BalanceSheetReportService] No SharePoint credentials found - skipping upload")
       return nil

@@ -9,7 +9,7 @@ class TokenHealthCheckJob < ApplicationJob
   private
 
   def check_onedrive_tokens
-    OrganizationOneDriveCredential.active.find_each do |credential|
+    OrganizationSharePointCredential.active.find_each do |credential|
       days_until_expiry = days_until_expiry(credential.token_expires_at)
 
       if days_until_expiry.nil?
@@ -29,7 +29,7 @@ class TokenHealthCheckJob < ApplicationJob
     end
 
     # Alert if no active credentials
-    if OrganizationOneDriveCredential.active.none?
+    if OrganizationSharePointCredential.active.none?
       Rails.logger.error("[TokenHealth] NO ACTIVE OneDrive credentials found - SharePoint uploads will fail")
     end
   end

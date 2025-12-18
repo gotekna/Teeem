@@ -77,11 +77,11 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
     Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating app credentials: #{e.message}"
   end
 
-  # 2. OrganizationOneDriveCredential → type: 'delegated', owner: nil
+  # 2. OrganizationSharePointCredential → type: 'delegated', owner: nil
   def migrate_organization_onedrive_credentials
-    Rails.logger.info "[MigrateMicrosoftCredentials] Migrating OrganizationOneDriveCredential..."
+    Rails.logger.info "[MigrateMicrosoftCredentials] Migrating OrganizationSharePointCredential..."
 
-    OrganizationOneDriveCredential.find_each do |old|
+    OrganizationSharePointCredential.find_each do |old|
       # Use name + 'onedrive' to distinguish from outlook credentials
       lookup_name = old.name.present? ? "#{old.name}_onedrive" : "org_onedrive_#{old.id}"
 
@@ -109,7 +109,7 @@ class MigrateMicrosoftCredentialsJob < ApplicationJob
         is_active: old.is_active
       }
 
-      create_or_log(attrs, :org_onedrive, "OrganizationOneDriveCredential##{old.id}")
+      create_or_log(attrs, :org_onedrive, "OrganizationSharePointCredential##{old.id}")
     end
   rescue => e
     Rails.logger.error "[MigrateMicrosoftCredentials] Error migrating org OneDrive credentials: #{e.message}"

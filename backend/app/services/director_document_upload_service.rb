@@ -12,7 +12,7 @@ class DirectorDocumentUploadService
   }.freeze
 
   def initialize
-    @credential = OrganizationOneDriveCredential.active_credential
+    @credential = OrganizationSharePointCredential.active_credential
     raise "No active OneDrive credential found" unless @credential
     @client = MicrosoftGraphClient.new(@credential)
   end

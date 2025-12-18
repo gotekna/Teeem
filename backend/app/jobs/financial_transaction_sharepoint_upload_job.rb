@@ -8,7 +8,7 @@ class FinancialTransactionSharepointUploadJob < ApplicationJob
     return if transaction.sharepoint_file_id.present?
     return unless transaction.receipt.attached?
 
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     return unless credential
 
     client = MicrosoftGraphClient.new(credential)

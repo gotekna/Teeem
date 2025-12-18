@@ -475,7 +475,7 @@ class Job < ApplicationRecord
   # Queue OneDrive folder creation after job is created
   def queue_onedrive_folder_creation
     # Only create folders if OneDrive is connected
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     return unless credential&.valid_credential?
 
     # Queue the folder creation job (runs in background)

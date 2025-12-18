@@ -1432,50 +1432,50 @@ Rails.application.routes.draw do
         end
       end
 
-      # OneDrive integration (per-job - legacy)
-      get "onedrive/authorize", to: "one_drive#authorize"
-      get "onedrive/callback", to: "one_drive#callback"
-      get "onedrive/status", to: "one_drive#status"
-      delete "onedrive/disconnect", to: "one_drive#disconnect"
-      post "onedrive/create_folders", to: "one_drive#create_folders"
-      get "onedrive/folders", to: "one_drive#list_items"
-      post "onedrive/upload", to: "one_drive#upload"
-      get "onedrive/download", to: "one_drive#download"
+      # SharePoint integration (per-job - legacy, URLs kept for backwards compatibility)
+      get "onedrive/authorize", to: "sharepoint_files#authorize"
+      get "onedrive/callback", to: "sharepoint_files#callback"
+      get "onedrive/status", to: "sharepoint_files#status"
+      delete "onedrive/disconnect", to: "sharepoint_files#disconnect"
+      post "onedrive/create_folders", to: "sharepoint_files#create_folders"
+      get "onedrive/folders", to: "sharepoint_files#list_items"
+      post "onedrive/upload", to: "sharepoint_files#upload"
+      get "onedrive/download", to: "sharepoint_files#download"
 
-      # OneDrive integration (organization-wide)
-      get "organization_onedrive/status", to: "organization_onedrive#status"
-      get "organization_onedrive/authorize", to: "organization_onedrive#authorize"
-      get "organization_onedrive/callback", to: "organization_onedrive#callback"
-      delete "organization_onedrive/disconnect", to: "organization_onedrive#disconnect"
-      get "organization_onedrive/browse_folders", to: "organization_onedrive#browse_folders"
-      post "organization_onedrive/create_root_folder", to: "organization_onedrive#create_root_folder"
-      get "organization_onedrive/validate_folder", to: "organization_onedrive#validate_folder"
-      patch "organization_onedrive/change_root_folder", to: "organization_onedrive#change_root_folder"
-      post "organization_onedrive/create_job_folders", to: "organization_onedrive#create_job_folders"
-      post "organization_onedrive/create_all_job_folders", to: "organization_onedrive#create_all_job_folders"
-      get "organization_onedrive/job_folders", to: "organization_onedrive#list_job_items"
-      post "organization_onedrive/upload", to: "organization_onedrive#upload"
-      get "organization_onedrive/download", to: "organization_onedrive#download"
-      get "organization_onedrive/folder_contents", to: "organization_onedrive#folder_contents"
-      get "organization_onedrive/sharepoint_sites", to: "organization_onedrive#sharepoint_sites"
-      post "organization_onedrive/use_sharepoint_site", to: "organization_onedrive#use_sharepoint_site"
-      post "organization_onedrive/use_personal_drive", to: "organization_onedrive#use_personal_drive"
-      post "organization_onedrive/sync_corporate_documents", to: "organization_onedrive#sync_corporate_documents"
-      get "organization_onedrive/search", to: "organization_onedrive#search"
-      get "organization_onedrive/preview_private_folders", to: "organization_onedrive#preview_private_folders"
-      post "organization_onedrive/create_private_folders", to: "organization_onedrive#create_private_folders"
-      post "organization_onedrive/copy_files", to: "organization_onedrive#copy_files"
-      get "organization_onedrive/legacy_files", to: "organization_onedrive#legacy_files"
-      post "organization_onedrive/import_legacy", to: "organization_onedrive#import_legacy"
-      post "organization_onedrive/run_migration", to: "organization_onedrive#run_migration"
-      get "organization_onedrive/job_all_files", to: "organization_onedrive#job_all_files"
-      post "organization_onedrive/sync_job_documents", to: "organization_onedrive#sync_job_documents"
+      # SharePoint integration (organization-wide, URLs kept for backwards compatibility)
+      get "organization_onedrive/status", to: "organization_sharepoint#status"
+      get "organization_onedrive/authorize", to: "organization_sharepoint#authorize"
+      get "organization_onedrive/callback", to: "organization_sharepoint#callback"
+      delete "organization_onedrive/disconnect", to: "organization_sharepoint#disconnect"
+      get "organization_onedrive/browse_folders", to: "organization_sharepoint#browse_folders"
+      post "organization_onedrive/create_root_folder", to: "organization_sharepoint#create_root_folder"
+      get "organization_onedrive/validate_folder", to: "organization_sharepoint#validate_folder"
+      patch "organization_onedrive/change_root_folder", to: "organization_sharepoint#change_root_folder"
+      post "organization_onedrive/create_job_folders", to: "organization_sharepoint#create_job_folders"
+      post "organization_onedrive/create_all_job_folders", to: "organization_sharepoint#create_all_job_folders"
+      get "organization_onedrive/job_folders", to: "organization_sharepoint#list_job_items"
+      post "organization_onedrive/upload", to: "organization_sharepoint#upload"
+      get "organization_onedrive/download", to: "organization_sharepoint#download"
+      get "organization_onedrive/folder_contents", to: "organization_sharepoint#folder_contents"
+      get "organization_onedrive/sharepoint_sites", to: "organization_sharepoint#sharepoint_sites"
+      post "organization_onedrive/use_sharepoint_site", to: "organization_sharepoint#use_sharepoint_site"
+      post "organization_onedrive/use_personal_drive", to: "organization_sharepoint#use_personal_drive"
+      post "organization_onedrive/sync_corporate_documents", to: "organization_sharepoint#sync_corporate_documents"
+      get "organization_onedrive/search", to: "organization_sharepoint#search"
+      get "organization_onedrive/preview_private_folders", to: "organization_sharepoint#preview_private_folders"
+      post "organization_onedrive/create_private_folders", to: "organization_sharepoint#create_private_folders"
+      post "organization_onedrive/copy_files", to: "organization_sharepoint#copy_files"
+      get "organization_onedrive/legacy_files", to: "organization_sharepoint#legacy_files"
+      post "organization_onedrive/import_legacy", to: "organization_sharepoint#import_legacy"
+      post "organization_onedrive/run_migration", to: "organization_sharepoint#run_migration"
+      get "organization_onedrive/job_all_files", to: "organization_sharepoint#job_all_files"
+      post "organization_onedrive/sync_job_documents", to: "organization_sharepoint#sync_job_documents"
 
       # AI document analysis endpoints
-      post "organization_onedrive/analyze_job_documents", to: "organization_onedrive#analyze_job_documents"
-      get "organization_onedrive/documents_needing_review", to: "organization_onedrive#documents_needing_review"
-      post "organization_onedrive/approve_document_rename", to: "organization_onedrive#approve_document_rename"
-      post "organization_onedrive/bulk_approve_renames", to: "organization_onedrive#bulk_approve_renames"
+      post "organization_onedrive/analyze_job_documents", to: "organization_sharepoint#analyze_job_documents"
+      get "organization_onedrive/documents_needing_review", to: "organization_sharepoint#documents_needing_review"
+      post "organization_onedrive/approve_document_rename", to: "organization_sharepoint#approve_document_rename"
+      post "organization_onedrive/bulk_approve_renames", to: "organization_sharepoint#bulk_approve_renames"
 
       # Organization-wide data stats
       get "organization/data_stats", to: "organization#data_stats"
@@ -1818,8 +1818,9 @@ Rails.application.routes.draw do
         end
       end
 
-      # Corporate OneDrive (document scanning for corporate entities)
-      resources :corporate_onedrive, only: [] do
+      # Corporate SharePoint (document scanning for corporate entities)
+      # URL kept as corporate_onedrive for backwards compatibility
+      resources :corporate_onedrive, only: [], controller: "corporate_sharepoint" do
         collection do
           get :status
           get :preview

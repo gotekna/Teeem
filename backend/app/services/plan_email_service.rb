@@ -66,7 +66,7 @@ class PlanEmailService
   def download_from_sharepoint(file_id)
     return nil if file_id.blank?
 
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     return nil unless credential&.valid_credential?
 
     client = MicrosoftGraphClient.new(credential)

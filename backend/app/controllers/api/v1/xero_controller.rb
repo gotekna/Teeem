@@ -1707,7 +1707,7 @@ module Api
           # Get SharePoint URL for Contacts folder
           sharepoint_contacts_url = nil
           begin
-            credential = OrganizationOneDriveCredential.active_credential
+            credential = OrganizationSharePointCredential.active_credential
             if credential&.metadata&.dig("site_web_url")
               settings = CorporateCompanySetting.first
               contacts_folder = settings&.contact_documents_path || "Contacts"

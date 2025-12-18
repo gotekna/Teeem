@@ -199,7 +199,7 @@ class UserMicrosoftToken < ApplicationRecord
     access_token
   end
 
-  # Compatibility with OrganizationOneDriveCredential interface
+  # Compatibility with OrganizationSharePointCredential interface
   # These are used by MicrosoftGraphClient when user tokens are used as a fallback
 
   def root_folder_id

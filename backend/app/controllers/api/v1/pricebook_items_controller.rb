@@ -733,7 +733,7 @@ module Api
 
         begin
           # Get OneDrive credentials
-          credential = OrganizationOneDriveCredential.first
+          credential = OrganizationSharePointCredential.first
           unless credential && credential.valid_credential?
             return render json: { error: "OneDrive not connected" }, status: :service_unavailable
           end

@@ -10,7 +10,7 @@ class ChatMessageSharepointUploadJob < ApplicationJob
 
     Rails.logger.info("[ChatMessageSharepointUpload] Uploading file for ChatMessage #{chat_message_id}")
 
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     unless credential
       Rails.logger.error("[ChatMessageSharepointUpload] No active OneDrive credential")
       return

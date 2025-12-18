@@ -300,7 +300,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     user_email = microsoft_token&.email || current_user.email
 
     # Get organization SharePoint credential
-    org_credential = OrganizationOneDriveCredential.active_credential
+    org_credential = OrganizationSharePointCredential.active_credential
     sharepoint_info = build_sharepoint_connection_info(org_credential)
 
     # Get personal OneDrive info (requires user's token)
@@ -468,10 +468,10 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     Rails.logger.info "[Microsoft Auth] Updating organization OneDrive credential..."
 
     # Deactivate any existing credentials
-    OrganizationOneDriveCredential.where(is_active: true).update_all(is_active: false)
+    OrganizationSharePointCredential.where(is_active: true).update_all(is_active: false)
 
     # Create new credential
-    credential = OrganizationOneDriveCredential.create!(
+    credential = OrganizationSharePointCredential.create!(
       access_token: tokens[:access_token],
       refresh_token: tokens[:refresh_token],
       token_expires_at: Time.current + tokens[:expires_in].to_i.seconds,

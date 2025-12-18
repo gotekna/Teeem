@@ -14,7 +14,7 @@ class JobDocumentMigrationService
 
   def initialize
     @credential = begin
-      cred = OrganizationOneDriveCredential.active_credential
+      cred = OrganizationSharePointCredential.active_credential
       # Try to access an encrypted field to verify decryption works
       cred&.access_token if cred
       cred

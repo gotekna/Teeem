@@ -1,6 +1,7 @@
 module Api
   module V1
-    class OneDriveController < ApplicationController
+    # RENAMED: OneDriveController → SharepointFilesController
+    class SharepointFilesController < ApplicationController
       before_action :set_job, only: [ :authorize, :callback, :status, :disconnect ]
 
       # GET /api/v1/onedrive/authorize?construction_id=123

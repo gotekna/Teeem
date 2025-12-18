@@ -1,6 +1,7 @@
 module Api
   module V1
-    class CorporateOnedriveController < ApplicationController
+    # RENAMED: CorporateOnedriveController → CorporateSharepointController
+    class CorporateSharepointController < ApplicationController
       skip_before_action :authorize_request, only: [ :import_documents ]
       before_action :verify_import_token, only: [ :import_documents ]
       before_action :set_credential, except: [ :import_documents ]
@@ -147,7 +148,7 @@ module Api
       private
 
       def set_credential
-        @credential = OrganizationOneDriveCredential.active_credential
+        @credential = OrganizationSharePointCredential.active_credential
       end
 
       def verify_import_token

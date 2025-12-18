@@ -1,25 +1,8 @@
-class OneDriveCredential < ApplicationRecord
-  belongs_to :job
+# frozen_string_literal: true
 
-  # Encrypt sensitive tokens
-  encrypts :access_token
-  encrypts :refresh_token
-
-  validates :job_id, uniqueness: true
-
-  # Check if token is expired or about to expire (within 5 minutes)
-  def token_expired?
-    return true if token_expires_at.nil?
-    token_expires_at <= 5.minutes.from_now
-  end
-
-  # Check if credential is valid and usable
-  def valid_credential?
-    access_token.present? && refresh_token.present? && !token_expired?
-  end
-
-  # Get the folder path for this job
-  def job_folder_path
-    folder_path || construction&.title
-  end
-end
+# BACKWARDS COMPATIBILITY ALIAS
+# This file exists for backwards compatibility during the OneDrive → SharePoint rename
+# All code should use SharePointCredential instead
+#
+# TODO: Remove this file after all references are updated
+OneDriveCredential = SharePointCredential

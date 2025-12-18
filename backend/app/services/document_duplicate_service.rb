@@ -225,7 +225,7 @@ class DocumentDuplicateService
     return nil unless doc.sharepoint_file_id.present?
 
     begin
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = OrganizationSharePointCredential.active_credential
       return nil unless credential
 
       client = MicrosoftGraphClient.new(credential)
@@ -413,7 +413,7 @@ class DocumentDuplicateService
 
     # Rename in SharePoint
     if doc.sharepoint_file_id.present?
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = OrganizationSharePointCredential.active_credential
       if credential
         client = MicrosoftGraphClient.new(credential)
         client.rename_file(doc.sharepoint_file_id, new_name)
@@ -453,7 +453,7 @@ class DocumentDuplicateService
     end
 
     begin
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = OrganizationSharePointCredential.active_credential
       return { error: "No active OneDrive credential" } unless credential
 
       client = MicrosoftGraphClient.new(credential)
@@ -554,7 +554,7 @@ class DocumentDuplicateService
       begin
         # Rename in SharePoint
         if doc.sharepoint_file_id.present?
-          credential = OrganizationOneDriveCredential.active_credential
+          credential = OrganizationSharePointCredential.active_credential
           if credential
             client = MicrosoftGraphClient.new(credential)
             client.rename_file(doc.sharepoint_file_id, new_name)
@@ -582,7 +582,7 @@ class DocumentDuplicateService
       # Delete from SharePoint
       if doc.sharepoint_file_id.present?
         begin
-          credential = OrganizationOneDriveCredential.active_credential
+          credential = OrganizationSharePointCredential.active_credential
           if credential
             client = MicrosoftGraphClient.new(credential)
             client.delete_file(doc.sharepoint_file_id)
@@ -624,7 +624,7 @@ class DocumentDuplicateService
 
     # Rename in SharePoint
     if doc.sharepoint_file_id.present?
-      credential = OrganizationOneDriveCredential.active_credential
+      credential = OrganizationSharePointCredential.active_credential
       if credential
         client = MicrosoftGraphClient.new(credential)
         client.rename_file(doc.sharepoint_file_id, new_name)

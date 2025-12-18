@@ -354,6 +354,8 @@ function TypesSection() {
     notes: "",
     sequence_order: 0,
     is_active: true,
+    short_name_template: "{Code}-{Name}",
+    long_name_template: "{JobCode}-{Code}-{Name}-Rev{Rev}",
   });
 
   React.useEffect(() => {
@@ -384,6 +386,8 @@ function TypesSection() {
       notes: "",
       sequence_order: types.length,
       is_active: true,
+      short_name_template: "{Code}-{Name}",
+      long_name_template: "{JobCode}-{Code}-{Name}-Rev{Rev}",
     });
     setEditing(null);
     setShowDialog(true);
@@ -398,6 +402,8 @@ function TypesSection() {
       notes: type.notes || "",
       sequence_order: type.sequence_order,
       is_active: type.is_active,
+      short_name_template: type.short_name_template || "{Code}-{Name}",
+      long_name_template: type.long_name_template || "{JobCode}-{Code}-{Name}-Rev{Rev}",
     });
     setEditing(type);
     setShowDialog(true);
@@ -612,6 +618,51 @@ function TypesSection() {
                 placeholder="Optional notes"
               />
             </div>
+
+            {/* Naming Templates */}
+            <div className="border-t pt-4 mt-4">
+              <p className="text-sm font-medium mb-3">File Naming Templates</p>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Short Name Template</Label>
+                  <Input
+                    value={formData.short_name_template}
+                    onChange={(e) => setFormData({ ...formData, short_name_template: e.target.value })}
+                    placeholder="{Code}-{Name}"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Preview: {formData.short_name_template
+                      .replace("{Code}", formData.code || "01")
+                      .replace("{Name}", formData.name || "PERSPECTIVE")
+                      .replace("{Variant}", "a")}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Long Name Template (SharePoint filename)</Label>
+                  <Input
+                    value={formData.long_name_template}
+                    onChange={(e) => setFormData({ ...formData, long_name_template: e.target.value })}
+                    placeholder="{JobCode}-{Code}-{Name}-Rev{Rev}"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Preview: {formData.long_name_template
+                      .replace("{JobCode}", "EB2401")
+                      .replace("{Code}", formData.code || "01")
+                      .replace("{Name}", formData.name || "PERSPECTIVE")
+                      .replace("{Rev}", "A")
+                      .replace("{Date}", new Date().toISOString().slice(0, 10).replace(/-/g, ""))
+                      .replace("{Variant}", "a")}
+                  </p>
+                </div>
+
+                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                  <strong>Placeholders:</strong> {"{Code}"}, {"{Name}"}, {"{JobCode}"}, {"{Rev}"}, {"{Date}"}, {"{Variant}"}
+                </div>
+              </div>
+            </div>
+
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Checkbox

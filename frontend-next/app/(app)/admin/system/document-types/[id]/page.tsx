@@ -24,6 +24,22 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import MultipleSelector from "@/components/ui/multiple-selector";
 
+// Token Components - SSoT for placeholder handling
+import { TokenBadge } from "@/components/ui/tokens";
+import {
+  type PlaceholderToken,
+  type PlaceholderScope,
+  COMPANY_PLACEHOLDERS,
+  JOB_PLACEHOLDERS,
+  DATE_PLACEHOLDERS,
+  DOCUMENT_PLACEHOLDERS,
+  parseTemplate,
+  buildTemplate,
+  getPlaceholderColor,
+  getShortToLongMap,
+  PLACEHOLDER_COLOR_CLASSES,
+} from "@/lib/placeholders";
+
 // Available folders/tabs
 const FOLDER_OPTIONS = [
   "ADVICE", "ASIC", "ASSETS", "ATO", "BANK", "COMPANY",
@@ -45,40 +61,16 @@ const FILE_EXTENSION_OPTIONS = [
   ".txt", ".csv", ".zip", ".msg", ".eml"
 ];
 
-// Placeholder definitions with scope (DocType placeholders added dynamically)
-type PlaceholderItem = { code: string; example: string; color: string; longCode?: string; longExample?: string; label?: string };
-
-const BASE_PLACEHOLDERS: { company: PlaceholderItem[]; job: PlaceholderItem[] } = {
-  company: [
-    { code: "{CompanyCode}", example: "TH", longCode: "{CompanyName}", longExample: "Tekna Homes", color: "purple" },
-    { code: "{CompanyGroup}", example: "Tekna Group", color: "purple" },
-    { code: "{LoanID}", example: "L001", longCode: "{LoanName}", longExample: "Loan to ABC Trust", color: "purple" },
-    { code: "{AssetCode}", example: "PROP1", longCode: "{AssetName}", longExample: "123 Main Street", color: "purple" },
-    { code: "{FY}", label: "FY{FY}", example: "FY25", color: "purple" },
-    { code: "{Period}", example: "Q1", longCode: "{PeriodLong}", longExample: "Q1 Jul-Sep", color: "purple" },
-    { code: "{Year}", example: "25", longCode: "{YearLong}", longExample: "2025", color: "purple" },
-    { code: "{Day}", example: "09", longCode: "{DayLong}", longExample: "9th", color: "purple" },
-    { code: "{MonthYear}", example: "Oct-25", longCode: "{MonthYearLong}", longExample: "October 2025", color: "purple" },
-    { code: "{YYYYMMDD}", example: "2025-10-09", longCode: "{DateISO}", longExample: "2025-10-09", color: "purple" },
-    { code: "{DDMMYYYY}", example: "09-10-2025", longCode: "{DateAU}", longExample: "9 October 2025", color: "purple" },
-    { code: "{LenderCode}", example: "ABC", longCode: "{LenderName}", longExample: "ABC Property Trust", color: "purple" },
-    { code: "{Date}", example: "9-12-25", color: "purple" },
-    { code: "{Description}", example: "Example", color: "purple" },
-    { code: "{Folder}", example: "ATO", color: "purple" },
-    { code: "{BankCode}", example: "NAB", color: "purple" },
-    { code: "{BSB}", example: "082-123", color: "purple" },
-    { code: "{BankNumber}", example: "12345678", color: "purple" },
-  ],
-  job: [
-    { code: "{JobCode}", example: "J069", color: "orange" },
-    { code: "{JobTitle}", example: "83 West Ridge", color: "orange" },
-    { code: "{CertType}", example: "Occupancy", color: "orange" },
-    { code: "{Consultant}", example: "ABC Eng", color: "orange" },
-    { code: "{Number}", example: "01", color: "orange" },
-    { code: "{Date}", example: "9-12-25", color: "orange" },
-    { code: "{Description}", example: "Example", color: "orange" },
-    { code: "{Category}", example: "Plans", color: "orange" },
-  ]
+// Placeholder scope mapping - uses SSoT from lib/placeholders.ts
+// Note: DocType placeholder is added dynamically based on current document type
+const getBasePlaceholders = (scope: string): PlaceholderToken[] => {
+  if (scope === "job") {
+    return [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS];
+  } else if (scope === "both") {
+    return [...COMPANY_PLACEHOLDERS, ...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS];
+  }
+  // Default: company scope
+  return [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS, ...DOCUMENT_PLACEHOLDERS];
 };
 
 interface DocumentType {
@@ -223,17 +215,13 @@ export default function DocumentTypeDetailPage() {
     }
   }, [documentType?.id]); // Only run when document type changes
 
-  // Map short codes to long codes
+  // Map short codes to long codes - uses SSoT from lib/placeholders.ts
   const shortToLongMap: Record<string, string> = {
-    // DocType placeholder mapping
+    // DocType placeholder mapping (added here as it's dynamic)
     "{DocTypeCode}": "{DocTypeName}",
+    // Get all other mappings from SSoT
+    ...getShortToLongMap(),
   };
-  const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
-  allPlaceholders.forEach((p: any) => {
-    if (p.longCode) {
-      shortToLongMap[p.code] = p.longCode;
-    }
-  });
 
   // Convert short placeholders to long versions
   const convertToLongCodes = (value: string): string => {
@@ -392,33 +380,29 @@ export default function DocumentTypeDetailPage() {
     return documentType.name.replace(/^[A-Z0-9]+\s*-\s*/, "").trim();
   };
 
-  // Get placeholders based on scope
-  const getAvailablePlaceholders = () => {
+  // Get placeholders based on scope - uses SSoT from lib/placeholders.ts
+  const getAvailablePlaceholders = (): PlaceholderToken[] => {
     const scope = documentType?.scope || "company";
 
     // Dynamic DocType placeholder based on current document type
-    const docTypePlaceholder = {
+    const docTypePlaceholder: PlaceholderToken = {
       code: "{DocTypeCode}",
       example: documentType?.abbreviation || "AA",
       longCode: "{DocTypeName}",
       longExample: getCleanDocTypeName() || "Accountant Advice",
-      color: "blue" as const
+      color: "blue"
     };
 
-    let basePlaceholders;
-    if (scope === "both") {
-      basePlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
-    } else {
-      basePlaceholders = BASE_PLACEHOLDERS[scope as keyof typeof BASE_PLACEHOLDERS] || BASE_PLACEHOLDERS.company;
-    }
+    // Get base placeholders from SSoT
+    const basePlaceholders = getBasePlaceholders(scope);
 
     // Add DocType placeholder at the beginning
-    const placeholders = [docTypePlaceholder, ...basePlaceholders];
+    const placeholders: PlaceholderToken[] = [docTypePlaceholder, ...basePlaceholders];
 
     // Filter by search term
     if (placeholderSearch.trim()) {
       const search = placeholderSearch.toLowerCase();
-      return placeholders.filter((p: any) =>
+      return placeholders.filter((p) =>
         p.code.toLowerCase().includes(search) ||
         p.longCode?.toLowerCase().includes(search) ||
         p.example?.toLowerCase().includes(search) ||
@@ -429,37 +413,17 @@ export default function DocumentTypeDetailPage() {
     return placeholders;
   };
 
-  // Parse a field value into tokens (text and placeholders)
-  // Filters out whitespace-only text tokens - they don't need to be shown
+  // Parse a field value into tokens - uses SSoT parseTemplate from lib/placeholders.ts
+  // Filters out whitespace-only text tokens for cleaner UI display
   const parseTokens = (value: string): { type: "text" | "placeholder"; value: string }[] => {
     if (!value) return [];
-    const tokens: { type: "text" | "placeholder"; value: string }[] = [];
-    const regex = /(\{[^}]+\})/g;
-    let lastIndex = 0;
-    let match;
-
-    while ((match = regex.exec(value)) !== null) {
-      // Add text before placeholder (only if not just whitespace)
-      if (match.index > lastIndex) {
-        const textValue = value.slice(lastIndex, match.index);
-        if (textValue.trim()) {
-          tokens.push({ type: "text", value: textValue.trim() });
-        }
-      }
-      // Add placeholder
-      tokens.push({ type: "placeholder", value: match[0] });
-      lastIndex = regex.lastIndex;
-    }
-
-    // Add remaining text (only if not just whitespace)
-    if (lastIndex < value.length) {
-      const textValue = value.slice(lastIndex);
-      if (textValue.trim()) {
-        tokens.push({ type: "text", value: textValue.trim() });
-      }
-    }
-
-    return tokens;
+    return parseTemplate(value)
+      .map(token => ({
+        ...token,
+        // Trim text tokens for cleaner display
+        value: token.type === "text" ? token.value.trim() : token.value,
+      }))
+      .filter(token => token.value.length > 0); // Remove empty tokens
   };
 
   // Rebuild field value from tokens with smart spacing
@@ -487,15 +451,14 @@ export default function DocumentTypeDetailPage() {
     }).join("").trim();
   };
 
-  // Get color for placeholder
-  const getPlaceholderColor = (placeholder: string): string => {
-    // DocType placeholders are blue
+  // Get color for placeholder - wraps SSoT function with DocType special case
+  const getTokenColor = (placeholder: string): string => {
+    // DocType placeholders are blue (dynamic, not in SSoT)
     if (placeholder === "{DocTypeCode}" || placeholder === "{DocTypeName}") {
       return "blue";
     }
-    const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
-    const found = allPlaceholders.find(p => p.code === placeholder || p.longCode === placeholder);
-    return found?.color || "purple";
+    // Use SSoT function for all other placeholders
+    return getPlaceholderColor(placeholder);
   };
 
   // Generate preview by replacing placeholders with example values
@@ -997,11 +960,11 @@ export default function DocumentTypeDetailPage() {
                       <Badge
                         className={cn(
                           "font-mono text-xs px-3 py-1.5 select-none",
-                          getPlaceholderColor(token.value) === "purple" &&
+                          getTokenColor(token.value) === "purple" &&
                             "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-                          getPlaceholderColor(token.value) === "orange" &&
+                          getTokenColor(token.value) === "orange" &&
                             "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-                          getPlaceholderColor(token.value) === "blue" &&
+                          getTokenColor(token.value) === "blue" &&
                             "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
                         )}
                       >
@@ -1181,11 +1144,11 @@ export default function DocumentTypeDetailPage() {
                       <Badge
                         className={cn(
                           "font-mono text-xs px-3 py-1.5 select-none",
-                          getPlaceholderColor(token.value) === "purple" &&
+                          getTokenColor(token.value) === "purple" &&
                             "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300 border-purple-300 dark:border-purple-700",
-                          getPlaceholderColor(token.value) === "orange" &&
+                          getTokenColor(token.value) === "orange" &&
                             "bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900 dark:text-orange-300 border-orange-300 dark:border-orange-700",
-                          getPlaceholderColor(token.value) === "blue" &&
+                          getTokenColor(token.value) === "blue" &&
                             "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 border-blue-300 dark:border-blue-700"
                         )}
                       >

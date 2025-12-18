@@ -32,7 +32,7 @@ class XeroDocumentBackfillJob < ApplicationJob
     return if total_count.zero?
 
     # Get SharePoint client
-    credential = OrganizationOneDriveCredential.active_credential
+    credential = OrganizationSharePointCredential.active_credential
     unless credential
       Rails.logger.error("[XeroDocumentBackfill] No active OneDrive credential found")
       return

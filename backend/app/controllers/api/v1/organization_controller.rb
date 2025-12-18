@@ -197,9 +197,9 @@ module Api
         end
 
         # SharePoint stats
-        # Note: OrganizationOneDriveCredential has drive_name, root_folder_path but not site_url/site_path
+        # Note: OrganizationSharePointCredential has drive_name, root_folder_path but not site_url/site_path
         # Note: company_documents uses last_modified_at (not synced_at) for OneDrive sync timestamps
-        onedrive_credential = OrganizationOneDriveCredential.active_credential rescue nil
+        onedrive_credential = OrganizationSharePointCredential.active_credential rescue nil
         sharepoint_stats = {
           connected: onedrive_credential.present?,
           site_url: onedrive_credential&.drive_name || "SharePoint",

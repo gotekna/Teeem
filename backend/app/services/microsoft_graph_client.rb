@@ -42,7 +42,7 @@ class MicrosoftGraphClient
     end
 
     # Fall back to legacy model
-    OrganizationOneDriveCredential.active_credential
+    OrganizationSharePointCredential.active_credential
   end
 
   private

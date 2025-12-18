@@ -577,7 +577,7 @@ module Api
       # GET /api/v1/jobs/:id/plan_set
       # Get the list of plans in the 04 Plans folder
       def plan_set
-        credential = OrganizationOneDriveCredential.active_credential
+        credential = OrganizationSharePointCredential.active_credential
         unless credential
           return render json: { success: false, error: "OneDrive not connected" }, status: :unprocessable_entity
         end

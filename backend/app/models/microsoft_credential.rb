@@ -4,7 +4,7 @@
 #
 # Replaces 6 separate credential models:
 # - OrganizationMicrosoftAppCredential (app credentials - client credentials flow)
-# - OrganizationOneDriveCredential (org-level delegated)
+# - OrganizationSharePointCredential (org-level delegated)
 # - OrganizationOutlookCredential (org-level delegated)
 # - UserMicrosoftToken (user-level delegated)
 # - UserOutlookCredential (user-level delegated, legacy)
@@ -312,7 +312,7 @@ class MicrosoftCredential < ApplicationRecord
     app_credentials.org_level.connected.first
   end
 
-  # Organization-level delegated credential (legacy: OrganizationOneDriveCredential)
+  # Organization-level delegated credential (legacy: OrganizationSharePointCredential)
   def self.active_delegated_credential
     delegated_credentials.org_level.connected.first
   end
