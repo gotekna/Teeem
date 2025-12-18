@@ -522,10 +522,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[400px] p-0">
+                <PopoverContent className="w-[450px] p-0">
                   <Command>
                     <CommandInput placeholder="Search by company or employee name..." />
-                    <CommandList>
+                    <CommandList className="max-h-[350px]">
                       <CommandEmpty>No supplier found.</CommandEmpty>
                       <CommandGroup>
                         {contacts.map((contact) => {
@@ -543,22 +543,31 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                                 setSelectedContact(contact);
                                 setContactOpen(false);
                               }}
+                              className="flex-col items-start py-2"
                             >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4 shrink-0",
-                                  selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              <div className="flex flex-col min-w-0">
-                                <span className="truncate">{contact.display_name}</span>
-                                {contact.employee_names && contact.employee_names.length > 0 && (
-                                  <span className="text-xs text-muted-foreground truncate">
-                                    {contact.employee_names.slice(0, 3).join(", ")}
-                                    {(contact.employee_count || 0) > 3 && ` +${(contact.employee_count || 0) - 3} more`}
-                                  </span>
-                                )}
+                              <div className="flex items-center w-full">
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4 shrink-0",
+                                    selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                <span className="font-medium">{contact.display_name}</span>
                               </div>
+                              {contact.employee_names && contact.employee_names.length > 0 && (
+                                <div className="ml-6 mt-1 space-y-0.5">
+                                  {contact.employee_names.slice(0, 5).map((name, idx) => (
+                                    <div key={idx} className="text-xs text-muted-foreground pl-2 border-l border-muted">
+                                      {name}
+                                    </div>
+                                  ))}
+                                  {(contact.employee_count || 0) > 5 && (
+                                    <div className="text-xs text-muted-foreground/70 pl-2 italic">
+                                      +{(contact.employee_count || 0) - 5} more employees
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </CommandItem>
                           );
                         })}
