@@ -336,6 +336,11 @@ Rails.application.routes.draw do
           get :sharepoint_files
           get :ssot  # SSoT templates from TeknaDocumentGenerator
           get "ssot/:template_key", to: "document_templates#ssot_show", as: :ssot_template
+          put "ssot/:template_key", to: "document_templates#ssot_update"
+          # Layout endpoints for editor
+          get :layouts
+          get "layouts/:name", to: "document_templates#layout_show", as: :layout
+          put "layouts/:name", to: "document_templates#layout_update"
         end
         member do
           get :preview

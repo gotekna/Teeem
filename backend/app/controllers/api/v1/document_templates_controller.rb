@@ -130,9 +130,166 @@ class Api::V1::DocumentTemplatesController < ApplicationController
         layout_file_path: layout_path.to_s,
         layout_content: layout_content,
         # Available layouts
-        available_layouts: %w[tekna qbcc_official none]
+        available_layouts: list_available_layouts
       }
     }
+  end
+
+  # PUT /api/v1/document_templates/ssot/:template_key
+  # Update template content (save to file)
+  def ssot_update
+    key = params[:template_key].to_sym
+
+    unless TeknaDocumentGenerator::TEMPLATES.key?(key)
+      return render json: {
+        success: false,
+        error: "Template not found: #{params[:template_key]}"
+      }, status: :not_found
+    end
+
+    config = TeknaDocumentGenerator::TEMPLATES[key]
+
+    # Don't allow editing SharePoint-sourced templates
+    if config[:source] == :sharepoint
+      return render json: {
+        success: false,
+        error: "Cannot edit SharePoint-sourced templates"
+      }, status: :unprocessable_entity
+    end
+
+    updated = []
+    errors = []
+
+    # Update template content if provided
+    if params[:template_content].present?
+      template_path = Rails.root.join("app/views/tekna_documents/#{config[:path]}.html.erb")
+
+      begin
+        # Ensure directory exists
+        FileUtils.mkdir_p(File.dirname(template_path))
+
+        # Backup existing file
+        if File.exist?(template_path)
+          backup_path = "#{template_path}.backup.#{Time.current.strftime('%Y%m%d%H%M%S')}"
+          FileUtils.cp(template_path, backup_path)
+        end
+
+        # Write new content
+        File.write(template_path, params[:template_content])
+        updated << "template"
+        Rails.logger.info "[TemplateEditor] Updated template: #{template_path}"
+      rescue StandardError => e
+        errors << "Failed to save template: #{e.message}"
+        Rails.logger.error "[TemplateEditor] Error saving template #{template_path}: #{e.message}"
+      end
+    end
+
+    if errors.any?
+      render json: { success: false, errors: errors }, status: :unprocessable_entity
+    else
+      render json: {
+        success: true,
+        message: "Updated: #{updated.join(', ')}",
+        updated: updated
+      }
+    end
+  end
+
+  # GET /api/v1/document_templates/layouts
+  # List all available layouts with their content
+  def layouts
+    layouts_dir = Rails.root.join("app/views/tekna_documents/layouts")
+    layouts = []
+
+    if Dir.exist?(layouts_dir)
+      Dir.glob("#{layouts_dir}/*.html.erb").each do |file|
+        name = File.basename(file, ".html.erb")
+        content = File.read(file)
+
+        layouts << {
+          name: name,
+          display_name: name.titleize,
+          file_path: file,
+          content: content,
+          description: layout_description(name)
+        }
+      end
+    end
+
+    render json: {
+      success: true,
+      data: layouts.sort_by { |l| l[:name] }
+    }
+  end
+
+  # GET /api/v1/document_templates/layouts/:name
+  # Get a specific layout's content
+  def layout_show
+    name = params[:name].to_s.gsub(/[^a-z0-9_-]/i, "")
+    layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{name}.html.erb")
+
+    unless File.exist?(layout_path)
+      return render json: {
+        success: false,
+        error: "Layout not found: #{name}"
+      }, status: :not_found
+    end
+
+    render json: {
+      success: true,
+      data: {
+        name: name,
+        display_name: name.titleize,
+        file_path: layout_path.to_s,
+        content: File.read(layout_path),
+        description: layout_description(name),
+        # Templates using this layout
+        templates_using: TeknaDocumentGenerator::TEMPLATES.select { |_, c| c[:layout] == name }.keys.map(&:to_s)
+      }
+    }
+  end
+
+  # PUT /api/v1/document_templates/layouts/:name
+  # Update a layout's content
+  def layout_update
+    name = params[:name].to_s.gsub(/[^a-z0-9_-]/i, "")
+    layout_path = Rails.root.join("app/views/tekna_documents/layouts/#{name}.html.erb")
+
+    unless File.exist?(layout_path)
+      return render json: {
+        success: false,
+        error: "Layout not found: #{name}"
+      }, status: :not_found
+    end
+
+    unless params[:content].present?
+      return render json: {
+        success: false,
+        error: "Content is required"
+      }, status: :unprocessable_entity
+    end
+
+    begin
+      # Backup existing file
+      backup_path = "#{layout_path}.backup.#{Time.current.strftime('%Y%m%d%H%M%S')}"
+      FileUtils.cp(layout_path, backup_path)
+
+      # Write new content
+      File.write(layout_path, params[:content])
+      Rails.logger.info "[TemplateEditor] Updated layout: #{layout_path}"
+
+      render json: {
+        success: true,
+        message: "Layout '#{name}' updated successfully",
+        backup_path: backup_path
+      }
+    rescue StandardError => e
+      Rails.logger.error "[TemplateEditor] Error saving layout #{layout_path}: #{e.message}"
+      render json: {
+        success: false,
+        error: "Failed to save layout: #{e.message}"
+      }, status: :unprocessable_entity
+    end
   end
 
   # GET /api/v1/document_templates/:id
@@ -522,5 +679,29 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     end
 
     json
+  end
+
+  # List all available layouts from the layouts directory
+  def list_available_layouts
+    layouts_dir = Rails.root.join("app/views/tekna_documents/layouts")
+    return [] unless Dir.exist?(layouts_dir)
+
+    Dir.glob("#{layouts_dir}/*.html.erb").map do |file|
+      File.basename(file, ".html.erb")
+    end.sort
+  end
+
+  # Get description for a layout
+  def layout_description(name)
+    case name
+    when "tekna"
+      "Tekna branded layout with logo, header and footer. Used for Welcome Letter, Specs, etc."
+    when "qbcc_official"
+      "Plain layout matching official QBCC document format. No branding."
+    when "none"
+      "No layout - used for passthrough documents"
+    else
+      "Custom layout"
+    end
   end
 end

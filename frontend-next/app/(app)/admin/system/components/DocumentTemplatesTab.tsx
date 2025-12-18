@@ -19,9 +19,11 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TemplateEditor } from "./TemplateEditor";
 
 // SSoT Templates from TeknaDocumentGenerator (the source of truth)
 interface SsotTemplate {
@@ -70,6 +72,7 @@ export function DocumentTemplatesTab() {
   const [previewHtml, setPreviewHtml] = React.useState<string>("");
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<string>("ssot");
+  const [editingTemplate, setEditingTemplate] = React.useState<string | null>(null);
 
   const apiUrl = getApiBaseUrl();
 
@@ -91,8 +94,8 @@ export function DocumentTemplatesTab() {
 
       if (response?.success && response.data) {
         // Separate SSoT templates from legacy
-        const ssot = response.data.filter((t): t is SsotTemplate => 'is_ssot' in t && t.is_ssot);
-        const legacy = response.data.filter((t): t is LegacyTemplate => 'is_legacy' in t && t.is_legacy);
+        const ssot = response.data.filter((t): t is SsotTemplate => 'is_ssot' in t && t.is_ssot === true);
+        const legacy = response.data.filter((t): t is LegacyTemplate => 'is_legacy' in t && t.is_legacy === true);
         setSsotTemplates(ssot);
         setLegacyTemplates(legacy);
       }
@@ -186,6 +189,16 @@ export function DocumentTemplatesTab() {
     );
   }
 
+  // If editing a template, show the editor
+  if (editingTemplate) {
+    return (
+      <TemplateEditor
+        templateKey={editingTemplate}
+        onClose={() => setEditingTemplate(null)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -274,17 +287,19 @@ export function DocumentTemplatesTab() {
                 {ssotTemplates.map((template) => {
                   const Icon = getTemplateTypeIcon(template.template_type);
                   return (
-                    <button
+                    <div
                       key={template.id}
-                      onClick={() => loadPreview(template)}
                       className={cn(
-                        "w-full flex items-center justify-between p-3 rounded-md text-left transition-colors",
+                        "w-full flex items-center justify-between p-3 rounded-md transition-colors",
                         selectedTemplate?.template_key === template.template_key
                           ? "bg-primary/10 border border-primary/20"
                           : "hover:bg-muted/50"
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => loadPreview(template)}
+                        className="flex items-center gap-3 flex-1 text-left"
+                      >
                         <Icon className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <div className="font-medium text-sm flex items-center gap-2">
@@ -294,12 +309,24 @@ export function DocumentTemplatesTab() {
                             {template.template_key} • {template.category}
                           </div>
                         </div>
-                      </div>
+                      </button>
                       <div className="flex items-center gap-2">
                         {getLayoutBadge(template.layout, template.qbcc_required)}
+                        {template.template_type === "html" && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingTemplate(template.template_key);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        )}
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -373,17 +400,19 @@ export function DocumentTemplatesTab() {
                   <CardContent className="pt-0">
                     <div className="space-y-1">
                       {group.templates.map((template) => (
-                        <button
+                        <div
                           key={template.template_key}
-                          onClick={() => loadPreview(template)}
                           className={cn(
-                            "w-full flex items-center justify-between p-3 rounded-md text-left transition-colors",
+                            "w-full flex items-center justify-between p-3 rounded-md transition-colors",
                             selectedTemplate?.template_key === template.template_key
                               ? "bg-primary/10 border border-primary/20"
                               : "hover:bg-muted/50"
                           )}
                         >
-                          <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => loadPreview(template)}
+                            className="flex items-center gap-3 flex-1 text-left"
+                          >
                             <FileText className="h-4 w-4 text-muted-foreground" />
                             <div>
                               <div className="font-medium text-sm">{template.name}</div>
@@ -391,12 +420,24 @@ export function DocumentTemplatesTab() {
                                 {template.category}
                               </div>
                             </div>
-                          </div>
+                          </button>
                           <div className="flex items-center gap-2">
                             {getLayoutBadge(template.layout, template.qbcc_required)}
+                            {template.template_type === "html" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingTemplate(template.template_key);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            )}
                             <ChevronRight className="h-4 w-4 text-muted-foreground" />
                           </div>
-                        </button>
+                        </div>
                       ))}
                     </div>
                   </CardContent>
@@ -421,6 +462,16 @@ export function DocumentTemplatesTab() {
                     </div>
                     {selectedTemplate && (
                       <div className="flex gap-2">
+                        {selectedTemplate.template_type === "html" && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => setEditingTemplate(selectedTemplate.template_key)}
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
