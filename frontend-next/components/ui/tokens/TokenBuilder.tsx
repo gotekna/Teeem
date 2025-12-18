@@ -259,10 +259,10 @@ export function TokenBuilder({
     if (!value) {
       onChange(code);
     } else {
-      // Auto-add space if value doesn't end with space or separator
+      // Auto-add space unless value ends with space or separator
       const lastChar = value.slice(-1);
-      const needsSpace = lastChar !== " " && lastChar !== "-" && lastChar !== "_" && lastChar !== "/";
-      const newValue = needsSpace ? `${value} ${code}` : `${value}${code}`;
+      const noSpaceNeeded = lastChar === " " || lastChar === "-" || lastChar === "_" || lastChar === "/" || lastChar === "(";
+      const newValue = noSpaceNeeded ? `${value}${code}` : `${value} ${code}`;
       onChange(newValue);
     }
   };
