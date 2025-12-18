@@ -228,6 +228,16 @@ export function Sidebar() {
       } catch (error) {
         console.debug("Failed to load bill inbox badge counts:", error);
       }
+
+      try {
+        // Load pending plans count (for Plans under Documents)
+        const plansResponse = await api.get<{ pending_count: number }>(
+          "/api/v1/plan_folder_scans/pending_count"
+        );
+        setBadges(prev => ({ ...prev, plans_pending: plansResponse.pending_count || 0 }));
+      } catch (error) {
+        console.debug("Failed to load plans pending badge counts:", error);
+      }
     };
 
     if (isAuthenticated) {

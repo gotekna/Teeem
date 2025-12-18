@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_071712) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073043) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3837,6 +3837,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_071712) do
     t.index ["plan_type_id"], name: "index_plan_category_plan_types_on_plan_type_id"
   end
 
+  create_table "plan_folder_scans", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "sharepoint_file_id", null: false
+    t.string "file_name"
+    t.datetime "file_modified_at"
+    t.integer "file_size"
+    t.string "status", default: "pending"
+    t.bigint "job_plan_id"
+    t.text "error_message"
+    t.datetime "processed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "status"], name: "index_plan_folder_scans_on_job_id_and_status"
+    t.index ["job_id"], name: "index_plan_folder_scans_on_job_id"
+    t.index ["job_plan_id"], name: "index_plan_folder_scans_on_job_plan_id"
+    t.index ["sharepoint_file_id"], name: "index_plan_folder_scans_on_sharepoint_file_id", unique: true
+    t.index ["status"], name: "index_plan_folder_scans_on_status"
+  end
+
   create_table "plan_identification_rules", force: :cascade do |t|
     t.string "rule_type", null: false
     t.string "match_text", null: false
@@ -6255,6 +6274,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_071712) do
   add_foreign_key "payments", "users", column: "created_by_id"
   add_foreign_key "plan_category_plan_types", "plan_categories"
   add_foreign_key "plan_category_plan_types", "plan_types"
+  add_foreign_key "plan_folder_scans", "job_plans"
+  add_foreign_key "plan_folder_scans", "jobs"
   add_foreign_key "plan_identification_rules", "plan_types"
   add_foreign_key "plan_identification_rules", "users", column: "created_by_id"
   add_foreign_key "plan_identifications", "job_plans"

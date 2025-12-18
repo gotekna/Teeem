@@ -25,6 +25,8 @@ import {
   ChevronDown,
   ChevronRight,
   Briefcase,
+  MapPin,
+  FileText,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -32,8 +34,16 @@ interface Contact {
   id: number;
   display_name?: string;
   company_name?: string;
+  company_name_or_trust?: string;
   email?: string;
   mobile_phone?: string;
+  phone?: string;
+  office_phone?: string;
+  address?: string;
+  postcode?: string;
+  entity_type?: string;
+  abn?: string;
+  acn?: string;
 }
 
 interface JobContact {
@@ -583,7 +593,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                 const displayName =
                   contact.contact?.display_name || contact.contact?.company_name || "Unknown";
                 const email = contact.contact?.email;
-                const mobile = contact.contact?.mobile_phone;
+                const mobile = contact.contact?.mobile_phone || contact.contact?.office_phone || contact.contact?.phone;
                 const isPrimary = contact.primary;
 
                 return (
@@ -681,9 +691,14 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                               <CardContent className="p-4 space-y-2">
                                 <p className="font-medium text-sm">{displayName}</p>
                                 <Badge className={getRoleBadgeClasses(role.color)}>{role.label}</Badge>
+                                {contact.contact?.entity_type && contact.contact.entity_type !== 'person' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {contact.contact.entity_type.replace('_', ' ')}
+                                  </Badge>
+                                )}
                                 {email && (
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Mail className="h-3.5 w-3.5" />
+                                    <Mail className="h-3.5 w-3.5 shrink-0" />
                                     <a href={`mailto:${email}`} className="hover:text-primary">
                                       {email}
                                     </a>
@@ -691,15 +706,70 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                                 )}
                                 {mobile && (
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                    <Phone className="h-3.5 w-3.5" />
+                                    <Phone className="h-3.5 w-3.5 shrink-0" />
                                     <a href={`tel:${mobile}`} className="hover:text-primary">
                                       {mobile}
                                     </a>
                                   </div>
                                 )}
+                                {contact.contact?.address && (
+                                  <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                                    <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                    <span>
+                                      {contact.contact.address}
+                                      {contact.contact.postcode && ` ${contact.contact.postcode}`}
+                                    </span>
+                                  </div>
+                                )}
                               </CardContent>
                             </Card>
                           </div>
+
+                          {/* Contract Info (for clients) */}
+                          {role.key === 'client' && (
+                            <div>
+                              <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                Contract Info
+                              </h4>
+                              <Card>
+                                <CardContent className="p-4 space-y-2 text-xs">
+                                  {contact.contact?.entity_type === 'company' && (
+                                    <>
+                                      {contact.contact.acn && (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">ACN:</span>
+                                          <span className="font-mono">{contact.contact.acn}</span>
+                                        </div>
+                                      )}
+                                      {contact.contact.abn && (
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">ABN:</span>
+                                          <span className="font-mono">{contact.contact.abn}</span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                  {contact.contact?.entity_type === 'trust' && (
+                                    <div className="text-muted-foreground">
+                                      Trust - check trustee in Related Contacts
+                                    </div>
+                                  )}
+                                  {(!contact.contact?.address) && (
+                                    <div className="text-amber-600 dark:text-amber-400">
+                                      ⚠️ No address - required for contract
+                                    </div>
+                                  )}
+                                  {(!contact.contact?.entity_type || contact.contact.entity_type === 'person') &&
+                                   !contact.contact?.abn && !contact.contact?.acn && (
+                                    <div className="text-muted-foreground">
+                                      Individual (person)
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            </div>
+                          )}
 
                           {/* Related Contacts */}
                           <div>

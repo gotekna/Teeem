@@ -16,6 +16,18 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # Plan Folder Scans (for Revit plan import workflow)
+      resources :plan_folder_scans, only: [:index, :destroy] do
+        collection do
+          get :pending_count  # GET /api/v1/plan_folder_scans/pending_count - for nav badge
+          post :scan_all      # POST /api/v1/plan_folder_scans/scan_all - scan all job folders
+        end
+        member do
+          post :process_scan  # POST /api/v1/plan_folder_scans/:id/process
+          post :skip          # POST /api/v1/plan_folder_scans/:id/skip
+        end
+      end
+
       # Notifications
       resources :notifications, only: [ :index ] do
         collection do
