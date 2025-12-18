@@ -15,9 +15,31 @@ class PlanType < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :ordered, -> { order(:sequence_order, :code) }
 
-  # Default templates
-  DEFAULT_SHORT_TEMPLATE = "{Code}-{Name}".freeze
-  DEFAULT_LONG_TEMPLATE = "{JobCode}-{Code}-{Name}-Rev{Rev}".freeze
+  # Hardcoded fallback templates (used if no global default set)
+  FALLBACK_SHORT_TEMPLATE = "{Code}-{Name}".freeze
+  FALLBACK_LONG_TEMPLATE = "{JobCode}-{Code}-{Name}-Rev{Rev}".freeze
+
+  # SystemSetting keys for global defaults
+  SETTING_KEY_SHORT = "plan_default_short_name_template".freeze
+  SETTING_KEY_LONG = "plan_default_long_name_template".freeze
+
+  # Get the effective default template (global setting or fallback)
+  def self.default_short_template
+    SystemSetting.get(SETTING_KEY_SHORT) || FALLBACK_SHORT_TEMPLATE
+  end
+
+  def self.default_long_template
+    SystemSetting.get(SETTING_KEY_LONG) || FALLBACK_LONG_TEMPLATE
+  end
+
+  # Set global default templates
+  def self.set_default_short_template(template)
+    SystemSetting.set(SETTING_KEY_SHORT, template, description: "Default short name template for plan types")
+  end
+
+  def self.set_default_long_template(template)
+    SystemSetting.set(SETTING_KEY_LONG, template, description: "Default long name template for plan types (SharePoint filename)")
+  end
 
   # Full display name: "02 - SITE PLAN"
   def display_name

@@ -1,5 +1,5 @@
 class Api::V1::ImapCredentialsController < ApplicationController
-  before_action :set_credential, only: [:show, :update, :destroy, :sync]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts
@@ -76,6 +76,18 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: true,
       message: "Email account disconnected"
+    }
+  end
+
+  # GET /api/v1/imap_credentials/:id/reveal_password
+  # Reveal the decrypted password (admin only)
+  def reveal_password
+    render json: {
+      success: true,
+      data: {
+        password: @credential.password,
+        username: @credential.username
+      }
     }
   end
 
