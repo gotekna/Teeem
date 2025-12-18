@@ -60,6 +60,11 @@ interface XeroTenant {
   // SSoT: Credential health status fields
   status?: 'connected' | 'degraded' | 'disconnected';
   needs_reauth?: boolean;
+  // SSoT: Backend-computed display fields (Option C refactor)
+  // Use these instead of calculating from expires_at client-side
+  status_display?: 'connected' | 'warning' | 'expired' | 'disconnected';
+  expires_in_human?: string;  // "28m", "1h 15m", "Expired"
+  needs_attention?: boolean;
 }
 
 interface CompanyXeroConnection {
@@ -220,14 +225,22 @@ export default function XeroIntegrationPage() {
   };
 
   // Helper to format token expiry with time
-  const formatTokenExpiry = (expiresAt?: string, expired?: boolean) => {
-    if (!expiresAt) return "Unknown";
-    const date = new Date(expiresAt);
+  // SSoT: Prefer backend-computed expires_in_human when available (Option C refactor)
+  // Falls back to client-side calculation for backwards compatibility
+  const formatTokenExpiry = (tenant: XeroTenant) => {
+    // SSoT: Use backend-computed value if available
+    if (tenant.expires_in_human) {
+      return tenant.expires_in_human;
+    }
+
+    // Fallback: Client-side calculation (legacy, will be removed eventually)
+    if (!tenant.expires_at) return "Unknown";
+    const date = new Date(tenant.expires_at);
     const now = new Date();
     const diffMs = date.getTime() - now.getTime();
     const diffMins = Math.floor(diffMs / (1000 * 60));
 
-    if (expired || diffMs <= 0) {
+    if (tenant.expired || diffMs <= 0) {
       return "Expired";
     }
 
@@ -246,6 +259,15 @@ export default function XeroIntegrationPage() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  // SSoT: Use backend status_display for determining if expired
+  // Falls back to expired field for backwards compatibility
+  const isExpired = (tenant: XeroTenant) => {
+    if (tenant.status_display) {
+      return tenant.status_display === 'expired' || tenant.status_display === 'disconnected';
+    }
+    return tenant.expired || false;
   };
 
   if (loading) {
@@ -440,7 +462,7 @@ export default function XeroIntegrationPage() {
                       className={`flex items-center justify-between p-3 rounded-lg border ${
                         tenant.is_primary
                           ? "bg-cyan-50 border-cyan-200"
-                          : tenant.expired
+                          : isExpired(tenant)
                           ? "bg-red-50 border-red-200"
                           : "bg-muted border-transparent"
                       }`}
@@ -449,14 +471,14 @@ export default function XeroIntegrationPage() {
                         <div className={`p-2 rounded ${
                           tenant.is_primary
                             ? "bg-cyan-100"
-                            : tenant.expired
+                            : isExpired(tenant)
                             ? "bg-red-100"
                             : "bg-gray-100"
                         }`}>
                           {tenant.is_primary ? (
                             <Star className="h-4 w-4 text-cyan-600" />
                           ) : (
-                            <CreditCard className={`h-4 w-4 ${tenant.expired ? "text-red-600" : "text-gray-600"}`} />
+                            <CreditCard className={`h-4 w-4 ${isExpired(tenant) ? "text-red-600" : "text-gray-600"}`} />
                           )}
                         </div>
                         <div>
@@ -471,13 +493,13 @@ export default function XeroIntegrationPage() {
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Clock className="h-3 w-3" />
                             <span>
-                              Token: {formatTokenExpiry(tenant.expires_at, tenant.expired)}
+                              Token: {formatTokenExpiry(tenant)}
                             </span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {tenant.expired ? (
+                        {isExpired(tenant) ? (
                           <Badge className="bg-red-100 text-red-800 hover:bg-red-100">
                             <XCircle className="h-3 w-3 mr-1" />
                             Expired

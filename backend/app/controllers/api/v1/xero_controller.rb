@@ -110,6 +110,10 @@ module Api
 
       # GET /api/v1/xero/tenants
       # Returns all available Xero tenants (organizations) from stored credentials
+      #
+      # SSoT: Backend computes token status - frontend should NOT calculate from expires_at
+      # Use status_display and expires_in_human instead of client-side Date calculations
+      #
       def tenants
         tenants = XeroCredential.all.map do |cred|
           {
@@ -122,7 +126,12 @@ module Api
             expired: cred.expired?,
             # SSoT: Include credential health status for auto-expand UI logic
             status: cred.status,
-            needs_reauth: %w[disconnected degraded].include?(cred.status)
+            needs_reauth: %w[disconnected degraded].include?(cred.status),
+            # SSoT: Computed fields for frontend display (Option C refactor)
+            # Frontend should use these instead of calculating from expires_at
+            status_display: cred.status_for_display,      # 'connected', 'warning', 'expired', 'disconnected'
+            expires_in_human: cred.time_until_expiry_human, # "28m", "1h 15m", "Expired"
+            needs_attention: cred.needs_attention?          # true if user action required
           }
         end
 

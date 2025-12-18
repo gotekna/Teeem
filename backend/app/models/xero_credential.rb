@@ -160,6 +160,52 @@ class XeroCredential < ApplicationRecord
     :healthy
   end
 
+  # ============================================
+  # SSoT: Computed status for frontend display
+  # ============================================
+  # These methods eliminate client-side token status calculation.
+  # Frontend should use these values directly instead of computing from expires_at.
+  #
+  # Why SSoT matters here:
+  # - Backend uses 5-min expired threshold + 25-min refresh buffer
+  # - Frontend was calculating with browser's Date.now() - could mismatch
+  # - Now backend is THE source of truth for token status
+  #
+
+  # Computed status for frontend display
+  # Returns: 'connected', 'warning', 'expired', 'disconnected'
+  def status_for_display
+    return "disconnected" if status == "disconnected" || poisoned?
+    return "expired" if expired?
+    return "warning" if needs_refresh? || status == "degraded"
+    "connected"
+  end
+
+  # Human-readable time until token expires
+  # Returns: "28m", "1h 15m", "Expired", or date string
+  def time_until_expiry_human
+    return nil if expires_at.blank?
+    return "Expired" if expired?
+
+    diff = expires_at - Time.current
+    minutes = (diff / 60).round
+
+    if minutes < 60
+      "#{minutes}m"
+    elsif minutes < 1440 # Less than 24 hours
+      hours = minutes / 60
+      mins = minutes % 60
+      "#{hours}h #{mins}m"
+    else
+      expires_at.strftime("%d %b %H:%M")
+    end
+  end
+
+  # Whether this credential needs user attention
+  def needs_attention?
+    status != "connected" || expired? || poisoned?
+  end
+
   def days_since_last_api_call
     return nil if last_successful_api_call_at.nil?
     ((Time.current - last_successful_api_call_at) / 1.day).to_i
