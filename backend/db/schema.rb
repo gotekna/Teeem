@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_082742) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_084259) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3252,6 +3252,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_082742) do
     t.date "practical_completion_date"
     t.date "warranty_end_date"
     t.boolean "resident_owner", default: true
+    t.integer "construction_days", default: 300
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"

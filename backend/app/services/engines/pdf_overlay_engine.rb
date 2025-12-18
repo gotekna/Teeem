@@ -50,7 +50,17 @@ module Engines
       builder_email: "Text Field 22",       # Email
 
       # Item 3: Description of Works
-      description_of_works: "Text Field 23" # Building work description (from Job Type)
+      description_of_works: "Text Field 23", # Building work description (from Job Type)
+
+      # Item 4: The Site
+      site_address: "Text Field 24",         # Site address
+      lot_number: "Text Field 25",           # Lot on plan
+      plan_number: "Text Field 26",          # Plan number (RP/SP)
+      local_authority: "Text Field 27",      # Local authority (council)
+
+      # Item 5: Commencement and Duration
+      proposed_start_date: "Text Field 28",  # Proposed start date
+      build_period: "Text Field 29"          # Building period (weeks)
     }.freeze
 
     # Checkbox field mappings for QBCC Contract
@@ -80,7 +90,12 @@ module Engines
       contract_date: "[Contract date]",
       contract_price: "[Contract price]",
       date: "[Date]",
-      description_of_works: "[Description of building work]"
+      description_of_works: "[Description of building work]",
+      lot_number: "[Lot number]",
+      plan_number: "[Plan number]",
+      local_authority: "[Local authority]",
+      proposed_start_date: "[Proposed start date]",
+      build_period: "[Build period]"
     }.freeze
 
     QBCC_CONSUMER_GUIDE_FIELDS = {}.freeze  # Consumer Guide uses AcroForm fields
@@ -199,15 +214,20 @@ module Engines
         data[:builder_phone] ||= settings.phone
         data[:builder_email] ||= settings.email
 
-        # Job/site info
+        # Job/site info (Item 4: The Site)
         data[:site_address] ||= job.address
         data[:lot_number] ||= job.try(:lot_number)
         data[:plan_number] ||= job.try(:plan_number)
+        data[:local_authority] ||= job.try(:council)  # Council = Local Authority
         data[:job_reference] ||= job.job_number || job.id.to_s
 
         # Contract info
         data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
         data[:contract_price] ||= format_currency(job.try(:contract_price))
+
+        # Item 5: Commencement and Duration
+        data[:proposed_start_date] ||= format_date(job.try(:start_date)) if job.try(:start_date).present?
+        data[:build_period] ||= job.try(:build_period)
 
         # Plan and Spec dates (for document packages)
         data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?

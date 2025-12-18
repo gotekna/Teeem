@@ -430,6 +430,7 @@ function AddressDetailsCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Site/Land Details */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="lot-number">Lot Number</Label>
@@ -438,10 +439,25 @@ function AddressDetailsCard({
               value={editForm.lot_number}
               onChange={(e) => setEditForm({ ...editForm, lot_number: e.target.value })}
               readOnly={!isEditing}
-              placeholder="Enter lot number"
+              placeholder="e.g., 5"
               className={!isEditing ? "bg-muted/50" : ""}
             />
           </div>
+          <div>
+            <Label htmlFor="plan-number">Plan Number (RP/SP)</Label>
+            <Input
+              id="plan-number"
+              value={editForm.plan_number}
+              onChange={(e) => setEditForm({ ...editForm, plan_number: e.target.value })}
+              readOnly={!isEditing}
+              placeholder="e.g., RP123456"
+              className={!isEditing ? "bg-muted/50" : ""}
+            />
+          </div>
+        </div>
+
+        {/* Street Address */}
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <Label htmlFor="street-number">Street Number</Label>
             <Input
@@ -449,13 +465,10 @@ function AddressDetailsCard({
               value={editForm.street_number}
               onChange={(e) => setEditForm({ ...editForm, street_number: e.target.value })}
               readOnly={!isEditing}
-              placeholder="Enter street number"
+              placeholder="e.g., 123"
               className={!isEditing ? "bg-muted/50" : ""}
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
           <div>
             <Label htmlFor="street-name">Street Name</Label>
             <Input
@@ -474,7 +487,7 @@ function AddressDetailsCard({
               value={editForm.street_type}
               onChange={(e) => setEditForm({ ...editForm, street_type: e.target.value })}
               readOnly={!isEditing}
-              placeholder="e.g., Road, ST"
+              placeholder="e.g., Road"
               className={!isEditing ? "bg-muted/50" : ""}
             />
           </div>
@@ -585,7 +598,7 @@ function AddressDetailsCard({
         </div>
 
         <div>
-          <Label htmlFor="council">Council</Label>
+          <Label htmlFor="council">Local Authority (Council)</Label>
           <Input
             id="council"
             value={editForm.council || ""}
@@ -1034,6 +1047,7 @@ export default function JobDetailPage() {
                   const response = await api.patch<Job>(`/api/v1/jobs/${job.id}`, {
                     job: {
                       lot_number: addressData.lot_number,
+                      plan_number: addressData.plan_number,
                       street_number: addressData.street_number,
                       street_name: addressData.street_name,
                       street_type: addressData.street_type,

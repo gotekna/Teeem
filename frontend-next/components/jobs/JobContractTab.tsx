@@ -17,6 +17,7 @@ interface Job {
   prime_cost?: number;
   provisional_sums?: number;
   contract_date?: string;
+  start_date?: string;
   build_period?: string;
   stage_slab?: string;
   stage_frame?: string;
@@ -66,6 +67,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     prime_cost: job.prime_cost?.toString() || "",
     provisional_sums: job.provisional_sums?.toString() || "",
     contract_date: job.contract_date || "",
+    start_date: job.start_date || "",
     build_period: job.build_period || "",
     stage_slab: job.stage_slab || "",
     stage_frame: job.stage_frame || "",
@@ -89,6 +91,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         prime_cost: job.prime_cost?.toString() || "",
         provisional_sums: job.provisional_sums?.toString() || "",
         contract_date: job.contract_date || "",
+        start_date: job.start_date || "",
         build_period: job.build_period || "",
         stage_slab: job.stage_slab || "",
         stage_frame: job.stage_frame || "",
@@ -115,6 +118,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           prime_cost: form.prime_cost ? parseFloat(form.prime_cost) : null,
           provisional_sums: form.provisional_sums ? parseFloat(form.provisional_sums) : null,
           contract_date: form.contract_date || null,
+          start_date: form.start_date || null,
           build_period: form.build_period || null,
           stage_slab: form.stage_slab || null,
           stage_frame: form.stage_frame || null,
@@ -147,6 +151,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       prime_cost: job.prime_cost?.toString() || "",
       provisional_sums: job.provisional_sums?.toString() || "",
       contract_date: job.contract_date || "",
+      start_date: job.start_date || "",
       build_period: job.build_period || "",
       stage_slab: job.stage_slab || "",
       stage_frame: job.stage_frame || "",
@@ -327,7 +332,19 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
             <CardTitle>Build Schedule</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Proposed Start Date</Label>
+                {isEditing ? (
+                  <Input
+                    type="date"
+                    value={form.start_date}
+                    onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+                  />
+                ) : (
+                  <p className="text-sm py-2">{formatDate(job.start_date) || "-"}</p>
+                )}
+              </div>
               <div className="space-y-2">
                 <Label>Build Period</Label>
                 {isEditing ? (

@@ -537,8 +537,9 @@ function TypesSection() {
       notes: type.notes || "",
       sequence_order: type.sequence_order,
       is_active: type.is_active,
-      short_name_template: type.short_name_template || "{Code}-{Name}",
-      long_name_template: type.long_name_template || "{JobCode}-{Code}-{Name}-Rev{Rev}",
+      // Keep empty to use global defaults - don't set fallback values
+      short_name_template: type.short_name_template || "",
+      long_name_template: type.long_name_template || "",
     });
     setEditing(type);
     setShowDialog(true);
@@ -875,59 +876,75 @@ function TypesSection() {
               </p>
 
               <div className="space-y-4">
-                <TokenBuilder
-                  label="Short Name Template"
-                  value={formData.short_name_template}
-                  onChange={(value) => setFormData({ ...formData, short_name_template: value })}
-                  placeholders={PLAN_TYPE_PLACEHOLDERS}
-                  showPreview
-                  previewData={{
-                    JobCode: "EB2401",
-                    JobName: "05 Wategors",
-                    JobAddress: "Lot 5 Wategois Street Claamvale",
-                    LotNumber: "5",
-                    StreetName: "Wategois Street",
-                    Suburb: "Claamvale",
-                    Code: formData.code || "01",
-                    Name: formData.name || "PERSPECTIVE",
-                    Description: "Perspective Drawing - Front Elevation View",
-                    Category: "Contract Drawings",
-                    CategoryCode: "ConD",
-                    Rev: "A",
-                    Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
-                    Variant: "a",
-                    ProjectName: "Wategors Estate",
-                  }}
-                  placeholder={`Click a token below to add it...`}
-                  helpText={!formData.short_name_template ? "Using global default template" : undefined}
-                />
+                <div className="space-y-2">
+                  <TokenBuilder
+                    label="Short Name Template"
+                    value={formData.short_name_template}
+                    onChange={(value) => setFormData({ ...formData, short_name_template: value })}
+                    placeholders={PLAN_TYPE_PLACEHOLDERS}
+                    showPreview={!!formData.short_name_template}
+                    previewData={{
+                      JobCode: "EB2401",
+                      JobName: "05 Wategors",
+                      JobAddress: "Lot 5 Wategois Street Claamvale",
+                      LotNumber: "5",
+                      StreetName: "Wategois Street",
+                      Suburb: "Claamvale",
+                      Code: formData.code || "01",
+                      Name: formData.name || "PERSPECTIVE",
+                      Description: "Perspective Drawing - Front Elevation View",
+                      Category: "Contract Drawings",
+                      CategoryCode: "ConD",
+                      Rev: "A",
+                      Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+                      Variant: "a",
+                      ProjectName: "Wategors Estate",
+                    }}
+                    placeholder="Empty = use global default"
+                    helpText={formData.short_name_template ? "Custom template (overrides global default)" : undefined}
+                  />
+                  {!formData.short_name_template && (
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                      <span className="font-medium">Using global default:</span>{" "}
+                      <span className="font-mono">{globalDefaults.short_name_template}</span>
+                    </div>
+                  )}
+                </div>
 
-                <TokenBuilder
-                  label="Long Name Template (SharePoint filename)"
-                  value={formData.long_name_template}
-                  onChange={(value) => setFormData({ ...formData, long_name_template: value })}
-                  placeholders={PLAN_TYPE_PLACEHOLDERS}
-                  showPreview
-                  previewData={{
-                    JobCode: "EB2401",
-                    JobName: "05 Wategors",
-                    JobAddress: "Lot 5 Wategois Street Claamvale",
-                    LotNumber: "5",
-                    StreetName: "Wategois Street",
-                    Suburb: "Claamvale",
-                    Code: formData.code || "01",
-                    Name: formData.name || "PERSPECTIVE",
-                    Description: "Perspective Drawing - Front Elevation View",
-                    Category: "Contract Drawings",
-                    CategoryCode: "ConD",
-                    Rev: "A",
-                    Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
-                    Variant: "a",
-                    ProjectName: "Wategors Estate",
-                  }}
-                  placeholder={`Click a token below to add it...`}
-                  helpText={!formData.long_name_template ? "Using global default template" : undefined}
-                />
+                <div className="space-y-2">
+                  <TokenBuilder
+                    label="Long Name Template (SharePoint filename)"
+                    value={formData.long_name_template}
+                    onChange={(value) => setFormData({ ...formData, long_name_template: value })}
+                    placeholders={PLAN_TYPE_PLACEHOLDERS}
+                    showPreview={!!formData.long_name_template}
+                    previewData={{
+                      JobCode: "EB2401",
+                      JobName: "05 Wategors",
+                      JobAddress: "Lot 5 Wategois Street Claamvale",
+                      LotNumber: "5",
+                      StreetName: "Wategois Street",
+                      Suburb: "Claamvale",
+                      Code: formData.code || "01",
+                      Name: formData.name || "PERSPECTIVE",
+                      Description: "Perspective Drawing - Front Elevation View",
+                      Category: "Contract Drawings",
+                      CategoryCode: "ConD",
+                      Rev: "A",
+                      Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+                      Variant: "a",
+                      ProjectName: "Wategors Estate",
+                    }}
+                    placeholder="Empty = use global default"
+                    helpText={formData.long_name_template ? "Custom template (overrides global default)" : undefined}
+                  />
+                  {!formData.long_name_template && (
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                      <span className="font-medium">Using global default:</span>{" "}
+                      <span className="font-mono">{globalDefaults.long_name_template}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
