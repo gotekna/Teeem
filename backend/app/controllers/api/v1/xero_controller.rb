@@ -2510,7 +2510,7 @@ module Api
           matches << { id: company_exact.id, name: company_exact.display_name, match_type: "company_exact", score: 95 }
         end
 
-        # Priority 3: Partial name match (contains)
+        # Priority 3: Partial name match (TEEEM contains Xero name)
         partial = Contact.where("LOWER(display_name) LIKE ? OR LOWER(company_name_or_trust) LIKE ?", "%#{name_lower}%", "%#{name_lower}%")
           .where.not(id: matches.map { |m| m[:id] })
           .limit(5)
@@ -2520,17 +2520,43 @@ module Api
           matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
         end
 
+        # Priority 3b: Reverse partial match (Xero name contains TEEEM name)
+        # This catches "W2G Assets Pty Ltd" (Xero) containing "W2G Assets" (TEEEM)
+        if matches.size < 5
+          # Find contacts where the Xero name contains the TEEEM display_name
+          escaped_name = ActiveRecord::Base.connection.quote_string(name_lower)
+          reverse_partial = Contact.where("? LIKE '%' || LOWER(display_name) || '%'", name_lower)
+            .where("LENGTH(display_name) >= 5") # Avoid tiny matches
+            .where.not(id: matches.map { |m| m[:id] })
+            .limit(5)
+
+          reverse_partial.each do |p|
+            # Higher score if TEEEM name is longer (more specific match)
+            teeem_name = p.display_name&.downcase || ""
+            base_score = ((teeem_name.length.to_f / name_lower.length) * 100).round
+            score = [base_score, 90].min # Cap at 90 since it's not exact
+            matches << { id: p.id, name: p.display_name, match_type: "partial", score: score }
+          end
+        end
+
         # Priority 4: Word-based matching (split name into words, match any)
-        words = name_lower.split(/\s+/).reject { |w| w.length < 3 }
+        # SSoT: Remove common business suffixes that cause too many false matches
+        common_suffixes = %w[pty ltd inc llc corp company co limited group]
+        words = name_lower.split(/\s+/).reject { |w| w.length < 3 || common_suffixes.include?(w) }
         if words.any? && matches.size < 5
           word_conditions = words.map { |w| "LOWER(display_name) LIKE '%#{ActiveRecord::Base.connection.quote_string(w)}%'" }.join(" OR ")
           word_matches = Contact.where(word_conditions)
             .where.not(id: matches.map { |m| m[:id] })
-            .limit(5 - matches.size)
+            .limit(20) # Get more candidates for scoring
 
-          word_matches.each do |w|
+          # Score and sort by similarity, take top matches
+          scored_word_matches = word_matches.map do |w|
             score = calculate_name_similarity(name_lower, w.display_name&.downcase || "")
-            matches << { id: w.id, name: w.display_name, match_type: "word", score: score }
+            { contact: w, score: score }
+          end.sort_by { |m| -m[:score] }.first(5 - matches.size)
+
+          scored_word_matches.each do |m|
+            matches << { id: m[:contact].id, name: m[:contact].display_name, match_type: "word", score: m[:score] }
           end
         end
 
