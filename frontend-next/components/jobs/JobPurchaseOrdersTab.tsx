@@ -62,6 +62,8 @@ import { cn } from "@/lib/utils";
 interface Contact {
   id: number;
   display_name?: string;
+  employee_names?: string[];
+  employee_count?: number;
 }
 
 interface TaskTemplate {
@@ -522,28 +524,44 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 </PopoverTrigger>
                 <PopoverContent className="w-[400px] p-0">
                   <Command>
-                    <CommandInput placeholder="Search suppliers..." />
+                    <CommandInput placeholder="Search by company or employee name..." />
                     <CommandList>
                       <CommandEmpty>No supplier found.</CommandEmpty>
                       <CommandGroup>
-                        {contacts.map((contact) => (
-                          <CommandItem
-                            key={contact.id}
-                            value={contact.display_name || contact.display_name}
-                            onSelect={() => {
-                              setSelectedContact(contact);
-                              setContactOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {contact.display_name || contact.display_name}
-                          </CommandItem>
-                        ))}
+                        {contacts.map((contact) => {
+                          // Build searchable value including employee names
+                          const searchValue = [
+                            contact.display_name,
+                            ...(contact.employee_names || [])
+                          ].filter(Boolean).join(" ");
+
+                          return (
+                            <CommandItem
+                              key={contact.id}
+                              value={searchValue}
+                              onSelect={() => {
+                                setSelectedContact(contact);
+                                setContactOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4 shrink-0",
+                                  selectedContact?.id === contact.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <div className="flex flex-col min-w-0">
+                                <span className="truncate">{contact.display_name}</span>
+                                {contact.employee_names && contact.employee_names.length > 0 && (
+                                  <span className="text-xs text-muted-foreground truncate">
+                                    {contact.employee_names.slice(0, 3).join(", ")}
+                                    {(contact.employee_count || 0) > 3 && ` +${(contact.employee_count || 0) - 3} more`}
+                                  </span>
+                                )}
+                              </div>
+                            </CommandItem>
+                          );
+                        })}
                       </CommandGroup>
                     </CommandList>
                   </Command>

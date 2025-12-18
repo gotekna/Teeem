@@ -195,6 +195,19 @@ module Api
           end
         end
 
+        # Add employee names for supplier contacts (for searchability)
+        if params[:type] == "suppliers" && params[:include_employees] != "false"
+          contacts_json.each do |contact_json|
+            contact = @contacts.find { |c| c.id == contact_json["id"] }
+            next unless contact
+
+            # Get employees via primary_company relationship
+            employee_names = contact.employees.active.limit(10).pluck(:display_name).compact
+            contact_json["employee_names"] = employee_names
+            contact_json["employee_count"] = contact.employees.active.count
+          end
+        end
+
         render json: {
           success: true,
           contacts: contacts_json
