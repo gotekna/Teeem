@@ -1,8 +1,7 @@
 module Api
   module V1
-    # RENAMED: CorporateOnedriveController → CorporateSharePointController
-    # Note: Class must be CorporateSharePointController (capital P) due to inflections.rb acronym "SharePoint"
-    class CorporateSharePointController < ApplicationController
+    # RENAMED: CorporateOnedriveController → CorporateSharepointController
+    class CorporateSharepointController < ApplicationController
       skip_before_action :authorize_request, only: [ :import_documents ]
       before_action :verify_import_token, only: [ :import_documents ]
       before_action :set_credential, except: [ :import_documents ]

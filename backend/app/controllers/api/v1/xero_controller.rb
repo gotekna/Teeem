@@ -2137,13 +2137,17 @@ module Api
             name = record.contact_name
             potential_matches = find_potential_teeem_matches(name)
 
+            # Fetch Xero contact details from one of the invoices' raw_data
+            xero_details = extract_xero_contact_details(record.external_contact_id)
+
             {
               xero_contact_name: name,
               xero_contact_id: record.external_contact_id,
               invoice_count: record.invoice_count,
               total_amount: record.total_amount&.to_f || 0,
               potential_matches: potential_matches,
-              best_match: potential_matches.first
+              best_match: potential_matches.first,
+              xero_details: xero_details
             }
           end
 
@@ -2581,6 +2585,73 @@ module Api
         return 0 if total_words == 0
 
         ((common_words.size.to_f / total_words) * 100).round
+      end
+
+      # Extract Xero contact details (email, phone, address) from an invoice's raw_data
+      def extract_xero_contact_details(external_contact_id)
+        return nil unless external_contact_id.present?
+
+        # Get one invoice with this contact to extract details from raw_data
+        invoice = ExternalInvoice.where(external_contact_id: external_contact_id)
+          .where.not(raw_data: nil)
+          .where("raw_data != '{}'::jsonb")
+          .first
+
+        return nil unless invoice&.raw_data.present?
+
+        contact_data = invoice.raw_data["Contact"]
+        return nil unless contact_data.is_a?(Hash)
+
+        # Extract email
+        email = contact_data["EmailAddress"]
+
+        # Extract phone numbers from Phones array
+        phones = contact_data["Phones"] || []
+        phone_numbers = phones.map do |phone|
+          next unless phone.is_a?(Hash)
+          number = [ phone["PhoneCountryCode"], phone["PhoneAreaCode"], phone["PhoneNumber"] ]
+            .compact.reject(&:blank?).join(" ")
+          next if number.blank?
+          { type: phone["PhoneType"]&.downcase, number: number }
+        end.compact
+
+        # Extract addresses from Addresses array
+        addresses = contact_data["Addresses"] || []
+        address_list = addresses.map do |addr|
+          next unless addr.is_a?(Hash)
+          address_type = addr["AddressType"]&.downcase
+
+          # Build address lines
+          lines = [
+            addr["AddressLine1"],
+            addr["AddressLine2"],
+            addr["AddressLine3"],
+            addr["AddressLine4"]
+          ].compact.reject(&:blank?)
+
+          city_state_postal = [
+            addr["City"],
+            addr["Region"],
+            addr["PostalCode"]
+          ].compact.reject(&:blank?).join(" ")
+
+          lines << city_state_postal if city_state_postal.present?
+          lines << addr["Country"] if addr["Country"].present?
+
+          next if lines.empty?
+          { type: address_type, lines: lines, formatted: lines.join(", ") }
+        end.compact
+
+        # Return structured contact details
+        {
+          email: email,
+          phones: phone_numbers,
+          addresses: address_list,
+          website: contact_data["Website"],
+          tax_number: contact_data["TaxNumber"],
+          first_name: contact_data["FirstName"],
+          last_name: contact_data["LastName"]
+        }.compact
       end
 
       # Verify Xero webhook signature using HMAC-SHA256

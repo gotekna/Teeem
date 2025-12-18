@@ -16,9 +16,14 @@ import {
   AlertTriangle,
   Check,
   ChevronRight,
+  Copy,
   FileText,
+  Globe,
   Link2,
   Loader2,
+  Mail,
+  MapPin,
+  Phone,
   Plus,
   Search,
   Sparkles,
@@ -35,6 +40,27 @@ interface PotentialMatch {
   score: number;
 }
 
+interface XeroPhone {
+  type: string;
+  number: string;
+}
+
+interface XeroAddress {
+  type: string;
+  lines: string[];
+  formatted: string;
+}
+
+interface XeroDetails {
+  email?: string;
+  phones?: XeroPhone[];
+  addresses?: XeroAddress[];
+  website?: string;
+  tax_number?: string;
+  first_name?: string;
+  last_name?: string;
+}
+
 interface UnlinkedContact {
   xero_contact_name: string;
   xero_contact_id: string;
@@ -42,6 +68,7 @@ interface UnlinkedContact {
   total_amount: number;
   potential_matches: PotentialMatch[];
   best_match: PotentialMatch | null;
+  xero_details?: XeroDetails | null;
 }
 
 interface UnlinkedContactsData {
@@ -322,7 +349,122 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
 
                       {/* Expanded Content */}
                       {expandedContact === contact.xero_contact_name && (
-                        <div className="border-t bg-muted/30 p-3 space-y-2">
+                        <div className="border-t bg-muted/30 p-3 space-y-3">
+                          {/* Xero Contact Details - Show when available */}
+                          {contact.xero_details && (
+                            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 space-y-2">
+                              <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                                <FileText className="h-3 w-3" />
+                                Xero Contact Details (copy to new contact)
+                              </div>
+
+                              {/* Email */}
+                              {contact.xero_details.email && (
+                                <div className="flex items-center gap-2 text-sm">
+                                  <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  <span className="truncate flex-1">{contact.xero_details.email}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(contact.xero_details!.email!);
+                                      toast.success("Email copied");
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
+
+                              {/* Phones */}
+                              {contact.xero_details.phones && contact.xero_details.phones.length > 0 && (
+                                <div className="space-y-1">
+                                  {contact.xero_details.phones.map((phone, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 text-sm">
+                                      <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className="text-xs text-muted-foreground capitalize shrink-0">
+                                        ({phone.type || "phone"})
+                                      </span>
+                                      <span className="truncate flex-1">{phone.number}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 shrink-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigator.clipboard.writeText(phone.number);
+                                          toast.success("Phone copied");
+                                        }}
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Addresses */}
+                              {contact.xero_details.addresses && contact.xero_details.addresses.length > 0 && (
+                                <div className="space-y-1">
+                                  {contact.xero_details.addresses.map((addr, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 text-sm">
+                                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                                      <span className="text-xs text-muted-foreground capitalize shrink-0">
+                                        ({addr.type || "address"})
+                                      </span>
+                                      <span className="flex-1 text-xs leading-relaxed">{addr.formatted}</span>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 shrink-0"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          navigator.clipboard.writeText(addr.formatted);
+                                          toast.success("Address copied");
+                                        }}
+                                      >
+                                        <Copy className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Website */}
+                              {contact.xero_details.website && (
+                                <div className="flex items-center gap-2 text-sm">
+                                  <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                  <span className="truncate flex-1">{contact.xero_details.website}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigator.clipboard.writeText(contact.xero_details!.website!);
+                                      toast.success("Website copied");
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
+
+                              {/* No details message */}
+                              {!contact.xero_details.email &&
+                               (!contact.xero_details.phones || contact.xero_details.phones.length === 0) &&
+                               (!contact.xero_details.addresses || contact.xero_details.addresses.length === 0) &&
+                               !contact.xero_details.website && (
+                                <div className="text-xs text-muted-foreground italic">
+                                  No contact details stored in Xero
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Potential Matches */}
                           {contact.potential_matches.length > 0 ? (
                             <>
                               <div className="text-xs font-medium text-muted-foreground mb-2">
