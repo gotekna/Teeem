@@ -416,15 +416,10 @@ class PricebookImageFetcherService
     nil
   end
 
-  # Sanitize filename to prevent SharePoint folder creation
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_filename(filename)
-    # Replace characters that SharePoint interprets as path separators
-    # Replace / and \ with dash
-    # Remove other problematic characters: : * ? " < > |
-    sanitized = filename.gsub(/[\/\\:*?"<>|]/, "-")
-
-    # Collapse multiple dashes/spaces to single
-    sanitized.gsub(/[-\s]+/, " ").strip
+    SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
   # Ensure Photo Test folder exists in SharePoint

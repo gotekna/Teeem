@@ -248,7 +248,8 @@ class SyncEmailsToSharePointJob < ApplicationJob
   def build_folder_path(email_date)
     year = email_date.year
     month = email_date.strftime("%m")
-    org_name = @credential.name.gsub(/[<>:"\/\\|?*]/, "_")
+    # SSoT: Use centralized SharePoint path sanitization
+    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
     "Emails/Attachments/#{org_name}/#{year}/#{month}"
   end
 
@@ -352,9 +353,10 @@ class SyncEmailsToSharePointJob < ApplicationJob
     result
   end
 
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_filename(filename)
-    # Remove or replace invalid SharePoint characters: <>:"/\|?*
-    filename.gsub(/[<>:"\/\\|?*]/, "_")
+    SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
   # Skip signature/embedded images that aren't real attachments

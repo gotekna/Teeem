@@ -252,6 +252,7 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   end
 
   def attachment_root_path
-    "emails/attachments/#{name.gsub(/[<>:"\/\\|?*]/, '_')}"
+    # SSoT: Use centralized SharePoint path sanitization
+    "emails/attachments/#{SharePoint::FilenameSanitizer.sanitize_path_segment(name)}"
   end
 end

@@ -92,22 +92,10 @@ class DocumentRelocateService
   private
 
   # Sanitize filename for OneDrive - remove characters not allowed by Microsoft
-  # Invalid characters: " * : < > ? / \ |
-  # Also remove leading/trailing spaces and periods
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_onedrive_filename(filename)
-    return "" if filename.blank?
-
-    # Remove invalid characters for OneDrive/SharePoint
-    sanitized = filename.gsub(/["*:<>?\/\\|]/, "")
-
-    # Replace multiple spaces with single space
-    sanitized = sanitized.gsub(/\s+/, " ")
-
-    # Remove leading/trailing spaces and periods
-    sanitized = sanitized.strip.gsub(/^\.+|\.+$/, "")
-
-    # Ensure not empty after sanitization
-    sanitized.presence || "Untitled"
+    SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
   # Find the OneDrive folder ID for the target company/folder

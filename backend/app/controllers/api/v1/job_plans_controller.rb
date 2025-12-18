@@ -191,8 +191,7 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set
-      # Uploads a multi-page PDF, splits into individual pages
-      # AI analysis is queued for background processing to avoid timeout
+      # Uploads a multi-page PDF - processing is done in background to avoid timeout
       def upload_plan_set
         unless params[:file].present?
           return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
@@ -201,80 +200,24 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        # Process with PlanSetService - skip AI to avoid timeout
-        # AI analysis will be queued as background jobs
-        service = PlanSetService.new(@job, params[:file])
-        result = service.process!(skip_ai: true)
-
-        unless result[:success]
-          return render json: { success: false, error: result[:error] }, status: :unprocessable_entity
-        end
+        # Save file to temp location for background processing
+        uploaded_file = params[:file]
+        temp_path = Rails.root.join('tmp', "plan_upload_#{@job.id}_#{Time.now.to_i}.pdf")
+        FileUtils.cp(uploaded_file.tempfile.path, temp_path)
 
         # Get the first tab (or specified tab) for categorizing plans
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
-        created_plans = []
-        plans_for_ai_analysis = []
-
-        # Create job plan for "All Plans"
-        if result[:all_plans].present?
-          all_plans_plan = @job.job_plans.create!(
-            job_plan_tab_id: tab_id,
-            plan_type_id: nil, # No specific type for All Plans
-            display_name: "All Plans"
-          )
-
-          all_plans_plan.add_revision!(
-            sharepoint_file_id: result[:all_plans][:file_id],
-            sharepoint_web_url: result[:all_plans][:web_url],
-            file_name: result[:all_plans][:name],
-            file_size: result[:all_plans][:size],
-            revision_date: Date.today
-          )
-
-          created_plans << serialize_plan(all_plans_plan)
-        end
-
-        # Create job plans for each individual page
-        result[:pages].each do |page|
-          # Use generic name for now - AI will update it later
-          display_name = page[:name].sub(/\.pdf$/i, '')
-
-          plan = @job.job_plans.create!(
-            job_plan_tab_id: tab_id,
-            plan_type_id: nil, # Will be set by AI analysis
-            display_name: display_name
-          )
-
-          plan.add_revision!(
-            sharepoint_file_id: page[:file_id],
-            sharepoint_web_url: page[:web_url],
-            file_name: page[:name],
-            file_size: page[:size],
-            revision_date: Date.today
-          )
-
-          created_plans << serialize_plan(plan).merge(
-            ai_analysis_pending: true
-          )
-
-          # Queue AI analysis for this plan
-          plans_for_ai_analysis << plan.id
-        end
-
-        # Queue AI analysis jobs (with slight delay between each to avoid API rate limits)
-        plans_for_ai_analysis.each_with_index do |plan_id, index|
-          PlanAiAnalysisJob.set(wait: (index * 3).seconds).perform_later(plan_id)
-        end
+        # Queue background job for processing
+        PlanSetUploadJob.perform_later(@job.id, temp_path.to_s, uploaded_file.original_filename, tab_id)
 
         render json: {
           success: true,
           data: {
-            total_pages: result[:total_pages],
-            plans: created_plans,
-            ai_analysis_queued: plans_for_ai_analysis.length
+            message: "Plan set upload queued for processing",
+            processing: true
           }
-        }, status: :created
+        }, status: :accepted
 
       rescue StandardError => e
         Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")

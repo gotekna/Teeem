@@ -821,7 +821,8 @@ class Contact < ApplicationRecord
   # @return [String] folder name (e.g., "123 - ABC Supplies" or "ABC Supplies" or "123")
   def document_folder_name
     format = CorporateCompanySetting.instance.contact_folder_format || "id_name"
-    sanitized_name = (display_name || "Unknown").gsub(/[<>:"\/\\|?*]/, "_") # Remove invalid filename chars
+    # SSoT: Use centralized SharePoint path sanitization
+    sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
     case format
     when "id_name"
@@ -839,7 +840,8 @@ class Contact < ApplicationRecord
   # Useful when you only have the ID and display_name
   def self.generate_folder_name(contact_id:, display_name:, format: nil)
     format ||= CorporateCompanySetting.instance.contact_folder_format || "id_name"
-    sanitized_name = (display_name || "Unknown").gsub(/[<>:"\/\\|?*]/, "_")
+    # SSoT: Use centralized SharePoint path sanitization
+    sanitized_name = SharePoint::FilenameSanitizer.sanitize_path_segment(display_name || "Unknown")
 
     case format
     when "id_name"

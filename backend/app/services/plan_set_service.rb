@@ -441,13 +441,10 @@ class PlanSetService
     filename
   end
 
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_filename(filename)
-    # Remove or replace invalid characters for filenames
-    filename
-      .gsub(/[<>:"\/\\|?*]/, "_") # Replace invalid Windows/SharePoint chars
-      .gsub(/\s+/, " ")           # Normalize whitespace
-      .truncate(100, omission: ".pdf") # Limit length
-      .strip
+    SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
   # Extract short project name from job (e.g., "5 Wategos" from "Lot 5 (0) Wategos Street Tingalpa 4173 QLD")

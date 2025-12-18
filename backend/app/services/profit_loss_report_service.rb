@@ -265,7 +265,8 @@ class ProfitLossReportService
     )
 
     # Get or create company subfolder
-    company_name = @report.company_name.gsub(/[<>:"\/\\|?*]/, "_") # Sanitize for SharePoint
+    # SSoT: Use centralized SharePoint path sanitization
+    company_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@report.company_name)
     company_folder = graph_client.get_or_create_subfolder(
       financial_folder[:id] || financial_folder["id"],
       company_name

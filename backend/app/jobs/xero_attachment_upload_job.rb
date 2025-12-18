@@ -319,23 +319,14 @@ class XeroAttachmentUploadJob < ApplicationJob
     nil
   end
 
-  # Sanitize filename for Xero
-  # Xero has restrictions on attachment filenames
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_filename(filename)
-    # Remove invalid characters
-    sanitized = filename.gsub(/[<>:\"\/\\|?*]/, "_")
+    # SSoT handles character sanitization and length limiting (255 max)
+    sanitized = SharePoint::FilenameSanitizer.sanitize(filename)
 
-    # Ensure it has an extension
-    unless sanitized.include?(".")
-      sanitized += ".pdf"
-    end
-
-    # Limit length (Xero max is 255, but be conservative)
-    if sanitized.length > 200
-      ext = File.extname(sanitized)
-      base = File.basename(sanitized, ext)
-      sanitized = base[0...(200 - ext.length)] + ext
-    end
+    # Ensure it has an extension (Xero requires it)
+    sanitized += ".pdf" unless sanitized.include?(".")
 
     sanitized
   end

@@ -529,7 +529,8 @@ class JobDocumentMigrationService
     return existing_folder["id"] if existing_folder
 
     # Create folder structure for job
-    job_folder_name = job.title.gsub(/[\/\\:*?"<>|]/, "-").strip
+    # SSoT: Use centralized SharePoint path sanitization
+    job_folder_name = SharePoint::FilenameSanitizer.sanitize_path_segment(job.title)
     root_folder = get_or_create_jobs_root_folder
 
     folder = @client.post("/drives/#{@credential.drive_id}/items/#{root_folder['id']}/children", {

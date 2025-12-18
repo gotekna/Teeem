@@ -509,8 +509,10 @@ class MicrosoftAppGraphClient
     # Ensure folder exists first
     folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
 
-    # URL encode filename
-    encoded_filename = CGI.escape(filename)
+    # SSoT: Use centralized SharePoint filename sanitization
+    # See lib/sharepoint/filename_sanitizer.rb for rules
+    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
+    encoded_filename = CGI.escape(safe_filename)
 
     # Upload via PUT request
     endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{folder_id}:/#{encoded_filename}:/content"
@@ -530,10 +532,9 @@ class MicrosoftAppGraphClient
   def create_upload_session(site_id, drive_id, parent_folder_path, filename)
     folder_id = ensure_folder_exists(site_id, drive_id, parent_folder_path)
 
-    # Sanitize filename for SharePoint: remove characters that cause issues
-    # SharePoint doesn't like: " * : < > ? / \ |
-    # Also replace + and = which cause URL encoding mismatches
-    safe_filename = filename.gsub(/[<>:"\/\\|?*+=]/, "_").gsub(/_{2,}/, "_")
+    # SSoT: Use centralized SharePoint filename sanitization
+    # See lib/sharepoint/filename_sanitizer.rb for rules
+    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
     encoded_filename = CGI.escape(safe_filename)
 
     endpoint = "/sites/#{site_id}/drives/#{drive_id}/items/#{folder_id}:/#{encoded_filename}:/createUploadSession"

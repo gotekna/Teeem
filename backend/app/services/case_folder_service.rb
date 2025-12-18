@@ -89,7 +89,8 @@ class CaseFolderService
 
   def build_folder_name
     # Format: CASE-20251205-001 - Robert Harder Bankrupt Estate
-    sanitized_title = @case.title.to_s.gsub(/[<>:"\/\\|?*]/, "-").strip.truncate(50, omission: "")
+    # SSoT: Use centralized SharePoint path sanitization
+    sanitized_title = SharePoint::FilenameSanitizer.sanitize_path_segment(@case.title.to_s).truncate(50, omission: "")
     "#{@case.case_number} - #{sanitized_title}"
   end
 

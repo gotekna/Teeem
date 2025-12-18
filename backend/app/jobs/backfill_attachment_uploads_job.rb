@@ -200,9 +200,10 @@ class BackfillAttachmentUploadsJob < ApplicationJob
     "#{@credential.attachment_root_path}/#{year}/#{month}"
   end
 
+  # SSoT: Use centralized SharePoint filename sanitization
+  # See lib/sharepoint/filename_sanitizer.rb for rules
   def sanitize_filename(filename)
-    # Remove or replace invalid SharePoint characters: <>:"/\|?*
-    filename.gsub(/[<>:"\/\\|?*]/, "_")
+    SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
   # Skip signature/embedded images that aren't real attachments

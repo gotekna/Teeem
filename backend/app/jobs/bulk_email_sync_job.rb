@@ -278,12 +278,13 @@ class BulkEmailSyncJob < ApplicationJob
   def upload_attachment(teeem_client, sp_config, filename, content, content_type, file_size, email_date, content_hash)
     year = email_date.year
     month = email_date.strftime("%m")
-    org_name = @credential.name.gsub(/[<>:"\/\\|?*]/, "_")  # Sanitize org name
+    # SSoT: Use centralized SharePoint path sanitization
+    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
     folder_path = "emails/attachments/#{org_name}/#{year}/#{month}"
 
     hash_prefix = content_hash[0..7]
-    # Sanitize filename: remove SharePoint-incompatible chars AND chars that cause URL encoding issues
-    safe_filename = filename.gsub(/[<>:"\/\\|?*+=]/, "_").gsub(/_{2,}/, "_")
+    # SSoT: Use centralized SharePoint filename sanitization
+    safe_filename = SharePoint::FilenameSanitizer.sanitize(filename)
     final_filename = "#{hash_prefix}_#{safe_filename}"
 
     result = if file_size >= 4 * 1024 * 1024
@@ -357,7 +358,8 @@ class BulkEmailSyncJob < ApplicationJob
 
     year = email.received_at.year
     month = email.received_at.strftime("%m")
-    org_name = @credential.name.gsub(/[<>:"\/\\|?*]/, "_")  # Sanitize org name
+    # SSoT: Use centralized SharePoint path sanitization
+    org_name = SharePoint::FilenameSanitizer.sanitize_path_segment(@credential.name)
     folder_path = "emails/eml/#{org_name}/#{year}/#{month}"
     filename = "#{email.id}.eml"
 
