@@ -60,7 +60,30 @@ module Engines
 
       # Item 5: Commencement and Duration
       proposed_start_date: "Text Field 28",  # Proposed start date
-      build_period: "Text Field 29"          # Building period (weeks)
+      build_period: "Text Field 29",         # Building period (weeks)
+      construction_days: "Text Field 31",    # Construction days (default 300)
+      weather_days: "Text Field 32",         # Weather days allowance (default 10)
+
+      # Item 6: Contract Price
+      contract_price: "Text Field 33",       # Total contract price
+
+      # Item 7: Deposit (calculated from Item 6)
+      deposit: "Text Field 34",              # Deposit amount
+
+      # Item 8a: Progress Payments (from Claims tab)
+      # Each stage has: percentage field, amount field
+      stage_1_pct: "Text Field 35",          # Deposit %
+      stage_1_amt: "Text Field 36",          # Deposit $
+      stage_2_pct: "Text Field 37",          # Base/Slab %
+      stage_2_amt: "Text Field 38",          # Base/Slab $
+      stage_3_pct: "Text Field 39",          # Frame %
+      stage_3_amt: "Text Field 40",          # Frame $
+      stage_4_pct: "Text Field 41",          # Enclosed %
+      stage_4_amt: "Text Field 42",          # Enclosed $
+      stage_5_pct: "Text Field 43",          # Fixing %
+      stage_5_amt: "Text Field 44",          # Fixing $
+      stage_6_pct: "Text Field 45",          # Practical Completion %
+      stage_6_amt: "Text Field 46"           # Practical Completion $
     }.freeze
 
     # Checkbox field mappings for QBCC Contract
@@ -89,13 +112,16 @@ module Engines
       site_address: "[Site address]",
       contract_date: "[Contract date]",
       contract_price: "[Contract price]",
+      deposit: "[Deposit amount]",
       date: "[Date]",
       description_of_works: "[Description of building work]",
       lot_number: "[Lot number]",
       plan_number: "[Plan number]",
       local_authority: "[Local authority]",
       proposed_start_date: "[Proposed start date]",
-      build_period: "[Build period]"
+      build_period: "[Build period]",
+      construction_days: "300",
+      weather_days: "10"
     }.freeze
 
     QBCC_CONSUMER_GUIDE_FIELDS = {}.freeze  # Consumer Guide uses AcroForm fields
@@ -221,13 +247,28 @@ module Engines
         data[:local_authority] ||= job.try(:council)  # Council = Local Authority
         data[:job_reference] ||= job.job_number || job.id.to_s
 
-        # Contract info
+        # Contract info (Item 6 & 7)
         data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
         data[:contract_price] ||= format_currency(job.try(:contract_price))
+        data[:deposit] ||= format_currency(job.try(:deposit))  # Item 7 - from Claims tab
+
+        # Item 8a: Progress Payments (from Claims tab)
+        stages = job.job_claim_stages.order(:sequence_order).to_a
+        stages.each_with_index do |stage, index|
+          stage_num = index + 1
+          next if stage_num > 6  # Max 6 stages on QBCC form
+
+          pct_key = :"stage_#{stage_num}_pct"
+          amt_key = :"stage_#{stage_num}_amt"
+          data[pct_key] ||= "#{stage.percentage.to_i}%" if stage.percentage
+          data[amt_key] ||= format_currency(stage.expected_amount) if stage.expected_amount
+        end
 
         # Item 5: Commencement and Duration
         data[:proposed_start_date] ||= format_date(job.try(:start_date)) if job.try(:start_date).present?
         data[:build_period] ||= job.try(:build_period)
+        data[:construction_days] ||= (job.try(:construction_days) || 300).to_s
+        data[:weather_days] ||= job.try(:stage_weather) || "10"
 
         # Plan and Spec dates (for document packages)
         data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?

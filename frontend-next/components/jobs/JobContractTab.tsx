@@ -19,11 +19,7 @@ interface Job {
   contract_date?: string;
   start_date?: string;
   build_period?: string;
-  stage_slab?: string;
-  stage_frame?: string;
-  stage_enclosed?: string;
-  stage_fixing?: string;
-  stage_practical?: string;
+  construction_days?: number;
   stage_weather?: string;
   weekend_work?: string;
   plan_date?: string;
@@ -69,12 +65,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     contract_date: job.contract_date || "",
     start_date: job.start_date || "",
     build_period: job.build_period || "",
-    stage_slab: job.stage_slab || "",
-    stage_frame: job.stage_frame || "",
-    stage_enclosed: job.stage_enclosed || "",
-    stage_fixing: job.stage_fixing || "",
-    stage_practical: job.stage_practical || "",
-    stage_weather: job.stage_weather || "",
+    construction_days: job.construction_days?.toString() || "300",
+    stage_weather: job.stage_weather || "10",
     weekend_work: job.weekend_work || "",
     plan_date: job.plan_date || "",
     spec_date: job.spec_date || "",
@@ -93,12 +85,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         contract_date: job.contract_date || "",
         start_date: job.start_date || "",
         build_period: job.build_period || "",
-        stage_slab: job.stage_slab || "",
-        stage_frame: job.stage_frame || "",
-        stage_enclosed: job.stage_enclosed || "",
-        stage_fixing: job.stage_fixing || "",
-        stage_practical: job.stage_practical || "",
-        stage_weather: job.stage_weather || "",
+        construction_days: job.construction_days?.toString() || "300",
+        stage_weather: job.stage_weather || "10",
         weekend_work: job.weekend_work || "",
         plan_date: job.plan_date || "",
         spec_date: job.spec_date || "",
@@ -120,12 +108,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           contract_date: form.contract_date || null,
           start_date: form.start_date || null,
           build_period: form.build_period || null,
-          stage_slab: form.stage_slab || null,
-          stage_frame: form.stage_frame || null,
-          stage_enclosed: form.stage_enclosed || null,
-          stage_fixing: form.stage_fixing || null,
-          stage_practical: form.stage_practical || null,
-          stage_weather: form.stage_weather || null,
+          construction_days: form.construction_days ? parseInt(form.construction_days) : 300,
+          stage_weather: form.stage_weather || "10",
           weekend_work: form.weekend_work || null,
           plan_date: form.plan_date || null,
           spec_date: form.spec_date || null,
@@ -153,12 +137,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       contract_date: job.contract_date || "",
       start_date: job.start_date || "",
       build_period: job.build_period || "",
-      stage_slab: job.stage_slab || "",
-      stage_frame: job.stage_frame || "",
-      stage_enclosed: job.stage_enclosed || "",
-      stage_fixing: job.stage_fixing || "",
-      stage_practical: job.stage_practical || "",
-      stage_weather: job.stage_weather || "",
+      construction_days: job.construction_days?.toString() || "300",
+      stage_weather: job.stage_weather || "10",
       weekend_work: job.weekend_work || "",
       plan_date: job.plan_date || "",
       spec_date: job.spec_date || "",
@@ -332,7 +312,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
             <CardTitle>Build Schedule</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Proposed Start Date</Label>
                 {isEditing ? (
@@ -357,97 +337,50 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                   <p className="text-sm py-2">{job.build_period || "-"}</p>
                 )}
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Weekend Work</Label>
+                <Label>Construction Days</Label>
                 {isEditing ? (
                   <Input
-                    value={form.weekend_work}
-                    onChange={(e) => setForm({ ...form, weekend_work: e.target.value })}
-                    placeholder="e.g., Yes / No"
+                    type="number"
+                    value={form.construction_days}
+                    onChange={(e) => setForm({ ...form, construction_days: e.target.value })}
+                    placeholder="300"
                   />
                 ) : (
-                  <p className="text-sm py-2">{job.weekend_work || "-"}</p>
+                  <p className="text-sm py-2">{job.construction_days || "300"} days</p>
                 )}
               </div>
             </div>
 
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-muted-foreground">Stage Durations</h4>
+            {/* Item C: Working Days */}
+            <div className="space-y-3 pt-3 border-t">
+              <h4 className="text-sm font-medium text-muted-foreground">Item C: Working Days</h4>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Slab</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.stage_slab}
-                      onChange={(e) => setForm({ ...form, stage_slab: e.target.value })}
-                      placeholder="e.g., 4 weeks"
-                    />
-                  ) : (
-                    <p className="text-sm py-2">{job.stage_slab || "-"}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Frame</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.stage_frame}
-                      onChange={(e) => setForm({ ...form, stage_frame: e.target.value })}
-                      placeholder="e.g., 3 weeks"
-                    />
-                  ) : (
-                    <p className="text-sm py-2">{job.stage_frame || "-"}</p>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Enclosed</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.stage_enclosed}
-                      onChange={(e) => setForm({ ...form, stage_enclosed: e.target.value })}
-                      placeholder="e.g., 5 weeks"
-                    />
-                  ) : (
-                    <p className="text-sm py-2">{job.stage_enclosed || "-"}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Fixing</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.stage_fixing}
-                      onChange={(e) => setForm({ ...form, stage_fixing: e.target.value })}
-                      placeholder="e.g., 8 weeks"
-                    />
-                  ) : (
-                    <p className="text-sm py-2">{job.stage_fixing || "-"}</p>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Practical</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.stage_practical}
-                      onChange={(e) => setForm({ ...form, stage_practical: e.target.value })}
-                      placeholder="e.g., 4 weeks"
-                    />
-                  ) : (
-                    <p className="text-sm py-2">{job.stage_practical || "-"}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Weather Days</Label>
+                  <Label>Weather Days Allowance</Label>
                   {isEditing ? (
                     <Input
                       value={form.stage_weather}
                       onChange={(e) => setForm({ ...form, stage_weather: e.target.value })}
-                      placeholder="e.g., 10 days"
+                      placeholder="10"
                     />
                   ) : (
-                    <p className="text-sm py-2">{job.stage_weather || "-"}</p>
+                    <p className="text-sm py-2">{job.stage_weather || "10"} days</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Weekends & Holidays</Label>
+                  {isEditing ? (
+                    <Input
+                      value={form.weekend_work}
+                      onChange={(e) => setForm({ ...form, weekend_work: e.target.value })}
+                      placeholder="e.g., No weekend work"
+                    />
+                  ) : (
+                    <p className="text-sm py-2">{job.weekend_work || "-"}</p>
                   )}
                 </div>
               </div>

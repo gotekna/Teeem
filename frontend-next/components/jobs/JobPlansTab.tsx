@@ -1,12 +1,29 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, DragEvent } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   FileText,
   Mail,
@@ -16,9 +33,20 @@ import {
   CheckCircle,
   Plus,
   Eye,
+  Upload,
+  X,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
+import { useToast } from "@/components/ui/use-toast";
+
+interface PlanTypeOption {
+  id: number;
+  code: string;
+  name: string;
+  display_name: string;
+  category_ids: number[];
+}
 
 interface PlanType {
   id: number;
@@ -61,6 +89,7 @@ interface PlanTab {
   id: number;
   name: string;
   code: string | null;
+  plan_category_id: number | null;
   plan_count: number;
   on_issue_count: number;
   children: PlanTab[];
@@ -72,6 +101,7 @@ interface JobPlansTabProps {
 }
 
 export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
+  const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState("on-issue");
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
@@ -80,6 +110,21 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
+
+  // Add Plan Dialog State
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [planTypes, setPlanTypes] = useState<PlanTypeOption[]>([]);
+  const [loadingPlanTypes, setLoadingPlanTypes] = useState(false);
+  const [selectedPlanTypeId, setSelectedPlanTypeId] = useState<string>("");
+  const [selectedTabId, setSelectedTabId] = useState<string>("");
+  const [variantSuffix, setVariantSuffix] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Drag and drop state
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounterRef = useRef(0);
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {
@@ -118,6 +163,21 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
     }
   }, [jobId]);
 
+  // Fetch plan types
+  const fetchPlanTypes = useCallback(async () => {
+    try {
+      setLoadingPlanTypes(true);
+      const response = await api.get("/api/v1/plan_types") as { success: boolean; data?: PlanTypeOption[] };
+      if (response.success) {
+        setPlanTypes(response.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching plan types:", err);
+    } finally {
+      setLoadingPlanTypes(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchPlans();
     fetchTabs();
@@ -147,6 +207,159 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
     return `${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${revision.sharepoint_file_id}&preview=true`;
   };
 
+  // Open Add Plan dialog
+  const handleOpenAddDialog = (file?: File) => {
+    fetchPlanTypes();
+    setSelectedPlanTypeId("");
+    setSelectedTabId("");
+    setVariantSuffix("");
+    setSelectedFile(file || null);
+    setShowAddDialog(true);
+  };
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  // Handle file drop
+  const handleFileDrop = (file: File) => {
+    if (file.type === "application/pdf") {
+      handleOpenAddDialog(file);
+    } else {
+      toast({
+        title: "Invalid file type",
+        description: "Please upload a PDF file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragEnter = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounterRef.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      handleFileDrop(files[0]);
+    }
+  };
+
+  // Save new plan
+  const handleSavePlan = async () => {
+    if (!selectedPlanTypeId) {
+      toast({
+        title: "Error",
+        description: "Please select a plan type",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Step 1: Create the job plan
+      const planResponse = await api.post(`/api/v1/jobs/${jobId}/job_plans`, {
+        job_plan: {
+          plan_type_id: parseInt(selectedPlanTypeId),
+          job_plan_tab_id: selectedTabId ? parseInt(selectedTabId) : null,
+          variant_suffix: variantSuffix || null,
+        },
+      }) as { success: boolean; data?: JobPlan; error?: string };
+
+      if (!planResponse.success) {
+        throw new Error(planResponse.error || "Failed to create plan");
+      }
+
+      const newPlan = planResponse.data!;
+
+      // Step 2: If a file is selected, upload to SharePoint and add revision
+      if (selectedFile) {
+        // Upload file to SharePoint
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("folder_path", `Jobs/${jobTitle}/Plans`);
+
+        const uploadResponse = await fetch(`${getApiBaseUrl()}/api/v1/organization_sharepoint/upload`, {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+
+        const uploadResult = await uploadResponse.json();
+
+        if (uploadResult.success && uploadResult.data) {
+          // Add revision with file info
+          await api.post(`/api/v1/jobs/${jobId}/job_plans/${newPlan.id}/add_revision`, {
+            sharepoint_file_id: uploadResult.data.id,
+            sharepoint_web_url: uploadResult.data.webUrl,
+            file_name: selectedFile.name,
+            file_size: selectedFile.size,
+            revision_date: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Plan created successfully",
+      });
+
+      setShowAddDialog(false);
+      fetchPlans();
+      fetchTabs();
+    } catch (err) {
+      console.error("Error creating plan:", err);
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to create plan",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Get plan types filtered by selected tab's category
+  const filteredPlanTypes = selectedTabId
+    ? (() => {
+        const tab = tabs.find(t => t.id === parseInt(selectedTabId));
+        if (tab?.plan_category_id) {
+          return planTypes.filter(pt => pt.category_ids?.includes(tab.plan_category_id!));
+        }
+        return planTypes;
+      })()
+    : planTypes;
+
   // Render plans table
   const renderPlansTable = () => {
     if (loading) {
@@ -174,11 +387,15 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
           <FileText className="h-16 w-16 mb-4 opacity-50" />
           <p className="text-lg mb-2">No plans found</p>
-          <p className="text-sm">
+          <p className="text-sm mb-4">
             {activeSubTab === "on-issue"
               ? "No plans are currently on issue"
-              : "Upload plans to get started"}
+              : "Drop a PDF here or click Add Plan to get started"}
           </p>
+          <Button onClick={() => handleOpenAddDialog()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Plan
+          </Button>
         </div>
       );
     }
@@ -324,7 +541,23 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
   };
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <div
+      className="flex flex-col h-full -mx-4 relative"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <Upload className="h-16 w-16 mx-auto mb-4 text-primary" />
+            <p className="text-lg font-medium text-primary">Drop PDF here to add plan</p>
+          </div>
+        </div>
+      )}
+
       {/* Header with actions */}
       <div className="px-4 pb-4 flex items-center justify-between shrink-0">
         <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-auto">
@@ -345,7 +578,7 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          <Button>
+          <Button onClick={() => handleOpenAddDialog()}>
             <Plus className="h-4 w-4 mr-2" />
             Add Plan
           </Button>
@@ -401,6 +634,121 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
           setSelectedPlanIds([]);
         }}
       />
+
+      {/* Add Plan Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Plan</DialogTitle>
+            <DialogDescription>
+              Add a new plan to this job. Select a plan type and optionally upload a PDF.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Category/Tab Selection */}
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={selectedTabId} onValueChange={setSelectedTabId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a category (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tabs.map((tab) => (
+                    <SelectItem key={tab.id} value={tab.id.toString()}>
+                      {tab.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Plan Type Selection */}
+            <div className="space-y-2">
+              <Label>Plan Type *</Label>
+              <Select value={selectedPlanTypeId} onValueChange={setSelectedPlanTypeId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingPlanTypes ? "Loading..." : "Select a plan type"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredPlanTypes.map((pt) => (
+                    <SelectItem key={pt.id} value={pt.id.toString()}>
+                      {pt.display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Variant Suffix */}
+            <div className="space-y-2">
+              <Label>Variant (optional)</Label>
+              <Input
+                value={variantSuffix}
+                onChange={(e) => setVariantSuffix(e.target.value)}
+                placeholder="e.g., a, b, c"
+                maxLength={5}
+              />
+              <p className="text-xs text-muted-foreground">
+                Use for multiple versions like 01a-PERSPECTIVE, 01b-PERSPECTIVE
+              </p>
+            </div>
+
+            {/* File Upload */}
+            <div className="space-y-2">
+              <Label>PDF File (optional)</Label>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept="application/pdf"
+                className="hidden"
+              />
+              {selectedFile ? (
+                <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/30">
+                  <FileText className="h-8 w-8 text-red-600" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{selectedFile.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSelectedFile(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div
+                  className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    PDF files only
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePlan} disabled={saving || !selectedPlanTypeId}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Add Plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
