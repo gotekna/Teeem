@@ -73,6 +73,7 @@ import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "./components/EmailAccountsTab";
 import { PlansTab } from "./components/PlansTab";
+import { SharePointTab } from "./components/SharePointTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -120,6 +121,7 @@ const COMPANY_TABS = [
   { id: "holidays", label: "Holidays" },
   { id: "workflows", label: "Workflows" },
   { id: "folders", label: "Folders" },
+  { id: "sharepoint", label: "SharePoint" },
   { id: "job-setup", label: "Job Setup" },
   { id: "workflow-config", label: "Workflow Config" },
   { id: "doc-setup", label: "Doc Setup" },
@@ -651,6 +653,9 @@ function CompanySettingsTab() {
           </TabsContent>
           <TabsContent value="folders">
             <FoldersTab />
+          </TabsContent>
+          <TabsContent value="sharepoint">
+            <SharePointTab />
           </TabsContent>
           <TabsContent value="job-setup">
             <JobSetupTab />

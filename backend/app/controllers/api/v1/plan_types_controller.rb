@@ -1,11 +1,26 @@
 module Api
   module V1
     class PlanTypesController < ApplicationController
-      before_action :set_plan_category, only: [:index, :create]
+      before_action :set_plan_category, only: [:nested_index, :create]
       before_action :set_plan_type, only: [:show, :update, :destroy]
 
-      # GET /api/v1/plan_categories/:plan_category_id/plan_types
+      # GET /api/v1/plan_types
       def index
+        @types = PlanType.includes(:plan_category).ordered
+
+        # Filter by category if provided
+        if params[:plan_category_id].present?
+          @types = @types.where(plan_category_id: params[:plan_category_id])
+        end
+
+        render json: {
+          success: true,
+          data: @types.map { |t| serialize_type(t) }
+        }
+      end
+
+      # GET /api/v1/plan_categories/:plan_category_id/plan_types
+      def nested_index
         @types = @category.plan_types.ordered
 
         render json: {

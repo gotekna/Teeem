@@ -808,10 +808,15 @@ Rails.application.routes.draw do
         post :test_twilio, on: :collection
       end
 
-      # Corporate Company Settings (document paths)
+      # Corporate Company Settings (document paths & SharePoint SSoT)
       resource :corporate_company_settings, only: [] do
         get :document_paths, on: :collection
         patch :document_paths, on: :collection, action: :update_document_paths
+
+        # SharePoint SSoT Configuration
+        get :sharepoint, on: :collection
+        patch :sharepoint, on: :collection, action: :update_sharepoint
+        post "sharepoint/test", on: :collection, action: :test_sharepoint
       end
 
       # Folder Templates for OneDrive sync
@@ -844,9 +849,13 @@ Rails.application.routes.draw do
         collection do
           post :reorder
         end
-        resources :plan_types, only: [ :index, :create ]
+        resources :plan_types, only: [ :create ] do
+          collection do
+            get :index, action: :nested_index
+          end
+        end
       end
-      resources :plan_types, only: [ :show, :update, :destroy ] do
+      resources :plan_types, only: [ :index, :show, :update, :destroy ] do
         collection do
           post :reorder
         end

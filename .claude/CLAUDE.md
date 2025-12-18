@@ -272,37 +272,113 @@ If a page imports `TeeemTableView` AND has a custom `<h1>` header → **STOP and
 - `teeem-rob-dev` - Rob's dev environment
 - `teeem-sam-dev` - Sam's dev environment
 
-## 🔴 Microsoft 365 Integration (Organisations)
+## 🔴 Microsoft 365 Integration (SSoT: MicrosoftCredential)
 
-**Authorisation and access to organisations is managed through the `organisation_microsoft_app_credentials` table.**
+**Single Source of Truth:** `MicrosoftCredential` model
 
-This table stores:
-- OAuth tokens for Microsoft Graph API access
-- Organisation-specific credentials (client_id, tenant_id, etc.)
-- Connection status (`connected`, `disconnected`, `error`)
-- Sync configuration (what to sync, how many years of history)
+### Architecture
 
-**Key Model:** `OrganizationMicrosoftAppCredential`
-
-**Common Operations:**
-```ruby
-# Find connected orgs
-OrganizationMicrosoftAppCredential.where(status: 'connected')
-
-# Get credential for specific org
-cred = OrganizationMicrosoftAppCredential.find_by(name: 'OrgName')
-
-# Create Graph API client
-client = MicrosoftAppGraphClient.new(cred)
-
-# Access SharePoint config
-sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+```
+MicrosoftCredential (unified model)
+├── credential_type: 'app' | 'delegated'
+├── owner_type/owner_id: polymorphic (User, Organization, etc.)
+├── Encrypted: access_token, refresh_token, client_secret
+├── Status: pending | connected | error | dead | disconnected
+└── SharePoint/OneDrive config fields
 ```
 
-**Related Services:**
-- `MicrosoftAppGraphClient` - Makes Microsoft Graph API calls
+### Credential Types
+
+| Type | Flow | Use Case |
+|------|------|----------|
+| `app` | Client Credentials | Org-level email sync, SharePoint (no user interaction) |
+| `delegated` | OAuth Authorization Code | User-specific access (requires user consent) |
+
+### Common Operations
+
+```ruby
+# SSoT - Use MicrosoftCredential
+MicrosoftCredential.active.app_credentials.connected  # Org app credentials
+MicrosoftCredential.active.delegated_credentials      # User OAuth credentials
+MicrosoftCredential.for_user(user)                    # Get user's credential
+
+# Create Graph API clients (auto-fallback to legacy during migration)
+client = MicrosoftAppGraphClient.for_org('OrgName')   # App permissions
+client = MicrosoftGraphClient.for_user(user)          # Delegated permissions
+```
+
+### Migration Status (Dual-Write Active)
+
+OAuth callbacks write to BOTH old and new tables. Graph clients try new table first, fall back to legacy.
+
+**Legacy Models (DEPRECATED - do not use in new code):**
+- `OrganizationMicrosoftAppCredential` → use `MicrosoftCredential.app_credentials`
+- `OrganizationOneDriveCredential` → use `MicrosoftCredential.delegated_credentials`
+- `UserMicrosoftToken` → use `MicrosoftCredential.for_user(user)`
+
+### Naming Policy
+
+| Context | Term |
+|---------|------|
+| Code/Models | `MicrosoftCredential`, `MicrosoftGraphClient` |
+| Database | `microsoft_credentials`, `sharepoint_site_id` |
+| UI/User Messages | "SharePoint" (never "OneDrive" to users) |
+| Error Messages | "Please reconnect SharePoint in Admin > System > Connections" |
+
+### Dead Token Detection
+
+Graph clients detect permanent auth failures (AADSTS65001, AADSTS70000, etc.) and mark credentials as `dead`. Dead credentials require user to re-authenticate via OAuth.
+
+### Related Services
+
+- `MicrosoftGraphBase` - Shared base class with retry logic, dead token detection
+- `MicrosoftAppGraphClient` - App permissions (org-level)
+- `MicrosoftGraphClient` - Delegated permissions (user-level)
 - `OrgEmailSyncJob` - Syncs emails from Microsoft 365
-- `OneDriveController` - Handles OneDrive file operations
+
+## 🔴 SharePoint Document Paths (SSoT: CorporateCompanySetting)
+
+**Single Source of Truth:** `CorporateCompanySetting` model (Admin > System > Company > SharePoint tab)
+
+### Path Configuration
+
+All SharePoint document paths are centralized in `CorporateCompanySetting`:
+
+```ruby
+# Get full path for a document scope
+CorporateCompanySetting.sharepoint_full_path(:jobs)     # "/Shared Documents/TEEEM Jobs"
+CorporateCompanySetting.sharepoint_full_path(:people)   # "/Shared Documents/Corporate/People"
+CorporateCompanySetting.sharepoint_full_path(:company)  # "/Shared Documents/00 TEEEM PRIVATE"
+CorporateCompanySetting.sharepoint_full_path(:contacts) # "/Shared Documents/Contacts"
+
+# Check if SharePoint is configured
+CorporateCompanySetting.sharepoint_configured?
+
+# Get full config hash
+CorporateCompanySetting.sharepoint_config
+```
+
+### Database Fields
+
+| Field | Default | Purpose |
+|-------|---------|---------|
+| `sharepoint_root_path` | `/Shared Documents` | Base path for all documents |
+| `sharepoint_jobs_path` | `TEEEM Jobs` | Job documents (relative to root) |
+| `sharepoint_people_path` | `Corporate/People` | People documents |
+| `sharepoint_company_path` | `00 TEEEM PRIVATE` | Company documents |
+| `sharepoint_contacts_path` | `Contacts` | Contact documents |
+
+### Usage in Services
+
+**ALWAYS use `CorporateCompanySetting.sharepoint_full_path(:scope)` instead of hardcoded paths:**
+
+```ruby
+# ✅ CORRECT - Uses SSoT
+path = CorporateCompanySetting.sharepoint_full_path(:jobs)
+
+# ❌ WRONG - Hardcoded path
+path = "/Shared Documents/TEEEM Jobs"
+```
 
 ## 🔴 Local Development
 
