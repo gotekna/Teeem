@@ -87,14 +87,14 @@ module Api
         if params[:type].present? && params[:role].blank?
           case params[:type]
           when "suppliers"
-            # Suppliers: contacts who have purchase orders, pricebook items, price histories, or bills
-            # Note: purchase_orders, pricebook_items, price_histories use supplier_id foreign key
+            # Suppliers: contacts who have purchase orders, pricebook entries, price histories, or bills
+            # Note: purchase_orders, pricebook, price_histories use supplier_id foreign key
             supplier_ids = Contact
               .joins("LEFT JOIN purchase_orders ON purchase_orders.supplier_id = contacts.id")
-              .joins("LEFT JOIN pricebook_items ON pricebook_items.supplier_id = contacts.id")
+              .joins("LEFT JOIN pricebook ON pricebook.supplier_id = contacts.id")
               .joins("LEFT JOIN price_histories ON price_histories.supplier_id = contacts.id")
               .joins("LEFT JOIN external_invoices ON external_invoices.contact_id = contacts.id AND external_invoices.invoice_type = 'ACCPAY'")
-              .where("purchase_orders.id IS NOT NULL OR pricebook_items.id IS NOT NULL OR price_histories.id IS NOT NULL OR external_invoices.id IS NOT NULL")
+              .where("purchase_orders.id IS NOT NULL OR pricebook.id IS NOT NULL OR price_histories.id IS NOT NULL OR external_invoices.id IS NOT NULL")
               .distinct
               .pluck(:id)
             @contacts = @contacts.where(id: supplier_ids)

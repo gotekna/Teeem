@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +16,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Plus,
   Loader2,
@@ -24,6 +33,9 @@ import {
   ListChecks,
   ChevronRight,
   ChevronDown,
+  ClipboardList,
+  Flag,
+  Camera,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -47,8 +59,49 @@ interface ScheduleTemplate {
   created_at: string;
 }
 
+interface TaskTemplate {
+  id: number;
+  name: string;
+  task_type: string;
+  category: string;
+  default_duration_days: number;
+  description: string | null;
+  is_milestone: boolean;
+  requires_photo: boolean;
+  sequence_order: number;
+  is_standard: boolean;
+  predecessor_template_codes: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+const TASK_CATEGORIES = [
+  "Site Works",
+  "Foundation",
+  "Frame",
+  "Roof",
+  "Lock Up",
+  "Fit Out",
+  "Services",
+  "Finishing",
+  "External",
+  "Other",
+];
+
+const TASK_TYPES = [
+  "construction",
+  "inspection",
+  "approval",
+  "procurement",
+  "admin",
+  "other",
+];
+
 export function ScheduleMasterTab() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = React.useState("schedule-templates");
+
+  // Schedule Templates state
   const [templates, setTemplates] = React.useState<ScheduleTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [expandedTemplate, setExpandedTemplate] = React.useState<number | null>(null);
@@ -63,8 +116,29 @@ export function ScheduleMasterTab() {
     description: "",
   });
 
+  // Task Templates state
+  const [taskTemplates, setTaskTemplates] = React.useState<TaskTemplate[]>([]);
+  const [taskTemplatesLoading, setTaskTemplatesLoading] = React.useState(true);
+  const [showTaskDialog, setShowTaskDialog] = React.useState(false);
+  const [editingTaskTemplate, setEditingTaskTemplate] = React.useState<TaskTemplate | null>(null);
+  const [savingTask, setSavingTask] = React.useState(false);
+  const [deletingTask, setDeletingTask] = React.useState<number | null>(null);
+
+  const [taskFormData, setTaskFormData] = React.useState({
+    name: "",
+    task_type: "construction",
+    category: "Other",
+    default_duration_days: 1,
+    description: "",
+    is_milestone: false,
+    requires_photo: false,
+    sequence_order: 0,
+    is_standard: true,
+  });
+
   React.useEffect(() => {
     loadTemplates();
+    loadTaskTemplates();
   }, []);
 
   const loadTemplates = async () => {
@@ -195,6 +269,111 @@ export function ScheduleMasterTab() {
     return tasks.reduce((sum, task) => sum + task.duration_days, 0);
   };
 
+  // Task Templates functions
+  const loadTaskTemplates = async () => {
+    try {
+      const data = await api.get<{ task_templates: TaskTemplate[] }>("/api/v1/task_templates");
+      setTaskTemplates(data?.task_templates || []);
+    } catch (error) {
+      console.error("Failed to load task templates:", error);
+      setTaskTemplates([]);
+    } finally {
+      setTaskTemplatesLoading(false);
+    }
+  };
+
+  const handleOpenAddTaskDialog = () => {
+    setTaskFormData({
+      name: "",
+      task_type: "construction",
+      category: "Other",
+      default_duration_days: 1,
+      description: "",
+      is_milestone: false,
+      requires_photo: false,
+      sequence_order: taskTemplates.length + 1,
+      is_standard: true,
+    });
+    setEditingTaskTemplate(null);
+    setShowTaskDialog(true);
+  };
+
+  const handleOpenEditTaskDialog = (template: TaskTemplate) => {
+    setTaskFormData({
+      name: template.name,
+      task_type: template.task_type || "construction",
+      category: template.category || "Other",
+      default_duration_days: template.default_duration_days || 1,
+      description: template.description || "",
+      is_milestone: template.is_milestone || false,
+      requires_photo: template.requires_photo || false,
+      sequence_order: template.sequence_order || 0,
+      is_standard: template.is_standard !== false,
+    });
+    setEditingTaskTemplate(template);
+    setShowTaskDialog(true);
+  };
+
+  const handleSaveTaskTemplate = async () => {
+    if (!taskFormData.name) {
+      toast({ title: "Error", description: "Task name is required", variant: "destructive" });
+      return;
+    }
+
+    setSavingTask(true);
+    try {
+      if (editingTaskTemplate) {
+        await api.patch(`/api/v1/task_templates/${editingTaskTemplate.id}`, {
+          task_template: taskFormData,
+        });
+        toast({ title: "Success", description: "Task template updated successfully" });
+      } else {
+        await api.post("/api/v1/task_templates", {
+          task_template: taskFormData,
+        });
+        toast({ title: "Success", description: "Task template created successfully" });
+      }
+      setShowTaskDialog(false);
+      loadTaskTemplates();
+    } catch (error) {
+      console.error("Failed to save task template:", error);
+      toast({ title: "Error", description: "Failed to save task template", variant: "destructive" });
+    } finally {
+      setSavingTask(false);
+    }
+  };
+
+  const handleDeleteTaskTemplate = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this task template? This cannot be undone.")) return;
+
+    setDeletingTask(id);
+    try {
+      await api.delete(`/api/v1/task_templates/${id}`);
+      toast({ title: "Success", description: "Task template deleted successfully" });
+      loadTaskTemplates();
+    } catch (error) {
+      console.error("Failed to delete task template:", error);
+      toast({ title: "Error", description: "Failed to delete task template", variant: "destructive" });
+    } finally {
+      setDeletingTask(null);
+    }
+  };
+
+  // Group task templates by category
+  const taskTemplatesByCategory = React.useMemo(() => {
+    const grouped: Record<string, TaskTemplate[]> = {};
+    taskTemplates.forEach((template) => {
+      const cat = template.category || "Other";
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(template);
+    });
+    // Sort each category by sequence_order
+    Object.keys(grouped).forEach((cat) => {
+      grouped[cat].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0));
+    });
+    return grouped;
+  }, [taskTemplates]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -205,20 +384,33 @@ export function ScheduleMasterTab() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Schedule Master Templates</h2>
-          <p className="text-sm text-muted-foreground">
-            Create and manage schedule templates for different job types.
-          </p>
-        </div>
-        <Button onClick={handleOpenAddDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Template
-        </Button>
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="schedule-templates">
+            <Calendar className="h-4 w-4 mr-2" />
+            Schedule Templates
+          </TabsTrigger>
+          <TabsTrigger value="task-templates">
+            <ClipboardList className="h-4 w-4 mr-2" />
+            Task Templates
+          </TabsTrigger>
+        </TabsList>
 
-      {templates.length === 0 ? (
+        <TabsContent value="schedule-templates" className="space-y-6 mt-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Schedule Master Templates</h2>
+              <p className="text-sm text-muted-foreground">
+                Create and manage schedule templates for different job types.
+              </p>
+            </div>
+            <Button onClick={handleOpenAddDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Template
+            </Button>
+          </div>
+
+          {templates.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Calendar className="h-12 w-12 mb-4 opacity-50" />

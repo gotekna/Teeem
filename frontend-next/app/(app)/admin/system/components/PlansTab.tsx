@@ -39,6 +39,44 @@ import type { PlaceholderToken } from "@/lib/placeholders";
 
 // Custom placeholders for Plan Types
 const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
+  // Job placeholders
+  {
+    code: "{JobCode}",
+    example: "EB2401",
+    color: "orange",
+    description: "Job code (e.g., EB2401)",
+  },
+  {
+    code: "{JobName}",
+    example: "05 Wategors",
+    color: "orange",
+    description: "Job name/title (short)",
+  },
+  {
+    code: "{JobAddress}",
+    example: "Lot 5 Wategois Street Claamvale",
+    color: "orange",
+    description: "Full job address",
+  },
+  {
+    code: "{LotNumber}",
+    example: "5",
+    color: "orange",
+    description: "Lot number",
+  },
+  {
+    code: "{StreetName}",
+    example: "Wategois Street",
+    color: "orange",
+    description: "Street name",
+  },
+  {
+    code: "{Suburb}",
+    example: "Claamvale",
+    color: "orange",
+    description: "Suburb",
+  },
+  // Plan type placeholders
   {
     code: "{Code}",
     example: "01",
@@ -51,12 +89,7 @@ const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "blue",
     description: "Plan type name",
   },
-  {
-    code: "{JobCode}",
-    example: "EB2401",
-    color: "orange",
-    description: "Job code",
-  },
+  // Revision/version placeholders
   {
     code: "{Rev}",
     example: "A",
@@ -74,6 +107,13 @@ const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
     example: "a",
     color: "purple",
     description: "Variant suffix (a, b, c)",
+  },
+  // Project placeholders
+  {
+    code: "{ProjectName}",
+    example: "Wategors Estate",
+    color: "purple",
+    description: "Project name",
   },
 ];
 
@@ -583,9 +623,18 @@ function TypesSection() {
                 placeholders={PLAN_TYPE_PLACEHOLDERS}
                 showPreview
                 previewData={{
+                  JobCode: "EB2401",
+                  JobName: "05 Wategors",
+                  JobAddress: "Lot 5 Wategois Street Claamvale",
+                  LotNumber: "5",
+                  StreetName: "Wategois Street",
+                  Suburb: "Claamvale",
                   Code: "01",
                   Name: "PERSPECTIVE",
+                  Rev: "A",
+                  Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                   Variant: "a",
+                  ProjectName: "Wategors Estate",
                 }}
                 helpText="Used for display in tables and lists"
               />
@@ -597,11 +646,17 @@ function TypesSection() {
                 showPreview
                 previewData={{
                   JobCode: "EB2401",
+                  JobName: "05 Wategors",
+                  JobAddress: "Lot 5 Wategois Street Claamvale",
+                  LotNumber: "5",
+                  StreetName: "Wategois Street",
+                  Suburb: "Claamvale",
                   Code: "01",
                   Name: "PERSPECTIVE",
                   Rev: "A",
                   Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                   Variant: "a",
+                  ProjectName: "Wategors Estate",
                 }}
                 helpText="Used for file names when saving to SharePoint"
               />
@@ -803,9 +858,18 @@ function TypesSection() {
                   placeholders={PLAN_TYPE_PLACEHOLDERS}
                   showPreview
                   previewData={{
+                    JobCode: "EB2401",
+                    JobName: "05 Wategors",
+                    JobAddress: "Lot 5 Wategois Street Claamvale",
+                    LotNumber: "5",
+                    StreetName: "Wategois Street",
+                    Suburb: "Claamvale",
                     Code: formData.code || "01",
                     Name: formData.name || "PERSPECTIVE",
+                    Rev: "A",
+                    Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                     Variant: "a",
+                    ProjectName: "Wategors Estate",
                   }}
                   placeholder={`Click + to build (default: ${globalDefaults.short_name_template})`}
                   helpText={!formData.short_name_template ? "Using global default template" : undefined}
@@ -819,11 +883,17 @@ function TypesSection() {
                   showPreview
                   previewData={{
                     JobCode: "EB2401",
+                    JobName: "05 Wategors",
+                    JobAddress: "Lot 5 Wategois Street Claamvale",
+                    LotNumber: "5",
+                    StreetName: "Wategois Street",
+                    Suburb: "Claamvale",
                     Code: formData.code || "01",
                     Name: formData.name || "PERSPECTIVE",
                     Rev: "A",
                     Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                     Variant: "a",
+                    ProjectName: "Wategors Estate",
                   }}
                   placeholder={`Click + to build (default: ${globalDefaults.long_name_template})`}
                   helpText={!formData.long_name_template ? "Using global default template" : undefined}
