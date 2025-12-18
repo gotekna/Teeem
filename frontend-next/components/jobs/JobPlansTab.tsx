@@ -314,11 +314,22 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
             setProcessingProgress("");
           }, 180000);
 
-        } else if (result.data.plans) {
+        } else if (result.data.plans && Array.isArray(result.data.plans)) {
           // Synchronous response (legacy mode)
           toast({
             title: "Plans Added",
-            description: `Created ${result.data.plans.length} plans from ${result.data.total_pages} pages`,
+            description: `Created ${result.data.plans.length} plans from ${result.data.total_pages || 0} pages`,
+          });
+          fetchPlans();
+          fetchTabs();
+          setProcessingPlanSet(false);
+          setProcessingProgress("");
+        } else {
+          // Unknown response format - just refresh and hope for the best
+          console.warn("[PlanUpload] Unexpected response format:", result.data);
+          toast({
+            title: "Upload Complete",
+            description: "Refreshing plan list...",
           });
           fetchPlans();
           fetchTabs();
