@@ -369,7 +369,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           {!isEditing ? (
             <>
               <Button
-                onClick={handleStartContractWorkflow}
+                onClick={handleGenerateContract}
                 disabled={generating}
               >
                 {generating ? (
@@ -378,14 +378,6 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                   <FileText className="h-4 w-4 mr-2" />
                 )}
                 Create Contract
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleGenerateContract}
-                disabled={generating}
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Preview PDF
               </Button>
               <Button variant="outline" onClick={() => setIsEditing(true)}>
                 <Pencil className="h-4 w-4 mr-2" />
@@ -839,7 +831,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           <DialogHeader>
             <DialogTitle>QBCC Contract Preview</DialogTitle>
             <DialogDescription>
-              Review the contract before saving to job documents
+              Review the contract before sending for signature
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 h-full">
@@ -859,16 +851,18 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
               <Download className="h-4 w-4 mr-2" />
               Download
             </Button>
-            <Button variant="outline" onClick={handleSaveContract} disabled={savingContract}>
-              {savingContract ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Save to Documents
-            </Button>
-            <Button onClick={handleSendForSigning} disabled={sendingForSigning}>
-              {sendingForSigning ? (
+            <Button
+              onClick={async () => {
+                setShowPreview(false);
+                if (previewUrl) {
+                  URL.revokeObjectURL(previewUrl);
+                  setPreviewUrl(null);
+                }
+                await handleStartContractWorkflow();
+              }}
+              disabled={generating}
+            >
+              {generating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Send className="h-4 w-4 mr-2" />
