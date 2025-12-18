@@ -66,7 +66,7 @@ import {
   Check,
   ChevronsUpDown,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // Types
@@ -132,7 +132,7 @@ interface PriceBookItem {
   price_histories?: PriceHistory[];
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const API_URL = getApiBaseUrl();
 
 // QLD Local Government Areas for LGA dropdown
 const QLD_COUNCILS = [

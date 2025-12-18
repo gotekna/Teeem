@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import {
   Loader2,
   Eye,
@@ -60,7 +60,7 @@ export function DocumentTemplatesTab() {
   const [previewLoading, setPreviewLoading] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<string>("all");
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  const apiUrl = getApiBaseUrl();
 
   React.useEffect(() => {
     loadAllTemplates();

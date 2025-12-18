@@ -34,7 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import {
   StatCard,
   ProgressRing,
@@ -326,7 +326,6 @@ export default function SmDashboardPage() {
   // Export handler
   const handleExport = async (type: string) => {
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
       const params = new URLSearchParams({
@@ -337,7 +336,7 @@ export default function SmDashboardPage() {
         end_date: dateRange.end,
       });
 
-      const response = await fetch(`${API_URL}/api/v1/sm_reports/export?${params}`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/sm_reports/export?${params}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
         credentials: "include",
       });

@@ -10,7 +10,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -848,8 +848,7 @@ export default function BpmnJsDesigner({
       });
       return;
     }
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-    window.open(`${apiUrl}/api/v1/tekna_documents/preview?template_key=${templateKey}&job_id=${selectedJobId}`, "_blank");
+    window.open(`${getApiBaseUrl()}/api/v1/tekna_documents/preview?template_key=${templateKey}&job_id=${selectedJobId}`, "_blank");
   }, [selectedJobId, toast]);
 
   return (
@@ -1343,7 +1342,6 @@ export default function BpmnJsDesigner({
                 {(selectedElement.type === "bpmn:ServiceTask" || selectedElement.type === "bpmn:Task") && (() => {
                   const taskConfig = getTaskConfig();
                   const selectedTemplate = templates.find(t => t.key === taskConfig.template_key);
-                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
                   const requiresSigning = taskConfig.task_type === "generate_and_send_for_signing";
 
                   return (
@@ -1374,7 +1372,7 @@ export default function BpmnJsDesigner({
                               variant="outline"
                               size="sm"
                               className="w-full"
-                              onClick={() => window.open(`${apiUrl}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
+                              onClick={() => window.open(`${getApiBaseUrl()}/api/v1/tekna_documents/${selectedTemplate.key}/preview?format=html`, '_blank')}
                             >
                               <Eye className="h-4 w-4 mr-2" />
                               Preview Template

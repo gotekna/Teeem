@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 
 // ============================================
 // Types & Interfaces
@@ -721,11 +721,10 @@ export function ImportExportPanel({ constructionId, constructionName }: ImportEx
     setExporting(true);
     try {
       // For blob response, we need to use fetch directly
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
       const response = await fetch(
-        `${API_URL}/api/v1/sm_integrations/export_ms_project?construction_id=${constructionId}`,
+        `${getApiBaseUrl()}/api/v1/sm_integrations/export_ms_project?construction_id=${constructionId}`,
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           credentials: "include",
