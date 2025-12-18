@@ -238,7 +238,6 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         {
           subject_type: 'Job',
           subject_id: job.id,
-          variables: {},
         }
       );
 

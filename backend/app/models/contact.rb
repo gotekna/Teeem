@@ -259,6 +259,10 @@ class Contact < ApplicationRecord
   # Two-way sync for ABN: Contact.abn ↔ CorporateCompany.abn
   after_commit :sync_to_corporate_company, if: :should_sync_to_corporate?
 
+  # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
+  # If invoice.contact_name matches contact.display_name exactly, link them
+  after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
+
   # Scopes
   scope :with_email, -> { where.not(email: [ nil, "" ]) }
   scope :with_phone, -> { where.not(mobile_phone: [ nil, "" ]).or(where.not(office_phone: [ nil, "" ])) }
@@ -1148,5 +1152,38 @@ class Contact < ApplicationRecord
     Rails.logger.error("Contact##{id}: Sync to CorporateCompany failed - #{e.message}")
   ensure
     Thread.current[:syncing_contact_to_company] = false
+  end
+
+  # SSoT: Check if this contact should auto-link unlinked invoices
+  def should_auto_link_invoices?
+    # Only run if display_name or company_name_or_trust changed (or new record)
+    display_name.present? || company_name_or_trust.present?
+  end
+
+  # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
+  # This ensures that when a user creates a TEEEM contact, existing Xero invoices
+  # with matching names are automatically linked (no manual intervention needed)
+  def auto_link_unlinked_invoices
+    names_to_match = [
+      display_name&.strip&.squish&.downcase,
+      company_name_or_trust&.strip&.squish&.downcase
+    ].compact.reject(&:blank?).uniq
+
+    return if names_to_match.empty?
+
+    # Find unlinked invoices with matching contact_name (case-insensitive, trimmed)
+    linked_count = 0
+    names_to_match.each do |name|
+      count = ExternalInvoice.where(contact_id: nil)
+        .where("LOWER(TRIM(contact_name)) = ?", name)
+        .update_all(contact_id: id)
+      linked_count += count
+    end
+
+    if linked_count > 0
+      Rails.logger.info("Contact##{id} (#{display_name}): Auto-linked #{linked_count} unlinked Xero invoices")
+    end
+  rescue StandardError => e
+    Rails.logger.error("Contact##{id}: Auto-link invoices failed - #{e.message}")
   end
 end

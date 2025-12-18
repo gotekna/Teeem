@@ -402,9 +402,24 @@ class ExternalInvoiceSyncService
   end
 
   def link_to_contact(invoice)
+    # FIRST: Try exact name match (SSoT - if names match exactly, link them)
+    # This handles cases where TEEEM contact exists but wasn't linked via Xero ID
+    if invoice.contact_name.present?
+      normalized_name = invoice.contact_name.to_s.strip.squish.downcase
+      exact_match = Contact.where("LOWER(TRIM(display_name)) = ?", normalized_name).first
+      exact_match ||= Contact.where("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name).first
+
+      if exact_match
+        invoice.update!(contact: exact_match)
+        @stats[:linked_to_contacts] += 1
+        Rails.logger.info("Linked invoice #{invoice.invoice_number} to contact #{exact_match.display_name} via exact name match")
+        return
+      end
+    end
+
     return if invoice.external_contact_id.blank?
 
-    # First try: Find via WarehouseContact (SSoT for Xero contact linking)
+    # Second: Find via WarehouseContact (SSoT for Xero contact linking)
     warehouse_contact = WarehouseContact.find_by(
       xero_id: invoice.external_contact_id,
       tenant_id: @tenant_id
@@ -417,7 +432,7 @@ class ExternalInvoiceSyncService
       return
     end
 
-    # Fallback: Check ContactExternalLink (for backwards compatibility during migration)
+    # Third: Check ContactExternalLink (for backwards compatibility during migration)
     link = ContactExternalLink.find_by(
       source: @source,
       tenant_id: @tenant_id,
@@ -433,7 +448,7 @@ class ExternalInvoiceSyncService
       return
     end
 
-    # Auto-create contact if not found (new Xero contact)
+    # Last resort: Auto-create contact if not found (new Xero contact)
     contact = auto_create_contact_from_xero(invoice, warehouse_contact)
     if contact
       invoice.update!(contact: contact)
