@@ -254,15 +254,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       setProcessingProgress("Splitting PDF and analyzing with AI...");
 
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/jobs/${jobId}/job_plans/upload_plan_set`, {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
+      const result = await api.postFormData<{ success: boolean; data?: { plans: unknown[]; total_pages: number }; error?: string }>(
+        `/api/v1/jobs/${jobId}/job_plans/upload_plan_set`,
+        formData
+      );
 
-      const result = await response.json();
-
-      if (result.success) {
+      if (result.success && result.data) {
         toast({
           title: "Plans Added",
           description: `Created ${result.data.plans.length} plans from ${result.data.total_pages} pages`,
