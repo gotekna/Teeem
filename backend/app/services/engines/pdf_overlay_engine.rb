@@ -43,6 +43,12 @@ module Engines
       builder_email: "Text Field 22"        # Email
     }.freeze
 
+    # Checkbox field mappings for QBCC Contract
+    QBCC_CONTRACT_CHECKBOX_FIELDS = {
+      resident_owner_is: "Owner-Sched-IS",        # Check if IS a resident owner
+      resident_owner_is_not: "Sched-Owner-IS NOT" # Check if IS NOT a resident owner
+    }.freeze
+
     # Placeholder text for missing data
     FIELD_PLACEHOLDERS = {
       owner_name: "[Owner name required]",
@@ -211,6 +217,9 @@ module Engines
         # Site supervisor info (from job columns)
         data[:site_supervisor_name] ||= job.site_supervisor_name
         data[:site_supervisor_phone] ||= job.site_supervisor_phone
+
+        # Resident owner status (for checkbox)
+        data[:resident_owner] = job.resident_owner
       end
 
       data[:date] ||= format_date(Date.current)
@@ -228,6 +237,12 @@ module Engines
         pdf_field_name = field.full_field_name.to_s
         value = nil
         data_key_used = nil
+
+        # Handle checkbox fields for resident owner
+        if template_key == :qbcc_contract && field.field_type == :Btn
+          fill_checkbox_field(field, pdf_field_name, data)
+          next
+        end
 
         # First check explicit mapping (data_key -> pdf_field_name)
         explicit_mapping.each do |data_key, mapped_field_name|
@@ -259,6 +274,25 @@ module Engines
       end
     rescue StandardError => e
       Rails.logger.warn "[PdfOverlayEngine] Form fill error: #{e.message}"
+    end
+
+    def fill_checkbox_field(field, pdf_field_name, data)
+      resident_owner = data[:resident_owner]
+
+      case pdf_field_name
+      when "Owner-Sched-IS"
+        # Check this box if IS a resident owner
+        if resident_owner == true
+          field.field_value = field.allowed_values&.last || "Yes"
+          Rails.logger.debug "[PdfOverlayEngine] Checked 'IS a Resident Owner'"
+        end
+      when "Sched-Owner-IS NOT"
+        # Check this box if IS NOT a resident owner
+        if resident_owner == false
+          field.field_value = field.allowed_values&.last || "Yes"
+          Rails.logger.debug "[PdfOverlayEngine] Checked 'IS NOT a Resident Owner'"
+        end
+      end
     end
 
     def form_field_mapping_for_template
