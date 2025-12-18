@@ -52,10 +52,23 @@ module Engines
       "Text Field 28" => 8,   # Prime cost items (b)
       "Text Field 29" => 8,   # Provisional sums (c)
       "Text Field 31" => 8,   # Contract price total
+
+      # Completion Period (Item 6)
+      "Text Field 44" => 8,   # A. Construction days
+      "Text Field 45" => 8,   # B(i). Weather days
+      "Text Field 46" => 8,   # B(ii). Other delays
+      "Text Field 82" => 8,   # C. Non-working days
+      "Text Field 83" => 8,   # COMPLETION PERIOD total
     }.freeze
 
-    # Field mappings for QBCC documents - text overlay positions (only used if no form fields)
-    QBCC_CONTRACT_FIELDS = {}.freeze  # Contract uses AcroForm fields, not text overlay
+    # Field mappings for QBCC documents - text overlay positions
+    # Used for fields that don't have form fields in the PDF template
+    QBCC_CONTRACT_FIELDS = {
+      # Item 6: C and Total (no form fields exist on page 2)
+      # Positions adjusted based on visual testing
+      weekends_holidays_overlay: { type: :text, page: 2, x: 535, y: 275, size: 10 },  # C. after "etc.) ="
+      total_completion_overlay: { type: :text, page: 2, x: 455, y: 235, size: 10 }    # Between "A+B+C):" and "Calendar days"
+    }.freeze
 
     # AcroForm field mappings for QBCC Contract
     # Maps our data keys to PDF form field names
@@ -106,9 +119,13 @@ module Engines
       start_date_year: "Text Field 43",      # Start date - year (2 digits)
 
       # Item 6: Completion Period
-      construction_days: "Text Field 44",    # A. Construction days
+      construction_days: "Text Field 44",    # A. Construction days (working days)
       weather_days: "Text Field 45",         # B(i). Inclement weather allowance (days)
       other_delay_days: "Text Field 46",     # B(ii). Other likely delays (days)
+      delay_details: "Text Field 47",        # Details of delay (text description)
+      delay_details_2: "Text Field 48",      # Additional delay details
+      weekends_holidays: "Text Field 82",    # C. Non-working days (weekends/public holidays)
+      total_completion_days: "Text Field 83", # COMPLETION PERIOD (A+B+C) total calendar days
 
       # Item 1: Contract Price breakdown (VERIFIED: Fields 27-29, 31)
       fixed_price_component: "Text Field 27", # a. Fixed Price Component
@@ -124,11 +141,10 @@ module Engines
       stage_4_pct: "Text Field 58",          # Fixing %
       stage_5_pct: "Text Field 59",          # Practical Completion %
 
-      # Item 13: Liquidated Damages (TBC - needs verification)
-      liquidated_damages: "Text Field 47",   # Liquidated damages amount per day
+      # TODO: Item 10: Liquidated Damages - needs field verification
+      # (Field 47/48 are in Item 6 section, NOT Items 10-14)
 
-      # Item 14: Certification responsibility (TBC)
-      certification_by: "Text Field 48",     # Who obtains certification
+      # TODO: Item 14: Certification responsibility - needs field verification
 
       # Item 15: Prime Cost, Provisional Sums details, and Special Conditions (TBC)
       prime_cost_details: "Text Field 49",   # What the prime cost items are
@@ -358,22 +374,28 @@ module Engines
         # Item 6: Completion Period (auto-calculate build period and weekends/holidays)
         construction_days = job.try(:construction_days) || 300
         weather_days = job.try(:weather_days) || 10
+        other_delays = job.try(:other_delay_days) || 0
         start_date = job.try(:start_date) || Date.current
 
         # Calculate calendar days and weekends/holidays
         build_calc = calculate_build_period(start_date, construction_days, weather_days)
 
+        # C = weekends + public holidays during construction period
+        weekend_holiday_days = build_calc[:weekend_holiday_days]
+
+        # Total = A + B(i) + B(ii) + C
+        total_completion = construction_days.to_i + weather_days.to_i + other_delays.to_i + weekend_holiday_days
+
         data[:construction_days] ||= construction_days.to_s
         data[:weather_days] ||= weather_days.to_s
-        data[:weekends_holidays] ||= build_calc[:weekend_holiday_days].to_s
+        data[:other_delay_days] ||= other_delays.to_s if other_delays > 0
+        data[:weekends_holidays] ||= weekend_holiday_days.to_s
+        data[:total_completion_days] ||= total_completion.to_s
         data[:build_period] ||= "#{build_calc[:total_weeks]} weeks"
 
-        # Item 13: Liquidated Damages
-        liquidated_amount = job.try(:liquidated_damages) || 50.00
-        data[:liquidated_damages] ||= format_currency(liquidated_amount)
-
-        # Item 14: Certification responsibility
-        data[:certification_by] ||= job.try(:certification_by_owner) ? "Owner" : "Contractor"
+        # Text overlay versions (for fields that don't exist as form fields on page 2)
+        data[:weekends_holidays_overlay] = weekend_holiday_days.to_s
+        data[:total_completion_overlay] = total_completion.to_s
 
         # Item 15: Prime Cost/Provisional Sums details and Special Conditions
         data[:prime_cost_details] ||= job.try(:prime_cost_details) if job.try(:prime_cost_details).present?
@@ -486,11 +508,13 @@ module Engines
 
         if value.present?
           field.field_value = value.to_s
+          # Generate appearance stream immediately (web PDF viewers don't respect NeedAppearances)
+          field.create_appearances if field.respond_to?(:create_appearances)
           Rails.logger.debug "[PdfOverlayEngine] Filled '#{pdf_field_name}' with '#{value}'"
         end
       end
 
-      # Tell PDF viewers to regenerate appearances on open (better compatibility)
+      # Fallback for viewers that do support NeedAppearances
       doc.acro_form[:NeedAppearances] = true
     rescue StandardError => e
       Rails.logger.warn "[PdfOverlayEngine] Form fill error: #{e.message}"

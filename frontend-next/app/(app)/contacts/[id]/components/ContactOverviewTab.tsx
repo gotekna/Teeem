@@ -1224,9 +1224,10 @@ function PhonesSection({
             </select>
             <Input
               type="tel"
-              value={phone.phone_number}
+              value={formatPhoneNumber(phone.phone_number)}
               onChange={(e) => {
                 const updated = [...(contact.contact_phones || [])];
+                // Store raw value while typing, will be formatted on blur
                 updated[originalIndex] = { ...updated[originalIndex], phone_number: e.target.value };
                 setContact({ ...contact, contact_phones: updated });
                 setHasChanges(true);
@@ -1423,6 +1424,11 @@ function AddressCard({
   const [showSuburbDropdown, setShowSuburbDropdown] = React.useState(false);
   const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Refs for browser autofill detection
+  const streetInputRef = React.useRef<HTMLInputElement>(null);
+  const suburbInputRef = React.useRef<HTMLInputElement>(null);
+  const postcodeInputRef = React.useRef<HTMLInputElement>(null);
 
   // Get the primary STREET address or create an empty one
   // SSoT: contact_addresses is the source of truth
@@ -1691,6 +1697,85 @@ function AddressCard({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Detect browser autofill (Chrome, Safari, Google)
+  // Browser autofill bypasses React onChange, so we need to check DOM values
+  React.useEffect(() => {
+    const checkAutofill = () => {
+      const streetEl = streetInputRef.current;
+      const suburbEl = suburbInputRef.current;
+      const postcodeEl = postcodeInputRef.current;
+
+      if (!streetEl && !suburbEl && !postcodeEl) return;
+
+      // Check if DOM values differ from React state (indicates autofill)
+      const domStreet = streetEl?.value || "";
+      const domSuburb = suburbEl?.value || "";
+      const domPostcode = postcodeEl?.value || "";
+
+      const stateStreet = streetAddress.line1 || "";
+      const stateSuburb = streetAddress.city || "";
+      const statePostcode = streetAddress.postal_code || "";
+
+      const hasAutofill =
+        (domStreet && domStreet !== stateStreet) ||
+        (domSuburb && domSuburb !== stateSuburb) ||
+        (domPostcode && domPostcode !== statePostcode);
+
+      if (hasAutofill) {
+        // Capture autofilled values into React state
+        const addresses = contact.contact_addresses || [];
+        const existingIndex = addresses.findIndex(
+          (a) => a.address_type === "STREET" && !a._destroy
+        );
+
+        const updatedAddress: ContactAddress = {
+          ...getStreetAddress(),
+          line1: domStreet || stateStreet,
+          city: domSuburb || stateSuburb,
+          postal_code: domPostcode || statePostcode,
+        };
+
+        let updatedAddresses: ContactAddress[];
+        if (existingIndex >= 0) {
+          updatedAddresses = addresses.map((addr, idx) =>
+            idx === existingIndex ? { ...addr, ...updatedAddress } : addr
+          );
+        } else {
+          updatedAddresses = [...addresses, updatedAddress];
+        }
+
+        setContact({ ...contact, contact_addresses: updatedAddresses });
+        if (domSuburb) setSuburbSearch(domSuburb);
+        setHasChanges(true);
+
+        // Trigger validation after capturing autofill
+        setTimeout(() => {
+          validateAndCorrectAddress();
+          handleAutoSave();
+        }, 100);
+      }
+    };
+
+    // Check for autofill after a short delay (browsers fill after focus)
+    const timeoutId = setTimeout(checkAutofill, 500);
+
+    // Also listen for input events which may fire on autofill
+    const handleInput = () => {
+      setTimeout(checkAutofill, 50);
+    };
+
+    streetInputRef.current?.addEventListener("input", handleInput);
+    suburbInputRef.current?.addEventListener("input", handleInput);
+    postcodeInputRef.current?.addEventListener("input", handleInput);
+
+    return () => {
+      clearTimeout(timeoutId);
+      streetInputRef.current?.removeEventListener("input", handleInput);
+      suburbInputRef.current?.removeEventListener("input", handleInput);
+      postcodeInputRef.current?.removeEventListener("input", handleInput);
+    };
+  }, [streetAddress.line1, streetAddress.city, streetAddress.postal_code]);
+
   return (
     <Card>
       <CardHeader>
@@ -1704,7 +1789,10 @@ function AddressCard({
         <div className="space-y-2">
           <Label htmlFor="street_address">Street Address</Label>
           <Input
+            ref={streetInputRef}
             id="street_address"
+            name="street-address"
+            autoComplete="street-address"
             value={streetAddress.line1}
             onChange={(e) => updateAddressField("line1", e.target.value)}
             onBlur={handleAutoSave}
@@ -1731,7 +1819,10 @@ function AddressCard({
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={suburbInputRef}
                 id="suburb"
+                name="address-level2"
+                autoComplete="address-level2"
                 value={suburbSearch || streetAddress.city}
                 onChange={(e) => handleSuburbSearchChange(e.target.value)}
                 onFocus={() => {
@@ -1806,7 +1897,10 @@ function AddressCard({
           <div className="space-y-2">
             <Label htmlFor="postcode">Postcode</Label>
             <Input
+              ref={postcodeInputRef}
               id="postcode"
+              name="postal-code"
+              autoComplete="postal-code"
               value={streetAddress.postal_code}
               onChange={(e) => updateAddressField("postal_code", e.target.value)}
               onBlur={async () => {

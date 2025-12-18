@@ -16,7 +16,7 @@ export default function PriceBookPage() {
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView with server-side stats
-  const { foundation, records, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook");
+  const { foundation, records, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("pricebook-items");
 
   const [selectedItemId, setSelectedItemId] = useState<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -45,7 +45,7 @@ export default function PriceBookPage() {
   // Handle inline row update
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
     try {
-      await api.patch(`/api/v1/foundations/pricebook/records/${rowId}`, {
+      await api.patch(`/api/v1/foundations/pricebook-items/records/${rowId}`, {
         record: { [field]: value }
       });
       refresh();
@@ -77,7 +77,7 @@ export default function PriceBookPage() {
       <TeeemTableView
         entries={records}
         totalCount={totalCount}
-        foundationId="pricebook"
+        foundationId="pricebook-items"
         foundationIdNumeric={foundation?.id}
         tableName={foundation?.name || "Pricebook"}
         enableExport={true}

@@ -272,6 +272,7 @@ Rails.application.routes.draw do
             get :suggested_recipients # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
             post :email               # POST /api/v1/jobs/:job_id/job_plans/email
             post :upload_plan_set     # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set - AI split (legacy)
+            post :fix_categories      # POST /api/v1/jobs/:job_id/job_plans/fix_categories - Reassign to correct tabs
           end
           member do
             post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision

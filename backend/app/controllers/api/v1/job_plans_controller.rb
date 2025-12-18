@@ -429,50 +429,8 @@ module Api
         }
       end
 
-      # Try to match a sheet name to an existing plan type
-      # Uses fuzzy matching on plan type names
-      def find_plan_type_for_sheet(sheet_name)
-        return nil if sheet_name.blank?
-
-        normalized = sheet_name.to_s.downcase.strip
-
-        # Try exact match first
-        plan_type = PlanType.active.find_by("LOWER(name) = ?", normalized)
-        return plan_type if plan_type
-
-        # Try contains match (e.g., "Ground Floor Plan" matches "Floor Plan")
-        plan_type = PlanType.active.find_by("LOWER(?) LIKE '%' || LOWER(name) || '%'", normalized)
-        return plan_type if plan_type
-
-        # Try partial match (plan type name contains sheet name)
-        plan_type = PlanType.active.find_by("LOWER(name) LIKE ?", "%#{normalized}%")
-        return plan_type if plan_type
-
-        # Common mappings
-        mappings = {
-          'perspective' => 'PERSPECTIVE',
-          'site' => 'SITE PLAN',
-          'slab' => 'SLAB PLAN',
-          'floor' => 'FLOOR PLAN',
-          'elevation' => 'ELEVATION',
-          'roof' => 'ROOF PLAN',
-          'electrical' => 'ELECTRICAL',
-          'plumbing' => 'PLUMBING',
-          'cabinetry' => 'CABINETRY',
-          'kitchen' => 'KIT CABINETRY',
-          'section' => 'SECTION',
-          'detail' => 'DETAILS'
-        }
-
-        mappings.each do |keyword, plan_type_name|
-          if normalized.include?(keyword)
-            plan_type = PlanType.active.find_by("LOWER(name) = ?", plan_type_name.downcase)
-            return plan_type if plan_type
-          end
-        end
-
-        nil
-      end
+      # SSoT: Plan type matching is now in PlanIdentification::PatternMatchingLayer
+      # Use PlanIdentification::PlanIdentificationService.identify_from_text(sheet_name, job)
     end
   end
 end

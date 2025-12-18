@@ -1,11 +1,19 @@
 # Actual plan files attached to jobs
 # Links a job to a plan type with optional variant suffix
+#
+# SSoT: Plan type identification SHOULD go through PlanIdentificationService
+# See: app/services/plan_identification/plan_identification_service.rb
+#
 class JobPlan < ApplicationRecord
   belongs_to :job
   belongs_to :job_plan_tab, optional: true
   belongs_to :plan_type, optional: true
   belongs_to :current_revision, class_name: 'JobPlanRevision', optional: true
   has_many :revisions, class_name: 'JobPlanRevision', dependent: :destroy
+  has_many :identifications, class_name: 'PlanIdentification', dependent: :destroy
+
+  # Track whether plan_type was set via the service
+  attr_accessor :identified_via_service
 
   # Only enforce uniqueness when plan_type_id is set
   # During initial upload, plans have nil plan_type_id (AI sets it later)
@@ -15,6 +23,7 @@ class JobPlan < ApplicationRecord
   }, if: -> { plan_type_id.present? }
 
   before_save :set_display_name
+  before_save :check_identification_source, if: :plan_type_id_changed?
 
   scope :ordered, -> { includes(:plan_type).order('plan_types.sequence_order', 'plan_types.code', :variant_suffix) }
   scope :on_issue, -> { joins(:current_revision).where(job_plan_revisions: { is_on_issue: true }) }
@@ -64,9 +73,28 @@ class JobPlan < ApplicationRecord
     end
   end
 
+  # Get the latest identification record
+  def latest_identification
+    identifications.recent.first
+  end
+
   private
 
   def set_display_name
     self.display_name = computed_display_name if display_name.blank?
+  end
+
+  # SSoT Guard Rail: Log warning if plan_type_id is changed outside the service
+  # This helps catch violations during development
+  def check_identification_source
+    return if identified_via_service
+    return if plan_type_id.nil?  # Clearing plan type is fine
+
+    caller_info = caller.find { |c| c.include?('/app/') && !c.include?('/models/') }
+    Rails.logger.warn(
+      "[SSoT NOTICE] JobPlan##{id || 'new'} plan_type_id changed outside PlanIdentificationService. " \
+      "Caller: #{caller_info || 'unknown'}. " \
+      "Consider using PlanIdentificationService.identify_from_text() instead."
+    )
   end
 end

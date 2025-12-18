@@ -2,10 +2,13 @@
 
 require "hexapdf"
 
+# Service for processing multi-page PDF plan sets
+# Uploads to SharePoint and extracts individual pages with AI-named files
+#
+# SSoT: Uses PlanIdentification::AiValidationLayer for AI sheet extraction
+#
 class PlanSetService
   class ProcessingError < StandardError; end
-
-  CLAUDE_MODEL = "claude-sonnet-4-5-20250929"
 
   def initialize(construction, uploaded_file)
     @construction = construction
@@ -288,117 +291,17 @@ class PlanSetService
     output.string
   end
 
-  # Use Claude vision to extract sheet info from the plan page
+  # Use AI to extract sheet info from the plan page
+  # SSoT: Delegates to PlanIdentification::AiValidationLayer
   def extract_sheet_info_with_ai(pdf_content, page_number)
-    return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } unless ENV["ANTHROPIC_API_KEY"].present?
+    result = PlanIdentification::AiValidationLayer.extract(pdf_content, page_number: page_number)
 
-    begin
-      # Convert PDF page to image for vision
-      image_data = pdf_to_image(pdf_content)
-      return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } unless image_data
-
-      # Call Claude vision API
-      result = call_claude_vision(image_data, page_number)
-      Rails.logger.info "[PlanSetService] AI extracted: #{result.inspect}"
-      result
-    rescue StandardError => e
-      Rails.logger.error "[PlanSetService] AI extraction failed for page #{page_number}: #{e.message}"
-      { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil }
-    end
-  end
-
-  # Convert PDF to PNG image for Claude vision
-  def pdf_to_image(pdf_content)
-    Tempfile.create([ "plan_page", ".pdf" ], binmode: true) do |pdf_file|
-      pdf_file.write(pdf_content)
-      pdf_file.rewind
-
-      # Use MiniMagick to convert PDF to PNG
-      image = MiniMagick::Image.open(pdf_file.path)
-      image.format "png"
-      image.density 150  # DPI - balance between quality and size
-      image.resize "2000x2000>"  # Limit size for API
-
-      image.to_blob
-    end
-  rescue StandardError => e
-    Rails.logger.error "[PlanSetService] PDF to image conversion failed: #{e.message}"
-    nil
-  end
-
-  def call_claude_vision(image_data, page_number)
-    client = Anthropic::Client.new(access_token: ENV["ANTHROPIC_API_KEY"])
-
-    image_base64 = Base64.strict_encode64(image_data)
-
-    response = client.messages(
-      parameters: {
-        model: CLAUDE_MODEL,
-        max_tokens: 500,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: "image/png",
-                  data: image_base64
-                }
-              },
-              {
-                type: "text",
-                text: build_sheet_extraction_prompt
-              }
-            ]
-          }
-        ]
-      }
-    )
-
-    parse_sheet_response(response.dig("content", 0, "text"))
-  end
-
-  def build_sheet_extraction_prompt
-    <<~PROMPT
-      This is an architectural/construction plan sheet. Extract the sheet information from the title block (usually in the bottom right corner or right edge).
-
-      Return ONLY valid JSON with no additional text:
-      {
-        "sheet_number": "The sheet/drawing number (e.g., 'A001', 'S-101', '01', '03a')",
-        "sheet_name": "The drawing type/title (e.g., 'Perspective', 'Ground Floor Plan', 'Elevation 1')",
-        "sheet_date": "The date on the drawing (e.g., '15/12/2025')",
-        "sheet_issue": "The issue/revision status (e.g., 'Working Drawings', 'For Construction', 'Contract Drawings')"
-      }
-
-      CRITICAL INSTRUCTIONS:
-      - sheet_name: The drawing TYPE only (e.g., "Perspective", "Ground Floor Plan", "Elevation 1", "Electrical", "Cabinetry Detail")
-        Do NOT include project address or job name - just the drawing type.
-      - sheet_number: Just the number/code (e.g., "01", "03a", "A3", "101-KIT")
-      - sheet_date: Look for "Date:" field
-      - sheet_issue: Look for "Issue:" field (e.g., "Working Drawings", "Contract Drawings", "For Construction")
-      - Return null for fields you cannot find
-    PROMPT
-  end
-
-  def parse_sheet_response(text)
-    return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } if text.blank?
-
-    # Extract JSON from response
-    json_match = text.match(/\{[\s\S]*\}/)
-    return { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil } unless json_match
-
-    result = JSON.parse(json_match[0])
     {
-      sheet_number: result["sheet_number"]&.strip,
-      sheet_name: result["sheet_name"]&.strip,
-      sheet_date: result["sheet_date"]&.strip,
-      sheet_issue: result["sheet_issue"]&.strip
+      sheet_number: result.sheet_number,
+      sheet_name: result.sheet_name,
+      sheet_date: result.sheet_date,
+      sheet_issue: result.sheet_issue
     }
-  rescue JSON::ParserError => e
-    Rails.logger.error "[PlanSetService] JSON parse error: #{e.message}"
-    { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil }
   end
 
   def determine_filename(sheet_info, page_index, used_filenames)

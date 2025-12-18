@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_203409) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_071712) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3837,6 +3837,60 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_203409) do
     t.index ["plan_type_id"], name: "index_plan_category_plan_types_on_plan_type_id"
   end
 
+  create_table "plan_identification_rules", force: :cascade do |t|
+    t.string "rule_type", null: false
+    t.string "match_text", null: false
+    t.bigint "plan_type_id", null: false
+    t.integer "priority", default: 0
+    t.integer "success_count", default: 0
+    t.integer "failure_count", default: 0
+    t.boolean "is_active", default: true
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_plan_identification_rules_on_created_by_id"
+    t.index ["is_active", "priority"], name: "index_plan_identification_rules_on_is_active_and_priority", order: { priority: :desc }
+    t.index ["plan_type_id", "match_text"], name: "index_plan_identification_rules_on_plan_type_id_and_match_text", unique: true
+    t.index ["plan_type_id"], name: "index_plan_identification_rules_on_plan_type_id"
+    t.index ["rule_type"], name: "index_plan_identification_rules_on_rule_type"
+  end
+
+  create_table "plan_identifications", force: :cascade do |t|
+    t.bigint "job_plan_id", null: false
+    t.bigint "identified_plan_type_id"
+    t.bigint "identified_plan_category_id"
+    t.text "ocr_raw_text"
+    t.jsonb "ocr_structured_fields", default: {}
+    t.integer "ocr_confidence"
+    t.integer "pattern_match_plan_type_id"
+    t.integer "pattern_match_confidence"
+    t.string "pattern_match_reason"
+    t.integer "ai_plan_type_id"
+    t.integer "ai_confidence"
+    t.text "ai_reasoning"
+    t.boolean "ai_invoked", default: false
+    t.string "sheet_number"
+    t.string "sheet_name"
+    t.string "sheet_date"
+    t.string "sheet_issue"
+    t.integer "final_confidence"
+    t.string "decision_status"
+    t.boolean "human_reviewed", default: false
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.integer "human_override_plan_type_id"
+    t.text "human_override_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["decision_status"], name: "index_plan_identifications_on_decision_status"
+    t.index ["human_reviewed"], name: "index_plan_identifications_on_human_reviewed"
+    t.index ["identified_plan_category_id"], name: "index_plan_identifications_on_identified_plan_category_id"
+    t.index ["identified_plan_type_id"], name: "index_plan_identifications_on_identified_plan_type_id"
+    t.index ["job_plan_id", "created_at"], name: "index_plan_identifications_on_job_plan_id_and_created_at", order: { created_at: :desc }
+    t.index ["job_plan_id"], name: "index_plan_identifications_on_job_plan_id"
+    t.index ["reviewed_by_id"], name: "index_plan_identifications_on_reviewed_by_id"
+  end
+
   create_table "plan_types", force: :cascade do |t|
     t.string "name", null: false
     t.string "code", null: false
@@ -6201,6 +6255,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_203409) do
   add_foreign_key "payments", "users", column: "created_by_id"
   add_foreign_key "plan_category_plan_types", "plan_categories"
   add_foreign_key "plan_category_plan_types", "plan_types"
+  add_foreign_key "plan_identification_rules", "plan_types"
+  add_foreign_key "plan_identification_rules", "users", column: "created_by_id"
+  add_foreign_key "plan_identifications", "job_plans"
+  add_foreign_key "plan_identifications", "plan_categories", column: "identified_plan_category_id"
+  add_foreign_key "plan_identifications", "plan_types", column: "identified_plan_type_id"
+  add_foreign_key "plan_identifications", "users", column: "reviewed_by_id"
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
