@@ -191,6 +191,7 @@ Rails.application.routes.draw do
           # Contract generation
           post :generate_contract
           post :save_contract
+          post :send_contract_for_signing
         end
 
         # Job contacts (nested under jobs)

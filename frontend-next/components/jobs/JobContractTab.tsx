@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, Pencil, X, Calendar, FileText, Eye, Download } from "lucide-react";
+import { Loader2, Save, Pencil, X, Calendar, FileText, Eye, Download, Send } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -82,6 +82,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [savingContract, setSavingContract] = useState(false);
+  const [sendingForSigning, setSendingForSigning] = useState(false);
 
   const [form, setForm] = useState({
     plan_number: job.plan_number || "",
@@ -256,6 +257,39 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  // Send contract for e-signing
+  const handleSendForSigning = async () => {
+    setSendingForSigning(true);
+    try {
+      const response = await api.post(`/api/v1/jobs/${job.id}/send_contract_for_signing`);
+      const data = response.data;
+
+      if (data.success) {
+        const signerNames = data.data.signers.map((s: { name: string }) => s.name).join(", ");
+        toast({
+          title: "Contract sent for signing",
+          description: `Sent to: ${signerNames}. Request #${data.data.request_number}`,
+        });
+        setShowPreview(false);
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+        onUpdate();
+      } else {
+        toast({ title: data.error || "Failed to send for signing", variant: "destructive" });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to send for signing:", error);
+      const errorMessage = error instanceof Error && 'response' in error
+        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || "Failed to send for signing"
+        : "Failed to send for signing";
+      toast({ title: errorMessage, variant: "destructive" });
+    } finally {
+      setSendingForSigning(false);
     }
   };
 
@@ -764,13 +798,21 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
               <Download className="h-4 w-4 mr-2" />
               Download
             </Button>
-            <Button onClick={handleSaveContract} disabled={savingContract}>
+            <Button variant="outline" onClick={handleSaveContract} disabled={savingContract}>
               {savingContract ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Save className="h-4 w-4 mr-2" />
               )}
               Save to Documents
+            </Button>
+            <Button onClick={handleSendForSigning} disabled={sendingForSigning}>
+              {sendingForSigning ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4 mr-2" />
+              )}
+              Send for Signing
             </Button>
           </DialogFooter>
         </DialogContent>

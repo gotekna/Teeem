@@ -50,9 +50,23 @@ class GenericMergeService
       end
 
       primary.save!
+
+      # Step 5: Update caches that were bypassed by update_all
+      # SSoT: update_all bypasses callbacks, so we need to manually refresh caches
+      update_caches_after_merge
     end
 
     primary
+  end
+
+  # Update model-specific caches after merge
+  # Called because update_all bypasses ActiveRecord callbacks
+  def update_caches_after_merge
+    # Contact-specific: refresh xero link cache
+    if model_class == Contact && primary.respond_to?(:update_xero_link_cache!)
+      primary.update_xero_link_cache!
+      Rails.logger.info "[Merge] Updated xero_link_cache on Contact##{primary.id}"
+    end
   end
 
   private

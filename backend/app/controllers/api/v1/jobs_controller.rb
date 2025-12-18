@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -678,40 +678,132 @@ module Api
         # Create a document record for this job
         filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
 
-        # Save to job documents (using JobDocument model if it exists, or attach to SharePoint)
-        if defined?(JobDocument)
-          document = @job.job_documents.create!(
-            name: filename,
-            document_type: "contract",
-            file_data: Base64.strict_encode64(pdf_content),
-            file_content_type: "application/pdf"
-          )
-          render json: { success: true, data: { document_id: document.id, filename: filename } }
-        else
-          # Upload to SharePoint/OneDrive if JobDocument doesn't exist
-          credential = OrganizationSharePointCredential.active_credential
-          if credential
-            client = MicrosoftGraphClient.new(credential)
-            folder_path = "Jobs/#{@job.job_folder_name}/01 Contract Documents"
+        # Upload to SharePoint/OneDrive
+        credential = OrganizationSharePointCredential.active_credential
+        if credential
+          client = MicrosoftGraphClient.new(credential)
 
-            # Ensure folder exists
-            client.ensure_folder_path(folder_path)
+          # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
+          job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
+          folder_path = "Jobs/#{job_folder_name}/01 Contract Documents"
 
-            # Upload file
-            result = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+          # Ensure folder exists
+          client.ensure_folder_path(folder_path)
 
-            if result
-              render json: { success: true, data: { filename: filename, sharepoint_id: result[:id] } }
-            else
-              render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
-            end
+          # Upload file
+          result = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+
+          if result
+            render json: { success: true, data: { filename: filename, sharepoint_id: result[:id], folder: folder_path } }
           else
-            # Fallback: just return success with the filename
-            render json: { success: true, data: { filename: filename, note: "Document generated but no storage configured" } }
+            render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
           end
+        else
+          # Fallback: just return success with the filename
+          render json: { success: true, data: { filename: filename, note: "SharePoint not connected - document generated but not saved" } }
         end
       rescue => e
         Rails.logger.error("save_contract error: #{e.message}")
+        Rails.logger.error(e.backtrace.first(5).join("\n"))
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/send_contract_for_signing
+      # Generate QBCC contract PDF, save to SharePoint, and send for e-signing
+      def send_contract_for_signing
+        # Step 1: Generate the QBCC contract PDF
+        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
+        pdf_content = engine.generate(job: @job)
+
+        filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
+
+        # Step 2: Upload to SharePoint
+        credential = OrganizationSharePointCredential.active_credential
+        unless credential
+          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
+        end
+
+        client = MicrosoftGraphClient.new(credential)
+
+        # Build folder path: Jobs/0046 - Job Name/01 Contract Documents
+        job_folder_name = "#{@job.job_number} - #{@job.name}".truncate(100)
+        folder_path = "Jobs/#{job_folder_name}/01 Contract Documents"
+
+        # Ensure folder exists and upload
+        client.ensure_folder_path(folder_path)
+        uploaded = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+
+        unless uploaded
+          return render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
+        end
+
+        # Step 3: Get signers from job contacts (clients only)
+        client_contacts = @job.job_contacts
+          .where(role: "client")
+          .includes(:contact)
+          .order(primary: :desc)
+          .map(&:contact)
+          .compact
+
+        if client_contacts.empty?
+          return render json: { success: false, error: "No client contacts found on this job" }, status: :unprocessable_entity
+        end
+
+        # Validate all contacts have emails
+        missing_emails = client_contacts.select { |c| c.email.blank? }.map(&:display_name)
+        if missing_emails.any?
+          return render json: { success: false, error: "Missing email for: #{missing_emails.join(', ')}" }, status: :unprocessable_entity
+        end
+
+        # Step 4: Create e-signature request
+        request = ESignatureRequest.new(
+          title: "QBCC Contract - #{@job.name}",
+          description: "Building Contract for #{@job.address || @job.name}",
+          documentable: @job,
+          created_by_id: current_user&.id,
+          signing_order: 0, # Parallel signing
+          expires_at: 30.days.from_now,
+          send_reminders: true,
+          original_sharepoint_file_id: uploaded[:id],
+          sharepoint_site_id: credential.site_id,
+          sharepoint_drive_id: credential.drive_id
+        )
+
+        # Add client contacts as signers
+        client_contacts.each_with_index do |contact, index|
+          request.signers.build(
+            name: contact.display_name,
+            email: contact.email,
+            role: "client",
+            signing_order: index,
+            contact_id: contact.id
+          )
+        end
+
+        # Calculate document hash
+        request.original_document_hash = Digest::SHA256.hexdigest(pdf_content)
+
+        unless request.save
+          return render json: { success: false, error: request.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
+
+        # Step 5: Send for signing
+        request.send_for_signing!
+
+        render json: {
+          success: true,
+          data: {
+            request_number: request.request_number,
+            title: request.title,
+            filename: filename,
+            signers: request.signers.map { |s| { name: s.name, email: s.email, status: s.status } },
+            status: request.status,
+            expires_at: request.expires_at
+          }
+        }
+      rescue => e
+        Rails.logger.error("send_contract_for_signing error: #{e.message}")
+        Rails.logger.error(e.backtrace.first(5).join("\n"))
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
