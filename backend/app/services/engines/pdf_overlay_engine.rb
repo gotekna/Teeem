@@ -19,38 +19,59 @@ module Engines
     class OverlayError < StandardError; end
     class TemplateNotFoundError < OverlayError; end
 
-    # Field mappings for QBCC documents
-    # Maps our data fields to PDF form field names or overlay positions
-    QBCC_CONTRACT_FIELDS = {
-      # Contract details
-      contract_date: { type: :text, page: 1, x: 400, y: 720, size: 10 },
-      contract_price: { type: :text, page: 1, x: 400, y: 680, size: 10 },
+    # Field mappings for QBCC documents - text overlay positions (only used if no form fields)
+    QBCC_CONTRACT_FIELDS = {}.freeze  # Contract uses AcroForm fields, not text overlay
 
-      # Builder details
-      builder_name: { type: :text, page: 1, x: 150, y: 620, size: 10 },
-      builder_abn: { type: :text, page: 1, x: 150, y: 600, size: 10 },
-      builder_qbcc: { type: :text, page: 1, x: 150, y: 580, size: 10 },
-      builder_address: { type: :text, page: 1, x: 150, y: 560, size: 10 },
-      builder_phone: { type: :text, page: 1, x: 150, y: 540, size: 10 },
-      builder_email: { type: :text, page: 1, x: 150, y: 520, size: 10 },
+    # AcroForm field mappings for QBCC Contract page 1
+    # Maps our data keys to PDF form field names
+    QBCC_CONTRACT_FORM_FIELDS = {
+      # The Owner section
+      owner_name: "Text Field 4",           # Owner's name/s
+      owner_email: "Text Field 5",          # Email
+      owner_address: "Text Field 6",        # Postal address
+      owner_postcode: "Text Field 7",       # Postcode
+      owner_phone: "Text Field 8",          # Mobile phone
+      owner_home_phone: "Text Field 9",     # Home phone
 
-      # Owner details
-      owner_name: { type: :text, page: 1, x: 400, y: 620, size: 10 },
-      owner_address: { type: :text, page: 1, x: 400, y: 600, size: 10 },
-      owner_phone: { type: :text, page: 1, x: 400, y: 580, size: 10 },
-      owner_email: { type: :text, page: 1, x: 400, y: 560, size: 10 },
-
-      # Site details
-      site_address: { type: :text, page: 1, x: 150, y: 480, size: 10 },
-      lot_number: { type: :text, page: 1, x: 150, y: 460, size: 10 },
-      plan_number: { type: :text, page: 1, x: 300, y: 460, size: 10 }
+      # The Contractor section
+      builder_name: "Text Field 16",        # Contractor's name/s
+      builder_qbcc: "Text Field 17",        # QBCC Licence Number
+      builder_abn: "Text Field 18",         # ABN Number
+      builder_address: "Text Field 19",     # Business address
+      builder_postcode: "Text Field 20",    # Postcode
+      builder_phone: "Text Field 21",       # Mobile phone
+      builder_email: "Text Field 22"        # Email
     }.freeze
 
-    QBCC_CONSUMER_GUIDE_FIELDS = {
-      # Minimal fields - mostly informational document
-      builder_name: { type: :text, page: 1, x: 150, y: 100, size: 10 },
-      builder_qbcc: { type: :text, page: 1, x: 350, y: 100, size: 10 },
-      date: { type: :text, page: 1, x: 480, y: 100, size: 10 }
+    # Placeholder text for missing data
+    FIELD_PLACEHOLDERS = {
+      owner_name: "[Owner name required]",
+      owner_email: "[Owner email]",
+      owner_address: "[Owner postal address]",
+      owner_postcode: "[Postcode]",
+      owner_phone: "[Owner mobile]",
+      owner_home_phone: "[Owner home phone]",
+      builder_name: "[Contractor name]",
+      builder_qbcc: "[QBCC licence]",
+      builder_abn: "[ABN]",
+      builder_address: "[Business address]",
+      builder_postcode: "[Postcode]",
+      builder_phone: "[Contractor mobile]",
+      builder_email: "[Contractor email]",
+      site_supervisor_name: "[Site supervisor name]",
+      site_supervisor_phone: "[Site supervisor phone]",
+      site_address: "[Site address]",
+      contract_date: "[Contract date]",
+      contract_price: "[Contract price]",
+      date: "[Date]"
+    }.freeze
+
+    QBCC_CONSUMER_GUIDE_FIELDS = {}.freeze  # Consumer Guide uses AcroForm fields
+
+    # AcroForm field mappings for QBCC Consumer Guide
+    QBCC_CONSUMER_GUIDE_FORM_FIELDS = {
+      owner_name: "OA-Owners Acknowledgement",  # Owner's acknowledgement name
+      date: "OA-Date"                            # Date signed
     }.freeze
 
     QBCC_GENERAL_CONDITIONS_FIELDS = {
@@ -206,19 +227,29 @@ module Engines
       doc.acro_form.each_field do |field|
         pdf_field_name = field.full_field_name.to_s
         value = nil
+        data_key_used = nil
 
         # First check explicit mapping (data_key -> pdf_field_name)
         explicit_mapping.each do |data_key, mapped_field_name|
-          if mapped_field_name == pdf_field_name && data.key?(data_key)
-            value = data[data_key]
+          if mapped_field_name == pdf_field_name
+            data_key_used = data_key
+            value = data[data_key] if data.key?(data_key)
             break
           end
         end
 
         # Fall back to generic name matching if no explicit mapping found
-        if value.nil?
+        if data_key_used.nil?
           generic_key = pdf_field_name.downcase.gsub(/[^a-z0-9]/, "_").to_sym
-          value = data[generic_key] if data.key?(generic_key)
+          if data.key?(generic_key)
+            data_key_used = generic_key
+            value = data[generic_key]
+          end
+        end
+
+        # Use placeholder if value is blank but we have a mapping
+        if value.blank? && data_key_used && FIELD_PLACEHOLDERS.key?(data_key_used)
+          value = FIELD_PLACEHOLDERS[data_key_used]
         end
 
         if value.present?
@@ -232,6 +263,10 @@ module Engines
 
     def form_field_mapping_for_template
       case template_key
+      when :qbcc_contract
+        QBCC_CONTRACT_FORM_FIELDS
+      when :qbcc_consumer_guide
+        QBCC_CONSUMER_GUIDE_FORM_FIELDS
       when :qbcc_general_conditions
         QBCC_GENERAL_CONDITIONS_FORM_FIELDS
       else

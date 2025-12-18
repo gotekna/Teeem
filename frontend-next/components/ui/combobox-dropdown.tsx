@@ -51,6 +51,10 @@ type Props<T> = {
   clearable?: boolean;
   /** Called when selection is cleared */
   onClear?: () => void;
+  /** Called when input value changes (for server-side search) */
+  onInputChange?: (value: string) => void;
+  /** Disable internal filtering (when using server-side search) */
+  disableInternalFilter?: boolean;
 };
 
 export function ComboboxDropdown<T extends ComboboxItem>({
@@ -72,6 +76,8 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   isLoading = false,
   clearable = false,
   onClear,
+  onInputChange,
+  disableInternalFilter = false,
 }: Props<T>) {
   const [open, setOpen] = React.useState(false);
   const [internalSelectedItem, setInternalSelectedItem] = React.useState<
@@ -87,9 +93,12 @@ export function ComboboxDropdown<T extends ComboboxItem>({
   // Defensive: ensure items is always an array
   const safeItems = Array.isArray(items) ? items : [];
 
-  const filteredItems = safeItems.filter((item) =>
-    item.label.toLowerCase().includes(inputValue.toLowerCase()),
-  );
+  // When disableInternalFilter is true, use all items (filtering done externally)
+  const filteredItems = disableInternalFilter
+    ? safeItems
+    : safeItems.filter((item) =>
+        item.label.toLowerCase().includes(inputValue.toLowerCase()),
+      );
 
   const showCreate = onCreate && Boolean(inputValue) && !filteredItems.length;
 
@@ -151,8 +160,10 @@ export function ComboboxDropdown<T extends ComboboxItem>({
 
   // Handle input change for searchInTrigger mode
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputValue(e.target.value);
-    if (!open && e.target.value) {
+    const value = e.target.value;
+    setInputValue(value);
+    onInputChange?.(value);
+    if (!open && value) {
       setOpen(true);
     }
   };

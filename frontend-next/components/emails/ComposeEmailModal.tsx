@@ -100,21 +100,38 @@ export function ComposeEmailModal({
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
 
-  // Load contacts with emails when modal opens
-  const loadContacts = async () => {
+  // Search contacts by name/email
+  const searchContacts = async (search: string) => {
+    if (!search || search.length < 2) {
+      setContacts([]);
+      return;
+    }
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?with_email=true&per_page=500`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&per_page=20`
       );
       setContacts((response.contacts || []).filter(c => c.email));
     } catch (err) {
-      console.error("Failed to load contacts:", err);
+      console.error("Failed to search contacts:", err);
     } finally {
       setContactsLoading(false);
     }
   };
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (contactSearch) {
+        searchContacts(contactSearch);
+      } else {
+        setContacts([]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearch]);
 
   // Get signature for account (if applicable)
   const getSignatureForAccount = (account: EmailAccount | undefined): string => {
@@ -126,11 +143,12 @@ export function ComposeEmailModal({
     return "";
   };
 
-  // Fetch accounts and contacts when modal opens
+  // Fetch accounts when modal opens
   useEffect(() => {
     if (open) {
       fetchAccounts();
-      loadContacts();
+      setContacts([]);
+      setContactSearch("");
       setFormData({
         credential_id: "",
         to: defaultTo,
@@ -334,12 +352,14 @@ export function ComposeEmailModal({
                   onSelect={(item) => setFormData({ ...formData, to: item.id })}
                   placeholder="Search contacts or type email..."
                   searchInTrigger={true}
+                  onInputChange={setContactSearch}
+                  disableInternalFilter={true}
                   onCreate={(value) => setFormData({ ...formData, to: value })}
                   renderOnCreate={(value) => (
                     <span>Use: <strong>{value}</strong></span>
                   )}
                   isLoading={contactsLoading}
-                  emptyResults="Type to search or enter email directly"
+                  emptyResults={contactSearch.length < 2 ? "Type 2+ characters to search..." : "No contacts found"}
                   clearable={true}
                   onClear={() => setFormData({ ...formData, to: "" })}
                 />
