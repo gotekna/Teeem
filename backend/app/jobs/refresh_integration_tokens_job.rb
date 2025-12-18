@@ -11,6 +11,10 @@ class RefreshIntegrationTokensJob < ApplicationJob
 
     # DUAL-WRITE: Also refresh tokens in unified MicrosoftCredential table (SSoT migration)
     refresh_unified_microsoft_credentials
+
+    # SELF-HEALING: Auto-reconnect app credentials that failed
+    # App credentials use client_id/secret so can reconnect without user interaction
+    heal_disconnected_app_credentials
   end
 
   private
@@ -180,5 +184,65 @@ class RefreshIntegrationTokensJob < ApplicationJob
     connected = MicrosoftCredential.connected.count
     dead = MicrosoftCredential.dead.count
     Rails.logger.info "[TokenRefresh] MicrosoftCredential health: #{connected}/#{total} connected, #{dead} dead" if total > 0
+  end
+
+  # SELF-HEALING: Auto-reconnect app credentials that are in error/pending/disconnected state
+  # App credentials (client credentials flow) can reconnect without user interaction
+  # because they use client_id + client_secret + tenant_id (all stored in DB)
+  def heal_disconnected_app_credentials
+    healed_count = 0
+    failed_count = 0
+
+    # Heal legacy OrganizationMicrosoftAppCredential records
+    OrganizationMicrosoftAppCredential.where(is_active: true)
+      .where.not(status: "connected")
+      .where.not(client_id: nil)
+      .where.not(client_secret: nil)
+      .where.not(tenant_id: nil)
+      .find_each do |credential|
+        Rails.logger.info "[TokenRefresh] HEALING OrganizationMicrosoftAppCredential #{credential.name} (status: #{credential.status})"
+
+        begin
+          if credential.test_connection!
+            Rails.logger.info "[TokenRefresh] HEALED OrganizationMicrosoftAppCredential #{credential.name} - now connected"
+            healed_count += 1
+          else
+            Rails.logger.warn "[TokenRefresh] HEAL FAILED for #{credential.name}: #{credential.last_error}"
+            failed_count += 1
+          end
+        rescue StandardError => e
+          Rails.logger.error "[TokenRefresh] HEAL ERROR for #{credential.name}: #{e.message}"
+          failed_count += 1
+        end
+      end
+
+    # Heal unified MicrosoftCredential (app type) records
+    if ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
+      MicrosoftCredential.app_credentials.active
+        .where.not(status: "connected")
+        .where.not(client_id: nil)
+        .where.not(client_secret: nil)
+        .where.not(tenant_id: nil)
+        .find_each do |credential|
+          Rails.logger.info "[TokenRefresh] HEALING MicrosoftCredential (app) #{credential.name || credential.id} (status: #{credential.status})"
+
+          begin
+            if credential.fetch_app_token!
+              Rails.logger.info "[TokenRefresh] HEALED MicrosoftCredential (app) #{credential.name || credential.id} - now connected"
+              healed_count += 1
+            else
+              Rails.logger.warn "[TokenRefresh] HEAL FAILED for MicrosoftCredential #{credential.id}: #{credential.error_message}"
+              failed_count += 1
+            end
+          rescue StandardError => e
+            Rails.logger.error "[TokenRefresh] HEAL ERROR for MicrosoftCredential #{credential.id}: #{e.message}"
+            failed_count += 1
+          end
+        end
+    end
+
+    if healed_count > 0 || failed_count > 0
+      Rails.logger.info "[TokenRefresh] SELF-HEALING complete: #{healed_count} healed, #{failed_count} failed"
+    end
   end
 end

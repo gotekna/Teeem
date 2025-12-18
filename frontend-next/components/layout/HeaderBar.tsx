@@ -41,7 +41,7 @@ import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useMicrosoftAutoReconnect } from "@/lib/hooks/useMicrosoftAutoReconnect";
+// Note: useMicrosoftAutoReconnect removed - now using org-level credentials
 
 // Microsoft 365 icon component
 function Microsoft365Icon({ className }: { className?: string }) {
@@ -81,16 +81,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   // Prevent duplicate fetches (React StrictMode double-mount)
   const fetchingRef = React.useRef(false);
 
-  // Microsoft 365 auto-reconnect hook - handles seamless OAuth popup when refresh token dies
-  const { isReconnecting: isMicrosoftReconnecting, status: microsoftAutoStatus, refreshStatus: refreshMicrosoftStatus } = useMicrosoftAutoReconnect({
-    enabled: true,
-    maxAttempts: 1,
-    onReconnectSuccess: () => {
-      // Update status immediately after successful reconnect
-      setOffice365Status('connected');
-      setOffice365Tooltip('Microsoft 365: Connected');
-    },
-  });
+  // Note: User-level Microsoft OAuth auto-reconnect removed
+  // Now using organization-wide SharePoint credentials from /api/v1/microsoft_app/status
 
   // Fetch unread message count and integration statuses
   React.useEffect(() => {
@@ -354,8 +346,19 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           >
             <span className="sr-only">Office 365</span>
             <Microsoft365Icon className="h-4 w-4" />
-            {/* Status indicator dot - always green (never orange/red due to proactive healing) */}
-            <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+            {/* Status indicator dot - shows actual connection status */}
+            {office365Status === 'connected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'degraded' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'disconnected' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-gray-400 border border-white dark:border-gray-900" />
+            )}
+            {office365Status === 'error' && (
+              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 border border-white dark:border-gray-900" />
+            )}
           </Link>
 
           {/* Xero Status */}
