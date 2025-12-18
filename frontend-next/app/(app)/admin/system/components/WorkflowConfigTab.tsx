@@ -484,7 +484,7 @@ export function WorkflowConfigTab() {
             <CardDescription>Select a type to configure its statuses</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <ScrollArea className="h-[280px]">
+            <ScrollArea className="h-[200px]">
               <div className="space-y-1">
                 {allTypes.map((type) => (
                   <button
@@ -509,16 +509,19 @@ export function WorkflowConfigTab() {
 
             {/* Description for QBCC Contract Item 3 */}
             {selectedType && (
-              <div className="space-y-2 pt-2 border-t">
-                <Label htmlFor="job-type-description" className="text-xs font-medium text-muted-foreground">
-                  Description (for QBCC Contract Item 3)
+              <div className="space-y-2 pt-4 mt-2 border-t bg-muted/30 -mx-6 px-6 pb-4 rounded-b-lg">
+                <Label htmlFor="job-type-description" className="text-sm font-medium">
+                  Item 3: Description of Works
                 </Label>
+                <p className="text-xs text-muted-foreground">
+                  This will appear on the QBCC Contract for &quot;{selectedType.name}&quot; jobs
+                </p>
                 <Textarea
                   id="job-type-description"
-                  placeholder="e.g., Construction of a new single-storey dwelling..."
+                  placeholder="e.g., Construction of a new single-storey dwelling including all associated site works..."
                   value={editingDescription}
                   onChange={(e) => setEditingDescription(e.target.value)}
-                  className="text-sm min-h-[60px]"
+                  className="text-sm min-h-[80px]"
                 />
                 <Button
                   size="sm"

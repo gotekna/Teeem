@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { GitMerge, Loader } from "lucide-react";
+import { GitMerge, Loader, User, Building2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { getEntityTypeLabel, isPerson, isCompany, isTrust } from "@/lib/entity-types";
 
 interface MergeModalProps {
   open: boolean;
@@ -182,7 +184,28 @@ export function MergeModal({
                     htmlFor={`record-${recordId}`}
                     className="flex-1 cursor-pointer"
                   >
-                    <div className="font-medium">{displayValue}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{displayValue}</span>
+                      {/* Entity Type Badge */}
+                      {typeof record.entity_type === "string" && record.entity_type && (
+                        <Badge
+                          variant="outline"
+                          className={
+                            isPerson(record.entity_type)
+                              ? "text-purple-600 border-purple-200 bg-purple-50 dark:bg-purple-950 dark:border-purple-800"
+                              : isCompany(record.entity_type)
+                              ? "text-blue-600 border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-800"
+                              : isTrust(record.entity_type)
+                              ? "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950 dark:border-amber-800"
+                              : "text-gray-600 border-gray-200"
+                          }
+                        >
+                          {isPerson(record.entity_type) && <User className="h-3 w-3 mr-1" />}
+                          {(isCompany(record.entity_type) || isTrust(record.entity_type)) && <Building2 className="h-3 w-3 mr-1" />}
+                          {getEntityTypeLabel(record.entity_type)}
+                        </Badge>
+                      )}
+                    </div>
                     {secondaryInfo.length > 0 && (
                       <div className="text-sm text-muted-foreground flex gap-4 mt-1 flex-wrap">
                         {secondaryInfo.map((info, idx) => (
