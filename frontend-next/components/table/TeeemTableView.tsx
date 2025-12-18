@@ -1358,9 +1358,28 @@ export default function TeeemTableView({
   // groupViewMode managed by atom (SSoT)
   const [groupViewMode, setGroupViewMode] = useAtom(groupViewModeAtom);
 
+  // Validate groupByColumn against actual Foundation columns (database columns only)
+  // Computed columns (like tabs_display) don't exist in the database and will cause API errors
+  // effectiveColumns comes from Foundation API which only has database columns
+  const validGroupByColumnForApi = useMemo(() => {
+    if (!groupByColumn) return null;
+    // Check if the column exists in effectiveColumns (Foundation columns = database columns)
+    // Ignore system columns like 'select' and 'actions' which are UI-only
+    const isValidDbColumn = effectiveColumns?.some(
+      (col) => col.key === groupByColumn && col.key !== 'select' && col.key !== 'actions'
+    );
+    if (!isValidDbColumn) {
+      // Don't log for every render, just when the value changes
+      console.debug(`[TeeemTableView] groupByColumn "${groupByColumn}" is not a database column, skipping API call`);
+      return null;
+    }
+    return groupByColumn;
+  }, [groupByColumn, effectiveColumns]);
+
   // Server-side group counts for accurate totals (not limited by pagination)
   // This fetches GROUP BY counts from the database for the current groupByColumn
   // IMPORTANT: Pass safeFilters so group counts respect saved views and cascade filters
+  // Use validGroupByColumnForApi to prevent API errors from computed columns
   const {
     groups: serverGroupCounts,
     totalRecords: serverTotalRecords,
@@ -1368,9 +1387,9 @@ export default function TeeemTableView({
     hasFetched: groupCountsHasFetched,
   } = useGroupCounts(
     foundationIdNumeric,
-    groupByColumn,
+    validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    groupByColumns.length > 0 // enabled when grouping is active
+    groupByColumns.length > 0 && !!validGroupByColumnForApi // enabled when grouping is active AND column is valid
   );
 
   // Build a map of group key -> server count for quick lookup
