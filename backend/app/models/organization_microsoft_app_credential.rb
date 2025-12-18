@@ -38,26 +38,62 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   scope :connected, -> { active.where(status: "connected") }
 
   # Multi-org support - returns all active credentials
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.active_credentials
+    # Try MicrosoftCredential first (SSoT)
+    new_creds = MicrosoftCredential.app_credentials.active
+    return new_creds if new_creds.any?
+
+    # Fall back to legacy table
     active.order(:name)
   end
 
   # Legacy singleton pattern - returns first active for backward compatibility
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.active_credential
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    new_cred = MicrosoftCredential.app_credentials.active.first
+    return new_cred if new_cred
+
+    # Fall back to legacy table
     active.first
   end
 
   # Find by organization name
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.find_by_name(name)
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    new_cred = MicrosoftCredential.app_credentials.active.find_by(name: name)
+    return new_cred if new_cred
+
+    # Fall back to legacy table
     active.find_by(name: name)
   end
 
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.connected?
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    return true if MicrosoftCredential.app_credentials.connected.any?
+
+    # Fall back to legacy table
     connected.exists?
   end
 
   # Check if any organization is connected
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.any_connected?
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    return true if MicrosoftCredential.app_credentials.connected.any?
+
+    # Fall back to legacy table
     connected.exists?
   end
 
@@ -187,21 +223,27 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
 
   # SharePoint configuration helpers
   # TEEEM's single SharePoint config (all orgs store attachments here)
-  # Use the first credential with SharePoint configured (should be TEEEM's)
+  # SSoT Migration: Delegates to CorporateCompanySetting
   def self.teeem_sharepoint_config
-    configured = active.find_by("sharepoint_site_id IS NOT NULL AND sharepoint_drive_id IS NOT NULL")
-    return nil unless configured
+    warn_deprecation
+
+    # SSoT: Use CorporateCompanySetting for SharePoint config
+    setting = CorporateCompanySetting.instance
+    return nil unless setting.sharepoint_site_id.present? && setting.sharepoint_drive_id.present?
 
     {
-      site_id: configured.sharepoint_site_id,
-      drive_id: configured.sharepoint_drive_id,
-      drive_name: configured.sharepoint_drive_name,
-      credential: configured
+      site_id: setting.sharepoint_site_id,
+      drive_id: setting.sharepoint_drive_id,
+      drive_name: setting.sharepoint_drive_name || "Shared Documents",
+      credential: active_credential  # Still need a credential for API calls
     }
   end
 
+  # SSoT Migration: Delegates to CorporateCompanySetting
   def self.sharepoint_configured?
-    teeem_sharepoint_config.present?
+    warn_deprecation
+    CorporateCompanySetting.instance.sharepoint_site_id.present? &&
+      CorporateCompanySetting.instance.sharepoint_drive_id.present?
   end
 
   # Instance method for backward compatibility

@@ -707,14 +707,17 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       Rails.logger.warn "[Connections] Failed to get SharePoint auth user: #{e.message}"
     end
 
-    # Use the document library URL (Shared Documents), not the site home page
-    documents_url = "https://gotekna.sharepoint.com/sites/TEEEM/Shared%20Documents"
+    # SSoT: Get SharePoint config from CorporateCompanySetting
+    setting = CorporateCompanySetting.instance
+    site_url = setting.sharepoint_site_url.presence || "https://gotekna.sharepoint.com/sites/TEEEM"
+    drive_name = setting.sharepoint_drive_name.presence || "Shared Documents"
+    documents_url = "#{site_url}/#{drive_name.gsub(' ', '%20')}"
 
     {
       connected: true,
       name: "TEEEM SharePoint",
       url: documents_url,
-      document_library: "Shared Documents",
+      document_library: drive_name,
       root_folder: org_credential.root_folder_path,
       authenticated_as: authenticated_as,
       auth_type: "organization",

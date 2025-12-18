@@ -80,6 +80,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
+import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
 
 // Foundation ID for document_types table
 const DOCUMENT_TYPES_FOUNDATION_ID = 454;
@@ -2329,6 +2330,10 @@ export function GoldStandardTab() {
           <GitCompare className="h-4 w-4" />
           Sync Check
         </TabsTrigger>
+        <TabsTrigger value="ui-components" className="flex items-center gap-2">
+          <Settings className="h-4 w-4" />
+          UI Components
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="table" className="mt-0">
@@ -2353,6 +2358,10 @@ export function GoldStandardTab() {
 
       <TabsContent value="sync-check" className="mt-0">
         <SyncCheckTab />
+      </TabsContent>
+
+      <TabsContent value="ui-components" className="mt-0">
+        <UIComponentsPlaygroundTab />
       </TabsContent>
     </Tabs>
   );

@@ -110,7 +110,9 @@ module Api
           :allows_variants,
           :notes,
           :sequence_order,
-          :is_active
+          :is_active,
+          :short_name_template,
+          :long_name_template
         )
       end
 
@@ -127,6 +129,10 @@ module Api
           notes: plan_type.notes,
           sequence_order: plan_type.sequence_order,
           is_active: plan_type.is_active,
+          short_name_template: plan_type.short_name_template,
+          long_name_template: plan_type.long_name_template,
+          short_name_preview: plan_type.short_name_preview,
+          long_name_preview: plan_type.long_name_preview,
           job_plans_count: plan_type.job_plans.count,
           created_at: plan_type.created_at,
           updated_at: plan_type.updated_at

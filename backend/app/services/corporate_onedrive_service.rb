@@ -1,3 +1,18 @@
+# =============================================================================
+# CorporateOnedriveService - DOCUMENT SCANNER
+# =============================================================================
+# Purpose: Scan SharePoint for existing corporate documents and link them to companies
+# SSoT: This service READS from SharePoint (discovery/scanning)
+#
+# Key Methods:
+#   - scan_all: Scan all corporate folders for documents
+#   - scan_company: Scan a specific company's folder
+#   - preview: Preview what documents would be linked
+#   - link_document_to_company: Link a found document to a company
+#
+# Note: Do NOT confuse with CorporateOneDriveService (folder PROVISIONING)
+# TODO: Rename to CorporateDocumentScannerService for clarity
+# =============================================================================
 class CorporateOnedriveService
   attr_reader :credential, :results, :folder_path
 
@@ -17,7 +32,8 @@ class CorporateOnedriveService
     ]
   end
 
-  # Legacy constant for backwards compatibility (deprecated)
+  # DEPRECATED: Use self.company_folder_path instead (SSoT: CorporateCompanySetting)
+  # Kept for backwards compatibility only - do not use in new code
   DEFAULT_FOLDER_PATH = "00 TEEEM PRIVATE"
 
   # Known group folders that contain company subfolders
@@ -40,7 +56,7 @@ class CorporateOnedriveService
 
   def initialize(credential = nil, folder_path: nil)
     @credential = credential || OrganizationOneDriveCredential.active_credential
-    @folder_path = folder_path || DEFAULT_FOLDER_PATH
+    @folder_path = folder_path || self.class.company_folder_path  # SSoT: CorporateCompanySetting
     @results = {
       companies_scanned: 0,
       documents_found: 0,

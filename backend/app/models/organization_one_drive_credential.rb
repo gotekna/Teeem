@@ -34,22 +34,52 @@ class OrganizationOneDriveCredential < ApplicationRecord
   scope :active, -> { where(is_active: true) }
 
   # Multi-org support - returns all active credentials
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.active_credentials
+    # Try MicrosoftCredential first (SSoT)
+    new_creds = MicrosoftCredential.delegated_credentials.org_level.active
+    return new_creds if new_creds.any?
+
+    # Fall back to legacy table
     active.order(:name)
   end
 
   # Legacy singleton pattern - returns first active for backward compatibility
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.active_credential
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    new_cred = MicrosoftCredential.delegated_credentials.org_level.active.first
+    return new_cred if new_cred
+
+    # Fall back to legacy table
     active.first
   end
 
   # Find by organization name
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.find_by_name(name)
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    new_cred = MicrosoftCredential.delegated_credentials.org_level.active.find_by(name: name) ||
+               MicrosoftCredential.delegated_credentials.org_level.active.find_by(name: "#{name}_onedrive")
+    return new_cred if new_cred
+
+    # Fall back to legacy table
     active.find_by(name: name)
   end
 
   # Check if any organization has OneDrive connected
+  # SSoT Migration: Delegates to MicrosoftCredential
   def self.connected?
+    warn_deprecation
+
+    # Try MicrosoftCredential first (SSoT)
+    return true if MicrosoftCredential.delegated_credentials.org_level.connected.any?
+
+    # Fall back to legacy table
     active.any? { |cred| cred.valid_credential? }
   end
 

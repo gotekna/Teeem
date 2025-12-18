@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_011422) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_021341) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3789,6 +3789,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_011422) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "short_name_template", default: "{Code}-{Name}"
+    t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
     t.index ["plan_category_id", "code"], name: "index_plan_types_on_plan_category_id_and_code", unique: true
     t.index ["plan_category_id"], name: "index_plan_types_on_plan_category_id"
     t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"

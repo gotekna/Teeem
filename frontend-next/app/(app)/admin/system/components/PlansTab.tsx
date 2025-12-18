@@ -53,6 +53,10 @@ interface PlanType {
   sequence_order: number;
   is_active: boolean;
   category_name?: string;
+  short_name_template?: string;
+  long_name_template?: string;
+  short_name_preview?: string;
+  long_name_preview?: string;
 }
 
 interface RevisionFormat {

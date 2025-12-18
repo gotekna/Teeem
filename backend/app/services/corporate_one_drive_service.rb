@@ -1,3 +1,18 @@
+# =============================================================================
+# CorporateOneDriveService - FOLDER PROVISIONER
+# =============================================================================
+# Purpose: Create and manage folder structures for companies in SharePoint
+# SSoT: This service WRITES to SharePoint (folder creation/provisioning)
+#
+# Key Methods:
+#   - create_company_folders: Create standard folder structure for a company
+#   - create_group_folders: Create folders for a corporate group
+#   - create_or_find_folder: Create folder if not exists
+#   - organise_company_documents: Move/rename documents to proper locations
+#
+# Note: Do NOT confuse with CorporateOnedriveService (document SCANNING)
+# TODO: Rename to CorporateFolderProvisionerService for clarity
+# =============================================================================
 class CorporateOneDriveService
   # Standard folder structure for corporate documents
   FOLDER_STRUCTURE = {
