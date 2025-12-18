@@ -712,6 +712,7 @@ module Api
           :contract_date,
           # Build schedule
           :build_period,
+          :construction_days,
           :stage_slab,
           :stage_frame,
           :stage_enclosed,
@@ -719,6 +720,14 @@ module Api
           :stage_practical,
           :stage_weather,
           :weekend_work,
+          # Contract terms (Items 13 & 14)
+          :liquidated_damages,
+          :certification_by_owner,
+          # Item 15: Prime Cost/Provisional Sums details and Special Conditions
+          :prime_cost_details,
+          :provisional_sums_details,
+          :has_special_conditions,
+          :special_conditions,
           # Important dates
           :plan_date,
           :spec_date,

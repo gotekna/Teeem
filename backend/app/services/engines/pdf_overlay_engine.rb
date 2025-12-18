@@ -83,7 +83,13 @@ module Engines
       stage_5_pct: "Text Field 43",          # Fixing %
       stage_5_amt: "Text Field 44",          # Fixing $
       stage_6_pct: "Text Field 45",          # Practical Completion %
-      stage_6_amt: "Text Field 46"           # Practical Completion $
+      stage_6_amt: "Text Field 46",          # Practical Completion $
+
+      # Item 13: Liquidated Damages
+      liquidated_damages: "Text Field 47",   # Liquidated damages amount per day
+
+      # Item 14: Certification responsibility (text field: "Owner" or "Contractor")
+      certification_by: "Text Field 48"      # Who obtains certification
     }.freeze
 
     # Checkbox field mappings for QBCC Contract
@@ -269,6 +275,13 @@ module Engines
         data[:build_period] ||= job.try(:build_period)
         data[:construction_days] ||= (job.try(:construction_days) || 300).to_s
         data[:weather_days] ||= job.try(:stage_weather) || "10"
+
+        # Item 13: Liquidated Damages
+        liquidated_amount = job.try(:liquidated_damages) || 50.00
+        data[:liquidated_damages] ||= format_currency(liquidated_amount)
+
+        # Item 14: Certification responsibility
+        data[:certification_by] ||= job.try(:certification_by_owner) ? "Owner" : "Contractor"
 
         # Plan and Spec dates (for document packages)
         data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?

@@ -46,6 +46,10 @@ interface PlanTypeOption {
   name: string;
   display_name: string;
   category_ids: number[];
+  short_name_template?: string;
+  long_name_template?: string;
+  short_name_preview?: string;
+  long_name_preview?: string;
 }
 
 interface PlanType {
@@ -97,10 +101,11 @@ interface PlanTab {
 
 interface JobPlansTabProps {
   jobId: number;
+  jobCode: string;
   jobTitle: string;
 }
 
-export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
+export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const { toast } = useToast();
   const [activeSubTab, setActiveSubTab] = useState("on-issue");
   const [plans, setPlans] = useState<JobPlan[]>([]);
@@ -274,6 +279,15 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
     }
   };
 
+  // Resolve template placeholders with actual values
+  const resolveTemplate = (template: string, values: Record<string, string>) => {
+    let result = template;
+    Object.entries(values).forEach(([key, value]) => {
+      result = result.replace(new RegExp(`\\{${key}\\}`, "g"), value || "");
+    });
+    return result.trim();
+  };
+
   // Save new plan
   const handleSavePlan = async () => {
     if (!selectedPlanTypeId) {
@@ -285,14 +299,48 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
       return;
     }
 
+    const selectedPlanType = planTypes.find(pt => pt.id === parseInt(selectedPlanTypeId));
+    if (!selectedPlanType) {
+      toast({
+        title: "Error",
+        description: "Invalid plan type selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get the selected category for template resolution
+    const selectedTab = selectedTabId ? tabs.find(t => t.id === parseInt(selectedTabId)) : null;
+
+    // Template values for resolution
+    const templateValues: Record<string, string> = {
+      JobCode: jobCode,
+      JobName: jobTitle,
+      Code: selectedPlanType.code,
+      Name: selectedPlanType.name,
+      Variant: variantSuffix || "",
+      Rev: "A", // First revision
+      Date: new Date().toISOString().split("T")[0].replace(/-/g, ""),
+      Category: selectedTab?.name || "",
+      CategoryCode: selectedTab?.code || "",
+    };
+
+    // Resolve short name (for file) and long name (for display)
+    const shortTemplate = selectedPlanType.short_name_template || "{Code}-{Name}";
+    const longTemplate = selectedPlanType.long_name_template || "{JobCode}-{Code}-{Name}-Rev{Rev}";
+
+    const shortName = resolveTemplate(shortTemplate, templateValues);
+    const longName = resolveTemplate(longTemplate, templateValues);
+
     setSaving(true);
     try {
-      // Step 1: Create the job plan
+      // Step 1: Create the job plan with the long name as display_name
       const planResponse = await api.post(`/api/v1/jobs/${jobId}/job_plans`, {
         job_plan: {
           plan_type_id: parseInt(selectedPlanTypeId),
           job_plan_tab_id: selectedTabId ? parseInt(selectedTabId) : null,
           variant_suffix: variantSuffix || null,
+          display_name: longName, // Long name = display in UI
         },
       }) as { success: boolean; data?: JobPlan; error?: string };
 
@@ -302,12 +350,19 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
 
       const newPlan = planResponse.data!;
 
-      // Step 2: If a file is selected, upload to SharePoint and add revision
+      // Step 2: If a file is selected, upload to SharePoint with renamed file
       if (selectedFile) {
+        // Get file extension from original file
+        const fileExt = selectedFile.name.split(".").pop() || "pdf";
+        const renamedFileName = `${shortName}.${fileExt}`; // Short name = file name
+
+        // Create renamed file blob
+        const renamedFile = new File([selectedFile], renamedFileName, { type: selectedFile.type });
+
         // Upload file to SharePoint
         const formData = new FormData();
-        formData.append("file", selectedFile);
-        formData.append("folder_path", `Jobs/${jobTitle}/Plans`);
+        formData.append("file", renamedFile);
+        formData.append("folder_path", `Jobs/${jobCode}/Plans`);
 
         const uploadResponse = await fetch(`${getApiBaseUrl()}/api/v1/organization_sharepoint/upload`, {
           method: "POST",
@@ -322,7 +377,7 @@ export function JobPlansTab({ jobId, jobTitle }: JobPlansTabProps) {
           await api.post(`/api/v1/jobs/${jobId}/job_plans/${newPlan.id}/add_revision`, {
             sharepoint_file_id: uploadResult.data.id,
             sharepoint_web_url: uploadResult.data.webUrl,
-            file_name: selectedFile.name,
+            file_name: renamedFileName,
             file_size: selectedFile.size,
             revision_date: new Date().toISOString().split("T")[0],
           });
