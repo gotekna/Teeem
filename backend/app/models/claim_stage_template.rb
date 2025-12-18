@@ -2,7 +2,7 @@
 
 class ClaimStageTemplate < ApplicationRecord
   # Associations
-  belongs_to :job_type
+  belongs_to :job_type, optional: true  # nil = default template for all job types
   has_many :job_claim_stages, dependent: :nullify
 
   # Validations

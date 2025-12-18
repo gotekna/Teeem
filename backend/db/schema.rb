@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_085956) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_093746) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -826,7 +826,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_085956) do
   end
 
   create_table "claim_stage_templates", force: :cascade do |t|
-    t.bigint "job_type_id", null: false
+    t.bigint "job_type_id"
     t.string "name", null: false
     t.decimal "percentage", precision: 5, scale: 2, null: false
     t.integer "sequence_order", default: 0, null: false
