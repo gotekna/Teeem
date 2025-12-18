@@ -1,7 +1,37 @@
 # Proactively refresh OAuth tokens before they expire
-# Run this job every 30 minutes via cron/scheduler
+# Run this job every 15 minutes via SolidQueue recurring tasks
+#
+# RESILIENCE: Added retry logic for connection exhaustion (Option C refactor)
+# - Retries automatically on database connection errors
+# - Skips gracefully if connection pool is critically exhausted
+# - ConnectionHealthMonitorJob caches pool status every 5 minutes
+#
 class RefreshIntegrationTokensJob < ApplicationJob
   queue_as :default
+
+  # Automatic retry on transient connection errors
+  # Wait 5 seconds between retries, up to 5 attempts
+  retry_on ActiveRecord::ConnectionNotEstablished, wait: 5.seconds, attempts: 5
+  retry_on ActiveRecord::ConnectionTimeoutError, wait: 5.seconds, attempts: 5
+  retry_on PG::ConnectionBad, wait: 5.seconds, attempts: 5
+
+  # Check connection health before running
+  # Skip if pool is critically exhausted to avoid making it worse
+  around_perform do |_job, block|
+    connection_health = Rails.cache.read("connection_health")
+
+    if connection_health&.dig(:status) == :critical
+      Rails.logger.warn "[TokenRefresh] SKIPPING due to critical connection pool exhaustion. Will retry next scheduled run."
+      Rails.logger.warn "[TokenRefresh] Pool status: #{connection_health[:message]}"
+      next # Skip this run, recurring job will try again in 15 min
+    end
+
+    if connection_health&.dig(:status) == :warning
+      Rails.logger.info "[TokenRefresh] Running with elevated connection pool usage: #{connection_health[:message]}"
+    end
+
+    block.call
+  end
 
   def perform
     refresh_user_microsoft_tokens

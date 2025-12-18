@@ -15,6 +15,13 @@ clear_solid_queue_finished_jobs:
   command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
   schedule: every hour at minute 12
 
+# Monitor database connection pool usage (Option C refactor)
+# Detects exhaustion BEFORE failures - other jobs check cache to skip if critical
+connection_health_monitor:
+  class: ConnectionHealthMonitorJob
+  queue: low
+  schedule: every 5 minutes
+
 # ============================================
 # TOKEN REFRESH (every 15 minutes)
 # Proactively refresh OAuth tokens before expiry
