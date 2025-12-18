@@ -81,6 +81,9 @@ class PlanType < ApplicationRecord
     resolve_short_name(
       code: code,
       name: name,
+      description: notes.presence || "#{name} Drawing",
+      category: plan_categories.first&.name || "Contract Drawings",
+      category_code: plan_categories.first&.code || "CD",
       variant: "a",
       job_code: "EB2401",
       job_name: "05 Wategors",
@@ -104,6 +107,9 @@ class PlanType < ApplicationRecord
       project_name: "Wategors Estate",
       code: code,
       name: name,
+      description: notes.presence || "#{name} Drawing",
+      category: plan_categories.first&.name || "Contract Drawings",
+      category_code: plan_categories.first&.code || "CD",
       rev: "A",
       date: Date.today.strftime("%Y%m%d"),
       variant: "a"
@@ -115,7 +121,7 @@ class PlanType < ApplicationRecord
   # Generic template resolver - replaces {Placeholder} with values
   # Supported placeholders:
   # - Job: {JobCode}, {JobName}, {JobAddress}, {LotNumber}, {StreetName}, {Suburb}, {ProjectName}
-  # - Plan type: {Code}, {Name}
+  # - Plan type: {Code}, {Name}, {Description}, {Category}, {CategoryCode}
   # - Revision: {Rev}, {Date}, {Variant}
   def resolve_template(template, values)
     return "" if template.blank?
@@ -132,6 +138,9 @@ class PlanType < ApplicationRecord
     # Plan type placeholders
     result = result.gsub("{Code}", values[:code]&.to_s || code.to_s)
     result = result.gsub("{Name}", values[:name]&.to_s || name.to_s)
+    result = result.gsub("{Description}", values[:description]&.to_s || "")
+    result = result.gsub("{Category}", values[:category]&.to_s || "")
+    result = result.gsub("{CategoryCode}", values[:category_code]&.to_s || "")
     # Revision placeholders
     result = result.gsub("{Rev}", values[:rev]&.to_s || "")
     result = result.gsub("{Date}", values[:date]&.to_s || "")

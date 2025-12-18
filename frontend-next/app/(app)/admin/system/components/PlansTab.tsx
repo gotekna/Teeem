@@ -87,7 +87,25 @@ const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
     code: "{Name}",
     example: "PERSPECTIVE",
     color: "blue",
-    description: "Plan type name",
+    description: "Plan type name (short)",
+  },
+  {
+    code: "{Description}",
+    example: "Perspective Drawing - Front Elevation View",
+    color: "blue",
+    description: "Plan type long description",
+  },
+  {
+    code: "{Category}",
+    example: "Contract Drawings",
+    color: "blue",
+    description: "Plan category name",
+  },
+  {
+    code: "{CategoryCode}",
+    example: "CD",
+    color: "blue",
+    description: "Plan category code",
   },
   // Revision/version placeholders
   {
@@ -631,6 +649,9 @@ function TypesSection() {
                   Suburb: "Claamvale",
                   Code: "01",
                   Name: "PERSPECTIVE",
+                  Description: "Perspective Drawing - Front Elevation View",
+                  Category: "Contract Drawings",
+                  CategoryCode: "CD",
                   Rev: "A",
                   Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                   Variant: "a",
@@ -653,6 +674,9 @@ function TypesSection() {
                   Suburb: "Claamvale",
                   Code: "01",
                   Name: "PERSPECTIVE",
+                  Description: "Perspective Drawing - Front Elevation View",
+                  Category: "Contract Drawings",
+                  CategoryCode: "CD",
                   Rev: "A",
                   Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                   Variant: "a",
@@ -866,12 +890,15 @@ function TypesSection() {
                     Suburb: "Claamvale",
                     Code: formData.code || "01",
                     Name: formData.name || "PERSPECTIVE",
+                    Description: "Perspective Drawing - Front Elevation View",
+                    Category: "Contract Drawings",
+                    CategoryCode: "CD",
                     Rev: "A",
                     Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                     Variant: "a",
                     ProjectName: "Wategors Estate",
                   }}
-                  placeholder={`Click + to build (default: ${globalDefaults.short_name_template})`}
+                  placeholder={`Click a token below to add it...`}
                   helpText={!formData.short_name_template ? "Using global default template" : undefined}
                 />
 
@@ -890,12 +917,15 @@ function TypesSection() {
                     Suburb: "Claamvale",
                     Code: formData.code || "01",
                     Name: formData.name || "PERSPECTIVE",
+                    Description: "Perspective Drawing - Front Elevation View",
+                    Category: "Contract Drawings",
+                    CategoryCode: "CD",
                     Rev: "A",
                     Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
                     Variant: "a",
                     ProjectName: "Wategors Estate",
                   }}
-                  placeholder={`Click + to build (default: ${globalDefaults.long_name_template})`}
+                  placeholder={`Click a token below to add it...`}
                   helpText={!formData.long_name_template ? "Using global default template" : undefined}
                 />
               </div>
