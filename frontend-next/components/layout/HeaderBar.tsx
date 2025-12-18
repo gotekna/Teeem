@@ -164,45 +164,36 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
         setXeroTooltip('Xero: Connected');
       }
 
-      // Check user's Microsoft 365 connection status
-      // TEEEM Rule: Microsoft must ALWAYS be connected - self-heal via auto-reconnect hook
+      // Check organization-wide Microsoft 365 connection status
+      // SSoT: This endpoint returns org SharePoint credentials, matching what the Microsoft page shows
       try {
-        let microsoftResponse = await api.get<{
-          connected?: boolean;
-          needs_reconnect?: boolean;
-          needs_refresh?: boolean;
-          refresh_token_dead?: boolean;
-          can_auto_reconnect?: boolean;
-          email?: string;
+        const microsoftResponse = await api.get<{
+          configured?: boolean;
           status?: string;
-          error?: string;
-          message?: string;
-          sync_error?: string;
-        }>("/api/v1/microsoft/status");
+          organizations?: Array<{
+            id: number;
+            name: string;
+            status: string;
+          }>;
+        }>("/api/v1/microsoft_app/status");
 
-        // PROACTIVE HEALING STRATEGY: NEVER show orange, always heal silently
-        // The auto-reconnect hook handles all healing - HeaderBar just displays status
+        // Count actually connected organizations
+        const orgs = microsoftResponse?.organizations || [];
+        const connectedCount = orgs.filter(o => o.status === "connected").length;
+        const totalCount = 4; // AVAILABLE_ORGANIZATIONS count from Microsoft page
 
-        if (microsoftResponse?.connected === true && !microsoftResponse?.needs_reconnect) {
-          // Fully connected and healthy
+        if (connectedCount > 0) {
           setOffice365Status('connected');
-          setOffice365Tooltip(`Microsoft 365: Connected (${microsoftResponse.email || 'Connected'})`);
-        } else if (microsoftResponse?.needs_reconnect && microsoftResponse?.can_auto_reconnect) {
-          // Needs reconnection but auto-reconnect hook will handle it
-          // NEVER show orange - keep green and show "Healing..." in tooltip
-          setOffice365Status('connected');
-          setOffice365Tooltip('Microsoft 365: Healing connection...');
-          console.info('[Microsoft] Auto-reconnect hook will handle reconnection');
+          setOffice365Tooltip(`Microsoft 365: ${connectedCount}/${totalCount} Connected`);
         } else {
-          // Default: always show as connected (TEEEM rule - never show problems to user)
-          setOffice365Status('connected');
-          setOffice365Tooltip(`Microsoft 365: Connected${microsoftResponse?.email ? ` (${microsoftResponse.email})` : ''}`);
+          // No orgs connected - show as disconnected
+          setOffice365Status('disconnected');
+          setOffice365Tooltip(`Microsoft 365: ${connectedCount}/${totalCount} Connected`);
         }
       } catch (error) {
         console.debug("Failed to fetch Microsoft 365 status:", error);
-        // TEEEM Rule: Even on API error, show as connected (never disconnected)
-        setOffice365Status('connected');
-        setOffice365Tooltip('Microsoft 365: Connected');
+        setOffice365Status('disconnected');
+        setOffice365Tooltip('Microsoft 365: Not Connected');
       }
     };
 
@@ -225,15 +216,8 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     };
   }, []);
 
-  // Update Microsoft status when auto-reconnect state changes
-  React.useEffect(() => {
-    if (isMicrosoftReconnecting) {
-      setOffice365Tooltip('Microsoft 365: Reconnecting...');
-    } else if (microsoftAutoStatus?.connected) {
-      setOffice365Status('connected');
-      setOffice365Tooltip(`Microsoft 365: Connected${microsoftAutoStatus.email ? ` (${microsoftAutoStatus.email})` : ''}`);
-    }
-  }, [isMicrosoftReconnecting, microsoftAutoStatus]);
+  // Note: Auto-reconnect hook was for user-level OAuth, now we use org-level credentials
+  // The useMicrosoftAutoReconnect hook can be removed in a future cleanup
 
   // Helper to get color classes based on connection status
   const getStatusColors = (status: ConnectionStatus) => {

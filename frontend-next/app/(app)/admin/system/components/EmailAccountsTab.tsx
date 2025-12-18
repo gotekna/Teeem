@@ -35,6 +35,7 @@ import {
   AlertTriangle,
   Eye,
   EyeOff,
+  Pencil,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
@@ -43,6 +44,7 @@ interface ImapCredential {
   id: number;
   name: string;
   email_address: string;
+  username: string;
   provider: string;
   imap_host: string;
   imap_port: number;
@@ -92,6 +94,7 @@ export function EmailAccountsTab() {
   const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [syncingId, setSyncingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   // Fetch credentials and providers on mount
   useEffect(() => {
@@ -156,18 +159,27 @@ export function EmailAccountsTab() {
   const handleSubmit = async () => {
     setSaving(true);
     try {
-      await api.post("/api/v1/imap_credentials", {
-        imap_credential: formData,
-      });
+      if (editingId) {
+        // Update existing credential
+        await api.put(`/api/v1/imap_credentials/${editingId}`, {
+          imap_credential: formData,
+        });
+      } else {
+        // Create new credential
+        await api.post("/api/v1/imap_credentials", {
+          imap_credential: formData,
+        });
+      }
       setDialogOpen(false);
       setFormData(DEFAULT_FORM);
+      setEditingId(null);
       setTestResult(null);
       fetchData();
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } };
       setTestResult({
         success: false,
-        error: err.response?.data?.error || "Failed to add account",
+        error: err.response?.data?.error || `Failed to ${editingId ? "update" : "add"} account`,
       });
     } finally {
       setSaving(false);
@@ -198,6 +210,32 @@ export function EmailAccountsTab() {
     }
   };
 
+  const handleEdit = (cred: ImapCredential) => {
+    setEditingId(cred.id);
+    setFormData({
+      name: cred.name || "",
+      email_address: cred.email_address,
+      provider: cred.provider || "custom",
+      imap_host: cred.imap_host,
+      imap_port: cred.imap_port,
+      smtp_host: cred.smtp_host,
+      smtp_port: cred.smtp_port,
+      username: cred.username || cred.email_address,
+      password: "", // Don't prefill password for security
+    });
+    setTestResult(null);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setEditingId(null);
+      setFormData(DEFAULT_FORM);
+      setTestResult(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -215,7 +253,7 @@ export function EmailAccountsTab() {
             Connect email accounts to sync and send emails from TEEEM.
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={handleDialogClose}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
@@ -224,9 +262,11 @@ export function EmailAccountsTab() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add Email Account</DialogTitle>
+              <DialogTitle>{editingId ? "Edit Email Account" : "Add Email Account"}</DialogTitle>
               <DialogDescription>
-                Connect an email account using IMAP/SMTP. Your password is encrypted.
+                {editingId
+                  ? "Update the email account settings. Leave password blank to keep existing."
+                  : "Connect an email account using IMAP/SMTP. Your password is encrypted."}
               </DialogDescription>
             </DialogHeader>
 
@@ -393,15 +433,15 @@ export function EmailAccountsTab() {
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={saving || !testResult?.success}
+                disabled={saving || (!editingId && !testResult?.success)}
               >
                 {saving ? (
                   <>
                     <Spinner className="h-4 w-4 mr-2" />
-                    Adding...
+                    {editingId ? "Saving..." : "Adding..."}
                   </>
                 ) : (
-                  "Add Account"
+                  editingId ? "Save Changes" : "Add Account"
                 )}
               </Button>
             </DialogFooter>
@@ -478,6 +518,14 @@ export function EmailAccountsTab() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(cred)}
+                    >
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
