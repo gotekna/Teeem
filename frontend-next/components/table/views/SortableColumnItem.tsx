@@ -1,10 +1,16 @@
 "use client";
 
+/**
+ * SortableColumnItem - Sortable item for table columns
+ *
+ * Uses DnD primitives from @/components/ui/dnd for consistency.
+ * See: frontend-next/lib/component-registry.ts
+ */
+
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  GripVertical,
   Check,
   EyeOff,
   Search,
@@ -14,6 +20,9 @@ import { useDroppable } from "@dnd-kit/core";
 import { Badge } from "@/components/ui/badge";
 import type { ColumnPriority } from "@/lib/column-priority";
 import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-types";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle, PositionBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
 
 interface Column {
   id: number;
@@ -65,10 +74,6 @@ export function SortableColumnItem({
   smartWidth,
   lookupFoundationName,
 }: SortableColumnItemProps) {
-  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
-  const [positionValue, setPositionValue] = React.useState(String(index || 1));
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
   const {
     attributes,
     listeners,
@@ -89,39 +94,6 @@ export function SortableColumnItem({
 
   const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.column_name);
 
-  // Focus input when editing starts
-  React.useEffect(() => {
-    if (isEditingPosition && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditingPosition]);
-
-  const handlePositionClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onReorder && index !== undefined) {
-      setPositionValue(String(index));
-      setIsEditingPosition(true);
-    }
-  };
-
-  const handlePositionSubmit = () => {
-    const newPos = parseInt(positionValue, 10);
-    if (!isNaN(newPos) && newPos >= 1 && newPos <= (totalVisible || 999) && onReorder) {
-      onReorder(newPos);
-    }
-    setIsEditingPosition(false);
-  };
-
-  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handlePositionSubmit();
-    } else if (e.key === 'Escape') {
-      setIsEditingPosition(false);
-      setPositionValue(String(index || 1));
-    }
-  };
-
   return (
     <div
       ref={setNodeRef}
@@ -130,37 +102,22 @@ export function SortableColumnItem({
         "flex items-center gap-1.5 px-2 py-1.5 rounded border transition-all relative",
         isVisible ? "bg-background border-border" : "bg-muted/30 border-border",
         isSystemColumn && "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-900/50",
-        isDragging && "opacity-50 shadow-lg scale-105 z-50 border-primary bg-primary/10",
-        shouldShowDropIndicator && !isDragging && "border-t-4 border-t-primary pt-3 mt-1"
+        isDragging && DRAGGING_CLASSES,
+        shouldShowDropIndicator && !isDragging && DROP_TARGET_CLASSES
       )}
     >
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
-      </div>
+      {/* DnD Primitive: DragHandle */}
+      <DragHandle {...attributes} {...listeners} size="sm" />
+
+      {/* DnD Primitive: PositionBadge - editable when onReorder is provided */}
       {index !== undefined && (
-        isEditingPosition ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={positionValue}
-            onChange={(e) => setPositionValue(e.target.value)}
-            onBlur={handlePositionSubmit}
-            onKeyDown={handlePositionKeyDown}
-            className="w-6 h-5 text-[10px] font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        ) : (
-          <button
-            onClick={handlePositionClick}
-            className="flex items-center justify-center w-5 h-5 text-[9px] font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
-            title="Click to change position"
-          >
-            {index}
-          </button>
-        )
+        <PositionBadge
+          position={index}
+          editable={!!onReorder}
+          onPositionChange={onReorder}
+          maxPosition={totalVisible}
+          size="sm"
+        />
       )}
       <button
         onClick={onToggleVisibility}

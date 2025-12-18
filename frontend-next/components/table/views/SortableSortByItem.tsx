@@ -1,5 +1,12 @@
 "use client";
 
+/**
+ * SortableSortByItem - Sortable item for sort columns
+ *
+ * Uses DnD primitives from @/components/ui/dnd for consistency.
+ * See: frontend-next/lib/component-registry.ts
+ */
+
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -12,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  GripVertical,
   X,
   ChevronUp,
   ChevronDown,
@@ -20,6 +26,9 @@ import {
 import { cn } from "@/lib/utils";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import type { SortColumn } from "../types";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
 
 interface Column {
   id: number;
