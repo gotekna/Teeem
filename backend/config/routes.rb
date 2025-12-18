@@ -854,6 +854,8 @@ Rails.application.routes.draw do
       resources :plan_types do
         collection do
           post :reorder
+          get :defaults
+          patch :defaults, action: :update_defaults
         end
         member do
           post :assign_categories

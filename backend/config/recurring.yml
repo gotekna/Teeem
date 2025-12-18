@@ -84,11 +84,21 @@ cleanup_stale_xero_links:
 # DATA WAREHOUSE RECURRING JOBS
 # ============================================
 
-# Refresh materialized views hourly
-warehouse_refresh_views:
+# Fast views refresh hourly (concurrent-safe, no table locks)
+# Only refreshes: mv_job_summary, mv_job_document_status, mv_invoice_po_reconciliation
+warehouse_refresh_views_fast:
   class: RefreshMaterializedViewsJob
   queue: low
+  args: ["fast"]
   schedule: every hour at minute 5
+
+# Full views refresh daily at 2am Brisbane (off-peak)
+# Refreshes all 12 views including slow financial summaries
+warehouse_refresh_views_full:
+  class: RefreshMaterializedViewsJob
+  queue: low
+  args: ["all"]
+  schedule: at 2am every day
 
 # Capture daily job snapshots (for historical trends)
 warehouse_daily_snapshot:
@@ -126,10 +136,11 @@ warehouse_document_verification:
   schedule: every 4 hours at minute 30
 
 # Sync job documents from OneDrive to database (data warehouse)
+# Moved from every 6h to daily 3am off-peak to avoid blocking worker threads
 warehouse_job_documents_sync:
   class: JobDocumentSyncJob
   queue: low
-  schedule: every 6 hours at minute 15
+  schedule: at 3am every day
 
 # ============================================
 # ACCOUNTS PAYABLE - BILL INBOX

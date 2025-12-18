@@ -93,6 +93,38 @@ module Api
         render json: { success: true }
       end
 
+      # GET /api/v1/plan_types/defaults
+      def defaults
+        render json: {
+          success: true,
+          data: {
+            short_name_template: PlanType.default_short_template,
+            long_name_template: PlanType.default_long_template,
+            fallback_short: PlanType::FALLBACK_SHORT_TEMPLATE,
+            fallback_long: PlanType::FALLBACK_LONG_TEMPLATE
+          }
+        }
+      end
+
+      # PATCH /api/v1/plan_types/defaults
+      def update_defaults
+        if params[:short_name_template].present?
+          PlanType.set_default_short_template(params[:short_name_template])
+        end
+
+        if params[:long_name_template].present?
+          PlanType.set_default_long_template(params[:long_name_template])
+        end
+
+        render json: {
+          success: true,
+          data: {
+            short_name_template: PlanType.default_short_template,
+            long_name_template: PlanType.default_long_template
+          }
+        }
+      end
+
       # POST /api/v1/plan_types/:id/assign_categories
       def assign_categories
         category_ids = params[:category_ids] || []

@@ -22,16 +22,14 @@ class RefreshMaterializedViewsJob < ApplicationJob
     job_summary_monthly: { name: "mv_job_summary_monthly", concurrent: false }
   }.freeze
 
-  # Refresh one or all materialized views
-  # @param view_name [Symbol, String, nil] - :all, :job_summary, :financial_summary, :document_summary, :document_completeness
-  def perform(view_name = :all)
-    views_to_refresh = case view_name.to_sym
-    when :all then VIEWS
-    else
-                         view_config = VIEWS[view_name.to_sym]
-                         raise ArgumentError, "Unknown view: #{view_name}. Available: #{VIEWS.keys.join(', ')}" unless view_config
-                         { view_name.to_sym => view_config }
-    end
+  # Fast views that use CONCURRENTLY (no table locks, safe during business hours)
+  FAST_VIEWS = %i[job_summary job_document_status invoice_po_reconciliation].freeze
+
+  # Refresh one, multiple, or all materialized views
+  # @param view_names [Symbol, String, Array, nil] - :all, :fast, :job_summary, or [:job_summary, :document_summary]
+  def perform(view_names = :all)
+    views_to_refresh = resolve_views(view_names)
+    Rails.logger.info("[Warehouse] Starting refresh of #{views_to_refresh.keys.join(', ')}")
 
     results = {}
 
@@ -73,6 +71,30 @@ class RefreshMaterializedViewsJob < ApplicationJob
   end
 
   private
+
+  def resolve_views(view_names)
+    case view_names
+    when :all, "all"
+      VIEWS
+    when :fast, "fast"
+      VIEWS.slice(*FAST_VIEWS)
+    when Array
+      # Accept array of view names
+      selected = {}
+      view_names.each do |name|
+        key = name.to_sym
+        raise ArgumentError, "Unknown view: #{name}. Available: #{VIEWS.keys.join(', ')}" unless VIEWS.key?(key)
+        selected[key] = VIEWS[key]
+      end
+      selected
+    else
+      # Single view name
+      key = view_names.to_sym
+      view_config = VIEWS[key]
+      raise ArgumentError, "Unknown view: #{view_names}. Available: #{VIEWS.keys.join(', ')}" unless view_config
+      { key => view_config }
+    end
+  end
 
   def refresh_view(view_name, concurrently:)
     # Sanitize view name to prevent SQL injection

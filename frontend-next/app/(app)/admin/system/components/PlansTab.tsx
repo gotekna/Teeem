@@ -337,6 +337,11 @@ function CategoriesSection() {
   );
 }
 
+interface GlobalDefaults {
+  short_name_template: string;
+  long_name_template: string;
+}
+
 function TypesSection() {
   const { toast } = useToast();
   const [types, setTypes] = React.useState<PlanType[]>([]);
@@ -348,6 +353,14 @@ function TypesSection() {
   const [deleting, setDeleting] = React.useState<number | null>(null);
   const [filterCategory, setFilterCategory] = React.useState<string>("all");
 
+  // Global defaults state
+  const [globalDefaults, setGlobalDefaults] = React.useState<GlobalDefaults>({
+    short_name_template: "{Code}-{Name}",
+    long_name_template: "{JobCode}-{Code}-{Name}-Rev{Rev}",
+  });
+  const [editingDefaults, setEditingDefaults] = React.useState(false);
+  const [savingDefaults, setSavingDefaults] = React.useState(false);
+
   const [formData, setFormData] = React.useState({
     category_ids: [] as number[],
     name: "",
@@ -356,8 +369,8 @@ function TypesSection() {
     notes: "",
     sequence_order: 0,
     is_active: true,
-    short_name_template: "{Code}-{Name}",
-    long_name_template: "{JobCode}-{Code}-{Name}-Rev{Rev}",
+    short_name_template: "",
+    long_name_template: "",
   });
 
   React.useEffect(() => {
@@ -366,16 +379,36 @@ function TypesSection() {
 
   const loadData = async () => {
     try {
-      const [typesRes, catsRes] = await Promise.all([
+      const [typesRes, catsRes, defaultsRes] = await Promise.all([
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: PlanCategory[] }>("/api/v1/plan_categories"),
+        api.get<{ success: boolean; data: GlobalDefaults }>("/api/v1/plan_types/defaults"),
       ]);
       if (typesRes?.data) setTypes(typesRes.data);
       if (catsRes?.data) setCategories(catsRes.data);
+      if (defaultsRes?.data) setGlobalDefaults(defaultsRes.data);
     } catch (error) {
       console.error("Failed to load data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveDefaults = async () => {
+    setSavingDefaults(true);
+    try {
+      await api.patch("/api/v1/plan_types/defaults", {
+        short_name_template: globalDefaults.short_name_template,
+        long_name_template: globalDefaults.long_name_template,
+      });
+      toast({ title: "Success", description: "Global defaults saved" });
+      setEditingDefaults(false);
+      loadData(); // Reload to update previews
+    } catch (error) {
+      console.error("Failed to save defaults:", error);
+      toast({ title: "Error", description: "Failed to save defaults", variant: "destructive" });
+    } finally {
+      setSavingDefaults(false);
     }
   };
 
@@ -388,8 +421,8 @@ function TypesSection() {
       notes: "",
       sequence_order: types.length,
       is_active: true,
-      short_name_template: "{Code}-{Name}",
-      long_name_template: "{JobCode}-{Code}-{Name}-Rev{Rev}",
+      short_name_template: "", // Empty = use global default
+      long_name_template: "", // Empty = use global default
     });
     setEditing(null);
     setShowDialog(true);
@@ -472,6 +505,86 @@ function TypesSection() {
 
   return (
     <div className="space-y-4">
+      {/* Global Default Templates */}
+      <Card>
+        <CardHeader className="py-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Global Default Templates</CardTitle>
+            {!editingDefaults ? (
+              <Button variant="outline" size="sm" onClick={() => setEditingDefaults(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingDefaults(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveDefaults} disabled={savingDefaults}>
+                  {savingDefaults && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  Save
+                </Button>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <p className="text-sm text-muted-foreground mb-4">
+            These templates are used for all plan types unless overridden individually.
+          </p>
+          {editingDefaults ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Default Short Name Template</Label>
+                <Input
+                  value={globalDefaults.short_name_template}
+                  onChange={(e) => setGlobalDefaults({ ...globalDefaults, short_name_template: e.target.value })}
+                  placeholder="{Code}-{Name}"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Preview: {globalDefaults.short_name_template
+                    .replace("{Code}", "01")
+                    .replace("{Name}", "PERSPECTIVE")
+                    .replace("{Variant}", "a")}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Default Long Name Template (SharePoint filename)</Label>
+                <Input
+                  value={globalDefaults.long_name_template}
+                  onChange={(e) => setGlobalDefaults({ ...globalDefaults, long_name_template: e.target.value })}
+                  placeholder="{JobCode}-{Code}-{Name}-Rev{Rev}"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Preview: {globalDefaults.long_name_template
+                    .replace("{JobCode}", "EB2401")
+                    .replace("{Code}", "01")
+                    .replace("{Name}", "PERSPECTIVE")
+                    .replace("{Rev}", "A")
+                    .replace("{Date}", new Date().toISOString().slice(0, 10).replace(/-/g, ""))
+                    .replace("{Variant}", "a")}
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+                <strong>Placeholders:</strong> {"{Code}"}, {"{Name}"}, {"{JobCode}"}, {"{Rev}"}, {"{Date}"}, {"{Variant}"}
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium">Short Name</p>
+                <p className="text-sm text-muted-foreground font-mono">{globalDefaults.short_name_template}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Long Name (SharePoint)</p>
+                <p className="text-sm text-muted-foreground font-mono">{globalDefaults.long_name_template}</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Plan Types List */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-medium">Plan Types</h3>
@@ -640,7 +753,10 @@ function TypesSection() {
 
             {/* Naming Templates */}
             <div className="border-t pt-4 mt-4">
-              <p className="text-sm font-medium mb-3">File Naming Templates</p>
+              <p className="text-sm font-medium mb-1">File Naming Templates (Optional)</p>
+              <p className="text-xs text-muted-foreground mb-3">
+                Leave empty to use global defaults. Set custom templates to override for this type only.
+              </p>
 
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -648,13 +764,14 @@ function TypesSection() {
                   <Input
                     value={formData.short_name_template}
                     onChange={(e) => setFormData({ ...formData, short_name_template: e.target.value })}
-                    placeholder="{Code}-{Name}"
+                    placeholder={`Global default: ${globalDefaults.short_name_template}`}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Preview: {formData.short_name_template
+                    Preview: {(formData.short_name_template || globalDefaults.short_name_template)
                       .replace("{Code}", formData.code || "01")
                       .replace("{Name}", formData.name || "PERSPECTIVE")
                       .replace("{Variant}", "a")}
+                    {!formData.short_name_template && " (using global default)"}
                   </p>
                 </div>
 
@@ -663,16 +780,17 @@ function TypesSection() {
                   <Input
                     value={formData.long_name_template}
                     onChange={(e) => setFormData({ ...formData, long_name_template: e.target.value })}
-                    placeholder="{JobCode}-{Code}-{Name}-Rev{Rev}"
+                    placeholder={`Global default: ${globalDefaults.long_name_template}`}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Preview: {formData.long_name_template
+                    Preview: {(formData.long_name_template || globalDefaults.long_name_template)
                       .replace("{JobCode}", "EB2401")
                       .replace("{Code}", formData.code || "01")
                       .replace("{Name}", formData.name || "PERSPECTIVE")
                       .replace("{Rev}", "A")
                       .replace("{Date}", new Date().toISOString().slice(0, 10).replace(/-/g, ""))
                       .replace("{Variant}", "a")}
+                    {!formData.long_name_template && " (using global default)"}
                   </p>
                 </div>
 

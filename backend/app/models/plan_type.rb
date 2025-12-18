@@ -52,17 +52,28 @@ class PlanType < ApplicationRecord
   end
 
   # Resolve short name template with given values
+  # Priority: plan_type custom > global default > fallback
   # options: code, name, variant
   def resolve_short_name(options = {})
-    template = short_name_template.presence || DEFAULT_SHORT_TEMPLATE
+    template = short_name_template.presence || self.class.default_short_template
     resolve_template(template, options)
   end
 
   # Resolve long name template with given values
+  # Priority: plan_type custom > global default > fallback
   # options: job_code, code, name, rev, date, variant
   def resolve_long_name(options = {})
-    template = long_name_template.presence || DEFAULT_LONG_TEMPLATE
+    template = long_name_template.presence || self.class.default_long_template
     resolve_template(template, options)
+  end
+
+  # Check if using custom template or global default
+  def using_custom_short_template?
+    short_name_template.present?
+  end
+
+  def using_custom_long_template?
+    long_name_template.present?
   end
 
   # Preview short name with example values
