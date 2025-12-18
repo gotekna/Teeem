@@ -437,6 +437,55 @@ OAuth callbacks write to BOTH old and new tables. Graph clients try new table fi
 
 Graph clients detect permanent auth failures (AADSTS65001, AADSTS70000, etc.) and mark credentials as `dead`. Dead credentials require user to re-authenticate via OAuth.
 
+## 🔴 Xero Integration (SSoT: Live Webhooks)
+
+**Single Source of Truth:** Xero Webhooks (configured 2025-12-18)
+
+### Architecture - LIVE SYNC
+
+```
+Xero Cloud
+    │
+    ├──► Webhooks (LIVE - immediate)
+    │    POST /api/v1/xero/webhooks
+    │    Handles: Contacts, Invoices, Billing subscriptions
+    │
+    └──► Scheduled Jobs (BACKUP ONLY)
+         - xero_health_monitor: every 2 hours (catches webhook failures)
+         - xero_bank_transaction_sync: every 6 hours (no webhook available)
+```
+
+### SSoT Rules
+
+| What | THE ONE Way | Never Do |
+|------|-------------|----------|
+| Contact/Invoice sync | Webhooks (live) | Scheduled jobs |
+| Xero links | `contact_external_links.sync_enabled = true` | Disabled links |
+| Link count cache | `contacts.xero_linked_count` | Calculate on-the-fly |
+
+### Webhook Configuration
+
+- **URL:** `https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/xero/webhooks`
+- **Key:** `XERO_WEBHOOK_KEY` env var
+- **Controller:** `Api::V1::XeroWebhooksController`
+- **Events:** CONTACT (create/update/delete), INVOICE (create/update), PAYMENT (create/update)
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `app/controllers/api/v1/xero_webhooks_controller.rb` | Receives webhook events |
+| `config/recurring.yml` | Scheduled jobs (backup only) |
+| `app/models/contact_external_link.rb` | Xero link storage |
+| `app/services/xero_contact_sync_service.rb` | Sync logic |
+
+### NEVER Add Scheduled Xero Sync Jobs
+
+Webhooks are THE SSoT for Xero sync. If you think you need a scheduled job:
+1. Check if webhooks handle it (they should)
+2. If webhooks are failing → fix the webhook, don't add a scheduled job
+3. Only `xero_bank_transaction_sync` is allowed (no webhook available for bank data)
+
 ### Related Services
 
 - `MicrosoftGraphBase` - Shared base class with retry logic, dead token detection

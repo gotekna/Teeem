@@ -48,26 +48,23 @@ refresh_integration_tokens:
 # ============================================
 # XERO INTEGRATION
 # ============================================
+# SSoT: Xero sync is LIVE via webhooks (configured 2025-12-18)
+# Webhooks handle: Contacts, Invoices, Billing subscriptions
+# URL: https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/xero/webhooks
+# ============================================
 
-# SELF-HEALING: Health monitor checks for stalled syncs and auto-triggers them
-# This prevents sync outages by detecting when next_sync_at is overdue
+# REMOVED (2025-12-18): Scheduled syncs replaced by live webhooks
+# - xero_invoice_incremental_sync (was: every 30 minutes)
+# - xero_contact_sync (was: every 30 minutes)
+
+# SELF-HEALING: Health monitor catches any webhook failures
+# Runs less frequently now that webhooks are primary
 xero_health_monitor:
   class: XeroHealthMonitorJob
   queue: default
-  schedule: every 15 minutes
+  schedule: every 2 hours
 
-xero_invoice_incremental_sync:
-  class: XeroInvoiceSyncJob
-  queue: default
-  args: [{ incremental: true }]
-  schedule: every 30 minutes
-
-xero_contact_sync:
-  class: XeroContactSyncJob
-  queue: default
-  schedule: every 30 minutes
-
-# Bank transaction sync (every 6 hours)
+# Bank transaction sync (no webhook available for bank transactions)
 xero_bank_transaction_sync:
   class: XeroBankTransactionSyncJob
   queue: low
