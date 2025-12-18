@@ -88,27 +88,66 @@ To get version numbers:
 
 **If you find multiple ways to do the same thing, STOP and alert the user.**
 
-When discovering duplicate/conflicting implementations:
-1. ⚠️ **IMMEDIATELY flag it to the user** - Don't silently pick one
-2. 📍 **Show both locations** - File paths and line numbers
-3. ❓ **Ask which should be the SSoT** - Let user decide
-4. 🔧 **Offer to consolidate** - Remove the duplicate after user confirms
+**⚠️ SSoT violations trigger ULTRA thinking mode. No bandaids. Fix the root cause.**
 
-**Examples of SSoT violations to watch for:**
-- Two config files for the same thing (e.g., `solid_queue.yml` AND `recurring.yml`)
+### The SSoT Masterpiece Process
+
+When discovering duplicate/conflicting implementations:
+
+1. ⚠️ **IMMEDIATELY STOP** - This is a critical architectural issue
+2. 📍 **Document ALL locations** - File paths, line numbers, what each does differently
+3. 🧠 **TRIGGER ULTRA MODE** - Present 3 masterpiece solutions:
+
+   | Solution | Description | Effort | Impact |
+   |----------|-------------|--------|--------|
+   | **Option A** | [Comprehensive fix approach] | X weeks | [Benefits] |
+   | **Option B** | [Alternative architecture] | X weeks | [Benefits] |
+   | **Option C** | [Most elegant long-term] | X weeks | [Benefits] |
+
+4. 🎯 **NO BANDAIDS** - The fix must:
+   - Solve the ROOT CAUSE, not the symptom
+   - Be a proper architectural solution (minimum 3-month quality bar)
+   - Eliminate ALL duplicates, not just patch one
+   - Include cache invalidation, callbacks, and data consistency
+   - Update ALL affected code paths
+
+5. ✅ **Consolidate completely** - After user picks the approach:
+   - Implement THE ONE source
+   - Delete ALL duplicates
+   - Update all references
+   - Add guards to prevent re-creation
+
+### Examples of SSoT violations to watch for:
+- Two places showing same data with different values (cache vs live)
+- Same config in multiple files (e.g., `solid_queue.yml` AND `recurring.yml`)
 - Same constant defined in multiple places
 - Duplicate route definitions
 - Same logic implemented in two different services
 - Two different ways to authenticate/authorize
 - Duplicate database columns or tables
-- Multiple environment variable files with overlapping keys
+- Frontend showing different count than backend cache
+- `sync_enabled` flags creating inconsistent states
 
-**When you find a violation, say:**
-> "⚠️ SSoT VIOLATION FOUND: I found [X] defined in two places:
-> 1. `path/to/file1.rb:123`
-> 2. `path/to/file2.rb:456`
+### When you find a violation, say:
+> "⚠️ SSoT VIOLATION FOUND - TRIGGERING ULTRA MODE
 >
-> Which should be the single source of truth? Want me to consolidate?"
+> **The Problem:**
+> [X] is defined/calculated differently in two places:
+> 1. `path/to/file1.rb:123` - does [A]
+> 2. `path/to/file2.rb:456` - does [B]
+>
+> **Why this matters:** [Explain the user-facing inconsistency]
+>
+> **3 Masterpiece Solutions:**
+> | Option | Approach | Effort |
+> |--------|----------|--------|
+> | A | ... | ... |
+> | B | ... | ... |
+> | C | ... | ... |
+>
+> **Recommendation:** Option [X] because [reasoning]
+>
+> Which approach should be THE ONE?"
 
 ## 🔴 CRITICAL: Ultrathink Design Philosophy
 

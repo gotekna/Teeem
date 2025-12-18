@@ -261,14 +261,21 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const handleSendForSigning = async () => {
     setSendingForSigning(true);
     try {
-      const response = await api.post(`/api/v1/jobs/${job.id}/send_contract_for_signing`);
-      const data = response.data;
+      interface SendForSigningResponse {
+        success: boolean;
+        error?: string;
+        data?: {
+          request_number: string;
+          signers: Array<{ name: string; email: string; status: string }>;
+        };
+      }
+      const response = await api.post<SendForSigningResponse>(`/api/v1/jobs/${job.id}/send_contract_for_signing`);
 
-      if (data.success) {
-        const signerNames = data.data.signers.map((s: { name: string }) => s.name).join(", ");
+      if (response?.success && response.data) {
+        const signerNames = response.data.signers.map((s) => s.name).join(", ");
         toast({
           title: "Contract sent for signing",
-          description: `Sent to: ${signerNames}. Request #${data.data.request_number}`,
+          description: `Sent to: ${signerNames}. Request #${response.data.request_number}`,
         });
         setShowPreview(false);
         if (previewUrl) {
@@ -277,13 +284,11 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         }
         onUpdate();
       } else {
-        toast({ title: data.error || "Failed to send for signing", variant: "destructive" });
+        toast({ title: response?.error || "Failed to send for signing", variant: "destructive" });
       }
     } catch (error: unknown) {
       console.error("Failed to send for signing:", error);
-      const errorMessage = error instanceof Error && 'response' in error
-        ? (error as { response?: { data?: { error?: string } } }).response?.data?.error || "Failed to send for signing"
-        : "Failed to send for signing";
+      const errorMessage = error instanceof Error ? error.message : "Failed to send for signing";
       toast({ title: errorMessage, variant: "destructive" });
     } finally {
       setSendingForSigning(false);
