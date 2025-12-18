@@ -66,6 +66,7 @@ Rails.application.routes.draw do
       get "system/health", to: "system#health"
       get "system/performance", to: "system#performance"
       get "system/metrics", to: "system#metrics"
+      get "system/scheduled_jobs", to: "system#scheduled_jobs"
 
       # Health checks - NEW unified endpoints
       get "health/unified", to: "health#unified"       # Main unified health dashboard

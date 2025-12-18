@@ -83,6 +83,61 @@ module Api
         }
       end
 
+      # GET /api/v1/system/scheduled_jobs
+      # Returns all recurring scheduled jobs with their status and run history
+      def scheduled_jobs
+        # Load recurring tasks from database (synced from config/recurring.yml)
+        tasks = SolidQueue::RecurringTask.order(:key)
+
+        # Get last execution times
+        last_executions = SolidQueue::RecurringExecution
+          .select("task_key, MAX(run_at) as last_run_at")
+          .group(:task_key)
+          .index_by(&:task_key)
+
+        # Get queue depth stats
+        queue_stats = SolidQueue::ReadyExecution
+          .joins(:job)
+          .select("solid_queue_jobs.queue_name, COUNT(*) as count")
+          .group("solid_queue_jobs.queue_name")
+          .map { |r| [r.queue_name, r.count] }
+          .to_h
+
+        # Build task list with execution info
+        scheduled_jobs = tasks.map do |task|
+          last_exec = last_executions[task.key]
+          next_run = calculate_next_run(task.schedule, last_exec&.last_run_at)
+
+          {
+            id: task.id,
+            key: task.key,
+            class_name: task.class_name.presence || "(command)",
+            command: task.command,
+            schedule: task.schedule,
+            schedule_human: humanize_schedule(task.schedule),
+            queue_name: task.queue_name || "default",
+            arguments: task.arguments,
+            description: task.description,
+            last_run_at: last_exec&.last_run_at,
+            next_run_at: next_run,
+            status: determine_status(last_exec&.last_run_at, next_run)
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            scheduled_jobs: scheduled_jobs,
+            queue_stats: queue_stats,
+            worker_info: {
+              threads: worker_thread_count,
+              processes: worker_process_count
+            },
+            config_source: "config/recurring.yml"
+          }
+        }
+      end
+
       # GET /api/v1/system/metrics
       def metrics
         render json: {
@@ -215,6 +270,97 @@ module Api
         SolidQueue::Job.failed.count
       rescue
         0
+      end
+
+      # Scheduled jobs helpers
+
+      def calculate_next_run(schedule, last_run_at)
+        return nil unless schedule.present?
+
+        # Parse common schedule patterns
+        base_time = last_run_at || Time.current
+
+        case schedule
+        when /every (\d+) minutes?/i
+          minutes = $1.to_i
+          next_time = base_time + minutes.minutes
+          next_time = Time.current + minutes.minutes if next_time < Time.current
+          next_time
+        when /every (\d+) hours?( at minute (\d+))?/i
+          hours = $1.to_i
+          minute = $3&.to_i || 0
+          next_time = base_time.beginning_of_hour + hours.hours + minute.minutes
+          next_time = Time.current.beginning_of_hour + minute.minutes if next_time < Time.current
+          next_time += hours.hours if next_time < Time.current
+          next_time
+        when /every hour at minute (\d+)/i
+          minute = $1.to_i
+          next_time = Time.current.beginning_of_hour + minute.minutes
+          next_time += 1.hour if next_time < Time.current
+          next_time
+        when /at (\d+)am every day/i
+          hour = $1.to_i
+          next_time = Time.current.in_time_zone("Australia/Brisbane").beginning_of_day + hour.hours
+          next_time += 1.day if next_time < Time.current
+          next_time
+        else
+          nil
+        end
+      rescue
+        nil
+      end
+
+      def humanize_schedule(schedule)
+        return "Unknown" unless schedule.present?
+
+        # Convert schedule patterns to human-readable
+        case schedule
+        when /every 15 minutes/i
+          "Every 15 min"
+        when /every 30 minutes/i
+          "Every 30 min"
+        when /every (\d+) minutes?/i
+          "Every #{$1} min"
+        when /every hour at minute (\d+)/i
+          "Hourly at :#{$1.rjust(2, '0')}"
+        when /every (\d+) hours? at minute (\d+)/i
+          "Every #{$1}h at :#{$2.rjust(2, '0')}"
+        when /every (\d+) hours?/i
+          "Every #{$1}h"
+        when /at (\d+)am every day/i
+          "Daily at #{$1}am"
+        when /at (\d+)pm every day/i
+          "Daily at #{$1}pm"
+        else
+          schedule
+        end
+      end
+
+      def determine_status(last_run_at, next_run_at)
+        return "pending" unless last_run_at
+
+        if next_run_at && next_run_at < Time.current - 5.minutes
+          "overdue"
+        else
+          "ok"
+        end
+      end
+
+      def worker_thread_count
+        # Read from queue.yml config
+        queue_config = Rails.application.config_for(:queue) rescue {}
+        workers = queue_config[:workers] || []
+        workers.sum { |w| w[:threads] || 0 }
+      rescue
+        3 # Default
+      end
+
+      def worker_process_count
+        queue_config = Rails.application.config_for(:queue) rescue {}
+        workers = queue_config[:workers] || []
+        workers.sum { |w| w[:processes] || 1 }
+      rescue
+        1
       end
     end
   end

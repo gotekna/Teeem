@@ -40,6 +40,7 @@ import {
   Palette,
   Mail,
   Map,
+  Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -74,6 +75,7 @@ import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "./components/EmailAccountsTab";
 import { PlansTab } from "./components/PlansTab";
 import { SharePointTab } from "./components/SharePointTab";
+import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -110,6 +112,7 @@ const MAIN_TABS = [
   { id: "user-manual", label: "User Manual", icon: BookOpen },
   { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
   { id: "performance", label: "Performance", icon: BarChart },
+  { id: "scheduled-jobs", label: "Scheduled Jobs", icon: Clock },
   { id: "email-accounts", label: "Email Accounts", icon: Mail },
 ];
 
@@ -826,6 +829,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="performance">
             <PerformanceTab />
+          </TabsContent>
+          <TabsContent value="scheduled-jobs">
+            <ScheduledJobsTab />
           </TabsContent>
           <TabsContent value="email-accounts">
             <EmailAccountsTab />
