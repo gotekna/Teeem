@@ -3,14 +3,15 @@
 # Rake tasks for managing the separate queue database.
 # Part of Option C architectural refactor to prevent database connection exhaustion.
 #
+# NOTE: Rails 8 handles multi-database migrations automatically via database.yml
+# migrations_paths config. These tasks are now simplified to just verify status.
+#
 # Usage:
-#   rails queue:setup       - Create tables in queue database
-#   rails queue:migrate     - Run pending queue migrations
+#   rails queue:setup       - Verify queue database is ready
 #   rails queue:status      - Show queue database status
-#   rails queue:migrate_data - Migrate data from primary to queue DB (one-time)
 #
 namespace :queue do
-  desc "Setup queue database (create tables)"
+  desc "Verify queue database is set up"
   task setup: :environment do
     puts "Setting up queue database..."
 
@@ -23,45 +24,33 @@ namespace :queue do
       puts "  Using separate queue database: #{queue_url.gsub(/:[^:@]+@/, ':***@')}"
     end
 
-    # Run migrations on queue database
-    ActiveRecord::Base.connected_to(database: :queue) do
-      context = ActiveRecord::MigrationContext.new(
-        Rails.root.join("db/queue_migrate"),
-        ActiveRecord::Base.connection.schema_migration
-      )
+    # Rails 8: Multi-database migrations are handled automatically by db:migrate
+    # based on migrations_paths in database.yml. Just verify tables exist.
+    begin
+      queue_config = ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "queue")
+      if queue_config
+        # Establish temporary connection to queue database
+        queue_conn = ActiveRecord::Base.establish_connection(queue_config).connection
 
-      if context.needs_migration?
-        puts "  Running #{context.migrations.count} migration(s)..."
-        context.migrate
-        puts "  Migrations completed!"
+        if queue_conn.table_exists?(:solid_queue_jobs)
+          puts "  ✅ Queue tables exist"
+        else
+          puts "  ⚠️  Queue tables not found - run 'rails db:migrate' to create them"
+        end
+
+        # Restore primary connection
+        ActiveRecord::Base.establish_connection(:primary)
       else
-        puts "  No pending migrations."
+        puts "  Using primary database connection for queue"
       end
-    end
-
-    # Reload SolidQueue recurring tasks
-    if defined?(SolidQueue)
-      puts "  Reloading recurring tasks..."
-      Rake::Task["solid_queue:recurring:load"].invoke rescue nil
+    rescue => e
+      puts "  ⚠️  Could not verify queue database: #{e.message}"
     end
 
     puts "Queue database setup complete!"
   end
 
-  desc "Run pending queue database migrations"
-  task migrate: :environment do
-    puts "Running queue database migrations..."
-    ActiveRecord::Base.connected_to(database: :queue) do
-      context = ActiveRecord::MigrationContext.new(
-        Rails.root.join("db/queue_migrate"),
-        ActiveRecord::Base.connection.schema_migration
-      )
-      context.migrate
-    end
-    puts "Done!"
-  end
-
-  desc "Show queue database migration status"
+  desc "Show queue database status"
   task status: :environment do
     puts "Queue Database Status"
     puts "=" * 50
@@ -73,87 +62,33 @@ namespace :queue do
       puts "URL: #{queue_url.gsub(/:[^:@]+@/, ':***@')}"
     end
 
-    ActiveRecord::Base.connected_to(database: :queue) do
-      context = ActiveRecord::MigrationContext.new(
-        Rails.root.join("db/queue_migrate"),
-        ActiveRecord::Base.connection.schema_migration
-      )
+    begin
+      queue_config = ActiveRecord::Base.configurations.configs_for(env_name: Rails.env, name: "queue")
+      if queue_config
+        queue_conn = ActiveRecord::Base.establish_connection(queue_config).connection
 
-      puts "Pending migrations: #{context.open.pending_migrations.count}"
-      puts "Applied migrations: #{context.get_all_versions.count}"
+        # Show SolidQueue stats if tables exist
+        if queue_conn.table_exists?(:solid_queue_jobs)
+          jobs_count = queue_conn.execute("SELECT COUNT(*) FROM solid_queue_jobs").first["count"]
+          ready_count = queue_conn.execute("SELECT COUNT(*) FROM solid_queue_ready_executions").first["count"]
+          failed_count = queue_conn.execute("SELECT COUNT(*) FROM solid_queue_failed_executions").first["count"]
 
-      # Show SolidQueue stats if tables exist
-      if ActiveRecord::Base.connection.table_exists?(:solid_queue_jobs)
-        jobs_count = ActiveRecord::Base.connection.execute("SELECT COUNT(*) FROM solid_queue_jobs").first["count"]
-        ready_count = ActiveRecord::Base.connection.execute("SELECT COUNT(*) FROM solid_queue_ready_executions").first["count"]
-        failed_count = ActiveRecord::Base.connection.execute("SELECT COUNT(*) FROM solid_queue_failed_executions").first["count"]
-
-        puts "\nSolidQueue Stats:"
-        puts "  Total jobs: #{jobs_count}"
-        puts "  Ready to run: #{ready_count}"
-        puts "  Failed: #{failed_count}"
-      else
-        puts "\nSolidQueue tables not yet created."
-      end
-    end
-  end
-
-  desc "Migrate data from primary to queue database (one-time migration)"
-  task migrate_data: :environment do
-    puts "Migrating SolidQueue data from primary to queue database..."
-    puts "WARNING: This should only be run once during the migration cutover."
-    puts ""
-
-    queue_url = ENV["QUEUE_DATABASE_URL"]
-    if queue_url.nil? || queue_url == ENV["DATABASE_URL"]
-      puts "ERROR: QUEUE_DATABASE_URL must be different from DATABASE_URL"
-      puts "       Set QUEUE_DATABASE_URL to the new queue database URL"
-      exit 1
-    end
-
-    # Tables to migrate
-    tables = %w[
-      solid_queue_jobs
-      solid_queue_blocked_executions
-      solid_queue_claimed_executions
-      solid_queue_failed_executions
-      solid_queue_pauses
-      solid_queue_processes
-      solid_queue_ready_executions
-      solid_queue_recurring_executions
-      solid_queue_recurring_tasks
-      solid_queue_scheduled_executions
-      solid_queue_semaphores
-    ]
-
-    tables.each do |table|
-      puts "Migrating #{table}..."
-
-      # Read from primary
-      primary_data = ActiveRecord::Base.connected_to(database: :primary) do
-        ActiveRecord::Base.connection.execute("SELECT * FROM #{table}").to_a
-      end
-
-      next if primary_data.empty?
-
-      # Write to queue
-      ActiveRecord::Base.connected_to(database: :queue) do
-        primary_data.each do |row|
-          columns = row.keys.join(", ")
-          values = row.values.map { |v| ActiveRecord::Base.connection.quote(v) }.join(", ")
-          ActiveRecord::Base.connection.execute(
-            "INSERT INTO #{table} (#{columns}) VALUES (#{values}) ON CONFLICT DO NOTHING"
-          )
+          puts "\nSolidQueue Stats:"
+          puts "  Total jobs: #{jobs_count}"
+          puts "  Ready to run: #{ready_count}"
+          puts "  Failed: #{failed_count}"
+        else
+          puts "\nSolidQueue tables not yet created."
+          puts "Run 'rails db:migrate' to create them."
         end
+
+        # Restore primary connection
+        ActiveRecord::Base.establish_connection(:primary)
+      else
+        puts "\nNo separate queue database configured."
       end
-
-      puts "  Migrated #{primary_data.count} records"
+    rescue => e
+      puts "Error: #{e.message}"
     end
-
-    puts "\nData migration complete!"
-    puts "Next steps:"
-    puts "1. Verify data in queue database: rails queue:status"
-    puts "2. Scale worker=0, then restart dynos"
-    puts "3. Scale worker=1 to start using new queue database"
   end
 end
