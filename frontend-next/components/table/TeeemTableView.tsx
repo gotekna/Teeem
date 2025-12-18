@@ -2046,7 +2046,8 @@ export default function TeeemTableView({
         total?: number;
       }>(`/api/v1/foundations/${foundationIdNumeric}/records`, { params });
 
-      if (response.success && response.records) {
+      // Safety: verify response.records is an array to prevent .sort() errors
+      if (response.success && Array.isArray(response.records)) {
         // SSoT: Apply client-side sorting to match current sort order
         let sortedRecords = response.records;
         if (sortColumns.length > 0) {

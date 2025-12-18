@@ -92,7 +92,8 @@ export const loadFoundationColumnsAtom = atom(
         `/api/v1/foundations/${foundationId}`
       );
 
-      if (response?.success && response.foundation?.columns) {
+      // Safety: ensure columns is always an array to prevent .sort() errors
+      if (response?.success && Array.isArray(response.foundation?.columns)) {
         const columns = response.foundation.columns;
 
         // Update cache

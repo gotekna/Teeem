@@ -134,6 +134,8 @@ export function findViewByName(
  * @returns Sorted array (does not mutate original)
  */
 export function sortViewsByDisplayOrder(views: SavedView[]): SavedView[] {
+  // Safety: ensure views is an array to prevent .sort() errors
+  if (!Array.isArray(views)) return [];
   return [...views].sort((a, b) => {
     const orderA = a.display_order ?? 999;
     const orderB = b.display_order ?? 999;

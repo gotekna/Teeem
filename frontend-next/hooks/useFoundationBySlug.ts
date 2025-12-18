@@ -173,7 +173,8 @@ export function useFoundationBySlug(
         console.log('[useFoundationBySlug] Using cached views');
       }
 
-      const loadedRecords = recordsData.records || [];
+      // Safety: ensure records is always an array to prevent .sort() errors
+      const loadedRecords = Array.isArray(recordsData.records) ? recordsData.records : [];
       setRecords(loadedRecords);
       setOriginalRecords(loadedRecords); // Store for clearing search
       setTotalCount(recordsData.pagination?.total_count ?? null); // Store total count from server
@@ -209,7 +210,8 @@ export function useFoundationBySlug(
           }
         }
       );
-      setRecords(recordsData.records || []);
+      // Safety: ensure records is always an array
+      setRecords(Array.isArray(recordsData.records) ? recordsData.records : []);
     } catch (err) {
       console.error('Server search failed:', err);
       // Keep current records on error

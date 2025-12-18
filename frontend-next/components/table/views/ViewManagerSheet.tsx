@@ -159,7 +159,10 @@ export function ViewManagerSheet({
   );
 
   // Use all foundation columns if loaded, otherwise fall back to prop columns
-  const effectiveColumns = allFoundationColumns.length > 0 ? allFoundationColumns : columns;
+  // Safety: ensure both are arrays to prevent .sort() errors
+  const safeAllFoundationColumns = Array.isArray(allFoundationColumns) ? allFoundationColumns : [];
+  const safeColumns = Array.isArray(columns) ? columns : [];
+  const effectiveColumns = safeAllFoundationColumns.length > 0 ? safeAllFoundationColumns : safeColumns;
 
   // Foundation names for lookup columns
   const [foundationNames, setFoundationNames] = React.useState<Record<number, string>>({});

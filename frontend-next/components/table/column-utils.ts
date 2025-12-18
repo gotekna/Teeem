@@ -39,7 +39,10 @@ export function sortColumnsForModal<T extends SortableColumn>(
   visibleColumns: Record<string, boolean>,
   columnOrder: string[]
 ): T[] {
-  const orderMap = new Map(columnOrder.map((key, idx) => [key, idx]));
+  // Safety: ensure columns is an array to prevent .sort() errors
+  if (!Array.isArray(columns)) return [];
+  const safeColumnOrder = Array.isArray(columnOrder) ? columnOrder : [];
+  const orderMap = new Map(safeColumnOrder.map((key, idx) => [key, idx]));
 
   // Separate visible and hidden columns
   const visibleCols = columns.filter(c => visibleColumns[getColumnKey(c)] === true);
@@ -66,6 +69,8 @@ export function sortColumnsForModal<T extends SortableColumn>(
  * Use this when you already have filtered hidden columns
  */
 export function sortHiddenColumnsAlphabetically<T extends SortableColumn>(columns: T[]): T[] {
+  // Safety: ensure columns is an array to prevent .sort() errors
+  if (!Array.isArray(columns)) return [];
   return [...columns].sort((a, b) =>
     getColumnDisplayName(a).localeCompare(getColumnDisplayName(b))
   );
