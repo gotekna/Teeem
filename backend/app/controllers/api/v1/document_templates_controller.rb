@@ -583,6 +583,52 @@ class Api::V1::DocumentTemplatesController < ApplicationController
     end
   end
 
+  # GET /api/v1/document_templates/sharepoint_download/:item_id
+  # Download a file from SharePoint by item ID
+  # Used to download PDF templates from SharePoint to local templates folder
+  def sharepoint_download
+    item_id = params[:item_id]
+
+    unless item_id.present?
+      return render json: {
+        success: false,
+        error: "item_id is required"
+      }, status: :bad_request
+    end
+
+    begin
+      cred = MicrosoftCredential.active.app_credentials.connected.first
+      unless cred
+        return render json: {
+          success: false,
+          error: "SharePoint not configured"
+        }, status: :service_unavailable
+      end
+
+      client = MicrosoftAppGraphClient.new(cred)
+
+      # Get file content
+      content = client.get_drive_item_content(
+        drive_id: cred.sharepoint_drive_id,
+        item_id: item_id
+      )
+
+      # Get file info for the name
+      item_info = client.get("/drives/#{cred.sharepoint_drive_id}/items/#{item_id}")
+      filename = item_info["name"] || "download.pdf"
+
+      send_data content,
+        filename: filename,
+        type: "application/octet-stream",
+        disposition: "attachment"
+    rescue MicrosoftAppGraphClient::ApiError => e
+      render json: {
+        success: false,
+        error: "SharePoint error: #{e.message}"
+      }, status: :unprocessable_entity
+    end
+  end
+
   private
 
   def set_document_template

@@ -353,7 +353,7 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
                         {layout.description}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        Used by: {layout.templates_using.length} templates
+                        Used by: {layout.templates_using?.length || 0} templates
                       </div>
                     </button>
                   ))}

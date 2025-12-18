@@ -341,6 +341,8 @@ Rails.application.routes.draw do
           get :layouts
           get "layouts/:name", to: "document_templates#layout_show", as: :layout
           put "layouts/:name", to: "document_templates#layout_update"
+          # SharePoint file download
+          get "sharepoint_download/:item_id", to: "document_templates#sharepoint_download", as: :sharepoint_download
         end
         member do
           get :preview
