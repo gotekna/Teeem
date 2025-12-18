@@ -218,8 +218,7 @@ module Api
           all_plans_plan = @job.job_plans.create!(
             job_plan_tab_id: tab_id,
             plan_type_id: nil, # No specific type for All Plans
-            display_name: "All Plans",
-            sequence_order: 0
+            display_name: "All Plans"
           )
 
           all_plans_plan.add_revision!(
@@ -241,8 +240,7 @@ module Api
           plan = @job.job_plans.create!(
             job_plan_tab_id: tab_id,
             plan_type_id: plan_type&.id,
-            display_name: page[:name].sub(/\.pdf$/i, ''),
-            sequence_order: page[:page_number]
+            display_name: page[:name].sub(/\.pdf$/i, '')
           )
 
           plan.add_revision!(
