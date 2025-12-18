@@ -83,12 +83,31 @@ module Api
           @contacts = @contacts.with_role(params[:role])
         end
 
-        # Legacy support for old :type param (deprecated - use :role instead)
-        # customer/supplier roles have been removed and converted to 'Employee'
+        # Filter by contact type (supplier/customer based on relationships)
         if params[:type].present? && params[:role].blank?
           case params[:type]
-          when "customers", "suppliers", "both"
-            @contacts = @contacts.employees # All converted to Employee role
+          when "suppliers"
+            # Suppliers: contacts who have purchase orders, pricebook items, price histories, or bills
+            # Note: purchase_orders, pricebook_items, price_histories use supplier_id foreign key
+            supplier_ids = Contact
+              .joins("LEFT JOIN purchase_orders ON purchase_orders.supplier_id = contacts.id")
+              .joins("LEFT JOIN pricebook_items ON pricebook_items.supplier_id = contacts.id")
+              .joins("LEFT JOIN price_histories ON price_histories.supplier_id = contacts.id")
+              .joins("LEFT JOIN external_invoices ON external_invoices.contact_id = contacts.id AND external_invoices.invoice_type = 'ACCPAY'")
+              .where("purchase_orders.id IS NOT NULL OR pricebook_items.id IS NOT NULL OR price_histories.id IS NOT NULL OR external_invoices.id IS NOT NULL")
+              .distinct
+              .pluck(:id)
+            @contacts = @contacts.where(id: supplier_ids)
+          when "customers"
+            # Customers: contacts who have jobs or customer invoices
+            customer_ids = Contact.left_joins(:jobs)
+              .joins("LEFT JOIN external_invoices ON external_invoices.contact_id = contacts.id AND external_invoices.invoice_type = 'ACCREC'")
+              .where("jobs.id IS NOT NULL OR external_invoices.id IS NOT NULL")
+              .distinct
+              .pluck(:id)
+            @contacts = @contacts.where(id: customer_ids)
+          when "both"
+            # All contacts (no filter)
           end
         end
 
