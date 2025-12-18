@@ -331,18 +331,19 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                               {contact.potential_matches.map((match) => (
                                 <div
                                   key={match.id}
-                                  className="flex items-center justify-between gap-2 p-2 bg-background rounded-lg border"
+                                  className="flex items-center gap-2 p-2 bg-background rounded-lg border"
                                 >
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                                     <span className="shrink-0">{getMatchBadge(match.match_type, match.score)}</span>
                                     <span className="font-medium truncate">{match.name}</span>
                                   </div>
                                   <Button
                                     size="sm"
-                                    className="shrink-0"
-                                    onClick={() =>
-                                      handleLink(contact.xero_contact_name, match.id)
-                                    }
+                                    className="shrink-0 ml-auto"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleLink(contact.xero_contact_name, match.id);
+                                    }}
                                     disabled={linking === contact.xero_contact_name}
                                   >
                                     {linking === contact.xero_contact_name ? (
@@ -369,7 +370,10 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                               variant="outline"
                               size="sm"
                               className="w-full"
-                              onClick={() => handleCreateNew(contact.xero_contact_name)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreateNew(contact.xero_contact_name);
+                              }}
                               disabled={linking === contact.xero_contact_name}
                             >
                               {linking === contact.xero_contact_name ? (
