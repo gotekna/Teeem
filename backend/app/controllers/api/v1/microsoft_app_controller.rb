@@ -40,6 +40,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       }
     else
       # Return all configured organizations
+      # SSoT: Handle both legacy OrganizationMicrosoftAppCredential and new MicrosoftCredential
       organizations = credentials.map do |credential|
         {
           id: credential.id,
@@ -49,8 +50,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
           tenant_id: credential.tenant_id,
           admin_consent_granted_at: credential.admin_consent_granted_at,
           admin_consent_granted_by: credential.admin_consent_granted_by,
-          last_sync_at: credential.last_sync_at,
-          last_error: credential.last_error,
+          last_sync_at: credential.try(:last_sync_at) || credential.try(:last_synced_at),
+          last_error: credential.try(:last_error) || credential.try(:error_message),
           token_valid: !credential.token_expired?
         }
       end

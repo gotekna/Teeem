@@ -34,6 +34,48 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
+import type { PlaceholderToken } from "@/lib/placeholders";
+
+// Custom placeholders for Plan Types
+const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
+  {
+    code: "{Code}",
+    example: "01",
+    color: "blue",
+    description: "Plan type code (01, 02, 07, etc.)",
+  },
+  {
+    code: "{Name}",
+    example: "PERSPECTIVE",
+    color: "blue",
+    description: "Plan type name",
+  },
+  {
+    code: "{JobCode}",
+    example: "EB2401",
+    color: "orange",
+    description: "Job code",
+  },
+  {
+    code: "{Rev}",
+    example: "A",
+    color: "green",
+    description: "Revision letter/number",
+  },
+  {
+    code: "{Date}",
+    example: "20251218",
+    color: "green",
+    description: "Date in YYYYMMDD format",
+  },
+  {
+    code: "{Variant}",
+    example: "a",
+    color: "purple",
+    description: "Variant suffix (a, b, c)",
+  },
+];
 
 interface PlanCategory {
   id: number;
@@ -534,40 +576,35 @@ function TypesSection() {
           </p>
           {editingDefaults ? (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Default Short Name Template</Label>
-                <Input
-                  value={globalDefaults.short_name_template}
-                  onChange={(e) => setGlobalDefaults({ ...globalDefaults, short_name_template: e.target.value })}
-                  placeholder="{Code}-{Name}"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Preview: {globalDefaults.short_name_template
-                    .replace("{Code}", "01")
-                    .replace("{Name}", "PERSPECTIVE")
-                    .replace("{Variant}", "a")}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <Label>Default Long Name Template (SharePoint filename)</Label>
-                <Input
-                  value={globalDefaults.long_name_template}
-                  onChange={(e) => setGlobalDefaults({ ...globalDefaults, long_name_template: e.target.value })}
-                  placeholder="{JobCode}-{Code}-{Name}-Rev{Rev}"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Preview: {globalDefaults.long_name_template
-                    .replace("{JobCode}", "EB2401")
-                    .replace("{Code}", "01")
-                    .replace("{Name}", "PERSPECTIVE")
-                    .replace("{Rev}", "A")
-                    .replace("{Date}", new Date().toISOString().slice(0, 10).replace(/-/g, ""))
-                    .replace("{Variant}", "a")}
-                </p>
-              </div>
-              <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                <strong>Placeholders:</strong> {"{Code}"}, {"{Name}"}, {"{JobCode}"}, {"{Rev}"}, {"{Date}"}, {"{Variant}"}
-              </div>
+              <TokenBuilder
+                label="Default Short Name Template"
+                value={globalDefaults.short_name_template}
+                onChange={(value) => setGlobalDefaults({ ...globalDefaults, short_name_template: value })}
+                placeholders={PLAN_TYPE_PLACEHOLDERS}
+                showPreview
+                previewData={{
+                  Code: "01",
+                  Name: "PERSPECTIVE",
+                  Variant: "a",
+                }}
+                helpText="Used for display in tables and lists"
+              />
+              <TokenBuilder
+                label="Default Long Name Template (SharePoint filename)"
+                value={globalDefaults.long_name_template}
+                onChange={(value) => setGlobalDefaults({ ...globalDefaults, long_name_template: value })}
+                placeholders={PLAN_TYPE_PLACEHOLDERS}
+                showPreview
+                previewData={{
+                  JobCode: "EB2401",
+                  Code: "01",
+                  Name: "PERSPECTIVE",
+                  Rev: "A",
+                  Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+                  Variant: "a",
+                }}
+                helpText="Used for file names when saving to SharePoint"
+              />
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
@@ -759,44 +796,38 @@ function TypesSection() {
               </p>
 
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Short Name Template</Label>
-                  <Input
-                    value={formData.short_name_template}
-                    onChange={(e) => setFormData({ ...formData, short_name_template: e.target.value })}
-                    placeholder={`Global default: ${globalDefaults.short_name_template}`}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Preview: {(formData.short_name_template || globalDefaults.short_name_template)
-                      .replace("{Code}", formData.code || "01")
-                      .replace("{Name}", formData.name || "PERSPECTIVE")
-                      .replace("{Variant}", "a")}
-                    {!formData.short_name_template && " (using global default)"}
-                  </p>
-                </div>
+                <TokenBuilder
+                  label="Short Name Template"
+                  value={formData.short_name_template}
+                  onChange={(value) => setFormData({ ...formData, short_name_template: value })}
+                  placeholders={PLAN_TYPE_PLACEHOLDERS}
+                  showPreview
+                  previewData={{
+                    Code: formData.code || "01",
+                    Name: formData.name || "PERSPECTIVE",
+                    Variant: "a",
+                  }}
+                  placeholder={`Click + to build (default: ${globalDefaults.short_name_template})`}
+                  helpText={!formData.short_name_template ? "Using global default template" : undefined}
+                />
 
-                <div className="space-y-2">
-                  <Label>Long Name Template (SharePoint filename)</Label>
-                  <Input
-                    value={formData.long_name_template}
-                    onChange={(e) => setFormData({ ...formData, long_name_template: e.target.value })}
-                    placeholder={`Global default: ${globalDefaults.long_name_template}`}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Preview: {(formData.long_name_template || globalDefaults.long_name_template)
-                      .replace("{JobCode}", "EB2401")
-                      .replace("{Code}", formData.code || "01")
-                      .replace("{Name}", formData.name || "PERSPECTIVE")
-                      .replace("{Rev}", "A")
-                      .replace("{Date}", new Date().toISOString().slice(0, 10).replace(/-/g, ""))
-                      .replace("{Variant}", "a")}
-                    {!formData.long_name_template && " (using global default)"}
-                  </p>
-                </div>
-
-                <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
-                  <strong>Placeholders:</strong> {"{Code}"}, {"{Name}"}, {"{JobCode}"}, {"{Rev}"}, {"{Date}"}, {"{Variant}"}
-                </div>
+                <TokenBuilder
+                  label="Long Name Template (SharePoint filename)"
+                  value={formData.long_name_template}
+                  onChange={(value) => setFormData({ ...formData, long_name_template: value })}
+                  placeholders={PLAN_TYPE_PLACEHOLDERS}
+                  showPreview
+                  previewData={{
+                    JobCode: "EB2401",
+                    Code: formData.code || "01",
+                    Name: formData.name || "PERSPECTIVE",
+                    Rev: "A",
+                    Date: new Date().toISOString().slice(0, 10).replace(/-/g, ""),
+                    Variant: "a",
+                  }}
+                  placeholder={`Click + to build (default: ${globalDefaults.long_name_template})`}
+                  helpText={!formData.long_name_template ? "Using global default template" : undefined}
+                />
               </div>
             </div>
 
