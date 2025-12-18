@@ -520,7 +520,7 @@ function TypesSection() {
                         {type.code}
                       </span>
                     </div>
-                    <div>
+                    <div className="space-y-1">
                       <p className="font-medium">{type.name}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                         {type.categories?.map((cat) => (
@@ -539,6 +539,11 @@ function TypesSection() {
                             Inactive
                           </Badge>
                         )}
+                      </div>
+                      {/* Name Previews */}
+                      <div className="text-xs text-muted-foreground space-y-0.5 pt-1">
+                        <div><span className="font-medium">Short:</span> {type.short_name_preview || `${type.code}-${type.name}`}</div>
+                        <div><span className="font-medium">Long:</span> {type.long_name_preview || `EB2401-${type.code}-${type.name}-RevA`}</div>
                       </div>
                     </div>
                   </div>
