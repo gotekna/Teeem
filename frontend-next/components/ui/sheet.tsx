@@ -42,7 +42,7 @@ const sheetVariants = cva(
         right:
           "inset-y-0 right-0 h-full w-3/4 data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-[520px]",
         "right-half":
-          "inset-y-0 right-0 h-full w-[50vw] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "inset-y-0 right-0 h-full w-[50vw] min-w-[50vw] max-w-[50vw] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
         "right-full":
           "inset-y-0 right-0 h-full w-[calc(100vw-64px)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
       },

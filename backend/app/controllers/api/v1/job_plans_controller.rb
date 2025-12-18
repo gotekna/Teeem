@@ -366,7 +366,7 @@ module Api
             id: plan.plan_type.id,
             code: plan.plan_type.code,
             name: plan.plan_type.name,
-            category_name: plan.plan_type.plan_category&.name
+            category_name: plan.plan_type.plan_categories.first&.name
           } : nil,
           current_revision: plan.current_revision ? serialize_revision(plan.current_revision) : nil,
           revision_count: plan.revisions.count,
