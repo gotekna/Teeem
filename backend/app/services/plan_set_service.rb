@@ -140,8 +140,11 @@ class PlanSetService
   end
 
   # Process the uploaded PDF plan set
+  # Options:
+  #   skip_ai: true - Skip AI extraction (for faster initial upload, run AI later)
   # Returns: { success: true, all_plans: {...}, pages: [{name, file_id, web_url}] }
-  def process!
+  def process!(skip_ai: false)
+    @skip_ai = skip_ai
     validate_file!
 
     # Read the PDF content
@@ -239,13 +242,17 @@ class PlanSetService
     used_filenames = Set.new([ "All Plans.pdf" ])
 
     doc.pages.count.times do |index|
-      Rails.logger.info "[PlanSetService] Processing page #{index + 1} of #{doc.pages.count}"
+      Rails.logger.info "[PlanSetService] Processing page #{index + 1} of #{doc.pages.count}#{@skip_ai ? ' (skip AI)' : ''}"
 
       # Extract single page to new PDF
       page_content = extract_single_page(doc, index)
 
-      # Try to get sheet name using AI vision
-      sheet_info = extract_sheet_info_with_ai(page_content, index + 1)
+      # Get sheet name using AI vision (unless skip_ai is true)
+      sheet_info = if @skip_ai
+        { sheet_number: nil, sheet_name: nil, sheet_date: nil, sheet_issue: nil }
+      else
+        extract_sheet_info_with_ai(page_content, index + 1)
+      end
 
       # Determine filename
       filename = determine_filename(sheet_info, index, used_filenames)
@@ -263,7 +270,8 @@ class PlanSetService
         name: filename,
         file_id: result[:id],
         web_url: result[:webUrl] || result[:web_url],
-        size: page_content.bytesize
+        size: page_content.bytesize,
+        needs_ai_analysis: @skip_ai # Flag to indicate AI analysis is pending
       }
     end
 

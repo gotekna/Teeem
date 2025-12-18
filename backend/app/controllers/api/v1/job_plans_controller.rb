@@ -191,7 +191,8 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set
-      # Uploads a multi-page PDF, splits into individual pages with AI detection
+      # Uploads a multi-page PDF, splits into individual pages
+      # AI analysis is queued for background processing to avoid timeout
       def upload_plan_set
         unless params[:file].present?
           return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
@@ -200,9 +201,10 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        # Process with PlanSetService
+        # Process with PlanSetService - skip AI to avoid timeout
+        # AI analysis will be queued as background jobs
         service = PlanSetService.new(@job, params[:file])
-        result = service.process!
+        result = service.process!(skip_ai: true)
 
         unless result[:success]
           return render json: { success: false, error: result[:error] }, status: :unprocessable_entity
@@ -212,6 +214,7 @@ module Api
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
         created_plans = []
+        plans_for_ai_analysis = []
 
         # Create job plan for "All Plans"
         if result[:all_plans].present?
@@ -234,13 +237,13 @@ module Api
 
         # Create job plans for each individual page
         result[:pages].each do |page|
-          # Try to match plan type by sheet name
-          plan_type = find_plan_type_for_sheet(page[:sheet_name])
+          # Use generic name for now - AI will update it later
+          display_name = page[:name].sub(/\.pdf$/i, '')
 
           plan = @job.job_plans.create!(
             job_plan_tab_id: tab_id,
-            plan_type_id: plan_type&.id,
-            display_name: page[:name].sub(/\.pdf$/i, '')
+            plan_type_id: nil, # Will be set by AI analysis
+            display_name: display_name
           )
 
           plan.add_revision!(
@@ -252,18 +255,24 @@ module Api
           )
 
           created_plans << serialize_plan(plan).merge(
-            detected_sheet_number: page[:sheet_number],
-            detected_sheet_name: page[:sheet_name],
-            detected_sheet_date: page[:sheet_date],
-            detected_sheet_issue: page[:sheet_issue]
+            ai_analysis_pending: true
           )
+
+          # Queue AI analysis for this plan
+          plans_for_ai_analysis << plan.id
+        end
+
+        # Queue AI analysis jobs (with slight delay between each to avoid API rate limits)
+        plans_for_ai_analysis.each_with_index do |plan_id, index|
+          PlanAiAnalysisJob.set(wait: (index * 3).seconds).perform_later(plan_id)
         end
 
         render json: {
           success: true,
           data: {
             total_pages: result[:total_pages],
-            plans: created_plans
+            plans: created_plans,
+            ai_analysis_queued: plans_for_ai_analysis.length
           }
         }, status: :created
 
