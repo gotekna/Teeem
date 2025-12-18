@@ -64,9 +64,11 @@ class OrganizationOneDriveCredential < ApplicationRecord
     access_token.present? && refresh_token.present? && !token_expired?
   end
 
-  # Get the root folder path for all jobs
+  # Get the root folder path for all jobs (SSoT: from CorporateCompanySetting)
   def jobs_root_folder_path
-    root_folder_path || "TEEEM Jobs"
+    root_folder_path.presence ||
+      CorporateCompanySetting.instance.sharepoint_jobs_path.presence ||
+      "TEEEM Jobs"
   end
 
   # Get folder path for a specific construction/job

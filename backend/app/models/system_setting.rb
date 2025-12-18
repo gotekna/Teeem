@@ -40,26 +40,31 @@ class SystemSetting < ApplicationRecord
     setting
   end
 
-  # Get all SharePoint path templates
-  # SSoT: These templates are the single source of truth for folder paths
+  # ============================================================================
+  # DEPRECATED: SharePoint Methods - Use CorporateCompanySetting instead
+  # ============================================================================
+  # These methods are deprecated and will be removed in a future version.
+  # The SSoT for SharePoint configuration is now CorporateCompanySetting.
+  # ============================================================================
+
+  # DEPRECATED: Use CorporateCompanySetting.sharepoint_config[:templates] instead
   def self.sharepoint_path_templates
+    Rails.logger.warn "[DEPRECATED] SystemSetting.sharepoint_path_templates is deprecated. Use CorporateCompanySetting.sharepoint_config instead."
+    config = CorporateCompanySetting.sharepoint_config
     {
-      company: get("sharepoint_path_template_company") || "/Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
-      job: get("sharepoint_path_template_job") || "/Teeem/Jobs/{{JobCode}}/{{Category}}",
-      people: get("sharepoint_path_template_people") || "/Teeem/People/{{ContactName}}"
+      company: "#{config[:root_path]}/#{config[:paths][:company]}/#{config[:templates][:company]}".gsub(/\/+/, "/"),
+      job: "#{config[:root_path]}/#{config[:paths][:jobs]}/#{config[:templates][:job]}".gsub(/\/+/, "/"),
+      people: "#{config[:root_path]}/#{config[:paths][:people]}/#{config[:templates][:people]}".gsub(/\/+/, "/")
     }
   end
 
-  # Compute the full SharePoint path for a folder
-  # SSoT: Path is derived from template + folder hierarchy, not stored per-folder
+  # DEPRECATED: Use CorporateCompanySetting.company_path or job_path instead
   def self.compute_folder_path(folder, scope: :company)
+    Rails.logger.warn "[DEPRECATED] SystemSetting.compute_folder_path is deprecated. Use CorporateCompanySetting path methods instead."
     template = sharepoint_path_templates[scope]
     return nil unless template
 
-    # Build the folder path from hierarchy
     folder_path = build_folder_hierarchy_path(folder)
-
-    # Replace {{Folder}} with the computed folder path
     template.gsub("{{Folder}}", folder_path)
   end
 
@@ -76,10 +81,35 @@ class SystemSetting < ApplicationRecord
     parts.join("/")
   end
 
-  # Update SharePoint path templates
+  # DEPRECATED: Use CorporateCompanySetting API PATCH /api/v1/corporate_company_settings/sharepoint
   def self.update_sharepoint_path_templates(templates)
-    set("sharepoint_path_template_company", templates[:company]) if templates[:company]
-    set("sharepoint_path_template_job", templates[:job]) if templates[:job]
-    set("sharepoint_path_template_people", templates[:people]) if templates[:people]
+    Rails.logger.warn "[DEPRECATED] SystemSetting.update_sharepoint_path_templates is deprecated. Use CorporateCompanySetting instead."
+    # For backwards compatibility, update CorporateCompanySetting
+    setting = CorporateCompanySetting.instance
+
+    # Extract template parts from full paths (if provided as full paths)
+    if templates[:company]
+      template_part = extract_template_suffix(templates[:company])
+      setting.sharepoint_company_template = template_part if template_part
+    end
+    if templates[:job]
+      template_part = extract_template_suffix(templates[:job])
+      setting.sharepoint_job_template = template_part if template_part
+    end
+    if templates[:people]
+      template_part = extract_template_suffix(templates[:people])
+      setting.sharepoint_people_template = template_part if template_part
+    end
+
+    setting.save!
+  end
+
+  # Helper to extract template suffix from a full path
+  def self.extract_template_suffix(full_path)
+    # Try to extract the placeholder part
+    if full_path =~ /(\{\{[^}]+\}\}.*)/
+      return $1
+    end
+    nil
   end
 end

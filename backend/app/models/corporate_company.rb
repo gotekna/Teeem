@@ -155,8 +155,8 @@ class CorporateCompany < ApplicationRecord
     corporate_company_xero_connection.present? && corporate_company_xero_connection.connection_status == "connected"
   end
 
-  # SharePoint folder URL for this company's root folder in 00 TEEEM PRIVATE
-  # Structure: 00 TEEEM PRIVATE / [Group Name] / [Company Name]
+  # SharePoint folder URL for this company's root folder (SSoT: from CorporateCompanySetting)
+  # Structure: [company_path] / [Group Name] / [Company Name]
   def sharepoint_folder_url
     return nil unless corporate_group.present?
 
@@ -167,9 +167,12 @@ class CorporateCompany < ApplicationRecord
     group_name = corporate_group.name
     company_folder_name = "#{code.presence || name[0..2].upcase} - #{name}"
 
+    # SSoT: Get company folder path from CorporateCompanySetting
+    company_folder_path = CorporateCompanySetting.instance.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
+
     # URL encode the path components
     encoded_path = [
-      "00 TEEEM PRIVATE",
+      company_folder_path,
       group_name,
       company_folder_name
     ].map { |p| ERB::Util.url_encode(p) }.join("/")
@@ -178,7 +181,7 @@ class CorporateCompany < ApplicationRecord
   end
 
   # SharePoint folder URL for a specific document type/tab folder
-  # Structure: 00 TEEEM PRIVATE / [Group Name] / [Company Name] / [Folder Name]
+  # Structure: [company_path] / [Group Name] / [Company Name] / [Folder Name]
   def sharepoint_folder_url_for_tab(folder_name)
     base_url = sharepoint_folder_url
     return nil unless base_url

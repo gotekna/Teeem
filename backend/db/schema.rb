@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_005709) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_011422) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1618,6 +1618,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_005709) do
     t.string "sharepoint_people_path", default: "Corporate/People"
     t.string "sharepoint_company_path", default: "00 TEEEM PRIVATE"
     t.string "sharepoint_contacts_path", default: "Contacts"
+    t.string "sharepoint_job_template", default: "{{JobCode}}/{{Category}}"
+    t.string "sharepoint_company_template", default: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
+    t.string "sharepoint_people_template", default: "{{ContactName}}/{{Category}}"
+    t.string "sharepoint_contacts_template", default: "{{ContactName}}/{{Category}}"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|

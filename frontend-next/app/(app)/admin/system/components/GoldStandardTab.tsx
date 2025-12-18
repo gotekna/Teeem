@@ -1560,12 +1560,14 @@ function GoldSharePointPathViewerTab() {
         <CardContent className="flex gap-3 pt-6">
           <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
           <div className="text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-1">SSoT Component:</p>
+            <p className="font-medium text-foreground mb-1">SSoT Architecture:</p>
             <ul className="list-disc list-inside space-y-1">
               <li>This is THE ONE component for SharePoint path configuration</li>
-              <li>Templates are loaded from and saved to the backend API</li>
-              <li>Changes here are reflected everywhere this component is used</li>
-              <li>Located at: <code className="text-xs bg-muted px-1 rounded">components/ui/sharepoint-path-configurator.tsx</code></li>
+              <li>Data stored in <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting</code> (SSoT)</li>
+              <li>API: <code className="text-xs bg-muted px-1 rounded">GET/PATCH /api/v1/corporate_company_settings/sharepoint</code></li>
+              <li>Backend methods: <code className="text-xs bg-muted px-1 rounded">CorporateCompanySetting.job_path</code>, <code className="text-xs bg-muted px-1 rounded">.company_path</code>, etc.</li>
+              <li>Component: <code className="text-xs bg-muted px-1 rounded">components/ui/sharepoint-path-configurator.tsx</code></li>
+              <li>Admin Config: <code className="text-xs bg-muted px-1 rounded">Admin &gt; System &gt; Company &gt; SharePoint tab</code></li>
             </ul>
           </div>
         </CardContent>

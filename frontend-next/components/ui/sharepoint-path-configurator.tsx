@@ -4,8 +4,7 @@
  * SharePointPathConfigurator - SSoT Component
  *
  * This is THE ONE component for configuring SharePoint folder path templates.
- * It loads and saves templates from/to the backend API, ensuring consistency
- * across all usages in the app.
+ * It loads and saves templates from/to CorporateCompanySetting (SSoT).
  *
  * Usage:
  *   <SharePointPathConfigurator
@@ -14,9 +13,13 @@
  *     showAllScopes={true}
  *   />
  *
- * Backend API:
- *   GET  /api/v1/system_settings/sharepoint_path_templates
- *   PUT  /api/v1/system_settings/update_sharepoint_path_templates
+ * Backend API (SSoT):
+ *   GET   /api/v1/corporate_company_settings/sharepoint
+ *   PATCH /api/v1/corporate_company_settings/sharepoint
+ *
+ * Path Structure:
+ *   Full path = root_path + scope_path + resolved_template
+ *   e.g., /Shared Documents/TEEEM Jobs/JOB-001/Plans
  */
 
 import * as React from "react";
@@ -38,16 +41,16 @@ import {
   Briefcase,
   Users,
   RefreshCw,
-  FolderOpen,
   EyeOff,
   Eye,
+  Info,
 } from "lucide-react";
 
 // ============================================================================
 // SSoT: Scope and Placeholder Definitions
 // ============================================================================
 
-export type ScopeType = "job" | "company" | "people";
+export type ScopeType = "job" | "company" | "people" | "contacts";
 
 export interface PlaceholderDef {
   key: string;
@@ -70,14 +73,30 @@ export const SCOPE_PLACEHOLDERS: Record<ScopeType, PlaceholderDef[]> = {
     { key: "{{ContactName}}", example: "John Smith", description: "Contact/person name" },
     { key: "{{Category}}", example: "Documents", description: "Document category" },
   ],
+  contacts: [
+    { key: "{{ContactName}}", example: "John Smith", description: "Contact/person name" },
+    { key: "{{Category}}", example: "Documents", description: "Document category" },
+  ],
 };
 
-// SSoT: Default path templates (used if API fails)
-export const DEFAULT_PATH_TEMPLATES: Record<ScopeType, string> = {
-  company: "/Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
-  job: "/Teeem/Jobs/{{JobCode}}/{{Category}}",
-  people: "/Teeem/People/{{ContactName}}/{{Category}}",
+// SSoT: Default path templates (templates only, not full paths)
+export const DEFAULT_TEMPLATES: Record<ScopeType, string> = {
+  job: "{{JobCode}}/{{Category}}",
+  company: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+  people: "{{ContactName}}/{{Category}}",
+  contacts: "{{ContactName}}/{{Category}}",
 };
+
+// SSoT: Default scope paths (relative to root)
+export const DEFAULT_SCOPE_PATHS: Record<ScopeType, string> = {
+  job: "TEEEM Jobs",
+  company: "00 TEEEM PRIVATE",
+  people: "Corporate/People",
+  contacts: "Contacts",
+};
+
+// Default root path
+export const DEFAULT_ROOT_PATH = "/Shared Documents";
 
 // SSoT: Scope styling
 export const SCOPE_STYLES: Record<ScopeType, { bg: string; text: string; border: string; icon: React.ReactNode }> = {
@@ -99,7 +118,38 @@ export const SCOPE_STYLES: Record<ScopeType, { bg: string; text: string; border:
     border: "border-green-300 dark:border-green-700",
     icon: <Users className="h-3 w-3 mr-1" />,
   },
+  contacts: {
+    bg: "bg-blue-100 dark:bg-blue-900/30",
+    text: "text-blue-700 dark:text-blue-300",
+    border: "border-blue-300 dark:border-blue-700",
+    icon: <Users className="h-3 w-3 mr-1" />,
+  },
 };
+
+// ============================================================================
+// API Response Types
+// ============================================================================
+
+interface SharePointConfig {
+  configured: boolean;
+  site_url: string | null;
+  site_id: string | null;
+  drive_id: string | null;
+  drive_name: string | null;
+  root_path: string;
+  paths: {
+    jobs: string;
+    people: string;
+    company: string;
+    contacts: string;
+  };
+  templates: {
+    job: string;
+    company: string;
+    people: string;
+    contacts: string;
+  };
+}
 
 // ============================================================================
 // Component Props
@@ -144,7 +194,9 @@ export function SharePointPathConfigurator({
   const { toast } = useToast();
 
   // State
-  const [templates, setTemplates] = React.useState<Record<ScopeType, string>>(DEFAULT_PATH_TEMPLATES);
+  const [templates, setTemplates] = React.useState<Record<ScopeType, string>>(DEFAULT_TEMPLATES);
+  const [scopePaths, setScopePaths] = React.useState<Record<ScopeType, string>>(DEFAULT_SCOPE_PATHS);
+  const [rootPath, setRootPath] = React.useState(DEFAULT_ROOT_PATH);
   const [activeScope, setActiveScope] = React.useState<ScopeType>(fixedScope || defaultScope);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -153,67 +205,100 @@ export function SharePointPathConfigurator({
   const [hasChanges, setHasChanges] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // Current path template for active scope
-  const currentPath = templates[activeScope];
+  // Current template for active scope
+  const currentTemplate = templates[activeScope];
+  const currentScopePath = scopePaths[activeScope];
+
+  // Build full preview path
+  const fullPreviewPath = React.useMemo(() => {
+    const root = rootPath.replace(/\/$/, "");
+    const scope = currentScopePath.replace(/^\//, "").replace(/\/$/, "");
+    const template = currentTemplate.replace(/^\//, "");
+    return `${root}/${scope}/${template}`.replace(/\/+/g, "/");
+  }, [rootPath, currentScopePath, currentTemplate]);
 
   // ============================================================================
-  // API: Load templates from backend
+  // API: Load config from CorporateCompanySetting (SSoT)
   // ============================================================================
-  const loadTemplates = React.useCallback(async () => {
+  const loadConfig = React.useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get<{ templates: Record<ScopeType, string> }>(
-        "/api/v1/system_settings/sharepoint_path_templates"
+      const response = await api.get<{ success: boolean; data: SharePointConfig }>(
+        "/api/v1/corporate_company_settings/sharepoint"
       );
-      if (response?.templates) {
+      if (response?.success && response.data) {
+        const data = response.data;
+        setRootPath(data.root_path || DEFAULT_ROOT_PATH);
+        setScopePaths({
+          job: data.paths?.jobs || DEFAULT_SCOPE_PATHS.job,
+          company: data.paths?.company || DEFAULT_SCOPE_PATHS.company,
+          people: data.paths?.people || DEFAULT_SCOPE_PATHS.people,
+          contacts: data.paths?.contacts || DEFAULT_SCOPE_PATHS.contacts,
+        });
         setTemplates({
-          company: response.templates.company || DEFAULT_PATH_TEMPLATES.company,
-          job: response.templates.job || DEFAULT_PATH_TEMPLATES.job,
-          people: response.templates.people || DEFAULT_PATH_TEMPLATES.people,
+          job: data.templates?.job || DEFAULT_TEMPLATES.job,
+          company: data.templates?.company || DEFAULT_TEMPLATES.company,
+          people: data.templates?.people || DEFAULT_TEMPLATES.people,
+          contacts: data.templates?.contacts || DEFAULT_TEMPLATES.contacts,
         });
       }
     } catch (error) {
-      console.error("Failed to load SharePoint path templates:", error);
+      console.error("Failed to load SharePoint config:", error);
       // Use defaults on error
-      setTemplates(DEFAULT_PATH_TEMPLATES);
+      setRootPath(DEFAULT_ROOT_PATH);
+      setScopePaths(DEFAULT_SCOPE_PATHS);
+      setTemplates(DEFAULT_TEMPLATES);
     } finally {
       setLoading(false);
     }
   }, []);
 
   // ============================================================================
-  // API: Save templates to backend
+  // API: Save config to CorporateCompanySetting (SSoT)
   // ============================================================================
-  const saveTemplates = React.useCallback(async () => {
+  const saveConfig = React.useCallback(async () => {
     setSaving(true);
     try {
-      await api.put("/api/v1/system_settings/update_sharepoint_path_templates", {
-        templates,
-      });
+      // Map scope names to database column names
+      const payload = {
+        sharepoint: {
+          sharepoint_root_path: rootPath,
+          sharepoint_jobs_path: scopePaths.job,
+          sharepoint_people_path: scopePaths.people,
+          sharepoint_company_path: scopePaths.company,
+          sharepoint_contacts_path: scopePaths.contacts,
+          sharepoint_job_template: templates.job,
+          sharepoint_company_template: templates.company,
+          sharepoint_people_template: templates.people,
+          sharepoint_contacts_template: templates.contacts,
+        },
+      };
+
+      await api.patch("/api/v1/corporate_company_settings/sharepoint", payload);
       toast({
         title: "Saved",
-        description: "SharePoint path templates saved successfully",
+        description: "SharePoint path configuration saved successfully",
       });
       setHasChanges(false);
       onSave?.(templates);
     } catch (error) {
-      console.error("Failed to save SharePoint path templates:", error);
+      console.error("Failed to save SharePoint config:", error);
       toast({
         title: "Error",
-        description: "Failed to save path templates",
+        description: "Failed to save path configuration",
         variant: "destructive",
       });
     } finally {
       setSaving(false);
     }
-  }, [templates, toast, onSave]);
+  }, [rootPath, scopePaths, templates, toast, onSave]);
 
   // ============================================================================
   // Load on mount
   // ============================================================================
   React.useEffect(() => {
-    loadTemplates();
-  }, [loadTemplates]);
+    loadConfig();
+  }, [loadConfig]);
 
   // ============================================================================
   // Handlers
@@ -228,19 +313,19 @@ export function SharePointPathConfigurator({
     folder: { id: string; name: string; web_url?: string; child_count: number } | null,
     path: string
   ) => {
-    // Auto-append placeholders based on scope when a folder is selected
-    const placeholders = SCOPE_PLACEHOLDERS[activeScope];
-    const placeholderSuffix = placeholders.map(p => p.key).join("/");
-    const newPath = path ? `${path}/${placeholderSuffix}` : `/${placeholderSuffix}`;
-    updateTemplate(activeScope, newPath);
+    // When folder is selected, update the scope path
+    // Extract the relative path from root
+    const cleanPath = path.replace(/^\/Shared Documents\/?/, "").replace(/^\//, "");
+    setScopePaths(prev => ({ ...prev, [activeScope]: cleanPath }));
+    setHasChanges(true);
   };
 
   const insertPlaceholder = (placeholder: string) => {
     if (inputRef.current) {
       const input = inputRef.current;
-      const start = input.selectionStart || currentPath.length;
-      const end = input.selectionEnd || currentPath.length;
-      const newValue = currentPath.slice(0, start) + placeholder + currentPath.slice(end);
+      const start = input.selectionStart || currentTemplate.length;
+      const end = input.selectionEnd || currentTemplate.length;
+      const newValue = currentTemplate.slice(0, start) + placeholder + currentTemplate.slice(end);
       updateTemplate(activeScope, newValue);
       // Focus and move cursor after the inserted placeholder
       setTimeout(() => {
@@ -249,7 +334,7 @@ export function SharePointPathConfigurator({
         input.setSelectionRange(newCursorPos, newCursorPos);
       }, 0);
     } else {
-      updateTemplate(activeScope, currentPath + placeholder);
+      updateTemplate(activeScope, currentTemplate + placeholder);
     }
   };
 
@@ -264,7 +349,9 @@ export function SharePointPathConfigurator({
   };
 
   const resetToDefault = () => {
-    updateTemplate(activeScope, DEFAULT_PATH_TEMPLATES[activeScope]);
+    updateTemplate(activeScope, DEFAULT_TEMPLATES[activeScope]);
+    setScopePaths(prev => ({ ...prev, [activeScope]: DEFAULT_SCOPE_PATHS[activeScope] }));
+    setHasChanges(true);
   };
 
   // ============================================================================
@@ -274,7 +361,7 @@ export function SharePointPathConfigurator({
     return (
       <div className={cn("flex items-center justify-center p-8", className)}>
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">Loading path templates...</span>
+        <span className="ml-2 text-sm text-muted-foreground">Loading path configuration...</span>
       </div>
     );
   }
@@ -297,8 +384,8 @@ export function SharePointPathConfigurator({
                 SharePoint Folder Structure
               </h3>
               <p className="text-sm text-blue-700 dark:text-blue-300">
-                Configure folder path templates for automated document organization in SharePoint/OneDrive.
-                Use placeholders like {"{{CompanyCode}}"} to create dynamic paths.
+                Configure folder path templates for automated document organization in SharePoint.
+                Use placeholders like {"{{JobCode}}"} to create dynamic paths.
               </p>
             </div>
             <div className="flex items-center gap-2 ml-4">
@@ -308,15 +395,15 @@ export function SharePointPathConfigurator({
                 onClick={() => setShowFolderBrowser(!showFolderBrowser)}
               >
                 {showFolderBrowser ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
-                {showFolderBrowser ? "Hide" : "Show"} Paths
+                {showFolderBrowser ? "Hide" : "Show"} Browser
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyPath(currentPath)}
+                onClick={() => copyPath(fullPreviewPath)}
               >
                 <Copy className="h-4 w-4 mr-2" />
-                {copiedPath === currentPath ? "Copied!" : "Copy Path"}
+                {copiedPath === fullPreviewPath ? "Copied!" : "Copy Path"}
               </Button>
             </div>
           </div>
@@ -324,8 +411,8 @@ export function SharePointPathConfigurator({
 
         {/* Scope Tabs */}
         {showAllScopes && !fixedScope && (
-          <div className="flex gap-2 mb-4">
-            {(["job", "company", "people"] as ScopeType[]).map((scope) => {
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {(["job", "company", "people", "contacts"] as ScopeType[]).map((scope) => {
               const style = SCOPE_STYLES[scope];
               return (
                 <Badge
@@ -340,7 +427,7 @@ export function SharePointPathConfigurator({
                   onClick={() => setActiveScope(scope)}
                 >
                   {style.icon}
-                  {scope} Base Folder
+                  {scope}
                 </Badge>
               );
             })}
@@ -355,7 +442,7 @@ export function SharePointPathConfigurator({
               className={cn(scopeStyle.bg, scopeStyle.text, scopeStyle.border, "px-3 py-1")}
             >
               {scopeStyle.icon}
-              {fixedScope} Base Folder
+              {fixedScope} Documents
             </Badge>
           </div>
         )}
@@ -370,8 +457,34 @@ export function SharePointPathConfigurator({
           />
         )}
 
+        {/* Path Structure Info */}
+        <div className="bg-muted/50 rounded-lg p-3 mb-4 space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+            <Info className="h-3 w-3" />
+            Full Path Structure
+          </Label>
+          <div className="font-mono text-xs space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Root:</span>
+              <span className="text-blue-600 dark:text-blue-400">{rootPath}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Scope:</span>
+              <span className={cn(scopeStyle.text)}>{currentScopePath}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Template:</span>
+              <span className="text-purple-600 dark:text-purple-400">{currentTemplate}</span>
+            </div>
+            <div className="pt-2 border-t mt-2">
+              <span className="text-muted-foreground">Preview:</span>
+              <span className="ml-2 text-green-600 dark:text-green-400 break-all">{fullPreviewPath}</span>
+            </div>
+          </div>
+        </div>
+
         {/* Placeholders */}
-        <div className="space-y-2 mt-4">
+        <div className="space-y-2">
           <Label className="text-xs font-medium text-muted-foreground">
             Available Placeholders (click to insert)
           </Label>
@@ -395,13 +508,14 @@ export function SharePointPathConfigurator({
         </div>
 
         {/* Path Template Input */}
-        <div className="mt-4">
+        <div className="mt-4 space-y-2">
+          <Label className="text-xs font-medium">Template (placeholders for dynamic paths)</Label>
           <Input
             ref={inputRef}
-            value={currentPath}
+            value={currentTemplate}
             onChange={(e) => updateTemplate(activeScope, e.target.value)}
             className="text-xs font-mono"
-            placeholder={DEFAULT_PATH_TEMPLATES[activeScope]}
+            placeholder={DEFAULT_TEMPLATES[activeScope]}
           />
         </div>
 
@@ -410,7 +524,7 @@ export function SharePointPathConfigurator({
           <Button
             variant="ghost"
             size="sm"
-            onClick={loadTemplates}
+            onClick={loadConfig}
             disabled={loading}
           >
             <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
@@ -426,7 +540,7 @@ export function SharePointPathConfigurator({
           {showSaveButton && (
             <Button
               size="sm"
-              onClick={saveTemplates}
+              onClick={saveConfig}
               disabled={saving || !hasChanges}
             >
               {saving ? (
@@ -456,18 +570,63 @@ export function SharePointPathConfigurator({
 }
 
 // ============================================================================
-// Export helper to get current path template (for use in other components)
+// Export helper to get SharePoint config (for use in other components)
+// ============================================================================
+
+export interface SharePointPathInfo {
+  rootPath: string;
+  scopePath: string;
+  template: string;
+  fullPath: string;
+}
+
+export async function getSharePointPathConfig(scope: ScopeType): Promise<SharePointPathInfo> {
+  try {
+    const response = await api.get<{ success: boolean; data: SharePointConfig }>(
+      "/api/v1/corporate_company_settings/sharepoint"
+    );
+    if (response?.success && response.data) {
+      const data = response.data;
+      const scopePathMap: Record<ScopeType, string> = {
+        job: data.paths?.jobs || DEFAULT_SCOPE_PATHS.job,
+        company: data.paths?.company || DEFAULT_SCOPE_PATHS.company,
+        people: data.paths?.people || DEFAULT_SCOPE_PATHS.people,
+        contacts: data.paths?.contacts || DEFAULT_SCOPE_PATHS.contacts,
+      };
+      const templateMap: Record<ScopeType, string> = {
+        job: data.templates?.job || DEFAULT_TEMPLATES.job,
+        company: data.templates?.company || DEFAULT_TEMPLATES.company,
+        people: data.templates?.people || DEFAULT_TEMPLATES.people,
+        contacts: data.templates?.contacts || DEFAULT_TEMPLATES.contacts,
+      };
+
+      const rootPath = data.root_path || DEFAULT_ROOT_PATH;
+      const scopePath = scopePathMap[scope];
+      const template = templateMap[scope];
+      const fullPath = `${rootPath}/${scopePath}/${template}`.replace(/\/+/g, "/");
+
+      return { rootPath, scopePath, template, fullPath };
+    }
+  } catch (error) {
+    console.error("Failed to get SharePoint path config:", error);
+  }
+
+  // Return defaults on error
+  return {
+    rootPath: DEFAULT_ROOT_PATH,
+    scopePath: DEFAULT_SCOPE_PATHS[scope],
+    template: DEFAULT_TEMPLATES[scope],
+    fullPath: `${DEFAULT_ROOT_PATH}/${DEFAULT_SCOPE_PATHS[scope]}/${DEFAULT_TEMPLATES[scope]}`.replace(/\/+/g, "/"),
+  };
+}
+
+// ============================================================================
+// Export helper to get path template (legacy compatibility)
 // ============================================================================
 
 export async function getSharePointPathTemplate(scope: ScopeType): Promise<string> {
-  try {
-    const response = await api.get<{ templates: Record<ScopeType, string> }>(
-      "/api/v1/system_settings/sharepoint_path_templates"
-    );
-    return response?.templates?.[scope] || DEFAULT_PATH_TEMPLATES[scope];
-  } catch {
-    return DEFAULT_PATH_TEMPLATES[scope];
-  }
+  const config = await getSharePointPathConfig(scope);
+  return config.fullPath;
 }
 
 // ============================================================================
@@ -484,5 +643,7 @@ export function resolvePathTemplate(
     const placeholder = key.startsWith("{{") ? key : `{{${key}}}`;
     resolved = resolved.replace(new RegExp(placeholder.replace(/[{}]/g, "\\$&"), "g"), value);
   });
+  // Clean up any remaining empty placeholders and double slashes
+  resolved = resolved.replace(/\/+/g, "/").replace(/\/$/, "");
   return resolved;
 }

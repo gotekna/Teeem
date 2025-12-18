@@ -14,13 +14,14 @@ namespace :sharepoint do
     # Get Microsoft Graph client
     client = service.send(:get_onedrive_client)
 
-    # Find root folder (tries multiple paths)
+    # Find root folder (SSoT: uses CorporateCompanySetting)
     puts "📁 Finding Corporate folder root..."
-    root_folder = service.find_folder_by_path("00 TEEEM PRIVATE")
+    company_folder_path = CorporateCompanySetting.instance.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
+    root_folder = service.find_folder_by_path(company_folder_path)
 
     if root_folder.nil?
       puts "❌ Could not find Corporate folder root"
-      puts "   Tried paths: #{CorporateOnedriveService::DEFAULT_FOLDER_PATHS.join(', ')}"
+      puts "   Tried path: #{company_folder_path}"
       exit 1
     end
 

@@ -182,15 +182,22 @@ module Api
 
       def sharepoint_params
         params.require(:sharepoint).permit(
+          # Site configuration
           :sharepoint_site_url,
           :sharepoint_site_id,
           :sharepoint_drive_id,
           :sharepoint_drive_name,
+          # Folder paths (relative to root)
           :sharepoint_root_path,
           :sharepoint_jobs_path,
           :sharepoint_people_path,
           :sharepoint_company_path,
-          :sharepoint_contacts_path
+          :sharepoint_contacts_path,
+          # Path templates (with placeholders)
+          :sharepoint_job_template,
+          :sharepoint_company_template,
+          :sharepoint_people_template,
+          :sharepoint_contacts_template
         )
       end
     end

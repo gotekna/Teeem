@@ -199,9 +199,10 @@ module Api
               end
             end
 
-            # Create root folder for all jobs in the SharePoint site
-            Rails.logger.info "Creating root folder 'TEEEM Jobs'..."
-            root_folder = client.create_jobs_root_folder("TEEEM Jobs")
+            # Create root folder for all jobs in the SharePoint site (SSoT)
+            jobs_folder_name = CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "TEEEM Jobs"
+            Rails.logger.info "Creating root folder '#{jobs_folder_name}'..."
+            root_folder = client.create_jobs_root_folder(jobs_folder_name)
             Rails.logger.info "Root folder created successfully at: #{root_folder['webUrl']}"
           end
 

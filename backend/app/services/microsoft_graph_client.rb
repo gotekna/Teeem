@@ -274,7 +274,9 @@ class MicrosoftGraphClient
   end
 
   # Create root folder for all jobs (organization-level)
-  def create_jobs_root_folder(folder_name = "TEEEM Jobs")
+  # SSoT: Default folder name comes from CorporateCompanySetting
+  def create_jobs_root_folder(folder_name = nil)
+    folder_name ||= CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "TEEEM Jobs"
     # Get the drive if we don't have it
     unless @credential.drive_id
       drive = get_default_drive
@@ -499,18 +501,21 @@ class MicrosoftGraphClient
     # Normalize title for fuzzy matching (remove common prefixes like "Lot", lowercase, etc.)
     normalized_title = construction.title.to_s.downcase.gsub(/^lot\s+/i, "").strip
 
-    # Determine where to search - use root_folder_id if set, otherwise find "TEEEM Jobs" folder
+    # SSoT: Get jobs folder name from CorporateCompanySetting
+    jobs_folder_name = CorporateCompanySetting.instance.sharepoint_jobs_path.presence || "TEEEM Jobs"
+
+    # Determine where to search - use root_folder_id if set, otherwise find jobs folder
     search_folder_id = @credential.root_folder_id
 
-    # If no root folder set, try to find "TEEEM Jobs" folder in the drive root
+    # If no root folder set, try to find the jobs folder in the drive root
     if search_folder_id.blank?
       begin
         root_results = get("#{drive_path}/root/children")
-        teeem_jobs_folder = root_results["value"]&.find { |item| item["folder"] && item["name"] == "TEEEM Jobs" }
-        search_folder_id = teeem_jobs_folder["id"] if teeem_jobs_folder
-        Rails.logger.info "[find_job_folder] Found TEEEM Jobs folder: #{search_folder_id}" if teeem_jobs_folder
+        jobs_folder = root_results["value"]&.find { |item| item["folder"] && item["name"] == jobs_folder_name }
+        search_folder_id = jobs_folder["id"] if jobs_folder
+        Rails.logger.info "[find_job_folder] Found #{jobs_folder_name} folder: #{search_folder_id}" if jobs_folder
       rescue APIError => e
-        Rails.logger.warn "[find_job_folder] Could not find TEEEM Jobs folder: #{e.message}"
+        Rails.logger.warn "[find_job_folder] Could not find #{jobs_folder_name} folder: #{e.message}"
       end
     end
 

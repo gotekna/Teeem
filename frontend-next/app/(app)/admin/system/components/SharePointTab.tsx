@@ -16,6 +16,10 @@ import {
   RefreshCw,
   ExternalLink,
   Info,
+  FileCode,
+  Briefcase,
+  Building2,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -34,6 +38,12 @@ interface SharePointConfig {
     company: string;
     contacts: string;
   };
+  templates: {
+    job: string;
+    company: string;
+    people: string;
+    contacts: string;
+  };
 }
 
 export function SharePointTab() {
@@ -43,15 +53,22 @@ export function SharePointTab() {
   const [testing, setTesting] = React.useState(false);
   const [config, setConfig] = React.useState<SharePointConfig | null>(null);
   const [formData, setFormData] = React.useState({
+    // Site configuration
     sharepoint_site_url: "",
     sharepoint_site_id: "",
     sharepoint_drive_id: "",
     sharepoint_drive_name: "",
+    // Folder paths
     sharepoint_root_path: "/Shared Documents",
     sharepoint_jobs_path: "TEEEM Jobs",
     sharepoint_people_path: "Corporate/People",
     sharepoint_company_path: "00 TEEEM PRIVATE",
     sharepoint_contacts_path: "Contacts",
+    // Path templates
+    sharepoint_job_template: "{{JobCode}}/{{Category}}",
+    sharepoint_company_template: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+    sharepoint_people_template: "{{ContactName}}/{{Category}}",
+    sharepoint_contacts_template: "{{ContactName}}/{{Category}}",
   });
 
   // Load SharePoint config on mount
@@ -77,6 +94,10 @@ export function SharePointTab() {
           sharepoint_people_path: response.data.paths?.people || "Corporate/People",
           sharepoint_company_path: response.data.paths?.company || "00 TEEEM PRIVATE",
           sharepoint_contacts_path: response.data.paths?.contacts || "Contacts",
+          sharepoint_job_template: response.data.templates?.job || "{{JobCode}}/{{Category}}",
+          sharepoint_company_template: response.data.templates?.company || "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+          sharepoint_people_template: response.data.templates?.people || "{{ContactName}}/{{Category}}",
+          sharepoint_contacts_template: response.data.templates?.contacts || "{{ContactName}}/{{Category}}",
         });
       }
     } catch (error) {
@@ -150,10 +171,22 @@ export function SharePointTab() {
   };
 
   // Build full path preview
-  const getFullPath = (subPath: string) => {
+  const getFullPath = (subPath: string, template?: string) => {
     const root = formData.sharepoint_root_path.replace(/\/$/, "");
-    const sub = subPath.replace(/^\//, "");
-    return `${root}/${sub}`;
+    const sub = subPath.replace(/^\//, "").replace(/\/$/, "");
+    const tmpl = template ? `/${template.replace(/^\//, "")}` : "";
+    return `${root}/${sub}${tmpl}`.replace(/\/+/g, "/");
+  };
+
+  // Resolve template preview with example values
+  const resolveTemplatePreview = (template: string) => {
+    return template
+      .replace("{{JobCode}}", "JOB-001")
+      .replace("{{Category}}", "Plans")
+      .replace("{{CompanyGroup}}", "Tekna Group")
+      .replace("{{CompanyCode}}", "TEK")
+      .replace("{{Folder}}", "ASIC")
+      .replace("{{ContactName}}", "John Smith");
   };
 
   if (loading) {
@@ -294,10 +327,10 @@ export function SharePointTab() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <FolderTree className="h-4 w-4" />
-            Document Paths (SSoT)
+            Folder Structure (SSoT)
           </CardTitle>
           <CardDescription>
-            All document storage locations are relative to the root path below
+            Base folders for each document type. All paths are relative to the root.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -322,7 +355,10 @@ export function SharePointTab() {
           {/* Sub-paths */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="jobs_path">Job Documents</Label>
+              <Label htmlFor="jobs_path" className="flex items-center gap-1">
+                <Briefcase className="h-3 w-3 text-orange-500" />
+                Job Documents
+              </Label>
               <Input
                 id="jobs_path"
                 value={formData.sharepoint_jobs_path}
@@ -335,20 +371,10 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="people_path">People Documents</Label>
-              <Input
-                id="people_path"
-                value={formData.sharepoint_people_path}
-                onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
-                placeholder="Corporate/People"
-              />
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_people_path)}
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company_path">Company Documents</Label>
+              <Label htmlFor="company_path" className="flex items-center gap-1">
+                <Building2 className="h-3 w-3 text-purple-500" />
+                Company Documents
+              </Label>
               <Input
                 id="company_path"
                 value={formData.sharepoint_company_path}
@@ -361,7 +387,26 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="contacts_path">Contact Documents</Label>
+              <Label htmlFor="people_path" className="flex items-center gap-1">
+                <Users className="h-3 w-3 text-green-500" />
+                People Documents
+              </Label>
+              <Input
+                id="people_path"
+                value={formData.sharepoint_people_path}
+                onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
+                placeholder="Corporate/People"
+              />
+              <p className="text-xs text-muted-foreground font-mono">
+                {getFullPath(formData.sharepoint_people_path)}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contacts_path" className="flex items-center gap-1">
+                <Users className="h-3 w-3 text-blue-500" />
+                Contact Documents
+              </Label>
               <Input
                 id="contacts_path"
                 value={formData.sharepoint_contacts_path}
@@ -371,6 +416,118 @@ export function SharePointTab() {
               <p className="text-xs text-muted-foreground font-mono">
                 {getFullPath(formData.sharepoint_contacts_path)}
               </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Path Templates */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileCode className="h-4 w-4" />
+            Path Templates (SSoT)
+          </CardTitle>
+          <CardDescription>
+            Dynamic path templates using placeholders. These define how documents are organized within each folder.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Info about placeholders */}
+          <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>Available Placeholders:</strong>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              <Badge variant="outline" className="font-mono">{"{{JobCode}}"}</Badge>
+              <Badge variant="outline" className="font-mono">{"{{Category}}"}</Badge>
+              <Badge variant="outline" className="font-mono">{"{{CompanyGroup}}"}</Badge>
+              <Badge variant="outline" className="font-mono">{"{{CompanyCode}}"}</Badge>
+              <Badge variant="outline" className="font-mono">{"{{Folder}}"}</Badge>
+              <Badge variant="outline" className="font-mono">{"{{ContactName}}"}</Badge>
+            </div>
+          </div>
+
+          {/* Templates */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="job_template" className="flex items-center gap-1">
+                <Briefcase className="h-3 w-3 text-orange-500" />
+                Job Template
+              </Label>
+              <Input
+                id="job_template"
+                value={formData.sharepoint_job_template}
+                onChange={(e) => handleChange("sharepoint_job_template", e.target.value)}
+                placeholder="{{JobCode}}/{{Category}}"
+                className="font-mono text-sm"
+              />
+              <div className="text-xs space-y-1">
+                <p className="text-muted-foreground">Full path preview:</p>
+                <p className="font-mono text-green-600 dark:text-green-400 break-all">
+                  {getFullPath(formData.sharepoint_jobs_path, resolveTemplatePreview(formData.sharepoint_job_template))}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="company_template" className="flex items-center gap-1">
+                <Building2 className="h-3 w-3 text-purple-500" />
+                Company Template
+              </Label>
+              <Input
+                id="company_template"
+                value={formData.sharepoint_company_template}
+                onChange={(e) => handleChange("sharepoint_company_template", e.target.value)}
+                placeholder="{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
+                className="font-mono text-sm"
+              />
+              <div className="text-xs space-y-1">
+                <p className="text-muted-foreground">Full path preview:</p>
+                <p className="font-mono text-green-600 dark:text-green-400 break-all">
+                  {getFullPath(formData.sharepoint_company_path, resolveTemplatePreview(formData.sharepoint_company_template))}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="people_template" className="flex items-center gap-1">
+                <Users className="h-3 w-3 text-green-500" />
+                People Template
+              </Label>
+              <Input
+                id="people_template"
+                value={formData.sharepoint_people_template}
+                onChange={(e) => handleChange("sharepoint_people_template", e.target.value)}
+                placeholder="{{ContactName}}/{{Category}}"
+                className="font-mono text-sm"
+              />
+              <div className="text-xs space-y-1">
+                <p className="text-muted-foreground">Full path preview:</p>
+                <p className="font-mono text-green-600 dark:text-green-400 break-all">
+                  {getFullPath(formData.sharepoint_people_path, resolveTemplatePreview(formData.sharepoint_people_template))}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="contacts_template" className="flex items-center gap-1">
+                <Users className="h-3 w-3 text-blue-500" />
+                Contacts Template
+              </Label>
+              <Input
+                id="contacts_template"
+                value={formData.sharepoint_contacts_template}
+                onChange={(e) => handleChange("sharepoint_contacts_template", e.target.value)}
+                placeholder="{{ContactName}}/{{Category}}"
+                className="font-mono text-sm"
+              />
+              <div className="text-xs space-y-1">
+                <p className="text-muted-foreground">Full path preview:</p>
+                <p className="font-mono text-green-600 dark:text-green-400 break-all">
+                  {getFullPath(formData.sharepoint_contacts_path, resolveTemplatePreview(formData.sharepoint_contacts_template))}
+                </p>
+              </div>
             </div>
           </div>
         </CardContent>

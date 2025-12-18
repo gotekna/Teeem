@@ -1,15 +1,23 @@
 class CorporateOnedriveService
   attr_reader :credential, :results, :folder_path
 
-  # Try multiple possible paths for corporate documents
-  # New structure uses "00 TEEEM PRIVATE" with organized subfolders
-  DEFAULT_FOLDER_PATHS = [
-    "00 TEEEM PRIVATE",                     # New organized structure (preferred)
-    "Accounts - Internal/Corporate File",   # Robert's legacy SharePoint structure
-    "Corporate File",                       # Legacy direct Corporate File folder
-    "Corporate"                             # Legacy simple Corporate folder
-  ].freeze
+  # SSoT: Get the preferred company folder path from CorporateCompanySetting
+  def self.company_folder_path
+    CorporateCompanySetting.instance.sharepoint_company_path.presence || "00 TEEEM PRIVATE"
+  end
 
+  # Try multiple possible paths for corporate documents
+  # New structure uses company_folder_path with organized subfolders
+  def self.default_folder_paths
+    [
+      company_folder_path,                    # SSoT: From CorporateCompanySetting (preferred)
+      "Accounts - Internal/Corporate File",   # Robert's legacy SharePoint structure
+      "Corporate File",                       # Legacy direct Corporate File folder
+      "Corporate"                             # Legacy simple Corporate folder
+    ]
+  end
+
+  # Legacy constant for backwards compatibility (deprecated)
   DEFAULT_FOLDER_PATH = "00 TEEEM PRIVATE"
 
   # Known group folders that contain company subfolders
@@ -52,7 +60,7 @@ class CorporateOnedriveService
 
     if @folder_path == "auto"
       # Auto-detect: try each possible path
-      DEFAULT_FOLDER_PATHS.each do |path|
+      self.class.default_folder_paths.each do |path|
         corporate_folder = find_folder_by_path(client, path)
         if corporate_folder
           found_path = path
@@ -67,7 +75,7 @@ class CorporateOnedriveService
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found. Tried: #{@folder_path == 'auto' ? DEFAULT_FOLDER_PATHS.join(', ') : @folder_path}"
+        error: "Corporate folder not found. Tried: #{@folder_path == 'auto' ? self.class.default_folder_paths.join(', ') : @folder_path}"
       }
     end
 
@@ -196,7 +204,7 @@ class CorporateOnedriveService
 
     if @folder_path == "auto"
       # Auto-detect: try each possible path
-      DEFAULT_FOLDER_PATHS.each do |path|
+      self.class.default_folder_paths.each do |path|
         corporate_folder = find_folder_by_path(client, path)
         if corporate_folder
           found_path = path
@@ -211,7 +219,7 @@ class CorporateOnedriveService
     unless corporate_folder
       return {
         success: false,
-        error: "Corporate folder not found. Tried: #{@folder_path == 'auto' ? DEFAULT_FOLDER_PATHS.join(', ') : @folder_path}"
+        error: "Corporate folder not found. Tried: #{@folder_path == 'auto' ? self.class.default_folder_paths.join(', ') : @folder_path}"
       }
     end
 
