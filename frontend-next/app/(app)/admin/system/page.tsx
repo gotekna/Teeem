@@ -41,6 +41,7 @@ import {
   Mail,
   Map,
   Clock,
+  Menu,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -76,6 +77,7 @@ import { EmailAccountsTab } from "./components/EmailAccountsTab";
 import { PlansTab } from "./components/PlansTab";
 import { SharePointTab } from "./components/SharePointTab";
 import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
+import { NavigationTab } from "./components/NavigationTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -100,6 +102,7 @@ const MAIN_TABS = [
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
+  { id: "navigation", label: "Navigation", icon: Menu },
   { id: "plans", label: "Plans", icon: Map },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
@@ -817,6 +820,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="developer-tools">
             <DeveloperToolsTab />
+          </TabsContent>
+          <TabsContent value="navigation">
+            <NavigationTab />
           </TabsContent>
           <TabsContent value="claude-shortcuts">
             <ClaudeShortcutsTab />

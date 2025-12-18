@@ -19,6 +19,35 @@ module Engines
     class OverlayError < StandardError; end
     class TemplateNotFoundError < OverlayError; end
 
+    # Field-specific X offsets to align text with visual lines
+    # Measured manually from the QBCC PDF template
+    # Positive = shift right, Negative = shift left
+    QBCC_FIELD_X_OFFSETS = {
+      # Owner section - fields start before their visual lines
+      "Text Field 4" => 8,    # Owner name
+      "Text Field 5" => 8,    # Owner email
+      "Text Field 6" => 8,    # Owner address
+      "Text Field 7" => 8,    # Owner postcode
+      "Text Field 8" => 8,    # Owner phone
+      "Text Field 9" => 8,    # Owner home phone
+
+      # Owner's Rep section
+      "Text Field 11" => 8,   # Rep name
+      "Text Field 12" => 8,   # Rep address
+      "Text Field 14" => 8,   # Rep postcode
+      "Text Field 13" => 8,   # Rep phone
+      "Text Field 15" => 12,  # Rep email (needs more offset)
+
+      # Contractor section
+      "Text Field 16" => 8,   # Builder name
+      "Text Field 17" => 8,   # QBCC licence
+      "Text Field 18" => 8,   # ABN
+      "Text Field 19" => 8,   # Address
+      "Text Field 20" => 8,   # Postcode
+      "Text Field 21" => 8,   # Phone
+      "Text Field 22" => 12,  # Email (needs more offset)
+    }.freeze
+
     # Field mappings for QBCC documents - text overlay positions (only used if no form fields)
     QBCC_CONTRACT_FIELDS = {}.freeze  # Contract uses AcroForm fields, not text overlay
 
@@ -242,14 +271,16 @@ module Engines
       data = extra_data.symbolize_keys
 
       if job
-        # Company/builder info
+        # Company/builder info (SSoT: CorporateCompanySetting)
         settings = ::CorporateCompanySetting.instance
         data[:builder_name] ||= settings.company_name
         data[:builder_abn] ||= format_abn(settings.abn)
         data[:builder_qbcc] ||= settings.qbcc_license
-        data[:builder_address] ||= settings.address
         data[:builder_phone] ||= settings.phone
         data[:builder_email] ||= settings.email
+        data[:builder_postcode] ||= settings.postcode
+        # Remove postcode from address if it's duplicated there
+        data[:builder_address] ||= settings.address.to_s.sub(/\s*#{settings.postcode}\s*$/, "").strip
 
         # Job/site info (Item 4: The Site)
         data[:site_address] ||= job.address
@@ -329,20 +360,28 @@ module Engines
 
           data[:owner_name] ||= owner_names.join(" & ")
 
-          # Use primary contact's details for address/phone/email
+          # Use primary contact's details for address/phone/email (SSoT: Contact model)
           primary = client_contacts.first
-          data[:owner_address] ||= primary.try(:address)
           data[:owner_phone] ||= primary.try(:mobile_phone) || primary.try(:phone)
           data[:owner_email] ||= primary.try(:email)
+          data[:owner_postcode] ||= primary.try(:postcode)
+          # Remove postcode from address if duplicated
+          owner_addr = primary.try(:address).to_s
+          owner_pc = primary.try(:postcode).to_s
+          data[:owner_address] ||= owner_pc.present? ? owner_addr.sub(/\s*#{owner_pc}\s*$/, "").strip : owner_addr
         end
 
         # Owner's Authorised Representative (from job_contacts with role 'client_representative')
         rep_contact = job.job_contacts.find_by(role: "client_representative")&.contact
         if rep_contact
           data[:owner_rep_name] ||= rep_contact.try(:full_name) || rep_contact.try(:display_name)
-          data[:owner_rep_address] ||= rep_contact.try(:address)
           data[:owner_rep_phone] ||= rep_contact.try(:mobile_phone) || rep_contact.try(:phone)
           data[:owner_rep_email] ||= rep_contact.try(:email)
+          data[:owner_rep_postcode] ||= rep_contact.try(:postcode)
+          # Remove postcode from address if duplicated
+          rep_addr = rep_contact.try(:address).to_s
+          rep_pc = rep_contact.try(:postcode).to_s
+          data[:owner_rep_address] ||= rep_pc.present? ? rep_addr.sub(/\s*#{rep_pc}\s*$/, "").strip : rep_addr
         end
 
         # Site supervisor info (from job columns)
@@ -412,6 +451,9 @@ module Engines
           Rails.logger.debug "[PdfOverlayEngine] Filled '#{pdf_field_name}' with '#{value}'"
         end
       end
+
+      # Tell PDF viewers to regenerate appearances on open (better compatibility)
+      doc.acro_form[:NeedAppearances] = true
     rescue StandardError => e
       Rails.logger.warn "[PdfOverlayEngine] Form fill error: #{e.message}"
     end

@@ -129,10 +129,17 @@ export default function MicrosoftIntegrationPage() {
     setError(null);
 
     try {
-      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+      const response = await api.post<{ success: boolean; admin_consent_url?: string; message?: string; configured?: boolean }>(
         "/api/v1/microsoft_app/setup_from_env",
         { name: orgName }
       );
+
+      // Check if credentials are not configured (local dev without env vars)
+      if (response?.configured === false) {
+        setError(response.message || "Microsoft 365 credentials not configured in environment");
+        setConnectingOrg(null);
+        return;
+      }
 
       // Redirect to Microsoft login
       if (response?.admin_consent_url) {
@@ -328,10 +335,18 @@ function OrganizationCard({
     setRetrying(true);
     setError(null);
     try {
-      const response = await api.post<{ success: boolean; admin_consent_url: string; message: string }>(
+      const response = await api.post<{ success: boolean; admin_consent_url?: string; message?: string; configured?: boolean }>(
         "/api/v1/microsoft_app/setup_from_env",
         { name: org.name }
       );
+
+      // Check if credentials are not configured (local dev without env vars)
+      if (response?.configured === false) {
+        setError(response.message || "Microsoft 365 credentials not configured in environment");
+        setRetrying(false);
+        return;
+      }
+
       if (response?.admin_consent_url) {
         window.location.href = response.admin_consent_url;
       }

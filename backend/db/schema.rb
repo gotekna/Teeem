@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_124505) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_202025) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1622,6 +1622,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_124505) do
     t.string "sharepoint_company_template", default: "{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}"
     t.string "sharepoint_people_template", default: "{{ContactName}}/{{Category}}"
     t.string "sharepoint_contacts_template", default: "{{ContactName}}/{{Category}}"
+    t.string "postcode"
   end
 
   create_table "corporate_company_shareholdings", force: :cascade do |t|
@@ -3545,6 +3546,38 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_124505) do
     t.index ["view_name", "started_at"], name: "index_mv_refresh_logs_on_view_name_and_started_at"
     t.index ["view_name", "status"], name: "index_mv_refresh_logs_on_view_name_and_status"
     t.index ["view_name"], name: "index_mv_refresh_logs_on_view_name"
+  end
+
+  create_table "navigation_groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "icon", default: "Folder"
+    t.integer "position", default: 0, null: false
+    t.boolean "is_active", default: true
+    t.boolean "is_collapsible", default: true
+    t.string "visible_to_roles", default: [], array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_navigation_groups_on_is_active"
+    t.index ["position"], name: "index_navigation_groups_on_position"
+    t.index ["visible_to_roles"], name: "index_navigation_groups_on_visible_to_roles", using: :gin
+  end
+
+  create_table "navigation_items", force: :cascade do |t|
+    t.bigint "navigation_group_id"
+    t.string "name", null: false
+    t.string "href", null: false
+    t.string "icon", null: false
+    t.string "badge_key"
+    t.integer "position", default: 0, null: false
+    t.boolean "is_active", default: true
+    t.string "visible_to_roles", default: [], array: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["href"], name: "index_navigation_items_on_href", unique: true
+    t.index ["is_active"], name: "index_navigation_items_on_is_active"
+    t.index ["navigation_group_id"], name: "index_navigation_items_on_navigation_group_id"
+    t.index ["position"], name: "index_navigation_items_on_position"
+    t.index ["visible_to_roles"], name: "index_navigation_items_on_visible_to_roles", using: :gin
   end
 
   create_table "ndis_addendums", force: :cascade do |t|
@@ -6132,6 +6165,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_124505) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "connected_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
+  add_foreign_key "navigation_items", "navigation_groups"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"

@@ -29,6 +29,7 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Wrench,
   Scale,
   History,
@@ -55,6 +56,8 @@ import {
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
 import { urls } from "@/lib/url-utils";
+import { useNavigation } from "@/hooks/useNavigation";
+import { getIcon } from "@/lib/icon-map";
 
 interface NavigationItem {
   name: string;
@@ -98,6 +101,10 @@ export function Sidebar() {
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+
+  // Fetch navigation from API
+  const { data: apiNavigation, isError: navError } = useNavigation();
   const [deployedAt, setDeployedAt] = useState<string | null>(null);
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
   const pathname = usePathname();
@@ -220,12 +227,42 @@ export function Sidebar() {
     setStoredPersona(newPersona);
   };
 
-  // Filter navigation items based on persona
+  // Filter navigation items based on persona (fallback for hardcoded items)
   const filteredItems = useMemo(() => {
     const config = PERSONA_CONFIG[persona];
     if (config.items === 'all') return navigationItems;
     return navigationItems.filter(item => config.items.includes(item.href));
   }, [persona]);
+
+  // Use API navigation if available, otherwise use hardcoded items
+  const useApiNavigation = apiNavigation && !navError;
+
+  // Toggle group expansion
+  const toggleGroup = (groupId: number) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      // Save to localStorage
+      localStorage.setItem('teeem-nav-expanded', JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  // Load expanded groups from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('teeem-nav-expanded');
+    if (saved) {
+      try {
+        setExpandedGroups(new Set(JSON.parse(saved)));
+      } catch {
+        // ignore parse errors
+      }
+    }
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -253,64 +290,229 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
-        {filteredItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.href);
-          const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
-          const isLoading = loadingHref === item.href;
+        {useApiNavigation ? (
+          <>
+            {/* API-driven navigation with groups */}
+            {apiNavigation.groups.map((group) => {
+              const GroupIcon = getIcon(group.icon);
+              const isGroupExpanded = expandedGroups.has(group.id);
+              const sortedItems = [...group.items].sort((a, b) => a.position - b.position);
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              prefetch={false}
-              onClick={() => !active && setLoadingHref(item.href)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-                active
-                  ? "bg-secondary text-secondary-foreground"
-                  : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-              )}
-            >
-              <div className="relative shrink-0">
-                {isLoading ? (
-                  <Loader2 size={16} className="animate-spin text-primary" />
-                ) : (
-                  <Icon size={16} />
-                )}
-                {badgeCount > 0 && !isExpanded && !mobile && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {badgeCount > 9 ? "9+" : badgeCount}
+              return (
+                <div key={`group-${group.id}`}>
+                  {/* Group header */}
+                  {group.is_collapsible ? (
+                    <button
+                      onClick={() => toggleGroup(group.id)}
+                      className={cn(
+                        "flex items-center gap-3 px-3 py-1.5 w-full transition-colors",
+                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                      )}
+                    >
+                      <GroupIcon size={16} className="shrink-0" />
+                      <span
+                        className={cn(
+                          "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm font-medium flex-1 text-left",
+                          isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
+                        )}
+                      >
+                        {group.name}
+                      </span>
+                      {(isExpanded || mobile) && (
+                        <ChevronDown
+                          size={14}
+                          className={cn(
+                            "transition-transform",
+                            !isGroupExpanded && "-rotate-90"
+                          )}
+                        />
+                      )}
+                    </button>
+                  ) : null}
+                  {/* Group items */}
+                  {(!group.is_collapsible || isGroupExpanded) && sortedItems.map((apiItem) => {
+                    const ItemIcon = getIcon(apiItem.icon);
+                    const active = isActive(apiItem.href);
+                    const badgeCount = apiItem.badge_key ? badges[apiItem.badge_key] : 0;
+                    const isItemLoading = loadingHref === apiItem.href;
+
+                    return (
+                      <Link
+                        key={apiItem.href}
+                        href={apiItem.href}
+                        prefetch={false}
+                        onClick={() => !active && setLoadingHref(apiItem.href)}
+                        className={cn(
+                          "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+                          group.is_collapsible && (isExpanded || mobile) && "pl-6",
+                          active
+                            ? "bg-secondary text-secondary-foreground"
+                            : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                        )}
+                      >
+                        <div className="relative shrink-0">
+                          {isItemLoading ? (
+                            <Loader2 size={16} className="animate-spin text-primary" />
+                          ) : (
+                            <ItemIcon size={16} />
+                          )}
+                          {badgeCount > 0 && !isExpanded && !mobile && (
+                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                              {badgeCount > 9 ? "9+" : badgeCount}
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={cn(
+                            "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
+                            isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+                            isItemLoading && "opacity-50"
+                          )}
+                        >
+                          {apiItem.name}
+                          {badgeCount > 0 && (isExpanded || mobile) && (
+                            <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                              {badgeCount}
+                            </Badge>
+                          )}
+                        </span>
+                        {!isExpanded && !mobile && (
+                          <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+                            {apiItem.name}
+                            {badgeCount > 0 && (
+                              <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                                {badgeCount}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            })}
+            {/* Ungrouped items */}
+            {apiNavigation.ungrouped_items.map((apiItem) => {
+              const ItemIcon = getIcon(apiItem.icon);
+              const active = isActive(apiItem.href);
+              const badgeCount = apiItem.badge_key ? badges[apiItem.badge_key] : 0;
+              const isItemLoading = loadingHref === apiItem.href;
+
+              return (
+                <Link
+                  key={apiItem.href}
+                  href={apiItem.href}
+                  prefetch={false}
+                  onClick={() => !active && setLoadingHref(apiItem.href)}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+                    active
+                      ? "bg-secondary text-secondary-foreground"
+                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                  )}
+                >
+                  <div className="relative shrink-0">
+                    {isItemLoading ? (
+                      <Loader2 size={16} className="animate-spin text-primary" />
+                    ) : (
+                      <ItemIcon size={16} />
+                    )}
+                    {badgeCount > 0 && !isExpanded && !mobile && (
+                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                        {badgeCount > 9 ? "9+" : badgeCount}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
+                      isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+                      isItemLoading && "opacity-50"
+                    )}
+                  >
+                    {apiItem.name}
+                    {badgeCount > 0 && (isExpanded || mobile) && (
+                      <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                        {badgeCount}
+                      </Badge>
+                    )}
                   </span>
-                )}
-              </div>
-              <span
+                  {!isExpanded && !mobile && (
+                    <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+                      {apiItem.name}
+                      {badgeCount > 0 && (
+                        <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                          {badgeCount}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </>
+        ) : (
+          /* Fallback to hardcoded navigation */
+          filteredItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
+            const isLoading = loadingHref === item.href;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={false}
+                onClick={() => !active && setLoadingHref(item.href)}
                 className={cn(
-                  "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
-                  isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-                  isLoading && "opacity-50"
+                  "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+                  active
+                    ? "bg-secondary text-secondary-foreground"
+                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
                 )}
               >
-                {item.name}
-                {badgeCount > 0 && (isExpanded || mobile) && (
-                  <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                    {badgeCount}
-                  </Badge>
-                )}
-              </span>
-              {!isExpanded && !mobile && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+                <div className="relative shrink-0">
+                  {isLoading ? (
+                    <Loader2 size={16} className="animate-spin text-primary" />
+                  ) : (
+                    <Icon size={16} />
+                  )}
+                  {badgeCount > 0 && !isExpanded && !mobile && (
+                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                      {badgeCount > 9 ? "9+" : badgeCount}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={cn(
+                    "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
+                    isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+                    isLoading && "opacity-50"
+                  )}
+                >
                   {item.name}
-                  {badgeCount > 0 && (
+                  {badgeCount > 0 && (isExpanded || mobile) && (
                     <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
                       {badgeCount}
                     </Badge>
                   )}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+                </span>
+                {!isExpanded && !mobile && (
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+                    {item.name}
+                    {badgeCount > 0 && (
+                      <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                        {badgeCount}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+              </Link>
+            );
+          })
+        )}
       </nav>
 
       {/* Version Info */}

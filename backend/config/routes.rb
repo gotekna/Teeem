@@ -68,6 +68,22 @@ Rails.application.routes.draw do
       get "system/metrics", to: "system#metrics"
       get "system/scheduled_jobs", to: "system#scheduled_jobs"
 
+      # Navigation (sidebar menu configuration)
+      get "navigation", to: "navigation#index"
+      resources :navigation_groups, only: [ :index, :create, :update, :destroy ] do
+        collection do
+          post :reorder
+        end
+      end
+      resources :navigation_items, only: [ :index, :create, :update, :destroy ] do
+        collection do
+          post :reorder
+        end
+        member do
+          patch :move_to_group
+        end
+      end
+
       # Health checks - NEW unified endpoints
       get "health/unified", to: "health#unified"       # Main unified health dashboard
       post "health/fix", to: "health#fix"              # Fix health issues

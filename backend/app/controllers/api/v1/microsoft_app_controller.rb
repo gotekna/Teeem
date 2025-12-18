@@ -142,10 +142,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
     client_secret = ENV["OUTLOOK_CLIENT_SECRET"]
     tenant_id = ENV["OUTLOOK_TENANT_ID"]
 
+    # Graceful degradation: return configured: false instead of error for local dev
     if client_id.blank? || client_secret.blank? || tenant_id.blank?
       return render json: {
-        error: "Environment variables not configured. Please set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, and OUTLOOK_TENANT_ID."
-      }, status: :unprocessable_entity
+        success: false,
+        configured: false,
+        message: "Microsoft 365 credentials not configured in environment. Set OUTLOOK_CLIENT_ID, OUTLOOK_CLIENT_SECRET, and OUTLOOK_TENANT_ID to enable."
+      }
     end
 
     # Check if org with this name already exists (active OR inactive)

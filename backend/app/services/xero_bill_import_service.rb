@@ -41,6 +41,7 @@ class XeroBillImportService
   end
 
   # Fetch all tracking categories and their options from Xero
+  # Returns empty array if Xero is not configured (graceful degradation for local dev)
   def self.fetch_tracking_options
     client = XeroApiClient.new
     result = client.get("TrackingCategories")
@@ -53,6 +54,10 @@ class XeroBillImportService
     return [] unless job_category
 
     job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+  rescue XeroApiClient::AuthenticationError => e
+    # Graceful degradation: return empty if Xero not configured (common in local dev)
+    Rails.logger.info("[Xero] Not configured: #{e.message}")
+    []
   end
 
   # Match a job to a Xero tracking option by name/address
