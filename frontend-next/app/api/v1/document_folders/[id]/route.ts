@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
+import { getApiBaseUrl } from "@/lib/api";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "https://teeemlive-ce8e2660a615.herokuapp.com";
+const BACKEND_URL = getApiBaseUrl();
 
 export async function GET(
   request: Request,

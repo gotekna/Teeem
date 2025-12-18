@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getApiBaseUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Loader2, FileText, Download, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
 import {
@@ -38,7 +39,7 @@ export function DocumentViewerStep({
   const [declineReason, setDeclineReason] = useState("");
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  const apiUrl = getApiBaseUrl();
 
   // Fetch document PDF
   useEffect(() => {

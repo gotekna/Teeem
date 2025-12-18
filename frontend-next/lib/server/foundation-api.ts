@@ -7,8 +7,9 @@
  */
 
 import { cookies } from 'next/headers';
+import { getApiBaseUrl } from '@/lib/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com';
+const API_BASE_URL = getApiBaseUrl();
 
 interface ApiColumn {
   id: number;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getApiBaseUrl } from "@/lib/api";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:3001";
+const BACKEND_URL = getApiBaseUrl();
 
 // GET /api/v1/foundations/:id - Get foundation (table) with columns
 export async function GET(

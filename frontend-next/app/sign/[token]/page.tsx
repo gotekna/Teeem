@@ -10,6 +10,7 @@ import { DocumentViewerStep } from "@/components/signing/document-viewer-step";
 import { ConsentStep } from "@/components/signing/consent-step";
 import { SignatureCaptureStep } from "@/components/signing/signature-capture-step";
 import { CompletionStep } from "@/components/signing/completion-step";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface SignerInfo {
   id: number;
@@ -42,7 +43,7 @@ export default function SigningCeremonyPage() {
   const [request, setRequest] = useState<RequestInfo | null>(null);
   const [requestCompleted, setRequestCompleted] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+  const apiUrl = getApiBaseUrl();
 
   // Verify token and get session info
   const verifyToken = useCallback(async () => {
