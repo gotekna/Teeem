@@ -132,6 +132,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
+  const [processingPlanSet, setProcessingPlanSet] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState("");
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {
@@ -232,16 +234,54 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Handle file drop
-  const handleFileDrop = (file: File) => {
-    if (file.type === "application/pdf") {
-      handleOpenAddDialog(file);
-    } else {
+  // Handle file drop - automatically process multi-page PDF with AI
+  const handleFileDrop = async (file: File) => {
+    if (file.type !== "application/pdf") {
       toast({
         title: "Invalid file type",
         description: "Please upload a PDF file",
         variant: "destructive",
       });
+      return;
+    }
+
+    setProcessingPlanSet(true);
+    setProcessingProgress("Uploading plan set...");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setProcessingProgress("Splitting PDF and analyzing with AI...");
+
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/jobs/${jobId}/job_plans/upload_plan_set`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Plans Added",
+          description: `Created ${result.data.plans.length} plans from ${result.data.total_pages} pages`,
+        });
+        fetchPlans();
+        fetchTabs();
+      } else {
+        throw new Error(result.error || "Failed to process plan set");
+      }
+    } catch (err) {
+      console.error("Error processing plan set:", err);
+      toast({
+        title: "Processing Failed",
+        description: err instanceof Error ? err.message : "Failed to process plan set",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPlanSet(false);
+      setProcessingProgress("");
     }
   };
 
@@ -611,7 +651,21 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center">
           <div className="text-center">
             <Upload className="h-16 w-16 mx-auto mb-4 text-primary" />
-            <p className="text-lg font-medium text-primary">Drop PDF here to add plan</p>
+            <p className="text-lg font-medium text-primary">Drop PDF here to add plans</p>
+            <p className="text-sm text-muted-foreground mt-2">AI will detect plan types from each page</p>
+          </div>
+        </div>
+      )}
+
+      {/* Processing overlay */}
+      {processingPlanSet && (
+        <div className="absolute inset-0 z-50 bg-background/80 flex items-center justify-center">
+          <div className="text-center p-6 bg-card border rounded-lg shadow-lg">
+            <Loader2 className="h-12 w-12 mx-auto mb-4 text-primary animate-spin" />
+            <p className="text-lg font-medium">{processingProgress}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              This may take a minute for large plan sets
+            </p>
           </div>
         </div>
       )}

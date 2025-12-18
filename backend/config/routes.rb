@@ -188,6 +188,9 @@ Rails.application.routes.draw do
           get :plan_set
           post :upload_plan_set
           post :rename_plans
+          # Contract generation
+          post :generate_contract
+          post :save_contract
         end
 
         # Job contacts (nested under jobs)
@@ -244,6 +247,7 @@ Rails.application.routes.draw do
             get :tabs                 # GET /api/v1/jobs/:job_id/job_plans/tabs
             get :suggested_recipients # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
             post :email               # POST /api/v1/jobs/:job_id/job_plans/email
+            post :upload_plan_set     # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set - AI split
           end
           member do
             post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision

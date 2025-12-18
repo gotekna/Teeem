@@ -1,7 +1,7 @@
 module Api
   module V1
     class JobsController < ApplicationController
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -651,6 +651,67 @@ module Api
         end
       rescue => e
         Rails.logger.error("rename_plans error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/generate_contract
+      # Generate QBCC contract PDF for preview
+      def generate_contract
+        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
+        pdf_content = engine.generate(job: @job)
+
+        send_data pdf_content,
+          type: "application/pdf",
+          disposition: "inline",
+          filename: "QBCC_Contract_#{@job.job_number || @job.id}.pdf"
+      rescue => e
+        Rails.logger.error("generate_contract error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/jobs/:id/save_contract
+      # Generate QBCC contract PDF and save to job documents
+      def save_contract
+        engine = Engines::PdfOverlayEngine.new(:qbcc_contract)
+        pdf_content = engine.generate(job: @job)
+
+        # Create a document record for this job
+        filename = "QBCC_Contract_#{@job.job_number || @job.id}_#{Date.current.strftime('%Y%m%d')}.pdf"
+
+        # Save to job documents (using JobDocument model if it exists, or attach to SharePoint)
+        if defined?(JobDocument)
+          document = @job.job_documents.create!(
+            name: filename,
+            document_type: "contract",
+            file_data: Base64.strict_encode64(pdf_content),
+            file_content_type: "application/pdf"
+          )
+          render json: { success: true, data: { document_id: document.id, filename: filename } }
+        else
+          # Upload to SharePoint/OneDrive if JobDocument doesn't exist
+          credential = OrganizationSharePointCredential.active_credential
+          if credential
+            client = MicrosoftGraphClient.new(credential)
+            folder_path = "Jobs/#{@job.job_folder_name}/01 Contract Documents"
+
+            # Ensure folder exists
+            client.ensure_folder_path(folder_path)
+
+            # Upload file
+            result = client.upload_file(folder_path, filename, pdf_content, "application/pdf")
+
+            if result
+              render json: { success: true, data: { filename: filename, sharepoint_id: result[:id] } }
+            else
+              render json: { success: false, error: "Failed to upload to SharePoint" }, status: :internal_server_error
+            end
+          else
+            # Fallback: just return success with the filename
+            render json: { success: true, data: { filename: filename, note: "Document generated but no storage configured" } }
+          end
+        end
+      rescue => e
+        Rails.logger.error("save_contract error: #{e.message}")
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 

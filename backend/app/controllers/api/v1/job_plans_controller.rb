@@ -190,6 +190,91 @@ module Api
         }
       end
 
+      # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set
+      # Uploads a multi-page PDF, splits into individual pages with AI detection
+      def upload_plan_set
+        unless params[:file].present?
+          return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
+        end
+
+        # Ensure job has plan tabs
+        ensure_job_has_plan_tabs
+
+        # Process with PlanSetService
+        service = PlanSetService.new(@job, params[:file])
+        result = service.process!
+
+        unless result[:success]
+          return render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+
+        # Get the first tab (or specified tab) for categorizing plans
+        tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
+
+        created_plans = []
+
+        # Create job plan for "All Plans"
+        if result[:all_plans].present?
+          all_plans_plan = @job.job_plans.create!(
+            job_plan_tab_id: tab_id,
+            plan_type_id: nil, # No specific type for All Plans
+            display_name: "All Plans",
+            sequence_order: 0
+          )
+
+          all_plans_plan.add_revision!(
+            sharepoint_file_id: result[:all_plans][:file_id],
+            sharepoint_web_url: result[:all_plans][:web_url],
+            file_name: result[:all_plans][:name],
+            file_size: result[:all_plans][:size],
+            revision_date: Date.today
+          )
+
+          created_plans << serialize_plan(all_plans_plan)
+        end
+
+        # Create job plans for each individual page
+        result[:pages].each do |page|
+          # Try to match plan type by sheet name
+          plan_type = find_plan_type_for_sheet(page[:sheet_name])
+
+          plan = @job.job_plans.create!(
+            job_plan_tab_id: tab_id,
+            plan_type_id: plan_type&.id,
+            display_name: page[:name].sub(/\.pdf$/i, ''),
+            sequence_order: page[:page_number]
+          )
+
+          plan.add_revision!(
+            sharepoint_file_id: page[:file_id],
+            sharepoint_web_url: page[:web_url],
+            file_name: page[:name],
+            file_size: page[:size],
+            revision_date: Date.today
+          )
+
+          created_plans << serialize_plan(plan).merge(
+            detected_sheet_number: page[:sheet_number],
+            detected_sheet_name: page[:sheet_name],
+            detected_sheet_date: page[:sheet_date],
+            detected_sheet_issue: page[:sheet_issue]
+          )
+        end
+
+        render json: {
+          success: true,
+          data: {
+            total_pages: result[:total_pages],
+            plans: created_plans
+          }
+        }, status: :created
+
+      rescue StandardError => e
+        Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")
+        Rails.logger.error(e.backtrace.first(10).join("\n"))
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # POST /api/v1/jobs/:job_id/job_plans/email
       def email
         plan_ids = params[:plan_ids] || []
@@ -334,6 +419,51 @@ module Api
           on_issue_count: tab.on_issue_count,
           children: tab.children.ordered.map { |child| serialize_tab(child) }
         }
+      end
+
+      # Try to match a sheet name to an existing plan type
+      # Uses fuzzy matching on plan type names
+      def find_plan_type_for_sheet(sheet_name)
+        return nil if sheet_name.blank?
+
+        normalized = sheet_name.to_s.downcase.strip
+
+        # Try exact match first
+        plan_type = PlanType.active.find_by("LOWER(name) = ?", normalized)
+        return plan_type if plan_type
+
+        # Try contains match (e.g., "Ground Floor Plan" matches "Floor Plan")
+        plan_type = PlanType.active.find_by("LOWER(?) LIKE '%' || LOWER(name) || '%'", normalized)
+        return plan_type if plan_type
+
+        # Try partial match (plan type name contains sheet name)
+        plan_type = PlanType.active.find_by("LOWER(name) LIKE ?", "%#{normalized}%")
+        return plan_type if plan_type
+
+        # Common mappings
+        mappings = {
+          'perspective' => 'PERSPECTIVE',
+          'site' => 'SITE PLAN',
+          'slab' => 'SLAB PLAN',
+          'floor' => 'FLOOR PLAN',
+          'elevation' => 'ELEVATION',
+          'roof' => 'ROOF PLAN',
+          'electrical' => 'ELECTRICAL',
+          'plumbing' => 'PLUMBING',
+          'cabinetry' => 'CABINETRY',
+          'kitchen' => 'KIT CABINETRY',
+          'section' => 'SECTION',
+          'detail' => 'DETAILS'
+        }
+
+        mappings.each do |keyword, plan_type_name|
+          if normalized.include?(keyword)
+            plan_type = PlanType.active.find_by("LOWER(name) = ?", plan_type_name.downcase)
+            return plan_type if plan_type
+          end
+        end
+
+        nil
       end
     end
   end

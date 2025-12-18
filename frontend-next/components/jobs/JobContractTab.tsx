@@ -5,10 +5,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Save, Pencil, X, Calendar } from "lucide-react";
+import { Loader2, Save, Pencil, X, Calendar, FileText, Eye, Download } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -68,6 +76,13 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Contract generation state
+  const [generating, setGenerating] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [savingContract, setSavingContract] = useState(false);
+
   const [form, setForm] = useState({
     plan_number: job.plan_number || "",
     contract_price: job.contract_price?.toString() || "",
@@ -191,9 +206,71 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     setIsEditing(false);
   };
 
+  // Generate contract PDF for preview
+  const handleGenerateContract = async () => {
+    setGenerating(true);
+    try {
+      const response = await api.post(`/api/v1/jobs/${job.id}/generate_contract`, {}, {
+        responseType: 'blob'
+      });
+
+      // Create blob URL for preview
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setShowPreview(true);
+    } catch (error) {
+      console.error("Failed to generate contract:", error);
+      toast({ title: "Failed to generate contract", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Save contract to job documents
+  const handleSaveContract = async () => {
+    setSavingContract(true);
+    try {
+      await api.post(`/api/v1/jobs/${job.id}/save_contract`);
+      toast({ title: "Contract saved to job documents" });
+      setShowPreview(false);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+      }
+      onUpdate();
+    } catch (error) {
+      console.error("Failed to save contract:", error);
+      toast({ title: "Failed to save contract", variant: "destructive" });
+    } finally {
+      setSavingContract(false);
+    }
+  };
+
+  // Download contract PDF
+  const handleDownloadContract = () => {
+    if (previewUrl) {
+      const link = document.createElement('a');
+      link.href = previewUrl;
+      link.download = `QBCC_Contract_${job.name?.replace(/[^a-zA-Z0-9]/g, '_') || job.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Cleanup preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
   return (
     <div className="space-y-6">
-      {/* Header with Edit Button */}
+      {/* Header with Edit Button and Create Contract */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold">Contract Details</h2>
@@ -201,23 +278,38 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
             Contract information and build schedule for document generation
           </p>
         </div>
-        {!isEditing ? (
-          <Button variant="outline" onClick={() => setIsEditing(true)}>
-            <Pencil className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
-        ) : (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleCancel} disabled={saving}>
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              Save
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          {!isEditing ? (
+            <>
+              <Button
+                onClick={handleGenerateContract}
+                disabled={generating}
+              >
+                {generating ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="h-4 w-4 mr-2" />
+                )}
+                Create Contract
+              </Button>
+              <Button variant="outline" onClick={() => setIsEditing(true)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={handleCancel} disabled={saving}>
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                Save
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -645,6 +737,44 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Contract Preview Dialog */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-5xl h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>QBCC Contract Preview</DialogTitle>
+            <DialogDescription>
+              Review the contract before saving to job documents
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 h-full">
+            {previewUrl && (
+              <iframe
+                src={previewUrl}
+                className="w-full h-[calc(90vh-180px)] border rounded-md"
+                title="Contract Preview"
+              />
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowPreview(false)}>
+              Close
+            </Button>
+            <Button variant="outline" onClick={handleDownloadContract}>
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+            <Button onClick={handleSaveContract} disabled={savingContract}>
+              {savingContract ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save to Documents
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
