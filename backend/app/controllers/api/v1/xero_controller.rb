@@ -1430,7 +1430,11 @@ module Api
           total_invoices_in_db = base_scope.count
           invoices_with_contacts = base_scope.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
-          invoices_without_contacts = total_invoices_in_db - total_with_contacts
+          # SSoT: Count unlinked invoices that have a real contact name (same logic as unlinked_contacts endpoint)
+          # Excludes blank names and "No Contact" since those can't be matched
+          invoices_without_contacts = base_scope.where(contact_id: nil)
+            .where.not(contact_name: [nil, "", "No Contact"])
+            .count
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           invoice_sync_status_query = XeroSyncStatus.where(sync_type: "invoices")
@@ -1448,12 +1452,18 @@ module Api
 
           # Stage 1 blocker info - why aren't all invoices linked?
           stage1_blocker = if invoices_without_contacts > 0
+            # Count unique Xero contacts (same grouping as unlinked_contacts endpoint)
+            unlinked_contact_count = base_scope.where(contact_id: nil)
+              .where.not(contact_name: [nil, "", "No Contact"])
+              .distinct
+              .count(:contact_name)
             # Find example unlinked invoices to help diagnose
             unlinked_sample = base_scope.where(contact_id: nil).limit(5).pluck(:external_id, :contact_name)
             {
-              reason: "#{invoices_without_contacts} invoices not linked to TEEEM contacts",
+              reason: "#{unlinked_contact_count} Xero contact#{'s' if unlinked_contact_count != 1} with #{invoices_without_contacts} invoice#{'s' if invoices_without_contacts != 1} not linked",
               detail: "Xero contacts need to be matched to TEEEM contacts first",
               unlinked_count: invoices_without_contacts,
+              unlinked_contact_count: unlinked_contact_count,
               sample_unlinked: unlinked_sample.map { |ext_id, name| { xero_id: ext_id, contact_name: name } }
             }
           else
