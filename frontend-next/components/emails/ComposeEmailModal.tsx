@@ -31,6 +31,13 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+
+interface Contact {
+  id: number;
+  display_name: string;
+  email: string | null;
+}
 
 interface EmailAccount {
   id: number | string;
@@ -91,6 +98,23 @@ export function ComposeEmailModal({
 
   const [attachments, setAttachments] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
+
+  // Load contacts with emails when modal opens
+  const loadContacts = async () => {
+    setContactsLoading(true);
+    try {
+      const response = await api.get<{ contacts: Contact[] }>(
+        `/api/v1/contacts?with_email=true&per_page=500`
+      );
+      setContacts((response.contacts || []).filter(c => c.email));
+    } catch (err) {
+      console.error("Failed to load contacts:", err);
+    } finally {
+      setContactsLoading(false);
+    }
+  };
 
   // Get signature for account (if applicable)
   const getSignatureForAccount = (account: EmailAccount | undefined): string => {
@@ -102,10 +126,11 @@ export function ComposeEmailModal({
     return "";
   };
 
-  // Fetch accounts when modal opens
+  // Fetch accounts and contacts when modal opens
   useEffect(() => {
     if (open) {
       fetchAccounts();
+      loadContacts();
       setFormData({
         credential_id: "",
         to: defaultTo,
@@ -296,10 +321,27 @@ export function ComposeEmailModal({
                     )}
                   </Button>
                 </div>
-                <Input
-                  placeholder="recipient@example.com"
-                  value={formData.to}
-                  onChange={(e) => setFormData({ ...formData, to: e.target.value })}
+                <ComboboxDropdown
+                  items={contacts.map((c) => ({
+                    id: c.email || "",
+                    label: `${c.display_name} (${c.email})`,
+                  }))}
+                  selectedItem={
+                    formData.to
+                      ? { id: formData.to, label: formData.to }
+                      : undefined
+                  }
+                  onSelect={(item) => setFormData({ ...formData, to: item.id })}
+                  placeholder="Search contacts or type email..."
+                  searchInTrigger={true}
+                  onCreate={(value) => setFormData({ ...formData, to: value })}
+                  renderOnCreate={(value) => (
+                    <span>Use: <strong>{value}</strong></span>
+                  )}
+                  isLoading={contactsLoading}
+                  emptyResults="Type to search or enter email directly"
+                  clearable={true}
+                  onClear={() => setFormData({ ...formData, to: "" })}
                 />
               </div>
 

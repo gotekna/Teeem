@@ -54,9 +54,23 @@ module Engines
     }.freeze
 
     QBCC_GENERAL_CONDITIONS_FIELDS = {
-      # Reference fields only
+      # Reference fields only (text overlay)
       contract_date: { type: :text, page: 1, x: 400, y: 50, size: 8 },
       job_reference: { type: :text, page: 1, x: 150, y: 50, size: 8 }
+    }.freeze
+
+    # AcroForm field mappings for QBCC General Conditions page 16
+    # Maps our data keys to PDF form field names
+    QBCC_GENERAL_CONDITIONS_FORM_FIELDS = {
+      # Page 16 - Personal Contacts section (YOUR PERSONAL CONTACTS)
+      # Row 4: Building Contractor
+      builder_name: "Text Field 10218",          # Building Contractor Name
+      builder_phone: "Text Field 10219",         # Building Contractor Phone
+      builder_qbcc: "Text Field 10220",          # Building Contractor QBCC License
+
+      # Row 5: Site Supervisor
+      site_supervisor_name: "Text Field 10221",  # Site Supervisor Name
+      site_supervisor_phone: "Text Field 10222"  # Site Supervisor Phone
     }.freeze
 
     attr_reader :template_key, :pdf_path
@@ -172,6 +186,10 @@ module Engines
           existing_name = data[:owner_name]
           data[:owner_name] = "#{existing_name} & #{secondary.full_name}" if existing_name
         end
+
+        # Site supervisor info (from job columns)
+        data[:site_supervisor_name] ||= job.site_supervisor_name
+        data[:site_supervisor_phone] ||= job.site_supervisor_phone
       end
 
       data[:date] ||= format_date(Date.current)
@@ -182,14 +200,43 @@ module Engines
     def fill_form_fields(doc, data)
       return unless doc.acro_form
 
+      # Get explicit field mapping for this template
+      explicit_mapping = form_field_mapping_for_template
+
       doc.acro_form.each_field do |field|
-        field_name = field.full_field_name.to_s.downcase.gsub(/[^a-z0-9]/, "_").to_sym
-        if data.key?(field_name)
-          field.field_value = data[field_name].to_s
+        pdf_field_name = field.full_field_name.to_s
+        value = nil
+
+        # First check explicit mapping (data_key -> pdf_field_name)
+        explicit_mapping.each do |data_key, mapped_field_name|
+          if mapped_field_name == pdf_field_name && data.key?(data_key)
+            value = data[data_key]
+            break
+          end
+        end
+
+        # Fall back to generic name matching if no explicit mapping found
+        if value.nil?
+          generic_key = pdf_field_name.downcase.gsub(/[^a-z0-9]/, "_").to_sym
+          value = data[generic_key] if data.key?(generic_key)
+        end
+
+        if value.present?
+          field.field_value = value.to_s
+          Rails.logger.debug "[PdfOverlayEngine] Filled '#{pdf_field_name}' with '#{value}'"
         end
       end
     rescue StandardError => e
       Rails.logger.warn "[PdfOverlayEngine] Form fill error: #{e.message}"
+    end
+
+    def form_field_mapping_for_template
+      case template_key
+      when :qbcc_general_conditions
+        QBCC_GENERAL_CONDITIONS_FORM_FIELDS
+      else
+        {}
+      end
     end
 
     def apply_text_overlays(doc, data, field_mapping)
