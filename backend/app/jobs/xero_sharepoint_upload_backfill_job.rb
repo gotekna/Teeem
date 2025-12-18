@@ -7,6 +7,19 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
   # Run with: XeroSharepointUploadBackfillJob.perform_now(limit: 50, dry_run: true)
   # Or enqueue: XeroSharepointUploadBackfillJob.perform_later(limit: 100)
   def perform(limit: nil, dry_run: false)
+    # Smart skip: Don't consume a worker thread if there's barely any work
+    # This prevents the recurring job from blocking critical jobs when backlog is small
+    pending_count = CorporateCompanyDocument
+      .where(source: "xero")
+      .where("external_id LIKE ?", "xero:%:pdf")
+      .where(sharepoint_file_id: nil)
+      .count
+
+    if pending_count < 5
+      Rails.logger.info("[XeroSharepointUploadBackfill] Skipping - only #{pending_count} pending (threshold: 5)")
+      return { skipped: true, pending_count: pending_count }
+    end
+
     start_time = Time.current
     stats = {
       total_processed: 0,
@@ -18,7 +31,7 @@ class XeroSharepointUploadBackfillJob < ApplicationJob
       error_details: []
     }
 
-    Rails.logger.info("[XeroSharepointUploadBackfill] Starting backfill job (dry_run: #{dry_run}, limit: #{limit})")
+    Rails.logger.info("[XeroSharepointUploadBackfill] Starting backfill job (dry_run: #{dry_run}, limit: #{limit}, pending: #{pending_count})")
 
     # Find PDF documents that need uploading
     # SSoT: Only process PDFs (external_id LIKE 'xero:%:pdf'), not old attachment records

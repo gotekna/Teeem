@@ -13,7 +13,22 @@ class JobDocumentSyncJob < ApplicationJob
   # Retry on Microsoft Graph API errors with exponential backoff
   retry_on MicrosoftGraphClient::APIError, wait: :exponentially_longer, attempts: 3
 
+  # Cache key for tracking last full sync time
+  LAST_FULL_SYNC_CACHE_KEY = "job_document_sync:last_full_sync"
+  # Minimum interval between full syncs (4 hours)
+  FULL_SYNC_MIN_INTERVAL = 4.hours
+
   def perform(job_id = nil)
+    # Smart skip for full syncs: Don't run if we ran recently
+    # This prevents the job from blocking worker threads when data hasn't changed
+    if job_id.nil?
+      last_full_sync = Rails.cache.read(LAST_FULL_SYNC_CACHE_KEY)
+      if last_full_sync && last_full_sync > FULL_SYNC_MIN_INTERVAL.ago
+        Rails.logger.info("[JobDocumentSync] Skipping full sync - last ran #{last_full_sync.iso8601} (< #{FULL_SYNC_MIN_INTERVAL.inspect} ago)")
+        return { skipped: true, last_sync: last_full_sync }
+      end
+    end
+
     credential = OrganizationSharePointCredential.active_credential
     unless credential
       Rails.logger.warn("[JobDocumentSync] No active OneDrive credential found")
@@ -28,6 +43,8 @@ class JobDocumentSyncJob < ApplicationJob
       sync_single_job(Job.find(job_id))
     else
       sync_all_jobs
+      # Record full sync completion for smart skip logic
+      Rails.cache.write(LAST_FULL_SYNC_CACHE_KEY, Time.current, expires_in: FULL_SYNC_MIN_INTERVAL * 2)
     end
 
     Rails.logger.info("[JobDocumentSync] Complete: #{@stats.inspect}")
