@@ -1,5 +1,21 @@
+# DEPRECATED: This model is being replaced by MicrosoftCredential (SSoT migration)
+# Use MicrosoftCredential.delegated_credentials.org_level instead
+# Migration: MigrateMicrosoftCredentialsJob
+# Removal planned: After MicrosoftCredential is fully adopted
 class OrganizationOneDriveCredential < ApplicationRecord
   # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)
+
+  # Log deprecation warning (once per class load)
+  def self.inherited(subclass)
+    warn_deprecation
+    super
+  end
+
+  def self.warn_deprecation
+    return if @deprecation_warned
+    @deprecation_warned = true
+    Rails.logger.warn "[DEPRECATED] OrganizationOneDriveCredential is deprecated. Use MicrosoftCredential instead."
+  end
 
   belongs_to :connected_by, class_name: "User", optional: true
 

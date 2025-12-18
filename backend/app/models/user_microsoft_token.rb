@@ -1,5 +1,21 @@
+# DEPRECATED: This model is being replaced by MicrosoftCredential (SSoT migration)
+# Use MicrosoftCredential.for_user(user) instead
+# Migration: MigrateMicrosoftCredentialsJob
+# Removal planned: After MicrosoftCredential is fully adopted
 class UserMicrosoftToken < ApplicationRecord
   belongs_to :user
+
+  # Log deprecation warning (once per class load)
+  def self.inherited(subclass)
+    warn_deprecation
+    super
+  end
+
+  def self.warn_deprecation
+    return if @deprecation_warned
+    @deprecation_warned = true
+    Rails.logger.warn "[DEPRECATED] UserMicrosoftToken is deprecated. Use MicrosoftCredential instead."
+  end
 
   # Status values
   STATUSES = %w[pending connected error disconnected].freeze

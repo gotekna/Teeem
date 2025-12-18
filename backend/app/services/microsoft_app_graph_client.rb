@@ -12,12 +12,44 @@ class MicrosoftAppGraphClient
 
   class NotConnectedError < StandardError; end
   class ApiError < StandardError; end
+  class DeadTokenError < NotConnectedError; end
+
+  # AADSTS error codes indicating refresh token is permanently dead (SSoT)
+  DEAD_TOKEN_ERROR_CODES = %w[
+    AADSTS65001
+    AADSTS70000
+    AADSTS70008
+    AADSTS54005
+    invalid_grant
+  ].freeze
 
   def initialize(credential = nil)
-    @credential = credential || OrganizationMicrosoftAppCredential.active_credential
-    raise NotConnectedError, "Organization Microsoft app not configured" unless @credential
-    raise NotConnectedError, "Organization Microsoft app not connected" unless @credential.status == "connected"
+    @credential = credential || find_active_credential
+    raise NotConnectedError, "SharePoint not configured. Please configure in Admin > System > Connections." unless @credential
+    raise NotConnectedError, "SharePoint not connected. Please reconnect in Admin > System > Connections." unless @credential.status == "connected"
+
+    # Check for dead tokens early
+    if @credential.respond_to?(:refresh_token_dead?) && @credential.refresh_token_dead?
+      reason = @credential.respond_to?(:reconnect_reason) ? @credential.reconnect_reason : "dead token"
+      raise DeadTokenError, "SharePoint connection expired (#{reason}). Please reconnect in Admin > System > Connections."
+    end
   end
+
+  private
+
+  # Find active credential - supports both old and new model (SSoT migration)
+  def find_active_credential
+    # Try new unified MicrosoftCredential first
+    if defined?(MicrosoftCredential) && ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
+      new_cred = MicrosoftCredential.active.app_credentials.connected.first
+      return new_cred if new_cred
+    end
+
+    # Fall back to legacy model
+    OrganizationMicrosoftAppCredential.active_credential
+  end
+
+  public
 
   # ==========================================
   # User Management
@@ -641,6 +673,22 @@ class MicrosoftAppGraphClient
 
   def access_token
     @credential.valid_access_token
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.error "[MicrosoftAppGraph] Token decryption failed: #{e.message}"
+    raise NotConnectedError, "SharePoint credentials expired. Please reconnect SharePoint in Admin > System > Connections."
+  end
+
+  # Check if error indicates dead token
+  def dead_token_error?(error_message)
+    return false if error_message.blank?
+    DEAD_TOKEN_ERROR_CODES.any? { |code| error_message.to_s.include?(code) }
+  end
+
+  # Mark credential as dead
+  def mark_credential_dead!(error_message)
+    return unless @credential.respond_to?(:mark_dead!)
+    @credential.mark_dead!(error_message)
+    Rails.logger.error "[MicrosoftAppGraph] Credential marked as dead: #{error_message}"
   end
 
   def get(endpoint, params = {}, include_search: false)
@@ -697,6 +745,7 @@ class MicrosoftAppGraphClient
   end
 
   # Retry wrapper for handling token expiration and rate limiting
+  # Now includes dead token detection (SSoT migration)
   def with_retry(max_retries: 3, &block)
     attempt = 0
 
@@ -704,23 +753,35 @@ class MicrosoftAppGraphClient
       attempt += 1
       yield
     rescue ApiError => e
+      error_msg = e.message
+
+      # Check for dead token errors first (SSoT - permanent failure)
+      if dead_token_error?(error_msg)
+        mark_credential_dead!(error_msg)
+        raise DeadTokenError, "SharePoint connection permanently failed. Please reconnect in Admin > System > Connections."
+      end
+
       # Extract HTTP status code from error message
-      if e.message.include?("401") || e.message.include?("Unauthorized")
+      if error_msg.include?("401") || error_msg.include?("Unauthorized")
         # Token expired - refresh and retry
         if attempt <= max_retries
           Rails.logger.info "[MicrosoftAppGraph] Token expired (attempt #{attempt}/#{max_retries}), refreshing..."
-          if @credential.fetch_access_token!
+          if refresh_credential_token!
             Rails.logger.info "[MicrosoftAppGraph] Token refreshed, retrying request..."
             retry
           else
+            # Check if token is now dead after failed refresh
+            if @credential.respond_to?(:refresh_token_dead?) && @credential.refresh_token_dead?
+              raise DeadTokenError, "SharePoint token refresh failed permanently. Please reconnect."
+            end
             Rails.logger.error "[MicrosoftAppGraph] Failed to refresh token"
-            raise
+            raise NotConnectedError, "SharePoint authentication failed. Please reconnect."
           end
         else
           Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for token refresh"
-          raise
+          raise NotConnectedError, "SharePoint authentication failed after #{max_retries} attempts."
         end
-      elsif e.message.include?("429") || e.message.include?("Too Many Requests")
+      elsif error_msg.include?("429") || error_msg.include?("Too Many Requests")
         # Rate limited - use exponential backoff
         if attempt <= max_retries
           wait_time = 2 ** attempt  # 2s, 4s, 8s
@@ -729,9 +790,9 @@ class MicrosoftAppGraphClient
           retry
         else
           Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for rate limiting"
-          raise
+          raise ApiError, "SharePoint API rate limit exceeded. Please try again later."
         end
-      elsif e.message.include?("503") || e.message.include?("Service Unavailable")
+      elsif error_msg.include?("503") || error_msg.include?("Service Unavailable")
         # Service unavailable - retry with backoff
         if attempt <= max_retries
           wait_time = 2 ** attempt
@@ -740,12 +801,28 @@ class MicrosoftAppGraphClient
           retry
         else
           Rails.logger.error "[MicrosoftAppGraph] Max retries exceeded for service unavailability"
-          raise
+          raise ApiError, "SharePoint service unavailable. Please try again later."
         end
       else
         # Other error - don't retry
         raise
       end
+    rescue ActiveRecord::Encryption::Errors::Decryption => e
+      Rails.logger.error "[MicrosoftAppGraph] Decryption error during request: #{e.message}"
+      raise NotConnectedError, "SharePoint credentials expired. Please reconnect SharePoint."
+    end
+  end
+
+  # Refresh credential token - supports both old and new models
+  def refresh_credential_token!
+    if @credential.respond_to?(:fetch_app_token!)
+      @credential.fetch_app_token!
+    elsif @credential.respond_to?(:fetch_access_token!)
+      @credential.fetch_access_token!
+    elsif @credential.respond_to?(:valid_access_token)
+      @credential.valid_access_token.present?
+    else
+      false
     end
   end
 

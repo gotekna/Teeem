@@ -112,6 +112,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
       )
     end
 
+    # DUAL-WRITE: Also create/update unified MicrosoftCredential
+    dual_write_app_credential(credential)
+
     render json: {
       success: true,
       message: "App credentials saved for #{org_name}. Now grant admin consent to activate.",
@@ -169,6 +172,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
         is_active: true
       )
     end
+
+    # DUAL-WRITE: Also create/update unified MicrosoftCredential
+    dual_write_app_credential(credential)
 
     render json: {
       success: true,
@@ -250,6 +256,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
         if credential.test_connection!
           credential.mark_admin_consent!(admin_email || "unknown")
           Rails.logger.info "[MicrosoftApp] Admin consent granted for #{credential.name} (tenant: #{tenant})"
+
+          # DUAL-WRITE: Update unified MicrosoftCredential with admin consent
+          dual_write_app_credential_consent(credential, admin_email)
 
           redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_success=true&org=#{CGI.escape(credential.name || '')}", allow_other_host: true
         else
@@ -812,6 +821,58 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
   def current_user_admin?
     current_user&.role == "admin" || current_user&.permissions&.include?("admin")
+  end
+
+  # DUAL-WRITE: Create/update unified MicrosoftCredential for app credentials
+  # This is part of SSoT migration - eventually replaces OrganizationMicrosoftAppCredential
+  def dual_write_app_credential(old_credential)
+    Rails.logger.info "[MicrosoftApp] DUAL-WRITE: Creating/updating MicrosoftCredential for #{old_credential.name}..."
+
+    mc = MicrosoftCredential.find_or_initialize_by(
+      name: old_credential.name,
+      credential_type: "app"
+    )
+
+    mc.update!(
+      client_id: old_credential.client_id,
+      client_secret: old_credential.client_secret,
+      tenant_id: old_credential.tenant_id,
+      status: old_credential.status,
+      setup_by_id: old_credential.setup_by_id,
+      is_active: old_credential.is_active
+    )
+
+    Rails.logger.info "[MicrosoftApp] DUAL-WRITE: MicrosoftCredential created/updated: #{mc.id}"
+    mc
+  rescue StandardError => e
+    # Don't fail the whole operation if dual-write fails
+    Rails.logger.error "[MicrosoftApp] DUAL-WRITE failed (non-fatal): #{e.message}"
+    nil
+  end
+
+  # DUAL-WRITE: Update MicrosoftCredential after admin consent
+  def dual_write_app_credential_consent(old_credential, admin_email)
+    Rails.logger.info "[MicrosoftApp] DUAL-WRITE: Updating MicrosoftCredential after admin consent..."
+
+    mc = MicrosoftCredential.find_by(name: old_credential.name, credential_type: "app")
+    return unless mc
+
+    mc.update!(
+      access_token: old_credential.access_token,
+      token_expires_at: old_credential.token_expires_at,
+      status: "connected",
+      admin_consent_granted_at: Time.current,
+      admin_consent_granted_by: admin_email,
+      sharepoint_site_id: old_credential.sharepoint_site_id,
+      sharepoint_drive_id: old_credential.sharepoint_drive_id,
+      sharepoint_drive_name: old_credential.sharepoint_drive_name
+    )
+
+    Rails.logger.info "[MicrosoftApp] DUAL-WRITE: MicrosoftCredential marked connected: #{mc.id}"
+    mc
+  rescue StandardError => e
+    Rails.logger.error "[MicrosoftApp] DUAL-WRITE consent failed (non-fatal): #{e.message}"
+    nil
   end
 
   def admin_consent_url_for(credential)

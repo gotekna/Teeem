@@ -20,6 +20,7 @@ class MicrosoftGraphBase
   class DeadTokenError < AuthenticationError; end
   class ApiError < StandardError; end
   class NotConnectedError < StandardError; end
+  class RetrySignal < StandardError; end  # Internal signal for retry logic
 
   # AADSTS error codes indicating refresh token is permanently dead
   # Matches MicrosoftCredential::DEAD_TOKEN_ERROR_CODES
@@ -153,8 +154,11 @@ class MicrosoftGraphBase
     begin
       attempt += 1
       yield
+    rescue RetrySignal
+      retry
     rescue ApiError => e
       handle_retry_error(e, attempt, max_retries)
+      retry  # If handle_retry_error doesn't raise, we should retry
     rescue ActiveRecord::Encryption::Errors::Decryption => e
       Rails.logger.error "[#{log_prefix}] Decryption error during request: #{e.message}"
       raise AuthenticationError, "SharePoint credentials expired. Please reconnect SharePoint."
@@ -194,7 +198,7 @@ class MicrosoftGraphBase
 
       if refresh_credential_token!
         Rails.logger.info "[#{log_prefix}] Token refreshed, retrying request..."
-        retry
+        # Return normally to trigger retry in with_retry
       else
         # Check if token is now dead after failed refresh
         if @credential.respond_to?(:refresh_token_dead?) && @credential.refresh_token_dead?
@@ -214,7 +218,7 @@ class MicrosoftGraphBase
       wait_time = 2 ** attempt  # 2s, 4s, 8s
       Rails.logger.warn "[#{log_prefix}] Rate limited (attempt #{attempt}/#{max_retries}), waiting #{wait_time}s..."
       sleep(wait_time)
-      retry
+      # Return normally to trigger retry in with_retry
     else
       Rails.logger.error "[#{log_prefix}] Max retries exceeded for rate limiting"
       raise ApiError, "SharePoint API rate limit exceeded. Please try again later."
@@ -226,7 +230,7 @@ class MicrosoftGraphBase
       wait_time = 2 ** attempt
       Rails.logger.warn "[#{log_prefix}] Service unavailable (attempt #{attempt}/#{max_retries}), waiting #{wait_time}s..."
       sleep(wait_time)
-      retry
+      # Return normally to trigger retry in with_retry
     else
       Rails.logger.error "[#{log_prefix}] Max retries exceeded for service unavailability"
       raise ApiError, "SharePoint service unavailable. Please try again later."

@@ -1,8 +1,24 @@
+# DEPRECATED: This model is being replaced by MicrosoftCredential (SSoT migration)
+# Use MicrosoftCredential.app_credentials instead
+# Migration: MigrateMicrosoftCredentialsJob
+# Removal planned: After MicrosoftCredential is fully adopted
 class OrganizationMicrosoftAppCredential < ApplicationRecord
   # This uses the Client Credentials flow (application permissions)
   # No user interaction needed after admin consent is granted
   # Can access ANY user's mailbox in the tenant
   # Supports MULTIPLE Microsoft 365 tenants (Tekna, 100xBestLife, Homes of Hope, Love Your World)
+
+  # Log deprecation warning (once per class load)
+  def self.inherited(subclass)
+    warn_deprecation
+    super
+  end
+
+  def self.warn_deprecation
+    return if @deprecation_warned
+    @deprecation_warned = true
+    Rails.logger.warn "[DEPRECATED] OrganizationMicrosoftAppCredential is deprecated. Use MicrosoftCredential instead."
+  end
 
   belongs_to :setup_by, class_name: "User", optional: true
   has_many :attachments, dependent: :nullify

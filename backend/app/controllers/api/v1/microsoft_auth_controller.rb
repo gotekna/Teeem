@@ -119,6 +119,9 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # This allows the org to have shared OneDrive/SharePoint access via any user's connection
     update_organization_onedrive_credential(user, tokens)
 
+    # DUAL-WRITE: Also create/update unified MicrosoftCredential (SSoT migration)
+    update_unified_microsoft_credential(user, tokens, microsoft_email)
+
     Rails.logger.info "Microsoft connected successfully for user #{user.id} (#{microsoft_email})"
     render_popup_close_page(success: true, email: microsoft_email, frontend_url: frontend_url)
   rescue => e
@@ -428,6 +431,35 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       email: email,
       tenant_id: ENV["OUTLOOK_TENANT_ID"] || "common"
     )
+  end
+
+  # DUAL-WRITE: Create/update unified MicrosoftCredential for the user
+  # This is part of SSoT migration - eventually replaces UserMicrosoftToken
+  def update_unified_microsoft_credential(user, tokens, email)
+    Rails.logger.info "[Microsoft Auth] DUAL-WRITE: Updating unified MicrosoftCredential for user #{user.id}..."
+
+    # Find or create user's MicrosoftCredential
+    credential = MicrosoftCredential.find_or_initialize_by(
+      owner_type: "User",
+      owner_id: user.id,
+      credential_type: "delegated"
+    )
+
+    credential.mark_connected!(
+      access_token: tokens[:access_token],
+      refresh_token: tokens[:refresh_token],
+      expires_in: tokens[:expires_in],
+      scope: tokens[:scope],
+      email: email,
+      connected_by_id: user.id
+    )
+
+    Rails.logger.info "[Microsoft Auth] DUAL-WRITE: MicrosoftCredential updated for user #{user.id}"
+    credential
+  rescue StandardError => e
+    # Don't fail the whole OAuth flow if dual-write fails
+    Rails.logger.error "[Microsoft Auth] DUAL-WRITE failed (non-fatal): #{e.message}"
+    nil
   end
 
   def update_organization_onedrive_credential(user, tokens)

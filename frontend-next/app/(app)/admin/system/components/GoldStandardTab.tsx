@@ -1791,7 +1791,7 @@ function GoldDocumentTypeEditor() {
   const getPlaceholderColor = (placeholder: string): string => {
     if (placeholder === "{DocTypeCode}" || placeholder === "{DocTypeName}") return "blue";
     const allPlaceholders = [...BASE_PLACEHOLDERS.company, ...BASE_PLACEHOLDERS.job];
-    const found = allPlaceholders.find(p => p.code === placeholder || p.longCode === placeholder);
+    const found = allPlaceholders.find((p: { code: string; longCode?: string }) => p.code === placeholder || p.longCode === placeholder);
     return found?.color || "purple";
   };
 

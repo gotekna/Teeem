@@ -4,17 +4,54 @@ class MicrosoftGraphClient
 
   class AuthenticationError < StandardError; end
   class APIError < StandardError; end
+  class DeadTokenError < AuthenticationError; end
+
+  # AADSTS error codes indicating refresh token is permanently dead (SSoT)
+  DEAD_TOKEN_ERROR_CODES = %w[
+    AADSTS65001
+    AADSTS70000
+    AADSTS70008
+    AADSTS54005
+    invalid_grant
+  ].freeze
 
   def initialize(credential = nil)
     # Support both per-construction and organization-level credentials
-    @credential = credential || OrganizationOneDriveCredential.active_credential
+    # Also supports new unified MicrosoftCredential (SSoT migration)
+    @credential = credential || find_active_credential
 
     unless @credential
-      raise AuthenticationError, "No OneDrive credential found. Please connect OneDrive first."
+      raise AuthenticationError, "SharePoint not connected. Please connect in Admin > System > Connections."
+    end
+
+    # Check for dead tokens early
+    if @credential.respond_to?(:refresh_token_dead?) && @credential.refresh_token_dead?
+      reason = @credential.respond_to?(:reconnect_reason) ? @credential.reconnect_reason : "dead token"
+      raise DeadTokenError, "SharePoint connection expired (#{reason}). Please reconnect in Admin > System > Connections."
     end
 
     ensure_valid_token!
   end
+
+  # Find active credential - supports both old and new model (SSoT migration)
+  def self.find_active_credential
+    # Try new unified MicrosoftCredential first (delegated, org-level)
+    if defined?(MicrosoftCredential) && ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
+      new_cred = MicrosoftCredential.active.delegated_credentials.org_level.connected.first
+      return new_cred if new_cred
+    end
+
+    # Fall back to legacy model
+    OrganizationOneDriveCredential.active_credential
+  end
+
+  private
+
+  def find_active_credential
+    self.class.find_active_credential
+  end
+
+  public
 
   # Returns the correct drive path prefix based on credential type
   # If organization credential with drive_id: "/drives/{drive_id}"
@@ -893,6 +930,22 @@ class MicrosoftGraphClient
 
     Rails.logger.info "Token expired, refreshing..."
     refresh_token!
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    Rails.logger.error "[MicrosoftGraph] Token decryption failed: #{e.message}"
+    raise AuthenticationError, "SharePoint credentials expired. Please reconnect SharePoint in Admin > System > Connections."
+  end
+
+  # Check if error indicates dead token (SSoT)
+  def dead_token_error?(error_message)
+    return false if error_message.blank?
+    DEAD_TOKEN_ERROR_CODES.any? { |code| error_message.to_s.include?(code) }
+  end
+
+  # Mark credential as dead (SSoT)
+  def mark_credential_dead!(error_message)
+    return unless @credential.respond_to?(:mark_dead!)
+    @credential.mark_dead!(error_message)
+    Rails.logger.error "[MicrosoftGraph] Credential marked as dead: #{error_message}"
   end
 
   def create_subfolders_from_template(template, parent_folder_id, job_data)
@@ -953,11 +1006,21 @@ class MicrosoftGraphClient
     when 204
       true
     when 401
+      error_details = response.parsed_response || {}
+      error_message = error_details.dig("error", "message") ||
+                     error_details.dig("error_description") ||
+                     "Authentication failed"
+
+      # Check for dead token errors (SSoT)
+      if dead_token_error?(error_message)
+        mark_credential_dead!(error_message)
+        raise DeadTokenError, "SharePoint connection permanently failed. Please reconnect in Admin > System > Connections."
+      end
+
       # Token might be expired, try refreshing once
       if @token_refresh_attempted
-        error_details = response.parsed_response || {}
-        Rails.logger.error "OneDrive API 401 Error: #{error_details.inspect}"
-        raise AuthenticationError, "Authentication failed after token refresh. Details: #{error_details}"
+        Rails.logger.error "SharePoint API 401 Error: #{error_details.inspect}"
+        raise AuthenticationError, "SharePoint authentication failed. Please reconnect in Admin > System > Connections."
       end
 
       @token_refresh_attempted = true
@@ -965,7 +1028,7 @@ class MicrosoftGraphClient
       raise AuthenticationError, "Token expired, please retry request"
     when 404
       error_details = response.parsed_response || {}
-      Rails.logger.error "OneDrive API 404 Error: #{error_details.inspect}"
+      Rails.logger.error "SharePoint API 404 Error: #{error_details.inspect}"
       raise APIError, "Resource not found (404). Details: #{error_details}"
     when 429
       retry_after = response.headers["Retry-After"]&.to_i || 60
@@ -977,11 +1040,17 @@ class MicrosoftGraphClient
                      error_details.dig("error_description") ||
                      "API request failed with status #{response.code}"
 
-      Rails.logger.error "OneDrive API Error (#{response.code}): #{error_details.inspect}"
+      # Check for dead token errors in any response (SSoT)
+      if dead_token_error?(error_message)
+        mark_credential_dead!(error_message)
+        raise DeadTokenError, "SharePoint connection permanently failed. Please reconnect in Admin > System > Connections."
+      end
+
+      Rails.logger.error "SharePoint API Error (#{response.code}): #{error_details.inspect}"
       Rails.logger.error "Request URL: #{response.request.uri}"
       Rails.logger.error "Error Code: #{error_code}" if error_code
 
-      full_error = "OneDrive API Error (#{response.code})"
+      full_error = "SharePoint API Error (#{response.code})"
       full_error += " [#{error_code}]" if error_code
       full_error += ": #{error_message}"
       full_error += ". Full response: #{error_details.to_json}"
