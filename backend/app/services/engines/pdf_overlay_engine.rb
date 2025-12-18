@@ -315,20 +315,25 @@ module Engines
         data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?
         data[:spec_date] ||= format_date(job.try(:spec_date)) if job.try(:spec_date).present?
 
-        # Owner info from primary contact
-        primary = job.try(:primary_contact)
-        if primary
-          data[:owner_name] ||= primary.full_name
-          data[:owner_address] ||= primary.try(:address)
-          data[:owner_phone] ||= primary.try(:phone)
-          data[:owner_email] ||= primary.try(:email)
-        end
+        # Owner info from ALL client contacts (handles multiple owners, companies, combos)
+        client_contacts = job.job_contacts
+          .where(role: "client")
+          .includes(:contact)
+          .order(primary: :desc, created_at: :asc)
+          .map(&:contact)
+          .compact
 
-        # Add secondary contact if exists (append to owner name)
-        secondary = job.try(:secondary_contact)
-        if secondary
-          existing_name = data[:owner_name]
-          data[:owner_name] = "#{existing_name} & #{secondary.full_name}" if existing_name
+        if client_contacts.any?
+          # Build owner name from all clients
+          owner_names = client_contacts.map { |c| format_contract_party(c) }
+
+          data[:owner_name] ||= owner_names.join(" & ")
+
+          # Use primary contact's details for address/phone/email
+          primary = client_contacts.first
+          data[:owner_address] ||= primary.try(:address)
+          data[:owner_phone] ||= primary.try(:mobile_phone) || primary.try(:phone)
+          data[:owner_email] ||= primary.try(:email)
         end
 
         # Owner's Authorised Representative (from job_contacts with role 'client_representative')
@@ -483,6 +488,56 @@ module Engines
       raise OverlayError, "Failed to apply text overlay: #{e.message}"
     end
 
+    # Format contact name for contract party field
+    # - Person: "First Last"
+    # - Company: "Company Name ACN XX XXX XXX" or "Company Name ABN XX XXX XXX XXX"
+    # - Trust: "Trust Name as Trustee for [Trustee Name]" or "Trust Name (Trustee: Name)"
+    # - Sole Trader: "First Last trading as Business Name"
+    def format_contract_party(contact)
+      return contact.full_name if contact.blank?
+
+      case contact.entity_type
+      when "company"
+        name = contact.company_name_or_trust.presence || contact.full_name
+        # Prefer ACN for companies, fall back to ABN
+        if contact.try(:acn).present?
+          "#{name} ACN #{format_acn(contact.acn)}"
+        elsif contact.try(:abn).present?
+          "#{name} ABN #{format_abn(contact.abn)}"
+        else
+          name
+        end
+
+      when "trust"
+        name = contact.company_name_or_trust.presence || contact.full_name
+        # Find trustee via incoming relationships (people who are trustees OF this trust)
+        trustee = contact.incoming_relationships
+          .where(relationship_type: "trustee_of", is_active: true)
+          .includes(:contact)
+          .first&.contact
+
+        if trustee
+          trustee_name = format_contract_party(trustee)  # Recursively format (trustee could be a company)
+          "#{trustee_name} as Trustee for #{name}"
+        else
+          name
+        end
+
+      when "sole_trader"
+        person_name = [contact.first_name, contact.last_name].compact.join(" ")
+        business_name = contact.company_name_or_trust
+        if business_name.present? && business_name != person_name
+          "#{person_name} trading as #{business_name}"
+        else
+          person_name.presence || contact.full_name
+        end
+
+      else
+        # Person or unknown - just use full name
+        contact.full_name
+      end
+    end
+
     def format_date(date)
       return "" unless date
       date.strftime("%d/%m/%Y")
@@ -496,6 +551,11 @@ module Engines
     def format_abn(abn)
       return "" unless abn
       abn.to_s.gsub(/\D/, "").gsub(/(\d{2})(\d{3})(\d{3})(\d{3})/, '\1 \2 \3 \4')
+    end
+
+    def format_acn(acn)
+      return "" unless acn
+      acn.to_s.gsub(/\D/, "").gsub(/(\d{3})(\d{3})(\d{3})/, '\1 \2 \3')
     end
   end
 end

@@ -266,7 +266,7 @@ export function Sidebar() {
               prefetch={false}
               onClick={() => !active && setLoadingHref(item.href)}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 transition-colors relative group",
+                "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
                 active
                   ? "bg-secondary text-secondary-foreground"
                   : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,7 +54,6 @@ import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
-import { StartWorkflowButton } from "@/components/jobs/StartWorkflowButton";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
 
@@ -63,13 +63,20 @@ const LocationMap = dynamic(
   { ssr: false, loading: () => <div className="h-64 bg-muted animate-pulse rounded-lg" /> }
 );
 
-interface Contact {
+interface JobContact {
   id: number;
-  name: string;
-  email: string;
-  mobile?: string;
-  company?: string;
-  is_primary?: boolean;
+  contact_id: number;
+  primary: boolean;
+  role: string;
+  contact: {
+    id: number;
+    display_name: string;
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    mobile_phone?: string;
+    company_name_or_trust?: string;
+  };
 }
 
 interface Job {
@@ -125,7 +132,7 @@ interface Job {
   spec_date?: string;
   practical_completion_date?: string;
   warranty_end_date?: string;
-  contacts?: Contact[];
+  contacts?: JobContact[];
   estimator_analysis?: {
     job_summary?: string;
     key_points?: string[];
@@ -210,20 +217,6 @@ function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline
   }
 }
 
-// Display-only Contract Value Card (SSoT: edit via Contract tab)
-function ContractValueCard({ value }: { value: number }) {
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm text-muted-foreground">Contract Value</span>
-        </div>
-        <p className="text-2xl font-bold mt-1">{formatCurrency(value)}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 // Suburb search interface
 interface SuburbSearchResult {
@@ -810,71 +803,88 @@ export default function JobDetailPage() {
   return (
     <div className="space-y-6 pb-24">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-1">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant={getStageBadgeVariant(job.stage)}>{job.stage}</Badge>
-              <span className="text-sm text-muted-foreground">·</span>
-              <span className="text-sm text-muted-foreground">{job.job_status?.name}</span>
-              {job.certifier_job_no && (
-                <span className="text-sm text-muted-foreground">
-                  · Job #{job.certifier_job_no}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {/* Job Type - Status - Job Stage */}
+              <span className="text-sm text-muted-foreground">{job.job_type?.name || "No Type"}</span>
+              <span className="text-sm text-muted-foreground">-</span>
+              <span className="text-sm text-muted-foreground">{job.job_status?.name || "No Status"}</span>
+              <span className="text-sm text-muted-foreground">-</span>
+              <span className="text-sm text-muted-foreground">{job.job_stage?.name || job.stage || "No Stage"}</span>
+              {/* Dates */}
+              <span className="text-sm text-muted-foreground ml-2">·</span>
+              <span className="text-sm">
+                <span className="text-muted-foreground">Start:</span>{" "}
+                <span className="font-medium">
+                  {job.start_date
+                    ? new Date(job.start_date).toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "-"}
                 </span>
-              )}
+              </span>
+              <span className="text-sm text-muted-foreground">·</span>
+              <span className="text-sm">
+                <span className="text-muted-foreground">PC:</span>{" "}
+                <span className="font-medium">
+                  {job.practical_completion_date
+                    ? new Date(job.practical_completion_date).toLocaleDateString("en-AU", {
+                        day: "numeric",
+                        month: "short",
+                      })
+                    : "-"}
+                </span>
+              </span>
+              {/* Owners (clients) */}
+              {(() => {
+                const owners = job.contacts?.filter(c => c.role === "client") || [];
+                if (owners.length === 0) return null;
+                return (
+                  <>
+                    <span className="text-sm text-muted-foreground">·</span>
+                    <span className="text-sm">
+                      <span className="text-muted-foreground">Owner:</span>{" "}
+                      {owners.map((o, idx) => (
+                        <span key={o.contact_id}>
+                          {idx > 0 && " & "}
+                          <Link
+                            href={`/contacts/${o.contact_id}?returnTo=/jobs/${jobId}?tab=${activeTab}`}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {o.contact.display_name}
+                          </Link>
+                        </span>
+                      ))}
+                    </span>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <StartWorkflowButton jobId={job.id} jobName={job.name} />
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Contract Value */}
+          <div className="flex items-center gap-1 px-3 py-1.5 bg-muted rounded-md">
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <span className="font-semibold">{formatCurrency(job.contract_price || job.contract_value || 0)}</span>
+          </div>
+          {/* Profit */}
+          <div className="flex items-center gap-1 px-3 py-1.5 bg-muted rounded-md">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <span className="font-semibold">{formatCurrency(job.live_profit || 0)}</span>
+            <span className="text-muted-foreground text-sm">({Number(job.profit_percentage ?? 0).toFixed(1)}%)</span>
+          </div>
           <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
             Open Schedule Master
           </Button>
         </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <ContractValueCard value={job.contract_price || job.contract_value || 0} />
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Live Profit</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{formatCurrency(job.live_profit || 0)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Profit %</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">{Number(job.profit_percentage ?? 0).toFixed(1)}%</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Start Date</span>
-            </div>
-            <p className="text-2xl font-bold mt-1">
-              {job.start_date
-                ? new Date(job.start_date).toLocaleDateString("en-AU", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })
-                : "Not set"}
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Tabs */}

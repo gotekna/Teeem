@@ -1,12 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, DragEvent } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,18 +24,16 @@ import {
 import {
   FileText,
   Mail,
-  ExternalLink,
-  RefreshCw,
   Loader2,
   CheckCircle,
   Plus,
-  Eye,
   Upload,
   X,
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { useToast } from "@/components/ui/use-toast";
+import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
 
 interface PlanTypeOption {
   id: number;
@@ -112,10 +107,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const [activeSubTab, setActiveSubTab] = useState("on-issue");
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
-  const [selectedPlan, setSelectedPlan] = useState<JobPlan | null>(null);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [showEmailModal, setShowEmailModal] = useState(false);
 
   // Add Plan Dialog State
@@ -149,21 +142,22 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const fetchPlans = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
 
-      const endpoint = activeSubTab === "on-issue"
-        ? `/api/v1/jobs/${jobId}/job_plans/on_issue`
-        : `/api/v1/jobs/${jobId}/job_plans`;
+      const endpoint =
+        activeSubTab === "on-issue"
+          ? `/api/v1/jobs/${jobId}/job_plans/on_issue`
+          : `/api/v1/jobs/${jobId}/job_plans`;
 
-      const response = await api.get(endpoint) as { success: boolean; data?: JobPlan[]; error?: string };
+      const response = (await api.get(endpoint)) as {
+        success: boolean;
+        data?: JobPlan[];
+        error?: string;
+      };
 
       if (response.success) {
         setPlans(response.data || []);
-      } else {
-        setError(response.error || "Failed to load plans");
       }
     } catch (err) {
-      setError("Failed to load plans");
       console.error("Error fetching plans:", err);
     } finally {
       setLoading(false);
@@ -173,7 +167,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   // Fetch tabs (categories)
   const fetchTabs = useCallback(async () => {
     try {
-      const response = await api.get(`/api/v1/jobs/${jobId}/job_plans/tabs`) as { success: boolean; data?: PlanTab[] };
+      const response = (await api.get(
+        `/api/v1/jobs/${jobId}/job_plans/tabs`
+      )) as { success: boolean; data?: PlanTab[] };
       if (response.success) {
         setTabs(response.data || []);
       }
@@ -186,7 +182,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const fetchPlanTypes = useCallback(async () => {
     try {
       setLoadingPlanTypes(true);
-      const response = await api.get("/api/v1/plan_types") as { success: boolean; data?: PlanTypeOption[] };
+      const response = (await api.get("/api/v1/plan_types")) as {
+        success: boolean;
+        data?: PlanTypeOption[];
+      };
       if (response.success) {
         setPlanTypes(response.data || []);
       }
@@ -202,24 +201,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     fetchTabs();
   }, [fetchPlans, fetchTabs]);
 
-  // Toggle plan selection
-  const togglePlanSelection = (planId: number) => {
-    setSelectedPlanIds((prev) =>
-      prev.includes(planId)
-        ? prev.filter((id) => id !== planId)
-        : [...prev, planId]
-    );
-  };
-
-  // Select all plans
-  const selectAllPlans = () => {
-    if (selectedPlanIds.length === plans.length) {
-      setSelectedPlanIds([]);
-    } else {
-      setSelectedPlanIds(plans.map((p) => p.id));
-    }
-  };
-
   // Get PDF preview URL
   const getPdfPreviewUrl = (revision: Revision | null) => {
     if (!revision?.sharepoint_file_id) return null;
@@ -227,12 +208,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   };
 
   // Open Add Plan dialog
-  const handleOpenAddDialog = (file?: File) => {
+  const handleOpenAddDialog = () => {
     fetchPlanTypes();
     setSelectedPlanTypeId("");
     setSelectedTabId("");
     setVariantSuffix("");
-    setSelectedFile(file || null);
+    setSelectedFile(null);
     setShowAddDialog(true);
   };
 
@@ -263,9 +244,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       const formData = new FormData();
       formData.append("file", file);
 
-      console.log('[PlanUpload] Starting upload:', file.name, file.size);
-
-      // Upload to new plan_uploads endpoint (with progress tracking)
       const result = await api.postFormData<{
         success: boolean;
         data?: {
@@ -278,12 +256,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           processed_pages: number;
           error_message: string | null;
         };
-        error?: string
-      }>(
-        `/api/v1/jobs/${jobId}/plan_uploads`,
-        formData,
-        { timeout: 60000 }
-      );
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/plan_uploads`, formData, { timeout: 60000 });
 
       if (result.success && result.data) {
         const uploadId = result.data.id;
@@ -317,7 +291,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               setUploadProgress(progress);
               setProcessingProgress(progress.current_step);
 
-              // Check if completed
               if (progress.status === "completed") {
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current);
@@ -333,7 +306,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                 fetchTabs();
               }
 
-              // Check if failed
               if (progress.status === "failed") {
                 if (pollIntervalRef.current) {
                   clearInterval(pollIntervalRef.current);
@@ -351,7 +323,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           } catch {
             // Ignore polling errors
           }
-        }, 2000); // Poll every 2 seconds
+        }, 2000);
 
         // Safety timeout - stop polling after 5 minutes
         setTimeout(() => {
@@ -364,7 +336,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
             fetchTabs();
           }
         }, 300000);
-
       } else {
         throw new Error(result.error || "Failed to start upload");
       }
@@ -372,7 +343,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       console.error("Error processing plan set:", err);
       toast({
         title: "Upload Failed",
-        description: err instanceof Error ? err.message : "Failed to upload plan set",
+        description:
+          err instanceof Error ? err.message : "Failed to upload plan set",
         variant: "destructive",
       });
       setProcessingPlanSet(false);
@@ -426,12 +398,66 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   };
 
   // Resolve template placeholders with actual values
-  const resolveTemplate = (template: string, values: Record<string, string>) => {
+  const resolveTemplate = (
+    template: string,
+    values: Record<string, string>
+  ) => {
     let result = template;
     Object.entries(values).forEach(([key, value]) => {
       result = result.replace(new RegExp(`\\{${key}\\}`, "g"), value || "");
     });
     return result.trim();
+  };
+
+  // Handle rename
+  const handleRename = async (plan: JobPlan, newName: string) => {
+    const response = (await api.patch(
+      `/api/v1/jobs/${jobId}/job_plans/${plan.id}`,
+      {
+        job_plan: { display_name: newName },
+      }
+    )) as { success: boolean; error?: string };
+
+    if (response.success) {
+      toast({ title: "Success", description: "Plan renamed successfully" });
+      fetchPlans();
+    } else {
+      toast({
+        title: "Error",
+        description: response.error || "Failed to rename plan",
+        variant: "destructive",
+      });
+      throw new Error(response.error);
+    }
+  };
+
+  // Handle set on issue
+  const handleSetOnIssue = async (plan: JobPlan) => {
+    if (!plan.current_revision) {
+      toast({
+        title: "Error",
+        description: "Plan has no revision to set on issue",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const response = (await api.put(
+      `/api/v1/jobs/${jobId}/job_plans/${plan.id}/set_on_issue`,
+      { revision_id: plan.current_revision.id }
+    )) as { success: boolean; error?: string };
+
+    if (response.success) {
+      toast({ title: "Success", description: "Plan marked as On Issue" });
+      fetchPlans();
+    } else {
+      toast({
+        title: "Error",
+        description: response.error || "Failed to set on issue",
+        variant: "destructive",
+      });
+      throw new Error(response.error);
+    }
   };
 
   // Save new plan
@@ -445,7 +471,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       return;
     }
 
-    const selectedPlanType = planTypes.find(pt => pt.id === parseInt(selectedPlanTypeId));
+    const selectedPlanType = planTypes.find(
+      (pt) => pt.id === parseInt(selectedPlanTypeId)
+    );
     if (!selectedPlanType) {
       toast({
         title: "Error",
@@ -455,24 +483,22 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       return;
     }
 
-    // Get the selected category for template resolution
-    const selectedTab = selectedTabId ? tabs.find(t => t.id === parseInt(selectedTabId)) : null;
+    const selectedTab = selectedTabId
+      ? tabs.find((t) => t.id === parseInt(selectedTabId))
+      : null;
 
-    // Template values for resolution
     const templateValues: Record<string, string> = {
       JobCode: jobCode,
       JobName: jobTitle,
       Code: selectedPlanType.code,
       Name: selectedPlanType.name,
       Variant: variantSuffix || "",
-      Rev: "A", // First revision
+      Rev: "A",
       Date: new Date().toISOString().split("T")[0].replace(/-/g, ""),
       Category: selectedTab?.name || "",
       CategoryCode: selectedTab?.code || "",
     };
 
-    // Resolve short name (for file) and long name (for display)
-    // Use effective templates (includes global defaults from SystemSettings)
     const shortTemplate = selectedPlanType.effective_short_template;
     const longTemplate = selectedPlanType.effective_long_template;
 
@@ -481,15 +507,17 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
     setSaving(true);
     try {
-      // Step 1: Create the job plan with the long name as display_name
-      const planResponse = await api.post(`/api/v1/jobs/${jobId}/job_plans`, {
-        job_plan: {
-          plan_type_id: parseInt(selectedPlanTypeId),
-          job_plan_tab_id: selectedTabId ? parseInt(selectedTabId) : null,
-          variant_suffix: variantSuffix || null,
-          display_name: longName, // Long name = display in UI
-        },
-      }) as { success: boolean; data?: JobPlan; error?: string };
+      const planResponse = (await api.post(
+        `/api/v1/jobs/${jobId}/job_plans`,
+        {
+          job_plan: {
+            plan_type_id: parseInt(selectedPlanTypeId),
+            job_plan_tab_id: selectedTabId ? parseInt(selectedTabId) : null,
+            variant_suffix: variantSuffix || null,
+            display_name: longName,
+          },
+        }
+      )) as { success: boolean; data?: JobPlan; error?: string };
 
       if (!planResponse.success) {
         throw new Error(planResponse.error || "Failed to create plan");
@@ -497,37 +525,39 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       const newPlan = planResponse.data!;
 
-      // Step 2: If a file is selected, upload to SharePoint with renamed file
       if (selectedFile) {
-        // Get file extension from original file
         const fileExt = selectedFile.name.split(".").pop() || "pdf";
-        const renamedFileName = `${shortName}.${fileExt}`; // Short name = file name
+        const renamedFileName = `${shortName}.${fileExt}`;
+        const renamedFile = new File([selectedFile], renamedFileName, {
+          type: selectedFile.type,
+        });
 
-        // Create renamed file blob
-        const renamedFile = new File([selectedFile], renamedFileName, { type: selectedFile.type });
-
-        // Upload file to SharePoint
         const formData = new FormData();
         formData.append("file", renamedFile);
         formData.append("folder_path", `Jobs/${jobCode}/Plans`);
 
-        const uploadResponse = await fetch(`${getApiBaseUrl()}/api/v1/organization_sharepoint/upload`, {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
+        const uploadResponse = await fetch(
+          `${getApiBaseUrl()}/api/v1/organization_sharepoint/upload`,
+          {
+            method: "POST",
+            body: formData,
+            credentials: "include",
+          }
+        );
 
         const uploadResult = await uploadResponse.json();
 
         if (uploadResult.success && uploadResult.data) {
-          // Add revision with file info
-          await api.post(`/api/v1/jobs/${jobId}/job_plans/${newPlan.id}/add_revision`, {
-            sharepoint_file_id: uploadResult.data.id,
-            sharepoint_web_url: uploadResult.data.webUrl,
-            file_name: renamedFileName,
-            file_size: selectedFile.size,
-            revision_date: new Date().toISOString().split("T")[0],
-          });
+          await api.post(
+            `/api/v1/jobs/${jobId}/job_plans/${newPlan.id}/add_revision`,
+            {
+              sharepoint_file_id: uploadResult.data.id,
+              sharepoint_web_url: uploadResult.data.webUrl,
+              file_name: renamedFileName,
+              file_size: selectedFile.size,
+              revision_date: new Date().toISOString().split("T")[0],
+            }
+          );
         }
       }
 
@@ -543,7 +573,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       console.error("Error creating plan:", err);
       toast({
         title: "Error",
-        description: err instanceof Error ? err.message : "Failed to create plan",
+        description:
+          err instanceof Error ? err.message : "Failed to create plan",
         variant: "destructive",
       });
     } finally {
@@ -551,196 +582,17 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Get plan types filtered by selected tab's category
   const filteredPlanTypes = selectedTabId
     ? (() => {
-        const tab = tabs.find(t => t.id === parseInt(selectedTabId));
+        const tab = tabs.find((t) => t.id === parseInt(selectedTabId));
         if (tab?.plan_category_id) {
-          return planTypes.filter(pt => pt.category_ids?.includes(tab.plan_category_id!));
+          return planTypes.filter((pt) =>
+            pt.category_ids?.includes(tab.plan_category_id!)
+          );
         }
         return planTypes;
       })()
     : planTypes;
-
-  // Render plans table
-  const renderPlansTable = () => {
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      );
-    }
-
-    if (error) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <p className="mb-4">{error}</p>
-          <Button variant="outline" onClick={fetchPlans}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
-        </div>
-      );
-    }
-
-    if (plans.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-          <FileText className="h-16 w-16 mb-4 opacity-50" />
-          <p className="text-lg mb-2">No plans found</p>
-          <p className="text-sm mb-4">
-            {activeSubTab === "on-issue"
-              ? "No plans are currently on issue"
-              : "Drop a PDF here or click Add Plan to get started"}
-          </p>
-          <Button onClick={() => handleOpenAddDialog()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Plan
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="border rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-muted/50">
-            <tr>
-              <th className="w-10 px-3 py-3">
-                <Checkbox
-                  checked={selectedPlanIds.length === plans.length && plans.length > 0}
-                  onCheckedChange={selectAllPlans}
-                />
-              </th>
-              <th className="px-4 py-3 text-left text-sm font-medium">Sheet</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">Category</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">Revision</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">Date</th>
-              <th className="px-4 py-3 text-left text-sm font-medium">Status</th>
-              <th className="px-4 py-3 text-right text-sm font-medium">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {plans.map((plan) => (
-              <tr
-                key={plan.id}
-                className={`border-t hover:bg-muted/30 cursor-pointer ${
-                  selectedPlan?.id === plan.id ? "bg-muted/50" : ""
-                }`}
-                onClick={() => setSelectedPlan(plan)}
-              >
-                <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
-                  <Checkbox
-                    checked={selectedPlanIds.includes(plan.id)}
-                    onCheckedChange={() => togglePlanSelection(plan.id)}
-                  />
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{plan.display_name}</span>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground">
-                  {plan.plan_type?.category_name || "-"}
-                </td>
-                <td className="px-4 py-3">
-                  {plan.current_revision ? (
-                    <Badge variant="outline">
-                      {plan.current_revision.revision_label}
-                    </Badge>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">-</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-sm text-muted-foreground">
-                  {plan.current_revision?.revision_date || "-"}
-                </td>
-                <td className="px-4 py-3">
-                  {plan.current_revision?.is_on_issue ? (
-                    <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      On Issue
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary">Draft</Badge>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {plan.current_revision?.sharepoint_web_url && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(plan.current_revision!.sharepoint_web_url!, "_blank");
-                        }}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedPlan(plan);
-                      }}
-                    >
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  // Render preview panel
-  const renderPreviewPanel = () => {
-    if (!selectedPlan) {
-      return (
-        <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-          <FileText className="h-16 w-16 mb-4 opacity-50" />
-          <p>Select a plan to preview</p>
-        </div>
-      );
-    }
-
-    const previewUrl = getPdfPreviewUrl(selectedPlan.current_revision);
-
-    if (!previewUrl) {
-      return (
-        <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-          <FileText className="h-16 w-16 mb-4 opacity-50" />
-          <p className="mb-2">{selectedPlan.display_name}</p>
-          <p className="text-sm">No file attached</p>
-          {selectedPlan.current_revision?.sharepoint_web_url && (
-            <Button
-              className="mt-4"
-              onClick={() => window.open(selectedPlan.current_revision!.sharepoint_web_url!, "_blank")}
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Open in SharePoint
-            </Button>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <PDFViewer
-        url={previewUrl}
-        fallbackUrl={selectedPlan.current_revision?.sharepoint_web_url || undefined}
-        className="h-full"
-      />
-    );
-  };
 
   return (
     <div
@@ -755,8 +607,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         <div className="absolute inset-0 z-50 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center">
           <div className="text-center">
             <Upload className="h-16 w-16 mx-auto mb-4 text-primary" />
-            <p className="text-lg font-medium text-primary">Drop PDF here to add plans</p>
-            <p className="text-sm text-muted-foreground mt-2">AI will detect plan types from each page</p>
+            <p className="text-lg font-medium text-primary">
+              Drop PDF here to add plans
+            </p>
+            <p className="text-sm text-muted-foreground mt-2">
+              AI will detect plan types from each page
+            </p>
           </div>
         </div>
       )}
@@ -765,24 +621,27 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       {processingPlanSet && (
         <div className="absolute inset-0 z-50 bg-background/80 flex items-center justify-center">
           <div className="w-[400px] p-6 bg-card border rounded-lg shadow-lg">
-            {/* Header */}
             <div className="flex items-center gap-3 mb-4">
               <Loader2 className="h-8 w-8 text-primary animate-spin shrink-0" />
               <div>
                 <p className="font-medium">Processing Plan Set</p>
-                <p className="text-sm text-muted-foreground">{processingProgress}</p>
+                <p className="text-sm text-muted-foreground">
+                  {processingProgress}
+                </p>
               </div>
             </div>
 
-            {/* Progress bar */}
             {uploadProgress && (
               <>
                 <div className="mb-4">
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-muted-foreground">
-                      {uploadProgress.processed_pages} of {uploadProgress.total_pages || "?"} pages
+                      {uploadProgress.processed_pages} of{" "}
+                      {uploadProgress.total_pages || "?"} pages
                     </span>
-                    <span className="font-medium">{uploadProgress.progress_percent}%</span>
+                    <span className="font-medium">
+                      {uploadProgress.progress_percent}%
+                    </span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div
@@ -792,7 +651,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   </div>
                 </div>
 
-                {/* Live plan list */}
                 {uploadProgress.plans_created.length > 0 && (
                   <div className="max-h-[200px] overflow-y-auto">
                     <p className="text-xs font-medium text-muted-foreground mb-2">
@@ -814,7 +672,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               </>
             )}
 
-            {/* No progress yet */}
             {!uploadProgress && (
               <p className="text-sm text-muted-foreground text-center">
                 Uploading to SharePoint...
@@ -824,31 +681,18 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Header with actions */}
+      {/* Header with filter tabs */}
       <div className="px-4 pb-4 flex items-center justify-between shrink-0">
-        <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="w-auto">
+        <Tabs
+          value={activeSubTab}
+          onValueChange={setActiveSubTab}
+          className="w-auto"
+        >
           <TabsList>
             <TabsTrigger value="on-issue">On Issue</TabsTrigger>
             <TabsTrigger value="all">All Plans</TabsTrigger>
           </TabsList>
         </Tabs>
-
-        <div className="flex items-center gap-2">
-          {selectedPlanIds.length > 0 && (
-            <Button variant="outline" onClick={() => setShowEmailModal(true)}>
-              <Mail className="h-4 w-4 mr-2" />
-              Email ({selectedPlanIds.length})
-            </Button>
-          )}
-          <Button variant="outline" onClick={fetchPlans}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Button onClick={() => handleOpenAddDialog()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Plan
-          </Button>
-        </div>
       </div>
 
       {/* Category tabs */}
@@ -871,22 +715,51 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Main content: table + preview */}
-      <div className="flex-1 flex gap-4 px-4 min-h-0">
-        {/* Plans table */}
-        <div className="flex-1 overflow-auto">
-          {renderPlansTable()}
-        </div>
-
-        {/* Preview panel */}
-        <Card className="w-[400px] shrink-0 flex flex-col">
-          <CardHeader className="py-3 shrink-0">
-            <CardTitle className="text-sm font-medium">Preview</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            {renderPreviewPanel()}
-          </CardContent>
-        </Card>
+      {/* TeeemDocumentView - Main content */}
+      <div className="flex-1 min-h-0 px-4">
+        <TeeemDocumentView
+          documents={plans}
+          title="Plans"
+          getDocumentId={(p) => p.id}
+          getDocumentName={(p) => p.display_name}
+          getDocumentStatus={(p) =>
+            p.current_revision?.is_on_issue ? "approved" : "draft"
+          }
+          getPreviewUrl={(p) => getPdfPreviewUrl(p.current_revision)}
+          getExternalUrl={(p) => p.current_revision?.sharepoint_web_url || null}
+          getRevision={(p) => p.current_revision?.revision_label || null}
+          onRename={handleRename}
+          onApprove={handleSetOnIssue}
+          onRefresh={fetchPlans}
+          enableSelection
+          bulkActions={(ids, clearSelection) => (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedPlanIds(ids);
+                setShowEmailModal(true);
+              }}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Email ({ids.length})
+            </Button>
+          )}
+          leftActions={
+            <Button onClick={handleOpenAddDialog}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Plan
+            </Button>
+          }
+          statusLabels={{ draft: "Draft", approved: "On Issue" }}
+          actionLabels={{ approve: "Set On Issue", openExternal: "Open in SharePoint" }}
+          loading={loading}
+          emptyMessage={
+            activeSubTab === "on-issue"
+              ? "No plans are currently on issue"
+              : "Drop a PDF here or click Add Plan to get started"
+          }
+        />
       </div>
 
       {/* Email Plans Modal */}
@@ -895,7 +768,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         onOpenChange={setShowEmailModal}
         jobId={jobId}
         jobTitle={jobTitle}
-        selectedPlans={plans.filter(p => selectedPlanIds.includes(p.id))}
+        selectedPlans={plans.filter((p) => selectedPlanIds.includes(p.id))}
         onSent={() => {
           setSelectedPlanIds([]);
         }}
@@ -907,12 +780,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           <DialogHeader>
             <DialogTitle>Add Plan</DialogTitle>
             <DialogDescription>
-              Add a new plan to this job. Select a plan type and optionally upload a PDF.
+              Add a new plan to this job. Select a plan type and optionally
+              upload a PDF.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Category/Tab Selection */}
             <div className="space-y-2">
               <Label>Category</Label>
               <Select value={selectedTabId} onValueChange={setSelectedTabId}>
@@ -929,12 +802,18 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               </Select>
             </div>
 
-            {/* Plan Type Selection */}
             <div className="space-y-2">
               <Label>Plan Type *</Label>
-              <Select value={selectedPlanTypeId} onValueChange={setSelectedPlanTypeId}>
+              <Select
+                value={selectedPlanTypeId}
+                onValueChange={setSelectedPlanTypeId}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder={loadingPlanTypes ? "Loading..." : "Select a plan type"} />
+                  <SelectValue
+                    placeholder={
+                      loadingPlanTypes ? "Loading..." : "Select a plan type"
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {filteredPlanTypes.map((pt) => (
@@ -946,7 +825,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               </Select>
             </div>
 
-            {/* Variant Suffix */}
             <div className="space-y-2">
               <Label>Variant (optional)</Label>
               <Input
@@ -960,7 +838,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               </p>
             </div>
 
-            {/* File Upload */}
             <div className="space-y-2">
               <Label>PDF File (optional)</Label>
               <input
@@ -1003,50 +880,68 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               )}
             </div>
 
-            {/* Name Preview */}
-            {selectedPlanTypeId && (() => {
-              const pt = planTypes.find(p => p.id === parseInt(selectedPlanTypeId));
-              const tab = selectedTabId ? tabs.find(t => t.id === parseInt(selectedTabId)) : null;
-              if (!pt) return null;
+            {selectedPlanTypeId &&
+              (() => {
+                const pt = planTypes.find(
+                  (p) => p.id === parseInt(selectedPlanTypeId)
+                );
+                const tab = selectedTabId
+                  ? tabs.find((t) => t.id === parseInt(selectedTabId))
+                  : null;
+                if (!pt) return null;
 
-              const values: Record<string, string> = {
-                JobCode: jobCode,
-                JobName: jobTitle,
-                Code: pt.code,
-                Name: pt.name,
-                Variant: variantSuffix || "",
-                Rev: "A",
-                Date: new Date().toISOString().split("T")[0].replace(/-/g, ""),
-                Category: tab?.name || "",
-                CategoryCode: tab?.code || "",
-              };
+                const values: Record<string, string> = {
+                  JobCode: jobCode,
+                  JobName: jobTitle,
+                  Code: pt.code,
+                  Name: pt.name,
+                  Variant: variantSuffix || "",
+                  Rev: "A",
+                  Date: new Date()
+                    .toISOString()
+                    .split("T")[0]
+                    .replace(/-/g, ""),
+                  Category: tab?.name || "",
+                  CategoryCode: tab?.code || "",
+                };
 
-              const shortName = resolveTemplate(pt.effective_short_template, values);
-              const longName = resolveTemplate(pt.effective_long_template, values);
+                const shortName = resolveTemplate(
+                  pt.effective_short_template,
+                  values
+                );
+                const longName = resolveTemplate(
+                  pt.effective_long_template,
+                  values
+                );
 
-              return (
-                <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
-                  <p className="text-xs font-medium text-muted-foreground">Preview</p>
-                  <div className="space-y-1">
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Filename:</span>{" "}
-                      <span className="font-mono">{shortName}.pdf</span>
+                return (
+                  <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Preview
                     </p>
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Display:</span>{" "}
-                      <span className="font-medium">{longName}</span>
-                    </p>
+                    <div className="space-y-1">
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">Filename:</span>{" "}
+                        <span className="font-mono">{shortName}.pdf</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">Display:</span>{" "}
+                        <span className="font-medium">{longName}</span>
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleSavePlan} disabled={saving || !selectedPlanTypeId}>
+            <Button
+              onClick={handleSavePlan}
+              disabled={saving || !selectedPlanTypeId}
+            >
               {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Add Plan
             </Button>

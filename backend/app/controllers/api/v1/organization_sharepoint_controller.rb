@@ -11,10 +11,10 @@ module Api
       # Handle decryption errors gracefully - this happens when credentials were encrypted
       # with different encryption keys (e.g., production vs development environments)
       rescue_from ActiveRecord::Encryption::Errors::Decryption do |e|
-        Rails.logger.warn "[OneDrive] Decryption error: #{e.message}"
+        Rails.logger.warn "[SharePoint] Decryption error: #{e.message}"
         render json: {
           connected: false,
-          error: "OneDrive credentials could not be decrypted. Please reconnect to OneDrive.",
+          error: "SharePoint credentials could not be decrypted. Please reconnect SharePoint in Admin > System > Connections.",
           decryption_error: true
         }, status: :unauthorized
       end
@@ -73,10 +73,10 @@ module Api
             credential.reload
             Rails.logger.info "[OneDrive Status] Token refreshed successfully"
           rescue StandardError => e
-            Rails.logger.error "[OneDrive Status] Token refresh failed: #{e.message}"
+            Rails.logger.error "[SharePoint] Token refresh failed: #{e.message}"
             return render json: {
               connected: false,
-              message: "Session expired. Please reconnect to OneDrive.",
+              message: "Session expired. Please reconnect SharePoint in Admin > System > Connections.",
               error: "Token refresh failed"
             }
           end

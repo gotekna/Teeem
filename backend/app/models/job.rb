@@ -320,11 +320,17 @@ class Job < ApplicationRecord
     parts = []
 
     # Lot number and street number (house number in parentheses)
-    if lot_number.present? && street_number.present?
-      parts << "Lot #{lot_number} (#{street_number})"
-    elsif lot_number.present?
-      parts << "Lot #{lot_number}"
-    elsif street_number.present?
+    # If no lot_number, don't show "Lot" at all
+    # If street_number is missing/0, show "-" to indicate it's missing
+    has_lot = lot_number.present?
+    has_street_num = street_number.present? && street_number.to_s.strip != "0"
+
+    if has_lot
+      # Always show street number in parens - use "-" if missing
+      street_display = has_street_num ? street_number : "-"
+      parts << "Lot #{lot_number} (#{street_display})"
+    elsif has_street_num
+      # No lot number - just show street number
       parts << street_number
     end
 

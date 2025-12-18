@@ -447,6 +447,18 @@ const TIER_4_COMPONENTS: StandardComponent[] = [
     whenToUse: "Preview documents with full context",
     usageCount: 1,
   },
+  {
+    id: "teeem-document-view",
+    name: "TeeemDocumentView",
+    displayName: "Document Viewer",
+    category: "document",
+    tier: 4,
+    status: "standard",
+    importPath: "@/components/ui/teeem-document-view",
+    description: "Split-view document viewer with 30% list / 70% preview layout. Supports selection, rename, approve, bulk actions.",
+    whenToUse: "Document lists with preview (Job Plans, Corporate Documents, any PDF list)",
+    usageCount: 1,
+  },
 ];
 
 // =============================================================================

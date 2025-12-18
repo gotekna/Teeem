@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_093746) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_124505) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2888,6 +2888,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_093746) do
   end
 
   create_table "job_claim_stages", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.bigint "job_id", null: false
     t.bigint "claim_stage_template_id"
     t.bigint "external_invoice_id"
@@ -2903,8 +2905,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_093746) do
     t.decimal "amount_paid", precision: 12, scale: 2, default: "0.0"
     t.date "payment_date"
     t.boolean "is_custom", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.index ["claim_stage_template_id"], name: "index_job_claim_stages_on_claim_stage_template_id"
     t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
     t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
@@ -3815,6 +3815,33 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_093746) do
     t.index ["code"], name: "index_plan_types_on_code", unique: true
     t.index ["name"], name: "index_plan_types_on_name", unique: true
     t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
+  end
+
+  create_table "plan_uploads", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "uploaded_by_id"
+    t.bigint "job_plan_tab_id"
+    t.string "status", default: "pending", null: false
+    t.string "current_step"
+    t.text "error_message"
+    t.string "original_filename", null: false
+    t.string "staging_file_id"
+    t.bigint "file_size"
+    t.integer "total_pages"
+    t.integer "processed_pages", default: 0
+    t.jsonb "plans_created", default: []
+    t.integer "retry_count", default: 0
+    t.datetime "last_retry_at"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "status"], name: "index_plan_uploads_on_job_id_and_status"
+    t.index ["job_id"], name: "index_plan_uploads_on_job_id"
+    t.index ["job_plan_tab_id"], name: "index_plan_uploads_on_job_plan_tab_id"
+    t.index ["staging_file_id"], name: "index_plan_uploads_on_staging_file_id"
+    t.index ["status"], name: "index_plan_uploads_on_status"
+    t.index ["uploaded_by_id"], name: "index_plan_uploads_on_uploaded_by_id"
   end
 
   create_table "portal_access_logs", force: :cascade do |t|
@@ -6121,6 +6148,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_093746) do
   add_foreign_key "payments", "users", column: "created_by_id"
   add_foreign_key "plan_category_plan_types", "plan_categories"
   add_foreign_key "plan_category_plan_types", "plan_types"
+  add_foreign_key "plan_uploads", "job_plan_tabs"
+  add_foreign_key "plan_uploads", "jobs"
+  add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"

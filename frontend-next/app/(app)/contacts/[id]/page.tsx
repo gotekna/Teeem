@@ -542,6 +542,16 @@ export default function ContactDetailPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const id = params.id as string;
+  const returnTo = searchParams.get("returnTo");
+
+  // Handle back navigation - use returnTo if provided, otherwise use browser history
+  const handleBack = () => {
+    if (returnTo) {
+      router.push(returnTo);
+    } else {
+      router.back();
+    }
+  };
 
   // SSoT: Entity types from API
   const { metadata: entityTypeMetadata } = useEntityTypes();
@@ -2185,7 +2195,7 @@ export default function ContactDetailPage() {
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
         <AlertTriangle className="h-12 w-12 text-red-500" />
         <p className="text-red-600">{error || "Contact not found"}</p>
-        <Button variant="outline" onClick={() => router.back()}>
+        <Button variant="outline" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Go Back
         </Button>
@@ -2198,7 +2208,7 @@ export default function ContactDetailPage() {
       {/* Header */}
       <ContactHeader
         contact={contact}
-        onBack={() => router.back()}
+        onBack={handleBack}
         onDelete={handleDelete}
         onEnrichFromWeb={handleEnrichFromWeb}
         enrichingFromWeb={enrichingFromWeb}

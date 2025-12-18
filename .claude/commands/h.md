@@ -61,10 +61,17 @@ rm -f latest.dump
 bin/rails db:migrate
 bin/rails teeem:create_system_foundations 2>&1 | tail -5
 
-# Step 6: Verify data pulled correctly
+# Step 6: Clear encrypted credentials (can't decrypt with local keys)
+bin/rails runner "
+deleted = MicrosoftCredential.delete_all
+puts '🔑 Cleared #{deleted} Microsoft credentials (encrypted with prod keys)'
+puts '   → Go to Admin > System > Connections to reconnect SharePoint'
+"
+
+# Step 7: Verify data pulled correctly
 bin/rails runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
 
-# Step 7: Restart local servers using screen (persistent)
+# Step 8: Restart local servers using screen (persistent)
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 lsof -ti:3001 | xargs kill -9 2>/dev/null || true
 screen -X -S backend quit 2>/dev/null || true
@@ -74,6 +81,7 @@ screen -dmS backend bash -c 'cd /Users/robertharder/GitHub/teeem/backend && /Use
 screen -dmS frontend-next bash -c 'cd /Users/robertharder/GitHub/teeem/frontend-next && npm run dev'
 
 echo "✅ Database synced and servers restarted (screen sessions: backend, frontend-next)"
+echo "⚠️  Remember: Go to Admin > System > Connections to reconnect SharePoint"
 ```
 
 ## Summary
@@ -85,8 +93,9 @@ echo "✅ Database synced and servers restarted (screen sessions: backend, front
 | 3 | S3 | local file | `aria2c -x 16` (parallel, ~30s) |
 | 4 | local file | teeem_development | `pg_restore` |
 | 5 | - | - | `db:migrate` + `create_system_foundations` |
-| 6 | - | - | Verify data counts |
-| 7 | - | localhost:3000 + 3001 | Restart servers (screen) |
+| 6 | - | - | Clear encrypted credentials (prod keys don't work locally) |
+| 7 | - | - | Verify data counts |
+| 8 | - | localhost:3000 + 3001 | Restart servers (screen) |
 
 ## Notes
 
