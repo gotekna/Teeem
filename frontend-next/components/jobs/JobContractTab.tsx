@@ -207,7 +207,59 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     setIsEditing(false);
   };
 
-  // Generate contract PDF for preview
+  // Start the New Contract workflow
+  const handleStartContractWorkflow = async () => {
+    setGenerating(true);
+    try {
+      // Get the New Contract workflow (ID 1) and fire it
+      // First get triggers for the workflow
+      interface TriggerResponse {
+        triggers: Array<{ id: number; trigger_type: string; is_active: boolean }>;
+      }
+      const triggersResponse = await api.get<TriggerResponse>('/api/v1/bpmn_processes/1/bpmn_triggers');
+      const triggers = triggersResponse?.triggers || [];
+
+      // Find the manual trigger (or first active trigger)
+      const trigger = triggers.find(t => t.trigger_type === 'manual' && t.is_active) || triggers[0];
+
+      if (!trigger) {
+        toast({ title: "No trigger found for New Contract workflow", variant: "destructive" });
+        return;
+      }
+
+      // Fire the workflow
+      interface FireResponse {
+        success: boolean;
+        process_instance?: { id: number };
+        error?: string;
+      }
+      const response = await api.post<FireResponse>(
+        `/api/v1/bpmn_processes/1/bpmn_triggers/${trigger.id}/fire`,
+        {
+          subject_type: 'Job',
+          subject_id: job.id,
+          variables: {},
+        }
+      );
+
+      if (response?.success) {
+        toast({
+          title: "Contract workflow started",
+          description: "Check the Documents tab for generated files.",
+        });
+        onUpdate();
+      } else {
+        toast({ title: response?.error || "Failed to start workflow", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Failed to start contract workflow:", error);
+      toast({ title: "Failed to start contract workflow", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Generate contract PDF for preview (direct generation without workflow)
   const handleGenerateContract = async () => {
     setGenerating(true);
     try {
@@ -318,7 +370,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           {!isEditing ? (
             <>
               <Button
-                onClick={handleGenerateContract}
+                onClick={handleStartContractWorkflow}
                 disabled={generating}
               >
                 {generating ? (
@@ -327,6 +379,14 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                   <FileText className="h-4 w-4 mr-2" />
                 )}
                 Create Contract
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleGenerateContract}
+                disabled={generating}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Preview PDF
               </Button>
               <Button variant="outline" onClick={() => setIsEditing(true)}>
                 <Pencil className="h-4 w-4 mr-2" />

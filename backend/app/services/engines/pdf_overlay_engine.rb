@@ -22,10 +22,11 @@ module Engines
     # Field mappings for QBCC documents - text overlay positions (only used if no form fields)
     QBCC_CONTRACT_FIELDS = {}.freeze  # Contract uses AcroForm fields, not text overlay
 
-    # AcroForm field mappings for QBCC Contract page 1
+    # AcroForm field mappings for QBCC Contract
     # Maps our data keys to PDF form field names
+    # VERIFIED field numbers from diagnostic PDF - 18 Dec 2025
     QBCC_CONTRACT_FORM_FIELDS = {
-      # The Owner section
+      # The Owner section (Page 1)
       owner_name: "Text Field 4",           # Owner's name/s
       owner_email: "Text Field 5",          # Email
       owner_address: "Text Field 6",        # Postal address
@@ -49,49 +50,45 @@ module Engines
       builder_phone: "Text Field 21",       # Mobile phone
       builder_email: "Text Field 22",       # Email
 
-      # Item 3: Description of Works
-      description_of_works: "Text Field 23", # Building work description (from Job Type)
+      # Item 2: Deposit (VERIFIED: Field 32)
+      deposit: "Text Field 32",              # Deposit amount
 
-      # Item 4: The Site
-      site_address: "Text Field 24",         # Site address
-      lot_number: "Text Field 25",           # Lot on plan
-      plan_number: "Text Field 26",          # Plan number (RP/SP)
-      local_authority: "Text Field 27",      # Local authority (council)
+      # Item 3: Description of Works (VERIFIED: Field 33)
+      description_of_works: "Text Field 33", # Building work description (from Job Type)
+
+      # Item 4: The Site (VERIFIED: Fields 34-40)
+      site_address: "Text Field 34",         # Site address line 1
+      site_address_2: "Text Field 35",       # Site address line 2
+      site_postcode: "Text Field 36",        # Site postcode
+      lot_number: "Text Field 37",           # Lot on plan
+      plan_type: "Text Field 38",            # Plan type (RP/SP/BUP)
+      plan_number: "Text Field 39",          # Plan number
+      local_authority: "Text Field 40",      # Local authority (council)
 
       # Item 5: Commencement and Duration
-      proposed_start_date: "Text Field 28",  # Proposed start date
-      build_period: "Text Field 29",         # Building period (weeks)
-      construction_days: "Text Field 31",    # Construction days (default 300)
-      weather_days: "Text Field 32",         # Weather days allowance (default 10)
+      proposed_start_date: "Text Field 41",  # Proposed start date (TBC - needs verification)
+      build_period: "Text Field 42",         # Building period (weeks) (TBC)
+      weather_days: "Text Field 43",         # Weather days allowance (TBC)
+      construction_days: "Text Field 44",    # Construction days (VERIFIED)
 
-      # Item 6: Contract Price
-      contract_price: "Text Field 33",       # Total contract price
+      # Item 6: Contract Price (VERIFIED: Field 31)
+      contract_price: "Text Field 31",       # Total contract price
 
-      # Item 7: Deposit (calculated from Item 6)
-      deposit: "Text Field 34",              # Deposit amount
+      # Item 8a: Progress Payments - percentages only (VERIFIED: Fields 55-59)
+      # Note: Deposit stage uses Item 2 field (32), not a separate stage field
+      stage_1_pct: "Text Field 55",          # Base/Slab %
+      stage_2_pct: "Text Field 56",          # Frame %
+      stage_3_pct: "Text Field 57",          # Enclosed %
+      stage_4_pct: "Text Field 58",          # Fixing %
+      stage_5_pct: "Text Field 59",          # Practical Completion %
 
-      # Item 8a: Progress Payments (from Claims tab)
-      # Each stage has: percentage field, amount field
-      stage_1_pct: "Text Field 35",          # Deposit %
-      stage_1_amt: "Text Field 36",          # Deposit $
-      stage_2_pct: "Text Field 37",          # Base/Slab %
-      stage_2_amt: "Text Field 38",          # Base/Slab $
-      stage_3_pct: "Text Field 39",          # Frame %
-      stage_3_amt: "Text Field 40",          # Frame $
-      stage_4_pct: "Text Field 41",          # Enclosed %
-      stage_4_amt: "Text Field 42",          # Enclosed $
-      stage_5_pct: "Text Field 43",          # Fixing %
-      stage_5_amt: "Text Field 44",          # Fixing $
-      stage_6_pct: "Text Field 45",          # Practical Completion %
-      stage_6_amt: "Text Field 46",          # Practical Completion $
-
-      # Item 13: Liquidated Damages
+      # Item 13: Liquidated Damages (TBC - needs verification)
       liquidated_damages: "Text Field 47",   # Liquidated damages amount per day
 
-      # Item 14: Certification responsibility (text field: "Owner" or "Contractor")
+      # Item 14: Certification responsibility (TBC)
       certification_by: "Text Field 48",     # Who obtains certification
 
-      # Item 15: Prime Cost, Provisional Sums details, and Special Conditions
+      # Item 15: Prime Cost, Provisional Sums details, and Special Conditions (TBC)
       prime_cost_details: "Text Field 49",   # What the prime cost items are
       provisional_sums_details: "Text Field 50", # What the provisional sum items are
       special_conditions: "Text Field 51"    # Special conditions text
@@ -261,21 +258,39 @@ module Engines
         data[:local_authority] ||= job.try(:council)  # Council = Local Authority
         data[:job_reference] ||= job.job_number || job.id.to_s
 
-        # Contract info (Item 6 & 7)
+        # Contract info (Item 6)
         data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
         data[:contract_price] ||= format_currency(job.try(:contract_price))
-        data[:deposit] ||= format_currency(job.try(:deposit))  # Item 7 - from Claims tab
+
+        # Item 2: Deposit (calculate as 5% of contract price if not set)
+        if job.try(:deposit).present?
+          data[:deposit] ||= format_currency(job.deposit)
+        elsif job.try(:contract_price).present?
+          deposit_amount = (job.contract_price * 0.05).round(2)
+          data[:deposit] ||= format_currency(deposit_amount)
+        end
 
         # Item 8a: Progress Payments (from Claims tab)
+        # Stage mapping: 1=Base, 2=Frame, 3=Enclosed, 4=Fixing, 5=Practical Completion
+        # (Deposit is separate in Item 2, not in the stages)
         stages = job.job_claim_stages.order(:sequence_order).to_a
-        stages.each_with_index do |stage, index|
-          stage_num = index + 1
-          next if stage_num > 6  # Max 6 stages on QBCC form
+        stage_names_to_num = {
+          "base" => 1, "slab" => 1, "base/slab" => 1,
+          "frame" => 2,
+          "enclosed" => 3, "lockup" => 3, "lock-up" => 3,
+          "fixing" => 4, "fix" => 4,
+          "practical" => 5, "completion" => 5, "practical completion" => 5
+        }
+
+        stages.each do |stage|
+          # Try to match stage name to a field number
+          stage_name_lower = stage.name.to_s.downcase
+          stage_num = stage_names_to_num.find { |k, _| stage_name_lower.include?(k) }&.last
+
+          next unless stage_num && stage_num <= 5
 
           pct_key = :"stage_#{stage_num}_pct"
-          amt_key = :"stage_#{stage_num}_amt"
           data[pct_key] ||= "#{stage.percentage.to_i}%" if stage.percentage
-          data[amt_key] ||= format_currency(stage.expected_amount) if stage.expected_amount
         end
 
         # Item 5: Commencement and Duration
