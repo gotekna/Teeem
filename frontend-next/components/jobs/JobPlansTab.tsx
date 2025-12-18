@@ -258,22 +258,73 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       console.log('[PlanUpload] Token present:', !!token);
       console.log('[PlanUpload] FormData file:', formData.get('file'));
 
-      setProcessingProgress("Splitting PDF and analyzing with AI...");
-
-      // Long timeout for AI processing of multi-page PDFs (5 minutes)
-      const result = await api.postFormData<{ success: boolean; data?: { plans: unknown[]; total_pages: number }; error?: string }>(
+      // Upload returns immediately - processing happens in background
+      const result = await api.postFormData<{
+        success: boolean;
+        data?: {
+          message: string;
+          processing: boolean;
+          plans?: unknown[];
+          total_pages?: number;
+        };
+        error?: string
+      }>(
         `/api/v1/jobs/${jobId}/job_plans/upload_plan_set`,
         formData,
-        { timeout: 300000 }
+        { timeout: 60000 } // 1 minute should be enough for upload only
       );
 
       if (result.success && result.data) {
-        toast({
-          title: "Plans Added",
-          description: `Created ${result.data.plans.length} plans from ${result.data.total_pages} pages`,
-        });
-        fetchPlans();
-        fetchTabs();
+        // Check if processing in background (new async mode)
+        if (result.data.processing) {
+          setProcessingProgress("Processing in background...");
+          toast({
+            title: "Upload Queued",
+            description: "Your plan set is being processed. Plans will appear shortly.",
+          });
+
+          // Start polling for new plans
+          let pollCount = 0;
+          const maxPolls = 60; // Poll for up to 3 minutes (60 * 3 sec)
+          const pollInterval = setInterval(async () => {
+            pollCount++;
+            try {
+              await fetchPlans();
+              await fetchTabs();
+
+              // If we've polled enough times, stop
+              if (pollCount >= maxPolls) {
+                clearInterval(pollInterval);
+                setProcessingPlanSet(false);
+                setProcessingProgress("");
+                toast({
+                  title: "Processing Complete",
+                  description: "Check the plans list for new entries",
+                });
+              }
+            } catch {
+              // Ignore errors during polling
+            }
+          }, 3000); // Poll every 3 seconds
+
+          // Stop polling after 3 minutes regardless
+          setTimeout(() => {
+            clearInterval(pollInterval);
+            setProcessingPlanSet(false);
+            setProcessingProgress("");
+          }, 180000);
+
+        } else if (result.data.plans) {
+          // Synchronous response (legacy mode)
+          toast({
+            title: "Plans Added",
+            description: `Created ${result.data.plans.length} plans from ${result.data.total_pages} pages`,
+          });
+          fetchPlans();
+          fetchTabs();
+          setProcessingPlanSet(false);
+          setProcessingProgress("");
+        }
       } else {
         throw new Error(result.error || "Failed to process plan set");
       }
@@ -284,7 +335,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         description: err instanceof Error ? err.message : "Failed to process plan set",
         variant: "destructive",
       });
-    } finally {
       setProcessingPlanSet(false);
       setProcessingProgress("");
     }
