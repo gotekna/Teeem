@@ -3,28 +3,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
-interface NavigationItem {
+export interface NavigationItem {
   id: number;
   name: string;
   href: string;
   icon: string;
   badge_key: string | null;
   position: number;
-  navigation_group_id: number | null;
+  is_collapsed: boolean;
+  has_children: boolean;
+  children: NavigationChildItem[];
 }
 
-interface NavigationGroup {
+export interface NavigationChildItem {
   id: number;
   name: string;
+  href: string;
   icon: string;
+  badge_key: string | null;
   position: number;
-  is_collapsible: boolean;
-  items: NavigationItem[];
 }
 
 interface NavigationData {
-  groups: NavigationGroup[];
-  ungrouped_items: NavigationItem[];
+  items: NavigationItem[];
 }
 
 interface NavigationResponse {

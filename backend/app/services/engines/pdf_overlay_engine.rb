@@ -46,6 +46,12 @@ module Engines
       "Text Field 20" => 8,   # Postcode
       "Text Field 21" => 8,   # Phone
       "Text Field 22" => 12,  # Email (needs more offset)
+
+      # Contract Price breakdown (Item 1)
+      "Text Field 27" => 8,   # Fixed price component (a)
+      "Text Field 28" => 8,   # Prime cost items (b)
+      "Text Field 29" => 8,   # Provisional sums (c)
+      "Text Field 31" => 8,   # Contract price total
     }.freeze
 
     # Field mappings for QBCC documents - text overlay positions (only used if no form fields)
@@ -94,14 +100,21 @@ module Engines
       plan_number: "Text Field 39",          # Plan number
       local_authority: "Text Field 40",      # Local authority (council)
 
-      # Item 5: Commencement and Duration
-      proposed_start_date: "Text Field 41",  # Proposed start date (TBC - needs verification)
-      build_period: "Text Field 42",         # Building period (weeks) (TBC)
-      weather_days: "Text Field 43",         # Weather days allowance (TBC)
-      construction_days: "Text Field 44",    # Construction days (VERIFIED)
+      # Item 5: Starting Date (split into day/month/year)
+      start_date_day: "Text Field 41",       # Start date - day
+      start_date_month: "Text Field 42",     # Start date - month
+      start_date_year: "Text Field 43",      # Start date - year (2 digits)
 
-      # Item 6: Contract Price (VERIFIED: Field 31)
-      contract_price: "Text Field 31",       # Total contract price
+      # Item 6: Completion Period
+      construction_days: "Text Field 44",    # A. Construction days
+      weather_days: "Text Field 45",         # B(i). Inclement weather allowance (days)
+      other_delay_days: "Text Field 46",     # B(ii). Other likely delays (days)
+
+      # Item 1: Contract Price breakdown (VERIFIED: Fields 27-29, 31)
+      fixed_price_component: "Text Field 27", # a. Fixed Price Component
+      prime_cost: "Text Field 28",            # b. Prime Cost Items
+      provisional_sums: "Text Field 29",      # c. Provisional Sums
+      contract_price: "Text Field 31",        # Total contract price (a + b + c)
 
       # Item 8a: Progress Payments - percentages only (VERIFIED: Fields 55-59)
       # Note: Deposit stage uses Item 2 field (32), not a separate stage field
@@ -289,9 +302,19 @@ module Engines
         data[:local_authority] ||= job.try(:council)  # Council = Local Authority
         data[:job_reference] ||= job.job_number || job.id.to_s
 
-        # Contract info (Item 6)
+        # Contract info (Item 1: Contract Price breakdown)
         data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
-        data[:contract_price] ||= format_currency(job.try(:contract_price))
+
+        # Item 1a, 1b, 1c: Price breakdown
+        total = job.try(:contract_price).to_f
+        prime = job.try(:prime_cost).to_f
+        provisional = job.try(:provisional_sums).to_f
+        fixed = total - prime - provisional  # a = total - b - c
+
+        data[:fixed_price_component] ||= format_currency(fixed)
+        data[:prime_cost] ||= format_currency(prime)
+        data[:provisional_sums] ||= format_currency(provisional)
+        data[:contract_price] ||= format_currency(total)
 
         # Item 2: Deposit (calculate as 5% of contract price if not set)
         if job.try(:deposit).present?
@@ -324,11 +347,18 @@ module Engines
           data[pct_key] ||= "#{stage.percentage.to_i}%" if stage.percentage
         end
 
-        # Item 5: Commencement and Duration
-        data[:proposed_start_date] ||= format_date(job.try(:start_date)) if job.try(:start_date).present?
-        data[:build_period] ||= job.try(:build_period)
+        # Item 5: Starting Date (split into day/month/year)
+        if job.try(:start_date).present?
+          start = job.start_date
+          data[:start_date_day] ||= start.day.to_s
+          data[:start_date_month] ||= start.month.to_s
+          data[:start_date_year] ||= start.strftime("%y")  # 2-digit year
+        end
+
+        # Item 6: Completion Period
         data[:construction_days] ||= (job.try(:construction_days) || 300).to_s
-        data[:weather_days] ||= job.try(:stage_weather) || "10"
+        data[:weather_days] ||= (job.try(:weather_days) || 10).to_s
+        data[:other_delay_days] ||= job.try(:other_delay_days).to_s if job.try(:other_delay_days).present?
 
         # Item 13: Liquidated Damages
         liquidated_amount = job.try(:liquidated_damages) || 50.00

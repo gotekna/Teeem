@@ -1,4 +1,4 @@
- 
+
 "use client";
 
 import { cn } from "@/lib/utils";
@@ -56,17 +56,17 @@ import {
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
 import { urls } from "@/lib/url-utils";
-import { useNavigation } from "@/hooks/useNavigation";
+import { useNavigation, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
 
-interface NavigationItem {
+interface HardcodedNavItem {
   name: string;
   href: string;
   icon: typeof Home;
   badgeKey?: string;
 }
 
-const navigationItems: NavigationItem[] = [
+const navigationItems: HardcodedNavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Home },
   { name: "Leads", href: "/leads", icon: Target, badgeKey: "pendingProposals" },
   { name: "Jobs", href: urls.jobs(), icon: Briefcase },
@@ -89,19 +89,13 @@ const navigationItems: NavigationItem[] = [
   { name: "Admin", href: "/admin", icon: Wrench },
 ];
 
-// const personaIcons: Record<Persona, typeof HardHat> = {
-//   site: HardHat,
-//   office: Building2,
-//   manager: LayoutGrid,
-// };
-
 export function Sidebar() {
   const { isExpanded, setIsExpanded } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
-  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [collapsedItems, setCollapsedItems] = useState<Set<number>>(new Set());
 
   // Fetch navigation from API
   const { data: apiNavigation, isError: navError } = useNavigation();
@@ -124,6 +118,35 @@ export function Sidebar() {
   useEffect(() => {
     setPersona(getStoredPersona());
   }, []);
+
+  // Initialize collapsed items from API data (collapsed by default)
+  useEffect(() => {
+    if (apiNavigation?.items) {
+      // Check localStorage first for user preference
+      const saved = localStorage.getItem('teeem-nav-collapsed');
+      if (saved) {
+        try {
+          setCollapsedItems(new Set(JSON.parse(saved)));
+        } catch {
+          // Fall back to API defaults
+          const defaultCollapsed = new Set(
+            apiNavigation.items
+              .filter((item) => item.has_children && item.is_collapsed)
+              .map((item) => item.id)
+          );
+          setCollapsedItems(defaultCollapsed);
+        }
+      } else {
+        // Use API defaults - collapsed by default for items with is_collapsed=true
+        const defaultCollapsed = new Set(
+          apiNavigation.items
+            .filter((item) => item.has_children && item.is_collapsed)
+            .map((item) => item.id)
+        );
+        setCollapsedItems(defaultCollapsed);
+      }
+    }
+  }, [apiNavigation]);
 
   // Load backend version
   useEffect(() => {
@@ -234,35 +257,23 @@ export function Sidebar() {
     return navigationItems.filter(item => config.items.includes(item.href));
   }, [persona]);
 
-  // Use API navigation if available, otherwise use hardcoded items
-  const useApiNavigation = apiNavigation && !navError;
+  // Use API navigation if available
+  const useApiNavigation = apiNavigation && !navError && Array.isArray(apiNavigation.items);
 
-  // Toggle group expansion
-  const toggleGroup = (groupId: number) => {
-    setExpandedGroups((prev) => {
+  // Toggle item collapsed state
+  const toggleItemCollapse = (itemId: number) => {
+    setCollapsedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(groupId)) {
-        next.delete(groupId);
+      if (next.has(itemId)) {
+        next.delete(itemId);
       } else {
-        next.add(groupId);
+        next.add(itemId);
       }
       // Save to localStorage
-      localStorage.setItem('teeem-nav-expanded', JSON.stringify([...next]));
+      localStorage.setItem('teeem-nav-collapsed', JSON.stringify([...next]));
       return next;
     });
   };
-
-  // Load expanded groups from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('teeem-nav-expanded');
-    if (saved) {
-      try {
-        setExpandedGroups(new Set(JSON.parse(saved)));
-      } catch {
-        // ignore parse errors
-      }
-    }
-  }, []);
 
   const handleLogout = () => {
     logout();
@@ -272,6 +283,175 @@ export function Sidebar() {
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
     return pathname.startsWith(href);
+  };
+
+  // Render a navigation link
+  const renderNavLink = (
+    item: { href: string; icon: string; name: string; badge_key?: string | null },
+    isChild = false,
+    mobile = false
+  ) => {
+    const ItemIcon = getIcon(item.icon);
+    const active = isActive(item.href);
+    const badgeCount = item.badge_key ? badges[item.badge_key] : 0;
+    const isItemLoading = loadingHref === item.href;
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        prefetch={false}
+        onClick={() => !active && setLoadingHref(item.href)}
+        className={cn(
+          "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+          isChild && (isExpanded || mobile) && "pl-7",
+          active
+            ? "bg-secondary text-secondary-foreground"
+            : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+        )}
+      >
+        <div className="relative shrink-0">
+          {isItemLoading ? (
+            <Loader2 size={16} className="animate-spin text-primary" />
+          ) : (
+            <ItemIcon size={16} />
+          )}
+          {badgeCount > 0 && !isExpanded && !mobile && (
+            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {badgeCount > 9 ? "9+" : badgeCount}
+            </span>
+          )}
+        </div>
+        <span
+          className={cn(
+            "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
+            isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+            isItemLoading && "opacity-50"
+          )}
+        >
+          {item.name}
+          {badgeCount > 0 && (isExpanded || mobile) && (
+            <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+              {badgeCount}
+            </Badge>
+          )}
+        </span>
+        {!isExpanded && !mobile && (
+          <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+            {item.name}
+            {badgeCount > 0 && (
+              <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                {badgeCount}
+              </Badge>
+            )}
+          </div>
+        )}
+      </Link>
+    );
+  };
+
+  // Render a navigation item that can have children
+  const renderNavItem = (item: NavigationItem, mobile = false) => {
+    const ItemIcon = getIcon(item.icon);
+    const active = isActive(item.href);
+    const badgeCount = item.badge_key ? badges[item.badge_key] : 0;
+    const isItemLoading = loadingHref === item.href;
+    const hasChildren = item.has_children && item.children.length > 0;
+    const isCollapsed = collapsedItems.has(item.id);
+
+    return (
+      <div key={item.id}>
+        <div className="flex items-center">
+          {/* Expand/collapse button for items with children */}
+          {hasChildren && (isExpanded || mobile) && (
+            <button
+              onClick={() => toggleItemCollapse(item.id)}
+              className="p-1 hover:bg-secondary/50 rounded shrink-0 ml-1"
+            >
+              <ChevronDown
+                size={14}
+                className={cn(
+                  "transition-transform text-muted-foreground",
+                  isCollapsed && "-rotate-90"
+                )}
+              />
+            </button>
+          )}
+          {/* Spacer when no children or collapsed sidebar */}
+          {(!hasChildren || (!isExpanded && !mobile)) && (
+            <div className={cn("shrink-0", isExpanded || mobile ? "w-6" : "w-0")} />
+          )}
+
+          {/* Main nav link */}
+          <Link
+            href={item.href}
+            prefetch={false}
+            onClick={() => !active && setLoadingHref(item.href)}
+            className={cn(
+              "flex-1 flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+              active
+                ? "bg-secondary text-secondary-foreground"
+                : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+            )}
+          >
+            <div className="relative shrink-0">
+              {isItemLoading ? (
+                <Loader2 size={16} className="animate-spin text-primary" />
+              ) : (
+                <ItemIcon size={16} />
+              )}
+              {badgeCount > 0 && !isExpanded && !mobile && (
+                <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {badgeCount > 9 ? "9+" : badgeCount}
+                </span>
+              )}
+            </div>
+            <span
+              className={cn(
+                "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
+                isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
+                isItemLoading && "opacity-50"
+              )}
+            >
+              {item.name}
+              {badgeCount > 0 && (isExpanded || mobile) && (
+                <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                  {badgeCount}
+                </Badge>
+              )}
+            </span>
+            {!isExpanded && !mobile && (
+              <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+                {item.name}
+                {badgeCount > 0 && (
+                  <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
+                    {badgeCount}
+                  </Badge>
+                )}
+              </div>
+            )}
+          </Link>
+        </div>
+
+        {/* Children (when expanded) */}
+        {hasChildren && !isCollapsed && (
+          <div className="flex flex-col">
+            {item.children.map((child) =>
+              renderNavLink(
+                {
+                  href: child.href,
+                  icon: child.icon,
+                  name: child.name,
+                  badge_key: child.badge_key,
+                },
+                true,
+                mobile
+              )
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const SidebarContent = ({ mobile = false }: { mobile?: boolean }) => (
@@ -291,167 +471,8 @@ export function Sidebar() {
       {/* Main Navigation */}
       <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
         {useApiNavigation ? (
-          <>
-            {/* API-driven navigation with groups */}
-            {apiNavigation.groups.map((group) => {
-              const GroupIcon = getIcon(group.icon);
-              const isGroupExpanded = expandedGroups.has(group.id);
-              const sortedItems = [...group.items].sort((a, b) => a.position - b.position);
-
-              return (
-                <div key={`group-${group.id}`}>
-                  {/* Group header */}
-                  {group.is_collapsible ? (
-                    <button
-                      onClick={() => toggleGroup(group.id)}
-                      className={cn(
-                        "flex items-center gap-3 px-3 py-1.5 w-full transition-colors",
-                        "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                      )}
-                    >
-                      <GroupIcon size={16} className="shrink-0" />
-                      <span
-                        className={cn(
-                          "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm font-medium flex-1 text-left",
-                          isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
-                        )}
-                      >
-                        {group.name}
-                      </span>
-                      {(isExpanded || mobile) && (
-                        <ChevronDown
-                          size={14}
-                          className={cn(
-                            "transition-transform",
-                            !isGroupExpanded && "-rotate-90"
-                          )}
-                        />
-                      )}
-                    </button>
-                  ) : null}
-                  {/* Group items */}
-                  {(!group.is_collapsible || isGroupExpanded) && sortedItems.map((apiItem) => {
-                    const ItemIcon = getIcon(apiItem.icon);
-                    const active = isActive(apiItem.href);
-                    const badgeCount = apiItem.badge_key ? badges[apiItem.badge_key] : 0;
-                    const isItemLoading = loadingHref === apiItem.href;
-
-                    return (
-                      <Link
-                        key={apiItem.href}
-                        href={apiItem.href}
-                        prefetch={false}
-                        onClick={() => !active && setLoadingHref(apiItem.href)}
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-                          group.is_collapsible && (isExpanded || mobile) && "pl-6",
-                          active
-                            ? "bg-secondary text-secondary-foreground"
-                            : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                        )}
-                      >
-                        <div className="relative shrink-0">
-                          {isItemLoading ? (
-                            <Loader2 size={16} className="animate-spin text-primary" />
-                          ) : (
-                            <ItemIcon size={16} />
-                          )}
-                          {badgeCount > 0 && !isExpanded && !mobile && (
-                            <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                              {badgeCount > 9 ? "9+" : badgeCount}
-                            </span>
-                          )}
-                        </div>
-                        <span
-                          className={cn(
-                            "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
-                            isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-                            isItemLoading && "opacity-50"
-                          )}
-                        >
-                          {apiItem.name}
-                          {badgeCount > 0 && (isExpanded || mobile) && (
-                            <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                              {badgeCount}
-                            </Badge>
-                          )}
-                        </span>
-                        {!isExpanded && !mobile && (
-                          <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
-                            {apiItem.name}
-                            {badgeCount > 0 && (
-                              <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                                {badgeCount}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              );
-            })}
-            {/* Ungrouped items */}
-            {apiNavigation.ungrouped_items.map((apiItem) => {
-              const ItemIcon = getIcon(apiItem.icon);
-              const active = isActive(apiItem.href);
-              const badgeCount = apiItem.badge_key ? badges[apiItem.badge_key] : 0;
-              const isItemLoading = loadingHref === apiItem.href;
-
-              return (
-                <Link
-                  key={apiItem.href}
-                  href={apiItem.href}
-                  prefetch={false}
-                  onClick={() => !active && setLoadingHref(apiItem.href)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-                    active
-                      ? "bg-secondary text-secondary-foreground"
-                      : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                  )}
-                >
-                  <div className="relative shrink-0">
-                    {isItemLoading ? (
-                      <Loader2 size={16} className="animate-spin text-primary" />
-                    ) : (
-                      <ItemIcon size={16} />
-                    )}
-                    {badgeCount > 0 && !isExpanded && !mobile && (
-                      <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                        {badgeCount > 9 ? "9+" : badgeCount}
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
-                      isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-                      isItemLoading && "opacity-50"
-                    )}
-                  >
-                    {apiItem.name}
-                    {badgeCount > 0 && (isExpanded || mobile) && (
-                      <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                        {badgeCount}
-                      </Badge>
-                    )}
-                  </span>
-                  {!isExpanded && !mobile && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
-                      {apiItem.name}
-                      {badgeCount > 0 && (
-                        <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                          {badgeCount}
-                        </Badge>
-                      )}
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
-          </>
+          /* API-driven navigation with nested items */
+          apiNavigation.items.map((item) => renderNavItem(item, mobile))
         ) : (
           /* Fallback to hardcoded navigation */
           filteredItems.map((item) => {

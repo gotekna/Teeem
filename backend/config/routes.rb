@@ -70,6 +70,12 @@ Rails.application.routes.draw do
 
       # Navigation (sidebar menu configuration)
       get "navigation", to: "navigation#index"
+      patch "navigation/reorder", to: "navigation#reorder"
+      post "navigation/reset", to: "navigation#reset"
+      patch "navigation/:id/toggle_collapse", to: "navigation#toggle_collapse"
+      patch "navigation/:id/toggle_hidden", to: "navigation#toggle_hidden"
+
+      # Admin: Navigation system config
       resources :navigation_groups, only: [ :index, :create, :update, :destroy ] do
         collection do
           post :reorder
@@ -81,6 +87,7 @@ Rails.application.routes.draw do
         end
         member do
           patch :move_to_group
+          patch :set_parent
         end
       end
 

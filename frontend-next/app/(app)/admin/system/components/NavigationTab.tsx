@@ -18,34 +18,18 @@ import { Badge } from "@/components/ui/badge";
 import { IconPicker } from "@/components/ui/icon-picker";
 import { getIcon } from "@/lib/icon-map";
 import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-  type DragStartEvent,
-} from "@dnd-kit/core";
+  SortableList,
+  SortableItem,
+  reorderByPosition,
+} from "@/components/ui/dnd";
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import {
-  GripVertical,
   Plus,
   Trash2,
   Edit,
   ChevronDown,
   ChevronRight,
   Loader2,
-  FolderPlus,
-  Save,
+  CornerDownRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -66,303 +50,44 @@ interface NavigationItem {
   icon: string;
   badge_key: string | null;
   position: number;
-  navigation_group_id: number | null;
+  parent_id: number | null;
   is_active: boolean;
+  is_collapsed_default: boolean;
   visible_to_roles: string[];
-}
-
-interface NavigationGroup {
-  id: number;
-  name: string;
-  icon: string;
-  position: number;
-  is_active: boolean;
-  is_collapsible: boolean;
-  visible_to_roles: string[];
-  items: NavigationItem[];
-}
-
-interface SortableItemProps {
-  item: NavigationItem;
-  onEdit: (item: NavigationItem) => void;
-  onDelete: (item: NavigationItem) => void;
-}
-
-function SortableNavItem({ item, onEdit, onDelete }: SortableItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: `item-${item.id}` });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const Icon = getIcon(item.icon);
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center gap-2 px-3 py-2 bg-background border rounded-md",
-        isDragging && "opacity-50 shadow-lg"
-      )}
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-      </button>
-      <Icon className="h-4 w-4 text-muted-foreground" />
-      <span className="flex-1 text-sm">{item.name}</span>
-      <span className="text-xs text-muted-foreground">{item.href}</span>
-      {!item.is_active && (
-        <Badge variant="secondary" className="text-xs">
-          Hidden
-        </Badge>
-      )}
-      {item.visible_to_roles.length > 0 && (
-        <Badge variant="outline" className="text-xs">
-          {item.visible_to_roles.length} roles
-        </Badge>
-      )}
-      <Button variant="ghost" size="icon" onClick={() => onEdit(item)}>
-        <Edit className="h-4 w-4" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => onDelete(item)}
-        className="text-destructive hover:text-destructive"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
-
-interface SortableGroupProps {
-  group: NavigationGroup;
-  isExpanded: boolean;
-  onToggle: () => void;
-  onEdit: (group: NavigationGroup) => void;
-  onDelete: (group: NavigationGroup) => void;
-  onEditItem: (item: NavigationItem) => void;
-  onDeleteItem: (item: NavigationItem) => void;
-  onReorderItems: (groupId: number, itemIds: number[]) => void;
-}
-
-function SortableNavGroup({
-  group,
-  isExpanded,
-  onToggle,
-  onEdit,
-  onDelete,
-  onEditItem,
-  onDeleteItem,
-  onReorderItems,
-}: SortableGroupProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: `group-${group.id}` });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const Icon = getIcon(group.icon);
-  const sortedItems = [...group.items].sort((a, b) => a.position - b.position);
-
-  const handleItemDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const activeId = parseInt(String(active.id).replace("item-", ""));
-    const overId = parseInt(String(over.id).replace("item-", ""));
-
-    const oldIndex = sortedItems.findIndex((i) => i.id === activeId);
-    const newIndex = sortedItems.findIndex((i) => i.id === overId);
-
-    if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = arrayMove(sortedItems, oldIndex, newIndex);
-      onReorderItems(
-        group.id,
-        newOrder.map((i) => i.id)
-      );
-    }
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "border rounded-lg bg-card",
-        isDragging && "opacity-50 shadow-lg"
-      )}
-    >
-      <div className="flex items-center gap-2 px-3 py-2 border-b">
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing touch-none"
-        >
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
-        </button>
-        <button onClick={onToggle} className="p-1">
-          {isExpanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </button>
-        <Icon className="h-4 w-4 text-muted-foreground" />
-        <span className="flex-1 font-medium">{group.name}</span>
-        <Badge variant="secondary" className="text-xs">
-          {group.items.length} items
-        </Badge>
-        {!group.is_active && (
-          <Badge variant="secondary" className="text-xs">
-            Hidden
-          </Badge>
-        )}
-        {group.visible_to_roles.length > 0 && (
-          <Badge variant="outline" className="text-xs">
-            {group.visible_to_roles.length} roles
-          </Badge>
-        )}
-        <Button variant="ghost" size="icon" onClick={() => onEdit(group)}>
-          <Edit className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => onDelete(group)}
-          className="text-destructive hover:text-destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-      {isExpanded && (
-        <div className="p-2 space-y-1 bg-muted/30">
-          <DndContext
-            sensors={useSensors(
-              useSensor(PointerSensor, {
-                activationConstraint: { distance: 5 },
-              }),
-              useSensor(KeyboardSensor, {
-                coordinateGetter: sortableKeyboardCoordinates,
-              })
-            )}
-            collisionDetection={closestCenter}
-            onDragEnd={handleItemDragEnd}
-          >
-            <SortableContext
-              items={sortedItems.map((i) => `item-${i.id}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              {sortedItems.map((item) => (
-                <SortableNavItem
-                  key={item.id}
-                  item={item}
-                  onEdit={onEditItem}
-                  onDelete={onDeleteItem}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-          {sortedItems.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No items in this group. Drag items here to add them.
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  has_children: boolean;
+  children_count: number;
 }
 
 export function NavigationTab() {
-  const [groups, setGroups] = React.useState<NavigationGroup[]>([]);
-  const [ungroupedItems, setUngroupedItems] = React.useState<NavigationItem[]>(
-    []
-  );
+  const [items, setItems] = React.useState<NavigationItem[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [expandedGroups, setExpandedGroups] = React.useState<Set<number>>(
-    new Set()
-  );
+  const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
 
   // Dialog states
-  const [editingItem, setEditingItem] = React.useState<NavigationItem | null>(
-    null
-  );
-  const [editingGroup, setEditingGroup] = React.useState<NavigationGroup | null>(
-    null
-  );
-  const [showNewGroup, setShowNewGroup] = React.useState(false);
+  const [editingItem, setEditingItem] = React.useState<NavigationItem | null>(null);
   const [showNewItem, setShowNewItem] = React.useState(false);
+  const [parentForNewItem, setParentForNewItem] = React.useState<number | null>(null);
 
-  // Form states
+  // Form state
   const [itemForm, setItemForm] = React.useState({
     name: "",
     href: "",
     icon: "Folder",
     badge_key: "",
     is_active: true,
-    visible_to_roles: [] as string[],
-  });
-  const [groupForm, setGroupForm] = React.useState({
-    name: "",
-    icon: "Folder",
-    is_active: true,
-    is_collapsible: true,
+    is_collapsed_default: true,
     visible_to_roles: [] as string[],
   });
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  // Load navigation data
+  // Load navigation items
   const loadNavigation = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [groupsRes, itemsRes] = await Promise.all([
-        api.get<{ navigation_groups: NavigationGroup[] }>(
-          "/api/v1/navigation_groups"
-        ),
-        api.get<{ navigation_items: NavigationItem[] }>(
-          "/api/v1/navigation_items"
-        ),
-      ]);
-
-      setGroups(groupsRes.navigation_groups || []);
-
-      // Filter ungrouped items
-      const allItems = itemsRes.navigation_items || [];
-      setUngroupedItems(
-        allItems
-          .filter((i) => !i.navigation_group_id)
-          .sort((a, b) => a.position - b.position)
+      const res = await api.get<{ navigation_items: NavigationItem[] }>(
+        "/api/v1/navigation_items"
       );
+      setItems(res.navigation_items || []);
     } catch (error) {
       console.error("Failed to load navigation:", error);
     } finally {
@@ -374,143 +99,103 @@ export function NavigationTab() {
     loadNavigation();
   }, [loadNavigation]);
 
-  // Toggle group expansion
-  const toggleGroup = (groupId: number) => {
-    setExpandedGroups((prev) => {
+  // Get top-level items (no parent)
+  const topLevelItems = React.useMemo(() => {
+    return items
+      .filter((i) => !i.parent_id)
+      .sort((a, b) => a.position - b.position);
+  }, [items]);
+
+  // Get children for a parent
+  const getChildren = React.useCallback(
+    (parentId: number) => {
+      return items
+        .filter((i) => i.parent_id === parentId)
+        .sort((a, b) => a.position - b.position);
+    },
+    [items]
+  );
+
+  // Toggle item expansion
+  const toggleExpanded = (itemId: number) => {
+    setExpandedItems((prev) => {
       const next = new Set(prev);
-      if (next.has(groupId)) {
-        next.delete(groupId);
+      if (next.has(itemId)) {
+        next.delete(itemId);
       } else {
-        next.add(groupId);
+        next.add(itemId);
       }
       return next;
     });
   };
 
-  // Reorder groups
-  const handleGroupDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const activeId = parseInt(String(active.id).replace("group-", ""));
-    const overId = parseInt(String(over.id).replace("group-", ""));
-
-    const sortedGroups = [...groups].sort((a, b) => a.position - b.position);
-    const oldIndex = sortedGroups.findIndex((g) => g.id === activeId);
-    const newIndex = sortedGroups.findIndex((g) => g.id === overId);
-
-    if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = arrayMove(sortedGroups, oldIndex, newIndex);
-      setGroups(newOrder.map((g, i) => ({ ...g, position: i })));
-
-      try {
-        await api.post("/api/v1/navigation_groups/reorder", {
-          group_ids: newOrder.map((g) => g.id),
-        });
-      } catch (error) {
-        console.error("Failed to reorder groups:", error);
-        loadNavigation();
+  // Reorder top-level items
+  const handleReorderTopLevel = async (newItems: NavigationItem[]) => {
+    // Update local state with new positions
+    const updatedItems = items.map((item) => {
+      if (!item.parent_id) {
+        const newIndex = newItems.findIndex((i) => i.id === item.id);
+        return { ...item, position: newIndex };
       }
-    }
-  };
+      return item;
+    });
+    setItems(updatedItems);
 
-  // Reorder ungrouped items
-  const handleUngroupedDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const activeId = parseInt(String(active.id).replace("item-", ""));
-    const overId = parseInt(String(over.id).replace("item-", ""));
-
-    const oldIndex = ungroupedItems.findIndex((i) => i.id === activeId);
-    const newIndex = ungroupedItems.findIndex((i) => i.id === overId);
-
-    if (oldIndex !== -1 && newIndex !== -1) {
-      const newOrder = arrayMove(ungroupedItems, oldIndex, newIndex);
-      setUngroupedItems(newOrder.map((i, idx) => ({ ...i, position: idx })));
-
-      try {
-        await api.post("/api/v1/navigation_items/reorder", {
-          item_ids: newOrder.map((i) => i.id),
-        });
-      } catch (error) {
-        console.error("Failed to reorder items:", error);
-        loadNavigation();
-      }
-    }
-  };
-
-  // Reorder items within a group
-  const handleGroupItemsReorder = async (groupId: number, itemIds: number[]) => {
-    // Update local state
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.id !== groupId) return g;
-        const reorderedItems = itemIds.map((id, idx) => {
-          const item = g.items.find((i) => i.id === id);
-          return item ? { ...item, position: idx } : null;
-        }).filter(Boolean) as NavigationItem[];
-        return { ...g, items: reorderedItems };
-      })
-    );
-
+    // Persist to backend
     try {
-      await api.post("/api/v1/navigation_items/reorder", { item_ids: itemIds });
+      await api.post("/api/v1/navigation_items/reorder", {
+        item_ids: newItems.map((i) => i.id),
+      });
     } catch (error) {
       console.error("Failed to reorder items:", error);
       loadNavigation();
     }
   };
 
-  // Create group
-  const handleCreateGroup = async () => {
+  // Reorder children within a parent
+  const handleReorderChildren = async (parentId: number, newChildren: NavigationItem[]) => {
+    // Update local state
+    const updatedItems = items.map((item) => {
+      if (item.parent_id === parentId) {
+        const newIndex = newChildren.findIndex((i) => i.id === item.id);
+        return { ...item, position: newIndex };
+      }
+      return item;
+    });
+    setItems(updatedItems);
+
+    // Persist to backend
     try {
-      setSaving(true);
-      await api.post("/api/v1/navigation_groups", {
-        navigation_group: groupForm,
+      await api.post("/api/v1/navigation_items/reorder", {
+        item_ids: newChildren.map((i) => i.id),
       });
-      setShowNewGroup(false);
-      setGroupForm({
-        name: "",
-        icon: "Folder",
-        is_active: true,
-        is_collapsible: true,
-        visible_to_roles: [],
-      });
-      loadNavigation();
     } catch (error) {
-      console.error("Failed to create group:", error);
-    } finally {
-      setSaving(false);
+      console.error("Failed to reorder children:", error);
+      loadNavigation();
     }
   };
 
-  // Update group
-  const handleUpdateGroup = async () => {
-    if (!editingGroup) return;
-    try {
-      setSaving(true);
-      await api.patch(`/api/v1/navigation_groups/${editingGroup.id}`, {
-        navigation_group: groupForm,
-      });
-      setEditingGroup(null);
-      loadNavigation();
-    } catch (error) {
-      console.error("Failed to update group:", error);
-    } finally {
-      setSaving(false);
+  // Handle position badge click (manual position entry)
+  const handlePositionChange = async (item: NavigationItem, newPosition: number) => {
+    const siblings = item.parent_id ? getChildren(item.parent_id) : topLevelItems;
+    const reordered = reorderByPosition(siblings, item.id, newPosition);
+
+    if (item.parent_id) {
+      handleReorderChildren(item.parent_id, reordered);
+    } else {
+      handleReorderTopLevel(reordered);
     }
   };
 
-  // Delete group
-  const handleDeleteGroup = async (group: NavigationGroup) => {
-    if (!confirm(`Delete group "${group.name}"? Items will become ungrouped.`))
-      return;
+  // Set item as child of another
+  const handleSetParent = async (itemId: number, parentId: number | null) => {
     try {
-      await api.delete(`/api/v1/navigation_groups/${group.id}`);
+      await api.patch(`/api/v1/navigation_items/${itemId}/set_parent`, {
+        parent_id: parentId,
+      });
       loadNavigation();
     } catch (error) {
-      console.error("Failed to delete group:", error);
+      console.error("Failed to set parent:", error);
     }
   };
 
@@ -522,15 +207,18 @@ export function NavigationTab() {
         navigation_item: {
           ...itemForm,
           badge_key: itemForm.badge_key || null,
+          parent_id: parentForNewItem,
         },
       });
       setShowNewItem(false);
+      setParentForNewItem(null);
       setItemForm({
         name: "",
         href: "",
         icon: "Folder",
         badge_key: "",
         is_active: true,
+        is_collapsed_default: true,
         visible_to_roles: [],
       });
       loadNavigation();
@@ -563,7 +251,12 @@ export function NavigationTab() {
 
   // Delete item
   const handleDeleteItem = async (item: NavigationItem) => {
-    if (!confirm(`Delete navigation item "${item.name}"?`)) return;
+    const hasChildren = getChildren(item.id).length > 0;
+    const message = hasChildren
+      ? `Delete "${item.name}"? Its ${getChildren(item.id).length} child items will become top-level.`
+      : `Delete navigation item "${item.name}"?`;
+
+    if (!confirm(message)) return;
     try {
       await api.delete(`/api/v1/navigation_items/${item.id}`);
       loadNavigation();
@@ -572,18 +265,7 @@ export function NavigationTab() {
     }
   };
 
-  // Open edit dialogs
-  const openEditGroup = (group: NavigationGroup) => {
-    setGroupForm({
-      name: group.name,
-      icon: group.icon,
-      is_active: group.is_active,
-      is_collapsible: group.is_collapsible,
-      visible_to_roles: group.visible_to_roles || [],
-    });
-    setEditingGroup(group);
-  };
-
+  // Open edit dialog
   const openEditItem = (item: NavigationItem) => {
     setItemForm({
       name: item.name,
@@ -591,12 +273,134 @@ export function NavigationTab() {
       icon: item.icon,
       badge_key: item.badge_key || "",
       is_active: item.is_active,
+      is_collapsed_default: item.is_collapsed_default,
       visible_to_roles: item.visible_to_roles || [],
     });
     setEditingItem(item);
   };
 
-  const sortedGroups = [...groups].sort((a, b) => a.position - b.position);
+  // Open new item dialog (optionally with a parent)
+  const openNewItem = (parentId: number | null = null) => {
+    setParentForNewItem(parentId);
+    setItemForm({
+      name: "",
+      href: "",
+      icon: "Folder",
+      badge_key: "",
+      is_active: true,
+      is_collapsed_default: true,
+      visible_to_roles: [],
+    });
+    setShowNewItem(true);
+  };
+
+  // Render a navigation item with its children
+  const renderItem = (item: NavigationItem, index: number, total: number, isChild = false) => {
+    const Icon = getIcon(item.icon);
+    const children = getChildren(item.id);
+    const hasChildren = children.length > 0;
+    const isExpanded = expandedItems.has(item.id);
+
+    return (
+      <div key={item.id} className={cn(isChild && "ml-6")}>
+        <SortableItem
+          id={item.id}
+          position={index + 1}
+          editablePosition
+          onPositionChange={(pos) => handlePositionChange(item, pos)}
+          maxPosition={total}
+          variant="card"
+          className={cn(!item.is_active && "opacity-50")}
+          actions={
+            <div className="flex items-center gap-1">
+              {!isChild && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => openNewItem(item.id)}
+                  title="Add child item"
+                  className="h-7 w-7"
+                >
+                  <CornerDownRight className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openEditItem(item)}
+                className="h-7 w-7"
+              >
+                <Edit className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleDeleteItem(item)}
+                className="h-7 w-7 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          }
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Expand/Collapse button for items with children */}
+            {!isChild && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (hasChildren) toggleExpanded(item.id);
+                }}
+                className={cn(
+                  "p-0.5 rounded hover:bg-accent shrink-0",
+                  !hasChildren && "invisible"
+                )}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+            <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium truncate">{item.name}</span>
+            <span className="text-xs text-muted-foreground truncate">{item.href}</span>
+            {!item.is_active && (
+              <Badge variant="secondary" className="text-[10px] py-0 px-1">
+                Hidden
+              </Badge>
+            )}
+            {item.visible_to_roles.length > 0 && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1">
+                {item.visible_to_roles.length} roles
+              </Badge>
+            )}
+            {hasChildren && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1">
+                {children.length} children
+              </Badge>
+            )}
+          </div>
+        </SortableItem>
+
+        {/* Children (expanded) */}
+        {!isChild && hasChildren && isExpanded && (
+          <div className="mt-1">
+            <SortableList
+              items={children}
+              onReorder={(newOrder) => handleReorderChildren(item.id, newOrder)}
+              className="space-y-1"
+            >
+              {children.map((child, childIndex) =>
+                renderItem(child, childIndex, children.length, true)
+              )}
+            </SortableList>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -613,267 +417,53 @@ export function NavigationTab() {
         <div>
           <h2 className="text-lg font-semibold">Navigation Manager</h2>
           <p className="text-sm text-muted-foreground">
-            Manage sidebar navigation items and groups. Drag to reorder.
+            Manage sidebar navigation items. Drag to reorder. Click position numbers to jump.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowNewGroup(true)}>
-            <FolderPlus className="h-4 w-4 mr-2" />
-            New Group
-          </Button>
-          <Button onClick={() => setShowNewItem(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Item
-          </Button>
-        </div>
+        <Button onClick={() => openNewItem(null)}>
+          <Plus className="h-4 w-4 mr-2" />
+          New Item
+        </Button>
       </div>
 
-      {/* Groups */}
-      {sortedGroups.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Groups</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleGroupDragEnd}
-            >
-              <SortableContext
-                items={sortedGroups.map((g) => `group-${g.id}`)}
-                strategy={verticalListSortingStrategy}
-              >
-                {sortedGroups.map((group) => (
-                  <SortableNavGroup
-                    key={group.id}
-                    group={group}
-                    isExpanded={expandedGroups.has(group.id)}
-                    onToggle={() => toggleGroup(group.id)}
-                    onEdit={openEditGroup}
-                    onDelete={handleDeleteGroup}
-                    onEditItem={openEditItem}
-                    onDeleteItem={handleDeleteItem}
-                    onReorderItems={handleGroupItemsReorder}
-                  />
-                ))}
-              </SortableContext>
-            </DndContext>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Ungrouped Items */}
+      {/* Navigation Items */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">
-            Ungrouped Items ({ungroupedItems.length})
+          <CardTitle className="text-base flex items-center justify-between">
+            <span>Navigation Items ({items.length})</span>
+            <span className="text-xs text-muted-foreground font-normal">
+              Top-level: {topLevelItems.length} | Nested: {items.length - topLevelItems.length}
+            </span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleUngroupedDragEnd}
-          >
-            <SortableContext
-              items={ungroupedItems.map((i) => `item-${i.id}`)}
-              strategy={verticalListSortingStrategy}
-            >
-              {ungroupedItems.map((item) => (
-                <SortableNavItem
-                  key={item.id}
-                  item={item}
-                  onEdit={openEditItem}
-                  onDelete={handleDeleteItem}
-                />
-              ))}
-            </SortableContext>
-          </DndContext>
-          {ungroupedItems.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No ungrouped items. All items are in groups.
+        <CardContent>
+          {topLevelItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No navigation items yet. Click "New Item" to create one.
             </p>
+          ) : (
+            <SortableList
+              items={topLevelItems}
+              onReorder={handleReorderTopLevel}
+              className="space-y-1"
+            >
+              {topLevelItems.map((item, index) =>
+                renderItem(item, index, topLevelItems.length, false)
+              )}
+            </SortableList>
           )}
         </CardContent>
       </Card>
-
-      {/* New Group Dialog */}
-      <Dialog open={showNewGroup} onOpenChange={setShowNewGroup}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New Navigation Group</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                value={groupForm.name}
-                onChange={(e) =>
-                  setGroupForm((f) => ({ ...f, name: e.target.value }))
-                }
-                placeholder="e.g., Operations"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Icon</Label>
-              <IconPicker
-                value={groupForm.icon}
-                onChange={(icon) => setGroupForm((f) => ({ ...f, icon }))}
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="group-active"
-                  checked={groupForm.is_active}
-                  onCheckedChange={(checked) =>
-                    setGroupForm((f) => ({ ...f, is_active: !!checked }))
-                  }
-                />
-                <Label htmlFor="group-active">Active</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="group-collapsible"
-                  checked={groupForm.is_collapsible}
-                  onCheckedChange={(checked) =>
-                    setGroupForm((f) => ({ ...f, is_collapsible: !!checked }))
-                  }
-                />
-                <Label htmlFor="group-collapsible">Collapsible</Label>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Visible to Roles (empty = all roles)</Label>
-              <div className="flex flex-wrap gap-2">
-                {USER_ROLES.map((role) => (
-                  <div key={role.value} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`group-role-${role.value}`}
-                      checked={groupForm.visible_to_roles.includes(role.value)}
-                      onCheckedChange={(checked) => {
-                        setGroupForm((f) => ({
-                          ...f,
-                          visible_to_roles: checked
-                            ? [...f.visible_to_roles, role.value]
-                            : f.visible_to_roles.filter((r) => r !== role.value),
-                        }));
-                      }}
-                    />
-                    <Label
-                      htmlFor={`group-role-${role.value}`}
-                      className="text-sm"
-                    >
-                      {role.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNewGroup(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateGroup} disabled={saving || !groupForm.name}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create Group
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Group Dialog */}
-      <Dialog open={!!editingGroup} onOpenChange={() => setEditingGroup(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Group</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Name</Label>
-              <Input
-                value={groupForm.name}
-                onChange={(e) =>
-                  setGroupForm((f) => ({ ...f, name: e.target.value }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Icon</Label>
-              <IconPicker
-                value={groupForm.icon}
-                onChange={(icon) => setGroupForm((f) => ({ ...f, icon }))}
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="edit-group-active"
-                  checked={groupForm.is_active}
-                  onCheckedChange={(checked) =>
-                    setGroupForm((f) => ({ ...f, is_active: !!checked }))
-                  }
-                />
-                <Label htmlFor="edit-group-active">Active</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="edit-group-collapsible"
-                  checked={groupForm.is_collapsible}
-                  onCheckedChange={(checked) =>
-                    setGroupForm((f) => ({ ...f, is_collapsible: !!checked }))
-                  }
-                />
-                <Label htmlFor="edit-group-collapsible">Collapsible</Label>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Visible to Roles (empty = all roles)</Label>
-              <div className="flex flex-wrap gap-2">
-                {USER_ROLES.map((role) => (
-                  <div key={role.value} className="flex items-center gap-1">
-                    <Checkbox
-                      id={`edit-group-role-${role.value}`}
-                      checked={groupForm.visible_to_roles.includes(role.value)}
-                      onCheckedChange={(checked) => {
-                        setGroupForm((f) => ({
-                          ...f,
-                          visible_to_roles: checked
-                            ? [...f.visible_to_roles, role.value]
-                            : f.visible_to_roles.filter((r) => r !== role.value),
-                        }));
-                      }}
-                    />
-                    <Label
-                      htmlFor={`edit-group-role-${role.value}`}
-                      className="text-sm"
-                    >
-                      {role.label}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingGroup(null)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateGroup} disabled={saving || !groupForm.name}>
-              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* New Item Dialog */}
       <Dialog open={showNewItem} onOpenChange={setShowNewItem}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New Navigation Item</DialogTitle>
+            <DialogTitle>
+              {parentForNewItem
+                ? `New Child Item (under ${items.find((i) => i.id === parentForNewItem)?.name})`
+                : "New Navigation Item"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
@@ -917,15 +507,27 @@ export function NavigationTab() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="item-active"
-                checked={itemForm.is_active}
-                onCheckedChange={(checked) =>
-                  setItemForm((f) => ({ ...f, is_active: !!checked }))
-                }
-              />
-              <Label htmlFor="item-active">Active (visible in sidebar)</Label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="item-active"
+                  checked={itemForm.is_active}
+                  onCheckedChange={(checked) =>
+                    setItemForm((f) => ({ ...f, is_active: !!checked }))
+                  }
+                />
+                <Label htmlFor="item-active">Active (visible)</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="item-collapsed"
+                  checked={itemForm.is_collapsed_default}
+                  onCheckedChange={(checked) =>
+                    setItemForm((f) => ({ ...f, is_collapsed_default: !!checked }))
+                  }
+                />
+                <Label htmlFor="item-collapsed">Collapsed by default</Label>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>Visible to Roles (empty = all roles)</Label>
@@ -1012,18 +614,67 @@ export function NavigationTab() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="edit-item-active"
-                checked={itemForm.is_active}
-                onCheckedChange={(checked) =>
-                  setItemForm((f) => ({ ...f, is_active: !!checked }))
-                }
-              />
-              <Label htmlFor="edit-item-active">
-                Active (visible in sidebar)
-              </Label>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="edit-item-active"
+                  checked={itemForm.is_active}
+                  onCheckedChange={(checked) =>
+                    setItemForm((f) => ({ ...f, is_active: !!checked }))
+                  }
+                />
+                <Label htmlFor="edit-item-active">Active (visible)</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="edit-item-collapsed"
+                  checked={itemForm.is_collapsed_default}
+                  onCheckedChange={(checked) =>
+                    setItemForm((f) => ({ ...f, is_collapsed_default: !!checked }))
+                  }
+                />
+                <Label htmlFor="edit-item-collapsed">Collapsed by default</Label>
+              </div>
             </div>
+            {/* Parent selection for existing items */}
+            {editingItem && !editingItem.parent_id && (
+              <div className="space-y-2">
+                <Label>Make this a child of</Label>
+                <div className="flex flex-wrap gap-2">
+                  {topLevelItems
+                    .filter((i) => i.id !== editingItem.id)
+                    .map((parent) => (
+                      <Button
+                        key={parent.id}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSetParent(editingItem.id, parent.id)}
+                        className="text-xs"
+                      >
+                        {parent.name}
+                      </Button>
+                    ))}
+                </div>
+              </div>
+            )}
+            {editingItem?.parent_id && (
+              <div className="space-y-2">
+                <Label>Currently a child of</Label>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">
+                    {items.find((i) => i.id === editingItem.parent_id)?.name}
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSetParent(editingItem.id, null)}
+                    className="text-xs"
+                  >
+                    Make top-level
+                  </Button>
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Visible to Roles (empty = all roles)</Label>
               <div className="flex flex-wrap gap-2">

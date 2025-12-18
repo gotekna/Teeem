@@ -2,7 +2,7 @@ module Api
   module V1
     class NavigationItemsController < ApplicationController
       before_action :require_admin
-      before_action :set_item, only: [ :update, :destroy, :move_to_group ]
+      before_action :set_item, only: [ :update, :destroy, :move_to_group, :set_parent ]
 
       # GET /api/v1/navigation_items
       def index
@@ -66,6 +66,17 @@ module Api
         end
       end
 
+      # PATCH /api/v1/navigation_items/:id/set_parent
+      def set_parent
+        parent_id = params[:parent_id] # nil for top-level
+
+        if @item.update(parent_id: parent_id)
+          render json: { success: true, navigation_item: full_item_json(@item) }
+        else
+          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def require_admin
@@ -78,7 +89,7 @@ module Api
 
       def item_params
         params.require(:navigation_item).permit(
-          :name, :href, :icon, :badge_key, :navigation_group_id, :is_active, :position, visible_to_roles: []
+          :name, :href, :icon, :badge_key, :navigation_group_id, :parent_id, :is_active, :position, :is_collapsed_default, visible_to_roles: []
         )
       end
 
@@ -90,9 +101,13 @@ module Api
           icon: item.icon,
           badge_key: item.badge_key,
           position: item.position,
+          parent_id: item.parent_id,
           navigation_group_id: item.navigation_group_id,
           is_active: item.is_active,
+          is_collapsed_default: item.is_collapsed_default,
           visible_to_roles: item.visible_to_roles,
+          has_children: item.children.exists?,
+          children_count: item.children.count,
           created_at: item.created_at,
           updated_at: item.updated_at
         }

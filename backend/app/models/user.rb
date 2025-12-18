@@ -11,6 +11,7 @@ class User < ApplicationRecord
   has_one :email_sync_status, dependent: :destroy
   has_one :microsoft_token, class_name: "UserMicrosoftToken", dependent: :destroy
   has_many :notifications, dependent: :destroy
+  has_many :user_navigation_configs, dependent: :destroy
 
   # Placeholder for company association (not yet implemented)
   # Returns nil - callers should handle this gracefully
