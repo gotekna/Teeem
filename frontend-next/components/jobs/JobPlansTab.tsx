@@ -134,6 +134,16 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const dragCounterRef = useRef(0);
   const [processingPlanSet, setProcessingPlanSet] = useState(false);
   const [processingProgress, setProcessingProgress] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<{
+    status: string;
+    progress_percent: number;
+    current_step: string;
+    plans_created: string[];
+    total_pages: number | null;
+    processed_pages: number;
+    error_message: string | null;
+  } | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {
@@ -247,109 +257,137 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
     setProcessingPlanSet(true);
     setProcessingProgress("Uploading plan set...");
+    setUploadProgress(null);
 
     try {
       const formData = new FormData();
       formData.append("file", file);
 
-      // Debug logging
-      const token = localStorage.getItem('token');
-      console.log('[PlanUpload] File:', file.name, file.size, file.type);
-      console.log('[PlanUpload] Token present:', !!token);
-      console.log('[PlanUpload] FormData file:', formData.get('file'));
+      console.log('[PlanUpload] Starting upload:', file.name, file.size);
 
-      // Upload returns immediately - processing happens in background
+      // Upload to new plan_uploads endpoint (with progress tracking)
       const result = await api.postFormData<{
         success: boolean;
         data?: {
-          message: string;
-          processing: boolean;
-          plans?: unknown[];
-          total_pages?: number;
+          id: number;
+          status: string;
+          progress_percent: number;
+          current_step: string;
+          plans_created: string[];
+          total_pages: number | null;
+          processed_pages: number;
+          error_message: string | null;
         };
         error?: string
       }>(
-        `/api/v1/jobs/${jobId}/job_plans/upload_plan_set`,
+        `/api/v1/jobs/${jobId}/plan_uploads`,
         formData,
-        { timeout: 60000 } // 1 minute should be enough for upload only
+        { timeout: 60000 }
       );
 
       if (result.success && result.data) {
-        // Check if processing in background (new async mode)
-        if (result.data.processing) {
-          setProcessingProgress("Processing in background...");
-          toast({
-            title: "Upload Queued",
-            description: "Your plan set is being processed. Plans will appear shortly.",
-          });
+        const uploadId = result.data.id;
+        setUploadProgress(result.data);
+        setProcessingProgress(result.data.current_step);
 
-          // Start polling for new plans
-          let pollCount = 0;
-          const maxPolls = 60; // Poll for up to 3 minutes (60 * 3 sec)
-          const pollInterval = setInterval(async () => {
-            pollCount++;
-            try {
-              await fetchPlans();
-              await fetchTabs();
+        toast({
+          title: "Upload Started",
+          description: "Processing your plan set...",
+        });
 
-              // If we've polled enough times, stop
-              if (pollCount >= maxPolls) {
-                clearInterval(pollInterval);
-                setProcessingPlanSet(false);
-                setProcessingProgress("");
+        // Start polling for progress
+        pollIntervalRef.current = setInterval(async () => {
+          try {
+            const statusResult = await api.get<{
+              success: boolean;
+              data?: {
+                id: number;
+                status: string;
+                progress_percent: number;
+                current_step: string;
+                plans_created: string[];
+                total_pages: number | null;
+                processed_pages: number;
+                error_message: string | null;
+              };
+            }>(`/api/v1/jobs/${jobId}/plan_uploads/${uploadId}`);
+
+            if (statusResult.success && statusResult.data) {
+              const progress = statusResult.data;
+              setUploadProgress(progress);
+              setProcessingProgress(progress.current_step);
+
+              // Check if completed
+              if (progress.status === "completed") {
+                if (pollIntervalRef.current) {
+                  clearInterval(pollIntervalRef.current);
+                  pollIntervalRef.current = null;
+                }
                 toast({
-                  title: "Processing Complete",
-                  description: "Check the plans list for new entries",
+                  title: "Plans Created",
+                  description: `Created ${progress.plans_created.length} plans from ${progress.total_pages} pages`,
                 });
+                setProcessingPlanSet(false);
+                setUploadProgress(null);
+                fetchPlans();
+                fetchTabs();
               }
-            } catch {
-              // Ignore errors during polling
+
+              // Check if failed
+              if (progress.status === "failed") {
+                if (pollIntervalRef.current) {
+                  clearInterval(pollIntervalRef.current);
+                  pollIntervalRef.current = null;
+                }
+                toast({
+                  title: "Processing Failed",
+                  description: progress.error_message || "Unknown error",
+                  variant: "destructive",
+                });
+                setProcessingPlanSet(false);
+                setUploadProgress(null);
+              }
             }
-          }, 3000); // Poll every 3 seconds
+          } catch {
+            // Ignore polling errors
+          }
+        }, 2000); // Poll every 2 seconds
 
-          // Stop polling after 3 minutes regardless
-          setTimeout(() => {
-            clearInterval(pollInterval);
+        // Safety timeout - stop polling after 5 minutes
+        setTimeout(() => {
+          if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
             setProcessingPlanSet(false);
-            setProcessingProgress("");
-          }, 180000);
+            setUploadProgress(null);
+            fetchPlans();
+            fetchTabs();
+          }
+        }, 300000);
 
-        } else if (result.data.plans && Array.isArray(result.data.plans)) {
-          // Synchronous response (legacy mode)
-          toast({
-            title: "Plans Added",
-            description: `Created ${result.data.plans.length} plans from ${result.data.total_pages || 0} pages`,
-          });
-          fetchPlans();
-          fetchTabs();
-          setProcessingPlanSet(false);
-          setProcessingProgress("");
-        } else {
-          // Unknown response format - just refresh and hope for the best
-          console.warn("[PlanUpload] Unexpected response format:", result.data);
-          toast({
-            title: "Upload Complete",
-            description: "Refreshing plan list...",
-          });
-          fetchPlans();
-          fetchTabs();
-          setProcessingPlanSet(false);
-          setProcessingProgress("");
-        }
       } else {
-        throw new Error(result.error || "Failed to process plan set");
+        throw new Error(result.error || "Failed to start upload");
       }
     } catch (err) {
       console.error("Error processing plan set:", err);
       toast({
-        title: "Processing Failed",
-        description: err instanceof Error ? err.message : "Failed to process plan set",
+        title: "Upload Failed",
+        description: err instanceof Error ? err.message : "Failed to upload plan set",
         variant: "destructive",
       });
       setProcessingPlanSet(false);
-      setProcessingProgress("");
+      setUploadProgress(null);
     }
   };
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Drag and drop handlers
   const handleDragEnter = (e: DragEvent) => {
@@ -723,15 +761,65 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Processing overlay */}
+      {/* Processing overlay with progress */}
       {processingPlanSet && (
         <div className="absolute inset-0 z-50 bg-background/80 flex items-center justify-center">
-          <div className="text-center p-6 bg-card border rounded-lg shadow-lg">
-            <Loader2 className="h-12 w-12 mx-auto mb-4 text-primary animate-spin" />
-            <p className="text-lg font-medium">{processingProgress}</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              This may take a minute for large plan sets
-            </p>
+          <div className="w-[400px] p-6 bg-card border rounded-lg shadow-lg">
+            {/* Header */}
+            <div className="flex items-center gap-3 mb-4">
+              <Loader2 className="h-8 w-8 text-primary animate-spin shrink-0" />
+              <div>
+                <p className="font-medium">Processing Plan Set</p>
+                <p className="text-sm text-muted-foreground">{processingProgress}</p>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            {uploadProgress && (
+              <>
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-muted-foreground">
+                      {uploadProgress.processed_pages} of {uploadProgress.total_pages || "?"} pages
+                    </span>
+                    <span className="font-medium">{uploadProgress.progress_percent}%</span>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${uploadProgress.progress_percent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Live plan list */}
+                {uploadProgress.plans_created.length > 0 && (
+                  <div className="max-h-[200px] overflow-y-auto">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">
+                      Plans created ({uploadProgress.plans_created.length})
+                    </p>
+                    <div className="space-y-1">
+                      {uploadProgress.plans_created.map((name, i) => (
+                        <div
+                          key={i}
+                          className="flex items-center gap-2 text-sm py-1 px-2 bg-muted/50 rounded"
+                        >
+                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                          <span className="truncate">{name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* No progress yet */}
+            {!uploadProgress && (
+              <p className="text-sm text-muted-foreground text-center">
+                Uploading to SharePoint...
+              </p>
+            )}
           </div>
         </div>
       )}

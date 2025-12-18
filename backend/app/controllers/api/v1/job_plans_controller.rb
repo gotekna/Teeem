@@ -200,16 +200,40 @@ module Api
         # Ensure job has plan tabs
         ensure_job_has_plan_tabs
 
-        # Save file to temp location for background processing
+        # Upload to SharePoint as staging file (accessible from worker dyno)
+        # This avoids Heroku's ephemeral filesystem issue where web/worker dynos can't share files
         uploaded_file = params[:file]
-        temp_path = Rails.root.join('tmp', "plan_upload_#{@job.id}_#{Time.now.to_i}.pdf")
-        FileUtils.cp(uploaded_file.tempfile.path, temp_path)
+        credential = OrganizationSharePointCredential.active_credential
+        unless credential
+          return render json: { success: false, error: 'SharePoint not connected' }, status: :unprocessable_entity
+        end
+
+        client = MicrosoftGraphClient.new(credential)
+
+        # Upload to a staging location in SharePoint
+        job_folder = client.find_job_folder(@job)
+        unless job_folder
+          return render json: { success: false, error: 'Job folder not found in SharePoint' }, status: :unprocessable_entity
+        end
+
+        # Create staging filename with timestamp
+        staging_filename = "_staging_#{Time.now.to_i}_#{uploaded_file.original_filename}"
+        staging_result = client.upload_file_content(job_folder["id"], staging_filename, uploaded_file.read)
+        uploaded_file.rewind
+
+        staging_file_id = staging_result[:id]
+        Rails.logger.info "[upload_plan_set] Staged file to SharePoint: #{staging_file_id}"
 
         # Get the first tab (or specified tab) for categorizing plans
         tab_id = params[:job_plan_tab_id] || @job.job_plan_tabs.root_tabs.ordered.first&.id
 
-        # Queue background job for processing
-        PlanSetUploadJob.perform_later(@job.id, temp_path.to_s, uploaded_file.original_filename, tab_id)
+        # Queue background job for processing with SharePoint file ID
+        PlanSetUploadJob.perform_later(
+          @job.id,
+          staging_file_id,
+          uploaded_file.original_filename,
+          tab_id
+        )
 
         render json: {
           success: true,

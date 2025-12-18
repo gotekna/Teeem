@@ -78,19 +78,27 @@ test:
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
 #
+# =============================================================================
+# PRODUCTION DATABASE CONFIG
+# =============================================================================
+# SSoT: Connection pool sizing for Heroku Essential-0 (20 connections max)
+#
+# CALCULATION:
+#   Web dyno: 1 Puma worker × 5 pool = 5 connections
+#   Worker dyno: SolidQueue supervisor + workers = ~8 connections
+#   Buffer for migrations/console: 2 connections
+#   Total: ~15 connections (leaves 5 headroom)
+#
+# IMPORTANT: Do NOT add separate cable/cache databases - they each create
+# additional connection pools even when pointing to the same DATABASE_URL.
+# =============================================================================
 production:
   primary:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
-  cable:
-    <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
-    migrations_paths: db/cable_migrate
-  cache:
-    <<: *default
-    url: <%= ENV["DATABASE_URL"] %>
-    migrations_paths: db/cache_migrate
+    pool: <%= ENV.fetch("DATABASE_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 5 } } %>
   queue:
     <<: *default
     url: <%= ENV["DATABASE_URL"] %>
+    pool: <%= ENV.fetch("DATABASE_POOL") { ENV.fetch("RAILS_MAX_THREADS") { 5 } } %>
     migrations_paths: db/queue_migrate

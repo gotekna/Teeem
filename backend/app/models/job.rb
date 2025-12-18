@@ -37,6 +37,7 @@ class Job < ApplicationRecord
   # Plans (new plans tab with revision tracking)
   has_many :job_plan_tabs, dependent: :destroy
   has_many :job_plans, dependent: :destroy
+  has_many :plan_uploads, dependent: :destroy
 
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy

@@ -248,13 +248,23 @@ Rails.application.routes.draw do
             get :tabs                 # GET /api/v1/jobs/:job_id/job_plans/tabs
             get :suggested_recipients # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
             post :email               # POST /api/v1/jobs/:job_id/job_plans/email
-            post :upload_plan_set     # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set - AI split
+            post :upload_plan_set     # POST /api/v1/jobs/:job_id/job_plans/upload_plan_set - AI split (legacy)
           end
           member do
             post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision
             put :set_on_issue     # PUT /api/v1/jobs/:job_id/job_plans/:id/set_on_issue
           end
           resources :revisions, controller: "job_plan_revisions", only: [ :index, :show, :create, :update, :destroy ]
+        end
+
+        # Plan uploads - Progress-tracked plan set uploads (SSoT for plan uploads)
+        resources :plan_uploads, only: [ :index, :show, :create ] do
+          collection do
+            get :active               # GET /api/v1/jobs/:job_id/plan_uploads/active
+          end
+          member do
+            post :resume              # POST /api/v1/jobs/:job_id/plan_uploads/:id/resume
+          end
         end
 
         # Meetings (nested under jobs)
