@@ -74,8 +74,8 @@ export function DocSetupTab() {
 
   const loadCategories = async () => {
     try {
-      const data = await api.get<DocumentationCategory[]>("/api/v1/documentation_categories");
-      setCategories(data);
+      const response = await api.get<{ documentation_categories: DocumentationCategory[] }>("/api/v1/documentation_categories");
+      setCategories(response.documentation_categories || []);
     } catch (error) {
       console.error("Failed to load categories:", error);
       // Mock data
@@ -274,7 +274,7 @@ export function DocSetupTab() {
             </div>
           ) : (
             <div className="divide-y">
-              {categories
+              {(Array.isArray(categories) ? categories : [])
                 .sort((a, b) => a.sequence - b.sequence)
                 .map((category, index) => (
                   <div

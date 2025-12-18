@@ -47,13 +47,21 @@ class PlanAiAnalysisJob < ApplicationJob
         variant_suffix = find_next_variant_suffix(plan.job, plan_type.id, plan.id)
       end
 
+      # Find the matching job_plan_tab based on plan_type's categories
+      job_plan_tab_id = nil
+      if plan_type.present?
+        job_plan_tab_id = find_job_plan_tab_for_plan_type(plan.job, plan_type)
+      end
+
       plan.update!(
         plan_type_id: plan_type&.id,
+        job_plan_tab_id: job_plan_tab_id || plan.job_plan_tab_id,
         variant_suffix: variant_suffix,
         display_name: new_display_name
       )
 
-      Rails.logger.info "[PlanAiAnalysisJob] Updated plan #{job_plan_id}: #{new_display_name} (variant: #{variant_suffix || 'none'})"
+      tab_name = job_plan_tab_id ? plan.job.job_plan_tabs.find_by(id: job_plan_tab_id)&.name : 'none'
+      Rails.logger.info "[PlanAiAnalysisJob] Updated plan #{job_plan_id}: #{new_display_name} (type: #{plan_type&.name || 'none'}, tab: #{tab_name}, variant: #{variant_suffix || 'none'})"
     end
   end
 
@@ -101,6 +109,21 @@ class PlanAiAnalysisJob < ApplicationJob
     end
 
     nil
+  end
+
+  # Find the matching job_plan_tab for a plan_type based on its categories
+  # Returns the tab ID or nil if no match found
+  def find_job_plan_tab_for_plan_type(job, plan_type)
+    return nil unless plan_type.present?
+
+    # Get the plan type's category IDs
+    category_ids = plan_type.plan_categories.pluck(:id)
+    return nil if category_ids.empty?
+
+    # Find a job_plan_tab that matches one of the plan type's categories
+    # Prefer the first category (usually the primary one)
+    tab = job.job_plan_tabs.find_by(plan_category_id: category_ids)
+    tab&.id
   end
 
   # Find the next available variant suffix for a plan type on this job

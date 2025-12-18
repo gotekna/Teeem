@@ -260,7 +260,6 @@ export function TeeemDocumentView<T extends DocumentItem>({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{name}</p>
                 </div>
-                <StatusBadge status={status} />
               </div>
             );
           })}
@@ -408,21 +407,27 @@ export function TeeemDocumentView<T extends DocumentItem>({
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pb-3 shrink-0">
-        <h2 className="text-lg font-semibold">
-          {title} ({documents.length})
-        </h2>
-        <div className="flex items-center gap-2">
-          {leftActions}
-          {onRefresh && (
-            <Button variant="outline" size="sm" onClick={onRefresh}>
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh
-            </Button>
+      {/* Header - only show if title or actions exist */}
+      {(title || leftActions || onRefresh) && (
+        <div className="flex items-center justify-between px-4 pb-2 shrink-0">
+          {title ? (
+            <h2 className="text-lg font-semibold">
+              {title} ({documents.length})
+            </h2>
+          ) : (
+            <div />
           )}
+          <div className="flex items-center gap-2">
+            {leftActions}
+            {onRefresh && (
+              <Button variant="outline" size="sm" onClick={onRefresh}>
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Refresh
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Split view: 30% list / 70% preview */}
       <div className="flex-1 flex gap-4 px-4 min-h-0">

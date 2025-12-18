@@ -355,10 +355,18 @@ module Engines
           data[:start_date_year] ||= start.strftime("%y")  # 2-digit year
         end
 
-        # Item 6: Completion Period
-        data[:construction_days] ||= (job.try(:construction_days) || 300).to_s
-        data[:weather_days] ||= (job.try(:weather_days) || 10).to_s
-        data[:other_delay_days] ||= job.try(:other_delay_days).to_s if job.try(:other_delay_days).present?
+        # Item 6: Completion Period (auto-calculate build period and weekends/holidays)
+        construction_days = job.try(:construction_days) || 300
+        weather_days = job.try(:weather_days) || 10
+        start_date = job.try(:start_date) || Date.current
+
+        # Calculate calendar days and weekends/holidays
+        build_calc = calculate_build_period(start_date, construction_days, weather_days)
+
+        data[:construction_days] ||= construction_days.to_s
+        data[:weather_days] ||= weather_days.to_s
+        data[:weekends_holidays] ||= build_calc[:weekend_holiday_days].to_s
+        data[:build_period] ||= "#{build_calc[:total_weeks]} weeks"
 
         # Item 13: Liquidated Damages
         liquidated_amount = job.try(:liquidated_damages) || 50.00
@@ -628,6 +636,97 @@ module Engines
     def format_acn(acn)
       return "" unless acn
       acn.to_s.gsub(/\D/, "").gsub(/(\d{3})(\d{3})(\d{3})/, '\1 \2 \3')
+    end
+
+    # Calculate build period from construction days, accounting for weekends and holidays
+    # Returns: { total_weeks:, weekend_holiday_days:, end_date: }
+    def calculate_build_period(start_date, construction_days, weather_days)
+      return { total_weeks: 0, weekend_holiday_days: 0, end_date: start_date } if construction_days.to_i <= 0
+
+      working_days_needed = construction_days.to_i
+      weather = weather_days.to_i
+      current_date = start_date.to_date
+      working_days_counted = 0
+      weekend_days = 0
+      holiday_days = 0
+
+      # QLD public holidays (approximate - could be made more accurate with a gem)
+      qld_holidays = qld_public_holidays(start_date.year, start_date.year + 2)
+
+      # Count forward from start date until we have enough working days
+      while working_days_counted < working_days_needed
+        if current_date.saturday? || current_date.sunday?
+          weekend_days += 1
+        elsif qld_holidays.include?(current_date)
+          holiday_days += 1
+        else
+          working_days_counted += 1
+        end
+        current_date += 1.day
+      end
+
+      # Add weather days to the end date
+      total_calendar_days = (current_date - start_date.to_date).to_i + weather
+      total_weeks = (total_calendar_days / 7.0).ceil
+
+      {
+        total_weeks: total_weeks,
+        weekend_holiday_days: weekend_days + holiday_days,
+        end_date: current_date + weather.days
+      }
+    end
+
+    # QLD public holidays (approximate dates)
+    def qld_public_holidays(start_year, end_year)
+      holidays = []
+      (start_year..end_year).each do |year|
+        holidays += [
+          Date.new(year, 1, 1),   # New Year's Day
+          Date.new(year, 1, 26),  # Australia Day
+          Date.new(year, 4, 25),  # ANZAC Day
+          Date.new(year, 12, 25), # Christmas Day
+          Date.new(year, 12, 26), # Boxing Day
+          # Easter (approximate - varies each year)
+          easter_date(year) - 2,  # Good Friday
+          easter_date(year) + 1,  # Easter Monday
+          # Queen's Birthday (2nd Monday of June in QLD)
+          second_monday_of(year, 6),
+          # Ekka (Brisbane only - 2nd Wednesday of August)
+          second_wednesday_of(year, 8),
+        ]
+      end
+      holidays.compact
+    end
+
+    # Calculate Easter Sunday (Computus algorithm)
+    def easter_date(year)
+      a = year % 19
+      b = year / 100
+      c = year % 100
+      d = b / 4
+      e = b % 4
+      f = (b + 8) / 25
+      g = (b - f + 1) / 3
+      h = (19 * a + b - d - g + 15) % 30
+      i = c / 4
+      k = c % 4
+      l = (32 + 2 * e + 2 * i - h - k) % 7
+      m = (a + 11 * h + 22 * l) / 451
+      month = (h + l - 7 * m + 114) / 31
+      day = ((h + l - 7 * m + 114) % 31) + 1
+      Date.new(year, month, day)
+    end
+
+    def second_monday_of(year, month)
+      first_day = Date.new(year, month, 1)
+      days_until_monday = (1 - first_day.wday) % 7
+      first_day + days_until_monday + 7
+    end
+
+    def second_wednesday_of(year, month)
+      first_day = Date.new(year, month, 1)
+      days_until_wednesday = (3 - first_day.wday) % 7
+      first_day + days_until_wednesday + 7
     end
   end
 end

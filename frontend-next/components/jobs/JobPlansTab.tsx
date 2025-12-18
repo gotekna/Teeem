@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, DragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,7 +28,16 @@ import {
   Plus,
   Upload,
   X,
+  MoreHorizontal,
+  RefreshCw,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -104,9 +112,9 @@ interface JobPlansTabProps {
 
 export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const { toast } = useToast();
-  const [activeSubTab, setActiveSubTab] = useState("on-issue");
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -143,12 +151,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     try {
       setLoading(true);
 
-      const endpoint =
-        activeSubTab === "on-issue"
-          ? `/api/v1/jobs/${jobId}/job_plans/on_issue`
-          : `/api/v1/jobs/${jobId}/job_plans`;
-
-      const response = (await api.get(endpoint)) as {
+      const response = (await api.get(`/api/v1/jobs/${jobId}/job_plans`)) as {
         success: boolean;
         data?: JobPlan[];
         error?: string;
@@ -162,7 +165,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     } finally {
       setLoading(false);
     }
-  }, [jobId, activeSubTab]);
+  }, [jobId]);
 
   // Fetch tabs (categories)
   const fetchTabs = useCallback(async () => {
@@ -200,6 +203,39 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     fetchPlans();
     fetchTabs();
   }, [fetchPlans, fetchTabs]);
+
+  // Auto-select the category with plans when data loads (if not already selected)
+  useEffect(() => {
+    if (plans.length > 0 && tabs.length > 0 && selectedCategoryId === null) {
+      // Find categories that have plans
+      const categoriesWithPlans = tabs.filter(tab =>
+        plans.some(p => p.job_plan_tab_id === tab.id)
+      );
+
+      if (categoriesWithPlans.length > 0) {
+        // Select the first category that has plans
+        setSelectedCategoryId(categoriesWithPlans[0].id);
+      }
+    }
+  }, [plans, tabs, selectedCategoryId]);
+
+  // Filter plans based on selected category
+  const filteredPlans = selectedCategoryId === null
+    ? plans
+    : plans.filter((p) => p.job_plan_tab_id === selectedCategoryId);
+
+  // Get the currently selected tab
+  const selectedTab = tabs.find(t => t.id === selectedCategoryId);
+
+  // Get other tabs (not selected) that have plans
+  const otherTabsWithPlans = tabs.filter(t =>
+    t.id !== selectedCategoryId && plans.some(p => p.job_plan_tab_id === t.id)
+  );
+
+  // Get tabs without plans (for the dropdown)
+  const emptyTabs = tabs.filter(t =>
+    !plans.some(p => p.job_plan_tab_id === t.id)
+  );
 
   // Get PDF preview URL
   const getPdfPreviewUrl = (revision: Revision | null) => {
@@ -428,6 +464,42 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         variant: "destructive",
       });
       throw new Error(response.error);
+    }
+  };
+
+  // Fix plan categories - reassign plans to correct tabs based on plan types
+  const handleFixCategories = async () => {
+    try {
+      const response = await api.post(`/api/v1/jobs/${jobId}/job_plans/fix_categories`) as {
+        success: boolean;
+        data?: { fixed_count: number; plans_fixed: string[] };
+        error?: string;
+      };
+
+      if (response.success) {
+        const count = response.data?.fixed_count || 0;
+        toast({
+          title: count > 0 ? "Categories Fixed" : "All Good",
+          description: count > 0
+            ? `Fixed ${count} plan(s): ${response.data?.plans_fixed?.join(", ")}`
+            : "All plans are already in the correct categories",
+        });
+        fetchPlans();
+        fetchTabs();
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to fix categories",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Error fixing categories:", err);
+      toast({
+        title: "Error",
+        description: "Failed to fix plan categories",
+        variant: "destructive",
+      });
     }
   };
 
@@ -681,45 +753,99 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Header with filter tabs */}
-      <div className="px-4 pb-4 flex items-center justify-between shrink-0">
-        <Tabs
-          value={activeSubTab}
-          onValueChange={setActiveSubTab}
-          className="w-auto"
-        >
-          <TabsList>
-            <TabsTrigger value="on-issue">On Issue</TabsTrigger>
-            <TabsTrigger value="all">All Plans</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Category tabs */}
-      {tabs.length > 0 && (
-        <div className="px-4 pb-4 shrink-0">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            <Badge variant="outline" className="cursor-pointer whitespace-nowrap">
-              All ({plans.length})
-            </Badge>
-            {tabs.map((tab) => (
-              <Badge
-                key={tab.id}
-                variant="outline"
-                className="cursor-pointer whitespace-nowrap"
-              >
-                {tab.name} ({tab.on_issue_count})
+      {/* Category filter + Add Plan button */}
+      <div className="px-4 pb-2 shrink-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {/* Selected category badge */}
+            {selectedTab && (
+              <Badge variant="default" className="whitespace-nowrap">
+                {selectedTab.name} ({filteredPlans.length})
               </Badge>
-            ))}
+            )}
+
+            {/* Show "All" if no category selected or no plans */}
+            {!selectedTab && (
+              <Badge variant="default" className="whitespace-nowrap">
+                All Plans ({plans.length})
+              </Badge>
+            )}
+
+            {/* Dropdown for other categories */}
+            {tabs.length > 0 && (otherTabsWithPlans.length > 0 || emptyTabs.length > 0) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-6 w-6 p-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {/* Show All option */}
+                  <DropdownMenuItem onClick={() => setSelectedCategoryId(null)}>
+                    All Plans ({plans.length})
+                  </DropdownMenuItem>
+
+                  {/* Other categories with plans */}
+                  {otherTabsWithPlans.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {otherTabsWithPlans.map(tab => {
+                        const count = plans.filter(p => p.job_plan_tab_id === tab.id).length;
+                        return (
+                          <DropdownMenuItem
+                            key={tab.id}
+                            onClick={() => setSelectedCategoryId(tab.id)}
+                          >
+                            {tab.name} ({count})
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Empty categories (no plans yet) */}
+                  {emptyTabs.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        No plans yet
+                      </div>
+                      {emptyTabs.map(tab => (
+                        <DropdownMenuItem
+                          key={tab.id}
+                          onClick={() => setSelectedCategoryId(tab.id)}
+                          className="text-muted-foreground"
+                        >
+                          {tab.name} (0)
+                        </DropdownMenuItem>
+                      ))}
+                    </>
+                  )}
+
+                  {/* Actions */}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleFixCategories}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Fix Plan Categories
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
+
+          {/* Add Plan button */}
+          <Button size="sm" onClick={handleOpenAddDialog}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Plan
+          </Button>
         </div>
-      )}
+      </div>
 
       {/* TeeemDocumentView - Main content */}
       <div className="flex-1 min-h-0 px-4">
         <TeeemDocumentView
-          documents={plans}
-          title="Plans"
+          documents={filteredPlans}
+          title=""
           getDocumentId={(p) => p.id}
           getDocumentName={(p) => p.display_name}
           getDocumentStatus={(p) =>
@@ -730,7 +856,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           getRevision={(p) => p.current_revision?.revision_label || null}
           onRename={handleRename}
           onApprove={handleSetOnIssue}
-          onRefresh={fetchPlans}
           enableSelection
           bulkActions={(ids, clearSelection) => (
             <Button
@@ -745,20 +870,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
               Email ({ids.length})
             </Button>
           )}
-          leftActions={
-            <Button onClick={handleOpenAddDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Plan
-            </Button>
-          }
           statusLabels={{ draft: "Draft", approved: "On Issue" }}
           actionLabels={{ approve: "Set On Issue", openExternal: "Open in SharePoint" }}
           loading={loading}
-          emptyMessage={
-            activeSubTab === "on-issue"
-              ? "No plans are currently on issue"
-              : "Drop a PDF here or click Add Plan to get started"
-          }
+          emptyMessage="Drop a PDF here or click Add Plan to get started"
         />
       </div>
 

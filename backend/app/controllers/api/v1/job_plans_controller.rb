@@ -249,6 +249,40 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # POST /api/v1/jobs/:job_id/job_plans/fix_categories
+      # Reassign plans to correct tabs based on their plan types
+      def fix_categories
+        ensure_job_has_plan_tabs
+
+        fixed_plans = []
+
+        @job.job_plans.includes(:plan_type).find_each do |plan|
+          next unless plan.plan_type.present?
+
+          # Get the plan type's category IDs
+          category_ids = plan.plan_type.plan_categories.pluck(:id)
+          next if category_ids.empty?
+
+          # Find matching tab
+          tab = @job.job_plan_tabs.find_by(plan_category_id: category_ids)
+          next unless tab
+
+          # Only update if different
+          if plan.job_plan_tab_id != tab.id
+            plan.update!(job_plan_tab_id: tab.id)
+            fixed_plans << plan.display_name
+          end
+        end
+
+        render json: {
+          success: true,
+          data: {
+            fixed_count: fixed_plans.length,
+            plans_fixed: fixed_plans
+          }
+        }
+      end
+
       # POST /api/v1/jobs/:job_id/job_plans/email
       def email
         plan_ids = params[:plan_ids] || []
