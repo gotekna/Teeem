@@ -85,11 +85,29 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     }
   }, []);
 
+  // Auto-match exact contacts when sheet opens
+  const runAutoMatchOnOpen = React.useCallback(async () => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { matched_count: number; skipped_count: number };
+      }>("/api/v1/xero/auto_match_contacts");
+      if (response?.success && response.data.matched_count > 0) {
+        toast.success(`Auto-linked ${response.data.matched_count} exact matches`);
+        onLinked?.();
+      }
+    } catch (error) {
+      // Silent fail - this is a convenience feature
+      console.error("Auto-match on open failed:", error);
+    }
+  }, [onLinked]);
+
   React.useEffect(() => {
     if (isOpen) {
-      fetchData();
+      // Run auto-match first (silently links exact matches), then fetch remaining
+      runAutoMatchOnOpen().then(() => fetchData());
     }
-  }, [isOpen, fetchData]);
+  }, [isOpen, fetchData, runAutoMatchOnOpen]);
 
   const handleLink = async (xeroContactName: string, contactId: number) => {
     setLinking(xeroContactName);
@@ -255,7 +273,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                Auto-Match will link contacts with exact name matches automatically.
+                Exact matches are linked automatically. Click Auto-Match to re-scan for new matches.
               </p>
             </div>
 

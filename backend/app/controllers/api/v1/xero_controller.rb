@@ -2221,11 +2221,14 @@ module Api
             .pluck(:contact_name)
 
           unlinked.each do |xero_name|
-            # Try to find exact match first
-            teeem_contact = Contact.find_by("LOWER(display_name) = ?", xero_name.downcase)
+            # Normalize name - trim whitespace and squish multiple spaces
+            normalized_name = xero_name.to_s.strip.squish.downcase
+
+            # Try to find exact match first (also normalize DB values)
+            teeem_contact = Contact.find_by("LOWER(TRIM(display_name)) = ?", normalized_name)
 
             # Try company name match
-            teeem_contact ||= Contact.find_by("LOWER(company_name_or_trust) = ?", xero_name.downcase)
+            teeem_contact ||= Contact.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
 
             if teeem_contact
               # Link all invoices with this name
@@ -2482,16 +2485,17 @@ module Api
         return [] unless xero_name.present?
 
         matches = []
-        name_lower = xero_name.downcase
+        # Normalize name - same logic as auto_match_contacts for consistency
+        name_lower = xero_name.to_s.strip.squish.downcase
 
-        # Priority 1: Exact display_name match
-        exact = Contact.where("LOWER(display_name) = ?", name_lower).first
+        # Priority 1: Exact display_name match (with TRIM for whitespace normalization)
+        exact = Contact.where("LOWER(TRIM(display_name)) = ?", name_lower).first
         if exact
           matches << { id: exact.id, name: exact.display_name, match_type: "exact", score: 100 }
         end
 
         # Priority 2: Exact company_name_or_trust match
-        company_exact = Contact.where("LOWER(company_name_or_trust) = ?", name_lower).first
+        company_exact = Contact.where("LOWER(TRIM(company_name_or_trust)) = ?", name_lower).first
         if company_exact && company_exact.id != exact&.id
           matches << { id: company_exact.id, name: company_exact.display_name, match_type: "company_exact", score: 95 }
         end

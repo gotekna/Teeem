@@ -254,9 +254,11 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       setProcessingProgress("Splitting PDF and analyzing with AI...");
 
+      // Long timeout for AI processing of multi-page PDFs (5 minutes)
       const result = await api.postFormData<{ success: boolean; data?: { plans: unknown[]; total_pages: number }; error?: string }>(
         `/api/v1/jobs/${jobId}/job_plans/upload_plan_set`,
-        formData
+        formData,
+        { timeout: 300000 }
       );
 
       if (result.success && result.data) {
