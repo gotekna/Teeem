@@ -10,9 +10,9 @@ namespace :deploy do
 
     # 1. Run pending migrations
     begin
-      # Rails 8 compatible migration check
-      if ActiveRecord::Base.connection.schema_migration.all_versions.empty? ||
-         ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths).needs_migration?
+      # Rails 8 compatible: Use MigrationContext.needs_migration?
+      migration_context = ActiveRecord::MigrationContext.new(ActiveRecord::Migrator.migrations_paths)
+      if migration_context.needs_migration?
         puts "\n📦 Running pending migrations..."
         Rake::Task["db:migrate"].invoke
       else
