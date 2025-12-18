@@ -34,6 +34,10 @@ class Job < ApplicationRecord
   has_many :external_invoices, dependent: :nullify
   has_many :job_documents, dependent: :destroy
 
+  # Plans (new plans tab with revision tracking)
+  has_many :job_plan_tabs, dependent: :destroy
+  has_many :job_plans, dependent: :destroy
+
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy
   has_many :sm_rollover_logs, dependent: :destroy

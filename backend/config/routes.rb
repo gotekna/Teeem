@@ -236,6 +236,21 @@ Rails.application.routes.draw do
           end
         end
 
+        # Job plans (nested under jobs) - Plans tab with revision tracking
+        resources :job_plans, only: [ :index, :show, :create, :update, :destroy ] do
+          collection do
+            get :on_issue             # GET /api/v1/jobs/:job_id/job_plans/on_issue
+            get :tabs                 # GET /api/v1/jobs/:job_id/job_plans/tabs
+            get :suggested_recipients # GET /api/v1/jobs/:job_id/job_plans/suggested_recipients
+            post :email               # POST /api/v1/jobs/:job_id/job_plans/email
+          end
+          member do
+            post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision
+            put :set_on_issue     # PUT /api/v1/jobs/:job_id/job_plans/:id/set_on_issue
+          end
+          resources :revisions, controller: "job_plan_revisions", only: [ :index, :show, :create, :update, :destroy ]
+        end
+
         # Meetings (nested under jobs)
         resources :meetings, only: [ :index, :create ]
 
@@ -823,6 +838,20 @@ Rails.application.routes.draw do
           post :reorder
         end
       end
+
+      # Plan Categories and Types (Admin settings for Plans tab)
+      resources :plan_categories do
+        collection do
+          post :reorder
+        end
+        resources :plan_types, only: [ :index, :create ]
+      end
+      resources :plan_types, only: [ :show, :update, :destroy ] do
+        collection do
+          post :reorder
+        end
+      end
+      resources :revision_formats
 
       # TEEEM_DOCS Documentation Viewer
       get "documentation", to: "documentation#index"

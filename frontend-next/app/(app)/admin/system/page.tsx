@@ -39,6 +39,7 @@ import {
   UserCog,
   Palette,
   Mail,
+  Map,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -71,6 +72,7 @@ import { WarehouseTab } from "./components/WarehouseTab";
 import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "./components/EmailAccountsTab";
+import { PlansTab } from "./components/PlansTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -95,6 +97,7 @@ const MAIN_TABS = [
   { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
+  { id: "plans", label: "Plans", icon: Map },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
   { id: "meeting-types", label: "Meeting Types", icon: Calendar },
@@ -726,6 +729,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="contact-roles">
             <ContactRolesTab />
+          </TabsContent>
+          <TabsContent value="plans">
+            <PlansTab />
           </TabsContent>
           <TabsContent value="schedule-master">
             <ScheduleMasterTab />

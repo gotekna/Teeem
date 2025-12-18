@@ -36,6 +36,7 @@ import {
   X,
   FileSignature,
   Palette,
+  Map,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import dynamic from "next/dynamic";
@@ -44,6 +45,7 @@ import { JobContractTab } from "@/components/jobs/JobContractTab";
 import { JobPeopleTab } from "@/components/jobs/JobPeopleTab";
 import { RainLogTab } from "@/components/jobs/RainLogTab";
 import { JobDocumentsTab } from "@/components/jobs/JobDocumentsTab";
+import { JobPlansTab } from "@/components/jobs/JobPlansTab";
 import { JobPurchaseOrdersTab } from "@/components/jobs/JobPurchaseOrdersTab";
 import { JobEstimatorTab } from "@/components/jobs/JobEstimatorTab";
 import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
@@ -170,6 +172,7 @@ const tabs = [
   { name: "Schedule", slug: "schedule", icon: Calendar },
   { name: "WHS", slug: "whs", icon: Shield },
   { name: "Rain Log", slug: "rain-log", icon: Cloud },
+  { name: "Plans", slug: "plans", icon: Map },
   { name: "Documents", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
   { name: "Settings", slug: "settings", icon: Settings },
@@ -1262,6 +1265,10 @@ export default function JobDetailPage() {
 
         <TabsContent value="rain-log" className="mt-6">
           <RainLogTab jobId={job.id} />
+        </TabsContent>
+
+        <TabsContent value="plans" className="mt-6">
+          <JobPlansTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">

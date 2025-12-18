@@ -24,7 +24,6 @@ import {
   FileText,
   Paperclip,
   Eye,
-  Calendar,
   ShieldCheck,
   Settings,
   RefreshCw,
@@ -48,8 +47,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 
 interface OrgStatus {
   loading: boolean;
@@ -155,20 +153,8 @@ interface JobDocumentsTabProps {
   jobTitle?: string;
 }
 
-// Plan file interface
-interface PlanFile {
-  id: string;
-  name: string;
-  web_url: string;
-  size?: number;
-  modified?: string;
-  is_all_plans: boolean;
-  sheet_issue?: string;
-  sheet_date?: string;
-}
-
 export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
-  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles" | "plans">("tasks");
+  const [viewMode, setViewMode] = useState<"tasks" | "onedrive" | "allfiles">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
   const [folders, setFolders] = useState<OneDriveFolder[]>([]);
@@ -202,15 +188,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [aiStats, setAiStats] = useState<AIStats | null>(null);
   const [analyzingDocs, setAnalyzingDocs] = useState(false);
   const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
-
-  // Plans tab state
-  const [plans, setPlans] = useState<PlanFile[]>([]);
-  const [loadingPlans, setLoadingPlans] = useState(false);
-  const [uploadingPlan, setUploadingPlan] = useState(false);
-  const [plansFolderUrl, setPlansFolderUrl] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<PlanFile | null>(null);
-  const [renamingPlans, setRenamingPlans] = useState(false);
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -687,142 +664,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     }
 
   }, [viewMode, orgStatus.connected]);
-
-  // Load plans when switching to the Plans tab
-  useEffect(() => {
-    if (viewMode === "plans" && orgStatus.connected) {
-      loadPlans();
-    }
-  }, [viewMode, orgStatus.connected]);
-
-  // Load plans from 04 Plans folder
-  const loadPlans = async () => {
-    try {
-      setLoadingPlans(true);
-      const response = await api.get<{
-        success: boolean;
-        data: {
-          plans: PlanFile[];
-          folder_exists: boolean;
-          folder_web_url?: string;
-        };
-      }>(`/api/v1/jobs/${jobId}/plan_set`);
-
-      if (response.success && response.data) {
-        setPlans(response.data.plans || []);
-        setPlansFolderUrl(response.data.folder_web_url || null);
-      }
-    } catch (err) {
-      console.error("Failed to load plans:", err);
-      setError("Failed to load plans");
-    } finally {
-      setLoadingPlans(false);
-    }
-  };
-
-  // Upload a plan set PDF
-  const uploadPlanSet = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      setError("Please upload a PDF file");
-      return;
-    }
-
-    try {
-      setUploadingPlan(true);
-      setError(null);
-
-      const formData = new FormData();
-      formData.append("file", file);
-
-      const response = await api.postFormData<{
-        success: boolean;
-        error?: string;
-        data?: {
-          all_plans: { name: string; file_id: string; web_url: string };
-          pages: Array<{ name: string; file_id: string; web_url: string }>;
-          total_pages: number;
-        };
-      }>(`/api/v1/jobs/${jobId}/upload_plan_set`, formData);
-
-      if (response.success) {
-        setMessage({
-          type: "success",
-          text: `Successfully uploaded ${response.data?.total_pages || 0} plan pages`,
-        });
-        // Reload plans list
-        loadPlans();
-      } else {
-        setError(response.error || "Failed to upload plan set");
-      }
-    } catch (err) {
-      console.error("Failed to upload plan set:", err);
-      setError("Failed to upload plan set");
-    } finally {
-      setUploadingPlan(false);
-    }
-  };
-
-  // Handle drag and drop for plans
-  const handlePlanDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      uploadPlanSet(files[0]);
-    }
-  };
-
-  const handlePlanDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(true);
-  };
-
-  const handlePlanDragLeave = () => {
-    setDragOver(false);
-  };
-
-  // Rename existing plans using AI
-  const renamePlansWithAI = async () => {
-    try {
-      setRenamingPlans(true);
-      setError(null);
-
-      const response = await api.post<{
-        success: boolean;
-        error?: string;
-        data?: {
-          renamed: Array<{ original_name: string; new_name: string }>;
-          skipped: Array<{ name: string; reason: string }>;
-          errors: Array<{ name: string; error: string }>;
-        };
-      }>(`/api/v1/jobs/${jobId}/rename_plans`);
-
-      if (response?.success && response?.data) {
-        const { renamed, skipped, errors } = response.data;
-        if (renamed.length > 0) {
-          setMessage({
-            type: "success",
-            text: `Renamed ${renamed.length} plan(s). ${skipped.length} skipped, ${errors.length} errors.`,
-          });
-        } else if (skipped.length > 0) {
-          setMessage({
-            type: "success",
-            text: `No plans renamed. ${skipped.length} skipped (already named or AI couldn't extract info).`,
-          });
-        }
-        // Reload plans list
-        loadPlans();
-      } else {
-        setError(response?.error || "Failed to rename plans");
-      }
-    } catch (err) {
-      console.error("Failed to rename plans:", err);
-      setError("Failed to rename plans");
-    } finally {
-      setRenamingPlans(false);
-    }
-  };
 
   const getStatusBadge = (task: DocumentTask) => {
     if (task.is_validated) {
@@ -1534,259 +1375,6 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
     );
   };
 
-  // Format date for display
-  const formatPlanDate = (dateString?: string) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-AU", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  // Plans View - displays plans from 04 Plans folder
-  const renderPlansView = () => {
-    // Separate "All Plans" from individual pages
-    const allPlans = plans.find((p) => p.is_all_plans);
-    const individualPlans = plans.filter((p) => !p.is_all_plans);
-
-    return (
-      <div className="space-y-4">
-        {/* Drop Zone - compact when plans exist */}
-        <Card>
-          <CardContent className={plans.length > 0 ? "p-4" : "p-6"}>
-            <div
-              className={`border-2 border-dashed rounded-lg transition-colors ${
-                plans.length > 0 ? "p-4" : "p-8"
-              } text-center ${
-                dragOver
-                  ? "border-primary bg-primary/5"
-                  : "border-muted-foreground/25 hover:border-muted-foreground/50"
-              }`}
-              onDrop={handlePlanDrop}
-              onDragOver={handlePlanDragOver}
-              onDragLeave={handlePlanDragLeave}
-            >
-              {uploadingPlan ? (
-                <div className="flex flex-col items-center">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
-                  <p className="font-medium">Processing plan set...</p>
-                  <p className="text-sm text-muted-foreground">
-                    Extracting pages and uploading to SharePoint
-                  </p>
-                </div>
-              ) : (
-                <div className={`flex ${plans.length > 0 ? "items-center justify-center gap-4" : "flex-col items-center"}`}>
-                  <Upload className={`${plans.length > 0 ? "h-6 w-6" : "h-10 w-10 mb-3"} text-muted-foreground`} />
-                  <div className={plans.length > 0 ? "" : "text-center"}>
-                    <p className={`font-medium ${plans.length > 0 ? "text-sm" : "text-lg mb-1"}`}>
-                      {plans.length > 0 ? "Drop PDF to upload new plan set" : "Drop PDF Plan Set Here"}
-                    </p>
-                    {plans.length === 0 && (
-                      <p className="text-sm text-muted-foreground mb-4">
-                        The PDF will be split into individual pages
-                      </p>
-                    )}
-                  </div>
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) uploadPlanSet(file);
-                        e.target.value = "";
-                      }}
-                    />
-                    <Button variant="outline" size={plans.length > 0 ? "sm" : "default"} asChild>
-                      <span>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Browse
-                      </span>
-                    </Button>
-                  </label>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Plans Split View - List + Preview */}
-        {plans.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Left Panel - Plans List */}
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader className="pb-3 shrink-0">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <Folder className="h-5 w-5 text-blue-500" />
-                    Plans ({plans.length})
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={renamePlansWithAI}
-                      disabled={renamingPlans || loadingPlans}
-                    >
-                      {renamingPlans ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      ) : (
-                        <Sparkles className="h-4 w-4 mr-1" />
-                      )}
-                      Rename with AI
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={loadPlans}
-                      disabled={loadingPlans}
-                    >
-                      <RefreshCw className={`h-4 w-4 ${loadingPlans ? "animate-spin" : ""}`} />
-                    </Button>
-                    {plansFolderUrl && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => window.open(plansFolderUrl, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-y-auto p-0">
-                {loadingPlans ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {/* All Plans entry - always first */}
-                    {allPlans && (
-                      <div
-                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-                          selectedPlan?.id === allPlans.id
-                            ? "bg-primary/10 border-l-2 border-l-primary"
-                            : "hover:bg-muted/50"
-                        }`}
-                        onClick={() => setSelectedPlan(allPlans)}
-                      >
-                        <div className="h-10 w-10 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                          <FileText className="h-5 w-5 text-primary" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{allPlans.name}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Badge variant="secondary" className="text-xs">Full Set</Badge>
-                            {allPlans.modified && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatPlanDate(allPlans.modified)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Individual plan pages */}
-                    {individualPlans.map((plan) => (
-                      <div
-                        key={plan.id}
-                        className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors ${
-                          selectedPlan?.id === plan.id
-                            ? "bg-primary/10 border-l-2 border-l-primary"
-                            : "hover:bg-muted/50"
-                        }`}
-                        onClick={() => setSelectedPlan(plan)}
-                      >
-                        <div className="h-10 w-10 rounded bg-muted flex items-center justify-center shrink-0">
-                          <FileText className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate" title={plan.name}>
-                            {plan.name}
-                          </p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                            {plan.sheet_issue && (
-                              <Badge variant="outline" className="text-xs">
-                                {plan.sheet_issue}
-                              </Badge>
-                            )}
-                            {plan.sheet_date && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {plan.sheet_date}
-                              </span>
-                            )}
-                            {plan.size && <span>{formatFileSize(plan.size)}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Right Panel - Preview */}
-            <Card className="h-[600px] flex flex-col">
-              <CardHeader className="pb-3 shrink-0">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">
-                    {selectedPlan ? "Preview" : "Select a Plan"}
-                  </CardTitle>
-                  {selectedPlan && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(selectedPlan.web_url, "_blank")}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Open in SharePoint
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0">
-                {selectedPlan ? (
-                  <PDFViewer
-                    key={selectedPlan.id}
-                    url={`${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${selectedPlan.id}&preview=true`}
-                    fallbackUrl={selectedPlan.web_url}
-                    className="h-full"
-                  />
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
-                    <FileText className="h-16 w-16 mb-4 opacity-50" />
-                    <p>Select a plan from the list to preview</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Empty state when no plans */}
-        {plans.length === 0 && !loadingPlans && (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground">No plans uploaded yet.</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Drop a PDF plan set above to get started.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-6">
       {/* Messages */}
@@ -1833,20 +1421,11 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           <Folder className="h-4 w-4 mr-2" />
           All Files
         </Button>
-        <Button
-          variant={viewMode === "plans" ? "default" : "ghost"}
-          size="sm"
-          onClick={() => setViewMode("plans")}
-        >
-          <FileText className="h-4 w-4 mr-2" />
-          Plans
-        </Button>
       </div>
 
       {viewMode === "tasks" && renderTasksView()}
       {viewMode === "onedrive" && renderOneDriveView()}
       {viewMode === "allfiles" && renderAllFilesView()}
-      {viewMode === "plans" && renderPlansView()}
 
       {/* Import Legacy Files Modal */}
       <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
