@@ -272,6 +272,38 @@ If a page imports `TeeemTableView` AND has a custom `<h1>` header → **STOP and
 - `teeem-rob-dev` - Rob's dev environment
 - `teeem-sam-dev` - Sam's dev environment
 
+## 🔴 Microsoft 365 Integration (Organisations)
+
+**Authorisation and access to organisations is managed through the `organisation_microsoft_app_credentials` table.**
+
+This table stores:
+- OAuth tokens for Microsoft Graph API access
+- Organisation-specific credentials (client_id, tenant_id, etc.)
+- Connection status (`connected`, `disconnected`, `error`)
+- Sync configuration (what to sync, how many years of history)
+
+**Key Model:** `OrganizationMicrosoftAppCredential`
+
+**Common Operations:**
+```ruby
+# Find connected orgs
+OrganizationMicrosoftAppCredential.where(status: 'connected')
+
+# Get credential for specific org
+cred = OrganizationMicrosoftAppCredential.find_by(name: 'OrgName')
+
+# Create Graph API client
+client = MicrosoftAppGraphClient.new(cred)
+
+# Access SharePoint config
+sp_config = OrganizationMicrosoftAppCredential.teeem_sharepoint_config
+```
+
+**Related Services:**
+- `MicrosoftAppGraphClient` - Makes Microsoft Graph API calls
+- `OrgEmailSyncJob` - Syncs emails from Microsoft 365
+- `OneDriveController` - Handles OneDrive file operations
+
 ## 🔴 Local Development
 
 **When starting local servers, use these ports:**
