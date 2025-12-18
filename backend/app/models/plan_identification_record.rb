@@ -2,7 +2,8 @@
 
 # Audit trail for every plan identification decision
 # Records the full pipeline results: OCR → Pattern Match → AI → Decision
-class PlanIdentification < ApplicationRecord
+class PlanIdentificationRecord < ApplicationRecord
+  self.table_name = "plan_identifications"
   belongs_to :job_plan
   belongs_to :identified_plan_type, class_name: "PlanType", optional: true
   belongs_to :identified_plan_category, class_name: "PlanCategory", optional: true

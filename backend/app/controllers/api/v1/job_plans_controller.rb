@@ -283,6 +283,29 @@ module Api
         }
       end
 
+      # POST /api/v1/jobs/:job_id/job_plans/rerun_ai
+      # Queue AI analysis for all plans that have files
+      def rerun_ai
+        queued_plans = []
+
+        @job.job_plans.includes(:current_revision).find_each do |plan|
+          next unless plan.current_revision&.sharepoint_file_id.present?
+
+          # Queue AI analysis job
+          PlanAiAnalysisJob.perform_later(plan.id)
+          queued_plans << plan.display_name
+        end
+
+        render json: {
+          success: true,
+          data: {
+            queued_count: queued_plans.length,
+            plans_queued: queued_plans,
+            message: "#{queued_plans.length} plans queued for AI analysis"
+          }
+        }
+      end
+
       # POST /api/v1/jobs/:job_id/job_plans/email
       def email
         plan_ids = params[:plan_ids] || []

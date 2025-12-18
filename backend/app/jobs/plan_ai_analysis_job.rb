@@ -60,7 +60,7 @@ class PlanAiAnalysisJob < ApplicationJob
       )
 
       # Record identification for audit trail
-      PlanIdentification.record_from_result(plan, result)
+      PlanIdentificationRecord.record_from_result(plan, result)
     else
       Rails.logger.info "[PlanAiAnalysisJob] No identification result for plan #{job_plan_id}"
     end

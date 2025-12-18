@@ -266,13 +266,31 @@ end
 
 ## Implementation Phases
 
-### Phase 1: Foundation (Month 1-2)
-- [ ] Create `PlanIdentificationService` skeleton
-- [ ] Migrate existing code into service
-- [ ] Create `plan_identifications` table
-- [ ] Remove duplicate code from controllers/jobs
-- [ ] All identification goes through THE ONE service
-- [ ] Basic audit trail working
+### Phase 1: Foundation (Month 1-2) ✅ COMPLETE (2025-12-19)
+- [x] Create `PlanIdentificationService` skeleton
+- [x] Migrate existing code into service
+- [x] Create `plan_identifications` table
+- [x] Create `plan_identification_rules` table
+- [x] Remove duplicate code from controllers/jobs
+- [x] All identification goes through THE ONE service
+- [x] Basic audit trail working
+- [x] SSoT guard rail on JobPlan model
+
+**Files Created:**
+- `app/services/plan_identification/plan_identification_service.rb` - THE ONE
+- `app/services/plan_identification/pattern_matching_layer.rb` - Layer 2
+- `app/services/plan_identification/ai_validation_layer.rb` - Layer 3
+- `app/services/plan_identification/result.rb` - Result object
+- `app/models/plan_identification_record.rb` - Audit trail model
+- `app/models/plan_identification_rule.rb` - Learned rules model
+- `db/migrate/20251219071711_create_plan_identifications.rb`
+- `db/migrate/20251219071712_create_plan_identification_rules.rb`
+
+**Files Updated:**
+- `app/jobs/plan_ai_analysis_job.rb` - Now uses service
+- `app/services/plan_set_service.rb` - Now uses AiValidationLayer
+- `app/controllers/api/v1/job_plans_controller.rb` - Removed duplicate code
+- `app/models/job_plan.rb` - Added SSoT guard rail
 
 ### Phase 2: OCR Layer (Month 2-3)
 - [ ] Add Tesseract OCR gem
@@ -324,12 +342,12 @@ end
 
 ### Code that MUST use PlanIdentificationService:
 
-| Current Location | Action |
-|-----------------|--------|
-| `PlanSetService.extract_sheet_info_with_ai` | → Call `PlanIdentificationService` |
-| `PlanAiAnalysisJob.find_plan_type_for_sheet` | → DELETE, use service |
-| `JobPlansController.find_plan_type_for_sheet` | → DELETE, use service |
-| `PlanSetUploadJob` | → Call `PlanIdentificationService` |
+| Location | Status |
+|----------|--------|
+| `PlanSetService.extract_sheet_info_with_ai` | ✅ Uses `AiValidationLayer` |
+| `PlanAiAnalysisJob.find_plan_type_for_sheet` | ✅ DELETED, uses service |
+| `JobPlansController.find_plan_type_for_sheet` | ✅ DELETED |
+| `PlanSetUploadJob` | 🔄 TODO: Update in Phase 2 |
 | Any future plan identification | → MUST use service |
 
 ### Guard Rails

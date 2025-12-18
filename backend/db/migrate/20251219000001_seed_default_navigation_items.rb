@@ -25,15 +25,14 @@ class SeedDefaultNavigationItems < ActiveRecord::Migration[8.0]
     ]
 
     items.each do |item_attrs|
-      NavigationItem.create!(
-        name: item_attrs[:name],
-        href: item_attrs[:href],
-        icon: item_attrs[:icon],
-        badge_key: item_attrs[:badge_key],
-        position: item_attrs[:position],
-        is_active: true,
-        visible_to_roles: []
-      )
+      NavigationItem.find_or_create_by!(href: item_attrs[:href]) do |item|
+        item.name = item_attrs[:name]
+        item.icon = item_attrs[:icon]
+        item.badge_key = item_attrs[:badge_key]
+        item.position = item_attrs[:position]
+        item.is_active = true
+        item.visible_to_roles = []
+      end
     end
   end
 

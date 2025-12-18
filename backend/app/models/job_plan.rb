@@ -10,7 +10,7 @@ class JobPlan < ApplicationRecord
   belongs_to :plan_type, optional: true
   belongs_to :current_revision, class_name: 'JobPlanRevision', optional: true
   has_many :revisions, class_name: 'JobPlanRevision', dependent: :destroy
-  has_many :identifications, class_name: 'PlanIdentification', dependent: :destroy
+  has_many :identifications, class_name: 'PlanIdentificationRecord', dependent: :destroy
 
   # Track whether plan_type was set via the service
   attr_accessor :identified_via_service

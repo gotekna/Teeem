@@ -30,6 +30,7 @@ import {
   X,
   MoreHorizontal,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -503,6 +504,50 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
+  // Re-run AI analysis on all plans
+  const handleRerunAi = async () => {
+    try {
+      toast({
+        title: "Starting AI Analysis",
+        description: "Queuing plans for AI analysis...",
+      });
+
+      const response = await api.post(`/api/v1/jobs/${jobId}/job_plans/rerun_ai`) as {
+        success: boolean;
+        data?: { queued_count: number; message: string };
+        error?: string;
+      };
+
+      if (response.success) {
+        const count = response.data?.queued_count || 0;
+        toast({
+          title: "AI Analysis Queued",
+          description: count > 0
+            ? `${count} plan(s) queued for analysis. Results will update shortly.`
+            : "No plans with files to analyze",
+        });
+        // Refresh after a short delay to show initial results
+        setTimeout(() => {
+          fetchPlans();
+          fetchTabs();
+        }, 3000);
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to queue AI analysis",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Error running AI analysis:", err);
+      toast({
+        title: "Error",
+        description: "Failed to run AI analysis",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Handle set on issue
   const handleSetOnIssue = async (plan: JobPlan) => {
     if (!plan.current_revision) {
@@ -827,6 +872,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   <DropdownMenuItem onClick={handleFixCategories}>
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Fix Plan Categories
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleRerunAi}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Re-run AI Analysis
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
