@@ -7,6 +7,12 @@
  * Used for document file naming, display names, email templates, etc.
  * See: frontend-next/lib/component-registry.ts
  *
+ * Features:
+ * - Click palette items to add tokens
+ * - Drag tokens within template to reorder
+ * - Click X to remove tokens
+ * - Live preview of resolved template
+ *
  * Usage:
  * ```tsx
  * import { TokenBuilder } from "@/components/ui/tokens";
@@ -22,12 +28,11 @@
  */
 
 import * as React from "react";
-import { Plus, GripVertical, X } from "lucide-react";
+import { Plus, GripVertical, X, Search, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { TokenPalette } from "./TokenPalette";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   type PlaceholderScope,
   type PlaceholderToken,
@@ -35,6 +40,7 @@ import {
   buildTemplate,
   resolveWithExamples,
   getPlaceholderColor,
+  getPlaceholders,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 import {
@@ -191,17 +197,33 @@ export function TokenBuilder({
   previewData,
   previewUseLong = false,
   label,
-  placeholder = "Click + to add placeholders or type text...",
+  placeholder = "Click a token below to add it...",
   disabled = false,
   className,
   error,
   helpText,
 }: TokenBuilderProps) {
-  const [isPopoverOpen, setIsPopoverOpen] = React.useState(false);
   const [customText, setCustomText] = React.useState("");
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const [paletteExpanded, setPaletteExpanded] = React.useState(true);
+  const [search, setSearch] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const sensors = createDndSensors();
+
+  // Get placeholders
+  const allPlaceholders = customPlaceholders || getPlaceholders(scope);
+
+  // Filter placeholders by search
+  const filteredPlaceholders = React.useMemo(() => {
+    if (!search.trim()) return allPlaceholders;
+    const query = search.toLowerCase();
+    return allPlaceholders.filter(
+      (p) =>
+        p.code.toLowerCase().includes(query) ||
+        p.example.toLowerCase().includes(query) ||
+        p.description?.toLowerCase().includes(query)
+    );
+  }, [allPlaceholders, search]);
 
   // Parse current value into tokens with unique IDs
   const tokens: TokenItem[] = React.useMemo(() => {
@@ -236,7 +258,6 @@ export function TokenBuilder({
   const insertToken = (code: string) => {
     const newValue = value ? `${value}${code}` : code;
     onChange(newValue);
-    setIsPopoverOpen(false);
   };
 
   // Remove a token at index
@@ -323,60 +344,6 @@ export function TokenBuilder({
             </DragOverlay>
           </DndContext>
         )}
-
-        {/* Add Button */}
-        {!disabled && (
-          <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-6 px-2"
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="start">
-              {/* Custom Text Input */}
-              <div className="p-2 border-b">
-                <div className="flex gap-2">
-                  <Input
-                    ref={inputRef}
-                    placeholder="Add custom text..."
-                    value={customText}
-                    onChange={(e) => setCustomText(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="h-8 text-sm"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={addCustomText}
-                    disabled={!customText.trim()}
-                    className="h-8"
-                  >
-                    Add
-                  </Button>
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Drag tokens to reorder. Click X to remove.
-                </p>
-              </div>
-
-              {/* Token Palette */}
-              <TokenPalette
-                scope={scope}
-                placeholders={customPlaceholders}
-                onSelect={(code) => insertToken(code)}
-                showLongVariants={true}
-                showSearch={true}
-                maxHeight="300px"
-                className="border-0 rounded-none"
-              />
-            </PopoverContent>
-          </Popover>
-        )}
       </div>
 
       {/* Preview */}
@@ -386,6 +353,90 @@ export function TokenBuilder({
           <span className="text-sm font-mono text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-2 py-0.5 rounded-none">
             {preview}
           </span>
+        </div>
+      )}
+
+      {/* Inline Palette - Click to Add */}
+      {!disabled && (
+        <div className="border rounded-none bg-muted/30">
+          {/* Palette Header */}
+          <button
+            type="button"
+            onClick={() => setPaletteExpanded(!paletteExpanded)}
+            className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+          >
+            <span>Available Tokens (click to add)</span>
+            {paletteExpanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {paletteExpanded && (
+            <div className="border-t">
+              {/* Search and Custom Text */}
+              <div className="p-2 border-b bg-background flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tokens..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="h-7 pl-7 text-xs"
+                  />
+                </div>
+                <Input
+                  ref={inputRef}
+                  placeholder="Custom text..."
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="h-7 text-xs w-32"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={addCustomText}
+                  disabled={!customText.trim()}
+                  className="h-7 px-2"
+                >
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+
+              {/* Token Grid */}
+              <ScrollArea className="max-h-[200px]">
+                <div className="p-2 flex flex-wrap gap-1.5">
+                  {filteredPlaceholders.map((p, index) => {
+                    const colorClasses = PLACEHOLDER_COLOR_CLASSES[p.color];
+                    return (
+                      <button
+                        key={`${p.code}-${index}`}
+                        type="button"
+                        onClick={() => insertToken(p.code)}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-1 rounded-none border text-xs font-mono",
+                          "hover:shadow-sm transition-all cursor-pointer hover:scale-105",
+                          colorClasses.bg,
+                          colorClasses.text,
+                          colorClasses.border
+                        )}
+                        title={p.description || `Add ${p.code}`}
+                      >
+                        <Plus className="h-2.5 w-2.5 opacity-60" />
+                        {p.code}
+                      </button>
+                    );
+                  })}
+                  {filteredPlaceholders.length === 0 && (
+                    <span className="text-xs text-muted-foreground p-2">No tokens found</span>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
         </div>
       )}
 

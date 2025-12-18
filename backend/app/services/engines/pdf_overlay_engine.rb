@@ -139,7 +139,7 @@ module Engines
 
       if job
         # Company/builder info
-        settings = CompanySetting.current
+        settings = ::CorporateCompanySetting.instance
         data[:builder_name] ||= settings.company_name
         data[:builder_abn] ||= format_abn(settings.abn)
         data[:builder_qbcc] ||= settings.qbcc_license
@@ -148,14 +148,14 @@ module Engines
         data[:builder_email] ||= settings.email
 
         # Job/site info
-        data[:site_address] ||= job.full_address
-        data[:lot_number] ||= job.lot_number
-        data[:plan_number] ||= job.plan_number
+        data[:site_address] ||= job.address
+        data[:lot_number] ||= job.try(:lot_number)
+        data[:plan_number] ||= job.try(:plan_number)
         data[:job_reference] ||= job.job_number || job.id.to_s
 
         # Contract info
-        data[:contract_date] ||= format_date(job.contract_date || Date.current)
-        data[:contract_price] ||= format_currency(job.contract_price)
+        data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
+        data[:contract_price] ||= format_currency(job.try(:contract_price))
 
         # Owner info from primary contact
         if job.primary_contact
