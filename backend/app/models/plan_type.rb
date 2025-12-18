@@ -78,13 +78,30 @@ class PlanType < ApplicationRecord
 
   # Preview short name with example values
   def short_name_preview
-    resolve_short_name(code: code, name: name, variant: "a")
+    resolve_short_name(
+      code: code,
+      name: name,
+      variant: "a",
+      job_code: "EB2401",
+      job_name: "05 Wategors",
+      job_address: "Lot 5 Wategois Street Claamvale",
+      lot_number: "5",
+      street_name: "Wategois Street",
+      suburb: "Claamvale",
+      project_name: "Wategors Estate"
+    )
   end
 
   # Preview long name with example values
   def long_name_preview
     resolve_long_name(
       job_code: "EB2401",
+      job_name: "05 Wategors",
+      job_address: "Lot 5 Wategois Street Claamvale",
+      lot_number: "5",
+      street_name: "Wategois Street",
+      suburb: "Claamvale",
+      project_name: "Wategors Estate",
       code: code,
       name: name,
       rev: "A",
@@ -96,13 +113,26 @@ class PlanType < ApplicationRecord
   private
 
   # Generic template resolver - replaces {Placeholder} with values
+  # Supported placeholders:
+  # - Job: {JobCode}, {JobName}, {JobAddress}, {LotNumber}, {StreetName}, {Suburb}, {ProjectName}
+  # - Plan type: {Code}, {Name}
+  # - Revision: {Rev}, {Date}, {Variant}
   def resolve_template(template, values)
     return "" if template.blank?
 
     result = template.dup
+    # Job placeholders
+    result = result.gsub("{JobCode}", values[:job_code]&.to_s || "")
+    result = result.gsub("{JobName}", values[:job_name]&.to_s || "")
+    result = result.gsub("{JobAddress}", values[:job_address]&.to_s || "")
+    result = result.gsub("{LotNumber}", values[:lot_number]&.to_s || "")
+    result = result.gsub("{StreetName}", values[:street_name]&.to_s || "")
+    result = result.gsub("{Suburb}", values[:suburb]&.to_s || "")
+    result = result.gsub("{ProjectName}", values[:project_name]&.to_s || "")
+    # Plan type placeholders
     result = result.gsub("{Code}", values[:code]&.to_s || code.to_s)
     result = result.gsub("{Name}", values[:name]&.to_s || name.to_s)
-    result = result.gsub("{JobCode}", values[:job_code]&.to_s || "")
+    # Revision placeholders
     result = result.gsub("{Rev}", values[:rev]&.to_s || "")
     result = result.gsub("{Date}", values[:date]&.to_s || "")
     result = result.gsub("{Variant}", values[:variant]&.to_s || "")
