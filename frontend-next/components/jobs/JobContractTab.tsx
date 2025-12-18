@@ -211,12 +211,9 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const handleGenerateContract = async () => {
     setGenerating(true);
     try {
-      const response = await api.post(`/api/v1/jobs/${job.id}/generate_contract`, {}, {
-        responseType: 'blob'
-      });
+      const blob = await api.postBlob(`/api/v1/jobs/${job.id}/generate_contract`, {});
 
       // Create blob URL for preview
-      const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       setPreviewUrl(url);
       setShowPreview(true);

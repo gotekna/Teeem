@@ -433,6 +433,26 @@ export const api = {
     return response.json() as Promise<T>;
   },
 
+  async postBlob(endpoint: string, data?: unknown, options: PostOptions = {}): Promise<Blob> {
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = options;
+
+    const response = await withRetry(
+      () => fetchWithTimeout(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        credentials: 'include',
+        body: JSON.stringify(data),
+      }, timeout),
+      retries
+    );
+
+    if (!response.ok) {
+      await handleErrorResponse(response);
+    }
+
+    return response.blob();
+  },
+
   async delete<T = unknown>(endpoint: string, options: DeleteOptions = {}): Promise<T | null> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, ...restOptions } = options;
 
