@@ -7,10 +7,12 @@ class JobPlan < ApplicationRecord
   belongs_to :current_revision, class_name: 'JobPlanRevision', optional: true
   has_many :revisions, class_name: 'JobPlanRevision', dependent: :destroy
 
+  # Only enforce uniqueness when plan_type_id is set
+  # During initial upload, plans have nil plan_type_id (AI sets it later)
   validates :job_id, uniqueness: {
     scope: [:plan_type_id, :variant_suffix],
     message: 'already has this plan type'
-  }
+  }, if: -> { plan_type_id.present? }
 
   before_save :set_display_name
 
