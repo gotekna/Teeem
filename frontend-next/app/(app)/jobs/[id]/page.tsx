@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { WrappingTabsList } from "@/components/ui/wrapping-tabs-list";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
@@ -160,6 +161,7 @@ interface JobStage {
 const tabs = [
   { name: "Overview", slug: "overview", icon: ClipboardList },
   { name: "Contract", slug: "contract", icon: FileSignature },
+  { name: "Plans", slug: "plans", icon: Map },
   { name: "Specifications", slug: "specifications", icon: FileText },
   { name: "Colours", slug: "colours", icon: Palette },
   { name: "Claims", slug: "claims", icon: TrendingUp },
@@ -172,7 +174,6 @@ const tabs = [
   { name: "Schedule", slug: "schedule", icon: Calendar },
   { name: "WHS", slug: "whs", icon: Shield },
   { name: "Rain Log", slug: "rain-log", icon: Cloud },
-  { name: "Plans", slug: "plans", icon: Map },
   { name: "Documents", slug: "documents", icon: FileText },
   { name: "Coms", slug: "coms", icon: MessageSquare },
   { name: "Settings", slug: "settings", icon: Settings },
@@ -859,14 +860,7 @@ export default function JobDetailPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="w-full justify-start overflow-x-auto">
-          {tabs.map((tab) => (
-            <TabsTrigger key={tab.slug} value={tab.slug} className="gap-2">
-              <tab.icon className="h-4 w-4" />
-              {tab.name}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+        <WrappingTabsList tabs={tabs} />
 
         <TabsContent value="overview" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
