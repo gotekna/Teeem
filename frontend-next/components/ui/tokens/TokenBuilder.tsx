@@ -254,10 +254,17 @@ export function TokenBuilder({
     return resolveWithExamples(value, previewUseLong);
   }, [value, showPreview, previewData, previewUseLong]);
 
-  // Insert a token at the end
+  // Insert a token at the end (auto-add space if needed)
   const insertToken = (code: string) => {
-    const newValue = value ? `${value}${code}` : code;
-    onChange(newValue);
+    if (!value) {
+      onChange(code);
+    } else {
+      // Auto-add space if value doesn't end with space or separator
+      const lastChar = value.slice(-1);
+      const needsSpace = lastChar !== " " && lastChar !== "-" && lastChar !== "_" && lastChar !== "/";
+      const newValue = needsSpace ? `${value} ${code}` : `${value}${code}`;
+      onChange(newValue);
+    }
   };
 
   // Remove a token at index
