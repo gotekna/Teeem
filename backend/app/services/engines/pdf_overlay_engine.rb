@@ -209,6 +209,10 @@ module Engines
         data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
         data[:contract_price] ||= format_currency(job.try(:contract_price))
 
+        # Plan and Spec dates (for document packages)
+        data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?
+        data[:spec_date] ||= format_date(job.try(:spec_date)) if job.try(:spec_date).present?
+
         # Owner info from primary contact
         primary = job.try(:primary_contact)
         if primary
@@ -247,7 +251,8 @@ module Engines
         end
       end
 
-      data[:date] ||= format_date(Date.current)
+      # Generic date - use plan_date or spec_date if available, otherwise current date
+      data[:date] ||= data[:plan_date] || data[:spec_date] || format_date(Date.current)
 
       data
     end

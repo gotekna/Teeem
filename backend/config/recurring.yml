@@ -196,3 +196,14 @@ foundation_sync_monitor:
   class: FoundationSyncMonitorJob
   queue: low
   schedule: at 4am every day
+
+# ============================================
+# WEATHER MONITORING
+# ============================================
+
+# Auto-detect rainfall for all active jobs and create rain log entries
+# Runs at 5am Brisbane time when yesterday's weather data is fully available
+check_yesterday_rain:
+  class: CheckYesterdayRainJob
+  queue: low
+  schedule: at 5am every day

@@ -242,6 +242,7 @@ function AddressDetailsCard({
   job: Job;
   onSave: (addressData: {
     lot_number?: string;
+    plan_number?: string;
     street_number?: string;
     street_name?: string;
     street_type?: string;
@@ -255,6 +256,7 @@ function AddressDetailsCard({
   const [saving, setSaving] = React.useState(false);
   const [editForm, setEditForm] = React.useState({
     lot_number: job.lot_number || "",
+    plan_number: job.plan_number || "",
     street_number: job.street_number || "",
     street_name: job.street_name || "",
     street_type: job.street_type || "",
@@ -332,6 +334,7 @@ function AddressDetailsCard({
     if (!isEditing) {
       setEditForm({
         lot_number: job.lot_number || "",
+        plan_number: job.plan_number || "",
         street_number: job.street_number || "",
         street_name: job.street_name || "",
         street_type: job.street_type || "",
@@ -353,6 +356,7 @@ function AddressDetailsCard({
       // Reset form on error
       setEditForm({
         lot_number: job.lot_number || "",
+        plan_number: job.plan_number || "",
         street_number: job.street_number || "",
         street_name: job.street_name || "",
         street_type: job.street_type || "",
@@ -369,6 +373,7 @@ function AddressDetailsCard({
   const handleCancel = () => {
     setEditForm({
       lot_number: job.lot_number || "",
+      plan_number: job.plan_number || "",
       street_number: job.street_number || "",
       street_name: job.street_name || "",
       street_type: job.street_type || "",
