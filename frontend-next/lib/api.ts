@@ -346,6 +346,7 @@ export const api = {
 
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('token');
+      console.log('[API] postFormData token exists:', !!token, 'endpoint:', endpoint);
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
