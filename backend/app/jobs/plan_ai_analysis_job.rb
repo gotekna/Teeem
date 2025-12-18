@@ -40,12 +40,20 @@ class PlanAiAnalysisJob < ApplicationJob
         sheet_info[:sheet_number]
       end
 
+      # Check if plan type is already used by another plan on this job
+      # If so, assign a variant suffix (a, b, c, ...)
+      variant_suffix = nil
+      if plan_type.present?
+        variant_suffix = find_next_variant_suffix(plan.job, plan_type.id, plan.id)
+      end
+
       plan.update!(
         plan_type_id: plan_type&.id,
+        variant_suffix: variant_suffix,
         display_name: new_display_name
       )
 
-      Rails.logger.info "[PlanAiAnalysisJob] Updated plan #{job_plan_id}: #{new_display_name}"
+      Rails.logger.info "[PlanAiAnalysisJob] Updated plan #{job_plan_id}: #{new_display_name} (variant: #{variant_suffix || 'none'})"
     end
   end
 
@@ -93,5 +101,27 @@ class PlanAiAnalysisJob < ApplicationJob
     end
 
     nil
+  end
+
+  # Find the next available variant suffix for a plan type on this job
+  # Returns nil if no suffix needed (first use of this type)
+  # Returns 'a', 'b', 'c', ... if type already exists
+  def find_next_variant_suffix(job, plan_type_id, current_plan_id)
+    # Check if any OTHER plan on this job already has this plan_type
+    existing_suffixes = job.job_plans
+      .where(plan_type_id: plan_type_id)
+      .where.not(id: current_plan_id)
+      .pluck(:variant_suffix)
+
+    return nil if existing_suffixes.empty?
+
+    # Find the next available suffix starting from 'a'
+    # Note: nil is a valid suffix (the first plan), so we check for actual values
+    ('a'..'z').each do |suffix|
+      return suffix unless existing_suffixes.include?(suffix)
+    end
+
+    # Fallback if somehow we exhaust a-z
+    "z#{existing_suffixes.count + 1}"
   end
 end
