@@ -42,6 +42,20 @@ interface EmailAccount {
   is_default?: boolean;
 }
 
+// Christmas signature for robert@teeem.au
+const CHRISTMAS_SIGNATURE = `
+
+--
+🎄 Merry Christmas & Happy New Year! 🎄
+
+Robert Harder
+Product Owner
+📱 0407 397 541
+🌐 teeem.com.au
+
+Wishing you joy, peace and prosperity in 2025!
+`;
+
 interface ComposeEmailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -78,6 +92,16 @@ export function ComposeEmailModal({
   const [attachments, setAttachments] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Get signature for account (if applicable)
+  const getSignatureForAccount = (account: EmailAccount | undefined): string => {
+    if (!account) return "";
+    // Christmas signature for robert@teeem.au
+    if (account.email_address?.toLowerCase() === "robert@teeem.au") {
+      return CHRISTMAS_SIGNATURE;
+    }
+    return "";
+  };
+
   // Fetch accounts when modal opens
   useEffect(() => {
     if (open) {
@@ -94,6 +118,22 @@ export function ComposeEmailModal({
       setError(null);
     }
   }, [open, defaultTo, defaultSubject, defaultBody]);
+
+  // Update signature when account changes
+  useEffect(() => {
+    if (!formData.credential_id || accounts.length === 0) return;
+
+    const account = accounts.find((a) => String(a.id) === formData.credential_id);
+    const signature = getSignatureForAccount(account);
+
+    if (signature) {
+      // Only add signature if body doesn't already contain it
+      setFormData((prev) => {
+        if (prev.body.includes("🎄 Merry Christmas")) return prev;
+        return { ...prev, body: prev.body + signature };
+      });
+    }
+  }, [formData.credential_id, accounts]);
 
   const fetchAccounts = async () => {
     setLoading(true);

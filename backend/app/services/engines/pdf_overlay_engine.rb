@@ -158,18 +158,19 @@ module Engines
         data[:contract_price] ||= format_currency(job.try(:contract_price))
 
         # Owner info from primary contact
-        if job.primary_contact
-          owner = job.primary_contact
-          data[:owner_name] ||= owner.full_name
-          data[:owner_address] ||= owner.address
-          data[:owner_phone] ||= owner.phone
-          data[:owner_email] ||= owner.email
+        primary = job.try(:primary_contact)
+        if primary
+          data[:owner_name] ||= primary.full_name
+          data[:owner_address] ||= primary.try(:address)
+          data[:owner_phone] ||= primary.try(:phone)
+          data[:owner_email] ||= primary.try(:email)
         end
 
         # Add secondary contact if exists
-        if job.secondary_contact
+        secondary = job.try(:secondary_contact)
+        if secondary
           existing_name = data[:owner_name]
-          data[:owner_name] = "#{existing_name} & #{job.secondary_contact.full_name}" if existing_name
+          data[:owner_name] = "#{existing_name} & #{secondary.full_name}" if existing_name
         end
       end
 
