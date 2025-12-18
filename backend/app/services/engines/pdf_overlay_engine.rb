@@ -33,6 +33,13 @@ module Engines
       owner_phone: "Text Field 8",          # Mobile phone
       owner_home_phone: "Text Field 9",     # Home phone
 
+      # Owner's Authorised Representative section
+      owner_rep_name: "Text Field 11",      # Representative name
+      owner_rep_address: "Text Field 12",   # Postal address
+      owner_rep_postcode: "Text Field 14",  # Postcode
+      owner_rep_phone: "Text Field 13",     # Mobile phone
+      owner_rep_email: "Text Field 15",     # Email
+
       # The Contractor section
       builder_name: "Text Field 16",        # Contractor's name/s
       builder_qbcc: "Text Field 17",        # QBCC Licence Number
@@ -40,7 +47,10 @@ module Engines
       builder_address: "Text Field 19",     # Business address
       builder_postcode: "Text Field 20",    # Postcode
       builder_phone: "Text Field 21",       # Mobile phone
-      builder_email: "Text Field 22"        # Email
+      builder_email: "Text Field 22",       # Email
+
+      # Item 3: Description of Works
+      description_of_works: "Text Field 23" # Building work description (from Job Type)
     }.freeze
 
     # Checkbox field mappings for QBCC Contract
@@ -69,7 +79,8 @@ module Engines
       site_address: "[Site address]",
       contract_date: "[Contract date]",
       contract_price: "[Contract price]",
-      date: "[Date]"
+      date: "[Date]",
+      description_of_works: "[Description of building work]"
     }.freeze
 
     QBCC_CONSUMER_GUIDE_FIELDS = {}.freeze  # Consumer Guide uses AcroForm fields
@@ -207,11 +218,20 @@ module Engines
           data[:owner_email] ||= primary.try(:email)
         end
 
-        # Add secondary contact if exists
+        # Add secondary contact if exists (append to owner name)
         secondary = job.try(:secondary_contact)
         if secondary
           existing_name = data[:owner_name]
           data[:owner_name] = "#{existing_name} & #{secondary.full_name}" if existing_name
+        end
+
+        # Owner's Authorised Representative (from job_contacts with role 'client_representative')
+        rep_contact = job.job_contacts.find_by(role: "client_representative")&.contact
+        if rep_contact
+          data[:owner_rep_name] ||= rep_contact.try(:full_name) || rep_contact.try(:display_name)
+          data[:owner_rep_address] ||= rep_contact.try(:address)
+          data[:owner_rep_phone] ||= rep_contact.try(:mobile_phone) || rep_contact.try(:phone)
+          data[:owner_rep_email] ||= rep_contact.try(:email)
         end
 
         # Site supervisor info (from job columns)
@@ -220,6 +240,11 @@ module Engines
 
         # Resident owner status (for checkbox)
         data[:resident_owner] = job.resident_owner
+
+        # Item 3: Description of Works (from job type description)
+        if job.job_type&.description.present?
+          data[:description_of_works] ||= job.job_type.description
+        end
       end
 
       data[:date] ||= format_date(Date.current)
@@ -292,6 +317,15 @@ module Engines
           field.field_value = field.allowed_values&.last || "Yes"
           Rails.logger.debug "[PdfOverlayEngine] Checked 'IS NOT a Resident Owner'"
         end
+      when "Check Box 9"
+        # "Owner has checked the Contractor's licence" - Yes
+        # Auto-tick since we provide the QBCC Licensee Register link in the welcome letter
+        field.field_value = field.allowed_values&.last || "Yes"
+        Rails.logger.debug "[PdfOverlayEngine] Checked 'Owner has checked licence - Yes'"
+      when "Check Box 11"
+        # "Contractor confirms: My licence is current, active and appropriate" - Yes
+        field.field_value = field.allowed_values&.last || "Yes"
+        Rails.logger.debug "[PdfOverlayEngine] Checked 'Contractor licence is current - Yes'"
       end
     end
 

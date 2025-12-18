@@ -792,19 +792,20 @@ export default function JobDetailPage() {
   return (
     <div className="space-y-6 pb-24">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-1">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
             <div className="flex items-center gap-2 mt-1">
               <Badge variant={getStageBadgeVariant(job.stage)}>{job.stage}</Badge>
+              <span className="text-sm text-muted-foreground">·</span>
               <span className="text-sm text-muted-foreground">{job.job_status?.name}</span>
               {job.certifier_job_no && (
                 <span className="text-sm text-muted-foreground">
-                  • Job #{job.certifier_job_no}
+                  · Job #{job.certifier_job_no}
                 </span>
               )}
             </div>

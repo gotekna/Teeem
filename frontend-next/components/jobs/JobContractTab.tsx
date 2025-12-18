@@ -14,7 +14,6 @@ interface Job {
   name: string;
   plan_number?: string;
   contract_price?: number;
-  deposit?: number;
   prime_cost?: number;
   provisional_sums?: number;
   contract_date?: string;
@@ -64,7 +63,6 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
   const [form, setForm] = useState({
     plan_number: job.plan_number || "",
     contract_price: job.contract_price?.toString() || "",
-    deposit: job.deposit?.toString() || "",
     prime_cost: job.prime_cost?.toString() || "",
     provisional_sums: job.provisional_sums?.toString() || "",
     contract_date: job.contract_date || "",
@@ -88,7 +86,6 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       setForm({
         plan_number: job.plan_number || "",
         contract_price: job.contract_price?.toString() || "",
-        deposit: job.deposit?.toString() || "",
         prime_cost: job.prime_cost?.toString() || "",
         provisional_sums: job.provisional_sums?.toString() || "",
         contract_date: job.contract_date || "",
@@ -115,7 +112,6 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         job: {
           plan_number: form.plan_number || null,
           contract_price: form.contract_price ? parseFloat(form.contract_price) : null,
-          deposit: form.deposit ? parseFloat(form.deposit) : null,
           prime_cost: form.prime_cost ? parseFloat(form.prime_cost) : null,
           provisional_sums: form.provisional_sums ? parseFloat(form.provisional_sums) : null,
           contract_date: form.contract_date || null,
@@ -148,7 +144,6 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     setForm({
       plan_number: job.plan_number || "",
       contract_price: job.contract_price?.toString() || "",
-      deposit: job.deposit?.toString() || "",
       prime_cost: job.prime_cost?.toString() || "",
       provisional_sums: job.provisional_sums?.toString() || "",
       contract_date: job.contract_date || "",
@@ -230,69 +225,61 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                 )}
               </div>
             </div>
+          </CardContent>
+        </Card>
 
+        {/* Contract Price Breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Contract Price Breakdown</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Fixed Component - Calculated */}
             <div className="space-y-2">
-              <Label>Contract Price</Label>
+              <Label>Fixed Component</Label>
+              <p className="text-sm py-2 font-medium">
+                {(() => {
+                  const contractPrice = isEditing
+                    ? parseFloat(form.contract_price) || 0
+                    : job.contract_price || 0;
+                  const primeCost = isEditing
+                    ? parseFloat(form.prime_cost) || 0
+                    : job.prime_cost || 0;
+                  const provisionalSums = isEditing
+                    ? parseFloat(form.provisional_sums) || 0
+                    : job.provisional_sums || 0;
+                  const fixedComponent = contractPrice - primeCost - provisionalSums;
+                  return fixedComponent > 0 ? formatCurrency(fixedComponent) : "-";
+                })()}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Calculated: Contract Price − Prime Cost − Provisional Sums
+              </p>
+            </div>
+
+            {/* Prime Cost */}
+            <div className="space-y-2">
+              <Label>Prime Cost Allowance</Label>
               {isEditing ? (
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
                   <Input
                     type="number"
-                    value={form.contract_price}
-                    onChange={(e) => setForm({ ...form, contract_price: e.target.value })}
+                    value={form.prime_cost}
+                    onChange={(e) => setForm({ ...form, prime_cost: e.target.value })}
                     className="pl-7"
                     placeholder="0.00"
                     step="0.01"
                   />
                 </div>
               ) : (
-                <p className="text-sm py-2 font-medium">
-                  {job.contract_price ? formatCurrency(job.contract_price) : "-"}
-                </p>
+                <p className="text-sm py-2">{job.prime_cost ? formatCurrency(job.prime_cost) : "-"}</p>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Deposit</Label>
-                {isEditing ? (
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      value={form.deposit}
-                      onChange={(e) => setForm({ ...form, deposit: e.target.value })}
-                      className="pl-7"
-                      placeholder="0.00"
-                      step="0.01"
-                    />
-                  </div>
-                ) : (
-                  <p className="text-sm py-2">{job.deposit ? formatCurrency(job.deposit) : "-"}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Prime Cost</Label>
-                {isEditing ? (
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      value={form.prime_cost}
-                      onChange={(e) => setForm({ ...form, prime_cost: e.target.value })}
-                      className="pl-7"
-                      placeholder="0.00"
-                      step="0.01"
-                    />
-                  </div>
-                ) : (
-                  <p className="text-sm py-2">{job.prime_cost ? formatCurrency(job.prime_cost) : "-"}</p>
-                )}
-              </div>
-            </div>
-
+            {/* Provisional Sums */}
             <div className="space-y-2">
-              <Label>Provisional Sums</Label>
+              <Label>Provisional Sum Allowance</Label>
               {isEditing ? (
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
@@ -307,6 +294,28 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                 </div>
               ) : (
                 <p className="text-sm py-2">{job.provisional_sums ? formatCurrency(job.provisional_sums) : "-"}</p>
+              )}
+            </div>
+
+            {/* Total - Contract Price */}
+            <div className="pt-3 border-t space-y-2">
+              <Label className="font-semibold">Total Contract Price</Label>
+              {isEditing ? (
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    value={form.contract_price}
+                    onChange={(e) => setForm({ ...form, contract_price: e.target.value })}
+                    className="pl-7 font-semibold"
+                    placeholder="0.00"
+                    step="0.01"
+                  />
+                </div>
+              ) : (
+                <p className="text-lg py-2 font-semibold">
+                  {job.contract_price ? formatCurrency(job.contract_price) : "-"}
+                </p>
               )}
             </div>
           </CardContent>

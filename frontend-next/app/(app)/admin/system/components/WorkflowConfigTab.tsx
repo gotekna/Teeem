@@ -24,6 +24,9 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DndContext,
   closestCenter,
@@ -46,6 +49,7 @@ interface JobType {
   id: number;
   name: string;
   color: string;
+  description?: string;
 }
 
 interface JobStatus {
@@ -223,6 +227,10 @@ export function WorkflowConfigTab() {
   const [loadingStatuses, setLoadingStatuses] = React.useState(false);
   const [loadingStages, setLoadingStages] = React.useState(false);
 
+  // Job Type description editing
+  const [editingDescription, setEditingDescription] = React.useState("");
+  const [savingDescription, setSavingDescription] = React.useState(false);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -293,7 +301,33 @@ export function WorkflowConfigTab() {
 
   const handleSelectType = (type: JobType) => {
     setSelectedType(type);
+    setEditingDescription(type.description || "");
     loadTypeStatuses(type.id);
+  };
+
+  const handleSaveDescription = async () => {
+    if (!selectedType) return;
+    setSavingDescription(true);
+    try {
+      await api.patch(`/api/v1/job_types/${selectedType.id}`, {
+        job_type: { description: editingDescription },
+      });
+      // Update local state
+      setAllTypes((prev) =>
+        prev.map((t) =>
+          t.id === selectedType.id ? { ...t, description: editingDescription } : t
+        )
+      );
+      setSelectedType((prev) =>
+        prev ? { ...prev, description: editingDescription } : prev
+      );
+      toast({ title: "Success", description: "Description saved" });
+    } catch (error) {
+      console.error("Failed to save description:", error);
+      toast({ title: "Error", description: "Failed to save description", variant: "destructive" });
+    } finally {
+      setSavingDescription(false);
+    }
   };
 
   const handleSelectStatus = (status: TypeStatus) => {
@@ -449,8 +483,8 @@ export function WorkflowConfigTab() {
             </div>
             <CardDescription>Select a type to configure its statuses</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[400px]">
+          <CardContent className="space-y-4">
+            <ScrollArea className="h-[280px]">
               <div className="space-y-1">
                 {allTypes.map((type) => (
                   <button
@@ -472,6 +506,36 @@ export function WorkflowConfigTab() {
                 ))}
               </div>
             </ScrollArea>
+
+            {/* Description for QBCC Contract Item 3 */}
+            {selectedType && (
+              <div className="space-y-2 pt-2 border-t">
+                <Label htmlFor="job-type-description" className="text-xs font-medium text-muted-foreground">
+                  Description (for QBCC Contract Item 3)
+                </Label>
+                <Textarea
+                  id="job-type-description"
+                  placeholder="e.g., Construction of a new single-storey dwelling..."
+                  value={editingDescription}
+                  onChange={(e) => setEditingDescription(e.target.value)}
+                  className="text-sm min-h-[60px]"
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveDescription}
+                  disabled={savingDescription || editingDescription === (selectedType.description || "")}
+                >
+                  {savingDescription ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Description"
+                  )}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 

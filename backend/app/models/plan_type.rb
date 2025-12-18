@@ -83,7 +83,7 @@ class PlanType < ApplicationRecord
       name: name,
       description: notes.presence || "#{name} Drawing",
       category: plan_categories.first&.name || "Contract Drawings",
-      category_code: plan_categories.first&.code || "CD",
+      category_code: plan_categories.first&.code || "ConD",
       variant: "a",
       job_code: "EB2401",
       job_name: "05 Wategors",
@@ -109,7 +109,7 @@ class PlanType < ApplicationRecord
       name: name,
       description: notes.presence || "#{name} Drawing",
       category: plan_categories.first&.name || "Contract Drawings",
-      category_code: plan_categories.first&.code || "CD",
+      category_code: plan_categories.first&.code || "ConD",
       rev: "A",
       date: Date.today.strftime("%Y%m%d"),
       variant: "a"

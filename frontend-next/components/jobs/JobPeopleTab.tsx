@@ -543,9 +543,10 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
         // External roles - collapsible rows
         return group.roles.map((role) => {
           const roleContacts = contactsByRole[role.key] || [];
-          // Only hide non-primary client roles (representative, broker, bank) when empty
-          // Always show the main "client" role so users can add the first client
-          if (roleContacts.length === 0 && group.key === "client" && role.key !== "client") return null;
+          // Always show client and client_representative (needed for QBCC contracts)
+          // Hide other client sub-roles (broker, bank) when empty
+          const alwaysShowRoles = ["client", "client_representative"];
+          if (roleContacts.length === 0 && group.key === "client" && !alwaysShowRoles.includes(role.key)) return null;
 
           const RoleIcon = role.icon;
           return (
