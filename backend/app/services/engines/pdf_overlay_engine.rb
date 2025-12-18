@@ -89,13 +89,21 @@ module Engines
       liquidated_damages: "Text Field 47",   # Liquidated damages amount per day
 
       # Item 14: Certification responsibility (text field: "Owner" or "Contractor")
-      certification_by: "Text Field 48"      # Who obtains certification
+      certification_by: "Text Field 48",     # Who obtains certification
+
+      # Item 15: Prime Cost, Provisional Sums details, and Special Conditions
+      prime_cost_details: "Text Field 49",   # What the prime cost items are
+      provisional_sums_details: "Text Field 50", # What the provisional sum items are
+      special_conditions: "Text Field 51"    # Special conditions text
     }.freeze
 
     # Checkbox field mappings for QBCC Contract
     QBCC_CONTRACT_CHECKBOX_FIELDS = {
       resident_owner_is: "Owner-Sched-IS",        # Check if IS a resident owner
-      resident_owner_is_not: "Sched-Owner-IS NOT" # Check if IS NOT a resident owner
+      resident_owner_is_not: "Sched-Owner-IS NOT", # Check if IS NOT a resident owner
+      # Item 12: Finance Approval
+      finance_approval_is: "Check Box 12-IS",     # Check if IS subject to finance approval
+      finance_approval_is_not: "Check Box 12-IS NOT" # Check if IS NOT subject to finance approval
     }.freeze
 
     # Placeholder text for missing data
@@ -283,6 +291,11 @@ module Engines
         # Item 14: Certification responsibility
         data[:certification_by] ||= job.try(:certification_by_owner) ? "Owner" : "Contractor"
 
+        # Item 15: Prime Cost/Provisional Sums details and Special Conditions
+        data[:prime_cost_details] ||= job.try(:prime_cost_details) if job.try(:prime_cost_details).present?
+        data[:provisional_sums_details] ||= job.try(:provisional_sums_details) if job.try(:provisional_sums_details).present?
+        data[:special_conditions] ||= job.try(:special_conditions) if job.try(:has_special_conditions) && job.try(:special_conditions).present?
+
         # Plan and Spec dates (for document packages)
         data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?
         data[:spec_date] ||= format_date(job.try(:spec_date)) if job.try(:spec_date).present?
@@ -318,6 +331,9 @@ module Engines
 
         # Resident owner status (for checkbox)
         data[:resident_owner] = job.resident_owner
+
+        # Item 12: Finance Approval (for checkbox)
+        data[:finance_approval_required] = job.finance_approval_required
 
         # Item 3: Description of Works (from job type description)
         if job.job_type&.description.present?
@@ -382,6 +398,7 @@ module Engines
 
     def fill_checkbox_field(field, pdf_field_name, data)
       resident_owner = data[:resident_owner]
+      finance_approval = data[:finance_approval_required]
 
       case pdf_field_name
       when "Owner-Sched-IS"
@@ -395,6 +412,18 @@ module Engines
         if resident_owner == false
           field.field_value = field.allowed_values&.last || "Yes"
           Rails.logger.debug "[PdfOverlayEngine] Checked 'IS NOT a Resident Owner'"
+        end
+      when "Check Box 12-IS"
+        # Item 12: Check this box if IS subject to finance approval
+        if finance_approval == true
+          field.field_value = field.allowed_values&.last || "Yes"
+          Rails.logger.debug "[PdfOverlayEngine] Checked 'IS subject to finance approval'"
+        end
+      when "Check Box 12-IS NOT"
+        # Item 12: Check this box if IS NOT subject to finance approval
+        if finance_approval == false
+          field.field_value = field.allowed_values&.last || "Yes"
+          Rails.logger.debug "[PdfOverlayEngine] Checked 'IS NOT subject to finance approval'"
         end
       when "Check Box 9"
         # "Owner has checked the Contractor's licence" - Yes

@@ -167,6 +167,9 @@ module Api
           is_active: plan_type.is_active,
           short_name_template: plan_type.short_name_template,
           long_name_template: plan_type.long_name_template,
+          # Effective templates: plan type custom OR global default (for frontend use)
+          effective_short_template: plan_type.short_name_template.presence || PlanType.default_short_template,
+          effective_long_template: plan_type.long_name_template.presence || PlanType.default_long_template,
           short_name_preview: plan_type.short_name_preview,
           long_name_preview: plan_type.long_name_preview,
           job_plans_count: plan_type.job_plans.count,

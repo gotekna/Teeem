@@ -48,6 +48,8 @@ interface PlanTypeOption {
   category_ids: number[];
   short_name_template?: string;
   long_name_template?: string;
+  effective_short_template: string;
+  effective_long_template: string;
   short_name_preview?: string;
   long_name_preview?: string;
 }
@@ -326,8 +328,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     };
 
     // Resolve short name (for file) and long name (for display)
-    const shortTemplate = selectedPlanType.short_name_template || "{Code}-{Name}";
-    const longTemplate = selectedPlanType.long_name_template || "{JobCode}-{Code}-{Name}-Rev{Rev}";
+    // Use effective templates (includes global defaults from SystemSettings)
+    const shortTemplate = selectedPlanType.effective_short_template;
+    const longTemplate = selectedPlanType.effective_long_template;
 
     const shortName = resolveTemplate(shortTemplate, templateValues);
     const longName = resolveTemplate(longTemplate, templateValues);
@@ -791,6 +794,44 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                 </div>
               )}
             </div>
+
+            {/* Name Preview */}
+            {selectedPlanTypeId && (() => {
+              const pt = planTypes.find(p => p.id === parseInt(selectedPlanTypeId));
+              const tab = selectedTabId ? tabs.find(t => t.id === parseInt(selectedTabId)) : null;
+              if (!pt) return null;
+
+              const values: Record<string, string> = {
+                JobCode: jobCode,
+                JobName: jobTitle,
+                Code: pt.code,
+                Name: pt.name,
+                Variant: variantSuffix || "",
+                Rev: "A",
+                Date: new Date().toISOString().split("T")[0].replace(/-/g, ""),
+                Category: tab?.name || "",
+                CategoryCode: tab?.code || "",
+              };
+
+              const shortName = resolveTemplate(pt.effective_short_template, values);
+              const longName = resolveTemplate(pt.effective_long_template, values);
+
+              return (
+                <div className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                  <p className="text-xs font-medium text-muted-foreground">Preview</p>
+                  <div className="space-y-1">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Filename:</span>{" "}
+                      <span className="font-mono">{shortName}.pdf</span>
+                    </p>
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Display:</span>{" "}
+                      <span className="font-medium">{longName}</span>
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <DialogFooter>

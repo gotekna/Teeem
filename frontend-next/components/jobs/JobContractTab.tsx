@@ -31,6 +31,8 @@ interface Job {
   weekend_work?: string;
   liquidated_damages?: number;
   certification_by_owner?: boolean;
+  finance_approval_required?: boolean | null;
+  finance_approval_date?: string;
   plan_date?: string;
   spec_date?: string;
   practical_completion_date?: string;
@@ -83,6 +85,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     weekend_work: job.weekend_work || "",
     liquidated_damages: job.liquidated_damages?.toString() || "50.00",
     certification_by_owner: job.certification_by_owner ?? false,
+    finance_approval_required: job.finance_approval_required ?? true,
+    finance_approval_date: job.finance_approval_date || "",
     plan_date: job.plan_date || "",
     spec_date: job.spec_date || "",
     practical_completion_date: job.practical_completion_date || "",
@@ -109,6 +113,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         weekend_work: job.weekend_work || "",
         liquidated_damages: job.liquidated_damages?.toString() || "50.00",
         certification_by_owner: job.certification_by_owner ?? false,
+        finance_approval_required: job.finance_approval_required ?? true,
+        finance_approval_date: job.finance_approval_date || "",
         plan_date: job.plan_date || "",
         spec_date: job.spec_date || "",
         practical_completion_date: job.practical_completion_date || "",
@@ -138,6 +144,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           weekend_work: form.weekend_work || null,
           liquidated_damages: form.liquidated_damages ? parseFloat(form.liquidated_damages) : 50.00,
           certification_by_owner: form.certification_by_owner,
+          finance_approval_required: form.finance_approval_required,
+          finance_approval_date: form.finance_approval_date || null,
           plan_date: form.plan_date || null,
           spec_date: form.spec_date || null,
           practical_completion_date: form.practical_completion_date || null,
@@ -173,6 +181,8 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       weekend_work: job.weekend_work || "",
       liquidated_damages: job.liquidated_damages?.toString() || "50.00",
       certification_by_owner: job.certification_by_owner ?? false,
+      finance_approval_required: job.finance_approval_required ?? true,
+      finance_approval_date: job.finance_approval_date || "",
       plan_date: job.plan_date || "",
       spec_date: job.spec_date || "",
       practical_completion_date: job.practical_completion_date || "",
@@ -244,9 +254,46 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
               </div>
             </div>
 
-            {/* Item 13 & 14: Liquidated Damages and Certification */}
+            {/* Items 12-14: Finance, Liquidated Damages and Certification */}
             <div className="space-y-4 pt-4 border-t">
               <h4 className="text-sm font-medium text-muted-foreground">Contract Terms</h4>
+
+              {/* Item 12: Finance Approval */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Item 12: Subject to Finance Approval</Label>
+                  {isEditing ? (
+                    <div className="flex items-center gap-3 py-2">
+                      <span className={`text-sm ${form.finance_approval_required === false ? 'font-medium' : 'text-muted-foreground'}`}>IS NOT</span>
+                      <Switch
+                        checked={form.finance_approval_required === true}
+                        onCheckedChange={(checked) => setForm({ ...form, finance_approval_required: checked })}
+                      />
+                      <span className={`text-sm ${form.finance_approval_required === true ? 'font-medium' : 'text-muted-foreground'}`}>IS</span>
+                    </div>
+                  ) : (
+                    <p className="text-sm py-2">
+                      {job.finance_approval_required === true ? "IS subject to finance" : "IS NOT subject to finance"}
+                    </p>
+                  )}
+                </div>
+                {(isEditing ? form.finance_approval_required : job.finance_approval_required) && (
+                  <div className="space-y-2">
+                    <Label>Finance Approval Date</Label>
+                    {isEditing ? (
+                      <Input
+                        type="date"
+                        value={form.finance_approval_date}
+                        onChange={(e) => setForm({ ...form, finance_approval_date: e.target.value })}
+                      />
+                    ) : (
+                      <p className="text-sm py-2">{formatDate(job.finance_approval_date) || "-"}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Items 13 & 14 */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Item 13: Liquidated Damages</Label>

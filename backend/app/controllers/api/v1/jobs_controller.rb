@@ -723,6 +723,9 @@ module Api
           # Contract terms (Items 13 & 14)
           :liquidated_damages,
           :certification_by_owner,
+          # Item 12: Finance Approval
+          :finance_approval_required,
+          :finance_approval_date,
           # Item 15: Prime Cost/Provisional Sums details and Special Conditions
           :prime_cost_details,
           :provisional_sums_details,

@@ -1282,7 +1282,11 @@ export default function JobDetailPage() {
         </TabsContent>
 
         <TabsContent value="plans" className="mt-6">
-          <JobPlansTab jobId={job.id} jobTitle={job.name} />
+          <JobPlansTab
+            jobId={job.id}
+            jobCode={String(job.id).padStart(4, "0")}
+            jobTitle={job.name}
+          />
         </TabsContent>
 
         <TabsContent value="documents" className="mt-6">
