@@ -640,8 +640,12 @@ class MicrosoftGraphClient
 
   # Upload file content to a folder (accepts raw content or file object)
   def upload_file_content(parent_folder_id, filename, content)
-    # URL-encode the filename to handle spaces and special characters
-    encoded_filename = URI.encode_www_form_component(filename)
+    # SSoT: Sanitize filename for SharePoint - must remove characters that cause issues
+    # SharePoint doesn't allow: " * : < > ? / \ |
+    # Also replace + and = which cause URL encoding mismatches
+    safe_filename = filename.gsub(/[<>:"\/\\|?*+=]/, "_").gsub(/_{2,}/, "_")
+    # URL-encode the sanitized filename to handle spaces
+    encoded_filename = URI.encode_www_form_component(safe_filename)
     response = HTTParty.put(
       "#{GRAPH_API_BASE}#{drive_path}/items/#{parent_folder_id}:/#{encoded_filename}:/content",
       body: content,
