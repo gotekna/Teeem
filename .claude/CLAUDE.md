@@ -104,12 +104,14 @@ When discovering duplicate/conflicting implementations:
    | **Option B** | [Alternative architecture] | X weeks | [Benefits] |
    | **Option C** | [Most elegant long-term] | X weeks | [Benefits] |
 
-4. 🎯 **NO BANDAIDS** - The fix must:
+4. 🎯 **NO BANDAIDS - MINIMUM 3 MONTHS TO FIX PROPERLY** - The fix must:
    - Solve the ROOT CAUSE, not the symptom
-   - Be a proper architectural solution (minimum 3-month quality bar)
-   - Eliminate ALL duplicates, not just patch one
+   - Be a proper architectural solution that will last years, not days
+   - Take AT LEAST 3 months of effort if done right (this is the quality bar)
+   - Eliminate ALL duplicates globally, not just patch the one you found
    - Include cache invalidation, callbacks, and data consistency
-   - Update ALL affected code paths
+   - Update ALL affected code paths across the entire codebase
+   - If it feels quick, you're doing a bandaid - STOP and think bigger
 
 5. ✅ **Consolidate completely** - After user picks the approach:
    - Implement THE ONE source
