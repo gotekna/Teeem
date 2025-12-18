@@ -43,11 +43,16 @@ class JobPlan < ApplicationRecord
     revision_format = RevisionFormat.default_format
     next_rev = revision_format&.next_revision(revisions.maximum(:revision))
 
-    revisions.create!(
+    revision = revisions.create!(
       revision: next_rev || 'A',
       revision_date: Date.current,
       **attributes
     )
+
+    # Set as current revision if this is the first one
+    update!(current_revision: revision) if current_revision.nil?
+
+    revision
   end
 
   # Set a revision as "on issue"
