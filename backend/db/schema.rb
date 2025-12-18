@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_18_021341) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_18_030817) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3779,8 +3779,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_021341) do
     t.index ["sequence_order"], name: "index_plan_categories_on_sequence_order"
   end
 
+  create_table "plan_category_plan_types", force: :cascade do |t|
+    t.bigint "plan_category_id", null: false
+    t.bigint "plan_type_id", null: false
+    t.integer "sequence_order", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["plan_category_id", "plan_type_id"], name: "idx_plan_cat_type_unique", unique: true
+    t.index ["plan_category_id"], name: "index_plan_category_plan_types_on_plan_category_id"
+    t.index ["plan_type_id"], name: "index_plan_category_plan_types_on_plan_type_id"
+  end
+
   create_table "plan_types", force: :cascade do |t|
-    t.bigint "plan_category_id"
     t.string "name", null: false
     t.string "code", null: false
     t.boolean "allows_variants", default: true
@@ -3791,8 +3801,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_021341) do
     t.datetime "updated_at", null: false
     t.string "short_name_template", default: "{Code}-{Name}"
     t.string "long_name_template", default: "{JobCode}-{Code}-{Name}-Rev{Rev}"
-    t.index ["plan_category_id", "code"], name: "index_plan_types_on_plan_category_id_and_code", unique: true
-    t.index ["plan_category_id"], name: "index_plan_types_on_plan_category_id"
+    t.index ["code"], name: "index_plan_types_on_code", unique: true
+    t.index ["name"], name: "index_plan_types_on_name", unique: true
     t.index ["sequence_order"], name: "index_plan_types_on_sequence_order"
   end
 
@@ -6098,7 +6108,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_18_021341) do
   add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
-  add_foreign_key "plan_types", "plan_categories"
+  add_foreign_key "plan_category_plan_types", "plan_categories"
+  add_foreign_key "plan_category_plan_types", "plan_types"
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"

@@ -1,12 +1,16 @@
-# Standard drawing types within categories
-# e.g., 01-PERSPECTIVE, 02-SITE PLAN, 07-SLAB PLAN, 101-KIT CABINETRY
+# Standard drawing types - unique by name
+# e.g., PERSPECTIVE, SITE PLAN, SLAB PLAN, KIT CABINETRY
+#
+# Many-to-many relationship with PlanCategory:
+# - One plan type can belong to multiple categories
+# - PERSPECTIVE can be in Contract Drawings, Construction Drawings, Certification Drawings
 class PlanType < ApplicationRecord
-  belongs_to :plan_category
+  has_many :plan_category_plan_types, dependent: :destroy
+  has_many :plan_categories, through: :plan_category_plan_types
   has_many :job_plans, dependent: :restrict_with_error
 
-  validates :name, presence: true
-  validates :code, presence: true
-  validates :code, uniqueness: { scope: :plan_category_id }
+  validates :name, presence: true, uniqueness: true
+  validates :code, presence: true, uniqueness: true
 
   scope :active, -> { where(is_active: true) }
   scope :ordered, -> { order(:sequence_order, :code) }
@@ -20,9 +24,9 @@ class PlanType < ApplicationRecord
     "#{code} - #{name}"
   end
 
-  # Category code + type code for variants: "A02" or just "02"
-  def full_code
-    plan_category&.code.present? ? "#{plan_category.code}#{code}" : code
+  # Get category names as comma-separated string
+  def category_names
+    plan_categories.pluck(:name).join(", ")
   end
 
   # Resolve short name template with given values

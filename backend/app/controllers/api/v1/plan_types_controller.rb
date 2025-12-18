@@ -1,27 +1,17 @@
 module Api
   module V1
     class PlanTypesController < ApplicationController
-      before_action :set_plan_category, only: [:nested_index, :create]
-      before_action :set_plan_type, only: [:show, :update, :destroy]
+      before_action :set_plan_type, only: [:show, :update, :destroy, :assign_categories]
 
       # GET /api/v1/plan_types
       def index
-        @types = PlanType.includes(:plan_category).ordered
+        @types = PlanType.includes(:plan_categories).ordered
 
         # Filter by category if provided
         if params[:plan_category_id].present?
-          @types = @types.where(plan_category_id: params[:plan_category_id])
+          @types = @types.joins(:plan_categories)
+                         .where(plan_categories: { id: params[:plan_category_id] })
         end
-
-        render json: {
-          success: true,
-          data: @types.map { |t| serialize_type(t) }
-        }
-      end
-
-      # GET /api/v1/plan_categories/:plan_category_id/plan_types
-      def nested_index
-        @types = @category.plan_types.ordered
 
         render json: {
           success: true,
@@ -37,9 +27,14 @@ module Api
         }
       end
 
-      # POST /api/v1/plan_categories/:plan_category_id/plan_types
+      # POST /api/v1/plan_types
       def create
-        @type = @category.plan_types.build(type_params)
+        @type = PlanType.new(type_params)
+
+        # Handle category assignments
+        if params[:plan_type][:category_ids].present?
+          @type.plan_category_ids = params[:plan_type][:category_ids]
+        end
 
         if @type.save
           render json: {
@@ -56,6 +51,11 @@ module Api
 
       # PATCH/PUT /api/v1/plan_types/:id
       def update
+        # Handle category assignments
+        if params[:plan_type][:category_ids].present?
+          @type.plan_category_ids = params[:plan_type][:category_ids]
+        end
+
         if @type.update(type_params)
           render json: {
             success: true,
@@ -93,11 +93,18 @@ module Api
         render json: { success: true }
       end
 
-      private
+      # POST /api/v1/plan_types/:id/assign_categories
+      def assign_categories
+        category_ids = params[:category_ids] || []
+        @type.plan_category_ids = category_ids
 
-      def set_plan_category
-        @category = PlanCategory.find(params[:plan_category_id])
+        render json: {
+          success: true,
+          data: serialize_type(@type)
+        }
       end
+
+      private
 
       def set_plan_type
         @type = PlanType.find(params[:id])
@@ -119,12 +126,9 @@ module Api
       def serialize_type(plan_type)
         {
           id: plan_type.id,
-          plan_category_id: plan_type.plan_category_id,
-          category_name: plan_type.plan_category&.name,
           code: plan_type.code,
           name: plan_type.name,
           display_name: plan_type.display_name,
-          full_code: plan_type.full_code,
           allows_variants: plan_type.allows_variants,
           notes: plan_type.notes,
           sequence_order: plan_type.sequence_order,
@@ -134,6 +138,10 @@ module Api
           short_name_preview: plan_type.short_name_preview,
           long_name_preview: plan_type.long_name_preview,
           job_plans_count: plan_type.job_plans.count,
+          # Many-to-many: return array of categories
+          category_ids: plan_type.plan_category_ids,
+          category_names: plan_type.category_names,
+          categories: plan_type.plan_categories.map { |c| { id: c.id, name: c.name, code: c.code } },
           created_at: plan_type.created_at,
           updated_at: plan_type.updated_at
         }

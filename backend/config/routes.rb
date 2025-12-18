@@ -849,15 +849,14 @@ Rails.application.routes.draw do
         collection do
           post :reorder
         end
-        resources :plan_types, only: [ :create ] do
-          collection do
-            get :index, action: :nested_index
-          end
-        end
       end
-      resources :plan_types, only: [ :index, :show, :update, :destroy ] do
+      # Plan Types - independent of categories (many-to-many relationship)
+      resources :plan_types do
         collection do
           post :reorder
+        end
+        member do
+          post :assign_categories
         end
       end
       resources :revision_formats

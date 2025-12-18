@@ -45,18 +45,20 @@ interface PlanCategory {
 
 interface PlanType {
   id: number;
-  plan_category_id: number;
   name: string;
   code: string;
   allows_variants: boolean;
   notes: string;
   sequence_order: number;
   is_active: boolean;
-  category_name?: string;
   short_name_template?: string;
   long_name_template?: string;
   short_name_preview?: string;
   long_name_preview?: string;
+  // Many-to-many: array of category IDs
+  category_ids: number[];
+  category_names?: string;
+  categories?: { id: number; name: string; code: string }[];
 }
 
 interface RevisionFormat {
@@ -347,7 +349,7 @@ function TypesSection() {
   const [filterCategory, setFilterCategory] = React.useState<string>("all");
 
   const [formData, setFormData] = React.useState({
-    plan_category_id: "",
+    category_ids: [] as number[],
     name: "",
     code: "",
     allows_variants: true,
@@ -379,7 +381,7 @@ function TypesSection() {
 
   const handleOpenAddDialog = () => {
     setFormData({
-      plan_category_id: categories[0]?.id?.toString() || "",
+      category_ids: [],
       name: "",
       code: "",
       allows_variants: true,
@@ -395,7 +397,7 @@ function TypesSection() {
 
   const handleOpenEditDialog = (type: PlanType) => {
     setFormData({
-      plan_category_id: type.plan_category_id?.toString() || "",
+      category_ids: type.category_ids || [],
       name: type.name,
       code: type.code,
       allows_variants: type.allows_variants,
@@ -420,7 +422,6 @@ function TypesSection() {
       const payload = {
         plan_type: {
           ...formData,
-          plan_category_id: parseInt(formData.plan_category_id),
         },
       };
 
@@ -459,7 +460,7 @@ function TypesSection() {
 
   const filteredTypes = filterCategory === "all"
     ? types
-    : types.filter(t => t.plan_category_id?.toString() === filterCategory);
+    : types.filter(t => t.category_ids?.includes(parseInt(filterCategory)));
 
   if (loading) {
     return (
@@ -521,10 +522,15 @@ function TypesSection() {
                     </div>
                     <div>
                       <p className="font-medium">{type.name}</p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Badge variant="outline" className="text-xs">
-                          {type.category_name || categories.find(c => c.id === type.plan_category_id)?.name}
-                        </Badge>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                        {type.categories?.map((cat) => (
+                          <Badge key={cat.id} variant="outline" className="text-xs">
+                            {cat.name}
+                          </Badge>
+                        ))}
+                        {(!type.categories || type.categories.length === 0) && (
+                          <span className="text-xs text-muted-foreground">No categories</span>
+                        )}
                         {type.allows_variants && (
                           <span className="text-xs">Allows variants</span>
                         )}
@@ -575,22 +581,30 @@ function TypesSection() {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Category</Label>
-              <Select
-                value={formData.plan_category_id}
-                onValueChange={(val) => setFormData({ ...formData, plan_category_id: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id.toString()}>
+              <Label>Categories</Label>
+              <div className="border rounded-md p-3 space-y-2">
+                {categories.map((cat) => (
+                  <div key={cat.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cat-${cat.id}`}
+                      checked={formData.category_ids.includes(cat.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setFormData({ ...formData, category_ids: [...formData.category_ids, cat.id] });
+                        } else {
+                          setFormData({ ...formData, category_ids: formData.category_ids.filter(id => id !== cat.id) });
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`cat-${cat.id}`} className="text-sm font-normal cursor-pointer">
                       {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Select which categories this plan type belongs to
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

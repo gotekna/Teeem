@@ -30,6 +30,7 @@ import {
   X,
   Info,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -95,8 +96,19 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Pattern Components
-import { DragHandle, PositionBadge } from "@/components/ui/dnd";
+import { DragHandle, PositionBadge, SortableList, SortableItem } from "@/components/ui/dnd";
 import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
+
+// Specialized Components (Tier 4)
+import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { PDFEditor } from "@/components/ui/pdf-editor";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
+
+// Note: These require specific data/context to function:
+// - TeeemTableView: needs foundationId and entries
+// - BillsInvoiceViewer: needs invoice data
+// - DocumentPreviewModal: needs document data
 
 // Registry
 import {
@@ -565,6 +577,280 @@ function TokenBuilderDemo() {
 }
 
 // =============================================================================
+// SORTABLE LIST DEMOS
+// =============================================================================
+
+function SortableListDemo() {
+  const [items, setItems] = React.useState([
+    { id: "1", name: "First Item" },
+    { id: "2", name: "Second Item" },
+    { id: "3", name: "Third Item" },
+    { id: "4", name: "Fourth Item" },
+  ]);
+
+  return (
+    <div className="max-w-sm">
+      <SortableList items={items} onReorder={setItems}>
+        {items.map((item, index) => (
+          <SortableItem
+            key={item.id}
+            id={item.id}
+            position={index + 1}
+            showHandle
+            showPosition
+            variant="card"
+          >
+            <span className="text-sm">{item.name}</span>
+          </SortableItem>
+        ))}
+      </SortableList>
+    </div>
+  );
+}
+
+function SortableItemDemo() {
+  return (
+    <div className="space-y-2 max-w-sm">
+      <p className="text-xs text-muted-foreground mb-2">Different variants:</p>
+      <div className="border rounded p-2 bg-muted/30">
+        <SortableItem id="card" position={1} showHandle showPosition variant="card">
+          <span className="text-sm">Card variant (default)</span>
+        </SortableItem>
+      </div>
+      <div className="border rounded p-2 bg-muted/30">
+        <SortableItem id="row" position={2} showHandle showPosition variant="row">
+          <span className="text-sm">Row variant</span>
+        </SortableItem>
+      </div>
+      <div className="border rounded p-2 bg-muted/30">
+        <SortableItem id="simple" position={3} showHandle showPosition variant="simple">
+          <span className="text-sm">Simple variant</span>
+        </SortableItem>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// SPECIALIZED COMPONENT DEMOS (Tier 4)
+// =============================================================================
+
+function PDFViewerDemo() {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        PDF Viewer displays PDF documents with toolbar, zoom, and navigation.
+        Requires a valid PDF URL to display content.
+      </p>
+      <div className="h-64 border rounded bg-muted/30 flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <FileText className="h-12 w-12 mx-auto mb-2" />
+          <p className="text-sm font-medium">PDFViewer Component</p>
+          <p className="text-xs">Pass a URL prop to display a PDF</p>
+          <code className="text-xs block mt-2 bg-muted p-1 rounded">
+            {'<PDFViewer url="/path/to/document.pdf" />'}
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PDFEditorDemo() {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        PDF Editor allows adding annotations, signatures, and text to PDFs.
+        Requires a valid PDF URL to enable editing.
+      </p>
+      <div className="h-64 border rounded bg-muted/30 flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <Pencil className="h-12 w-12 mx-auto mb-2" />
+          <p className="text-sm font-medium">PDFEditor Component</p>
+          <p className="text-xs">Pass a URL prop to edit a PDF</p>
+          <code className="text-xs block mt-2 bg-muted p-1 rounded">
+            {'<PDFEditor url="/path/to/document.pdf" />'}
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SharePointFolderBrowserDemo() {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Folder browser for SharePoint/OneDrive. Requires Microsoft 365 connection.
+      </p>
+      <div className="h-48 border rounded bg-muted/30 flex items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <Database className="h-12 w-12 mx-auto mb-2" />
+          <p className="text-sm font-medium">SharePointFolderBrowser</p>
+          <p className="text-xs">Requires Microsoft 365 connection</p>
+          <code className="text-xs block mt-2 bg-muted p-1 rounded">
+            {'<SharePointFolderBrowser onSelect={...} />'}
+          </code>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SharePointPathConfiguratorDemo() {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Configure folder path templates with placeholders for SharePoint.
+      </p>
+      <div className="border rounded p-4 bg-muted/30">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">Scope: Job</Badge>
+            <span className="text-xs text-muted-foreground">Path template:</span>
+          </div>
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-sm">/Documents/</span>
+            <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+              {"{{JobCode}}"}
+            </Badge>
+            <span className="text-sm">/</span>
+            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+              {"{{Category}}"}
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Preview: /Documents/JOB-001/Plans
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TeeemTableViewDemo() {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        THE ONE table component. Features: sorting, filtering, column management,
+        inline editing, saved views, and more. See Gold Standard Table tab for live demo.
+      </p>
+      <div className="border rounded overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-12">ID</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell className="font-mono text-xs">1</TableCell>
+              <TableCell>Sample Row</TableCell>
+              <TableCell><Badge variant="outline">Active</Badge></TableCell>
+              <TableCell className="text-right">$1,234</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="font-mono text-xs">2</TableCell>
+              <TableCell>Another Row</TableCell>
+              <TableCell><Badge variant="secondary">Pending</Badge></TableCell>
+              <TableCell className="text-right">$5,678</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+      <p className="text-xs text-muted-foreground italic">
+        This is a preview. Full TeeemTableView requires foundationId and entries props.
+      </p>
+    </div>
+  );
+}
+
+function BillsInvoiceViewerDemo() {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        AI-powered invoice viewer with OCR field highlighting and validation.
+      </p>
+      <div className="border rounded p-4 bg-muted/30">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <p className="text-xs font-medium">AI Extracted Fields:</p>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Invoice #:</span>
+                <span>INV-2024-001</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Amount:</span>
+                <span>$1,234.56</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Due Date:</span>
+                <span>2024-12-31</span>
+              </div>
+            </div>
+          </div>
+          <div className="border rounded bg-background flex items-center justify-center h-20">
+            <span className="text-xs text-muted-foreground">PDF Preview</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DocumentPreviewModalDemo() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Modal for previewing and editing document metadata with PDF viewer.
+      </p>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        Open Preview Modal
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Document Preview</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-48 border rounded bg-muted/30 flex items-center justify-center">
+              <span className="text-sm text-muted-foreground">PDF Viewer</span>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <Label>Document Name</Label>
+                <Input defaultValue="INV-2024-001.pdf" />
+              </div>
+              <div>
+                <Label>Folder</Label>
+                <Select defaultValue="invoices">
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="invoices">Invoices</SelectItem>
+                    <SelectItem value="contracts">Contracts</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// =============================================================================
 // DEMO REGISTRY
 // =============================================================================
 
@@ -594,6 +880,17 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "token-badge": TokenBadgeDemo,
   "token-palette": TokenPaletteDemo,
   "token-builder": TokenBuilderDemo,
+  // Sortable components
+  "sortable-list": SortableListDemo,
+  "sortable-item": SortableItemDemo,
+  // Specialized components (Tier 4)
+  "pdf-viewer": PDFViewerDemo,
+  "pdf-editor": PDFEditorDemo,
+  "sharepoint-folder-browser": SharePointFolderBrowserDemo,
+  "sharepoint-path-configurator": SharePointPathConfiguratorDemo,
+  "teeem-table-view": TeeemTableViewDemo,
+  "bills-invoice-viewer": BillsInvoiceViewerDemo,
+  "document-preview-modal": DocumentPreviewModalDemo,
 };
 
 // =============================================================================

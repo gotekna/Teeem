@@ -1,7 +1,8 @@
 # Global SSoT for plan categories (like DocumentationCategory)
 # Categories: Drawings, Certification Drawings, Cabinets
 class PlanCategory < ApplicationRecord
-  has_many :plan_types, dependent: :destroy
+  has_many :plan_category_plan_types, dependent: :destroy
+  has_many :plan_types, through: :plan_category_plan_types
   has_many :job_plan_tabs, dependent: :nullify
 
   validates :name, presence: true
