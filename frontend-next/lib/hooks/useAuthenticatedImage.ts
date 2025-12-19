@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { api, getApiBaseUrl } from "@/lib/api";
 
 /**
  * Custom hook to fetch images from authenticated endpoints and convert to blob URLs
