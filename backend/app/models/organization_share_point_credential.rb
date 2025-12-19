@@ -41,9 +41,16 @@ class OrganizationSharePointCredential < ApplicationRecord
   # Multi-org support - returns all active credentials
   # SSoT Migration: Delegates to MicrosoftCredential
   def self.active_credentials
+    warn_deprecation
+
     # Try MicrosoftCredential first (SSoT)
+    # Check delegated credentials
     new_creds = MicrosoftCredential.delegated_credentials.org_level.active
     return new_creds if new_creds.any?
+
+    # Check app credentials
+    app_creds = MicrosoftCredential.app_credentials.connected
+    return app_creds if app_creds.any?
 
     # Fall back to legacy table
     active.order(:name)
@@ -55,8 +62,13 @@ class OrganizationSharePointCredential < ApplicationRecord
     warn_deprecation
 
     # Try MicrosoftCredential first (SSoT)
+    # Check delegated credentials first (user OAuth)
     new_cred = MicrosoftCredential.delegated_credentials.org_level.active.first
     return new_cred if new_cred
+
+    # Also check app credentials (client credentials flow - org-level SharePoint access)
+    app_cred = MicrosoftCredential.app_credentials.connected.first
+    return app_cred if app_cred
 
     # Fall back to legacy table
     active.first
@@ -83,6 +95,9 @@ class OrganizationSharePointCredential < ApplicationRecord
 
     # Try MicrosoftCredential first (SSoT)
     return true if MicrosoftCredential.delegated_credentials.org_level.connected.any?
+
+    # Also check app credentials
+    return true if MicrosoftCredential.app_credentials.connected.any?
 
     # Fall back to legacy table
     active.any? { |cred| cred.valid_credential? }
