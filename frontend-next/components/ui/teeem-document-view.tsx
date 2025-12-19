@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, ReactNode } from "react";
+import { useState, useEffect, useRef, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -136,9 +136,16 @@ export function TeeemDocumentView<T extends DocumentItem>({
     setShowFullPdf(false);
   }, [selectedDocument]);
 
-  // Notify parent when selection changes
+  // Notify parent when selection changes (skip initial null)
+  const hasSelectedRef = useRef(false);
   useEffect(() => {
-    onSelect?.(selectedDocument);
+    if (selectedDocument) {
+      hasSelectedRef.current = true;
+      onSelect?.(selectedDocument);
+    } else if (hasSelectedRef.current) {
+      // Only notify null if we previously had a selection
+      onSelect?.(null);
+    }
   }, [selectedDocument, onSelect]);
 
   // Rename state

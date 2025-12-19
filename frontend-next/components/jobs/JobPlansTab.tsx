@@ -127,6 +127,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [selectedPlanIds, setSelectedPlanIds] = useState<number[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<JobPlan | null>(null);
+  const handlePlanSelect = useCallback((plan: JobPlan | null) => {
+    setSelectedPlan(plan);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [approveLoading, setApproveLoading] = useState(false);
@@ -743,6 +746,21 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
             <Plus className="h-4 w-4 mr-1" />
             Add Plan
           </Button>
+
+          {/* Email button - shows when plan selected */}
+          {selectedPlan && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setSelectedPlanIds([selectedPlan.id]);
+                setShowEmailModal(true);
+              }}
+            >
+              <Mail className="h-4 w-4 mr-1" />
+              Email
+            </Button>
+          )}
         </div>
       </div>
 
@@ -825,7 +843,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           onRename={handleRename}
           onApprove={handleSetOnIssue}
           onReprocess={handleReprocess}
-          onSelect={setSelectedPlan}
+          onSelect={handlePlanSelect}
           enableSelection
           bulkActions={(ids, clearSelection) => (
             <Button
