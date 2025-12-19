@@ -15,21 +15,17 @@ class PlanType < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :ordered, -> { order(:sequence_order, :code) }
 
-  # Hardcoded fallback templates (used if no global default set)
-  FALLBACK_SHORT_TEMPLATE = "{Code}-{Name}".freeze
-  FALLBACK_LONG_TEMPLATE = "{JobCode}-{Code}-{Name}-Rev{Rev}".freeze
-
-  # SystemSetting keys for global defaults
+  # SSoT: SystemSetting table (configured via Admin > System > Plans)
   SETTING_KEY_SHORT = "plan_default_short_name_template".freeze
   SETTING_KEY_LONG = "plan_default_long_name_template".freeze
 
-  # Get the effective default template (global setting or fallback)
+  # Get global default template from SystemSetting (SSoT)
   def self.default_short_template
-    SystemSetting.get(SETTING_KEY_SHORT) || FALLBACK_SHORT_TEMPLATE
+    SystemSetting.get(SETTING_KEY_SHORT) || raise("Missing SystemSetting: #{SETTING_KEY_SHORT}")
   end
 
   def self.default_long_template
-    SystemSetting.get(SETTING_KEY_LONG) || FALLBACK_LONG_TEMPLATE
+    SystemSetting.get(SETTING_KEY_LONG) || raise("Missing SystemSetting: #{SETTING_KEY_LONG}")
   end
 
   # Set global default templates

@@ -77,6 +77,8 @@ export function PdfFieldsTab() {
   const [previewWidth, setPreviewWidth] = React.useState<number>(0); // 0 = auto
   const [previewHeight, setPreviewHeight] = React.useState<number>(0); // 0 = auto
   const [isMouseDragging, setIsMouseDragging] = React.useState(false);
+  const [selectedFieldId, setSelectedFieldId] = React.useState<number | null>(null);
+  const [mouseDownPos, setMouseDownPos] = React.useState<{ x: number; y: number } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Debug logger
@@ -243,13 +245,16 @@ export function PdfFieldsTab() {
   };
 
   // Mouse-based drag handlers (more reliable than HTML5 drag and drop)
+  // Click = select, Drag = move
+  const DRAG_THRESHOLD = 5; // pixels to move before drag starts
+
   const handleMouseDown = (e: React.MouseEvent, fieldId: number) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('[DRAG] Mouse down - starting drag for field:', fieldId);
-    addDebugLog(`Drag start: field ${fieldId}`);
+
+    // Record mouse position to detect drag vs click
+    setMouseDownPos({ x: e.clientX, y: e.clientY });
     setDraggingFieldId(fieldId);
-    setIsMouseDragging(true);
 
     // Calculate initial offset
     const rect = (e.target as HTMLElement).getBoundingClientRect();
@@ -257,32 +262,45 @@ export function PdfFieldsTab() {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     });
-
-    // Initial preview position
-    if (containerRef.current) {
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const scale = zoom / 100;
-      const previewX = (e.clientX - containerRect.left) / scale;
-      const previewY = (e.clientY - containerRect.top) / scale;
-      setDropPreview({ x: previewX, y: previewY });
-    }
   };
 
   const handleMouseMove = React.useCallback((e: MouseEvent) => {
-    if (!isMouseDragging || !containerRef.current) return;
+    if (!draggingFieldId || !containerRef.current || !mouseDownPos) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const scale = zoom / 100;
-    const previewX = (e.clientX - rect.left) / scale;
-    const previewY = (e.clientY - rect.top) / scale;
-    setDropPreview({ x: previewX, y: previewY });
-  }, [isMouseDragging, zoom]);
+    // Check if we've moved past the drag threshold
+    const dx = Math.abs(e.clientX - mouseDownPos.x);
+    const dy = Math.abs(e.clientY - mouseDownPos.y);
+
+    if (!isMouseDragging && (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD)) {
+      // Start dragging
+      console.log('[DRAG] Drag threshold crossed, starting drag');
+      setIsMouseDragging(true);
+    }
+
+    if (isMouseDragging) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const scale = zoom / 100;
+      const previewX = (e.clientX - rect.left) / scale;
+      const previewY = (e.clientY - rect.top) / scale;
+      setDropPreview({ x: previewX, y: previewY });
+    }
+  }, [draggingFieldId, isMouseDragging, mouseDownPos, zoom]);
 
   const handleMouseUp = React.useCallback((e: MouseEvent) => {
+    // If we weren't dragging (just clicked), select the field
+    if (!isMouseDragging && draggingFieldId) {
+      console.log('[SELECT] Field selected:', draggingFieldId);
+      setSelectedFieldId(draggingFieldId);
+      setDraggingFieldId(null);
+      setMouseDownPos(null);
+      return;
+    }
+
     if (!isMouseDragging || !draggingFieldId || !containerRef.current) {
       setIsMouseDragging(false);
       setDraggingFieldId(null);
       setDropPreview(null);
+      setMouseDownPos(null);
       return;
     }
 
@@ -304,14 +322,16 @@ export function PdfFieldsTab() {
     addDebugLog(`Calling savePosition for field ${draggingFieldId}...`);
 
     savePosition(draggingFieldId, { x: pdfX, y: pdfY });
+    setSelectedFieldId(draggingFieldId); // Select the field after dropping
     setDraggingFieldId(null);
     setIsMouseDragging(false);
     setDropPreview(null);
+    setMouseDownPos(null);
   }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition]);
 
   // Global mouse event listeners for drag
   React.useEffect(() => {
-    if (isMouseDragging) {
+    if (draggingFieldId) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
       return () => {
@@ -319,7 +339,7 @@ export function PdfFieldsTab() {
         window.removeEventListener('mouseup', handleMouseUp);
       };
     }
-  }, [isMouseDragging, handleMouseMove, handleMouseUp]);
+  }, [draggingFieldId, handleMouseMove, handleMouseUp]);
 
   // Get fields for current page
   const fieldsOnPage = positions.filter((p) => p.page === currentPage);
@@ -446,15 +466,21 @@ export function PdfFieldsTab() {
 
         {/* Preview box size controls */}
         <div className="flex items-center gap-1">
-          <span className="text-xs text-muted-foreground">Preview:</span>
+          {selectedFieldId ? (
+            <Badge variant="secondary" className="text-xs mr-2">
+              {positions.find(p => p.id === selectedFieldId)?.display_name || 'Selected'}
+            </Badge>
+          ) : (
+            <span className="text-xs text-muted-foreground mr-2">Click field to select</span>
+          )}
           <span className="text-xs">W</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => Math.max(0, w - 10))}>-</Button>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => Math.max(0, w - 10))} disabled={!selectedFieldId}>-</Button>
           <span className="text-xs font-mono w-8 text-center">{previewWidth || 'auto'}</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => w + 10)}>+</Button>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => w + 10)} disabled={!selectedFieldId}>+</Button>
           <span className="text-xs ml-2">H</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => Math.max(0, h - 2))}>-</Button>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => Math.max(0, h - 2))} disabled={!selectedFieldId}>-</Button>
           <span className="text-xs font-mono w-8 text-center">{previewHeight || 'auto'}</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => h + 2)}>+</Button>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => h + 2)} disabled={!selectedFieldId}>+</Button>
           <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setPreviewWidth(0); setPreviewHeight(0); }}>Reset</Button>
         </div>
 
@@ -615,7 +641,8 @@ export function PdfFieldsTab() {
                           onMouseDown={(e) => handleMouseDown(e, field.id)}
                           className={cn(
                             "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-50 select-none",
-                            draggingFieldId === field.id ? "opacity-30" : ""
+                            draggingFieldId === field.id ? "opacity-30" : "",
+                            selectedFieldId === field.id ? "ring-2 ring-yellow-400 ring-offset-2 rounded" : ""
                           )}
                           style={{
                             left: `${savedLeftPercent}%`,
@@ -634,12 +661,17 @@ export function PdfFieldsTab() {
                               {fieldName}
                             </div>
                           </div>
-                          {/* Box 2: Value (Green) */}
+                          {/* Box 2: Value (Green) - uses custom W/H when selected */}
                           <div
-                            className="bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none"
+                            className={cn(
+                              "bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none",
+                              selectedFieldId === field.id && "ring-2 ring-yellow-400"
+                            )}
                             style={{
                               fontSize: `${fontSize}px`,
                               fontFamily: 'Helvetica, Arial, sans-serif',
+                              ...(selectedFieldId === field.id && previewWidth > 0 && { width: `${previewWidth}px`, minWidth: `${previewWidth}px` }),
+                              ...(selectedFieldId === field.id && previewHeight > 0 && { height: `${previewHeight}px`, lineHeight: `${previewHeight}px` }),
                             }}
                           >
                             {fieldContent || "(empty)"}

@@ -94,14 +94,13 @@ module Api
       end
 
       # GET /api/v1/plan_types/defaults
+      # SSoT: Templates from SystemSetting (Admin > System > Plans)
       def defaults
         render json: {
           success: true,
           data: {
             short_name_template: PlanType.default_short_template,
-            long_name_template: PlanType.default_long_template,
-            fallback_short: PlanType::FALLBACK_SHORT_TEMPLATE,
-            fallback_long: PlanType::FALLBACK_LONG_TEMPLATE
+            long_name_template: PlanType.default_long_template
           }
         }
       end
