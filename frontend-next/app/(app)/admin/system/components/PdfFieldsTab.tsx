@@ -101,6 +101,8 @@ export function PdfFieldsTab() {
   const [isMouseDragging, setIsMouseDragging] = React.useState(false);
   const [selectedFieldId, setSelectedFieldId] = React.useState<number | null>(null);
   const [mouseDownPos, setMouseDownPos] = React.useState<{ x: number; y: number } | null>(null);
+  const [paletteSearch, setPaletteSearch] = React.useState("");
+  const [draggingFromPalette, setDraggingFromPalette] = React.useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Debug logger
@@ -673,6 +675,40 @@ export function PdfFieldsTab() {
           );
         })()}
 
+        {/* Field List - scrollable */}
+        <div className="border-t pt-2 mt-2">
+          <div className="text-xs font-medium text-muted-foreground mb-1">
+            Fields ({positions.length})
+          </div>
+          <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto">
+            {positions
+              .sort((a, b) => a.page - b.page || a.display_name.localeCompare(b.display_name))
+              .map((field) => (
+                <button
+                  key={field.id}
+                  onClick={() => {
+                    setSelectedFieldId(field.id);
+                    setCurrentPage(field.page);
+                    setPreviewWidth(field.box_width || 0);
+                    setPreviewHeight(field.box_height || 0);
+                  }}
+                  className={cn(
+                    "text-left px-2 py-1 rounded text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors",
+                    selectedFieldId === field.id && "bg-blue-100 dark:bg-blue-900 ring-1 ring-blue-500"
+                  )}
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground w-4">p{field.page}</span>
+                    <span className="font-medium truncate">{field.display_name}</span>
+                  </div>
+                  <div className="text-[10px] text-muted-foreground pl-5">
+                    x:{field.x} y:{field.y}
+                  </div>
+                </button>
+              ))}
+          </div>
+        </div>
+
       </div>
 
       {/* PDF Preview - takes remaining width, full height */}
@@ -693,6 +729,37 @@ export function PdfFieldsTab() {
                 width: `${PDF_WIDTH * (zoom / 100)}px`,
                 height: `${PDF_HEIGHT * (zoom / 100)}px`,
               }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+
+                // Calculate preview position while dragging over PDF
+                if (draggingFromPalette && containerRef.current) {
+                  const rect = containerRef.current.getBoundingClientRect();
+                  const scale = zoom / 100;
+                  const screenX = e.clientX - rect.left;
+                  const screenY = e.clientY - rect.top;
+                  const pdfX = Math.round(screenX / scale);
+                  const pdfY = Math.round(PDF_HEIGHT - (screenY / scale));
+                  setDropPreview({ x: Math.max(0, Math.min(PDF_WIDTH, pdfX)), y: Math.max(0, Math.min(PDF_HEIGHT, pdfY)) });
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggingFromPalette && containerRef.current && dropPreview) {
+                  // Save the new position
+                  savePosition(draggingFromPalette, { x: dropPreview.x, y: dropPreview.y, page: currentPage });
+                  setSelectedFieldId(draggingFromPalette);
+                  setDraggingFromPalette(null);
+                  setDraggingFieldId(null);
+                  setDropPreview(null);
+                }
+              }}
+              onDragLeave={() => {
+                if (draggingFromPalette) {
+                  setDropPreview(null);
+                }
+              }}
             >
               {/* Page number label */}
               <div className="absolute -top-5 left-0 text-xs text-muted-foreground font-medium">
@@ -711,7 +778,9 @@ export function PdfFieldsTab() {
               const draggingField = positions.find(p => p.id === draggingFieldId);
               if (!draggingField) return null;
 
-              const previewText = draggingField.test_value || draggingField.display_name || draggingField.field_key;
+              const fieldName = draggingField.display_name || draggingField.field_key;
+              const fieldContent = draggingField.test_value || "(empty)";
+              const fontSize = draggingField.font_size || 10;
 
               return (
                 <div
@@ -723,17 +792,28 @@ export function PdfFieldsTab() {
                     transformOrigin: "bottom left",
                   }}
                 >
-                  {/* Preview box - shows value at drop position */}
-                  <span
-                    className="inline-block bg-green-600 text-white text-[11px] px-1 py-0 rounded whitespace-nowrap font-semibold shadow-lg"
+                  {/* Blue drag handle - same as placed fields */}
+                  <div className="absolute bottom-full left-0 mb-0.5 flex items-center rounded shadow-lg">
+                    <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                      <GripVertical className="h-3 w-3" />
+                    </div>
+                    <div className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-medium">
+                      {fieldName}
+                    </div>
+                  </div>
+                  {/* Green value box */}
+                  <div
+                    className="bg-green-600 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg border-2 border-white"
                     style={{
-                      height: `${previewHeight > 0 ? previewHeight : 12}px`,
-                      lineHeight: `${previewHeight > 0 ? previewHeight : 12}px`,
-                      ...(previewWidth > 0 && { width: `${previewWidth}px`, minWidth: `${previewWidth}px` }),
+                      fontSize: `${fontSize}px`,
+                      fontFamily: 'Helvetica, Arial, sans-serif',
+                      height: `${draggingField.box_height && draggingField.box_height > 0 ? draggingField.box_height : 12}px`,
+                      lineHeight: `${draggingField.box_height && draggingField.box_height > 0 ? draggingField.box_height : 12}px`,
+                      ...(draggingField.box_width && draggingField.box_width > 0 && { width: `${draggingField.box_width}px`, minWidth: `${draggingField.box_width}px` }),
                     }}
                   >
-                    {previewText}
-                  </span>
+                    {fieldContent}
+                  </div>
                 </div>
               );
             })()}
@@ -754,21 +834,31 @@ export function PdfFieldsTab() {
                 <React.Fragment key={field.id}>
                   {/* Field marker - blue handle above, green box at coordinates */}
                   <div
-                    className="absolute z-50"
+                    className="absolute"
                     style={{
                       left: `${savedLeftPercent}%`,
                       bottom: `${savedBottomPercent}%`,
                       transform: `scale(${100 / zoom})`,
                       transformOrigin: "bottom left",
+                      zIndex: selectedFieldId === field.id ? 100 : 50,
+                      pointerEvents: "auto",
                     }}
                   >
                     {/* Blue drag handle - grab this to position */}
                     <div
                       onMouseDown={(e) => handleMouseDown(e, field.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFieldId(field.id);
+                        setPreviewWidth(field.box_width || 0);
+                        setPreviewHeight(field.box_height || 0);
+                      }}
                       className={cn(
                         "absolute bottom-full left-0 mb-0.5 flex items-center rounded shadow-lg cursor-grab active:cursor-grabbing select-none",
-                        draggingFieldId === field.id ? "opacity-50" : "hover:ring-2 hover:ring-white"
+                        draggingFieldId === field.id ? "opacity-50" : "hover:ring-2 hover:ring-white",
+                        selectedFieldId === field.id && "ring-2 ring-yellow-400"
                       )}
+                      style={{ pointerEvents: "auto" }}
                     >
                       <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
                         <GripVertical className="h-3 w-3" />
@@ -779,7 +869,12 @@ export function PdfFieldsTab() {
                     </div>
                     {/* Green value box - shows where data will appear */}
                     <div
-                      onClick={() => setSelectedFieldId(field.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFieldId(field.id);
+                        setPreviewWidth(field.box_width || 0);
+                        setPreviewHeight(field.box_height || 0);
+                      }}
                       className={cn(
                         "bg-green-600/90 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg cursor-pointer",
                         draggingFieldId === field.id ? "opacity-30" : "",
@@ -791,6 +886,7 @@ export function PdfFieldsTab() {
                         height: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
                         lineHeight: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
                         ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
+                        pointerEvents: "auto",
                       }}
                       title={`${fieldName} | x=${field.x}, y=${field.y}`}
                     >
@@ -828,13 +924,43 @@ export function PdfFieldsTab() {
             })}
             </div>
 
-            {/* Next Page (view only) */}
+            {/* Next Page (now interactive for drops) */}
             {currentPage < totalPages && (
               <div
-                className="relative shrink-0 opacity-70"
+                className="relative shrink-0 opacity-90 hover:opacity-100 transition-opacity"
                 style={{
                   width: `${PDF_WIDTH * (zoom / 100)}px`,
                   height: `${PDF_HEIGHT * (zoom / 100)}px`,
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  // Calculate preview position for page 2
+                  if (draggingFromPalette) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const scale = zoom / 100;
+                    const screenX = e.clientX - rect.left;
+                    const screenY = e.clientY - rect.top;
+                    const pdfX = Math.round(screenX / scale);
+                    const pdfY = Math.round(PDF_HEIGHT - (screenY / scale));
+                    setDropPreview({ x: Math.max(0, Math.min(PDF_WIDTH, pdfX)), y: Math.max(0, Math.min(PDF_HEIGHT, pdfY)) });
+                  }
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggingFromPalette && dropPreview) {
+                    // Save to NEXT page (currentPage + 1)
+                    savePosition(draggingFromPalette, { x: dropPreview.x, y: dropPreview.y, page: currentPage + 1 });
+                    setSelectedFieldId(draggingFromPalette);
+                    setDraggingFromPalette(null);
+                    setDraggingFieldId(null);
+                    setDropPreview(null);
+                  }
+                }}
+                onDragLeave={() => {
+                  if (draggingFromPalette) {
+                    setDropPreview(null);
+                  }
                 }}
               >
                 {/* Page number label */}
@@ -847,6 +973,49 @@ export function PdfFieldsTab() {
                   className="absolute inset-0 w-full h-full pointer-events-none"
                   style={{ border: "none" }}
                 />
+
+                {/* Drop preview on page 2 */}
+                {dropPreview && draggingFromPalette && (() => {
+                  const draggingField = positions.find(p => p.id === draggingFromPalette);
+                  if (!draggingField) return null;
+                  const fieldName = draggingField.display_name || draggingField.field_key;
+                  const fieldContent = draggingField.test_value || "(empty)";
+                  const fontSize = draggingField.font_size || 10;
+                  return (
+                    <div
+                      className="absolute pointer-events-none z-50"
+                      style={{
+                        left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
+                        bottom: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                        transform: `scale(${100 / zoom})`,
+                        transformOrigin: "bottom left",
+                      }}
+                    >
+                      {/* Blue drag handle */}
+                      <div className="absolute bottom-full left-0 mb-0.5 flex items-center rounded shadow-lg">
+                        <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                          <GripVertical className="h-3 w-3" />
+                        </div>
+                        <div className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-medium">
+                          {fieldName}
+                        </div>
+                      </div>
+                      {/* Green value box */}
+                      <div
+                        className="bg-green-600 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg border-2 border-white"
+                        style={{
+                          fontSize: `${fontSize}px`,
+                          fontFamily: 'Helvetica, Arial, sans-serif',
+                          height: `${draggingField.box_height && draggingField.box_height > 0 ? draggingField.box_height : 12}px`,
+                          lineHeight: `${draggingField.box_height && draggingField.box_height > 0 ? draggingField.box_height : 12}px`,
+                          ...(draggingField.box_width && draggingField.box_width > 0 && { width: `${draggingField.box_width}px`, minWidth: `${draggingField.box_width}px` }),
+                        }}
+                      >
+                        {fieldContent}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {/* Fields on next page (view only, not draggable) */}
                 {positions.filter(p => p.page === currentPage + 1).map((field) => {
                   const fieldName = field.display_name || field.field_key;
@@ -899,9 +1068,97 @@ export function PdfFieldsTab() {
         )}
       </div>
 
+      {/* Placeholder Palette Panel - Right side */}
+      <div className="w-64 border-l bg-background flex flex-col shrink-0">
+        <div className="p-2 border-b">
+          <div className="text-sm font-medium mb-2">Placeholders</div>
+          <Input
+            placeholder="Search..."
+            value={paletteSearch}
+            onChange={(e) => setPaletteSearch(e.target.value)}
+            className="h-8 text-sm"
+          />
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-2">
+          {/* Column headers */}
+          <div className="flex text-[10px] text-muted-foreground uppercase tracking-wide mb-2 px-1">
+            <span className="flex-1">Field</span>
+            <span className="w-24 text-right">Value</span>
+          </div>
+
+          {/* Field list */}
+          <div className="flex flex-col gap-1">
+            {positions
+              .filter(f =>
+                paletteSearch === "" ||
+                f.display_name.toLowerCase().includes(paletteSearch.toLowerCase()) ||
+                f.field_key.toLowerCase().includes(paletteSearch.toLowerCase())
+              )
+              .sort((a, b) => a.page - b.page || a.display_name.localeCompare(b.display_name))
+              .map((field) => (
+                <div
+                  key={field.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggingFromPalette(field.id);
+                    setDraggingFieldId(field.id);
+                    setDragStartFieldPos({ x: field.x, y: field.y });
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => {
+                    setDraggingFromPalette(null);
+                  }}
+                  onClick={() => {
+                    setSelectedFieldId(field.id);
+                    setCurrentPage(field.page);
+                    setPreviewWidth(field.box_width || 0);
+                    setPreviewHeight(field.box_height || 0);
+                  }}
+                  className={cn(
+                    "flex items-center gap-2 p-1.5 rounded cursor-grab active:cursor-grabbing hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors border",
+                    selectedFieldId === field.id ? "bg-blue-50 dark:bg-blue-900/30 border-blue-300" : "border-transparent",
+                    field.page === currentPage ? "opacity-100" : "opacity-60"
+                  )}
+                >
+                  <GripVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium truncate">{field.display_name}</div>
+                    <div className="text-[10px] text-muted-foreground">p{field.page} • {field.field_key}</div>
+                  </div>
+                  <div className="w-20 text-right">
+                    <span className="text-[10px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-1.5 py-0.5 rounded truncate inline-block max-w-full">
+                      {field.test_value || "(empty)"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Selected field info */}
+        {selectedFieldId && (() => {
+          const field = positions.find(p => p.id === selectedFieldId);
+          if (!field) return null;
+          return (
+            <div className="border-t p-2 bg-slate-50 dark:bg-slate-900">
+              <div className="text-xs font-medium mb-1">{field.display_name}</div>
+              <div className="grid grid-cols-2 gap-1 text-[10px]">
+                <span className="text-muted-foreground">Page:</span>
+                <span>{field.page}</span>
+                <span className="text-muted-foreground">X:</span>
+                <span>{field.x}</span>
+                <span className="text-muted-foreground">Y:</span>
+                <span>{field.y}</span>
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
       {/* Error display only */}
       {pdfError && (
-        <div className="p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-red-700 dark:text-red-300 text-sm">
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-red-700 dark:text-red-300 text-sm">
           <strong>PDF Error:</strong> {pdfError}
         </div>
       )}

@@ -884,11 +884,11 @@ function SystemAdminPageContent() {
           <TabsContent value="email-accounts">
             <EmailAccountsTab />
           </TabsContent>
-          <TabsContent value="pdf-fields">
+          <TabsContent value="pdf-fields" className="flex-1 min-h-0 overflow-auto">
             <PdfFieldsTab />
           </TabsContent>
 
-          <TabsContent value="ai-processing">
+          <TabsContent value="ai-processing" className="flex-1 min-h-0 overflow-auto">
             <AiProcessingTab />
           </TabsContent>
         </div>

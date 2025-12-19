@@ -36,6 +36,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
 import type { PlaceholderToken } from "@/lib/placeholders";
+import { SortableList, SortableItem } from "@/components/ui/dnd";
 
 // Custom placeholders for Plan Types
 const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
@@ -592,6 +593,22 @@ function TypesSection() {
     }
   };
 
+  const handleReorder = async (newTypes: PlanType[]) => {
+    // Update local state immediately for smooth UX
+    setTypes(newTypes);
+
+    try {
+      await api.post("/api/v1/plan_types/reorder", {
+        type_ids: newTypes.map((t) => t.id),
+      });
+    } catch (error) {
+      console.error("Failed to reorder:", error);
+      toast({ title: "Error", description: "Failed to save new order", variant: "destructive" });
+      // Reload to restore original order on error
+      loadData();
+    }
+  };
+
   const filteredTypes = filterCategory === "all"
     ? types
     : types.filter(t => t.category_ids?.includes(parseInt(filterCategory)));
@@ -738,19 +755,51 @@ function TypesSection() {
               <p>No plan types yet</p>
             </div>
           ) : (
-            <div className="divide-y">
-              {filteredTypes.map((type) => (
-                <div
+            <SortableList
+              items={filterCategory === "all" ? types : filteredTypes}
+              onReorder={handleReorder}
+              className="divide-y space-y-0"
+            >
+              {(filterCategory === "all" ? types : filteredTypes).map((type, index) => (
+                <SortableItem
                   key={type.id}
-                  className="flex items-center justify-between p-4 hover:bg-muted/50"
+                  id={type.id}
+                  position={index + 1}
+                  showHandle={filterCategory === "all"}
+                  showPosition={false}
+                  variant="row"
+                  className="p-4 hover:bg-muted/50 border-0"
+                  actions={
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleOpenEditDialog(type)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(type.id)}
+                        disabled={deleting === type.id}
+                      >
+                        {deleting === type.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-red-500" />
+                        )}
+                      </Button>
+                    </div>
+                  }
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
                       <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
                         {type.code}
                       </span>
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <p className="font-medium">{type.name}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
                         {type.categories?.map((cat) => (
@@ -777,30 +826,9 @@ function TypesSection() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleOpenEditDialog(type)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(type.id)}
-                      disabled={deleting === type.id}
-                    >
-                      {deleting === type.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
+                </SortableItem>
               ))}
-            </div>
+            </SortableList>
           )}
         </CardContent>
       </Card>
