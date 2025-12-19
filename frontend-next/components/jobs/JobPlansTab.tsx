@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
+import { PlanReextractionModal } from "@/components/jobs/PlanReextractionModal";
 import { useToast } from "@/components/ui/use-toast";
 import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
 
@@ -145,6 +146,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     error_message: string | null;
   } | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Re-extraction modal state
+  const [showReextractionModal, setShowReextractionModal] = useState(false);
+  const [reextractionId, setReextractionId] = useState<number | null>(null);
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {
@@ -467,48 +472,48 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Re-extract all plans from PDF (uses PdfTextExtractionService SSoT)
+  // Re-extract all plans from PDF (uses PlanReextractionJob with progress tracking)
   const handleRerunAi = async () => {
     try {
-      toast({
-        title: "Re-extracting Plans",
-        description: "Queuing all plans for PDF text extraction...",
-      });
-
-      const response = await api.post(`/api/v1/jobs/${jobId}/job_plans/rerun_ai`) as {
+      // Start batch re-extraction via new API
+      const response = await api.post(`/api/v1/jobs/${jobId}/plan_reextractions`) as {
         success: boolean;
-        data?: { queued_count: number; message: string };
+        data?: { id: number };
         error?: string;
       };
 
-      if (response.success) {
-        const count = response.data?.queued_count || 0;
-        toast({
-          title: "Extraction Started",
-          description: count > 0
-            ? `${count} plan(s) queued. Results will update shortly.`
-            : "No plans with files to extract",
-        });
-        // Refresh after a short delay to show initial results
-        setTimeout(() => {
-          fetchPlans();
-          fetchTabs();
-        }, 3000);
+      if (response.success && response.data?.id) {
+        // Show progress modal
+        setReextractionId(response.data.id);
+        setShowReextractionModal(true);
       } else {
         toast({
           title: "Error",
-          description: response.error || "Failed to queue extraction",
+          description: response.error || "Failed to start re-extraction",
           variant: "destructive",
         });
       }
     } catch (err) {
-      console.error("Error extracting plans:", err);
+      console.error("Error starting re-extraction:", err);
       toast({
         title: "Error",
-        description: "Failed to extract plans",
+        description: "Failed to start re-extraction",
         variant: "destructive",
       });
     }
+  };
+
+  // Handle reextraction modal completion
+  const handleReextractionComplete = () => {
+    setShowReextractionModal(false);
+    setReextractionId(null);
+    // Refresh plans to show updated names
+    fetchPlans();
+    fetchTabs();
+    toast({
+      title: "Re-extraction Complete",
+      description: "Plans have been re-extracted and renamed",
+    });
   };
 
   // Handle set on issue
@@ -929,6 +934,15 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         onSent={() => {
           setSelectedPlanIds([]);
         }}
+      />
+
+      {/* Re-extraction Progress Modal */}
+      <PlanReextractionModal
+        jobId={jobId}
+        reextractionId={reextractionId}
+        open={showReextractionModal}
+        onClose={() => setShowReextractionModal(false)}
+        onComplete={handleReextractionComplete}
       />
 
       {/* Add Plan Dialog */}

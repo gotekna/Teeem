@@ -688,6 +688,9 @@ function CompanySettingsTab() {
   );
 }
 
+// Full-page tabs that hide the navigation
+const FULL_PAGE_TABS = ["pdf-fields"];
+
 function SystemAdminPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -696,6 +699,31 @@ function SystemAdminPageContent() {
   const handleTabChange = (value: string) => {
     router.push(`/admin/system?tab=${value}`);
   };
+
+  const isFullPage = FULL_PAGE_TABS.includes(currentTab);
+
+  // Full-page mode for certain tabs (like PDF Fields)
+  if (isFullPage) {
+    return (
+      <div className="flex flex-col h-full -m-4">
+        {/* Minimal header with back button */}
+        <div className="shrink-0 px-4 py-2 border-b bg-background flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/admin/system?tab=company')}
+            className="h-8"
+          >
+            ← Back to System
+          </Button>
+          <span className="text-sm font-medium">PDF Field Position Editor</span>
+        </div>
+        <div className="flex-1 p-2 overflow-hidden">
+          <PdfFieldsTab />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full">

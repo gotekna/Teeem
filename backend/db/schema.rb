@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073051) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073052) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3980,6 +3980,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073051) do
     t.index ["reviewed_by_id"], name: "index_plan_identifications_on_reviewed_by_id"
   end
 
+  create_table "plan_reextractions", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "status", default: "pending"
+    t.string "current_step"
+    t.integer "total_plans"
+    t.integer "processed_plans"
+    t.string "current_plan_name"
+    t.jsonb "plans_updated", default: []
+    t.jsonb "rename_errors", default: []
+    t.text "error_message"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_plan_reextractions_on_job_id"
+    t.index ["status"], name: "index_plan_reextractions_on_status"
+  end
+
   create_table "plan_types", force: :cascade do |t|
     t.string "name", null: false
     t.string "code", null: false
@@ -6368,6 +6386,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073051) do
   add_foreign_key "plan_identifications", "plan_categories", column: "identified_plan_category_id"
   add_foreign_key "plan_identifications", "plan_types", column: "identified_plan_type_id"
   add_foreign_key "plan_identifications", "users", column: "reviewed_by_id"
+  add_foreign_key "plan_reextractions", "jobs"
   add_foreign_key "plan_uploads", "job_plan_tabs"
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"

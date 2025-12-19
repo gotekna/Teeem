@@ -333,6 +333,9 @@ Rails.application.routes.draw do
           end
         end
 
+        # Plan reextractions - Batch re-extraction with progress tracking
+        resources :plan_reextractions, only: [ :create, :show ]
+
         # Meetings (nested under jobs)
         resources :meetings, only: [ :index, :create ]
 
