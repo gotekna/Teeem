@@ -32,8 +32,6 @@ export function useAuthenticatedImage(url: string | null) {
       setError(null);
 
       try {
-        console.log("[useAuthenticatedImage] Fetching:", url);
-
         // Get JWT token from localStorage (same as api.ts does)
         const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
@@ -44,48 +42,37 @@ export function useAuthenticatedImage(url: string | null) {
 
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
-          console.log("[useAuthenticatedImage] Added Authorization header");
-        } else {
-          console.warn("[useAuthenticatedImage] No auth token found in localStorage");
         }
 
         // Fetch with credentials and Authorization header
         const response = await fetch(url, {
           method: "GET",
-          credentials: "include", // Send cookies for cross-origin requests
+          credentials: "include",
           headers,
         });
 
-        console.log("[useAuthenticatedImage] Response status:", response.status, response.statusText);
-
         if (!response.ok) {
-          const errorMsg = `Failed to load image: ${response.status} ${response.statusText}`;
-          console.error("[useAuthenticatedImage]", errorMsg);
-          throw new Error(errorMsg);
+          throw new Error(`Failed to load image: ${response.status} ${response.statusText}`);
         }
 
         // Convert to blob
         const blob = await response.blob();
-        console.log("[useAuthenticatedImage] Blob created:", blob.size, "bytes");
 
         // Check if the component is still mounted
         if (cancelled) {
-          console.log("[useAuthenticatedImage] Component unmounted, skipping");
           return;
         }
 
         // Create object URL
         objectUrl = URL.createObjectURL(blob);
-        console.log("[useAuthenticatedImage] Object URL created:", objectUrl);
         setImageUrl(objectUrl);
       } catch (err) {
         if (!cancelled) {
-          console.error("[useAuthenticatedImage] Error:", err);
+          console.error("[useAuthenticatedImage] Failed to load:", err);
           setError(err instanceof Error ? err : new Error("Unknown error"));
         }
       } finally {
         if (!cancelled) {
-          console.log("[useAuthenticatedImage] Setting loading to false");
           setLoading(false);
         }
       }
