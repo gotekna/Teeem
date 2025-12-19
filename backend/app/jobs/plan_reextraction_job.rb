@@ -100,11 +100,14 @@ class PlanReextractionJob < ApplicationJob
       Rails.logger.info "[PlanReextractionJob] Plan #{plan.id}: '#{old_display_name}' -> '#{new_display_name}'"
 
       # Update plan record
+      # Set is_combined_pdf flag if this is the "00-ALL PLANS" type
+      is_combined = result.plan_type.code == "00"
       plan.update!(
         plan_type_id: result.plan_type.id,
         job_plan_tab_id: result.job_plan_tab&.id || plan.job_plan_tab_id,
         variant_suffix: variant_suffix,
-        display_name: new_display_name
+        display_name: new_display_name,
+        is_combined_pdf: is_combined
       )
 
       # Rename SharePoint file if different

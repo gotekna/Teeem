@@ -43,6 +43,7 @@ import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
 import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 interface PlanTypeOption {
   id: number;
@@ -115,6 +116,9 @@ interface JobPlansTabProps {
 }
 
 export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
+  // Declare this tab needs edge-to-edge layout
+  useSetLayoutMode("edge-to-edge");
+
   const { toast } = useToast();
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
@@ -631,7 +635,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   return (
     <div
-      className="flex flex-col h-full -mx-4 relative"
+      className="flex flex-col h-full relative border-4 border-blue-500"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -653,87 +657,88 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       )}
 
       {/* Category filter + Add Plan button */}
-      <div className="px-4 pb-2 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {/* Selected category badge */}
-            {selectedTab && (
-              <Badge variant="default" className="whitespace-nowrap">
-                {selectedTab.name} ({filteredPlans.length})
-              </Badge>
-            )}
+      <div className="shrink-0 px-3 border-4 border-green-500 bg-green-100 dark:bg-green-900/30 relative">
+        <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-10">
+          [HEADER] px-3
+        </div>
+        <div className="flex items-center gap-2 border-2 border-purple-500">
+          {/* Selected category badge */}
+          {selectedTab && (
+            <Badge variant="default" className="whitespace-nowrap">
+              {selectedTab.name} ({filteredPlans.length})
+            </Badge>
+          )}
 
-            {/* Show "All" if no category selected or no plans */}
-            {!selectedTab && (
-              <Badge variant="default" className="whitespace-nowrap">
-                All Plans ({plans.length})
-              </Badge>
-            )}
+          {/* Show "All" if no category selected or no plans */}
+          {!selectedTab && (
+            <Badge variant="default" className="whitespace-nowrap">
+              All Plans ({plans.length})
+            </Badge>
+          )}
 
-            {/* Dropdown for other categories */}
-            {tabs.length > 0 && (otherTabsWithPlans.length > 0 || emptyTabs.length > 0) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-6 w-6 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  {/* Show All option */}
-                  <DropdownMenuItem onClick={() => setSelectedCategoryId(null)}>
-                    All Plans ({plans.length})
-                  </DropdownMenuItem>
+          {/* Dropdown for other categories */}
+          {tabs.length > 0 && (otherTabsWithPlans.length > 0 || emptyTabs.length > 0) && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-6 w-6 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {/* Show All option */}
+                <DropdownMenuItem onClick={() => setSelectedCategoryId(null)}>
+                  All Plans ({plans.length})
+                </DropdownMenuItem>
 
-                  {/* Other categories with plans */}
-                  {otherTabsWithPlans.length > 0 && (
-                    <>
-                      <DropdownMenuSeparator />
-                      {otherTabsWithPlans.map(tab => {
-                        const count = plans.filter(p => p.job_plan_tab_id === tab.id).length;
-                        return (
-                          <DropdownMenuItem
-                            key={tab.id}
-                            onClick={() => setSelectedCategoryId(tab.id)}
-                          >
-                            {tab.name} ({count})
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </>
-                  )}
-
-                  {/* Empty categories (no plans yet) */}
-                  {emptyTabs.length > 0 && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                        No plans yet
-                      </div>
-                      {emptyTabs.map(tab => (
+                {/* Other categories with plans */}
+                {otherTabsWithPlans.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {otherTabsWithPlans.map(tab => {
+                      const count = plans.filter(p => p.job_plan_tab_id === tab.id).length;
+                      return (
                         <DropdownMenuItem
                           key={tab.id}
                           onClick={() => setSelectedCategoryId(tab.id)}
-                          className="text-muted-foreground"
                         >
-                          {tab.name} (0)
+                          {tab.name} ({count})
                         </DropdownMenuItem>
-                      ))}
-                    </>
-                  )}
+                      );
+                    })}
+                  </>
+                )}
 
-                  {/* Actions */}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleRerunAi}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Re-extract All from PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
+                {/* Empty categories (no plans yet) */}
+                {emptyTabs.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                      No plans yet
+                    </div>
+                    {emptyTabs.map(tab => (
+                      <DropdownMenuItem
+                        key={tab.id}
+                        onClick={() => setSelectedCategoryId(tab.id)}
+                        className="text-muted-foreground"
+                      >
+                        {tab.name} (0)
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
 
-          {/* Add Plan button */}
-          <Button size="sm" onClick={handleOpenAddDialog}>
+                {/* Actions */}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleRerunAi}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Re-extract All from PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {/* Add Plan button - next to category */}
+          <Button size="sm" variant="outline" onClick={handleOpenAddDialog}>
             <Plus className="h-4 w-4 mr-1" />
             Add Plan
           </Button>
@@ -741,7 +746,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       </div>
 
       {/* TeeemDocumentView - Main content */}
-      <div className="flex-1 min-h-0 px-4">
+      <div className="flex-1 min-h-0 border-4 border-orange-500 relative">
+        <div className="absolute top-0 right-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-10">
+          [CONTENT] flex-1 min-h-0
+        </div>
         <TeeemDocumentView
           documents={filteredPlans}
           title=""

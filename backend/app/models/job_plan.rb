@@ -25,6 +25,9 @@ class JobPlan < ApplicationRecord
   before_save :set_display_name
   before_save :check_identification_source, if: :plan_type_id_changed?
 
+  # Auto-regenerate "All Plans" combined PDF when individual plans change
+  after_commit :regenerate_all_plans_pdf, on: [:create, :update, :destroy], if: :should_regenerate_all_plans?
+
   scope :ordered, -> { includes(:plan_type).order('plan_types.sequence_order', 'plan_types.code', :variant_suffix) }
   scope :on_issue, -> { joins(:current_revision).where(job_plan_revisions: { is_on_issue: true }) }
   scope :regular_plans, -> { where(is_combined_pdf: false) }
@@ -98,5 +101,16 @@ class JobPlan < ApplicationRecord
       "Caller: #{caller_info || 'unknown'}. " \
       "Consider using PlanIdentificationService.identify_from_text() instead."
     )
+  end
+
+  # Only regenerate All Plans when individual plans change (not the combined PDF itself)
+  def should_regenerate_all_plans?
+    !is_combined_pdf?
+  end
+
+  # Queue job to regenerate the combined "All Plans" PDF
+  # Uses debounced enqueue to avoid multiple runs for rapid changes
+  def regenerate_all_plans_pdf
+    PlanCombinerJob.enqueue_for_job(job_id)
   end
 end

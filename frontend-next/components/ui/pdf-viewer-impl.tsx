@@ -29,6 +29,7 @@ export function PDFViewerImpl({
   const [scale, setScale] = React.useState<number | null>(null); // null = auto-fit
   const [pageSize, setPageSize] = React.useState<{ width: number; height: number } | null>(null);
   const [containerWidth, setContainerWidth] = React.useState<number>(0);
+  const [containerHeight, setContainerHeight] = React.useState<number>(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
   const pageRef = React.useRef<HTMLDivElement>(null);
@@ -46,19 +47,21 @@ export function PDFViewerImpl({
   const onErrorRef = React.useRef(onError);
   onErrorRef.current = onError;
 
-  // Track container width for auto-fit
+  // Track container dimensions for auto-fit
   React.useEffect(() => {
-    const updateWidth = () => {
+    const updateDimensions = () => {
       if (contentRef.current) {
-        // Subtract padding (32px = 16px * 2 for p-4)
+        // Subtract padding (32px = 16px * 2 for p-4, 48px for pt-12 toolbar space)
         const width = contentRef.current.clientWidth - 32;
+        const height = contentRef.current.clientHeight - 16; // pt-12 already in layout
         setContainerWidth(width);
+        setContainerHeight(height);
       }
     };
 
-    updateWidth();
+    updateDimensions();
 
-    const resizeObserver = new ResizeObserver(updateWidth);
+    const resizeObserver = new ResizeObserver(updateDimensions);
     if (contentRef.current) {
       resizeObserver.observe(contentRef.current);
     }
@@ -149,8 +152,34 @@ export function PDFViewerImpl({
     setScale((prev) => Math.max((prev ?? 1.0) - 0.25, 0.5));
   };
 
-  const fitToWidth = () => {
-    setScale(null); // null = auto-fit to container width
+  // Calculate optimal scale to fit PDF in container (contain mode)
+  const calculateFitScale = React.useCallback(() => {
+    if (!pageSize || containerWidth <= 0 || containerHeight <= 0) {
+      return null; // Can't calculate yet
+    }
+
+    const scaleForWidth = containerWidth / pageSize.width;
+    const scaleForHeight = containerHeight / pageSize.height;
+
+    // Use smaller scale to ensure PDF fits both dimensions (contain mode)
+    return Math.min(scaleForWidth, scaleForHeight);
+  }, [pageSize, containerWidth, containerHeight]);
+
+  // Auto-fit when page first renders
+  React.useEffect(() => {
+    if (scale === null && pageSize && containerWidth > 0 && containerHeight > 0) {
+      const fitScale = calculateFitScale();
+      if (fitScale) {
+        setScale(fitScale);
+      }
+    }
+  }, [scale, pageSize, containerWidth, containerHeight, calculateFitScale]);
+
+  const fitToPage = () => {
+    const fitScale = calculateFitScale();
+    if (fitScale) {
+      setScale(fitScale);
+    }
   };
 
   if (isLoading) {
@@ -170,48 +199,49 @@ export function PDFViewerImpl({
   }
 
   return (
-    <div className={cn("h-full w-full flex flex-col", className)} ref={containerRef}>
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
-        <div className="flex items-center gap-2">
+    <div className={cn("h-full w-full flex flex-col relative", className)} ref={containerRef}>
+      {/* Floating Toolbar - overlay in top corners */}
+      <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between pointer-events-none">
+        {/* Page navigation - top left */}
+        <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm border px-1 py-1 pointer-events-auto">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
+            className="h-7 w-7"
             onClick={goToPrevPage}
             disabled={pageNumber <= 1}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm min-w-[80px] text-center">
+          <span className="text-sm min-w-[60px] text-center">
             {pageNumber} / {numPages}
           </span>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
+            className="h-7 w-7"
             onClick={goToNextPage}
             disabled={pageNumber >= numPages}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={zoomOut}>
+        {/* Zoom controls - top right */}
+        <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm border px-1 py-1 pointer-events-auto">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={zoomOut}>
             <ZoomOut className="h-4 w-4" />
           </Button>
-          <span className="text-sm min-w-[50px] text-center">
-            {scale === null ? "Fit" : `${Math.round(scale * 100)}%`}
-          </span>
-          <Button variant="outline" size="icon" onClick={zoomIn}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={zoomIn}>
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={fitToWidth}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fitToPage}>
             <Maximize className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* PDF Content */}
-      <div className="flex-1 overflow-auto flex justify-center p-4 bg-muted/30" ref={contentRef}>
+      {/* PDF Content - full height now */}
+      <div className="flex-1 overflow-auto flex justify-center p-4 pt-12 bg-muted/30" ref={contentRef}>
         <Document
           file={pdfFile}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -230,10 +260,7 @@ export function PDFViewerImpl({
           <div className="relative" ref={pageRef}>
             <Page
               pageNumber={pageNumber}
-              {...(scale === null
-                ? { width: containerWidth > 0 ? containerWidth : undefined }
-                : { scale }
-              )}
+              scale={scale ?? 1.0}
               loading={
                 <div className="flex items-center justify-center h-96">
                   <Loader2 className="h-6 w-6 animate-spin" />

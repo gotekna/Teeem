@@ -8,11 +8,13 @@ import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
+import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Spinner } from "@/components/ui/spinner";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const { sidebarWidth } = useSidebar();
+  const { containerClassName, contentClassName, shouldHideSidebar } = useLayoutMode();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -41,23 +43,25 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <HeaderBar onMenuClick={() => setSidebarOpen(true)} />
       </div>
 
-      {/* Sidebar - below header */}
-      <div className="hidden md:block fixed top-12 left-0 bottom-0 z-40">
-        <Sidebar />
-      </div>
+      {/* Sidebar - below header (hidden in fullscreen mode) */}
+      {!shouldHideSidebar && (
+        <div className="hidden md:block fixed top-12 left-0 bottom-0 z-40">
+          <Sidebar />
+        </div>
+      )}
 
-      {/* CSS for sidebar width on desktop */}
+      {/* CSS for sidebar width on desktop (not in fullscreen mode) */}
       <style>{`
         @media (min-width: 768px) {
           .sidebar-content-area {
-            padding-left: ${sidebarWidth}px !important;
+            padding-left: ${shouldHideSidebar ? 0 : sidebarWidth}px !important;
           }
         }
       `}</style>
 
       {/* Main Content - below header, beside sidebar */}
-      <main className="sidebar-content-area pt-12 h-full overflow-auto transition-all duration-300 ease-in-out">
-        <div className="h-full pt-6 pb-0 px-4 flex flex-col">
+      <main className={`sidebar-content-area pt-12 ${containerClassName} transition-all duration-300 ease-in-out`}>
+        <div className={contentClassName}>
           {children}
         </div>
       </main>
@@ -74,7 +78,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <ViewModeProvider>
-        <AppLayoutContent>{children}</AppLayoutContent>
+        <LayoutModeProvider>
+          <AppLayoutContent>{children}</AppLayoutContent>
+        </LayoutModeProvider>
       </ViewModeProvider>
     </SidebarProvider>
   );

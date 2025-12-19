@@ -519,16 +519,17 @@ export function TeeemDocumentView<T extends DocumentItem>({
         </div>
       )}
 
-      {/* Split view: 30% list / 70% preview */}
-      <div className="flex-1 flex gap-4 px-4 min-h-0">
-        {/* Document list (30%) */}
-        <div className="w-[30%] border rounded-lg overflow-hidden bg-card">
-          {renderDocumentList()}
-        </div>
-
-        {/* Preview panel (70%) */}
-        <div className="w-[70%] border rounded-lg overflow-hidden bg-card">
+      {/* Preview panel - right 70% */}
+      <div className="absolute top-0 left-[30%] right-0 bottom-0">
+        <div className="h-full border rounded-lg overflow-hidden bg-card">
           {renderPreviewPanel()}
+        </div>
+      </div>
+
+      {/* Document list - left 30% */}
+      <div className="flex-1 min-h-0 w-[30%]">
+        <div className="h-full border rounded-lg overflow-hidden bg-card">
+          {renderDocumentList()}
         </div>
       </div>
     </div>

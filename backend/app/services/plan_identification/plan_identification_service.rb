@@ -57,6 +57,12 @@ module PlanIdentification
     def identify_from_pdf(pdf_content, page_number = 1, processable: nil)
       Rails.logger.info "[PlanIdentificationService] Starting identification for page #{page_number}"
 
+      # Check for "All Plans" combined PDF by filename (early exit with 100% confidence)
+      filename = processable&.try(:file_name) || processable&.try(:current_revision)&.file_name
+      if combined_pdf_filename?(filename)
+        return build_combined_pdf_result(filename)
+      end
+
       # Use the configurable pipeline
       pipeline = AiProcessingPipeline.new(
         service_type: SERVICE_TYPE,
@@ -293,6 +299,35 @@ module PlanIdentification
         "ocr=#{pipeline_result[:ocr] ? 'yes' : 'no'}, " \
         "ai=#{pipeline_result[:ai] ? 'yes' : 'no'}, " \
         "log_id=#{pipeline_result[:log_id]}"
+      )
+    end
+
+    # Detect combined PDF by filename pattern
+    # Matches: "All Plans", "AllPlans", "all-plans", etc.
+    def combined_pdf_filename?(filename)
+      return false if filename.blank?
+
+      # Case-insensitive match for "all plans" variations
+      normalized = filename.downcase.gsub(/[^a-z0-9]/, "")
+      normalized.include?("allplans") || normalized.include?("allplan")
+    end
+
+    # Build result for combined PDF (100% confidence, "00-ALL PLANS" type)
+    def build_combined_pdf_result(filename)
+      all_plans_type = @plan_types.find_by(code: "00")
+
+      Rails.logger.info "[PlanIdentificationService] Detected combined PDF: #{filename} -> 00-ALL PLANS"
+
+      Result.new(
+        plan_type: all_plans_type,
+        plan_category: all_plans_type&.plan_categories&.first,
+        job_plan_tab: find_job_plan_tab(all_plans_type),
+        confidence: 100,
+        status: "auto_assigned",
+        display_name: "ALL PLANS",
+        sheet_name: "ALL PLANS",
+        match_reason: "filename_pattern:combined_pdf",
+        ai_invoked: false
       )
     end
   end

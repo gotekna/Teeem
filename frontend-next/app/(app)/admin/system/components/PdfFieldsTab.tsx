@@ -76,6 +76,27 @@ export function PdfFieldsTab() {
   const [dropPreview, setDropPreview] = React.useState<{ x: number; y: number } | null>(null);
   const [previewWidth, setPreviewWidth] = React.useState<number>(0); // 0 = auto
   const [previewHeight, setPreviewHeight] = React.useState<number>(0); // 0 = auto
+  const [fieldSizes, setFieldSizes] = React.useState<Record<number, { w: number; h: number }>>(() => {
+    // Load from localStorage on init
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pdfFieldSizes');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch {
+          return {};
+        }
+      }
+    }
+    return {};
+  });
+
+  // Save to localStorage when fieldSizes changes
+  React.useEffect(() => {
+    if (Object.keys(fieldSizes).length > 0) {
+      localStorage.setItem('pdfFieldSizes', JSON.stringify(fieldSizes));
+    }
+  }, [fieldSizes]);
   const [isMouseDragging, setIsMouseDragging] = React.useState(false);
   const [selectedFieldId, setSelectedFieldId] = React.useState<number | null>(null);
   const [mouseDownPos, setMouseDownPos] = React.useState<{ x: number; y: number } | null>(null);
@@ -292,17 +313,24 @@ export function PdfFieldsTab() {
       console.log('[SELECT] Field selected:', draggingFieldId);
       setSelectedFieldId(draggingFieldId);
 
-      // Initialize W/H based on the field's content
-      const field = positions.find(p => p.id === draggingFieldId);
-      if (field) {
-        const text = field.test_value || field.display_name || '';
-        const fontSize = field.font_size || 10;
-        // Estimate width: ~0.6 * fontSize per character + padding
-        const estimatedWidth = Math.round(text.length * fontSize * 0.6 + 12);
-        // Estimate height: fontSize + padding
-        const estimatedHeight = Math.round(fontSize + 8);
-        setPreviewWidth(estimatedWidth);
-        setPreviewHeight(estimatedHeight);
+      // Load saved W/H for this field, or estimate if not set
+      const savedSize = fieldSizes[draggingFieldId];
+      if (savedSize) {
+        setPreviewWidth(savedSize.w);
+        setPreviewHeight(savedSize.h);
+      } else {
+        // Initialize W/H based on the field's content
+        const field = positions.find(p => p.id === draggingFieldId);
+        if (field) {
+          const text = field.test_value || field.display_name || '';
+          const fontSize = field.font_size || 10;
+          const estimatedWidth = Math.round(text.length * fontSize * 0.6 + 12);
+          const estimatedHeight = Math.round(fontSize + 8);
+          setPreviewWidth(estimatedWidth);
+          setPreviewHeight(estimatedHeight);
+          // Save the initial estimate
+          setFieldSizes(prev => ({ ...prev, [draggingFieldId]: { w: estimatedWidth, h: estimatedHeight } }));
+        }
       }
 
       setDraggingFieldId(null);
@@ -341,7 +369,7 @@ export function PdfFieldsTab() {
     setIsMouseDragging(false);
     setDropPreview(null);
     setMouseDownPos(null);
-  }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition, positions]);
+  }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition, positions, fieldSizes]);
 
   // Global mouse event listeners for drag
   React.useEffect(() => {
@@ -500,13 +528,51 @@ export function PdfFieldsTab() {
             <span className="text-xs text-muted-foreground mr-2">Click field to select</span>
           )}
           <span className="text-xs">W</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => Math.max(0, w - 10))} disabled={!selectedFieldId}>-</Button>
-          <span className="text-xs font-mono w-8 text-center">{previewWidth || 'auto'}</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => w + 10)} disabled={!selectedFieldId}>+</Button>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+            const newW = Math.max(0, previewWidth - 10);
+            setPreviewWidth(newW);
+            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], w: newW } }));
+          }} disabled={!selectedFieldId}>-</Button>
+          <Input
+            type="number"
+            value={previewWidth || ''}
+            onChange={(e) => {
+              const val = parseInt(e.target.value) || 0;
+              setPreviewWidth(val);
+              if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], w: val } }));
+            }}
+            className="h-6 w-14 text-xs text-center font-mono px-1"
+            placeholder="auto"
+            disabled={!selectedFieldId}
+          />
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+            const newW = previewWidth + 10;
+            setPreviewWidth(newW);
+            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], w: newW } }));
+          }} disabled={!selectedFieldId}>+</Button>
           <span className="text-xs ml-2">H</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => Math.max(0, h - 2))} disabled={!selectedFieldId}>-</Button>
-          <span className="text-xs font-mono w-8 text-center">{previewHeight || 'auto'}</span>
-          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => h + 2)} disabled={!selectedFieldId}>+</Button>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+            const newH = Math.max(0, previewHeight - 2);
+            setPreviewHeight(newH);
+            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], h: newH } }));
+          }} disabled={!selectedFieldId}>-</Button>
+          <Input
+            type="number"
+            value={previewHeight || ''}
+            onChange={(e) => {
+              const val = parseInt(e.target.value) || 0;
+              setPreviewHeight(val);
+              if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], h: val } }));
+            }}
+            className="h-6 w-14 text-xs text-center font-mono px-1"
+            placeholder="auto"
+            disabled={!selectedFieldId}
+          />
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+            const newH = previewHeight + 2;
+            setPreviewHeight(newH);
+            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], h: newH } }));
+          }} disabled={!selectedFieldId}>+</Button>
           <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setPreviewWidth(0); setPreviewHeight(0); }}>Reset</Button>
         </div>
 
@@ -687,21 +753,28 @@ export function PdfFieldsTab() {
                               {fieldName}
                             </div>
                           </div>
-                          {/* Box 2: Value (Green) - uses custom W/H when selected */}
-                          <div
-                            className={cn(
-                              "bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none",
-                              selectedFieldId === field.id && "ring-2 ring-yellow-400"
-                            )}
-                            style={{
-                              fontSize: `${fontSize}px`,
-                              fontFamily: 'Helvetica, Arial, sans-serif',
-                              ...(selectedFieldId === field.id && previewWidth > 0 && { width: `${previewWidth}px`, minWidth: `${previewWidth}px` }),
-                              ...(selectedFieldId === field.id && previewHeight > 0 && { height: `${previewHeight}px`, lineHeight: `${previewHeight}px` }),
-                            }}
-                          >
-                            {fieldContent || "(empty)"}
-                          </div>
+                          {/* Box 2: Value (Green) - uses saved W/H for each field */}
+                          {(() => {
+                            const savedSize = fieldSizes[field.id];
+                            const boxW = savedSize?.w || 0;
+                            const boxH = savedSize?.h || 0;
+                            return (
+                              <div
+                                className={cn(
+                                  "bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none",
+                                  selectedFieldId === field.id && "ring-2 ring-yellow-400"
+                                )}
+                                style={{
+                                  fontSize: `${fontSize}px`,
+                                  fontFamily: 'Helvetica, Arial, sans-serif',
+                                  ...(boxW > 0 && { width: `${boxW}px`, minWidth: `${boxW}px` }),
+                                  ...(boxH > 0 && { height: `${boxH}px`, lineHeight: `${boxH}px` }),
+                                }}
+                              >
+                                {fieldContent || "(empty)"}
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* DROP PREVIEW - Just shows new position */}
