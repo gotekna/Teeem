@@ -101,6 +101,11 @@ module Api
       def add_revision
         revision = @job_plan.add_revision!(revision_params)
 
+        # Queue thumbnail generation for instant preview (background job)
+        if revision.sharepoint_file_id.present?
+          GeneratePlanThumbnailJob.perform_later(revision.id)
+        end
+
         render json: {
           success: true,
           data: serialize_revision(revision)
@@ -461,6 +466,9 @@ module Api
             id: revision.issued_by.id,
             name: revision.issued_by.name
           } : nil,
+          # Thumbnail for instant preview
+          thumbnail_url: revision.thumbnail_url,
+          thumbnail_file_id: revision.thumbnail_file_id,
           created_at: revision.created_at
         }
       end

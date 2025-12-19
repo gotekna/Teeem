@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ReactNode } from "react";
+import { useState, useEffect, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +17,7 @@ import {
   CheckCircle,
   MoreHorizontal,
   Sparkles,
+  Maximize2,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -44,6 +45,8 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
   getPreviewUrl: (doc: T) => string | null;
   getExternalUrl?: (doc: T) => string | null;
   getRevision?: (doc: T) => string | null;
+  // Thumbnail for instant preview (PNG/JPEG image)
+  getThumbnailUrl?: (doc: T) => string | null;
 
   // Actions
   onRename?: (doc: T, newName: string) => Promise<void>;
@@ -91,6 +94,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   getPreviewUrl,
   getExternalUrl,
   getRevision,
+  getThumbnailUrl,
   onRename,
   onApprove,
   onReprocess,
@@ -120,6 +124,15 @@ export function TeeemDocumentView<T extends DocumentItem>({
   // Selection state
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<T | null>(null);
+
+  // Thumbnail vs Full PDF state
+  // Start with thumbnail (instant), user clicks to load full PDF
+  const [showFullPdf, setShowFullPdf] = useState(false);
+
+  // Reset to thumbnail view when document changes
+  useEffect(() => {
+    setShowFullPdf(false);
+  }, [selectedDocument]);
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false);
@@ -319,18 +332,44 @@ export function TeeemDocumentView<T extends DocumentItem>({
     const revision = getRevision?.(selectedDocument);
     const status = getDocumentStatus(selectedDocument);
     const name = getDocumentName(selectedDocument);
+    const thumbnailUrl = getThumbnailUrl?.(selectedDocument);
+
+    // Determine what to show: thumbnail (instant) or full PDF
+    const hasThumbnail = thumbnailUrl && !showFullPdf;
+    const shouldShowPdf = previewUrl && (showFullPdf || !thumbnailUrl);
 
     return (
       <div className="flex flex-col h-full">
-        {/* PDF Viewer */}
-        <div className="flex-1 min-h-0">
-          {previewUrl ? (
+        {/* Preview Content */}
+        <div className="flex-1 min-h-0 relative">
+          {hasThumbnail ? (
+            // Show instant thumbnail preview
+            <div
+              className="h-full w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 cursor-pointer group"
+              onClick={() => setShowFullPdf(true)}
+            >
+              <img
+                src={thumbnailUrl}
+                alt={name}
+                className="max-h-full max-w-full object-contain"
+              />
+              {/* Overlay to indicate clickable for full PDF */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                  <Maximize2 className="h-4 w-4" />
+                  <span>View Full PDF</span>
+                </div>
+              </div>
+            </div>
+          ) : shouldShowPdf ? (
+            // Show full PDF viewer
             <PDFViewer
               url={previewUrl}
               fallbackUrl={externalUrl || undefined}
               className="h-full"
             />
           ) : (
+            // No file attached
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <FileText className="h-16 w-16 mb-4 opacity-50" />
               <p className="mb-2">{name}</p>

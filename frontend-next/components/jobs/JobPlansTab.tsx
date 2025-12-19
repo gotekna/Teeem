@@ -81,6 +81,9 @@ interface Revision {
   formatted_file_size: string | null;
   notes: string | null;
   issued_by: { id: number; name: string } | null;
+  // Thumbnail for instant preview
+  thumbnail_url: string | null;
+  thumbnail_file_id: string | null;
 }
 
 interface JobPlan {
@@ -235,6 +238,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const getPdfPreviewUrl = (revision: Revision | null) => {
     if (!revision?.sharepoint_file_id) return null;
     return `${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${revision.sharepoint_file_id}&preview=true`;
+  };
+
+  // Get thumbnail URL for instant preview (if available)
+  const getThumbnailUrl = (revision: Revision | null) => {
+    if (!revision?.thumbnail_file_id) return null;
+    return `${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${revision.thumbnail_file_id}&preview=true`;
   };
 
   // Open Add Plan dialog
@@ -732,6 +741,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           getPreviewUrl={(p) => getPdfPreviewUrl(p.current_revision)}
           getExternalUrl={(p) => p.current_revision?.sharepoint_web_url || null}
           getRevision={(p) => p.current_revision?.revision_label || null}
+          getThumbnailUrl={(p) => getThumbnailUrl(p.current_revision)}
           onRename={handleRename}
           onApprove={handleSetOnIssue}
           onReprocess={handleReprocess}

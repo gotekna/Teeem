@@ -384,7 +384,7 @@ export function PdfFieldsTab() {
           Refresh
         </Button>
 
-        <div className="flex-1" />
+        <div className="border-l h-6 mx-2" />
 
         {/* Zoom controls */}
         <Button
@@ -404,7 +404,37 @@ export function PdfFieldsTab() {
         >
           <ZoomIn className="h-3 w-3" />
         </Button>
-        {saving && <Badge variant="secondary">Saving...</Badge>}
+
+        <div className="border-l h-6 mx-2" />
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={loadPdfPreview}
+          disabled={loadingPdf}
+        >
+          {loadingPdf ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+          Reload PDF
+        </Button>
+
+        {saving && <Badge variant="secondary" className="ml-2">Saving...</Badge>}
+
+        {/* Coordinates display when dragging */}
+        {draggingFieldId && (
+          <div className="flex items-center gap-2 ml-4 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
+            <span className="text-xs font-medium">
+              {positions.find(p => p.id === draggingFieldId)?.display_name}:
+            </span>
+            <span className="text-xs font-mono text-red-600 dark:text-red-400">
+              OLD x:{positions.find(p => p.id === draggingFieldId)?.x} y:{positions.find(p => p.id === draggingFieldId)?.y}
+            </span>
+            <span className="text-xs">→</span>
+            <span className="text-xs font-mono text-blue-600 dark:text-blue-400">
+              NEW x:{dropPreview ? Math.round(dropPreview.x) : '...'} y:{dropPreview ? Math.round(PDF_HEIGHT - dropPreview.y) : '...'}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main Editor */}
@@ -462,7 +492,7 @@ export function PdfFieldsTab() {
         <div className="col-span-4">
           <div
             className="relative bg-gray-100 dark:bg-gray-900 rounded overflow-auto border"
-            style={{ height: "calc(100vh - 160px)", minHeight: "600px" }}
+            style={{ height: "calc(100vh - 80px)", minHeight: "700px" }}
           >
               {loadingPdf ? (
                 <div className="flex items-center justify-center h-full">
@@ -528,6 +558,19 @@ export function PdfFieldsTab() {
                   })()}
 
                   {/* Field markers */}
+                  {(() => {
+                    // Debug: Log all fields on this page
+                    console.group(`[PDF Fields] Page ${currentPage} - ${fieldsOnPage.length} fields`);
+                    fieldsOnPage.forEach((f) => {
+                      console.log(`  ${f.display_name || f.field_key}`, {
+                        id: f.id,
+                        value: f.test_value || "(empty)",
+                        position: `x:${f.x} y:${f.y}`,
+                      });
+                    });
+                    console.groupEnd();
+                    return null;
+                  })()}
                   {fieldsOnPage.map((field) => {
                     const isDragging = draggingFieldId === field.id;
                     const fieldName = field.display_name || field.field_key;
@@ -537,14 +580,6 @@ export function PdfFieldsTab() {
                     // SAVED position (always from database)
                     const savedLeftPercent = (field.x / PDF_WIDTH) * 100;
                     const savedBottomPercent = (field.y / PDF_HEIGHT) * 100;
-
-                    // Log debug info to console
-                    console.log(`[PDF Field] ${fieldName}`, {
-                      field: fieldName,
-                      value: fieldContent,
-                      saved: { x: field.x, y: field.y },
-                      id: field.id,
-                    });
 
                     return (
                       <React.Fragment key={field.id}>
@@ -559,14 +594,14 @@ export function PdfFieldsTab() {
                           title={`${fieldName} | Value: ${fieldContent} | Saved: x=${field.x}, y=${field.y}`}
                         />
 
-                        {/* Draggable field label */}
+                        {/* Draggable field panel - 2 boxes only */}
                         <div
                           draggable
                           onDragStart={(e) => handleDragStart(e, field.id)}
                           onDragEnd={handleDragEnd}
                           className={cn(
-                            "absolute flex items-center rounded cursor-grab active:cursor-grabbing shadow-lg z-20",
-                            isDragging ? "opacity-30" : "hover:ring-2 hover:ring-blue-500"
+                            "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-20",
+                            isDragging ? "opacity-30" : ""
                           )}
                           style={{
                             left: `${savedLeftPercent}%`,
@@ -575,54 +610,67 @@ export function PdfFieldsTab() {
                             transformOrigin: "bottom left",
                           }}
                         >
-                          <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
-                            <GripVertical className="h-3 w-3" />
+                          {/* Box 1: Field Name (Blue) with drag handle */}
+                          <div className="flex items-center rounded shadow-lg hover:ring-2 hover:ring-white">
+                            <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                              <GripVertical className="h-3 w-3" />
+                            </div>
+                            <div className="bg-blue-600 text-white text-[11px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-semibold">
+                              {fieldName}
+                            </div>
                           </div>
+                          {/* Box 2: Value (Green) */}
                           <div
-                            className="bg-green-600 text-white px-1.5 py-0.5 rounded-r whitespace-nowrap"
+                            className="bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg"
                             style={{
                               fontSize: `${fontSize}px`,
                               fontFamily: 'Helvetica, Arial, sans-serif',
                             }}
                           >
-                            {fieldContent || fieldName}
+                            {fieldContent || "(empty)"}
                           </div>
                         </div>
 
-                        {/* BLUE DOT + LABEL - DROP PREVIEW (only while dragging this field) */}
+                        {/* DROP PREVIEW - Just shows new position */}
                         {isDragging && dropPreview && (
                           <>
+                            {/* Connecting line from saved position to drop position */}
+                            <svg
+                              className="absolute inset-0 w-full h-full pointer-events-none z-30"
+                              style={{ overflow: 'visible' }}
+                            >
+                              <line
+                                x1={`${savedLeftPercent}%`}
+                                y1={`${100 - savedBottomPercent}%`}
+                                x2={`${(dropPreview.x / PDF_WIDTH) * 100}%`}
+                                y2={`${(dropPreview.y / PDF_HEIGHT) * 100}%`}
+                                stroke="#3b82f6"
+                                strokeWidth="2"
+                                strokeDasharray="5,5"
+                              />
+                            </svg>
+
+                            {/* Blue dot at drop position */}
                             <div
-                              className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg z-40"
+                              className="absolute w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg z-40"
                               style={{
                                 left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
                                 top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
                                 transform: 'translate(-50%, -50%)',
                               }}
                             />
+
+                            {/* New coordinates label */}
                             <div
-                              className="absolute bg-blue-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap z-40"
+                              className="absolute bg-blue-600 text-white text-[11px] px-2 py-1 rounded font-mono whitespace-nowrap shadow-lg z-40"
                               style={{
                                 left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
                                 top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
-                                transform: `translate(12px, -50%) scale(${100 / zoom})`,
+                                transform: `translate(16px, -50%) scale(${100 / zoom})`,
                                 transformOrigin: "left center",
-                                fontSize: `${fontSize}px`,
-                                fontFamily: 'Helvetica, Arial, sans-serif',
                               }}
                             >
-                              {fieldContent || fieldName}
-                            </div>
-                            <div
-                              className="absolute bg-blue-800 text-white text-[10px] px-1.5 py-0.5 rounded font-mono z-40"
-                              style={{
-                                left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                                top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
-                                transform: `translate(12px, 12px) scale(${100 / zoom})`,
-                                transformOrigin: "top left",
-                              }}
-                            >
-                              DROP x:{Math.round(dropPreview.x)} y:{Math.round(PDF_HEIGHT - dropPreview.y)}
+                              → x:{Math.round(dropPreview.x)} y:{Math.round(PDF_HEIGHT - dropPreview.y)}
                             </div>
                           </>
                         )}
@@ -638,7 +686,6 @@ export function PdfFieldsTab() {
             </div>
           </div>
         </div>
-      </div>
 
       {/* Error display only */}
       {pdfError && (
