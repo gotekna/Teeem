@@ -199,17 +199,23 @@ export function PdfFieldsTab() {
         { pdf_field_position: updates }
       );
 
+      addDebugLog(`API response: ${JSON.stringify(response).substring(0, 200)}`);
+
       if (response.success && response.data) {
         setPositions((prev) =>
           prev.map((p) => (p.id === id ? response.data : p))
         );
-        toast({ title: "Saved", description: "Position updated" });
-        addDebugLog("Position saved, reloading PDF...");
+        toast({ title: "Saved", description: `Position updated to x:${response.data.x}, y:${response.data.y}` });
+        addDebugLog(`Position saved! New coords: x=${response.data.x}, y=${response.data.y}`);
+        // Reload both positions and PDF
         loadPdfPreview();
+      } else {
+        addDebugLog(`Save failed - response.success=${response.success}`);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       addDebugLog(`SAVE ERROR: ${errorMsg}`);
+      console.error("Save error details:", err);
       toast({
         title: "Error",
         description: "Failed to save position",
@@ -259,8 +265,14 @@ export function PdfFieldsTab() {
     e.preventDefault();
     setDropPreview(null);
 
-    if (!draggingFieldId || !containerRef.current) {
-      addDebugLog("Drop ignored: no field or container");
+    addDebugLog(`Drop event fired! draggingFieldId=${draggingFieldId}`);
+
+    if (!draggingFieldId) {
+      addDebugLog("Drop ignored: no draggingFieldId");
+      return;
+    }
+    if (!containerRef.current) {
+      addDebugLog("Drop ignored: no containerRef");
       return;
     }
 
@@ -275,7 +287,8 @@ export function PdfFieldsTab() {
     const pdfX = Math.round(Math.max(0, Math.min(PDF_WIDTH, dropX)));
     const pdfY = Math.round(Math.max(0, Math.min(PDF_HEIGHT, PDF_HEIGHT - dropY)));
 
-    addDebugLog(`Drop: screen(${dropX.toFixed(0)}, ${dropY.toFixed(0)}) → pdf(${pdfX}, ${pdfY})`);
+    addDebugLog(`Drop coords: screen(${dropX.toFixed(0)}, ${dropY.toFixed(0)}) → pdf(${pdfX}, ${pdfY})`);
+    addDebugLog(`Calling savePosition for field ${draggingFieldId}...`);
 
     savePosition(draggingFieldId, { x: pdfX, y: pdfY });
     setDraggingFieldId(null);
@@ -527,9 +540,12 @@ export function PdfFieldsTab() {
                           transformOrigin: "top left",
                         }}
                       >
-                        {/* Preview text at actual PDF font size */}
+                        {/* Drop point marker */}
+                        <div className="absolute w-2 h-2 bg-red-500 rounded-full -translate-x-1 -translate-y-1" />
+
+                        {/* Preview text offset to the right */}
                         <div
-                          className="bg-green-500/80 text-white px-1 rounded whitespace-nowrap border-2 border-green-600"
+                          className="absolute left-8 top-4 bg-green-500/90 text-white px-2 py-1 rounded whitespace-nowrap border-2 border-green-600 shadow-lg"
                           style={{
                             fontSize: `${fontSize}px`,
                             fontFamily: 'Helvetica, Arial, sans-serif',
@@ -538,7 +554,7 @@ export function PdfFieldsTab() {
                           {previewText}
                         </div>
                         {/* Coordinates label */}
-                        <div className="mt-1 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-mono">
+                        <div className="absolute left-8 top-12 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-mono">
                           x: {Math.round(dropPreview.x)}, y: {Math.round(PDF_HEIGHT - dropPreview.y)}
                         </div>
                       </div>
@@ -549,6 +565,9 @@ export function PdfFieldsTab() {
                   {fieldsOnPage.map((field) => {
                     const pos = pdfToScreen(field.x, field.y);
                     const isDragging = draggingFieldId === field.id;
+                    const displayValue = field.test_value || field.display_name || field.field_key;
+                    const fontSize = field.font_size || 10;
+
                     return (
                       <div
                         key={field.id}
@@ -556,20 +575,32 @@ export function PdfFieldsTab() {
                         onDragStart={(e) => handleDragStart(e, field.id)}
                         onDragEnd={handleDragEnd}
                         className={cn(
-                          "absolute flex items-center gap-1 px-1 py-0.5 rounded text-xs font-mono whitespace-nowrap cursor-grab active:cursor-grabbing",
+                          "absolute flex items-center gap-1 rounded cursor-grab active:cursor-grabbing shadow-md",
                           isDragging
-                            ? "opacity-50 bg-primary text-primary-foreground"
-                            : "bg-yellow-400 text-black hover:bg-yellow-300 shadow-md"
+                            ? "opacity-30"
+                            : "hover:ring-2 hover:ring-blue-500"
                         )}
                         style={{
                           left: pos.left,
                           bottom: pos.bottom,
-                          transform: `translateX(-50%) translateY(50%) scale(${100 / zoom})`,
-                          transformOrigin: "bottom center",
+                          transform: `scale(${100 / zoom})`,
+                          transformOrigin: "bottom left",
                         }}
                       >
-                        <GripVertical className="h-3 w-3 shrink-0 opacity-60" />
-                        <span>{field.display_name || field.field_key}</span>
+                        {/* Drag handle */}
+                        <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                          <GripVertical className="h-3 w-3" />
+                        </div>
+                        {/* Value badge - green, actual font size */}
+                        <div
+                          className="bg-green-500 text-white px-1.5 py-0.5 rounded-r whitespace-nowrap border-l border-green-600"
+                          style={{
+                            fontSize: `${fontSize}px`,
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                          }}
+                        >
+                          {displayValue}
+                        </div>
                       </div>
                     );
                   })}
