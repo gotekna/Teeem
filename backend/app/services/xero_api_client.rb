@@ -294,32 +294,27 @@ class XeroApiClient
     end
 
     # SSoT: Use XeroConnectionHealth for each credential
+    # Key insight: health.connected == true even when display_status == "warning"
+    # A credential in "warning" state is still WORKING (just needs attention)
     total = all_credentials.count
-    connected_count = 0
-    warning_count = 0
-    error_count = 0
-    disconnected_count = 0
+    working_count = 0      # health.connected == true (includes warning state)
+    fully_healthy_count = 0 # display_status == "connected" (no issues)
+    needs_attention_count = 0 # needs_attention == true
 
     all_credentials.each do |cred|
       health = XeroConnectionHealth.for_credential(cred)
-      case health.display_status
-      when "connected"
-        connected_count += 1
-      when "warning"
-        warning_count += 1
-      when "error"
-        error_count += 1
-      when "disconnected"
-        disconnected_count += 1
-      end
+      # SSoT: Use health.connected to determine if credential is working
+      # This correctly considers "warning" state as working (just needs attention)
+      working_count += 1 if health.connected
+      fully_healthy_count += 1 if health.display_status == "connected"
+      needs_attention_count += 1 if health.needs_attention
     end
 
     # Aggregate status:
-    # - ALL disconnected/error → red (needs immediate attention)
-    # - ANY warning/error but some connected → orange (degraded)
-    # - ALL connected → green
-    needs_attention = warning_count + error_count + disconnected_count
-    has_working = connected_count > 0
+    # - NO working connections → disconnected (red, needs immediate attention)
+    # - SOME working but needs attention → warning (orange, degraded)
+    # - ALL fully healthy → connected (green)
+    has_working = working_count > 0
 
     if !has_working || total == 0
       # No working connections - red
@@ -329,22 +324,22 @@ class XeroApiClient
         display_status: "disconnected",
         message: "All Xero connections require re-authentication.",
         total: total,
-        connected_count: connected_count,
-        needs_attention: needs_attention
+        connected_count: working_count,
+        needs_attention: needs_attention_count
       }
-    elsif needs_attention > 0
-      # Some need attention but some work - orange
+    elsif needs_attention_count > 0
+      # Some working but needs attention - orange (degraded but functional)
       primary = XeroCredential.current
       {
         connected: true,
         status: "degraded",
         display_status: "warning",
-        message: "#{needs_attention} of #{total} Xero connections need attention.",
+        message: "#{needs_attention_count} of #{total} Xero connections need attention.",
         tenant_name: primary&.tenant_name,
         tenant_id: primary&.tenant_id,
         total: total,
-        connected_count: connected_count,
-        needs_attention: needs_attention
+        connected_count: working_count,
+        needs_attention: needs_attention_count
       }
     else
       # All good - green
@@ -359,7 +354,7 @@ class XeroApiClient
         expires_at: primary_health&.expires_at,
         expired: primary&.expired?,
         total: total,
-        connected_count: connected_count,
+        connected_count: working_count,
         needs_attention: 0
       }
     end
