@@ -143,7 +143,6 @@ const XERO_SUB_TABS = [
   { id: "profit-loss-pdf", name: "P&L PDF Reports" },
   { id: "balance-sheet-pdf", name: "Balance Sheet PDF" },
   { id: "bank-accounts", name: "Bank Accounts" },
-  { id: "bank-statement", name: "Bank Statement" },
 ];
 
 interface Director {

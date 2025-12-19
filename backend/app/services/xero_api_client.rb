@@ -279,8 +279,8 @@ class XeroApiClient
     make_request(:put, endpoint, data)
   end
 
-  # Check connection status
-  # Will attempt to refresh expired tokens automatically
+  # Check connection status across all Xero credentials
+  # SSoT: Uses XeroConnectionHealth service for individual credential health
   def connection_status
     all_credentials = XeroCredential.all
 
@@ -288,47 +288,37 @@ class XeroApiClient
       return {
         connected: false,
         status: "disconnected",
+        display_status: "disconnected",
         message: "Not connected to Xero"
       }
     end
 
-    # Count credentials by ACTUAL status (not just DB column)
-    # A credential is only "connected" if status="connected" AND token not expired
+    # SSoT: Use XeroConnectionHealth for each credential
     total = all_credentials.count
     connected_count = 0
-    degraded_count = 0
+    warning_count = 0
+    error_count = 0
     disconnected_count = 0
 
     all_credentials.each do |cred|
-      if cred.status == "disconnected" || cred.poisoned?
-        disconnected_count += 1
-      elsif cred.status == "connected" && !cred.expired?
+      health = XeroConnectionHealth.for_credential(cred)
+      case health.display_status
+      when "connected"
         connected_count += 1
-      else
-        # status="connected" but expired, OR status="degraded"
-        degraded_count += 1
-      end
-    end
-
-    # Check for any corrupted credentials
-    all_credentials.each do |credential|
-      begin
-        _test_access = credential.access_token
-        _test_refresh = credential.refresh_token
-      rescue ActiveRecord::Encryption::Errors::Decryption => e
-        Rails.logger.error("Xero credential decryption failed - deleting corrupted credentials: #{e.message}")
-        credential.destroy
+      when "warning"
+        warning_count += 1
+      when "error"
+        error_count += 1
+      when "disconnected"
         disconnected_count += 1
-        total -= 1
       end
     end
 
-    # Determine aggregate status:
-    # - ALL disconnected/degraded → red (needs immediate attention)
-    # - ANY degraded/disconnected but some work → orange (warning)
+    # Aggregate status:
+    # - ALL disconnected/error → red (needs immediate attention)
+    # - ANY warning/error but some connected → orange (degraded)
     # - ALL connected → green
-
-    needs_attention = degraded_count + disconnected_count
+    needs_attention = warning_count + error_count + disconnected_count
     has_working = connected_count > 0
 
     if !has_working || total == 0
@@ -336,6 +326,7 @@ class XeroApiClient
       {
         connected: false,
         status: "disconnected",
+        display_status: "disconnected",
         message: "All Xero connections require re-authentication.",
         total: total,
         connected_count: connected_count,
@@ -347,7 +338,8 @@ class XeroApiClient
       {
         connected: true,
         status: "degraded",
-        message: "#{needs_attention} of #{total} Xero connections need re-authentication.",
+        display_status: "warning",
+        message: "#{needs_attention} of #{total} Xero connections need attention.",
         tenant_name: primary&.tenant_name,
         tenant_id: primary&.tenant_id,
         total: total,
@@ -357,12 +349,14 @@ class XeroApiClient
     else
       # All good - green
       primary = XeroCredential.current
+      primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
       {
         connected: true,
         status: "connected",
+        display_status: "connected",
         tenant_name: primary&.tenant_name,
         tenant_id: primary&.tenant_id,
-        expires_at: primary&.expires_at,
+        expires_at: primary_health&.expires_at,
         expired: primary&.expired?,
         total: total,
         connected_count: connected_count,
