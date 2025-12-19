@@ -855,19 +855,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           onSelect={handlePlanSelect}
           onSelectionChange={setSelectedPlanIds}
           enableSelection
-          bulkActions={(ids, clearSelection) => (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedPlanIds(ids);
-                setShowEmailModal(true);
-              }}
-            >
-              <Mail className="h-4 w-4 mr-2" />
-              Email ({ids.length})
-            </Button>
-          )}
           statusLabels={{ draft: "Draft", approved: "On Issue" }}
           actionLabels={{ approve: "Set On Issue", openExternal: "Open in SharePoint" }}
           loading={loading}
