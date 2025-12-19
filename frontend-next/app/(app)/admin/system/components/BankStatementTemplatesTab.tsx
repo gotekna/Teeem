@@ -209,7 +209,30 @@ export function BankStatementTemplatesTab() {
   const openTestPdf = async (template: BankStatementTemplate) => {
     setPreviewLoading(true);
     try {
-      window.open(`${apiUrl}/api/v1/bank_statement_templates/${template.id}/test_pdf`, "_blank");
+      // Use authenticated fetch to get PDF blob
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `${apiUrl}/api/v1/bank_statement_templates/${template.id}/test_pdf`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+
+      // Create blob URL and open in new tab
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+
+      // Clean up blob URL after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      console.error("Failed to generate test PDF:", error);
     } finally {
       setPreviewLoading(false);
     }
