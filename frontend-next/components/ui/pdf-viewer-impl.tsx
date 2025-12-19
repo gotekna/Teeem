@@ -21,85 +21,107 @@ export function PDFViewerImpl({
   onError,
   highlights = [],
 }: PDFViewerProps) {
+  // PDF loading state
   const [pdfData, setPdfData] = React.useState<Uint8Array | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [numPages, setNumPages] = React.useState<number>(0);
   const [pageNumber, setPageNumber] = React.useState<number>(1);
-  const [scale, setScale] = React.useState<number | null>(null); // null = auto-fit
-  const [pageSize, setPageSize] = React.useState<{ width: number; height: number } | null>(null);
-  const [containerWidth, setContainerWidth] = React.useState<number>(0);
-  const [containerHeight, setContainerHeight] = React.useState<number>(0);
+
+  // === KEY ARCHITECTURE: Separate concerns ===
+  // 1. ORIGINAL PDF dimensions (from metadata, set once per document)
+  const [originalPdfSize, setOriginalPdfSize] = React.useState<{ width: number; height: number } | null>(null);
+
+  // 2. Container dimensions (tracked continuously via ResizeObserver)
+  const [containerSize, setContainerSize] = React.useState<{ width: number; height: number }>({ width: 0, height: 0 });
+
+  // 3. User zoom override (null = auto-fit mode)
+  const [userZoom, setUserZoom] = React.useState<number | null>(null);
+
+  // Refs
   const containerRef = React.useRef<HTMLDivElement>(null);
   const contentRef = React.useRef<HTMLDivElement>(null);
-  const pageRef = React.useRef<HTMLDivElement>(null);
-
-  // Create a stable copy of PDF data to prevent ArrayBuffer detachment issues
-  // The ArrayBuffer can only be transferred to the worker once, so we need to
-  // ensure we always pass a fresh copy when the Document component re-renders
-  const pdfFile = React.useMemo(() => {
-    if (!pdfData) return null;
-    // Create a fresh copy of the data to avoid "ArrayBuffer already detached" errors
-    return { data: new Uint8Array(pdfData) };
-  }, [pdfData]);
-
-  // Store onError in a ref to avoid re-fetching when callback changes
   const onErrorRef = React.useRef(onError);
   onErrorRef.current = onError;
 
-  // Track container dimensions for auto-fit
+  // === DERIVED: Calculate fit scale from inputs ===
+  // This recalculates automatically when originalPdfSize or containerSize changes
+  const fitScale = React.useMemo(() => {
+    if (!originalPdfSize || containerSize.width <= 0 || containerSize.height <= 0) {
+      return null; // Can't calculate yet
+    }
+    const scaleForWidth = containerSize.width / originalPdfSize.width;
+    const scaleForHeight = containerSize.height / originalPdfSize.height;
+    // Use smaller scale to ensure PDF fits both dimensions (contain mode)
+    return Math.min(scaleForWidth, scaleForHeight);
+  }, [originalPdfSize, containerSize]);
+
+  // Effective scale: user zoom takes precedence, otherwise use auto-fit
+  const effectiveScale = userZoom ?? fitScale;
+
+  // Create a stable copy of PDF data to prevent ArrayBuffer detachment issues
+  const pdfFile = React.useMemo(() => {
+    if (!pdfData) return null;
+    return { data: new Uint8Array(pdfData) };
+  }, [pdfData]);
+
+  // === ResizeObserver: Track container dimensions continuously ===
   React.useEffect(() => {
-    const updateDimensions = () => {
+    const updateSize = () => {
       if (contentRef.current) {
-        // Subtract padding from available space:
-        // - horizontal: p-4 = 16px left + 16px right = 32px
-        // - vertical: pt-12 = 48px top + p-4 bottom = 16px = 64px total
-        const width = contentRef.current.clientWidth - 32;
-        const height = contentRef.current.clientHeight - 64;
-        setContainerWidth(width);
-        setContainerHeight(height);
+        // Use getBoundingClientRect for accurate dimensions
+        const rect = contentRef.current.getBoundingClientRect();
+        // Account for padding via computed styles (not hardcoded values)
+        const styles = getComputedStyle(contentRef.current);
+        const paddingX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+        const paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+        setContainerSize({
+          width: rect.width - paddingX,
+          height: rect.height - paddingY,
+        });
       }
     };
 
-    updateDimensions();
+    // Measure immediately
+    updateSize();
 
     // Also measure after a short delay to catch late layout calculations
-    const timeoutId = setTimeout(updateDimensions, 100);
+    const timeoutId = setTimeout(updateSize, 50);
 
-    const resizeObserver = new ResizeObserver(updateDimensions);
+    // Watch for changes continuously
+    const observer = new ResizeObserver(updateSize);
     if (contentRef.current) {
-      resizeObserver.observe(contentRef.current);
+      observer.observe(contentRef.current);
     }
 
     return () => {
       clearTimeout(timeoutId);
-      resizeObserver.disconnect();
+      observer.disconnect();
     };
   }, []);
 
-  // Fetch PDF with credentials for authenticated API endpoints
-  // Only re-fetch when URL changes, not when callbacks change
+  // === Reset state when URL changes (new PDF) ===
   React.useEffect(() => {
-    // Reset scale to null when URL changes so new PDF auto-fits
-    setScale(null);
-    setPageSize(null);
+    // Reset to auto-fit mode for new PDF
+    setUserZoom(null);
+    setOriginalPdfSize(null);
+    setPageNumber(1);
 
     const fetchPDF = async () => {
       try {
         setIsLoading(true);
         setLoadError(null);
 
-        // Get JWT token from localStorage for authenticated API calls
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
         const headers: Record<string, string> = {
-          'Accept': 'application/pdf',
+          Accept: "application/pdf",
         };
         if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
+          headers["Authorization"] = `Bearer ${token}`;
         }
 
         const response = await fetch(url, {
-          credentials: 'include',
+          credentials: "include",
           headers,
         });
 
@@ -123,51 +145,44 @@ export function PDFViewerImpl({
     };
 
     fetchPDF();
-  }, [url]); // Only depend on URL - use ref for callbacks
+  }, [url]);
 
-  const onDocumentLoadSuccess = async ({ numPages, getPage }: { numPages: number; getPage: (pageNum: number) => Promise<unknown> }) => {
-    setNumPages(numPages);
-    setPageNumber(1);
+  // === Document load: Get ORIGINAL PDF dimensions from metadata ===
+  const onDocumentLoadSuccess = async (pdfDocument: {
+    numPages: number;
+    getPage: (pageNum: number) => Promise<{ view: number[] }>;
+  }) => {
+    setNumPages(pdfDocument.numPages);
 
-    // Get first page dimensions to calculate initial fit scale BEFORE rendering
+    // Get ORIGINAL dimensions from PDF metadata (not rendered dimensions)
     try {
-      const page = await getPage(1) as { view: number[] };
+      const page = await pdfDocument.getPage(1);
       if (page?.view) {
-        // PDF view array: [x, y, width, height]
+        // PDF view array: [x1, y1, x2, y2]
         const pdfWidth = page.view[2] - page.view[0];
         const pdfHeight = page.view[3] - page.view[1];
-        setPageSize({ width: pdfWidth, height: pdfHeight });
-
-        // Calculate fit scale immediately if we have container dimensions
-        if (containerWidth > 0 && containerHeight > 0) {
-          const scaleForWidth = containerWidth / pdfWidth;
-          const scaleForHeight = containerHeight / pdfHeight;
-          const fitScale = Math.min(scaleForWidth, scaleForHeight);
-          setScale(fitScale);
-        }
+        setOriginalPdfSize({ width: pdfWidth, height: pdfHeight });
       }
     } catch (err) {
       console.warn("Could not get page dimensions:", err);
-      // Fall back to scale 1.0, will auto-fit after render
+      // If we can't get dimensions, we'll still try to render and get them from onRenderSuccess
     }
   };
 
-  const onPageRenderSuccess = (page: { width: number; height: number }) => {
-    const newPageSize = { width: page.width, height: page.height };
-    setPageSize(newPageSize);
-
-    // Force auto-fit recalculation now that we know the PDF dimensions
-    // This handles the case where container was measured before PDF loaded
-    if (scale === null && containerWidth > 0 && containerHeight > 0) {
-      const scaleForWidth = containerWidth / newPageSize.width;
-      const scaleForHeight = containerHeight / newPageSize.height;
-      const fitScale = Math.min(scaleForWidth, scaleForHeight);
-      setScale(fitScale);
-    }
-  };
-
-  // Filter highlights for current page
-  const currentPageHighlights = highlights.filter(h => h.page === pageNumber);
+  // === Page render success: Backup dimension capture ===
+  // Only used if we couldn't get dimensions from metadata
+  const onPageRenderSuccess = React.useCallback(
+    (page: { width: number; height: number; originalWidth: number; originalHeight: number }) => {
+      // Only set if we don't already have original dimensions
+      if (!originalPdfSize && page.originalWidth && page.originalHeight) {
+        setOriginalPdfSize({
+          width: page.originalWidth,
+          height: page.originalHeight,
+        });
+      }
+    },
+    [originalPdfSize]
+  );
 
   const onDocumentLoadError = (error: Error) => {
     console.error("PDF load error:", error);
@@ -177,55 +192,19 @@ export function PDFViewerImpl({
     }
   };
 
-  const goToPrevPage = () => {
-    setPageNumber((prev) => Math.max(prev - 1, 1));
-  };
+  // Filter highlights for current page
+  const currentPageHighlights = highlights.filter((h) => h.page === pageNumber);
 
-  const goToNextPage = () => {
-    setPageNumber((prev) => Math.min(prev + 1, numPages));
-  };
+  // Navigation
+  const goToPrevPage = () => setPageNumber((prev) => Math.max(prev - 1, 1));
+  const goToNextPage = () => setPageNumber((prev) => Math.min(prev + 1, numPages));
 
-  // Calculate effective scale for display
-  const effectiveScale = scale ?? 1.0;
+  // Zoom controls
+  const zoomIn = () => setUserZoom((prev) => Math.min((prev ?? fitScale ?? 1.0) + 0.25, 3.0));
+  const zoomOut = () => setUserZoom((prev) => Math.max((prev ?? fitScale ?? 1.0) - 0.25, 0.25));
+  const fitToPage = () => setUserZoom(null); // Reset to auto-fit mode
 
-  const zoomIn = () => {
-    setScale((prev) => Math.min((prev ?? 1.0) + 0.25, 3.0));
-  };
-
-  const zoomOut = () => {
-    setScale((prev) => Math.max((prev ?? 1.0) - 0.25, 0.5));
-  };
-
-  // Calculate optimal scale to fit PDF in container (contain mode)
-  const calculateFitScale = React.useCallback(() => {
-    if (!pageSize || containerWidth <= 0 || containerHeight <= 0) {
-      return null; // Can't calculate yet
-    }
-
-    const scaleForWidth = containerWidth / pageSize.width;
-    const scaleForHeight = containerHeight / pageSize.height;
-
-    // Use smaller scale to ensure PDF fits both dimensions (contain mode)
-    return Math.min(scaleForWidth, scaleForHeight);
-  }, [pageSize, containerWidth, containerHeight]);
-
-  // Auto-fit when page first renders
-  React.useEffect(() => {
-    if (scale === null && pageSize && containerWidth > 0 && containerHeight > 0) {
-      const fitScale = calculateFitScale();
-      if (fitScale) {
-        setScale(fitScale);
-      }
-    }
-  }, [scale, pageSize, containerWidth, containerHeight, calculateFitScale]);
-
-  const fitToPage = () => {
-    const fitScale = calculateFitScale();
-    if (fitScale) {
-      setScale(fitScale);
-    }
-  };
-
+  // Loading state
   if (isLoading) {
     return (
       <div className={cn("flex items-center justify-center h-full", className)}>
@@ -234,6 +213,7 @@ export function PDFViewerImpl({
     );
   }
 
+  // Error state
   if (loadError || !pdfFile) {
     return (
       <div className={cn("flex items-center justify-center h-full text-muted-foreground", className)}>
@@ -248,25 +228,13 @@ export function PDFViewerImpl({
       <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between pointer-events-none">
         {/* Page navigation - top left */}
         <div className="flex items-center gap-1 bg-background/90 backdrop-blur-sm rounded-lg shadow-sm border px-1 py-1 pointer-events-auto">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={goToPrevPage}
-            disabled={pageNumber <= 1}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goToPrevPage} disabled={pageNumber <= 1}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm min-w-[60px] text-center">
             {pageNumber} / {numPages}
           </span>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={goToNextPage}
-            disabled={pageNumber >= numPages}
-          >
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={goToNextPage} disabled={pageNumber >= numPages}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -278,14 +246,14 @@ export function PDFViewerImpl({
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={zoomIn}>
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fitToPage}>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fitToPage} title="Fit to page">
             <Maximize className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* PDF Content - full height now */}
-      <div className="flex-1 overflow-auto flex justify-center p-4 pt-12 bg-muted/30" ref={contentRef}>
+      {/* PDF Content */}
+      <div className="flex-1 overflow-auto flex justify-center items-start p-4 pt-12 bg-muted/30" ref={contentRef}>
         <Document
           file={pdfFile}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -301,57 +269,58 @@ export function PDFViewerImpl({
             </div>
           }
         >
-          <div className="relative" ref={pageRef}>
-            <Page
-              pageNumber={pageNumber}
-              scale={scale ?? 1.0}
-              loading={
-                <div className="flex items-center justify-center h-96">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              }
-              className="shadow-lg"
-              onRenderSuccess={onPageRenderSuccess}
-            />
+          <div className="relative">
+            {/* Only render Page once we have a valid scale */}
+            {effectiveScale != null ? (
+              <Page
+                pageNumber={pageNumber}
+                scale={effectiveScale}
+                loading={
+                  <div className="flex items-center justify-center h-96">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                }
+                className="shadow-lg"
+                onRenderSuccess={onPageRenderSuccess}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-96">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            )}
             {/* Highlight overlays */}
-            {pageSize && currentPageHighlights.length > 0 && (
+            {originalPdfSize && effectiveScale && currentPageHighlights.length > 0 && (
               <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
-                  width: pageSize.width,
-                  height: pageSize.height
+                  width: originalPdfSize.width * effectiveScale,
+                  height: originalPdfSize.height * effectiveScale,
                 }}
               >
                 {currentPageHighlights.map((highlight, idx) => {
-                  // Determine styling based on focused state
                   const isFocused = highlight.focused === true;
                   const isDimmed = highlight.focused === false;
                   const isDefault = highlight.focused === undefined;
-
-                  // Focused: thick border, full opacity, pulse
-                  // Dimmed: thin border, low opacity, no animation
-                  // Default: medium styling (backwards compatible)
-                  const borderWidth = isFocused ? 3 : (isDimmed ? 1 : 2);
-                  const bgOpacity = isFocused ? 0.4 : (isDimmed ? 0.15 : 0.3);
+                  const borderWidth = isFocused ? 3 : isDimmed ? 1 : 2;
+                  const bgOpacity = isFocused ? 0.4 : isDimmed ? 0.15 : 0.3;
                   const shouldPulse = isFocused || isDefault;
 
                   return (
                     <div
                       key={highlight.id || idx}
-                      className={cn(
-                        "absolute rounded transition-all duration-300",
-                        shouldPulse && "animate-pulse"
-                      )}
+                      className={cn("absolute rounded transition-all duration-300", shouldPulse && "animate-pulse")}
                       style={{
                         left: `${highlight.x * 100}%`,
                         top: `${highlight.y * 100}%`,
                         width: `${highlight.width * 100}%`,
                         height: `${highlight.height * 100}%`,
-                        borderColor: highlight.color || '#eab308',
+                        borderColor: highlight.color || "#eab308",
                         borderWidth: `${borderWidth}px`,
-                        borderStyle: 'solid',
+                        borderStyle: "solid",
                         backgroundColor: highlight.color
-                          ? `${highlight.color}${Math.round(bgOpacity * 255).toString(16).padStart(2, '0')}`
+                          ? `${highlight.color}${Math.round(bgOpacity * 255)
+                              .toString(16)
+                              .padStart(2, "0")}`
                           : `rgba(234, 179, 8, ${bgOpacity})`,
                       }}
                     >
@@ -359,8 +328,8 @@ export function PDFViewerImpl({
                         <span
                           className="absolute -top-6 left-0 text-xs font-medium px-1.5 py-0.5 rounded whitespace-nowrap"
                           style={{
-                            backgroundColor: highlight.color || '#eab308',
-                            color: 'white'
+                            backgroundColor: highlight.color || "#eab308",
+                            color: "white",
                           }}
                         >
                           {highlight.label}

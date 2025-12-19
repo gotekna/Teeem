@@ -439,6 +439,7 @@ interface VirtualizedGroupTableProps {
   getToggleCallback: (id: number | string) => () => void;
   handleSelectMouseDown: (rowId: number | string, rowIndex: number, e: React.MouseEvent) => void;
   handleRowMouseEnter: (rowId: number | string, rowIndex: number) => void;
+  isRowInDragRange: (rowId: number | string) => boolean;
   onRowClick?: (row: TableRowType) => void;
   onRowDoubleClick?: (row: TableRowType) => void;
   renderCellValue: (row: TableRowType, column: TableColumn) => React.ReactNode;
@@ -460,6 +461,7 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
   getToggleCallback,
   handleSelectMouseDown,
   handleRowMouseEnter,
+  isRowInDragRange,
   onRowClick,
   onRowDoubleClick,
   renderCellValue,
@@ -521,8 +523,10 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                         <table style={{ width: '100%', tableLayout: 'auto' }}>
                           <tbody>
                             <TableRow
+                              data-row-id={row.id}
                               className={cn(
                                 selectedRows.has(row.id) && "bg-muted/50",
+                                isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
                                 "hover:bg-muted/30 cursor-pointer"
                               )}
                               onClick={() => !isEditMode && onRowClick?.(row)}
@@ -600,6 +604,7 @@ interface VirtualizedFlatTableProps {
   getToggleCallback: (id: number | string) => () => void;
   handleSelectMouseDown: (rowId: number | string, rowIndex: number, e: React.MouseEvent) => void;
   handleRowMouseEnter: (rowId: number | string, rowIndex: number) => void;
+  isRowInDragRange: (rowId: number | string) => boolean;
   onRowClick?: (row: TableRowType) => void;
   onRowDoubleClick?: (row: TableRowType) => void;
   renderCellValue: (row: TableRowType, column: TableColumn) => React.ReactNode;
@@ -637,6 +642,7 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
   getToggleCallback,
   handleSelectMouseDown,
   handleRowMouseEnter,
+  isRowInDragRange,
   onRowClick,
   onRowDoubleClick,
   renderCellValue,
@@ -743,8 +749,10 @@ const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                   </colgroup>
                   <tbody>
                     <TableRow
+                      data-row-id={row.id}
                       className={cn(
                         selectedRows.has(row.id) && "bg-muted/50",
+                        isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
                         editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
                         focusedRowIndex === rowIndex && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                         "hover:bg-muted/30 cursor-pointer"
@@ -1490,7 +1498,7 @@ export default function TeeemTableView({
   // ABN search state
   const [isFindingAbns, setIsFindingAbns] = useState(false);
 
-  // Drag-to-select state (using refs to avoid re-renders)
+  // Drag-to-select state (using refs to avoid re-renders during mouse tracking)
   const dragStateRef = useRef<{
     isDragging: boolean;
     startRowId: number | string | null;
@@ -1498,6 +1506,12 @@ export default function TeeemTableView({
     currentRowId?: number | string; // Track the end of the drag range
     startX: number;
     startY: number;
+  } | null>(null);
+
+  // Drag range state for visual feedback (triggers re-renders to show highlight)
+  const [dragRange, setDragRange] = useState<{
+    startId: number | string;
+    endId: number | string;
   } | null>(null);
 
   // Ref for table container
@@ -2998,16 +3012,47 @@ export default function TeeemTableView({
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!dragStateRef.current || dragStateRef.current.isDragging) return;
+    if (!dragStateRef.current) return;
 
-    // Check if mouse has moved enough to start dragging
-    const deltaX = Math.abs(e.clientX - dragStateRef.current.startX);
-    const deltaY = Math.abs(e.clientY - dragStateRef.current.startY);
-    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+    // If not yet dragging, check if mouse has moved enough to start
+    if (!dragStateRef.current.isDragging) {
+      const deltaX = Math.abs(e.clientX - dragStateRef.current.startX);
+      const deltaY = Math.abs(e.clientY - dragStateRef.current.startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
 
-    // Start dragging if moved more than 5 pixels
-    if (distance > 5) {
-      dragStateRef.current.isDragging = true;
+      // Start dragging if moved more than 5 pixels
+      if (distance > 5) {
+        dragStateRef.current.isDragging = true;
+        // Initialize drag range with start row
+        if (dragStateRef.current.startRowId !== null) {
+          setDragRange({
+            startId: dragStateRef.current.startRowId,
+            endId: dragStateRef.current.startRowId,
+          });
+        }
+      }
+      return;
+    }
+
+    // During drag, find which row the mouse is over using elementFromPoint
+    const element = document.elementFromPoint(e.clientX, e.clientY);
+    if (!element) return;
+
+    // Find the closest TR element
+    const row = element.closest('tr[data-row-id]');
+    if (row) {
+      const rowId = row.getAttribute('data-row-id');
+      if (rowId) {
+        const parsedId = isNaN(Number(rowId)) ? rowId : Number(rowId);
+        dragStateRef.current.currentRowId = parsedId;
+        // Update drag range for visual feedback
+        if (dragStateRef.current.startRowId !== null) {
+          setDragRange({
+            startId: dragStateRef.current.startRowId,
+            endId: parsedId,
+          });
+        }
+      }
     }
   }, []);
 
@@ -3024,6 +3069,9 @@ export default function TeeemTableView({
   const getVisibleRowIdsRef = useRef<(() => (number | string)[]) | null>(null);
 
   const handleMouseUp = useCallback(() => {
+    // Clear drag range visual feedback
+    setDragRange(null);
+
     if (!dragStateRef.current?.isDragging) {
       dragStateRef.current = null;
       return;
@@ -3247,6 +3295,19 @@ export default function TeeemTableView({
 
     return visibleRowIds;
   }, [groupedEntries, collapsedGroups, filteredAndSortedEntries]);
+
+  // Helper to check if a row is in the current drag range (for visual highlighting)
+  const isRowInDragRange = useCallback((rowId: number | string): boolean => {
+    if (!dragRange) return false;
+    const visibleRowIds = getVisibleRowIds();
+    const startIndex = visibleRowIds.indexOf(dragRange.startId);
+    const endIndex = visibleRowIds.indexOf(dragRange.endId);
+    const rowIndex = visibleRowIds.indexOf(rowId);
+    if (startIndex === -1 || endIndex === -1 || rowIndex === -1) return false;
+    const minIndex = Math.min(startIndex, endIndex);
+    const maxIndex = Math.max(startIndex, endIndex);
+    return rowIndex >= minIndex && rowIndex <= maxIndex;
+  }, [dragRange, getVisibleRowIds]);
 
   // Set up the drag-to-select handlers now that getVisibleRowIds is available
   useEffect(() => {
@@ -4059,6 +4120,7 @@ export default function TeeemTableView({
               getToggleCallback={getToggleCallback}
               handleSelectMouseDown={handleSelectMouseDown}
               handleRowMouseEnter={handleRowMouseEnter}
+              isRowInDragRange={isRowInDragRange}
               onRowClick={onRowClick}
               onRowDoubleClick={onRowDoubleClick}
               renderCellValue={renderCellValue}
@@ -4128,8 +4190,10 @@ export default function TeeemTableView({
       return (
       <TableRow
         key={`row-${row.id}-${rowIndex}`}
+        data-row-id={row.id}
         className={cn(
           selectedRows.has(row.id) && "bg-muted/50",
+          isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
           "hover:bg-muted/30 cursor-pointer"
         )}
         onClick={() => !isEditMode && onRowClick?.(row)}
@@ -4314,8 +4378,10 @@ export default function TeeemTableView({
             result.push(
               <TableRow
                 key={`${fullKey}-row-${row.id}-${rowIndex}`}
+                data-row-id={row.id}
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
+                  isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
                 onClick={() => !isEditMode && onRowClick?.(row)}
@@ -4488,6 +4554,7 @@ export default function TeeemTableView({
           getToggleCallback={getToggleCallback}
           handleSelectMouseDown={handleSelectMouseDown}
           handleRowMouseEnter={handleRowMouseEnter}
+          isRowInDragRange={isRowInDragRange}
           onRowClick={onRowClick}
           onRowDoubleClick={onRowDoubleClick}
           renderCellValue={renderCellValue}
@@ -4524,8 +4591,10 @@ export default function TeeemTableView({
             return (
               <TableRow
                 key={`${row.id}-${rowIndex}`}
+                data-row-id={row.id}
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
+                  isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
                   editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
                   isFocused && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                   "hover:bg-muted/30 cursor-pointer"
