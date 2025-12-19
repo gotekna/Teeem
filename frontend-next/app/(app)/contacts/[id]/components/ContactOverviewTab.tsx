@@ -83,12 +83,19 @@ export function ContactOverviewTab({
     }
   }, [contact.id]);
 
-  // Load available contact roles
+  // Load available contact roles from contact_types Foundation (SSoT)
   useEffect(() => {
     const loadRoles = async () => {
       try {
-        const response = await api.get<{ id: number; name: string }[]>("/api/v1/contact_roles");
-        setAvailableRoles(response || []);
+        const response = await api.get<{ records: Array<{ id: number; name: string; display_name: string }> }>("/api/v1/records/contact_types", {
+          params: { active: true, per_page: 50 }
+        });
+        // Map to id/name format, using display_name for user-friendly labels
+        const roles = (response.records || []).map(r => ({
+          id: r.id,
+          name: r.display_name || r.name
+        }));
+        setAvailableRoles(roles);
       } catch {
         // Fallback to empty - will just show employee link without role selection
         setAvailableRoles([]);
@@ -175,7 +182,7 @@ export function ContactOverviewTab({
         relationship: {
           related_contact_id: companyId,
           relationship_type: "employee_of", // Always employee_of
-          role_in_relationship: selectedRole || null, // Optional role from contact_roles
+          role_in_relationship: selectedRole || null, // Optional role from contact_types (SSoT)
         },
       });
 
@@ -661,7 +668,7 @@ export function ContactOverviewTab({
                     {/* Add company link interface */}
                     {showCompanySearch ? (
                       <div className="space-y-3">
-                        {/* Role selector from contact_roles API */}
+                        {/* Role selector from contact_types Foundation (SSoT) */}
                         {availableRoles.length > 0 && (
                           <div className="flex flex-wrap gap-1">
                             <Button
