@@ -63,9 +63,9 @@ bin/rails teeem:create_system_foundations 2>&1 | tail -5
 
 # Step 6: Clear encrypted credentials (can't decrypt with local keys)
 bin/rails runner "
-deleted = MicrosoftCredential.delete_all
-puts '🔑 Cleared #{deleted} Microsoft credentials (encrypted with prod keys)'
-puts '   → Go to Admin > System > Connections to reconnect SharePoint'
+deleted_ms = MicrosoftCredential.delete_all
+deleted_sp = OrganizationSharePointCredential.delete_all
+puts '🔑 Cleared ' + (deleted_ms + deleted_sp).to_s + ' credentials (encrypted with prod keys)'
 "
 
 # Step 7: Verify data pulled correctly
@@ -81,7 +81,14 @@ screen -dmS backend bash -c 'cd /Users/robertharder/GitHub/teeem/backend && /Use
 screen -dmS frontend-next bash -c 'cd /Users/robertharder/GitHub/teeem/frontend-next && npm run dev'
 
 echo "✅ Database synced and servers restarted (screen sessions: backend, frontend-next)"
-echo "⚠️  Remember: Go to Admin > System > Connections to reconnect SharePoint"
+
+# Step 9: Wait for servers to start, then open SharePoint connection page
+echo "⏳ Waiting for servers to start..."
+sleep 5
+echo "🔗 Opening SharePoint connection page..."
+open "http://localhost:3000/admin/system?tab=connections"
+echo ""
+echo "👆 Connect SharePoint in the browser to enable document features locally"
 ```
 
 ## Summary
@@ -96,6 +103,7 @@ echo "⚠️  Remember: Go to Admin > System > Connections to reconnect SharePoi
 | 6 | - | - | Clear encrypted credentials (prod keys don't work locally) |
 | 7 | - | - | Verify data counts |
 | 8 | - | localhost:3000 + 3001 | Restart servers (screen) |
+| 9 | - | browser | Open SharePoint connection page |
 
 ## Notes
 

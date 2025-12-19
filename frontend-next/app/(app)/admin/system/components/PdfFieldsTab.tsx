@@ -38,6 +38,8 @@ interface PdfFieldPosition {
   font_size: number;
   test_value: string | null;
   active: boolean;
+  box_width: number | null;
+  box_height: number | null;
   updated_at: string;
 }
 
@@ -215,6 +217,24 @@ export function PdfFieldsTab() {
     }
   }, [selectedJob, loadPdfPreview]);
 
+  // Save box dimensions
+  const saveBoxDimensions = async (id: number, width: number, height: number) => {
+    try {
+      const response = await api.patch<{ success: boolean; data: PdfFieldPosition }>(
+        `/api/v1/pdf_field_positions/${id}`,
+        { pdf_field_position: { box_width: width || null, box_height: height || null } }
+      );
+      if (response.success && response.data) {
+        setPositions((prev) =>
+          prev.map((p) => (p.id === id ? response.data : p))
+        );
+        console.log('[PDF] Box dimensions saved:', response.data.box_width, response.data.box_height);
+      }
+    } catch (err) {
+      console.error('[PDF] Failed to save box dimensions:', err);
+    }
+  };
+
   // Save position
   const savePosition = async (id: number, updates: Partial<PdfFieldPosition>) => {
     addDebugLog(`Saving: id=${id}, x=${updates.x}, y=${updates.y}`);
@@ -313,24 +333,11 @@ export function PdfFieldsTab() {
       console.log('[SELECT] Field selected:', draggingFieldId);
       setSelectedFieldId(draggingFieldId);
 
-      // Load saved W/H for this field, or estimate if not set
-      const savedSize = fieldSizes[draggingFieldId];
-      if (savedSize) {
-        setPreviewWidth(savedSize.w);
-        setPreviewHeight(savedSize.h);
-      } else {
-        // Initialize W/H based on the field's content
-        const field = positions.find(p => p.id === draggingFieldId);
-        if (field) {
-          const text = field.test_value || field.display_name || '';
-          const fontSize = field.font_size || 10;
-          const estimatedWidth = Math.round(text.length * fontSize * 0.6 + 12);
-          const estimatedHeight = Math.round(fontSize + 8);
-          setPreviewWidth(estimatedWidth);
-          setPreviewHeight(estimatedHeight);
-          // Save the initial estimate
-          setFieldSizes(prev => ({ ...prev, [draggingFieldId]: { w: estimatedWidth, h: estimatedHeight } }));
-        }
+      // Load W/H from the field's database values
+      const field = positions.find(p => p.id === draggingFieldId);
+      if (field) {
+        setPreviewWidth(field.box_width || 0);
+        setPreviewHeight(field.box_height || 0);
       }
 
       setDraggingFieldId(null);
@@ -531,15 +538,14 @@ export function PdfFieldsTab() {
           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
             const newW = Math.max(0, previewWidth - 10);
             setPreviewWidth(newW);
-            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], w: newW } }));
+            if (selectedFieldId) saveBoxDimensions(selectedFieldId, newW, previewHeight);
           }} disabled={!selectedFieldId}>-</Button>
           <Input
             type="number"
             value={previewWidth || ''}
-            onChange={(e) => {
-              const val = parseInt(e.target.value) || 0;
-              setPreviewWidth(val);
-              if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], w: val } }));
+            onChange={(e) => setPreviewWidth(parseInt(e.target.value) || 0)}
+            onBlur={() => {
+              if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, previewHeight);
             }}
             className="h-6 w-14 text-xs text-center font-mono px-1"
             placeholder="auto"
@@ -548,21 +554,20 @@ export function PdfFieldsTab() {
           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
             const newW = previewWidth + 10;
             setPreviewWidth(newW);
-            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], w: newW } }));
+            if (selectedFieldId) saveBoxDimensions(selectedFieldId, newW, previewHeight);
           }} disabled={!selectedFieldId}>+</Button>
           <span className="text-xs ml-2">H</span>
           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
             const newH = Math.max(0, previewHeight - 2);
             setPreviewHeight(newH);
-            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], h: newH } }));
+            if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, newH);
           }} disabled={!selectedFieldId}>-</Button>
           <Input
             type="number"
             value={previewHeight || ''}
-            onChange={(e) => {
-              const val = parseInt(e.target.value) || 0;
-              setPreviewHeight(val);
-              if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], h: val } }));
+            onChange={(e) => setPreviewHeight(parseInt(e.target.value) || 0)}
+            onBlur={() => {
+              if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, previewHeight);
             }}
             className="h-6 w-14 text-xs text-center font-mono px-1"
             placeholder="auto"
@@ -571,9 +576,13 @@ export function PdfFieldsTab() {
           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
             const newH = previewHeight + 2;
             setPreviewHeight(newH);
-            if (selectedFieldId) setFieldSizes(prev => ({ ...prev, [selectedFieldId]: { ...prev[selectedFieldId], h: newH } }));
+            if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, newH);
           }} disabled={!selectedFieldId}>+</Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setPreviewWidth(0); setPreviewHeight(0); }}>Reset</Button>
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
+            setPreviewWidth(0);
+            setPreviewHeight(0);
+            if (selectedFieldId) saveBoxDimensions(selectedFieldId, 0, 0);
+          }}>Reset</Button>
         </div>
 
         {/* Coordinates display when dragging */}
@@ -753,28 +762,21 @@ export function PdfFieldsTab() {
                               {fieldName}
                             </div>
                           </div>
-                          {/* Box 2: Value (Green) - uses saved W/H for each field */}
-                          {(() => {
-                            const savedSize = fieldSizes[field.id];
-                            const boxW = savedSize?.w || 0;
-                            const boxH = savedSize?.h || 0;
-                            return (
-                              <div
-                                className={cn(
-                                  "bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none",
-                                  selectedFieldId === field.id && "ring-2 ring-yellow-400"
-                                )}
-                                style={{
-                                  fontSize: `${fontSize}px`,
-                                  fontFamily: 'Helvetica, Arial, sans-serif',
-                                  ...(boxW > 0 && { width: `${boxW}px`, minWidth: `${boxW}px` }),
-                                  ...(boxH > 0 && { height: `${boxH}px`, lineHeight: `${boxH}px` }),
-                                }}
-                              >
-                                {fieldContent || "(empty)"}
-                              </div>
-                            );
-                          })()}
+                          {/* Box 2: Value (Green) - uses box_width/box_height from database */}
+                          <div
+                            className={cn(
+                              "bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none",
+                              selectedFieldId === field.id && "ring-2 ring-yellow-400"
+                            )}
+                            style={{
+                              fontSize: `${fontSize}px`,
+                              fontFamily: 'Helvetica, Arial, sans-serif',
+                              ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
+                              ...(field.box_height && field.box_height > 0 && { height: `${field.box_height}px`, lineHeight: `${field.box_height}px` }),
+                            }}
+                          >
+                            {fieldContent || "(empty)"}
+                          </div>
                         </div>
 
                         {/* DROP PREVIEW - Just shows new position */}

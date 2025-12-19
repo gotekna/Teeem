@@ -635,7 +635,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
   return (
     <div
-      className="flex flex-col h-full relative border-4 border-blue-500"
+      className="relative h-full"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -656,12 +656,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Category filter + Add Plan button */}
-      <div className="shrink-0 px-3 border-4 border-green-500 bg-green-100 dark:bg-green-900/30 relative">
-        <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-10">
-          [HEADER] px-3
-        </div>
-        <div className="flex items-center gap-2 border-2 border-purple-500">
+      {/* Category filter + Add Plan button - absolutely positioned over list area */}
+      <div className="absolute top-0 left-0 w-[30%] px-3 py-2 z-10 bg-card border-b">
+        <div className="flex items-center gap-2">
           {/* Selected category badge */}
           {selectedTab && (
             <Badge variant="default" className="whitespace-nowrap">
@@ -745,11 +742,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       </div>
 
-      {/* TeeemDocumentView - Main content */}
-      <div className="flex-1 min-h-0 border-4 border-orange-500 relative">
-        <div className="absolute top-0 right-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-10">
-          [CONTENT] flex-1 min-h-0
-        </div>
+      {/* TeeemDocumentView - fills entire container */}
+      <div className="absolute inset-0">
         <TeeemDocumentView
           documents={filteredPlans}
           title=""

@@ -127,7 +127,8 @@ module Api
       def position_params
         params.require(:pdf_field_position).permit(
           :pdf_template_key, :field_key, :display_name,
-          :page, :x, :y, :font_size, :test_value, :active
+          :page, :x, :y, :font_size, :test_value, :active,
+          :box_width, :box_height
         )
       end
 
@@ -143,6 +144,8 @@ module Api
           font_size: position.font_size,
           test_value: position.test_value,
           active: position.active,
+          box_width: position.box_width,
+          box_height: position.box_height,
           updated_at: position.updated_at
         }
       end

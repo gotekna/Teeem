@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073056) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3636,15 +3636,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
   create_table "navigation_groups", force: :cascade do |t|
     t.string "name", null: false
     t.string "icon", default: "Folder"
-    t.integer "position", default: 0, null: false
+    t.integer "position", default: 0
     t.boolean "is_active", default: true
     t.boolean "is_collapsible", default: true
     t.string "visible_to_roles", default: [], array: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_navigation_groups_on_is_active"
-    t.index ["position"], name: "index_navigation_groups_on_position"
-    t.index ["visible_to_roles"], name: "index_navigation_groups_on_visible_to_roles", using: :gin
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
   end
 
   create_table "navigation_items", force: :cascade do |t|
@@ -3653,19 +3650,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
     t.string "href", null: false
     t.string "icon", null: false
     t.string "badge_key"
-    t.integer "position", default: 0, null: false
+    t.integer "position", default: 0
     t.boolean "is_active", default: true
     t.string "visible_to_roles", default: [], array: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.bigint "parent_id"
     t.boolean "is_collapsed_default", default: true
-    t.index ["href"], name: "index_navigation_items_on_href", unique: true
-    t.index ["is_active"], name: "index_navigation_items_on_is_active"
-    t.index ["navigation_group_id"], name: "index_navigation_items_on_navigation_group_id"
-    t.index ["parent_id"], name: "index_navigation_items_on_parent_id"
-    t.index ["position"], name: "index_navigation_items_on_position"
-    t.index ["visible_to_roles"], name: "index_navigation_items_on_visible_to_roles", using: :gin
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
   end
 
   create_table "ndis_addendums", force: :cascade do |t|
@@ -3869,6 +3860,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "box_width"
+    t.integer "box_height"
     t.index ["pdf_template_key", "field_key"], name: "index_pdf_field_positions_on_pdf_template_key_and_field_key", unique: true
   end
 
@@ -5507,16 +5500,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
   create_table "user_navigation_configs", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "navigation_item_id", null: false
-    t.integer "position", default: 0, null: false
-    t.integer "parent_id"
-    t.boolean "is_hidden", default: false
     t.boolean "is_collapsed", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["navigation_item_id"], name: "index_user_navigation_configs_on_navigation_item_id"
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
     t.index ["user_id", "navigation_item_id"], name: "idx_user_nav_config_unique", unique: true
-    t.index ["user_id", "position"], name: "index_user_navigation_configs_on_user_id_and_position"
-    t.index ["user_id"], name: "index_user_navigation_configs_on_user_id"
   end
 
   create_table "user_outlook_credentials", force: :cascade do |t|
@@ -6392,8 +6379,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
   add_foreign_key "meetings", "users", column: "created_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "connected_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
-  add_foreign_key "navigation_items", "navigation_groups"
-  add_foreign_key "navigation_items", "navigation_items", column: "parent_id"
+  add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
+  add_foreign_key "navigation_items", "navigation_items", column: "parent_id", name: "fk_navigation_items_parent"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
   add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
@@ -6542,8 +6529,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"
   add_foreign_key "user_microsoft_tokens", "users"
-  add_foreign_key "user_navigation_configs", "navigation_items"
-  add_foreign_key "user_navigation_configs", "users"
+  add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
+  add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
   add_foreign_key "user_outlook_credentials", "users", name: "user_outlook_credentials_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"
   add_foreign_key "user_permissions", "users"

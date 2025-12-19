@@ -787,13 +787,8 @@ export default function JobDetailPage() {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Sticky Header + Tabs */}
-      <div className="sticky top-0 z-20 bg-red-100 dark:bg-red-900/30 p-3 border-4 border-red-500 relative">
-        <div className="absolute top-0 left-0 bg-red-600 text-white px-2 py-1 text-xs font-bold z-50">
-          [STICKY HEADER] p-3
-        </div>
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 border-2 border-green-500 bg-green-100 dark:bg-green-900/30">
+      {/* Header row */}
+      <div className="shrink-0 bg-background px-3 pt-3 pb-2 flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-1">
             <ArrowLeft className="h-4 w-4" />
@@ -877,17 +872,16 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      {/* Tabs trigger - inside sticky header */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-4">
+      {/* Tabs trigger */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="shrink-0 px-3">
         <HierarchicalTabsList
           tabs={jobTabs}
           activeTab={activeTab}
           onTabChange={handleTabChange}
         />
       </Tabs>
-      </div>
 
-      {/* Tab content - outside sticky header */}
+      {/* Tab content */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 min-h-0 flex flex-col">
         <TabsContent value="overview" className="mt-6 px-3">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

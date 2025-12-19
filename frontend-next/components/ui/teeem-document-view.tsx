@@ -496,41 +496,15 @@ export function TeeemDocumentView<T extends DocumentItem>({
   };
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
-      {/* Header - only show if title or actions exist */}
-      {(title || leftActions || onRefresh) && (
-        <div className="flex items-center justify-between px-4 pb-2 shrink-0">
-          {title ? (
-            <h2 className="text-lg font-semibold">
-              {title} ({documents.length})
-            </h2>
-          ) : (
-            <div />
-          )}
-          <div className="flex items-center gap-2">
-            {leftActions}
-            {onRefresh && (
-              <Button variant="outline" size="sm" onClick={onRefresh}>
-                <RefreshCw className="h-4 w-4 mr-1" />
-                Refresh
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-
+    <div className={cn("relative h-full", className)}>
       {/* Preview panel - right 70% */}
-      <div className="absolute top-0 left-[30%] right-0 bottom-0">
-        <div className="h-full border rounded-lg overflow-hidden bg-card">
-          {renderPreviewPanel()}
-        </div>
+      <div className="absolute top-0 left-[30%] right-0 bottom-0 border-l bg-card">
+        {renderPreviewPanel()}
       </div>
 
       {/* Document list - left 30% */}
-      <div className="flex-1 min-h-0 w-[30%]">
-        <div className="h-full border rounded-lg overflow-hidden bg-card">
-          {renderDocumentList()}
-        </div>
+      <div className="absolute top-0 left-0 bottom-0 w-[30%] bg-card">
+        {renderDocumentList()}
       </div>
     </div>
   );
