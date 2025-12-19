@@ -4,6 +4,7 @@ import * as React from "react";
 import { PDFDocument } from "pdf-lib";
 import { pdfjs } from "react-pdf";
 import type { PDFPage } from "./types";
+import { drawAnnotationsOnPage } from "./annotation-to-pdf";
 
 // Set up PDF.js worker - use the version from react-pdf
 if (typeof window !== "undefined") {
@@ -177,7 +178,7 @@ export function usePDFDocument(url: string): UsePDFDocumentReturn {
     }
   }, [pages.length, pdfDoc]);
 
-  // Export the edited PDF
+  // Export the edited PDF with annotations embedded
   const exportPDF = React.useCallback(async (): Promise<Uint8Array> => {
     if (!pdfDoc || !pdfBytesRef.current) {
       throw new Error("No PDF loaded");
@@ -186,19 +187,28 @@ export function usePDFDocument(url: string): UsePDFDocumentReturn {
     // Create a new document with pages in the current order
     const newDoc = await PDFDocument.create();
 
-    // Get the current page order from our state
-    const pageOrder = pages.map((p) => p.pageIndex);
-
     // We need to reload from original bytes and reorder
     const originalDoc = await PDFDocument.load(pdfBytesRef.current, { ignoreEncryption: true });
 
-    // Copy pages in the new order
+    // Copy pages in the new order and draw annotations
+    let newPageIndex = 0;
     for (const page of pages) {
       // Find original page index (before any reordering)
       const originalIndex = parseInt(page.id.split("-")[1]) || page.pageIndex;
       if (originalIndex < originalDoc.getPageCount()) {
         const [copiedPage] = await newDoc.copyPages(originalDoc, [originalIndex]);
         newDoc.addPage(copiedPage);
+
+        // Draw annotations onto the copied page
+        if (page.annotations && page.annotations.length > 0) {
+          const pdfPage = newDoc.getPage(newPageIndex);
+          // Page dimensions from thumbnail (at 0.3 scale) represent canvas coordinate space
+          await drawAnnotationsOnPage(newDoc, pdfPage, page.annotations, {
+            width: page.width,
+            height: page.height,
+          });
+        }
+        newPageIndex++;
       }
     }
 
@@ -210,7 +220,19 @@ export function usePDFDocument(url: string): UsePDFDocumentReturn {
       }
       if (mergedIndices.length > 0) {
         const mergedPages = await newDoc.copyPages(pdfDoc, mergedIndices);
-        mergedPages.forEach((page) => newDoc.addPage(page));
+        mergedPages.forEach((mergedPage) => {
+          newDoc.addPage(mergedPage);
+          // Find corresponding page data for annotations
+          const pageData = pages.find(p => p.id.startsWith("merged-") && p.pageIndex === newPageIndex);
+          if (pageData?.annotations && pageData.annotations.length > 0) {
+            const pdfPage = newDoc.getPage(newPageIndex);
+            drawAnnotationsOnPage(newDoc, pdfPage, pageData.annotations, {
+              width: pageData.width,
+              height: pageData.height,
+            });
+          }
+          newPageIndex++;
+        });
       }
     }
 

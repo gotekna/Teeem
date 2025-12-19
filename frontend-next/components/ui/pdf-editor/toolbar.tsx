@@ -32,8 +32,12 @@ import {
   ZoomOut,
   Save,
   FilePlus2,
+  PenLine,
+  AtSign,
+  Calendar,
+  TextCursor,
 } from "lucide-react";
-import type { AnnotationTool, ToolbarProps } from "./types";
+import type { AnnotationTool, ToolbarProps, Signer } from "./types";
 import { cn } from "@/lib/utils";
 
 const TOOLS: { tool: AnnotationTool; icon: React.ReactNode; label: string }[] = [
@@ -46,6 +50,14 @@ const TOOLS: { tool: AnnotationTool; icon: React.ReactNode; label: string }[] = 
   { tool: "arrow", icon: <ArrowRight className="h-4 w-4" />, label: "Arrow" },
   { tool: "stamp", icon: <Stamp className="h-4 w-4" />, label: "Stamp" },
   { tool: "eraser", icon: <Eraser className="h-4 w-4" />, label: "Eraser" },
+];
+
+// E-signature field tools (shown when esignMode is true)
+const SIGNATURE_FIELD_TOOLS: { tool: AnnotationTool; icon: React.ReactNode; label: string }[] = [
+  { tool: "signature_field", icon: <PenLine className="h-4 w-4" />, label: "Signature" },
+  { tool: "initials_field", icon: <AtSign className="h-4 w-4" />, label: "Initials" },
+  { tool: "date_field", icon: <Calendar className="h-4 w-4" />, label: "Date" },
+  { tool: "text_field", icon: <TextCursor className="h-4 w-4" />, label: "Text Input" },
 ];
 
 const COLORS = [
@@ -79,10 +91,50 @@ export function EditorToolbar({
   onSave,
   onMerge,
   isSaving,
+  esignMode = false,
+  selectedSigner,
 }: ToolbarProps) {
   return (
     <div className="flex items-center gap-1 px-2 py-1 border-b bg-background flex-wrap">
-      {/* Tool buttons */}
+      {/* E-signature field tools (when in esign mode) */}
+      {esignMode && (
+        <>
+          <div className="flex items-center gap-0.5">
+            {SIGNATURE_FIELD_TOOLS.map(({ tool, icon, label }) => (
+              <Button
+                key={tool}
+                variant={currentTool === tool ? "default" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => onToolChange(tool)}
+                title={`Add ${label} field`}
+                disabled={!selectedSigner}
+                style={
+                  currentTool === tool && selectedSigner
+                    ? { backgroundColor: selectedSigner.color, borderColor: selectedSigner.color }
+                    : undefined
+                }
+              >
+                {icon}
+              </Button>
+            ))}
+          </div>
+          {selectedSigner && (
+            <div
+              className="flex items-center gap-1 px-2 py-1 rounded text-xs text-white"
+              style={{ backgroundColor: selectedSigner.color }}
+            >
+              <span className="font-medium">{selectedSigner.name || selectedSigner.email}</span>
+            </div>
+          )}
+          {!selectedSigner && (
+            <span className="text-xs text-muted-foreground">Select a signer to add fields</span>
+          )}
+          <Separator orientation="vertical" className="h-6 mx-1" />
+        </>
+      )}
+
+      {/* Regular annotation tools */}
       <div className="flex items-center gap-0.5">
         {TOOLS.map(({ tool, icon, label }) => (
           <Button

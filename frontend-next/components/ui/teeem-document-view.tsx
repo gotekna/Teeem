@@ -65,6 +65,10 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
 
   // Header customization
   leftActions?: ReactNode;
+  /** Content for the left panel header (sticky) */
+  leftHeader?: ReactNode;
+  /** Content for the right panel header when document selected (sticky) */
+  rightHeader?: (doc: T) => ReactNode;
 
   // State
   loading?: boolean;
