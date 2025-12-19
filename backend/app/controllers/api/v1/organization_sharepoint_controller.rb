@@ -486,56 +486,111 @@ module Api
         folder_id = params[:folder_id] # Optional - if not provided, browse root
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          # Check if using app credentials (requires different API calls)
+          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
 
           current_folder = nil
           breadcrumbs = []
 
-          # Get the correct drive path (handles SharePoint vs personal OneDrive)
-          drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+          if is_app_credential
+            # App credentials use MicrosoftAppGraphClient with explicit site/drive
+            client = MicrosoftAppGraphClient.new(credential)
+            sharepoint_config = CorporateCompanySetting.sharepoint_config
 
-          # Get folders in the specified location
-          if folder_id.present?
-            # Get current folder info for breadcrumb
-            current_folder_response = client.get("#{drive_path}/items/#{folder_id}")
-            current_folder = {
-              id: current_folder_response["id"],
-              name: current_folder_response["name"],
-              parent_id: current_folder_response.dig("parentReference", "id")
-            }
-
-            # Build breadcrumb path from parentReference.path
-            parent_path = current_folder_response.dig("parentReference", "path") || ""
-            # Path looks like: /drive/root:/Shared Documents/TEEEM Jobs
-            if parent_path.include?(":")
-              path_after_root = parent_path.split(":").last.to_s
-              path_parts = path_after_root.split("/").reject(&:blank?)
-              # Add each path segment to breadcrumbs (we'll get IDs by traversing)
-              breadcrumbs = path_parts.map { |name| { name: name, id: nil } }
+            unless sharepoint_config[:configured]
+              return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
             end
-            # Add current folder to breadcrumbs
-            breadcrumbs << { name: current_folder[:name], id: current_folder[:id] }
 
-            # Browse children of specific folder
-            response = client.list_folder_items(folder_id)
+            drive_id = sharepoint_config[:drive_id]
+
+            if folder_id.present?
+              # Get current folder info for breadcrumb
+              current_folder_response = client.get_drive_item(drive_id, folder_id)
+              current_folder = {
+                id: current_folder_response[:id],
+                name: current_folder_response[:name],
+                parent_id: current_folder_response[:parent_id]
+              }
+
+              # Build breadcrumb path from parent_path
+              parent_path = current_folder_response[:parent_path] || ""
+              if parent_path.include?(":")
+                path_after_root = parent_path.split(":").last.to_s
+                path_parts = path_after_root.split("/").reject(&:blank?)
+                breadcrumbs = path_parts.map { |name| { name: name, id: nil } }
+              end
+              breadcrumbs << { name: current_folder[:name], id: current_folder[:id] }
+
+              # Browse children of specific folder
+              items = client.list_drive_items(drive_id, folder_id: folder_id)
+            else
+              # Browse root drive folders
+              items = client.list_drive_items(drive_id)
+            end
+
+            # Filter to only show folders (list_drive_items returns formatted items)
+            folders = items.select { |item| item[:is_folder] }
+
+            # Format response (already formatted by MicrosoftAppGraphClient)
+            formatted_folders = folders.map do |folder|
+              {
+                id: folder[:id],
+                name: folder[:name],
+                web_url: folder[:web_url],
+                created_at: folder[:created_at],
+                child_count: folder[:child_count] || 0
+              }
+            end.sort_by { |f| f[:name].downcase }
           else
-            # Browse root drive folders
-            response = client.get("#{drive_path}/root/children")
+            # Delegated credentials use MicrosoftGraphClient with /me endpoints
+            client = MicrosoftGraphClient.new(credential)
+
+            # Get the correct drive path (handles SharePoint vs personal OneDrive)
+            drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+
+            # Get folders in the specified location
+            if folder_id.present?
+              # Get current folder info for breadcrumb
+              current_folder_response = client.get("#{drive_path}/items/#{folder_id}")
+              current_folder = {
+                id: current_folder_response["id"],
+                name: current_folder_response["name"],
+                parent_id: current_folder_response.dig("parentReference", "id")
+              }
+
+              # Build breadcrumb path from parentReference.path
+              parent_path = current_folder_response.dig("parentReference", "path") || ""
+              # Path looks like: /drive/root:/Shared Documents/TEEEM Jobs
+              if parent_path.include?(":")
+                path_after_root = parent_path.split(":").last.to_s
+                path_parts = path_after_root.split("/").reject(&:blank?)
+                # Add each path segment to breadcrumbs (we'll get IDs by traversing)
+                breadcrumbs = path_parts.map { |name| { name: name, id: nil } }
+              end
+              # Add current folder to breadcrumbs
+              breadcrumbs << { name: current_folder[:name], id: current_folder[:id] }
+
+              # Browse children of specific folder
+              response = client.list_folder_items(folder_id)
+            else
+              # Browse root drive folders
+              response = client.get("#{drive_path}/root/children")
+            end
+
+            # Filter to only show folders
+            folders = (response["value"] || []).select { |item| item["folder"] }
+
+            # Format response
+            formatted_folders = folders.map do |folder|
+              {
+                id: folder["id"],
+                name: folder["name"],
+                web_url: folder["webUrl"],
+                created_at: folder["createdDateTime"],
+                child_count: folder.dig("folder", "childCount") || 0
+              }
+            end.sort_by { |f| f[:name].downcase }
           end
-
-          # Filter to only show folders
-          folders = (response["value"] || []).select { |item| item["folder"] }
-
-          # Format response
-          formatted_folders = folders.map do |folder|
-            {
-              id: folder["id"],
-              name: folder["name"],
-              web_url: folder["webUrl"],
-              created_at: folder["createdDateTime"],
-              child_count: folder.dig("folder", "childCount") || 0
-            }
-          end.sort_by { |f| f[:name].downcase }
 
           render json: {
             folders: formatted_folders,
@@ -544,10 +599,10 @@ module Api
             parent_folder_id: folder_id
           }
 
-        rescue MicrosoftGraphClient::AuthenticationError => e
+        rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "Failed to browse folders: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")

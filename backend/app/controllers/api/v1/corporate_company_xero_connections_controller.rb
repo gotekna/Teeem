@@ -52,8 +52,6 @@ module Api
                 # SSoT: Unified status from XeroConnectionHealth
                 connected: company_health.connected,
                 display_status: company_health.display_status,
-                # Legacy field for backwards compatibility
-                connection_status: conn.connection_status,
                 last_sync_at: conn.last_sync_at,
                 days_since_last_sync: conn.days_since_last_sync
               }
