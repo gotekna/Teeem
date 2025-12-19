@@ -6,54 +6,57 @@ require "hexapdf"
 # Format matches standard bank statement layout with running balance.
 # Bank-specific branding applied based on account name.
 # Compliant with ATO record-keeping requirements per s262A ITAA 1936.
+#
+# SSoT: BankStatementTemplate model is the source of truth for branding.
+# Templates are managed via Admin > System > Company > Doc Templates > Bank Statements
 class BankTransactionReportService
-  # Bank-specific branding configuration
-  # Each bank has: primary_color, secondary_color, bank_title, account_type
-  BANK_BRANDING = {
+  # DEPRECATED: Use BankStatementTemplate model instead
+  # This constant is only used as fallback when templates table doesn't exist
+  BANK_BRANDING_FALLBACK = {
     nab: {
-      primary_color: "C8102E",     # NAB Red
-      secondary_color: "000000",   # Black
+      primary_color: "C20000",     # NAB Guardsman Red (updated Dec 2024)
+      secondary_color: "000000",
       bank_title: "NAB",
       account_type: "Business Everyday Account",
       text_on_primary: "FFFFFF"
     },
     westpac: {
-      primary_color: "D5002B",     # Westpac Red
-      secondary_color: "1F1F1F",   # Dark gray
+      primary_color: "DA1710",     # Westpac GEL Red (updated Dec 2024)
+      secondary_color: "1F1F1F",
       bank_title: "Westpac",
-      account_type: "Business Account",
+      account_type: "Westpac Business One",
       text_on_primary: "FFFFFF"
     },
     boq: {
-      primary_color: "00529B",     # BOQ Blue
-      secondary_color: "F7941D",   # BOQ Orange accent
+      primary_color: "00529B",
+      secondary_color: "F7941D",
       bank_title: "Bank of Queensland",
-      account_type: "Business Account",
+      account_type: "Business Statement",
       text_on_primary: "FFFFFF"
     },
     commbank: {
-      primary_color: "FFCC00",     # CommBank Yellow
-      secondary_color: "000000",   # Black
+      primary_color: "FFCC00",
+      secondary_color: "000000",
       bank_title: "Commonwealth Bank",
       account_type: "Business Account",
-      text_on_primary: "000000"    # Black text on yellow
+      text_on_primary: "000000"
     },
     anz: {
-      primary_color: "007DBA",     # ANZ Blue
-      secondary_color: "000000",   # Black
+      primary_color: "007DBA",
+      secondary_color: "000000",
       bank_title: "ANZ",
       account_type: "Business Account",
       text_on_primary: "FFFFFF"
     },
     stripe: {
-      primary_color: "635BFF",     # Stripe Purple
-      secondary_color: "1A1F36",   # Stripe Dark
+      primary_color: "635BFF",
+      secondary_color: "0A2540",   # Stripe Downriver (updated Dec 2024)
       bank_title: "Stripe",
       account_type: "Payment Account",
       text_on_primary: "FFFFFF"
     },
     default: {
-      primary_color: "5D2E46",     # Maroon (original)
+      primary_color: "5D2E46",
       secondary_color: "333333",
       bank_title: "Bank",
       account_type: "Account",
@@ -179,30 +182,55 @@ class BankTransactionReportService
   end
 
   # Detect bank from account name and return branding config
+  # SSoT: Uses BankStatementTemplate model first, falls back to BANK_BRANDING_FALLBACK
   def detect_bank_branding(account_name)
+    # Try to load from database templates (SSoT)
+    @template = load_template_from_db(account_name)
+
+    if @template.present?
+      @bank_type = @template.layout_style&.to_sym || :default
+      @template.to_branding_hash
+    else
+      # Fallback to hardcoded config if templates table doesn't exist
+      detect_bank_branding_fallback(account_name)
+    end
+  end
+
+  # Load template from BankStatementTemplate model
+  def load_template_from_db(account_name)
+    return nil unless defined?(BankStatementTemplate) && BankStatementTemplate.table_exists?
+
+    BankStatementTemplate.for_bank(account_name)
+  rescue StandardError => e
+    Rails.logger.warn("BankStatementTemplate lookup failed: #{e.message}")
+    nil
+  end
+
+  # Fallback detection when templates table not available
+  def detect_bank_branding_fallback(account_name)
     name = account_name.to_s.downcase
     case name
     when /nab|national australia/
       @bank_type = :nab
-      BANK_BRANDING[:nab]
+      BANK_BRANDING_FALLBACK[:nab]
     when /westpac/
       @bank_type = :westpac
-      BANK_BRANDING[:westpac]
+      BANK_BRANDING_FALLBACK[:westpac]
     when /boq|bank of queensland/
       @bank_type = :boq
-      BANK_BRANDING[:boq]
+      BANK_BRANDING_FALLBACK[:boq]
     when /comm|cba|commonwealth/
       @bank_type = :commbank
-      BANK_BRANDING[:commbank]
+      BANK_BRANDING_FALLBACK[:commbank]
     when /anz/
       @bank_type = :anz
-      BANK_BRANDING[:anz]
+      BANK_BRANDING_FALLBACK[:anz]
     when /stripe/
       @bank_type = :stripe
-      BANK_BRANDING[:stripe]
+      BANK_BRANDING_FALLBACK[:stripe]
     else
       @bank_type = :default
-      BANK_BRANDING[:default]
+      BANK_BRANDING_FALLBACK[:default]
     end
   end
 
@@ -1167,6 +1195,21 @@ class BankTransactionReportService
   # ANZ date format: "dd Mon yyyy"
   def format_date_anz(date)
     date.strftime("%d %b %Y")
+  end
+
+  # Generic date format using template's date_format (SSoT)
+  # Falls back to bank-specific method when no template is loaded
+  def format_date(date)
+    return date.strftime(@template.date_format) if @template&.date_format.present?
+
+    # Fallback to bank-specific formatting
+    case @bank_type
+    when :westpac then format_date_westpac(date)
+    when :boq then format_date_boq(date)
+    when :commbank then format_date_commbank(date)
+    when :anz then format_date_anz(date)
+    else format_date_nab(date) # NAB/default style
+    end
   end
 
   # Currency with Cr/Dr suffix (NAB style)

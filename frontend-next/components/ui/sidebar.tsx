@@ -229,7 +229,8 @@ export function Sidebar() {
     item: { href: string; icon: string; name: string; badge_key?: string | null },
     isChild = false,
     mobile = false,
-    isGrandchild = false // 2nd level nesting
+    isGrandchild = false, // 2nd level nesting
+    hasChevron = false // Has chevron next to it (reduces padding)
   ) => {
     const ItemIcon = getIcon(item.icon);
     const active = isActive(item.href);
@@ -244,8 +245,9 @@ export function Sidebar() {
         onClick={() => !active && setLoadingHref(item.href)}
         className={cn(
           "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-          isChild && (isExpanded || mobile) && !isGrandchild && "pl-7",
-          isGrandchild && (isExpanded || mobile) && "pl-14", // Extra indent for grandchildren
+          isChild && (isExpanded || mobile) && !isGrandchild && !hasChevron && "pl-7",
+          isChild && (isExpanded || mobile) && !isGrandchild && hasChevron && "pl-1", // Less padding when chevron present
+          isGrandchild && (isExpanded || mobile) && "pl-8", // Reduced from pl-14
           active
             ? "bg-secondary text-secondary-foreground"
             : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
@@ -411,7 +413,8 @@ export function Sidebar() {
                         },
                         true,
                         mobile,
-                        false // Not double-nested yet
+                        false, // Not double-nested yet
+                        true // Has chevron next to it
                       )}
                     </div>
                     {/* Grandchildren */}
