@@ -16,6 +16,7 @@ module Api
         @companies = @companies.where(status: params[:status]) if params[:status].present?
         @companies = @companies.where(company_group_id: params[:company_group_id]) if params[:company_group_id].present?
         @companies = @companies.where(consolidation_parent_id: params[:consolidation_parent_id]) if params[:consolidation_parent_id].present?
+        @companies = @companies.where(entity_type: params[:entity_type]) if params[:entity_type].present?
 
         # Search
         if params[:search].present?

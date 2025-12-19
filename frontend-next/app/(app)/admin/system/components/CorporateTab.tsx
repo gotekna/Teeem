@@ -77,6 +77,13 @@ const COMPANY_STATUSES = [
   { value: "dormant", label: "Dormant" },
 ];
 
+const ENTITY_TYPES = [
+  { value: "all", label: "All Types" },
+  { value: "Company", label: "Company" },
+  { value: "Trust", label: "Trust" },
+  { value: "Superfund", label: "Superfund" },
+];
+
 interface Company {
   id: number;
   name: string;
@@ -86,6 +93,7 @@ interface Company {
   group?: string;
   status: string;
   type: string;
+  entity_type?: string;
   address: string;
   email: string;
   phone: string;
@@ -425,6 +433,7 @@ function CompaniesSubTab() {
   const [loading, setLoading] = React.useState(true);
   const [selectedGroupId, setSelectedGroupId] = React.useState("all");
   const [selectedStatus, setSelectedStatus] = React.useState("all");
+  const [selectedEntityType, setSelectedEntityType] = React.useState("all");
   const [searchTerm, setSearchTerm] = React.useState("");
   const [showAddDialog, setShowAddDialog] = React.useState(false);
   const [editingCompany, setEditingCompany] = React.useState<Company | null>(null);
@@ -458,6 +467,7 @@ function CompaniesSubTab() {
       const params = new URLSearchParams();
       if (selectedGroupId !== "all") params.append("company_group_id", selectedGroupId);
       if (selectedStatus !== "all") params.append("status", selectedStatus);
+      if (selectedEntityType !== "all") params.append("entity_type", selectedEntityType);
 
       const response = await api.get<{ companies: Company[] }>(`/api/v1/companies?${params}`);
       setCompanies(response.companies || []);
@@ -467,7 +477,7 @@ function CompaniesSubTab() {
     } finally {
       setLoading(false);
     }
-  }, [selectedGroupId, selectedStatus]);
+  }, [selectedGroupId, selectedStatus, selectedEntityType]);
 
   React.useEffect(() => {
     loadGroups();
@@ -475,7 +485,7 @@ function CompaniesSubTab() {
 
   React.useEffect(() => {
     loadCompanies();
-  }, [selectedGroupId, selectedStatus, loadCompanies]);
+  }, [selectedGroupId, selectedStatus, selectedEntityType, loadCompanies]);
 
   const handleOpenAddDialog = () => {
     setFormData({
@@ -625,6 +635,18 @@ function CompaniesSubTab() {
               ))}
             </SelectContent>
           </Select>
+          <Select value={selectedEntityType} onValueChange={setSelectedEntityType}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              {ENTITY_TYPES.map((type) => (
+                <SelectItem key={type.value} value={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <Button onClick={handleOpenAddDialog}>
           <Plus className="h-4 w-4 mr-2" />
@@ -693,7 +715,15 @@ function CompaniesSubTab() {
                         {company.status?.replace("_", " ") || "Active"}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{company.type || "-"}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={cn(
+                        company.entity_type === "Company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
+                        company.entity_type === "Trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800",
+                        company.entity_type === "Superfund" && "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800"
+                      )}>
+                        {company.entity_type || "-"}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
