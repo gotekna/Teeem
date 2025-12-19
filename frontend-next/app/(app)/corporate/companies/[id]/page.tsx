@@ -85,6 +85,7 @@ import type { TableColumn, TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
+import { XeroSetupWizard } from "@/components/xero/XeroSetupWizard";
 
 // Document category tabs
 const DOCUMENT_TABS = [
@@ -5408,15 +5409,20 @@ export default function CompanyDetailPage() {
     return [...documentFolderTabs, ...specialTabs];
   }, [documentFolderTabs]);
 
-  // Merged XERO sub-tabs: functional tabs (from code) + document folder tabs (from DB)
+  // SSoT: Xero sub-tabs loaded from API (functional + document folders combined)
+  // Falls back to hardcoded XERO_SUB_TABS + xeroDocumentFolders if API hasn't loaded yet
   const mergedXeroSubTabs = React.useMemo(() => {
-    // Functional tabs first (these have actual UI components)
+    // If API-loaded tabs are available, use them directly
+    if (xeroFeatureTabs.length > 0) {
+      return xeroFeatureTabs;
+    }
+
+    // Fallback: use hardcoded tabs + document folders
     const functionalTabs = XERO_SUB_TABS.map(tab => ({
       ...tab,
       type: 'functional' as const
     }));
 
-    // Document folder tabs from database (for document storage)
     const documentTabs = xeroDocumentFolders.map(folder => ({
       id: folder.id,
       name: folder.name,
@@ -5425,15 +5431,15 @@ export default function CompanyDetailPage() {
       description: folder.description
     }));
 
-    // Return functional tabs first, then document folder tabs
     return [...functionalTabs, ...documentTabs];
-  }, [xeroDocumentFolders]);
+  }, [xeroFeatureTabs, xeroDocumentFolders]);
 
   React.useEffect(() => {
     loadCompany();
     loadDocumentCounts();
     loadHealthScore();
-  }, [loadCompany, loadDocumentCounts, loadHealthScore]);
+    loadXeroTabs(); // SSoT: Load Xero tabs from API
+  }, [loadCompany, loadDocumentCounts, loadHealthScore, loadXeroTabs]);
 
   // Handle tab from URL
   React.useEffect(() => {
@@ -5752,11 +5758,24 @@ export default function CompanyDetailPage() {
               </div>
 
               {xeroSubTab === "connection" && (
-                <XeroConnectionCard
-                  companyId={companyId}
-                  companyName={company?.name}
-                  onConnectionChange={setXeroConnected}
-                />
+                <div className="space-y-4">
+                  <XeroConnectionCard
+                    companyId={companyId}
+                    companyName={company?.name}
+                    onConnectionChange={setXeroConnected}
+                  />
+                  {/* Setup Wizard - shows after connection to guide first-time setup */}
+                  {xeroConnected && (
+                    <XeroSetupWizard
+                      companyId={companyId}
+                      companyName={company?.name}
+                      onComplete={() => {
+                        // Optionally switch to overview tab when setup is complete
+                        setXeroSubTab("overview");
+                      }}
+                    />
+                  )}
+                </div>
               )}
 
               {xeroSubTab === "overview" && (

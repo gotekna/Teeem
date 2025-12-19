@@ -959,6 +959,40 @@ const CURRENT_XERO_TABS = [
 ];
 
 function CompanyTabsSubTab() {
+  const [xeroTabs, setXeroTabs] = React.useState<Array<{
+    id: string;
+    name: string;
+    type: string;
+    group?: string;
+    enabled?: boolean;
+  }>>([]);
+  const [loadingXeroTabs, setLoadingXeroTabs] = React.useState(true);
+
+  // SSoT: Load Xero tabs from API
+  React.useEffect(() => {
+    const loadXeroTabs = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: Array<{
+          id: string;
+          name: string;
+          type: string;
+          group?: string;
+          enabled?: boolean;
+        }> }>("/api/v1/xero/tabs");
+        if (response.success && response.data) {
+          setXeroTabs(response.data);
+        }
+      } catch (error) {
+        console.error("Failed to load Xero tabs:", error);
+        // Fallback to hardcoded
+        setXeroTabs(CURRENT_XERO_TABS.map(t => ({ ...t, type: 'functional', enabled: t.visible })));
+      } finally {
+        setLoadingXeroTabs(false);
+      }
+    };
+    loadXeroTabs();
+  }, []);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -1026,31 +1060,75 @@ function CompanyTabsSubTab() {
         </CardContent>
       </Card>
 
-      {/* Xero Sub-Tabs */}
+      {/* Xero Sub-Tabs - SSoT: Loaded from API */}
       <Card>
         <CardContent className="pt-6">
-          <h4 className="font-medium mb-4">Xero Sub-Tabs</h4>
-          <p className="text-sm text-muted-foreground mb-4">
-            These tabs appear under the Xero section.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {CURRENT_XERO_TABS.map((tab) => (
-              <div
-                key={tab.id}
-                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-              >
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                  <span className="text-sm font-medium">{tab.name}</span>
-                </div>
-                {tab.visible ? (
-                  <Eye className="h-4 w-4 text-green-600" />
-                ) : (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="font-medium">Xero Sub-Tabs</h4>
+              <p className="text-sm text-muted-foreground">
+                These tabs appear under the Xero section. Loaded from database (SSoT).
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              SSoT: API
+            </Badge>
           </div>
+          {loadingXeroTabs ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* Functional Tabs */}
+              <div className="mb-4">
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                  Functional Tabs ({xeroTabs.filter(t => t.type === 'functional').length})
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {xeroTabs.filter(t => t.type === 'functional').map((tab) => (
+                    <div
+                      key={tab.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-indigo-50 dark:bg-indigo-900/20"
+                    >
+                      <div className="flex items-center gap-2">
+                        <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                        <span className="text-sm font-medium">{tab.name}</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {tab.group || 'setup'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Document Tabs */}
+              {xeroTabs.filter(t => t.type === 'document').length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                    Document Folders ({xeroTabs.filter(t => t.type === 'document').length})
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                    {xeroTabs.filter(t => t.type === 'document').map((tab) => (
+                      <div
+                        key={tab.id}
+                        className="flex items-center justify-between p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20"
+                      >
+                        <div className="flex items-center gap-2">
+                          <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                          <span className="text-sm font-medium">{tab.name}</span>
+                        </div>
+                        <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900/40">
+                          SharePoint
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -1058,11 +1136,16 @@ function CompanyTabsSubTab() {
       <Card className="bg-muted/30">
         <CardContent className="pt-6">
           <h4 className="font-medium mb-2">SSoT Location</h4>
-          <p className="text-sm text-muted-foreground font-mono">
-            frontend-next/app/(app)/corporate/companies/[id]/page.tsx
+          <p className="text-sm text-muted-foreground">
+            Xero tabs are now loaded from the database via <code className="font-mono bg-muted px-1 rounded">GET /api/v1/xero/tabs</code>
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Look for: DOCUMENT_TABS, OVERVIEW_SUB_TABS, XERO_SUB_TABS constants
+            <span className="font-medium">Backend SSoT:</span>{' '}
+            <code className="font-mono bg-muted px-1 rounded">XeroFeatureTab</code> model + <code className="font-mono bg-muted px-1 rounded">DocumentFolder</code> (XERO children)
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            <span className="font-medium">Frontend fallback:</span>{' '}
+            <code className="font-mono bg-muted px-1 rounded">XERO_SUB_TABS</code> in page.tsx (used if API fails)
           </p>
         </CardContent>
       </Card>

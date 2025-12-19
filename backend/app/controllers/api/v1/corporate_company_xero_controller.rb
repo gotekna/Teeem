@@ -35,6 +35,60 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:company_id/xero/setup_status
+      # Returns the setup wizard status for this company's Xero integration
+      # Used by XeroSetupWizard component to track progress
+      def setup_status
+        connection = @company.corporate_company_xero_connection
+        connected = connection&.connected? || false
+
+        # Count accounts (from Xero API if connected)
+        accounts_count = 0
+        accounts_imported = false
+        if connected
+          begin
+            client = XeroApiClient.new
+            result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
+            if result[:success]
+              accounts = (result[:data]["Accounts"] || []).reject { |a| a["SystemAccount"].present? }
+              accounts_count = accounts.count
+              accounts_imported = accounts_count > 0
+            end
+          rescue StandardError => e
+            Rails.logger.warn("Failed to check accounts for setup_status: #{e.message}")
+          end
+        end
+
+        # Count bank accounts (from local DB)
+        bank_accounts = @company.bank_accounts.where.not(xero_account_id: nil)
+        bank_accounts_count = bank_accounts.count
+        bank_accounts_linked = bank_accounts_count > 0
+
+        # Count Xero-linked contacts (from contact_external_links)
+        contacts_count = ContactExternalLink.joins(:contact)
+          .where(provider: "xero", sync_enabled: true)
+          .where(external_tenant_id: connection&.xero_tenant_id)
+          .count
+        contacts_synced = contacts_count > 0
+
+        # Determine if setup is complete (all major items configured)
+        setup_complete = connected && accounts_imported && bank_accounts_linked
+
+        render json: {
+          success: true,
+          data: {
+            connected: connected,
+            accounts_imported: accounts_imported,
+            accounts_count: accounts_count,
+            bank_accounts_linked: bank_accounts_linked,
+            bank_accounts_count: bank_accounts_count,
+            contacts_synced: contacts_synced,
+            contacts_count: contacts_count,
+            setup_complete: setup_complete
+          }
+        }
+      end
+
       # POST /api/v1/companies/:company_id/xero/link
       # Links this company to an existing Xero credential by tenant_id
       def link

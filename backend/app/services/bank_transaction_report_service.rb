@@ -69,13 +69,18 @@ class BankTransactionReportService
   LEGAL_DISCLAIMER = "This document is a transaction record reconstructed from Xero accounting software bank feed data. " \
                      "It is not an official bank statement. Retained as an accounting record per s262A ITAA 1936."
 
-  def initialize(bank_account_id: nil, financial_year: nil, month: nil, start_date: nil, end_date: nil, opening_balance: nil)
+  def initialize(bank_account_id: nil, financial_year: nil, month: nil, start_date: nil, end_date: nil, opening_balance: nil, transactions: nil, account_name: nil, template: nil)
     @bank_account_id = bank_account_id
     @financial_year = financial_year
     @month = month
     @start_date = start_date
     @end_date = end_date
     @opening_balance = opening_balance || BigDecimal("0")
+
+    # Sample mode: use provided transactions and template directly
+    @sample_transactions = transactions
+    @sample_account_name = account_name
+    @provided_template = template
 
     # Look up account details from BankAccount table (linked via xero_account_id)
     @bank_account_record = BankAccount.find_by(xero_account_id: @bank_account_id) if @bank_account_id.present?
@@ -103,6 +108,23 @@ class BankTransactionReportService
   private
 
   def fetch_transactions
+    # Sample mode: return provided transactions wrapped in OpenStruct for consistent interface
+    if @sample_transactions.present?
+      return @sample_transactions.map do |txn|
+        OpenStruct.new(
+          transaction_date: txn[:date],
+          description: txn[:description],
+          total: txn[:amount].abs,
+          transaction_type: txn[:amount] >= 0 ? "RECEIVE" : "SPEND",
+          contact_name: nil,
+          reference: nil,
+          line_items: nil,
+          bank_account_name: @sample_account_name,
+          bank_account_code: nil
+        )
+      end
+    end
+
     scope = WarehouseBankTransaction.order(transaction_date: :asc, created_at: :asc)
 
     scope = scope.where(bank_account_id: @bank_account_id) if @bank_account_id.present?
@@ -184,6 +206,13 @@ class BankTransactionReportService
   # Detect bank from account name and return branding config
   # SSoT: Uses BankStatementTemplate model first, falls back to BANK_BRANDING_FALLBACK
   def detect_bank_branding(account_name)
+    # Use provided template if in sample mode
+    if @provided_template.present?
+      @template = @provided_template
+      @bank_type = @template.layout_style&.to_sym || :default
+      return @template.to_branding_hash
+    end
+
     # Try to load from database templates (SSoT)
     @template = load_template_from_db(account_name)
 
