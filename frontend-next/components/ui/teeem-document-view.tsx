@@ -53,6 +53,7 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
   onApprove?: (doc: T) => Promise<void>;
   onReprocess?: (doc: T) => Promise<void>;
   onRefresh?: () => void;
+  onSelect?: (doc: T | null) => void;
 
   // Selection & Bulk Actions
   enableSelection?: boolean;
@@ -99,6 +100,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   onApprove,
   onReprocess,
   onRefresh,
+  onSelect,
   enableSelection = false,
   bulkActions,
   leftActions,
@@ -133,6 +135,11 @@ export function TeeemDocumentView<T extends DocumentItem>({
   useEffect(() => {
     setShowFullPdf(false);
   }, [selectedDocument]);
+
+  // Notify parent when selection changes
+  useEffect(() => {
+    onSelect?.(selectedDocument);
+  }, [selectedDocument, onSelect]);
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false);
@@ -339,158 +346,51 @@ export function TeeemDocumentView<T extends DocumentItem>({
     const shouldShowPdf = previewUrl && (showFullPdf || !thumbnailUrl);
 
     return (
-      <div className="flex flex-col h-full">
-        {/* Preview Content */}
-        <div className="flex-1 min-h-0 relative">
-          {hasThumbnail ? (
-            // Show instant thumbnail preview
-            <div
-              className="h-full w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 cursor-pointer group"
-              onClick={() => setShowFullPdf(true)}
-            >
-              <img
-                src={thumbnailUrl}
-                alt={name}
-                className="max-h-full max-w-full object-contain"
-              />
-              {/* Overlay to indicate clickable for full PDF */}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                  <Maximize2 className="h-4 w-4" />
-                  <span>View Full PDF</span>
-                </div>
-              </div>
-            </div>
-          ) : shouldShowPdf ? (
-            // Show full PDF viewer
-            <PDFViewer
-              url={previewUrl}
-              fallbackUrl={externalUrl || undefined}
-              className="h-full"
+      <div className="h-full relative">
+        {hasThumbnail ? (
+          // Show instant thumbnail preview
+          <div
+            className="h-full w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 cursor-pointer group"
+            onClick={() => setShowFullPdf(true)}
+          >
+            <img
+              src={thumbnailUrl}
+              alt={name}
+              className="max-h-full max-w-full object-contain"
             />
-          ) : (
-            // No file attached
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-              <FileText className="h-16 w-16 mb-4 opacity-50" />
-              <p className="mb-2">{name}</p>
-              <p className="text-sm">No file attached</p>
-              {externalUrl && (
-                <Button
-                  className="mt-4"
-                  variant="outline"
-                  onClick={() => window.open(externalUrl, "_blank")}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  {actionLabels.openExternal}
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Details bar */}
-        <div className="shrink-0 border-t bg-muted/30 p-3">
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: Name + badges */}
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              {isRenaming ? (
-                <div className="flex items-center gap-2 flex-1">
-                  <Input
-                    value={renameValue}
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    className="h-8"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") saveRename();
-                      if (e.key === "Escape") cancelRename();
-                    }}
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={saveRename}
-                    disabled={renameLoading}
-                  >
-                    {renameLoading ? (
-                      <Spinner className="h-4 w-4" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={cancelRename}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <span className="font-medium truncate">{name}</span>
-                  {revision && <Badge variant="outline">{revision}</Badge>}
-                  <StatusBadge status={status} />
-                </>
-              )}
-            </div>
-
-            {/* Right: Action buttons + dropdown */}
-            {!isRenaming && (
-              <div className="flex items-center gap-2 shrink-0">
-                {onApprove && status === "draft" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleApprove}
-                    disabled={approveLoading}
-                  >
-                    {approveLoading ? (
-                      <Spinner className="h-4 w-4 mr-1" />
-                    ) : (
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                    )}
-                    {actionLabels.approve}
-                  </Button>
-                )}
-
-                {/* Three-dot dropdown menu */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {onRename && (
-                      <DropdownMenuItem onClick={startRename}>
-                        <Pencil className="h-4 w-4 mr-2" />
-                        {actionLabels.rename}
-                      </DropdownMenuItem>
-                    )}
-                    {onReprocess && (
-                      <DropdownMenuItem
-                        onClick={handleReprocess}
-                        disabled={reprocessLoading}
-                      >
-                        {reprocessLoading ? (
-                          <Spinner className="h-4 w-4 mr-2" />
-                        ) : (
-                          <Sparkles className="h-4 w-4 mr-2" />
-                        )}
-                        {actionLabels.reprocess}
-                      </DropdownMenuItem>
-                    )}
-                    {externalUrl && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => window.open(externalUrl, "_blank")}>
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          {actionLabels.openExternal}
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+            {/* Overlay to indicate clickable for full PDF */}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <Maximize2 className="h-4 w-4" />
+                <span>View Full PDF</span>
               </div>
+            </div>
+          </div>
+        ) : shouldShowPdf ? (
+          // Show full PDF viewer
+          <PDFViewer
+            url={previewUrl}
+            fallbackUrl={externalUrl || undefined}
+            className="h-full"
+          />
+        ) : (
+          // No file attached
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <FileText className="h-16 w-16 mb-4 opacity-50" />
+            <p className="mb-2">{name}</p>
+            <p className="text-sm">No file attached</p>
+            {externalUrl && (
+              <Button
+                className="mt-4"
+                variant="outline"
+                onClick={() => window.open(externalUrl, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                {actionLabels.openExternal}
+              </Button>
             )}
           </div>
-        </div>
+        )}
       </div>
     );
   };
@@ -502,8 +402,8 @@ export function TeeemDocumentView<T extends DocumentItem>({
         {renderPreviewPanel()}
       </div>
 
-      {/* Document list - left 30% */}
-      <div className="absolute top-0 left-0 bottom-0 w-[30%] bg-card">
+      {/* Document list - left 30%, starts below header */}
+      <div className="absolute top-11 left-0 bottom-0 w-[30%] bg-card">
         {renderDocumentList()}
       </div>
     </div>

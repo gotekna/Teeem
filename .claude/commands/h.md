@@ -65,7 +65,8 @@ bin/rails teeem:create_system_foundations 2>&1 | tail -5
 bin/rails runner "
 deleted_ms = MicrosoftCredential.delete_all
 deleted_sp = OrganizationSharePointCredential.delete_all
-puts '🔑 Cleared ' + (deleted_ms + deleted_sp).to_s + ' credentials (encrypted with prod keys)'
+deleted_app = OrganizationMicrosoftAppCredential.delete_all
+puts '🔑 Cleared ' + (deleted_ms + deleted_sp + deleted_app).to_s + ' credentials (encrypted with prod keys)'
 "
 
 # Step 7: Verify data pulled correctly
