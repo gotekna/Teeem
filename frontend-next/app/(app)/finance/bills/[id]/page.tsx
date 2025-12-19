@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { BillsInvoiceViewer, BillDetail } from "@/components/invoice/BillsInvoiceViewer";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // ============================================================================
 // Bill Detail Page
@@ -26,6 +27,9 @@ import { BillsInvoiceViewer, BillDetail } from "@/components/invoice/BillsInvoic
 // ============================================================================
 
 export default function BillDetailPage() {
+  // Use full-height layout mode
+  useSetLayoutMode("full-height");
+
   const params = useParams();
   const billId = params.id as string;
 
@@ -146,9 +150,9 @@ export default function BillDetailPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col h-full">
       {/* Header with back button */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0 pb-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/finance/bills">
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -166,7 +170,7 @@ export default function BillDetailPage() {
         onApprove={handleApprove}
         onReject={handleRejectClick}
         actionLoading={actionLoading}
-        height="calc(100vh - 180px)"
+        height="100%"
       />
 
       {/* Reject Dialog - Page-level since it needs reason input */}

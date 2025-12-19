@@ -74,7 +74,6 @@ export function PdfFieldsTab() {
   const [debugLogs, setDebugLogs] = React.useState<string[]>([]);
   const [pdfError, setPdfError] = React.useState<string | null>(null);
   const [draggingFieldId, setDraggingFieldId] = React.useState<number | null>(null);
-  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
   const [dropPreview, setDropPreview] = React.useState<{ x: number; y: number } | null>(null);
   const [previewWidth, setPreviewWidth] = React.useState<number>(0); // 0 = auto
   const [previewHeight, setPreviewHeight] = React.useState<number>(0); // 0 = auto
@@ -288,6 +287,7 @@ export function PdfFieldsTab() {
   // Mouse-based drag handlers (more reliable than HTML5 drag and drop)
   // Click = select, Drag = move
   const DRAG_THRESHOLD = 5; // pixels to move before drag starts
+  const [dragStartFieldPos, setDragStartFieldPos] = React.useState<{ x: number; y: number } | null>(null);
 
   const handleMouseDown = (e: React.MouseEvent, fieldId: number) => {
     e.preventDefault();
@@ -297,40 +297,46 @@ export function PdfFieldsTab() {
     setMouseDownPos({ x: e.clientX, y: e.clientY });
     setDraggingFieldId(fieldId);
 
-    // Calculate initial offset
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    });
+    // Store the field's ORIGINAL position (in PDF coordinates)
+    const field = positions.find(p => p.id === fieldId);
+    if (field) {
+      setDragStartFieldPos({ x: field.x, y: field.y });
+    }
   };
 
   const handleMouseMove = React.useCallback((e: MouseEvent) => {
-    if (!draggingFieldId || !containerRef.current || !mouseDownPos) return;
+    if (!draggingFieldId || !containerRef.current || !mouseDownPos || !dragStartFieldPos) return;
 
     // Check if we've moved past the drag threshold
     const dx = Math.abs(e.clientX - mouseDownPos.x);
     const dy = Math.abs(e.clientY - mouseDownPos.y);
 
     if (!isMouseDragging && (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD)) {
-      // Start dragging
-      console.log('[DRAG] Drag threshold crossed, starting drag');
       setIsMouseDragging(true);
     }
 
     if (isMouseDragging) {
-      const rect = containerRef.current.getBoundingClientRect();
       const scale = zoom / 100;
-      const previewX = (e.clientX - rect.left) / scale;
-      const previewY = (e.clientY - rect.top) / scale;
-      setDropPreview({ x: previewX, y: previewY });
+
+      // Calculate how much the mouse has moved in screen pixels
+      const deltaScreenX = e.clientX - mouseDownPos.x;
+      const deltaScreenY = e.clientY - mouseDownPos.y;
+
+      // Convert delta to PDF units (y is inverted - moving down on screen = moving up in PDF)
+      const deltaPdfX = deltaScreenX / scale;
+      const deltaPdfY = -deltaScreenY / scale; // Invert Y
+
+      // Apply delta to original field position
+      const newPdfX = Math.round(Math.max(0, Math.min(PDF_WIDTH, dragStartFieldPos.x + deltaPdfX)));
+      const newPdfY = Math.round(Math.max(0, Math.min(PDF_HEIGHT, dragStartFieldPos.y + deltaPdfY)));
+
+      setDropPreview({ x: newPdfX, y: newPdfY });
     }
-  }, [draggingFieldId, isMouseDragging, mouseDownPos, zoom]);
+  }, [draggingFieldId, isMouseDragging, mouseDownPos, zoom, dragStartFieldPos]);
 
   const handleMouseUp = React.useCallback((e: MouseEvent) => {
     // If we weren't dragging (just clicked), select the field
     if (!isMouseDragging && draggingFieldId) {
-      console.log('[SELECT] Field selected:', draggingFieldId);
       setSelectedFieldId(draggingFieldId);
 
       // Load W/H from the field's database values
@@ -342,41 +348,33 @@ export function PdfFieldsTab() {
 
       setDraggingFieldId(null);
       setMouseDownPos(null);
+      setDragStartFieldPos(null);
       return;
     }
 
-    if (!isMouseDragging || !draggingFieldId || !containerRef.current) {
+    if (!isMouseDragging || !draggingFieldId || !dropPreview) {
       setIsMouseDragging(false);
       setDraggingFieldId(null);
       setDropPreview(null);
       setMouseDownPos(null);
+      setDragStartFieldPos(null);
       return;
     }
 
-    console.log('[DRAG] Mouse up - completing drag');
-    addDebugLog(`Drop event fired! draggingFieldId=${draggingFieldId}`);
+    // Use the calculated position from dropPreview (already in PDF coordinates)
+    const pdfX = dropPreview.x;
+    const pdfY = dropPreview.y;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const scale = zoom / 100;
-
-    // Calculate drop position relative to PDF container
-    const dropX = (e.clientX - rect.left) / scale;
-    const dropY = (e.clientY - rect.top) / scale;
-
-    // Convert to PDF coordinates (y is inverted)
-    const pdfX = Math.round(Math.max(0, Math.min(PDF_WIDTH, dropX)));
-    const pdfY = Math.round(Math.max(0, Math.min(PDF_HEIGHT, PDF_HEIGHT - dropY)));
-
-    addDebugLog(`Drop coords: screen(${dropX.toFixed(0)}, ${dropY.toFixed(0)}) → pdf(${pdfX}, ${pdfY})`);
-    addDebugLog(`Calling savePosition for field ${draggingFieldId}...`);
+    addDebugLog(`Saving: pdf(${pdfX}, ${pdfY})`);
 
     savePosition(draggingFieldId, { x: pdfX, y: pdfY });
-    setSelectedFieldId(draggingFieldId); // Select the field after dropping
+    setSelectedFieldId(draggingFieldId);
     setDraggingFieldId(null);
     setIsMouseDragging(false);
     setDropPreview(null);
     setMouseDownPos(null);
-  }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition, positions, fieldSizes]);
+    setDragStartFieldPos(null);
+  }, [isMouseDragging, draggingFieldId, dropPreview, addDebugLog, savePosition, positions]);
 
   // Global mouse event listeners for drag
   React.useEffect(() => {
@@ -423,9 +421,9 @@ export function PdfFieldsTab() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Compact Controls Bar */}
-      <div className="flex items-center gap-2">
+    <div className="flex" style={{ height: 'calc(100vh - 60px)' }}>
+      {/* Controls Panel - narrow left column */}
+      <div className="w-56 px-2 flex flex-col gap-2 shrink-0 overflow-auto">
         <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
           <SelectTrigger className="h-8 w-40">
             <SelectValue />
@@ -458,7 +456,7 @@ export function PdfFieldsTab() {
           />
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 border-2 border-purple-500 p-1">
           <Button
             variant="outline"
             size="icon"
@@ -525,16 +523,16 @@ export function PdfFieldsTab() {
 
         <div className="border-l h-6 mx-2" />
 
-        {/* Preview box size controls */}
+        {/* Preview box size controls - stacked vertically */}
+        {selectedFieldId ? (
+          <Badge variant="secondary" className="text-xs">
+            {positions.find(p => p.id === selectedFieldId)?.display_name || 'Selected'}
+          </Badge>
+        ) : (
+          <span className="text-xs text-muted-foreground">Click field to select</span>
+        )}
         <div className="flex items-center gap-1">
-          {selectedFieldId ? (
-            <Badge variant="secondary" className="text-xs mr-2">
-              {positions.find(p => p.id === selectedFieldId)?.display_name || 'Selected'}
-            </Badge>
-          ) : (
-            <span className="text-xs text-muted-foreground mr-2">Click field to select</span>
-          )}
-          <span className="text-xs">W</span>
+          <span className="text-xs w-4">W</span>
           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
             const newW = Math.max(0, previewWidth - 10);
             setPreviewWidth(newW);
@@ -547,7 +545,7 @@ export function PdfFieldsTab() {
             onBlur={() => {
               if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, previewHeight);
             }}
-            className="h-6 w-14 text-xs text-center font-mono px-1"
+            className="h-6 w-16 text-xs text-center font-mono px-1"
             placeholder="auto"
             disabled={!selectedFieldId}
           />
@@ -556,7 +554,9 @@ export function PdfFieldsTab() {
             setPreviewWidth(newW);
             if (selectedFieldId) saveBoxDimensions(selectedFieldId, newW, previewHeight);
           }} disabled={!selectedFieldId}>+</Button>
-          <span className="text-xs ml-2">H</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-xs w-4">H</span>
           <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
             const newH = Math.max(0, previewHeight - 2);
             setPreviewHeight(newH);
@@ -569,7 +569,7 @@ export function PdfFieldsTab() {
             onBlur={() => {
               if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, previewHeight);
             }}
-            className="h-6 w-14 text-xs text-center font-mono px-1"
+            className="h-6 w-16 text-xs text-center font-mono px-1"
             placeholder="auto"
             disabled={!selectedFieldId}
           />
@@ -578,249 +578,251 @@ export function PdfFieldsTab() {
             setPreviewHeight(newH);
             if (selectedFieldId) saveBoxDimensions(selectedFieldId, previewWidth, newH);
           }} disabled={!selectedFieldId}>+</Button>
-          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
-            setPreviewWidth(0);
-            setPreviewHeight(0);
-            if (selectedFieldId) saveBoxDimensions(selectedFieldId, 0, 0);
-          }}>Reset</Button>
         </div>
 
-        {/* Coordinates display when dragging */}
-        {draggingFieldId && (
-          <div className="flex items-center gap-2 ml-4 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
-            <span className="text-xs font-medium">
-              {positions.find(p => p.id === draggingFieldId)?.display_name}:
-            </span>
-            <span className="text-xs font-mono text-red-600 dark:text-red-400">
-              OLD x:{positions.find(p => p.id === draggingFieldId)?.x} y:{positions.find(p => p.id === draggingFieldId)?.y}
-            </span>
-            <span className="text-xs">→</span>
-            <span className="text-xs font-mono text-blue-600 dark:text-blue-400">
-              NEW x:{dropPreview ? Math.round(dropPreview.x) : '...'} y:{dropPreview ? Math.round(PDF_HEIGHT - dropPreview.y) : '...'}
-            </span>
-          </div>
-        )}
+        {/* Coordinates display - always show for selected field */}
+        {(selectedFieldId || draggingFieldId) && (() => {
+          const fieldId = draggingFieldId || selectedFieldId;
+          const field = positions.find(p => p.id === fieldId);
+          if (!field) return null;
+          return (
+            <div className="flex items-center gap-2 ml-4 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
+              <span className="text-xs font-mono">
+                x:<span className={cn("font-bold", draggingFieldId && dropPreview && "text-green-600")}>{draggingFieldId && dropPreview ? dropPreview.x : field.x}</span>
+              </span>
+              <span className="text-xs font-mono">
+                y:<span className={cn("font-bold", draggingFieldId && dropPreview && "text-green-600")}>{draggingFieldId && dropPreview ? dropPreview.y : field.y}</span>
+              </span>
+              {draggingFieldId && dropPreview && (
+                <span className="text-xs text-muted-foreground">(was {field.x}, {field.y})</span>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
 
-      {/* Main Editor */}
-      <div className="grid grid-cols-5 gap-2">
-        {/* Field List - narrower */}
-        <Card className="col-span-1">
-          <CardHeader className="py-2 px-3">
-            <CardTitle className="text-xs">Page {currentPage}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 p-2">
-            {fieldsOnPage.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No fields on this page</p>
-            ) : (
-              fieldsOnPage.map((field) => (
-                <div
-                  key={field.id}
-                  className="p-1.5 rounded border bg-card hover:bg-muted transition-colors text-xs"
-                >
-                  <div className="font-medium truncate">
-                    {field.display_name || field.field_key}
-                  </div>
-                  <div className="text-muted-foreground">
-                    {field.x}, {field.y}
-                  </div>
-                </div>
-              ))
-            )}
+      {/* PDF Preview - takes remaining width, full height */}
+      <div
+        className="flex-1 relative bg-gray-100 dark:bg-gray-900 overflow-auto"
+      >
+        {loadingPdf ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : pdfUrl ? (
+          <div className="flex gap-2 p-2">
+            {/* Current Page (interactive) */}
+            <div
+              ref={containerRef}
+              className="relative shrink-0"
+              style={{
+                width: `${PDF_WIDTH * (zoom / 100)}px`,
+                height: `${PDF_HEIGHT * (zoom / 100)}px`,
+              }}
+            >
+              {/* Page number label */}
+              <div className="absolute -top-5 left-0 text-xs text-muted-foreground font-medium">
+                Page {currentPage}
+              </div>
+              {/* PDF iframe - toolbar=0 hides browser PDF viewer controls */}
+              <iframe
+                src={`${pdfUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0`}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ border: "none" }}
+              />
 
-            {positions.filter((p) => p.page !== currentPage).length > 0 && (
-              <>
-                <div className="border-t my-3" />
-                <p className="text-xs text-muted-foreground font-medium">Other Pages</p>
-                {positions
-                  .filter((p) => p.page !== currentPage)
-                  .map((field) => (
+            {/* Drop preview indicator - follows cursor during drag */}
+            {dropPreview && draggingFieldId && (() => {
+              const draggingField = positions.find(p => p.id === draggingFieldId);
+              if (!draggingField) return null;
+
+              const previewText = draggingField.test_value || draggingField.display_name || draggingField.field_key;
+
+              return (
+                <div
+                  className="absolute pointer-events-none z-50"
+                  style={{
+                    left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
+                    bottom: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                    transform: `scale(${100 / zoom})`,
+                    transformOrigin: "bottom left",
+                  }}
+                >
+                  {/* Preview box - shows value at drop position */}
+                  <span
+                    className="inline-block bg-green-600 text-white text-[11px] px-1 py-0 rounded whitespace-nowrap font-semibold shadow-lg"
+                    style={{
+                      height: `${previewHeight > 0 ? previewHeight : 12}px`,
+                      lineHeight: `${previewHeight > 0 ? previewHeight : 12}px`,
+                      ...(previewWidth > 0 && { width: `${previewWidth}px`, minWidth: `${previewWidth}px` }),
+                    }}
+                  >
+                    {previewText}
+                  </span>
+                </div>
+              );
+            })()}
+
+
+            {/* Field markers */}
+            {fieldsOnPage.map((field) => {
+              const isDragging = draggingFieldId === field.id;
+              const fieldName = field.display_name || field.field_key;
+              const fieldContent = field.test_value || "";
+              const fontSize = field.font_size || 10;
+
+              // SAVED position (always from database)
+              const savedLeftPercent = (field.x / PDF_WIDTH) * 100;
+              const savedBottomPercent = (field.y / PDF_HEIGHT) * 100;
+
+              return (
+                <React.Fragment key={field.id}>
+                  {/* Field marker - blue handle above, green box at coordinates */}
+                  <div
+                    className="absolute z-50"
+                    style={{
+                      left: `${savedLeftPercent}%`,
+                      bottom: `${savedBottomPercent}%`,
+                      transform: `scale(${100 / zoom})`,
+                      transformOrigin: "bottom left",
+                    }}
+                  >
+                    {/* Blue drag handle - grab this to position */}
                     <div
-                      key={field.id}
-                      className="p-2 rounded border opacity-50 cursor-pointer hover:opacity-100"
-                      onClick={() => setCurrentPage(field.page)}
+                      onMouseDown={(e) => handleMouseDown(e, field.id)}
+                      className={cn(
+                        "absolute bottom-full left-0 mb-0.5 flex items-center rounded shadow-lg cursor-grab active:cursor-grabbing select-none",
+                        draggingFieldId === field.id ? "opacity-50" : "hover:ring-2 hover:ring-white"
+                      )}
                     >
-                      <div className="text-xs">
-                        <span className="font-medium">{field.display_name}</span>
-                        <Badge variant="outline" className="ml-2 text-[10px]">
-                          Page {field.page}
-                        </Badge>
+                      <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                        <GripVertical className="h-3 w-3" />
+                      </div>
+                      <div className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-medium">
+                        {fieldName}
                       </div>
                     </div>
-                  ))}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                    {/* Green value box - shows where data will appear */}
+                    <div
+                      onClick={() => setSelectedFieldId(field.id)}
+                      className={cn(
+                        "bg-green-600/90 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg cursor-pointer",
+                        draggingFieldId === field.id ? "opacity-30" : "",
+                        selectedFieldId === field.id && "ring-2 ring-yellow-400"
+                      )}
+                      style={{
+                        fontSize: `${fontSize}px`,
+                        fontFamily: 'Helvetica, Arial, sans-serif',
+                        height: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
+                        lineHeight: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
+                        ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
+                      }}
+                      title={`${fieldName} | x=${field.x}, y=${field.y}`}
+                    >
+                      {fieldContent || "(empty)"}
+                    </div>
+                  </div>
 
-        {/* PDF Preview - no card wrapper, just the PDF */}
-        <div className="col-span-4">
-          <div
-            className="relative bg-gray-100 dark:bg-gray-900 rounded overflow-auto border"
-            style={{ height: "calc(100vh - 80px)", minHeight: "700px" }}
-          >
-              {loadingPdf ? (
-                <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              ) : pdfUrl ? (
-                <div
-                  ref={containerRef}
-                  className="relative inline-block"
-                  style={{
-                    width: `${PDF_WIDTH * (zoom / 100)}px`,
-                    height: `${PDF_HEIGHT * (zoom / 100)}px`,
-                  }}
-                  onClick={(e) => console.log('[CONTAINER] Click on container at', e.clientX, e.clientY)}
-                >
-                  {/* PDF iframe */}
-                  <iframe
-                    src={`${pdfUrl}#page=${currentPage}`}
-                    className="absolute inset-0 w-full h-full pointer-events-none"
-                    style={{ border: "none" }}
-                  />
-
-                  {/* Drop preview indicator - follows cursor during drag */}
-                  {dropPreview && draggingFieldId && (() => {
-                    const draggingField = positions.find(p => p.id === draggingFieldId);
-                    if (!draggingField) return null;
-
-                    const previewText = draggingField.test_value || draggingField.display_name || draggingField.field_key;
-
-                    return (
+                  {/* DROP PREVIEW - Shows green box at new position */}
+                  {isDragging && dropPreview && (
+                    <div
+                      className="absolute z-40 pointer-events-none"
+                      style={{
+                        left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
+                        bottom: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                        transform: `scale(${100 / zoom})`,
+                        transformOrigin: "bottom left",
+                      }}
+                    >
                       <div
-                        className="absolute pointer-events-none z-50"
+                        className="bg-green-500 text-white px-1 py-0 rounded shadow-lg border-2 border-white"
                         style={{
-                          left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                          top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
-                          transform: `scale(${100 / zoom})`,
-                          transformOrigin: "top left",
+                          fontSize: `${fontSize}px`,
+                          fontFamily: 'Helvetica, Arial, sans-serif',
+                          height: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
+                          lineHeight: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
+                          ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
                         }}
                       >
-                        {/* Preview box - shows value at drop position */}
-                        <span
-                          className="inline-block bg-green-600 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-lg"
-                          style={{
-                            ...(previewWidth > 0 && { width: `${previewWidth}px`, minWidth: `${previewWidth}px` }),
-                            ...(previewHeight > 0 && { height: `${previewHeight}px`, lineHeight: `${previewHeight}px` }),
-                          }}
-                        >
-                          {previewText}
-                        </span>
+                        {fieldContent || "(empty)"}
                       </div>
-                    );
-                  })()}
-
-
-                  {/* Field markers */}
-                  {fieldsOnPage.map((field) => {
-                    const isDragging = draggingFieldId === field.id;
-                    const fieldName = field.display_name || field.field_key;
-                    const fieldContent = field.test_value || "";
-                    const fontSize = field.font_size || 10;
-
-                    // SAVED position (always from database)
-                    const savedLeftPercent = (field.x / PDF_WIDTH) * 100;
-                    const savedBottomPercent = (field.y / PDF_HEIGHT) * 100;
-
-                    return (
-                      <React.Fragment key={field.id}>
-                        {/* Position marker dot */}
-                        <div
-                          className="absolute w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-lg z-30"
-                          style={{
-                            left: `${savedLeftPercent}%`,
-                            bottom: `${savedBottomPercent}%`,
-                            transform: 'translate(-50%, 50%)',
-                          }}
-                          title={`${fieldName} | Value: ${fieldContent} | Saved: x=${field.x}, y=${field.y}`}
-                        />
-
-                        {/* Draggable field panel - 2 boxes only */}
-                        <div
-                          onMouseDown={(e) => handleMouseDown(e, field.id)}
-                          className={cn(
-                            "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-50 select-none",
-                            draggingFieldId === field.id ? "opacity-30" : "",
-                            selectedFieldId === field.id ? "ring-2 ring-yellow-400 ring-offset-2 rounded" : ""
-                          )}
-                          style={{
-                            left: `${savedLeftPercent}%`,
-                            bottom: `${savedBottomPercent}%`,
-                            transform: `translate(8px, 50%) scale(${100 / zoom})`,
-                            transformOrigin: "bottom left",
-                            pointerEvents: "auto",
-                          }}
-                        >
-                          {/* Box 1: Field Name (Blue) with drag handle */}
-                          <div className="flex items-center rounded shadow-lg hover:ring-2 hover:ring-white pointer-events-none">
-                            <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
-                              <GripVertical className="h-3 w-3" />
-                            </div>
-                            <div className="bg-blue-600 text-white text-[11px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-semibold">
-                              {fieldName}
-                            </div>
-                          </div>
-                          {/* Box 2: Value (Green) - uses box_width/box_height from database */}
-                          <div
-                            className={cn(
-                              "bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none",
-                              selectedFieldId === field.id && "ring-2 ring-yellow-400"
-                            )}
-                            style={{
-                              fontSize: `${fontSize}px`,
-                              fontFamily: 'Helvetica, Arial, sans-serif',
-                              ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
-                              ...(field.box_height && field.box_height > 0 && { height: `${field.box_height}px`, lineHeight: `${field.box_height}px` }),
-                            }}
-                          >
-                            {fieldContent || "(empty)"}
-                          </div>
-                        </div>
-
-                        {/* DROP PREVIEW - Just shows new position */}
-                        {isDragging && dropPreview && (
-                          <>
-                            {/* Connecting line from saved position to drop position */}
-                            <svg
-                              className="absolute inset-0 w-full h-full pointer-events-none z-30"
-                              style={{ overflow: 'visible' }}
-                            >
-                              <line
-                                x1={`${savedLeftPercent}%`}
-                                y1={`${100 - savedBottomPercent}%`}
-                                x2={`${(dropPreview.x / PDF_WIDTH) * 100}%`}
-                                y2={`${(dropPreview.y / PDF_HEIGHT) * 100}%`}
-                                stroke="#3b82f6"
-                                strokeWidth="2"
-                                strokeDasharray="5,5"
-                              />
-                            </svg>
-
-                            {/* Blue dot at drop position */}
-                            <div
-                              className="absolute w-5 h-5 bg-blue-500 rounded-full border-2 border-white shadow-lg z-40"
-                              style={{
-                                left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                                top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
-                                transform: 'translate(-50%, -50%)',
-                              }}
-                            />
-                          </>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  Select a job to load PDF preview
-                </div>
-              )}
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
             </div>
+
+            {/* Next Page (view only) */}
+            {currentPage < totalPages && (
+              <div
+                className="relative shrink-0 opacity-70"
+                style={{
+                  width: `${PDF_WIDTH * (zoom / 100)}px`,
+                  height: `${PDF_HEIGHT * (zoom / 100)}px`,
+                }}
+              >
+                {/* Page number label */}
+                <div className="absolute -top-5 left-0 text-xs text-muted-foreground font-medium">
+                  Page {currentPage + 1}
+                </div>
+                <iframe
+                  src={`${pdfUrl}#page=${currentPage + 1}&toolbar=0&navpanes=0&scrollbar=0`}
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  style={{ border: "none" }}
+                />
+                {/* Fields on next page (view only, not draggable) */}
+                {positions.filter(p => p.page === currentPage + 1).map((field) => {
+                  const fieldName = field.display_name || field.field_key;
+                  const fieldContent = field.test_value || "";
+                  const fontSize = field.font_size || 10;
+                  const savedLeftPercent = (field.x / PDF_WIDTH) * 100;
+                  const savedBottomPercent = (field.y / PDF_HEIGHT) * 100;
+
+                  return (
+                    <div
+                      key={field.id}
+                      className="absolute z-50"
+                      style={{
+                        left: `${savedLeftPercent}%`,
+                        bottom: `${savedBottomPercent}%`,
+                        transform: `scale(${100 / zoom})`,
+                        transformOrigin: "bottom left",
+                      }}
+                    >
+                      <div className="flex items-center rounded shadow-lg mb-0.5">
+                        <div className="bg-gray-500 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                          <GripVertical className="h-3 w-3" />
+                        </div>
+                        <div className="bg-blue-400 text-white text-[10px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-medium">
+                          {fieldName}
+                        </div>
+                      </div>
+                      <div
+                        className="bg-green-400/90 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg"
+                        style={{
+                          fontSize: `${fontSize}px`,
+                          fontFamily: 'Helvetica, Arial, sans-serif',
+                          height: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
+                          lineHeight: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
+                          ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
+                        }}
+                      >
+                        {fieldContent || "(empty)"}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            Select a job to load PDF preview
+          </div>
+        )}
+      </div>
 
       {/* Error display only */}
       {pdfError && (

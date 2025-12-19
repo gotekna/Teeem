@@ -255,7 +255,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <div className="flex flex-col h-[calc(100vh-140px)]">
+          <div className="flex flex-col h-full">
             {/* Actions Bar */}
             <div className="p-4 border-b space-y-3">
               <div className="flex items-center gap-2">

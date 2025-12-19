@@ -9,6 +9,7 @@ import { EmailVerificationStep } from "@/components/signing/email-verification-s
 import { DocumentViewerStep } from "@/components/signing/document-viewer-step";
 import { ConsentStep } from "@/components/signing/consent-step";
 import { SignatureCaptureStep } from "@/components/signing/signature-capture-step";
+import { PositionedSigningStep } from "@/components/signing/positioned-signing-step";
 import { CompletionStep } from "@/components/signing/completion-step";
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -28,10 +29,27 @@ interface RequestInfo {
   title: string;
   description?: string;
   expires_at?: string;
+  has_positioned_fields: boolean;
   other_signers: { name: string; status: string }[];
 }
 
-type SigningStep = "loading" | "error" | "verify_email" | "view_document" | "consent" | "sign" | "completed" | "declined" | "already_signed";
+interface SignatureField {
+  id: number;
+  field_type: "signature" | "initials" | "date" | "text";
+  page_number: number;
+  x_percent: number;
+  y_percent: number;
+  width_percent: number;
+  height_percent: number;
+  label?: string;
+  required: boolean;
+  date_format?: string;
+  placeholder?: string;
+  completed: boolean;
+  value?: string;
+}
+
+type SigningStep = "loading" | "error" | "verify_email" | "view_document" | "consent" | "sign" | "sign_positioned" | "completed" | "declined" | "already_signed";
 
 export default function SigningCeremonyPage() {
   const params = useParams();
@@ -41,6 +59,7 @@ export default function SigningCeremonyPage() {
   const [error, setError] = useState<string | null>(null);
   const [signer, setSigner] = useState<SignerInfo | null>(null);
   const [request, setRequest] = useState<RequestInfo | null>(null);
+  const [fields, setFields] = useState<SignatureField[]>([]);
   const [requestCompleted, setRequestCompleted] = useState(false);
 
   const apiUrl = getApiBaseUrl();
@@ -62,6 +81,7 @@ export default function SigningCeremonyPage() {
 
       setSigner(data.signer);
       setRequest(data.request);
+      setFields(data.fields || []);
 
       // Determine which step to show
       if (data.signer.status === "signed") {
@@ -115,7 +135,12 @@ export default function SigningCeremonyPage() {
 
   // Handle consent given
   const handleConsentGiven = () => {
-    setStep("sign");
+    // Use positioned signing if fields exist, otherwise use legacy signature capture
+    if (request?.has_positioned_fields && fields.length > 0) {
+      setStep("sign_positioned");
+    } else {
+      setStep("sign");
+    }
   };
 
   // Handle signature submitted
@@ -195,8 +220,20 @@ export default function SigningCeremonyPage() {
           <SignatureCaptureStep
             token={token}
             signerName={signer?.name || ""}
-            onComplete={handleSignatureSubmitted}
+            onComplete={(completed) => handleSignatureSubmitted(completed)}
             onBack={() => setStep("consent")}
+          />
+        );
+
+      case "sign_positioned":
+        return (
+          <PositionedSigningStep
+            token={token}
+            documentTitle={request?.title || "Document"}
+            fields={fields}
+            signerName={signer?.name || ""}
+            onComplete={handleSignatureSubmitted}
+            onDecline={handleDecline}
           />
         );
 

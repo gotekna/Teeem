@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073056) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_165917) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2096,6 +2096,29 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073056) do
     t.index ["e_signature_signer_id"], name: "index_e_signature_events_on_e_signature_signer_id"
     t.index ["event_type"], name: "index_e_signature_events_on_event_type"
     t.index ["occurred_at"], name: "index_e_signature_events_on_occurred_at"
+  end
+
+  create_table "e_signature_fields", force: :cascade do |t|
+    t.bigint "e_signature_request_id", null: false
+    t.bigint "e_signature_signer_id", null: false
+    t.string "field_type", null: false
+    t.integer "page_number", null: false
+    t.float "x_percent", null: false
+    t.float "y_percent", null: false
+    t.float "width_percent", null: false
+    t.float "height_percent", null: false
+    t.string "label"
+    t.boolean "required", default: true
+    t.string "date_format", default: "%d/%m/%Y"
+    t.string "placeholder"
+    t.text "value"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["e_signature_request_id", "page_number"], name: "idx_esign_fields_request_page"
+    t.index ["e_signature_request_id"], name: "index_e_signature_fields_on_e_signature_request_id"
+    t.index ["e_signature_signer_id", "completed_at"], name: "idx_esign_fields_signer_completion"
+    t.index ["e_signature_signer_id"], name: "index_e_signature_fields_on_e_signature_signer_id"
   end
 
   create_table "e_signature_requests", force: :cascade do |t|
@@ -6273,6 +6296,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073056) do
   add_foreign_key "e_signature_events", "e_signature_requests"
   add_foreign_key "e_signature_events", "e_signature_signers"
   add_foreign_key "e_signature_events", "users", column: "actor_user_id"
+  add_foreign_key "e_signature_fields", "e_signature_requests"
+  add_foreign_key "e_signature_fields", "e_signature_signers"
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"

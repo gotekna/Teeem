@@ -7,21 +7,141 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 /**
  * Layout Container Components
  *
- * These components handle the common layout patterns used throughout TEEEM:
- * - Full height containers (tables, lists)
- * - Edge-to-edge layouts (no padding)
- * - Split views (list + preview pattern)
- * - Sticky headers that stay fixed while content scrolls
+ * Based on the Plans tab gold standard pattern:
+ * - Absolute positioning for split views
+ * - Headers positioned at top with z-10
+ * - Content panels start below headers (top-11 = 44px)
+ * - 30/70 split by default
  *
- * Usage:
- *   <FullHeightContainer>
- *     <StickyHeader>Header content</StickyHeader>
- *     <ScrollArea>Scrollable content</ScrollArea>
- *   </FullHeightContainer>
+ * Reference: JobPlansTab.tsx + TeeemDocumentView.tsx
  */
 
 // =============================================================================
-// FULL HEIGHT CONTAINER
+// SPLIT VIEW (Plans tab pattern)
+// =============================================================================
+
+interface SplitViewContainerProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+/**
+ * Container for split view layout. Uses edge-to-edge mode.
+ *
+ * @example
+ * <SplitViewContainer>
+ *   <SplitLeftHeader>...</SplitLeftHeader>
+ *   <SplitRightHeader>...</SplitRightHeader>
+ *   <SplitLeftPanel>...</SplitLeftPanel>
+ *   <SplitRightPanel>...</SplitRightPanel>
+ * </SplitViewContainer>
+ */
+export function SplitViewContainer({ children, className }: SplitViewContainerProps) {
+  useSetLayoutMode("edge-to-edge");
+
+  return (
+    <div className={cn("relative h-full", className)}>
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// SPLIT HEADERS (sticky at top, z-10)
+// =============================================================================
+
+interface SplitHeaderProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+/**
+ * Header for left panel (30% width).
+ * Absolutely positioned at top-left with z-10.
+ *
+ * Pattern from JobPlansTab:
+ * `absolute top-0 left-0 w-[30%] px-3 py-2 z-10 bg-card border-b`
+ */
+export function SplitLeftHeader({ children, className }: SplitHeaderProps) {
+  return (
+    <div className={cn(
+      "absolute top-0 left-0 w-[30%] px-3 py-2 z-10 bg-card border-b",
+      className
+    )}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Header for right panel (70% width).
+ * Absolutely positioned at top-right with z-10.
+ *
+ * Pattern from JobPlansTab:
+ * `absolute top-0 left-[30%] right-0 px-3 py-2 z-10 bg-card border-b`
+ */
+export function SplitRightHeader({ children, className }: SplitHeaderProps) {
+  return (
+    <div className={cn(
+      "absolute top-0 left-[30%] right-0 px-3 py-2 z-10 bg-card border-b",
+      className
+    )}>
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// SPLIT PANELS (content areas)
+// =============================================================================
+
+interface SplitPanelProps {
+  children: React.ReactNode;
+  className?: string;
+  /** Whether this panel has a header above it (adds top-11 offset) */
+  hasHeader?: boolean;
+}
+
+/**
+ * Left panel (30% width, list side).
+ * Starts at top-11 (44px) to clear header.
+ *
+ * Pattern from TeeemDocumentView:
+ * `absolute top-11 left-0 bottom-0 w-[30%] bg-card`
+ */
+export function SplitLeftPanel({ children, className, hasHeader = true }: SplitPanelProps) {
+  return (
+    <div className={cn(
+      "absolute left-0 bottom-0 w-[30%] bg-card overflow-auto",
+      hasHeader ? "top-11" : "top-0",
+      className
+    )}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * Right panel (70% width, preview side).
+ * Starts at top-0 by default (preview extends to top).
+ *
+ * Pattern from TeeemDocumentView:
+ * `absolute top-0 left-[30%] right-0 bottom-0 border-l bg-card`
+ */
+export function SplitRightPanel({ children, className, hasHeader = false }: SplitPanelProps) {
+  return (
+    <div className={cn(
+      "absolute left-[30%] right-0 bottom-0 border-l bg-card",
+      hasHeader ? "top-11" : "top-0",
+      className
+    )}>
+      {children}
+    </div>
+  );
+}
+
+// =============================================================================
+// FULL HEIGHT CONTAINER (for tables, lists)
 // =============================================================================
 
 interface FullHeightContainerProps {
@@ -33,16 +153,16 @@ interface FullHeightContainerProps {
 
 /**
  * Container that fills available vertical space.
- * Automatically sets the appropriate layout mode.
+ * Use with StickyHeader and ScrollContent for scrollable tables.
  *
  * @example
  * <FullHeightContainer>
  *   <StickyHeader>
  *     <h1>Page Title</h1>
  *   </StickyHeader>
- *   <ScrollArea>
+ *   <ScrollContent>
  *     <Table ... />
- *   </ScrollArea>
+ *   </ScrollContent>
  * </FullHeightContainer>
  */
 export function FullHeightContainer({
@@ -60,69 +180,50 @@ export function FullHeightContainer({
 }
 
 // =============================================================================
-// STICKY HEADER
+// STICKY HEADER (for full-height containers)
 // =============================================================================
 
 interface StickyHeaderProps {
   children: React.ReactNode;
   className?: string;
-  /** Use border-bottom for separation */
+  /** Show border-bottom */
   bordered?: boolean;
-  /** Background color class */
-  bg?: string;
 }
 
 /**
- * Header that sticks to the top while content scrolls below.
- *
- * @example
- * <StickyHeader bordered>
- *   <div className="flex items-center justify-between">
- *     <h1>Title</h1>
- *     <Button>Action</Button>
- *   </div>
- * </StickyHeader>
+ * Header that sticks to top while content scrolls.
+ * Use inside FullHeightContainer.
  */
 export function StickyHeader({
   children,
   className,
   bordered = true,
-  bg = "bg-card",
 }: StickyHeaderProps) {
   return (
-    <div
-      className={cn(
-        "sticky top-0 z-10 shrink-0 px-3 py-2",
-        bg,
-        bordered && "border-b",
-        className
-      )}
-    >
+    <div className={cn(
+      "shrink-0 px-3 py-2 bg-card z-10",
+      bordered && "border-b",
+      className
+    )}>
       {children}
     </div>
   );
 }
 
 // =============================================================================
-// SCROLL AREA
+// SCROLL CONTENT (scrollable area)
 // =============================================================================
 
-interface ScrollAreaProps {
+interface ScrollContentProps {
   children: React.ReactNode;
   className?: string;
 }
 
 /**
  * Scrollable content area that fills remaining space.
- *
- * @example
- * <ScrollArea>
- *   <div className="p-4">
- *     Long content here...
- *   </div>
- * </ScrollArea>
+ * Use inside FullHeightContainer after StickyHeader.
  */
-export function ScrollArea({ children, className }: ScrollAreaProps) {
+export function ScrollContent({ children, className }: ScrollContentProps) {
   return (
     <div className={cn("flex-1 min-h-0 overflow-auto", className)}>
       {children}
@@ -131,238 +232,23 @@ export function ScrollArea({ children, className }: ScrollAreaProps) {
 }
 
 // =============================================================================
-// SPLIT VIEW
+// EDGE TO EDGE CONTAINER (simple)
 // =============================================================================
 
-interface SplitViewProps {
-  children: React.ReactNode;
-  className?: string;
-  /** Width of left panel (CSS value or Tailwind class like "w-[30%]") */
-  leftWidth?: string;
-  /** Whether to use edge-to-edge layout mode */
-  edgeToEdge?: boolean;
-}
-
-/**
- * Split view container with left list and right preview panels.
- * Use SplitViewLeft, SplitViewRight, and SplitViewHeader inside.
- *
- * @example
- * <SplitView leftWidth="30%">
- *   <SplitViewLeft>
- *     <SplitViewHeader position="left">
- *       <Badge>Category</Badge>
- *     </SplitViewHeader>
- *     <ScrollArea>
- *       <ItemList items={items} />
- *     </ScrollArea>
- *   </SplitViewLeft>
- *   <SplitViewRight>
- *     <SplitViewHeader position="right">
- *       <Button>Action</Button>
- *     </SplitViewHeader>
- *     <PreviewContent />
- *   </SplitViewRight>
- * </SplitView>
- */
-export function SplitView({
-  children,
-  className,
-  leftWidth = "30%",
-  edgeToEdge = true,
-}: SplitViewProps) {
-  useSetLayoutMode(edgeToEdge ? "edge-to-edge" : "full-height");
-
-  // Convert percentage to CSS custom property for children to use
-  const style = {
-    "--split-left-width": leftWidth,
-  } as React.CSSProperties;
-
-  return (
-    <div className={cn("relative h-full", className)} style={style}>
-      {children}
-    </div>
-  );
-}
-
-// =============================================================================
-// SPLIT VIEW PANELS
-// =============================================================================
-
-interface SplitViewPanelProps {
+interface EdgeToEdgeContainerProps {
   children: React.ReactNode;
   className?: string;
 }
 
 /**
- * Left panel of a split view (list side).
- * Positions absolutely and respects the header height.
+ * Simple container that sets edge-to-edge layout mode.
+ * Content fills entire area with no padding.
  */
-export function SplitViewLeft({ children, className }: SplitViewPanelProps) {
+export function EdgeToEdgeContainer({ children, className }: EdgeToEdgeContainerProps) {
+  useSetLayoutMode("edge-to-edge");
+
   return (
-    <div
-      className={cn(
-        "absolute top-0 left-0 bottom-0 flex flex-col bg-card",
-        className
-      )}
-      style={{ width: "var(--split-left-width, 30%)" }}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * Right panel of a split view (preview side).
- * Positions absolutely to the right of the left panel.
- */
-export function SplitViewRight({ children, className }: SplitViewPanelProps) {
-  return (
-    <div
-      className={cn(
-        "absolute top-0 right-0 bottom-0 flex flex-col border-l bg-card",
-        className
-      )}
-      style={{ left: "var(--split-left-width, 30%)" }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// =============================================================================
-// SPLIT VIEW HEADER
-// =============================================================================
-
-interface SplitViewHeaderProps {
-  children: React.ReactNode;
-  className?: string;
-  /** Which panel this header is for */
-  position: "left" | "right";
-  /** Show border-bottom */
-  bordered?: boolean;
-}
-
-/**
- * Sticky header for a split view panel.
- *
- * @example
- * <SplitViewHeader position="left">
- *   <Badge>Documents (5)</Badge>
- *   <Button>Add</Button>
- * </SplitViewHeader>
- */
-export function SplitViewHeader({
-  children,
-  className,
-  position,
-  bordered = true,
-}: SplitViewHeaderProps) {
-  return (
-    <div
-      className={cn(
-        "shrink-0 px-3 py-2 bg-card z-10",
-        bordered && "border-b",
-        position === "right" && "flex items-center justify-end gap-2",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-// =============================================================================
-// SPLIT VIEW CONTENT
-// =============================================================================
-
-interface SplitViewContentProps {
-  children: React.ReactNode;
-  className?: string;
-  /** Enable scrolling */
-  scroll?: boolean;
-}
-
-/**
- * Content area within a split view panel.
- * Fills remaining space after header.
- */
-export function SplitViewContent({
-  children,
-  className,
-  scroll = true,
-}: SplitViewContentProps) {
-  return (
-    <div
-      className={cn(
-        "flex-1 min-h-0",
-        scroll && "overflow-auto",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-// =============================================================================
-// PANEL (Generic)
-// =============================================================================
-
-interface PanelProps {
-  children: React.ReactNode;
-  className?: string;
-}
-
-/**
- * Generic panel with flex column layout.
- * Useful for creating sections with header + content.
- */
-export function Panel({ children, className }: PanelProps) {
-  return (
-    <div className={cn("flex flex-col h-full", className)}>
-      {children}
-    </div>
-  );
-}
-
-/**
- * Panel header - sticky at top of panel.
- */
-export function PanelHeader({
-  children,
-  className,
-  bordered = true,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  bordered?: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "shrink-0 px-3 py-2 bg-card",
-        bordered && "border-b",
-        className
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
-/**
- * Panel content - scrollable area filling remaining space.
- */
-export function PanelContent({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex-1 min-h-0 overflow-auto", className)}>
+    <div className={cn("relative h-full", className)}>
       {children}
     </div>
   );

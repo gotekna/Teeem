@@ -28,6 +28,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Types
 interface NotificationSettings {
@@ -73,6 +74,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function MeetingTypesPage() {
+  useSetLayoutMode("full-height");
+
   const { toast } = useToast();
   const [meetingTypes, setMeetingTypes] = useState<MeetingType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -263,7 +266,7 @@ export default function MeetingTypesPage() {
           <CardHeader>
             <CardTitle>Meeting Types ({filteredMeetingTypes.length})</CardTitle>
           </CardHeader>
-          <ScrollArea className="h-[calc(100vh-350px)]">
+          <ScrollArea className="max-h-[500px]">
             <CardContent className="divide-y p-0">
               {filteredMeetingTypes.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground">
@@ -364,7 +367,7 @@ export default function MeetingTypesPage() {
               Select a meeting type to view details
             </CardContent>
           ) : (
-            <ScrollArea className="h-[calc(100vh-350px)]">
+            <ScrollArea className="max-h-[500px]">
               <CardContent className="divide-y p-0">
                 {/* Description */}
                 <div className="px-4 py-4">

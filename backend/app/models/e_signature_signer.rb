@@ -13,6 +13,7 @@ class ESignatureSigner < ApplicationRecord
   belongs_to :e_signature_request
   belongs_to :contact, optional: true
   has_many :events, class_name: "ESignatureEvent", dependent: :destroy
+  has_many :fields, class_name: "ESignatureField", dependent: :destroy
 
   # Validations
   validates :name, presence: true

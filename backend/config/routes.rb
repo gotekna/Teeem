@@ -503,6 +503,7 @@ Rails.application.routes.draw do
         post ":token/sign", to: "signing_ceremony#sign"
         post ":token/decline", to: "signing_ceremony#decline"
         get ":token/document", to: "signing_ceremony#download_document"
+        post ":token/fields/:field_id/complete", to: "signing_ceremony#complete_field"
       end
 
       # Purchase Orders management

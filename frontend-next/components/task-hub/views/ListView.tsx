@@ -134,7 +134,7 @@ export function ListView() {
       </div>
 
       {/* Rows */}
-      <div className="divide-y divide-border/50 max-h-[calc(100vh-280px)] overflow-y-auto">
+      <div className="divide-y divide-border/50 max-h-[600px] overflow-y-auto">
         {sortedTasks.map(task => (
           <div
             key={task.id}

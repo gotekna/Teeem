@@ -1521,7 +1521,7 @@ function GoldStandardBillsInvoiceTab() {
         onRefresh={loadBills}
         showLiveDataBadge={true}
         loading={loading}
-        height="calc(100vh - 200px)"
+        height="100%"
       />
 
       {/* Info Box */}
@@ -1860,7 +1860,7 @@ function GoldDocumentTypeEditor() {
   return (
     <div className="flex gap-4">
       {/* Left: Document Type Selector */}
-      <div className="w-64 shrink-0 border rounded-lg p-3 max-h-[calc(100vh-300px)] overflow-auto">
+      <div className="w-64 shrink-0 border rounded-lg p-3 max-h-[600px] overflow-auto">
         <Label className="text-sm font-semibold mb-2 block">Select Document Type</Label>
         <div className="space-y-1">
           {documentTypes.map(dt => (

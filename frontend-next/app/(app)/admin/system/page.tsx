@@ -82,6 +82,7 @@ import { NavigationTab } from "./components/NavigationTab";
 import { JobTabsConfigTab } from "./components/JobTabsConfigTab";
 import { PdfFieldsTab } from "./components/PdfFieldsTab";
 import { AiProcessingTab } from "./components/AiProcessingTab";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -692,6 +693,9 @@ function CompanySettingsTab() {
 const FULL_PAGE_TABS = ["pdf-fields"];
 
 function SystemAdminPageContent() {
+  // Use full-height layout mode - tabs can use h-full
+  useSetLayoutMode("full-height");
+
   const searchParams = useSearchParams();
   const router = useRouter();
   const currentTab = searchParams.get("tab") || "company";
@@ -705,20 +709,20 @@ function SystemAdminPageContent() {
   // Full-page mode for certain tabs (like PDF Fields)
   if (isFullPage) {
     return (
-      <div className="flex flex-col h-full -m-4">
+      <div className="flex flex-col h-full -m-4 -mb-16">
         {/* Minimal header with back button */}
-        <div className="shrink-0 px-4 py-2 border-b bg-background flex items-center gap-4">
+        <div className="shrink-0 px-2 py-0.5 border-b bg-background flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => router.push('/admin/system?tab=company')}
-            className="h-8"
+            className="h-5 text-[10px] px-1"
           >
-            ← Back to System
+            ← Back
           </Button>
-          <span className="text-sm font-medium">PDF Field Position Editor</span>
+          <span className="text-[10px] text-muted-foreground">PDF Fields</span>
         </div>
-        <div className="flex-1 p-2 overflow-hidden">
+        <div className="flex-1 overflow-hidden">
           <PdfFieldsTab />
         </div>
       </div>

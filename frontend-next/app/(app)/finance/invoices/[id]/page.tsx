@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Types for external invoice data (from Xero)
 interface LineItem {
@@ -94,6 +95,9 @@ const statusColors: Record<string, string> = {
 };
 
 export default function InvoiceDetailPage() {
+  // Use full-height layout mode - container provides h-full
+  useSetLayoutMode("full-height");
+
   const params = useParams();
   const router = useRouter();
   const invoiceId = params?.id as string;
@@ -245,9 +249,9 @@ export default function InvoiceDetailPage() {
   };
 
   return (
-    <div className="flex gap-4 p-2 w-full overflow-hidden -mt-4">
+    <div className="flex gap-4 p-2 w-full overflow-hidden -mt-4 h-full">
       {/* LEFT HALF - Header + Details (flexible width) */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden h-[calc(100vh-80px)]">
+      <div className="flex-1 min-w-0 flex flex-col gap-2 overflow-hidden h-full">
         {/* Header - EXACT same structure as bills page */}
         <div className="flex items-center justify-between p-1 shrink-0 bg-muted/30 rounded">
           {/* Left - Pay From / Pay To */}
@@ -349,7 +353,7 @@ export default function InvoiceDetailPage() {
         {/* Details Grid - EXACT same structure as bills page (grid-cols-2) */}
         <div className="grid grid-cols-2 gap-2 flex-1 min-h-0">
           {/* Invoice Details - A4 Portrait */}
-          <Card className="overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]">
+          <Card className="overflow-auto aspect-[1/1.414]">
             <CardHeader className="py-2 px-3">
               <CardTitle className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
@@ -479,7 +483,7 @@ export default function InvoiceDetailPage() {
           </Card>
 
           {/* Line Items / Payments Panel - SAME structure as PO panel */}
-          <Card className="overflow-auto aspect-[1/1.414] max-h-[calc(100vh-220px)]">
+          <Card className="overflow-auto aspect-[1/1.414]">
             <CardHeader className="py-2 px-3">
               <CardTitle className="flex items-center justify-between text-sm">
                 <span className="flex items-center gap-2">
@@ -562,7 +566,7 @@ export default function InvoiceDetailPage() {
       </div>{/* End Left Half */}
 
       {/* RIGHT HALF - PDF Preview (fills available space) - EXACT same structure as bills page */}
-      <div className="flex-1 min-w-[500px] sticky top-0 h-[calc(100vh-80px)]">
+      <div className="flex-1 min-w-[500px] sticky top-0 h-full">
         <Card className="h-full w-full">
           <CardContent className="p-2 h-full">
             {pdfLoading ? (

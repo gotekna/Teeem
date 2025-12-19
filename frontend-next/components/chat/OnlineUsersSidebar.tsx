@@ -129,7 +129,7 @@ export function OnlineUsersSidebar({
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
-        <ScrollArea className="h-[calc(100vh-340px)]">
+        <ScrollArea className="max-h-[400px]">
           <div className="px-3 pb-3 space-y-1">
             {loading ? (
               <div className="flex items-center justify-center py-8">

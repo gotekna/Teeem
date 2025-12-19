@@ -1149,7 +1149,7 @@ export function UIComponentsPlaygroundTab() {
       </p>
 
       {/* Component Grid by Tier */}
-      <ScrollArea className="h-[calc(100vh-300px)]">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-8 pr-4">
           {([1, 2, 3, 4, 5] as ComponentTier[]).map((tier) => {
             const tierComponents = componentsByTier[tier];

@@ -25,9 +25,15 @@ class ESignaturePdfStamper
     # Parse the PDF
     document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
 
-    # Add signature footer to each page
-    document.pages.each_with_index do |page, index|
-      add_signature_footer(page, index + 1, document.pages.count)
+    # Check if we have positioned fields
+    if @request.fields.any?
+      # Stamp positioned fields at their defined locations
+      stamp_positioned_fields(document)
+    else
+      # Legacy: Add signature footer to each page
+      document.pages.each_with_index do |page, index|
+        add_signature_footer(page, index + 1, document.pages.count)
+      end
     end
 
     # Add completion certificate as final page
@@ -134,6 +140,152 @@ class ESignaturePdfStamper
     status_color = @request.status == "completed" ? "22c55e" : "f59e0b"
     canvas.fill_color(status_color)
     canvas.text(@request.status.upcase, at: [ box.width - MARGIN - 60, y - 12 ])
+  end
+
+  # Stamp all positioned fields onto the document
+  def stamp_positioned_fields(document)
+    # Group fields by page
+    fields_by_page = @request.fields.completed.group_by(&:page_number)
+
+    fields_by_page.each do |page_number, fields|
+      # Pages are 0-indexed in HexaPDF
+      page = document.pages[page_number - 1]
+      next unless page
+
+      box = page.box
+
+      fields.each do |field|
+        stamp_field(document, page, box, field)
+      end
+    end
+  end
+
+  # Stamp a single field at its positioned location
+  def stamp_field(document, page, box, field)
+    # Convert percentage position to PDF coordinates
+    # PDF coordinates are from bottom-left, so we need to flip Y
+    x = (field.x_percent / 100.0) * box.width
+    y = box.height - ((field.y_percent / 100.0) * box.height)
+    width = (field.width_percent / 100.0) * box.width
+    height = (field.height_percent / 100.0) * box.height
+
+    # Adjust Y to account for height (PDF draws from bottom)
+    y = y - height
+
+    case field.field_type
+    when "signature", "initials"
+      stamp_signature_field(document, page, field, x, y, width, height)
+    when "date"
+      stamp_date_field(page, field, x, y, width, height)
+    when "text"
+      stamp_text_field(page, field, x, y, width, height)
+    end
+  end
+
+  # Stamp a signature or initials field
+  def stamp_signature_field(document, page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+    signer = field.e_signature_signer
+
+    # Draw field border (light gray dashed)
+    canvas.stroke_color("cccccc")
+    canvas.line_dash_pattern([ 2, 2 ])
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_dash_pattern(0)
+
+    # Add signature image
+    if field.value.present? && field.value.start_with?("data:image")
+      begin
+        # Decode base64 image
+        image_data = field.value.split(",")[1]
+        image_bytes = Base64.decode64(image_data)
+
+        # Create temp file and add to PDF
+        Tempfile.create([ "sig", ".png" ]) do |temp|
+          temp.binmode
+          temp.write(image_bytes)
+          temp.rewind
+
+          image = document.images.add(temp.path)
+          # Add some padding inside the field
+          padding = 2
+          canvas.image(
+            image,
+            at: [ x + padding, y + padding ],
+            width: width - (padding * 2),
+            height: height - 10 # Leave room for metadata
+          )
+        end
+      rescue StandardError => e
+        Rails.logger.error("ESignaturePdfStamper: Failed to stamp signature image: #{e.message}")
+        # Fall back to signer name
+        stamp_fallback_text(canvas, signer.name, x, y, width, height)
+      end
+    else
+      stamp_fallback_text(canvas, signer.name, x, y, width, height)
+    end
+
+    # Add signature metadata below the signature
+    canvas.font("Helvetica", size: 5)
+    canvas.fill_color("888888")
+    metadata = "#{signer.name} | #{field.completed_at&.strftime('%d/%m/%Y %H:%M')}"
+    canvas.text(metadata, at: [ x + 2, y + 2 ])
+  end
+
+  # Stamp a date field
+  def stamp_date_field(page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+
+    # Format the date value
+    formatted_date = if field.value.present?
+      begin
+        Date.parse(field.value).strftime(field.date_format.presence || "%d/%m/%Y")
+      rescue ArgumentError
+        field.value
+      end
+    else
+      ""
+    end
+
+    # Draw field border
+    canvas.stroke_color("cccccc")
+    canvas.line_dash_pattern([ 2, 2 ])
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_dash_pattern(0)
+
+    # Draw the date text
+    canvas.font("Helvetica", size: [ height * 0.6, 12 ].min)
+    canvas.fill_color("000000")
+    # Center vertically in the field
+    text_y = y + (height / 2) - 4
+    canvas.text(formatted_date, at: [ x + 4, text_y ])
+  end
+
+  # Stamp a text field
+  def stamp_text_field(page, field, x, y, width, height)
+    canvas = page.canvas(type: :overlay)
+
+    # Draw field border
+    canvas.stroke_color("cccccc")
+    canvas.line_dash_pattern([ 2, 2 ])
+    canvas.rectangle(x, y, width, height)
+    canvas.stroke
+    canvas.line_dash_pattern(0)
+
+    # Draw the text
+    canvas.font("Helvetica", size: [ height * 0.6, 10 ].min)
+    canvas.fill_color("000000")
+    text_y = y + (height / 2) - 3
+    canvas.text(field.value || "", at: [ x + 4, text_y ])
+  end
+
+  # Fall back to text if signature image fails
+  def stamp_fallback_text(canvas, text, x, y, width, height)
+    canvas.font("Helvetica", size: 12)
+    canvas.fill_color("000000")
+    canvas.text(text, at: [ x + 5, y + height - 15 ])
   end
 
   def add_signature_annotation(document, page, signature_data, signature_type, signer, x, y)

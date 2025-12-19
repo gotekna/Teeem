@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import MultipleSelector from "@/components/ui/multiple-selector";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Token Components - SSoT for placeholder handling
 import { TokenBadge } from "@/components/ui/tokens";
@@ -97,6 +98,9 @@ interface DocumentType {
 }
 
 export default function DocumentTypeDetailPage() {
+  // Use full-height layout mode - container provides h-full
+  useSetLayoutMode("full-height");
+
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
@@ -679,7 +683,7 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col">
+    <div className="h-full flex flex-col">
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
@@ -1238,7 +1242,7 @@ export default function DocumentTypeDetailPage() {
 
             {/* Right side - Available Placeholders */}
             <div className="w-[17rem] shrink-0 self-start sticky top-4">
-              <div className="space-y-1.5 p-2 bg-muted/30 rounded-lg border max-h-[calc(100vh-8rem)] overflow-y-auto">
+              <div className="space-y-1.5 p-2 bg-muted/30 rounded-lg border max-h-[600px] overflow-y-auto">
                 <div className="flex items-center gap-2 mb-1">
                   <Label className="text-[10px] font-semibold text-muted-foreground shrink-0">
                     Placeholders

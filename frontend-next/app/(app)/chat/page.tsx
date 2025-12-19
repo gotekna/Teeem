@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   Search,
   Send,
@@ -59,6 +60,9 @@ import type {
 } from "@/types/chat";
 
 export default function ChatPage() {
+  // Use full-height layout mode
+  useSetLayoutMode("full-height");
+
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -545,7 +549,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
+    <div className="flex flex-col h-full">
       {/* Compact Header */}
       <div className="flex items-center justify-between py-2 px-1 shrink-0">
         <h1 className="text-lg font-semibold">Messages</h1>

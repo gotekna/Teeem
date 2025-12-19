@@ -10,8 +10,12 @@ import { Loader2, Pen, Type, Upload, Trash2, ArrowLeft } from "lucide-react";
 interface SignatureCaptureStepProps {
   token: string;
   signerName: string;
-  onComplete: (allComplete: boolean) => void;
+  onComplete: (allComplete: boolean, signatureData?: string) => void;
   onBack: () => void;
+  /** When true, shows inline without submitting to API - returns signature data via onComplete */
+  embedded?: boolean;
+  /** When true, shows as initials capture with smaller canvas */
+  initialsMode?: boolean;
 }
 
 type SignatureType = "drawn" | "typed" | "uploaded";
@@ -28,6 +32,8 @@ export function SignatureCaptureStep({
   signerName,
   onComplete,
   onBack,
+  embedded = false,
+  initialsMode = false,
 }: SignatureCaptureStepProps) {
   const [signatureType, setSignatureType] = useState<SignatureType>("drawn");
   const [signatureData, setSignatureData] = useState<string | null>(null);
@@ -204,6 +210,12 @@ export function SignatureCaptureStep({
       return;
     }
 
+    // In embedded mode, just return the signature data without API call
+    if (embedded) {
+      onComplete(false, sigData);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -219,7 +231,7 @@ export function SignatureCaptureStep({
 
       if (response.ok) {
         const data = await response.json();
-        onComplete(data.request_complete || false);
+        onComplete(data.request_complete || false, sigData);
       } else {
         const data = await response.json();
         setError(data.errors?.[0] || "Failed to submit signature");
@@ -238,12 +250,22 @@ export function SignatureCaptureStep({
     return false;
   };
 
+  const title = initialsMode ? "Add Your Initials" : "Add Your Signature";
+  const description = initialsMode
+    ? "Draw or type your initials below"
+    : "Choose how you'd like to sign this document";
+  const canvasHeight = initialsMode ? "h-[100px]" : "h-[150px]";
+
   return (
-    <div className="py-6">
-      <h2 className="text-xl font-semibold text-center mb-2">Add Your Signature</h2>
-      <p className="text-muted-foreground text-center mb-6">
-        Choose how you&apos;d like to sign this document
-      </p>
+    <div className={embedded ? "py-2" : "py-6"}>
+      {!embedded && (
+        <>
+          <h2 className="text-xl font-semibold text-center mb-2">{title}</h2>
+          <p className="text-muted-foreground text-center mb-6">
+            {description}
+          </p>
+        </>
+      )}
 
       <Tabs value={signatureType} onValueChange={(v) => setSignatureType(v as SignatureType)} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
@@ -266,7 +288,7 @@ export function SignatureCaptureStep({
           <div className="relative border-2 border-dashed rounded-lg p-1 bg-white">
             <canvas
               ref={canvasRef}
-              className="w-full h-[150px] cursor-crosshair touch-none"
+              className={`w-full ${canvasHeight} cursor-crosshair touch-none`}
               onMouseDown={startDrawing}
               onMouseMove={draw}
               onMouseUp={stopDrawing}
@@ -377,11 +399,13 @@ export function SignatureCaptureStep({
       )}
 
       {/* Action buttons */}
-      <div className="flex gap-4 mt-8">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
+      <div className={`flex gap-4 ${embedded ? "mt-4" : "mt-8"}`}>
+        {!embedded && (
+          <Button variant="outline" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        )}
         <Button
           onClick={submitSignature}
           disabled={!canSubmit() || isSubmitting}
@@ -390,19 +414,21 @@ export function SignatureCaptureStep({
           {isSubmitting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Signing...
+              {initialsMode ? "Applying..." : "Signing..."}
             </>
           ) : (
-            "Apply Signature"
+            initialsMode ? "Apply Initials" : "Apply Signature"
           )}
         </Button>
       </div>
 
       {/* Legal notice */}
-      <p className="text-xs text-muted-foreground text-center mt-6">
-        By clicking &ldquo;Apply Signature&rdquo;, you agree that your electronic signature is
-        legally binding and has the same effect as signing a physical document.
-      </p>
+      {!embedded && (
+        <p className="text-xs text-muted-foreground text-center mt-6">
+          By clicking &ldquo;Apply Signature&rdquo;, you agree that your electronic signature is
+          legally binding and has the same effect as signing a physical document.
+        </p>
+      )}
     </div>
   );
 }

@@ -19,10 +19,12 @@ class ESignatureRequest < ApplicationRecord
 
   has_many :signers, class_name: "ESignatureSigner", dependent: :destroy
   has_many :events, class_name: "ESignatureEvent", dependent: :destroy
+  has_many :fields, class_name: "ESignatureField", dependent: :destroy
   has_one :certificate, class_name: "ESignatureCertificate", dependent: :destroy
 
   # Nested attributes
   accepts_nested_attributes_for :signers, allow_destroy: true
+  accepts_nested_attributes_for :fields, allow_destroy: true
 
   # Validations
   validates :title, presence: true

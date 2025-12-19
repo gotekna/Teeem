@@ -32,6 +32,25 @@ class Api::V1::SigningCeremonyController < ApplicationController
       return
     end
 
+    # Get this signer's fields (if positioned signing is used)
+    signer_fields = signer.fields.by_page.map do |field|
+      {
+        id: field.id,
+        field_type: field.field_type,
+        page_number: field.page_number,
+        x_percent: field.x_percent,
+        y_percent: field.y_percent,
+        width_percent: field.width_percent,
+        height_percent: field.height_percent,
+        label: field.label,
+        required: field.required,
+        date_format: field.date_format,
+        placeholder: field.placeholder,
+        completed: field.complete?,
+        value: field.value
+      }
+    end
+
     render json: {
       success: true,
       signer: {
@@ -49,10 +68,12 @@ class Api::V1::SigningCeremonyController < ApplicationController
         title: request.title,
         description: request.description,
         expires_at: request.expires_at,
+        has_positioned_fields: request.fields.any?,
         other_signers: request.signers.where.not(id: signer.id).map { |s|
           { name: s.name, status: s.status }
         }
-      }
+      },
+      fields: signer_fields
     }
   end
 
@@ -147,6 +168,63 @@ class Api::V1::SigningCeremonyController < ApplicationController
         errors: [ "Failed to record signature" ]
       }, status: :unprocessable_entity
     end
+  end
+
+  # POST /api/v1/sign/:token/fields/:field_id/complete
+  # Complete a single signature field
+  def complete_field
+    field = @signer.fields.find_by(id: params[:field_id])
+
+    unless field
+      render json: {
+        success: false,
+        errors: [ "Field not found" ]
+      }, status: :not_found
+      return
+    end
+
+    if field.complete?
+      render json: {
+        success: false,
+        errors: [ "This field has already been completed" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    unless @signer.email_verified?
+      render json: {
+        success: false,
+        errors: [ "Please verify your email before signing" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    value = params[:value]
+
+    # Validate value based on field type
+    if field.required && value.blank?
+      render json: {
+        success: false,
+        errors: [ "This field is required" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    field.complete!(value)
+
+    # Check if all fields are now complete
+    all_complete = @signer.fields.required.incomplete.empty?
+
+    render json: {
+      success: true,
+      message: "Field completed",
+      field: {
+        id: field.id,
+        completed: true,
+        value: field.field_type.in?(%w[signature initials]) ? "[CAPTURED]" : field.value
+      },
+      all_fields_complete: all_complete
+    }
   end
 
   # POST /api/v1/sign/:token/decline

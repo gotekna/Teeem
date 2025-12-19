@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -342,7 +343,7 @@ function EmailsSection({ jobId }: { jobId: string | number }) {
   }
 
   return (
-    <Card className="flex flex-col h-[calc(100vh-20rem)]">
+    <Card className="flex flex-col h-full">
       {/* Search bar with sync/import buttons */}
       <CardHeader className="border-b bg-muted/50 py-4">
         <div className="flex items-center gap-3">
@@ -596,9 +597,12 @@ function SmsSection() {
 }
 
 export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabProps) {
+  // Use full-height layout mode
+  useSetLayoutMode("full-height");
+
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="messages">
+    <div className="flex flex-col h-full">
+      <Tabs defaultValue="messages" className="flex flex-col flex-1 min-h-0">
         <TabsList>
           <TabsTrigger value="messages" className="gap-2">
             <MessageCircle className="h-4 w-4" />
@@ -614,21 +618,21 @@ export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabPr
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="messages" className="mt-6">
+        <TabsContent value="messages" className="flex-1 min-h-0 mt-4">
           <EntityChat
             entityType="job"
             entityId={typeof jobId === "string" ? parseInt(jobId, 10) : jobId}
             entityName={jobTitle}
             showOnlineUsers={true}
-            maxHeight="500px"
+            className="h-full"
           />
         </TabsContent>
 
-        <TabsContent value="emails" className="mt-6">
+        <TabsContent value="emails" className="flex-1 min-h-0 mt-4">
           <EmailsSection jobId={jobId} />
         </TabsContent>
 
-        <TabsContent value="sms" className="mt-6">
+        <TabsContent value="sms" className="flex-1 min-h-0 mt-4">
           <SmsSection />
         </TabsContent>
       </Tabs>
