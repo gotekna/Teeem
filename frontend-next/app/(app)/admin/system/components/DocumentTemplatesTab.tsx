@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +21,12 @@ import {
   CheckCircle2,
   AlertCircle,
   Pencil,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TemplateEditor } from "./TemplateEditor";
+import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
 
 // SSoT Templates from TeknaDocumentGenerator (the source of truth)
 interface SsotTemplate {
@@ -64,7 +67,17 @@ interface TemplateGroup {
   templates: SsotTemplate[];
 }
 
+// Inner tabs for the Document Templates section
+const DOC_INNER_TABS = [
+  { id: "documents", label: "Document Templates", icon: FileText },
+  { id: "bank-statements", label: "Bank Statements", icon: Landmark },
+];
+
 export function DocumentTemplatesTab() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const innerTab = searchParams.get("inner") || "documents";
+
   const [ssotTemplates, setSsotTemplates] = React.useState<SsotTemplate[]>([]);
   const [legacyTemplates, setLegacyTemplates] = React.useState<LegacyTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -75,6 +88,10 @@ export function DocumentTemplatesTab() {
   const [editingTemplate, setEditingTemplate] = React.useState<string | null>(null);
 
   const apiUrl = getApiBaseUrl();
+
+  const handleInnerTabChange = (value: string) => {
+    router.push(`/admin/system?tab=company&subtab=doc-templates&inner=${value}`);
+  };
 
   React.useEffect(() => {
     loadAllTemplates();
@@ -181,15 +198,7 @@ export function DocumentTemplatesTab() {
     return <Badge variant="secondary" className="text-xs">{layout.toUpperCase()}</Badge>;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  // If editing a template, show the editor
+  // If editing a template, show the editor (only for document templates)
   if (editingTemplate) {
     return (
       <TemplateEditor
@@ -201,19 +210,41 @@ export function DocumentTemplatesTab() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Document Templates</h2>
-          <p className="text-sm text-muted-foreground">
-            SSoT: Templates from TeknaDocumentGenerator (code-based)
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={loadAllTemplates}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
+      {/* Outer Tabs: Documents vs Bank Statements */}
+      <Tabs value={innerTab} onValueChange={handleInnerTabChange}>
+        <TabsList className="mb-4">
+          {DOC_INNER_TABS.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
+
+        {/* Document Templates Tab Content */}
+        <TabsContent value="documents">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold">Document Templates</h2>
+                  <p className="text-sm text-muted-foreground">
+                    SSoT: Templates from TeknaDocumentGenerator (code-based)
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={loadAllTemplates}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh
+                </Button>
+              </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -511,40 +542,49 @@ export function DocumentTemplatesTab() {
         </TabsContent>
       </Tabs>
 
-      {/* Info Section */}
-      <Card className="bg-muted/30">
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <h4 className="font-medium text-sm mb-2">SSoT Location</h4>
-              <p className="text-xs text-muted-foreground font-mono">
-                TeknaDocumentGenerator::TEMPLATES
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                backend/app/services/tekna_document_generator.rb
-              </p>
+              {/* Info Section */}
+              <Card className="bg-muted/30">
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">SSoT Location</h4>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        TeknaDocumentGenerator::TEMPLATES
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        backend/app/services/tekna_document_generator.rb
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">HTML Templates</h4>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        app/views/tekna_documents/templates/
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Layouts: tekna.html.erb, qbcc_official.html.erb
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="font-medium text-sm mb-2">Available Merge Fields</h4>
+                      <p className="text-xs text-muted-foreground">
+                        @job, @company, @client_names, @dear, @clients
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        @colour_selections, @specifications
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <div>
-              <h4 className="font-medium text-sm mb-2">HTML Templates</h4>
-              <p className="text-xs text-muted-foreground font-mono">
-                app/views/tekna_documents/templates/
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Layouts: tekna.html.erb, qbcc_official.html.erb
-              </p>
-            </div>
-            <div>
-              <h4 className="font-medium text-sm mb-2">Available Merge Fields</h4>
-              <p className="text-xs text-muted-foreground">
-                @job, @company, @client_names, @dear, @clients
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                @colour_selections, @specifications
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          )}
+        </TabsContent>
+
+        {/* Bank Statement Templates Tab Content */}
+        <TabsContent value="bank-statements">
+          <BankStatementTemplatesTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

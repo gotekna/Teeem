@@ -56,6 +56,7 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { FullHeightContainer, ScrollContent } from "@/components/ui/layout-containers";
 import dynamic from "next/dynamic";
 
 // Dynamically import the charts to avoid SSR issues with React Flow
@@ -1402,7 +1403,8 @@ export default function CorporateDashboardPage() {
   const uniqueContactCount = groupedByContact.length;
 
   return (
-    <div className="flex flex-col gap-6">
+    <FullHeightContainer>
+      <ScrollContent className="flex flex-col gap-6">
       {/* Header */}
       <div className="border-b pb-4">
         <h1 className="text-2xl font-bold tracking-tight font-serif">Corporate Dashboard</h1>
@@ -2637,6 +2639,7 @@ export default function CorporateDashboardPage() {
           </div>
         </div>
       )}
-    </div>
+      </ScrollContent>
+    </FullHeightContainer>
   );
 }
