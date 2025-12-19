@@ -64,10 +64,11 @@ module Engines
     # Field mappings for QBCC documents - text overlay positions
     # Used for fields that don't have form fields in the PDF template
     QBCC_CONTRACT_FIELDS = {
-      # Item 6: C and Total (no form fields exist on page 2)
-      # Positions adjusted based on visual testing
+      # Item 6: C and Total (form fields 82/83 are on Page 3, but visually appear on Page 2)
       weekends_holidays_overlay: { type: :text, page: 2, x: 548, y: 263, size: 10 },  # C. after "etc.) ="
-      total_completion_overlay: { type: :text, page: 2, x: 485, y: 252, size: 10 }    # Between "A+B+C):" and "Calendar days"
+      total_completion_overlay: { type: :text, page: 2, x: 410, y: 240, size: 10 },   # COMPLETION PERIOD (A+B+C) box
+      # Item 7: "Completion Period of _____ calendar days" (no form field exists)
+      item7_completion_overlay: { type: :text, page: 2, x: 420, y: 152, size: 10 }    # After "Completion Period of"
     }.freeze
 
     # AcroForm field mappings for QBCC Contract
@@ -396,6 +397,7 @@ module Engines
         # Text overlay versions (for fields that don't exist as form fields on page 2)
         data[:weekends_holidays_overlay] = weekend_holiday_days.to_s
         data[:total_completion_overlay] = total_completion.to_s
+        data[:item7_completion_overlay] = total_completion.to_s  # Same value for Item 7
 
         # Item 15: Prime Cost/Provisional Sums details and Special Conditions
         data[:prime_cost_details] ||= job.try(:prime_cost_details) if job.try(:prime_cost_details).present?
