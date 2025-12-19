@@ -153,12 +153,91 @@ class XeroSyncStatus < ApplicationRecord
       # Most recent activity
       last_activity = result.values.map { |v| v[:last_synced_at] }.compact.max
 
+      # SSoT: Detect orphaned PDFs (PDFs for invoices without contacts or drafts)
+      orphan_stats = detect_orphaned_pdfs
+
       {
         overall_status: overall_status,
         overall_health: overall_health,  # SSoT: red/yellow/green system health
         last_activity_at: last_activity,
-        sync_types: result
+        sync_types: result,
+        orphan_stats: orphan_stats
       }
+    end
+
+    # SSoT: Detect orphaned PDFs - documents that exist for invoices that are no longer eligible
+    # This catches data inconsistencies between CorporateCompanyDocument and ExternalInvoice
+    def detect_orphaned_pdfs
+      # Count PDFs marked as orphaned
+      marked_orphaned = CorporateCompanyDocument.where(source: "xero", is_pdf_eligible: false).count
+
+      # Count PDFs that SHOULD be orphaned but aren't (data inconsistency)
+      # These are PDFs where the invoice exists but has no contact or is draft
+      inconsistent_pdfs = CorporateCompanyDocument
+        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: true })
+        .where("external_invoices.contact_id IS NULL OR external_invoices.status = 'draft'")
+        .count
+
+      # Count PDFs that are marked orphaned but shouldn't be (invoice is now eligible)
+      false_orphans = CorporateCompanyDocument
+        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: false })
+        .where.not(external_invoices: { contact_id: nil })
+        .where.not(external_invoices: { status: "draft" })
+        .count
+
+      health_status = if inconsistent_pdfs > 0 || false_orphans > 0
+        "yellow"  # Data inconsistency detected
+      elsif marked_orphaned > 0
+        "green"   # Orphans exist but are properly tracked
+      else
+        "green"   # No orphans at all
+      end
+
+      {
+        marked_orphaned: marked_orphaned,
+        inconsistent_should_be_orphaned: inconsistent_pdfs,
+        inconsistent_should_not_be_orphaned: false_orphans,
+        health_status: health_status,
+        message: inconsistent_pdfs > 0 || false_orphans > 0 ?
+          "#{inconsistent_pdfs + false_orphans} PDFs have inconsistent eligibility state" :
+          "#{marked_orphaned} orphaned PDFs properly tracked"
+      }
+    end
+
+    # SSoT: Fix orphaned PDFs - run this to heal data inconsistencies
+    def heal_orphaned_pdfs!
+      healed_count = 0
+
+      # Fix PDFs that should be orphaned but aren't
+      CorporateCompanyDocument
+        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: true })
+        .where("external_invoices.contact_id IS NULL OR external_invoices.status = 'draft'")
+        .find_each do |doc|
+          invoice = doc.documentable
+          reason = if invoice.contact_id.nil?
+            "contact_removed"
+          elsif invoice.status == "draft"
+            "became_draft"
+          else
+            "eligibility_lost"
+          end
+          doc.update!(is_pdf_eligible: false, orphaned_at: Time.current, orphan_reason: reason)
+          healed_count += 1
+        end
+
+      # Fix PDFs that are marked orphaned but shouldn't be
+      CorporateCompanyDocument
+        .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+        .where(corporate_company_documents: { source: "xero", documentable_type: "ExternalInvoice", is_pdf_eligible: false })
+        .where.not(external_invoices: { contact_id: nil })
+        .where.not(external_invoices: { status: "draft" })
+        .update_all(is_pdf_eligible: true, orphaned_at: nil, orphan_reason: nil)
+
+      Rails.logger.info("[ORPHAN_HEALER] Healed #{healed_count} orphaned PDFs")
+      healed_count
     end
   end
 end

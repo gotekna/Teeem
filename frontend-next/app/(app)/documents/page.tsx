@@ -46,6 +46,7 @@ export default function DocumentsPage() {
     { id: "1", name: "Contracts", path: "/contracts", documents_count: 12 },
     { id: "2", name: "Financial", path: "/financial", documents_count: 8 },
     { id: "3", name: "Compliance", path: "/compliance", documents_count: 5 },
+    { id: "4", name: "Plans", path: "/plans", documents_count: 0 },
   ]);
   const [sharePointConnected] = useState(false);
 

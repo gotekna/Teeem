@@ -1488,13 +1488,17 @@ module Api
           total_pdf_eligible = pdf_eligible_invoices.count
 
           # Count invoices that have PDFs downloaded (filter by tenant if provided)
+          # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
+          # Otherwise downloaded count can exceed total when invoices lose contacts or become drafts
           pdf_query = CorporateCompanyDocument.where(source: "xero")
                                               .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                               .where(documentable_type: "ExternalInvoice")
+                                              .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                              .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
+                                              .where.not(external_invoices: { status: "draft" })  # SSoT: Match pdf_eligible_invoices
 
           if tenant_id.present?
-            pdf_query = pdf_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                 .where(external_invoices: { tenant_id: tenant_id })
+            pdf_query = pdf_query.where(external_invoices: { tenant_id: tenant_id })
           end
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
@@ -1531,13 +1535,16 @@ module Api
           # sharepoint_file_id is set by OneDrive after successful upload - this is the SSoT
           # expected_onedrive_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
+          # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
           sharepoint_query = CorporateCompanyDocument.where(source: "xero")
                                                     .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                                     .where.not(sharepoint_file_id: nil)  # SSoT: Actually uploaded
                                                     .where(documentable_type: "ExternalInvoice")
+                                                    .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
+                                                    .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
+                                                    .where.not(external_invoices: { status: "draft" })  # SSoT: Match pdf_eligible_invoices
           if tenant_id.present?
-            sharepoint_query = sharepoint_query.joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
-                                               .where(external_invoices: { tenant_id: tenant_id })
+            sharepoint_query = sharepoint_query.where(external_invoices: { tenant_id: tenant_id })
           end
           sharepoint_pdfs_uploaded = sharepoint_query.count
 

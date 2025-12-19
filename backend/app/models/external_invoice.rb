@@ -6,6 +6,10 @@ class ExternalInvoice < ApplicationRecord
   # Documents attached to this invoice (PDF attachments from Xero, etc.)
   has_many :corporate_company_documents, as: :documentable, dependent: :nullify
 
+  # SSoT: Callbacks to maintain PDF eligibility when invoice state changes
+  # PDFs are only "eligible" when invoice has a contact AND is not draft
+  after_save :update_pdf_eligibility_on_state_change
+
   # Sources
   SOURCES = %w[xero myob quickbooks].freeze
 
@@ -266,6 +270,54 @@ class ExternalInvoice < ApplicationRecord
       "Quote #{invoice_number} - #{contact_name}"
     else
       "#{invoice_type.titleize} #{invoice_number}"
+    end
+  end
+
+  # Is this invoice eligible for PDF sync?
+  # SSoT: Invoice must have a contact AND not be draft
+  def pdf_eligible?
+    contact_id.present? && status != "draft"
+  end
+
+  private
+
+  # SSoT: Update PDF eligibility when invoice state changes
+  # Called after_save to keep CorporateCompanyDocument.is_pdf_eligible in sync
+  def update_pdf_eligibility_on_state_change
+    # Only process if contact_id or status changed
+    return unless saved_change_to_contact_id? || saved_change_to_status?
+
+    # Determine if we're becoming eligible or ineligible
+    was_eligible = contact_id_before_last_save.present? && status_before_last_save != "draft"
+    now_eligible = pdf_eligible?
+
+    # No change in eligibility
+    return if was_eligible == now_eligible
+
+    if now_eligible
+      # Became eligible - restore PDFs
+      corporate_company_documents.where(source: "xero").update_all(
+        is_pdf_eligible: true,
+        orphaned_at: nil,
+        orphan_reason: nil
+      )
+      Rails.logger.info("[PDF_ELIGIBILITY] Invoice #{id} became eligible, restored #{corporate_company_documents.where(source: 'xero').count} PDFs")
+    else
+      # Became ineligible - orphan PDFs
+      reason = if !contact_id.present? && contact_id_before_last_save.present?
+        "contact_removed"
+      elsif status == "draft" && status_before_last_save != "draft"
+        "became_draft"
+      else
+        "eligibility_lost"
+      end
+
+      corporate_company_documents.where(source: "xero").update_all(
+        is_pdf_eligible: false,
+        orphaned_at: Time.current,
+        orphan_reason: reason
+      )
+      Rails.logger.info("[PDF_ELIGIBILITY] Invoice #{id} became ineligible (#{reason}), orphaned #{corporate_company_documents.where(source: 'xero').count} PDFs")
     end
   end
 end
