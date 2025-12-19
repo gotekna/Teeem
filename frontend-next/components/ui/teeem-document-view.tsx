@@ -226,6 +226,55 @@ export function TeeemDocumentView<T extends DocumentItem>({
     setSelectedIds([]);
   };
 
+  // Drag-to-select state
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragMode, setDragMode] = useState<'add' | 'remove'>('add');
+  const draggedIdsRef = useRef<Set<number>>(new Set());
+
+  // Drag-to-select handlers
+  const handleDragStart = (id: number, isCurrentlySelected: boolean) => {
+    setIsDragging(true);
+    // If item is already selected, drag will deselect; otherwise drag will select
+    setDragMode(isCurrentlySelected ? 'remove' : 'add');
+    draggedIdsRef.current = new Set([id]);
+
+    // Apply immediately to first item
+    if (isCurrentlySelected) {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    } else {
+      setSelectedIds(prev => [...prev, id]);
+    }
+  };
+
+  const handleDragEnter = (id: number) => {
+    if (!isDragging || draggedIdsRef.current.has(id)) return;
+
+    draggedIdsRef.current.add(id);
+
+    if (dragMode === 'add') {
+      setSelectedIds(prev => prev.includes(id) ? prev : [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(i => i !== id));
+    }
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    draggedIdsRef.current = new Set();
+  };
+
+  // Global mouseup listener to end drag
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (isDragging) {
+        handleDragEnd();
+      }
+    };
+
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [isDragging]);
+
   // Rename handlers
   const startRename = () => {
     if (selectedDocument) {
@@ -349,16 +398,28 @@ export function TeeemDocumentView<T extends DocumentItem>({
                 key={id}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors",
-                  isSelected && "bg-muted"
+                  isSelected && "bg-muted",
+                  isDragging && "select-none"
                 )}
                 onClick={() => setSelectedDocument(doc)}
+                onMouseEnter={() => enableSelection && handleDragEnter(id)}
               >
                 {enableSelection && (
-                  <Checkbox
-                    checked={selectedIds.includes(id)}
-                    onCheckedChange={() => toggleSelection(id)}
+                  <div
+                    className="flex items-center justify-center p-1 -m-1 select-none"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      handleDragStart(id, selectedIds.includes(id));
+                    }}
+                    onMouseEnter={() => handleDragEnter(id)}
                     onClick={(e) => e.stopPropagation()}
-                  />
+                  >
+                    <Checkbox
+                      checked={selectedIds.includes(id)}
+                      className="pointer-events-none"
+                    />
+                  </div>
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{name}</p>
