@@ -461,6 +461,8 @@ module Api
           # Thumbnail for instant preview
           thumbnail_url: revision.thumbnail_url,
           thumbnail_file_id: revision.thumbnail_file_id,
+          # Inline base64 micro thumbnail for instant display (no network request)
+          micro_thumbnail_base64: revision.micro_thumbnail_base64,
           created_at: revision.created_at
         }
       end

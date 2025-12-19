@@ -89,6 +89,8 @@ interface Revision {
   // Thumbnail for instant preview
   thumbnail_url: string | null;
   thumbnail_file_id: string | null;
+  // Inline base64 micro thumbnail for instant display (no network request)
+  micro_thumbnail_base64: string | null;
 }
 
 interface JobPlan {
@@ -254,7 +256,13 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   };
 
   // Get thumbnail URL for instant preview (if available)
+  // Priority: 1) Inline base64 (instant, no network) 2) File download (slower)
   const getThumbnailUrl = (revision: Revision | null) => {
+    // Use inline base64 if available (instant, no network request)
+    if (revision?.micro_thumbnail_base64) {
+      return `data:image/webp;base64,${revision.micro_thumbnail_base64}`;
+    }
+    // Fall back to file download if no inline thumbnail
     if (!revision?.thumbnail_file_id) return null;
     return `${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${revision.thumbnail_file_id}&preview=true`;
   };

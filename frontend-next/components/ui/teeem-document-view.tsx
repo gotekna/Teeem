@@ -89,6 +89,7 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
 }
 
 // Helper component for authenticated image loading
+// Handles both data URLs (instant) and authenticated URLs (requires fetch)
 function AuthenticatedImage({
   src,
   alt,
@@ -98,7 +99,14 @@ function AuthenticatedImage({
   alt: string;
   className?: string;
 }) {
-  const { imageUrl, loading, error } = useAuthenticatedImage(src);
+  // Data URLs don't need authenticated fetch - display instantly
+  const isDataUrl = src.startsWith('data:');
+  const { imageUrl, loading, error } = useAuthenticatedImage(isDataUrl ? null : src);
+
+  // Data URLs: render immediately (no loading state)
+  if (isDataUrl) {
+    return <img src={src} alt={alt} className={className} />;
+  }
 
   if (loading) {
     return (

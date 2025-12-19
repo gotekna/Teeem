@@ -1862,66 +1862,35 @@ export default function ContactDetailPage() {
           )}
         </TabsList>
 
-        {/* Overview Tab */}
+        {/* Overview Tab - Redesigned Property Panel */}
         <TabsContent value="overview" className="mt-6">
           <ContactOverviewTab
             contact={contact}
-            setContact={setContact}
-            formData={formData}
-            hasChanges={hasChanges}
-            setHasChanges={setHasChanges}
-            saving={saving}
-            fieldErrors={fieldErrors}
-            setFieldErrors={setFieldErrors}
-            handleInputChange={handleInputChange}
-            handleAutoSave={handleAutoSave}
-            handleSave={handleSave}
-            handleTeamContactToggle={handleTeamContactToggle}
+            onContactUpdate={(updatedContact) => {
+              setContact(updatedContact);
+              // Sync formData with updated contact for other tabs
+              setFormData((prev) => ({
+                ...prev,
+                first_name: updatedContact.first_name || "",
+                middle_name: updatedContact.middle_name || "",
+                last_name: updatedContact.last_name || "",
+                display_name: updatedContact.display_name || "",
+                company_name_or_trust: updatedContact.company_name_or_trust || "",
+                email: updatedContact.email || "",
+                mobile_phone: updatedContact.mobile_phone || "",
+                office_phone: updatedContact.office_phone || "",
+                website: updatedContact.website || "",
+                notes: updatedContact.notes || "",
+                is_active: updatedContact.is_active,
+                is_family_member: updatedContact.is_family_member,
+                is_team_contact: updatedContact.is_team_contact,
+                entity_type: updatedContact.entity_type || "Person",
+                abn: updatedContact.abn || "",
+                acn: updatedContact.acn || "",
+                sync_with_xero: updatedContact.sync_with_xero,
+              }));
+            }}
             entityTypeMetadata={entityTypeMetadata}
-            availableCompanies={availableCompanies}
-            selectedCompanies={selectedCompanies}
-            loadingCompanies={loadingCompanies}
-            companyRoles={companyRoles}
-            handleCompanyChange={handleCompanyChange}
-            handleCompanyReorder={handleCompanyReorder}
-            handleCompanyRolesChange={handleCompanyRolesChange}
-            showAddCompany={showAddCompany}
-            setShowAddCompany={setShowAddCompany}
-            newCompanyName={newCompanyName}
-            setNewCompanyName={setNewCompanyName}
-            creatingCompany={creatingCompany}
-            handleCreateCompany={handleCreateCompany}
-            availablePeople={availablePeople}
-            selectedEmployees={selectedEmployees}
-            loadingPeople={loadingPeople}
-            employeeRoles={employeeRoles}
-            handleEmployeeChange={handleEmployeeChange}
-            handleEmployeeReorder={handleEmployeeReorder}
-            handleEmployeeRolesChange={handleEmployeeRolesChange}
-            handleRemoveEmployee={handleRemoveEmployee}
-            showAddEmployee={showAddEmployee}
-            setShowAddEmployee={setShowAddEmployee}
-            newEmployeeFirstName={newEmployeeFirstName}
-            setNewEmployeeFirstName={setNewEmployeeFirstName}
-            newEmployeeLastName={newEmployeeLastName}
-            setNewEmployeeLastName={setNewEmployeeLastName}
-            creatingEmployee={creatingEmployee}
-            handleCreateEmployee={handleCreateEmployee}
-            relatedEntities={relatedEntities}
-            loadingRelatedEntities={loadingRelatedEntities}
-            showAddRelatedEntity={showAddRelatedEntity}
-            setShowAddRelatedEntity={setShowAddRelatedEntity}
-            availableContacts={availableContacts}
-            relationshipTypeMetadata={relationshipTypeMetadata}
-            newRelatedEntityContactId={newRelatedEntityContactId}
-            setNewRelatedEntityContactId={setNewRelatedEntityContactId}
-            newRelatedEntityType={newRelatedEntityType}
-            setNewRelatedEntityType={setNewRelatedEntityType}
-            addingRelatedEntity={addingRelatedEntity}
-            handleAddRelatedEntity={handleAddRelatedEntity}
-            handleRemoveRelatedEntity={handleRemoveRelatedEntity}
-            getValidRelationshipTypes={getValidRelationshipTypes}
-            setEditModalOpen={setEditModalOpen}
           />
         </TabsContent>
 

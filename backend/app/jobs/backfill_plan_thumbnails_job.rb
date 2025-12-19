@@ -1,22 +1,32 @@
 # Background job to generate thumbnails for all existing plan revisions
 # Run via: BackfillPlanThumbnailsJob.perform_later
 #
+# Options:
+#   force: true - Regenerate ALL thumbnails (including existing ones)
+#                 Useful when adding new features like micro_thumbnail_base64
+#
 # This job is idempotent - it only processes revisions that don't have thumbnails yet.
 # Safe to run multiple times or interrupt and resume.
 #
 class BackfillPlanThumbnailsJob < ApplicationJob
   queue_as :default
 
-  def perform(batch_size: 50, delay_seconds: 2)
-    Rails.logger.info "[BackfillPlanThumbnails] Starting backfill..."
+  def perform(batch_size: 50, delay_seconds: 2, force: false)
+    Rails.logger.info "[BackfillPlanThumbnails] Starting backfill (force=#{force})..."
 
     # Find all revisions that need thumbnails
-    revisions = JobPlanRevision
-      .where(thumbnail_url: nil)
-      .where.not(sharepoint_file_id: nil)
+    # If force=true, regenerate all thumbnails (for adding micro_thumbnail_base64)
+    # Otherwise, only generate for revisions without any thumbnail
+    revisions = if force
+      JobPlanRevision.where.not(sharepoint_file_id: nil)
+    else
+      JobPlanRevision
+        .where("thumbnail_url IS NULL OR micro_thumbnail_base64 IS NULL")
+        .where.not(sharepoint_file_id: nil)
+    end
 
     total = revisions.count
-    Rails.logger.info "[BackfillPlanThumbnails] Found #{total} revisions without thumbnails"
+    Rails.logger.info "[BackfillPlanThumbnails] Found #{total} revisions to process"
 
     if total.zero?
       Rails.logger.info "[BackfillPlanThumbnails] Nothing to backfill, done!"

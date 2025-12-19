@@ -1,60 +1,26 @@
 "use client";
 
-import * as React from "react";
-import Link from "next/link";
-import {
-  Mail,
-  Phone,
-  Globe,
-  Building2,
-  MapPin,
-  Pencil,
-  Trash2,
-  User,
-  FileText,
-  Users,
-  CheckCircle,
-  ExternalLink,
-  Save,
-  Plus,
-  Link2,
-  Scale,
-  Star,
-  Search,
-  Loader2,
-  Home,
-} from "lucide-react";
-
+import React, { useCallback, useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-// DnD - standard components from @/components/ui/dnd
-import { SortableList, SortableItem } from '@/components/ui/dnd';
 import {
   hasFirstLastName,
   canHaveEmployees,
   canHaveEmployer,
-  isPerson,
-  isTrust,
-  isPriceOnly,
   type EntityTypeMetadata,
 } from "@/lib/entity-types";
+import {
+  PropertyRow,
+  PropertySection,
+  ContactHero,
+  PhonePropertyGroup,
+  EmailPropertyGroup,
+  AddressPropertyGroup,
+} from "@/components/contact";
 import type {
   Contact,
   ContactEmail,
@@ -68,2605 +34,523 @@ import {
   formatACN,
   validateABN,
   validateACN,
-  formatPhoneNumber,
-  validatePhoneNumber,
 } from "../types";
+import { Link2, Users, Building2, ExternalLink, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
 
-// Form data shape
-interface ContactFormData {
-  first_name: string;
-  middle_name: string;
-  last_name: string;
-  display_name: string;
-  company_name_or_trust: string;
-  email: string;
-  mobile_phone: string;
-  office_phone: string;
-  website: string;
-  address: string;
-  notes: string;
-  is_active: boolean;
-  is_family_member: boolean;
-  is_team_contact: boolean;
-  entity_type: string;
-  director_id: string;
-  date_of_birth: string;
-  place_of_birth: string;
-  birth_state: string;
-  birth_country: string;
-  residential_address: string;
-  drivers_licence: string;
-  passport_number: string;
-  abn: string;
-  acn: string;
-  sync_with_xero: boolean;
-}
-
+// Simplified props - component manages its own state
 interface ContactOverviewTabProps {
   contact: Contact;
-  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
-  formData: ContactFormData;
-  hasChanges: boolean;
-  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
-  saving: boolean;
-  fieldErrors: Record<string, string>;
-  setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  handleInputChange: (field: string, value: string | boolean) => void;
-  handleAutoSave: () => void;
-  handleSave: () => Promise<void>;
-  handleTeamContactToggle: (checked: boolean) => void;
-  // Entity type metadata
+  onContactUpdate: (updatedContact: Contact) => void;
   entityTypeMetadata: EntityTypeMetadata[];
-  // Company selection (for persons)
-  availableCompanies: Option[];
-  selectedCompanies: Option[];
-  loadingCompanies: boolean;
-  companyRoles: Record<string, string[]>;
-  handleCompanyChange: (newOptions: Option[]) => void;
-  handleCompanyReorder: (newCompanies: Option[]) => void;
-  handleCompanyRolesChange: (companyId: string, roleTypes: string[]) => void;
-  showAddCompany: boolean;
-  setShowAddCompany: React.Dispatch<React.SetStateAction<boolean>>;
-  newCompanyName: string;
-  setNewCompanyName: React.Dispatch<React.SetStateAction<string>>;
-  creatingCompany: boolean;
-  handleCreateCompany: () => Promise<void>;
-  // Employee selection (for companies)
-  availablePeople: Option[];
-  selectedEmployees: Option[];
-  loadingPeople: boolean;
-  employeeRoles: Record<string, string[]>;
-  handleEmployeeChange: (newOptions: Option[]) => void;
-  handleEmployeeReorder: (newEmployees: Contact["employees"]) => void;
-  handleEmployeeRolesChange: (employeeId: number, roleTypes: string[]) => void;
-  handleRemoveEmployee: (employeeId: number) => void;
-  showAddEmployee: boolean;
-  setShowAddEmployee: React.Dispatch<React.SetStateAction<boolean>>;
-  newEmployeeFirstName: string;
-  setNewEmployeeFirstName: React.Dispatch<React.SetStateAction<string>>;
-  newEmployeeLastName: string;
-  setNewEmployeeLastName: React.Dispatch<React.SetStateAction<string>>;
-  creatingEmployee: boolean;
-  handleCreateEmployee: () => Promise<void>;
-  // Related entities
-  relatedEntities: ContactRelationship[];
-  loadingRelatedEntities: boolean;
-  showAddRelatedEntity: boolean;
-  setShowAddRelatedEntity: React.Dispatch<React.SetStateAction<boolean>>;
-  availableContacts: Option[];
-  relationshipTypeMetadata: RelationshipTypeMetadata[];
-  newRelatedEntityContactId: string;
-  setNewRelatedEntityContactId: React.Dispatch<React.SetStateAction<string>>;
-  newRelatedEntityType: string;
-  setNewRelatedEntityType: React.Dispatch<React.SetStateAction<string>>;
-  addingRelatedEntity: boolean;
-  handleAddRelatedEntity: () => Promise<void>;
-  handleRemoveRelatedEntity: (relationshipId: number, sourceContactId: number) => void;
-  getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
-  // Modals
-  setEditModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+/**
+ * ContactOverviewTab - Redesigned property panel layout
+ *
+ * Key changes from legacy:
+ * - Single-column property panel layout (Notion/Linear-style)
+ * - Click-to-edit for all fields
+ * - Auto-save on blur with visual feedback
+ * - No separate Save button needed
+ * - State managed internally per field
+ */
 export function ContactOverviewTab({
   contact,
-  setContact,
-  formData,
-  hasChanges,
-  setHasChanges,
-  saving,
-  fieldErrors,
-  setFieldErrors,
-  handleInputChange,
-  handleAutoSave,
-  handleSave,
-  handleTeamContactToggle,
+  onContactUpdate,
   entityTypeMetadata,
-  availableCompanies,
-  selectedCompanies,
-  loadingCompanies,
-  companyRoles,
-  handleCompanyChange,
-  handleCompanyReorder,
-  handleCompanyRolesChange,
-  showAddCompany,
-  setShowAddCompany,
-  newCompanyName,
-  setNewCompanyName,
-  creatingCompany,
-  handleCreateCompany,
-  availablePeople,
-  selectedEmployees,
-  loadingPeople,
-  employeeRoles,
-  handleEmployeeChange,
-  handleEmployeeReorder,
-  handleEmployeeRolesChange,
-  handleRemoveEmployee,
-  showAddEmployee,
-  setShowAddEmployee,
-  newEmployeeFirstName,
-  setNewEmployeeFirstName,
-  newEmployeeLastName,
-  setNewEmployeeLastName,
-  creatingEmployee,
-  handleCreateEmployee,
-  relatedEntities,
-  loadingRelatedEntities,
-  showAddRelatedEntity,
-  setShowAddRelatedEntity,
-  availableContacts,
-  relationshipTypeMetadata,
-  newRelatedEntityContactId,
-  setNewRelatedEntityContactId,
-  newRelatedEntityType,
-  setNewRelatedEntityType,
-  addingRelatedEntity,
-  handleAddRelatedEntity,
-  handleRemoveRelatedEntity,
-  getValidRelationshipTypes,
-  setEditModalOpen,
 }: ContactOverviewTabProps) {
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Main Edit Form Column */}
-      <div className="lg:col-span-2 space-y-6">
-        {/* Basic Info and Contact Details - Side by Side */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Basic Info Card */}
-          <BasicInfoCard
-            contact={contact}
-            setContact={setContact}
-            formData={formData}
-            hasChanges={hasChanges}
-            setHasChanges={setHasChanges}
-            saving={saving}
-            handleInputChange={handleInputChange}
-            handleAutoSave={handleAutoSave}
-            handleSave={handleSave}
-            handleTeamContactToggle={handleTeamContactToggle}
-            entityTypeMetadata={entityTypeMetadata}
-            availableCompanies={availableCompanies}
-            selectedCompanies={selectedCompanies}
-            loadingCompanies={loadingCompanies}
-            handleCompanyChange={handleCompanyChange}
-            showAddCompany={showAddCompany}
-            setShowAddCompany={setShowAddCompany}
-            newCompanyName={newCompanyName}
-            setNewCompanyName={setNewCompanyName}
-            creatingCompany={creatingCompany}
-            handleCreateCompany={handleCreateCompany}
-            availablePeople={availablePeople}
-            selectedEmployees={selectedEmployees}
-            loadingPeople={loadingPeople}
-            handleEmployeeChange={handleEmployeeChange}
-            showAddEmployee={showAddEmployee}
-            setShowAddEmployee={setShowAddEmployee}
-            newEmployeeFirstName={newEmployeeFirstName}
-            setNewEmployeeFirstName={setNewEmployeeFirstName}
-            newEmployeeLastName={newEmployeeLastName}
-            setNewEmployeeLastName={setNewEmployeeLastName}
-            creatingEmployee={creatingEmployee}
-            handleCreateEmployee={handleCreateEmployee}
-          />
+  const { toast } = useToast();
+  const [relatedEntities, setRelatedEntities] = useState<ContactRelationship[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
 
-          {/* Contact Details Card */}
-          <ContactDetailsCard
-            contact={contact}
-            setContact={setContact}
-            formData={formData}
-            hasChanges={hasChanges}
-            setHasChanges={setHasChanges}
-            fieldErrors={fieldErrors}
-            setFieldErrors={setFieldErrors}
-            handleInputChange={handleInputChange}
-            handleAutoSave={handleAutoSave}
-          />
-        </div>
-
-        {/* Address Card */}
-        <AddressCard
-          contact={contact}
-          setContact={setContact}
-          setHasChanges={setHasChanges}
-          handleAutoSave={handleAutoSave}
-        />
-
-        {/* Associated People Card - for company/trust entity types */}
-        {canHaveEmployees(formData.entity_type) && contact.employees && contact.employees.length > 0 && (
-          <AssociatedPeopleCard
-            contact={contact}
-            formData={formData}
-            employeeRoles={employeeRoles}
-            handleEmployeeRolesChange={handleEmployeeRolesChange}
-            handleRemoveEmployee={handleRemoveEmployee}
-            handleEmployeeReorder={handleEmployeeReorder}
-            relationshipTypeMetadata={relationshipTypeMetadata}
-            getValidRelationshipTypes={getValidRelationshipTypes}
-          />
-        )}
-
-        {/* Associated Companies Card - for person entity type */}
-        {canHaveEmployer(formData.entity_type) && selectedCompanies.length > 0 && (
-          <AssociatedCompaniesCard
-            formData={formData}
-            selectedCompanies={selectedCompanies}
-            companyRoles={companyRoles}
-            handleCompanyChange={handleCompanyChange}
-            handleCompanyReorder={handleCompanyReorder}
-            handleCompanyRolesChange={handleCompanyRolesChange}
-            relationshipTypeMetadata={relationshipTypeMetadata}
-            getValidRelationshipTypes={getValidRelationshipTypes}
-          />
-        )}
-
-        {/* Related Entities Card */}
-        <RelatedEntitiesCard
-          formData={formData}
-          relatedEntities={relatedEntities}
-          loadingRelatedEntities={loadingRelatedEntities}
-          showAddRelatedEntity={showAddRelatedEntity}
-          setShowAddRelatedEntity={setShowAddRelatedEntity}
-          availableContacts={availableContacts}
-          relationshipTypeMetadata={relationshipTypeMetadata}
-          newRelatedEntityContactId={newRelatedEntityContactId}
-          setNewRelatedEntityContactId={setNewRelatedEntityContactId}
-          newRelatedEntityType={newRelatedEntityType}
-          setNewRelatedEntityType={setNewRelatedEntityType}
-          addingRelatedEntity={addingRelatedEntity}
-          handleAddRelatedEntity={handleAddRelatedEntity}
-          handleRemoveRelatedEntity={handleRemoveRelatedEntity}
-          getValidRelationshipTypes={getValidRelationshipTypes}
-        />
-
-        {/* Business & Tax Card - Hide for people with primary company */}
-        {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
-          <BusinessTaxCard
-            contact={contact}
-            formData={formData}
-            fieldErrors={fieldErrors}
-            setFieldErrors={setFieldErrors}
-            handleInputChange={handleInputChange}
-            handleAutoSave={handleAutoSave}
-          />
-        )}
-
-        {/* Notes Card */}
-        <NotesCard
-          formData={formData}
-          handleInputChange={handleInputChange}
-          handleAutoSave={handleAutoSave}
-        />
-
-        {/* Contact Persons (read-only) */}
-        {contact.contact_persons && contact.contact_persons.length > 0 && (
-          <ContactPersonsCard
-            contact={contact}
-            setEditModalOpen={setEditModalOpen}
-          />
-        )}
-
-        {/* Groups and LGAs Cards */}
-        {contact.contact_groups && contact.contact_groups.length > 0 && (
-          <GroupsCard contact={contact} />
-        )}
-
-        {contact.lgas && contact.lgas.length > 0 && (
-          <LGAsCard contact={contact} />
-        )}
-      </div>
-
-      {/* Sidebar Column */}
-      <div className="space-y-6">
-        {hasChanges && (
-          <Card className="border-primary/50 bg-primary/5">
-            <CardContent className="pt-6">
-              <Button onClick={handleSave} disabled={saving} className="w-full">
-                {saving ? <Spinner className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                Save Changes
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        <QuickStatsCard contact={contact} />
-        <SystemInfoCard contact={contact} />
-      </div>
-    </div>
-  );
-}
-
-// ================================
-// Basic Info Card
-// ================================
-
-interface BasicInfoCardProps {
-  contact: Contact;
-  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
-  formData: ContactFormData;
-  hasChanges: boolean;
-  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
-  saving: boolean;
-  handleInputChange: (field: string, value: string | boolean) => void;
-  handleAutoSave: () => void;
-  handleSave: () => Promise<void>;
-  handleTeamContactToggle: (checked: boolean) => void;
-  entityTypeMetadata: EntityTypeMetadata[];
-  availableCompanies: Option[];
-  selectedCompanies: Option[];
-  loadingCompanies: boolean;
-  handleCompanyChange: (newOptions: Option[]) => void;
-  showAddCompany: boolean;
-  setShowAddCompany: React.Dispatch<React.SetStateAction<boolean>>;
-  newCompanyName: string;
-  setNewCompanyName: React.Dispatch<React.SetStateAction<string>>;
-  creatingCompany: boolean;
-  handleCreateCompany: () => Promise<void>;
-  availablePeople: Option[];
-  selectedEmployees: Option[];
-  loadingPeople: boolean;
-  handleEmployeeChange: (newOptions: Option[]) => void;
-  showAddEmployee: boolean;
-  setShowAddEmployee: React.Dispatch<React.SetStateAction<boolean>>;
-  newEmployeeFirstName: string;
-  setNewEmployeeFirstName: React.Dispatch<React.SetStateAction<string>>;
-  newEmployeeLastName: string;
-  setNewEmployeeLastName: React.Dispatch<React.SetStateAction<string>>;
-  creatingEmployee: boolean;
-  handleCreateEmployee: () => Promise<void>;
-}
-
-function BasicInfoCard({
-  contact,
-  formData,
-  hasChanges,
-  saving,
-  handleInputChange,
-  handleAutoSave,
-  handleSave,
-  handleTeamContactToggle,
-  entityTypeMetadata,
-  availableCompanies,
-  selectedCompanies,
-  loadingCompanies,
-  handleCompanyChange,
-  showAddCompany,
-  setShowAddCompany,
-  newCompanyName,
-  setNewCompanyName,
-  creatingCompany,
-  handleCreateCompany,
-  availablePeople,
-  selectedEmployees,
-  loadingPeople,
-  handleEmployeeChange,
-  showAddEmployee,
-  setShowAddEmployee,
-  newEmployeeFirstName,
-  setNewEmployeeFirstName,
-  newEmployeeLastName,
-  setNewEmployeeLastName,
-  creatingEmployee,
-  handleCreateEmployee,
-}: BasicInfoCardProps) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <User className="h-5 w-5" />
-          Basic Information
-        </CardTitle>
-        {hasChanges && (
-          <Button onClick={handleSave} disabled={saving} size="sm">
-            {saving ? <Spinner className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Save
-          </Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-4">
-          {/* Person and Sole Trader show first/middle/last name fields */}
-          {hasFirstLastName(formData.entity_type) ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="first_name">First Name</Label>
-                <Input id="first_name" value={formData.first_name} onChange={(e) => handleInputChange("first_name", e.target.value)} onBlur={handleAutoSave} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="middle_name">Middle Name</Label>
-                <Input id="middle_name" value={formData.middle_name} onChange={(e) => handleInputChange("middle_name", e.target.value)} onBlur={handleAutoSave} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="last_name">Last Name</Label>
-                <Input id="last_name" value={formData.last_name} onChange={(e) => handleInputChange("last_name", e.target.value)} onBlur={handleAutoSave} />
-              </div>
-              {/* Show display_name from database as read-only (SSoT) */}
-              <div className="space-y-2">
-                <Label htmlFor="display_name_display">Display Name (SSoT)</Label>
-                <Input
-                  id="display_name_display"
-                  value={contact.display_name || ""}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">Database value - updated on save from First + Middle + Last name</p>
-              </div>
-            </>
-          ) : (
-            /* Company, Trust use company_name_or_trust (SSoT), Price Only shows display_name read-only */
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="company_name_or_trust">
-                  {isPriceOnly(formData.entity_type) ? "Display Name" : "Company/Trust Name"}
-                </Label>
-                <Input
-                  id="company_name_or_trust"
-                  value={isPriceOnly(formData.entity_type) ? formData.display_name : formData.company_name_or_trust}
-                  onChange={(e) => {
-                    if (isPriceOnly(formData.entity_type)) {
-                      handleInputChange("display_name", e.target.value);
-                    } else {
-                      handleInputChange("company_name_or_trust", e.target.value);
-                    }
-                  }}
-                  onBlur={handleAutoSave}
-                  placeholder={isPriceOnly(formData.entity_type) ? "e.g. INTERNAL STAIRS" : "e.g. ABC Pty Ltd"}
-                />
-                {isPriceOnly(formData.entity_type) && (
-                  <p className="text-xs text-muted-foreground">Will be saved in CAPITALS automatically</p>
-                )}
-              </div>
-              {/* Show display_name from database as read-only (SSoT) for Company/Trust */}
-              {!isPriceOnly(formData.entity_type) && (
-                <div className="space-y-2">
-                  <Label htmlFor="display_name_display">Display Name (SSoT)</Label>
-                  <Input
-                    id="display_name_display"
-                    value={contact.display_name || ""}
-                    disabled
-                    className="bg-muted"
-                  />
-                  <p className="text-xs text-muted-foreground">Database value - updated on save from Company/Trust Name</p>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="entity_type">Entity Type</Label>
-          <select id="entity_type" value={formData.entity_type} onChange={(e) => handleInputChange("entity_type", e.target.value)} onBlur={handleAutoSave} className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-            {entityTypeMetadata.map((type) => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Company multi-select - show for person entity type */}
-        {canHaveEmployer(formData.entity_type) && (
-          <CompanyMultiSelector
-            formData={formData}
-            availableCompanies={availableCompanies}
-            selectedCompanies={selectedCompanies}
-            loadingCompanies={loadingCompanies}
-            handleCompanyChange={handleCompanyChange}
-            showAddCompany={showAddCompany}
-            setShowAddCompany={setShowAddCompany}
-            newCompanyName={newCompanyName}
-            setNewCompanyName={setNewCompanyName}
-            creatingCompany={creatingCompany}
-            handleCreateCompany={handleCreateCompany}
-          />
-        )}
-
-        {/* Employee multi-select - show for company/trust entity types */}
-        {canHaveEmployees(formData.entity_type) && (
-          <EmployeeMultiSelector
-            formData={formData}
-            availablePeople={availablePeople}
-            selectedEmployees={selectedEmployees}
-            loadingPeople={loadingPeople}
-            handleEmployeeChange={handleEmployeeChange}
-            showAddEmployee={showAddEmployee}
-            setShowAddEmployee={setShowAddEmployee}
-            newEmployeeFirstName={newEmployeeFirstName}
-            setNewEmployeeFirstName={setNewEmployeeFirstName}
-            newEmployeeLastName={newEmployeeLastName}
-            setNewEmployeeLastName={setNewEmployeeLastName}
-            creatingEmployee={creatingEmployee}
-            handleCreateEmployee={handleCreateEmployee}
-          />
-        )}
-
-        {/* Primary Company display */}
-        {isPerson(formData.entity_type) && contact.primary_company && (
-          <div className="space-y-2">
-            <Label>Primary Company (Auto-synced)</Label>
-            <div className="p-3 rounded-md border bg-muted/30">
-              <Badge
-                variant="secondary"
-                className="bg-green-100 text-green-900 dark:bg-green-900 dark:text-green-100 px-3 py-1.5 text-sm font-medium inline-flex items-center gap-2"
-              >
-                <Building2 className="h-4 w-4" />
-                {contact.primary_company.name}
-                <Link href={`/contacts/${contact.primary_company.id}`}>
-                  <ExternalLink className="h-3.5 w-3.5 ml-1 hover:text-green-700 dark:hover:text-green-300" />
-                </Link>
-              </Badge>
-              <p className="text-xs text-muted-foreground mt-2">
-                <CheckCircle className="inline h-3 w-3 mr-1" />
-                Automatically synced from employee relationships
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Switches */}
-        <div className="flex items-center justify-between py-2">
-          <div><Label>Active</Label><p className="text-xs text-muted-foreground">Is this contact active?</p></div>
-          <Switch checked={formData.is_active} onCheckedChange={(c) => { handleInputChange("is_active", c); handleAutoSave(); }} />
-        </div>
-        {isPerson(formData.entity_type) && (
-          <div className="flex items-center justify-between py-2">
-            <div><Label>Family Member</Label></div>
-            <Switch checked={formData.is_family_member} onCheckedChange={(c) => { handleInputChange("is_family_member", c); handleAutoSave(); }} />
-          </div>
-        )}
-        {isPerson(formData.entity_type) && (
-          <div className="flex items-center justify-between py-2">
-            <div>
-              <Label className={!contact.primary_company && selectedCompanies.length === 0 ? "text-muted-foreground" : ""}>Team Contact</Label>
-              <p className="text-xs text-muted-foreground">
-                {!contact.primary_company && selectedCompanies.length === 0
-                  ? "Add a company first to enable this option"
-                  : "Append company name to avoid duplicates (e.g., \"Accounts Team - Buildcraft\")"}
-              </p>
-            </div>
-            <Switch
-              checked={formData.is_team_contact}
-              onCheckedChange={handleTeamContactToggle}
-              disabled={saving || (!contact.primary_company && selectedCompanies.length === 0)}
-            />
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Company Multi-Selector
-// ================================
-
-interface CompanyMultiSelectorProps {
-  formData: ContactFormData;
-  availableCompanies: Option[];
-  selectedCompanies: Option[];
-  loadingCompanies: boolean;
-  handleCompanyChange: (newOptions: Option[]) => void;
-  showAddCompany: boolean;
-  setShowAddCompany: React.Dispatch<React.SetStateAction<boolean>>;
-  newCompanyName: string;
-  setNewCompanyName: React.Dispatch<React.SetStateAction<string>>;
-  creatingCompany: boolean;
-  handleCreateCompany: () => Promise<void>;
-}
-
-function CompanyMultiSelector({
-  formData,
-  availableCompanies,
-  selectedCompanies,
-  loadingCompanies,
-  handleCompanyChange,
-  showAddCompany,
-  setShowAddCompany,
-  newCompanyName,
-  setNewCompanyName,
-  creatingCompany,
-  handleCreateCompany,
-}: CompanyMultiSelectorProps) {
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>Companies</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddCompany(!showAddCompany)}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            Add Company
-          </Button>
-        </div>
-
-        {/* Add Company inline form */}
-        {showAddCompany && (
-          <div className="p-3 border rounded-md bg-muted/30 space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="new-company-name">Company Name</Label>
-              <Input
-                id="new-company-name"
-                value={newCompanyName}
-                onChange={(e) => setNewCompanyName(e.target.value)}
-                placeholder="Enter company name..."
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newCompanyName.trim()) {
-                    handleCreateCompany();
-                  }
-                }}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleCreateCompany}
-                disabled={creatingCompany || !newCompanyName.trim()}
-              >
-                {creatingCompany ? (
-                  <Spinner className="h-3 w-3 mr-1 animate-spin" />
-                ) : (
-                  <Plus className="h-3 w-3 mr-1" />
-                )}
-                Create & Link
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowAddCompany(false);
-                  setNewCompanyName("");
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Creates a new company and adds {formData.first_name || "this person"} as an employee.
-            </p>
-          </div>
-        )}
-
-        {/* Companies multi-selector */}
-        <MultipleSelector
-          value={selectedCompanies}
-          onChange={(newOptions) => {
-            handleCompanyChange(newOptions);
-          }}
-          placeholder={loadingCompanies ? "Loading companies..." : "🔍 Search and add companies..."}
-          options={availableCompanies}
-          emptyIndicator={
-            <p className="text-center text-sm text-muted-foreground">
-              {loadingCompanies ? "Loading companies..." : "No companies found"}
-            </p>
-          }
-          hidePlaceholderWhenSelected={false}
-          className="w-full bg-white dark:bg-gray-950"
-        />
-
-        <p className="text-xs text-muted-foreground">
-          Search above to add companies. Selected companies shown in blue boxes. View and edit roles in the Overview tab.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ================================
-// Employee Multi-Selector
-// ================================
-
-interface EmployeeMultiSelectorProps {
-  formData: ContactFormData;
-  availablePeople: Option[];
-  selectedEmployees: Option[];
-  loadingPeople: boolean;
-  handleEmployeeChange: (newOptions: Option[]) => void;
-  showAddEmployee: boolean;
-  setShowAddEmployee: React.Dispatch<React.SetStateAction<boolean>>;
-  newEmployeeFirstName: string;
-  setNewEmployeeFirstName: React.Dispatch<React.SetStateAction<string>>;
-  newEmployeeLastName: string;
-  setNewEmployeeLastName: React.Dispatch<React.SetStateAction<string>>;
-  creatingEmployee: boolean;
-  handleCreateEmployee: () => Promise<void>;
-}
-
-function EmployeeMultiSelector({
-  formData,
-  availablePeople,
-  selectedEmployees,
-  loadingPeople,
-  handleEmployeeChange,
-  showAddEmployee,
-  setShowAddEmployee,
-  newEmployeeFirstName,
-  setNewEmployeeFirstName,
-  newEmployeeLastName,
-  setNewEmployeeLastName,
-  creatingEmployee,
-  handleCreateEmployee,
-}: EmployeeMultiSelectorProps) {
-  return (
-    <div className="space-y-3">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label>Employees</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddEmployee(!showAddEmployee)}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            Add Employee
-          </Button>
-        </div>
-
-        {/* Add Employee inline form */}
-        {showAddEmployee && (
-          <div className="p-3 border rounded-md bg-muted/30 space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="new-employee-first">First Name</Label>
-                <Input
-                  id="new-employee-first"
-                  value={newEmployeeFirstName}
-                  onChange={(e) => setNewEmployeeFirstName(e.target.value)}
-                  placeholder="First name..."
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="new-employee-last">Last Name</Label>
-                <Input
-                  id="new-employee-last"
-                  value={newEmployeeLastName}
-                  onChange={(e) => setNewEmployeeLastName(e.target.value)}
-                  placeholder="Last name..."
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && newEmployeeFirstName.trim()) {
-                      handleCreateEmployee();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleCreateEmployee}
-                disabled={creatingEmployee || !newEmployeeFirstName.trim()}
-              >
-                {creatingEmployee ? (
-                  <Spinner className="h-3 w-3 mr-1 animate-spin" />
-                ) : (
-                  <Plus className="h-3 w-3 mr-1" />
-                )}
-                Create & Link
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setShowAddEmployee(false);
-                  setNewEmployeeFirstName("");
-                  setNewEmployeeLastName("");
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Creates a new person and adds them as an employee of {formData.company_name_or_trust || "this company"}.
-            </p>
-          </div>
-        )}
-
-        <MultipleSelector
-          value={selectedEmployees}
-          onChange={handleEmployeeChange}
-          placeholder={loadingPeople ? "Loading people..." : "🔍 Search and add employees..."}
-          options={availablePeople}
-          emptyIndicator={
-            <p className="text-center text-sm text-muted-foreground">
-              {loadingPeople ? "Loading people..." : "No people found"}
-            </p>
-          }
-          className="w-full"
-          hidePlaceholderWhenSelected={false}
-        />
-        <p className="text-xs text-muted-foreground">Add people who work for this {isTrust(formData.entity_type) ? 'trust' : 'company'}. View and edit roles in the Overview tab.</p>
-      </div>
-    </div>
-  );
-}
-
-// ================================
-// Contact Details Card (Part 1 - will continue in next write)
-// ================================
-
-interface ContactDetailsCardProps {
-  contact: Contact;
-  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
-  formData: ContactFormData;
-  hasChanges: boolean;
-  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
-  fieldErrors: Record<string, string>;
-  setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  handleInputChange: (field: string, value: string | boolean) => void;
-  handleAutoSave: () => void;
-}
-
-function ContactDetailsCard({
-  contact,
-  setContact,
-  formData,
-  setHasChanges,
-  fieldErrors,
-  setFieldErrors,
-  handleInputChange,
-  handleAutoSave,
-}: ContactDetailsCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Phone className="h-5 w-5" />
-          Contact Details
-          {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-            <Badge variant="outline" className="ml-2">
-              <Building2 className="h-3 w-3 mr-1" />
-              Company Details
-            </Badge>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Direct/Personal Contact Details Section Header */}
-        {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <User className="h-4 w-4" />
-            Direct Contact (Personal)
-          </div>
-        )}
-
-        {/* Emails Section */}
-        <EmailsSection
-          contact={contact}
-          setContact={setContact}
-          formData={formData}
-          setHasChanges={setHasChanges}
-          handleAutoSave={handleAutoSave}
-        />
-
-        {/* Phones Section */}
-        <PhonesSection
-          contact={contact}
-          setContact={setContact}
-          formData={formData}
-          setHasChanges={setHasChanges}
-          fieldErrors={fieldErrors}
-          setFieldErrors={setFieldErrors}
-          handleAutoSave={handleAutoSave}
-        />
-
-        {/* Website - only show if NOT part of a company */}
-        {/* Note: Address is now managed via the structured Address card below (SSoT) */}
-        {!(canHaveEmployer(formData.entity_type) && contact.primary_company) && (
-          <div className="space-y-2">
-            <Label htmlFor="website">Website</Label>
-            <div className="flex gap-2">
-              <Input id="website" value={formData.website} onChange={(e) => handleInputChange("website", e.target.value)} onBlur={handleAutoSave} placeholder="https://example.com" className="flex-1" />
-              {formData.website && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={() => {
-                    const url = formData.website.startsWith('http') ? formData.website : `https://${formData.website}`;
-                    window.open(url, '_blank', 'noopener,noreferrer');
-                  }}
-                  title="Open website"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Company Contact Details - Show when person/sole_trader has a primary company */}
-        {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-          <CompanyContactInfo contact={contact} />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Emails Section
-// ================================
-
-interface EmailsSectionProps {
-  contact: Contact;
-  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
-  formData: ContactFormData;
-  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
-  handleAutoSave: () => void;
-}
-
-function EmailsSection({
-  contact,
-  setContact,
-  formData,
-  setHasChanges,
-  handleAutoSave,
-}: EmailsSectionProps) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label>{canHaveEmployer(formData.entity_type) && contact.primary_company ? 'Direct Email Addresses' : 'Emails'}</Label>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            const newEmail: ContactEmail = {
-              email: '',
-              is_primary: (contact.contact_emails?.length || 0) === 0,
-              label: null,
-              position: (contact.contact_emails?.length || 0)
-            };
-            const updated = [...(contact.contact_emails || []), newEmail];
-            setContact({ ...contact, contact_emails: updated });
-            setHasChanges(true);
-          }}
-        >
-          <Mail className="h-3 w-3 mr-1" />
-          Add Email
-        </Button>
-      </div>
-      <div className="space-y-2">
-        {(contact.contact_emails || [])
-          .map((email, originalIndex) => ({ email, originalIndex }))
-          .filter(({ email }) => !email._destroy)
-          .sort((a, b) => {
-            if (a.email.is_primary && !b.email.is_primary) return -1;
-            if (!a.email.is_primary && b.email.is_primary) return 1;
-            return a.email.position - b.email.position;
-          })
-          .map(({ email, originalIndex }) => (
-          <div key={email.id || `new-${originalIndex}`} className="flex items-center gap-2">
-            <Input
-              type="email"
-              value={email.email}
-              onChange={(e) => {
-                const updated = [...(contact.contact_emails || [])];
-                updated[originalIndex] = { ...updated[originalIndex], email: e.target.value };
-                setContact({ ...contact, contact_emails: updated });
-                setHasChanges(true);
-              }}
-              onBlur={handleAutoSave}
-              placeholder="email@example.com"
-              className={email.is_primary ? 'border-primary' : ''}
-            />
-            <Button
-              type="button"
-              variant={email.is_primary ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                const updated = (contact.contact_emails || []).map((e, i) => ({
-                  ...e,
-                  is_primary: i === originalIndex
-                }));
-                setContact({ ...contact, contact_emails: updated });
-                setHasChanges(true);
-                handleAutoSave();
-              }}
-              title="Set as primary"
-            >
-              <CheckCircle className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const updated = [...(contact.contact_emails || [])];
-                if (email.id) {
-                  updated[originalIndex] = { ...updated[originalIndex], _destroy: true };
-                } else {
-                  updated.splice(originalIndex, 1);
-                }
-                setContact({ ...contact, contact_emails: updated });
-                setHasChanges(true);
-                handleAutoSave();
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ================================
-// Phones Section
-// ================================
-
-interface PhonesSectionProps {
-  contact: Contact;
-  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
-  formData: ContactFormData;
-  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
-  fieldErrors: Record<string, string>;
-  setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  handleAutoSave: () => void;
-}
-
-function PhonesSection({
-  contact,
-  setContact,
-  formData,
-  setHasChanges,
-  fieldErrors,
-  setFieldErrors,
-  handleAutoSave,
-}: PhonesSectionProps) {
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <Label>{canHaveEmployer(formData.entity_type) && contact.primary_company ? 'Direct Phone Numbers' : 'Phones'}</Label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const newPhone: ContactPhone = {
-                phone_number: '',
-                phone_type: 'mobile',
-                is_primary: (contact.contact_phones?.length || 0) === 0,
-                label: null,
-                position: (contact.contact_phones?.length || 0)
-              };
-              const updated = [...(contact.contact_phones || []), newPhone];
-              setContact({ ...contact, contact_phones: updated });
-              setHasChanges(true);
-            }}
-          >
-            <Phone className="h-3 w-3 mr-1" />
-            Add Phone
-          </Button>
-        </div>
-        {canHaveEmployer(formData.entity_type) && contact.primary_company && (
-          <p className="text-xs text-muted-foreground">Personal/direct line, mobile, or extension</p>
-        )}
-      </div>
-      <div className="space-y-2">
-        {(contact.contact_phones || [])
-          .map((phone, originalIndex) => ({ phone, originalIndex }))
-          .filter(({ phone }) => !phone._destroy)
-          .sort((a, b) => {
-            if (a.phone.is_primary && !b.phone.is_primary) return -1;
-            if (!a.phone.is_primary && b.phone.is_primary) return 1;
-            return a.phone.position - b.phone.position;
-          })
-          .map(({ phone, originalIndex }) => (
-          <div key={phone.id || `new-${originalIndex}`} className="flex items-center gap-2">
-            <select
-              value={phone.phone_type}
-              onChange={(e) => {
-                const updated = [...(contact.contact_phones || [])];
-                updated[originalIndex] = { ...updated[originalIndex], phone_type: e.target.value as ContactPhone['phone_type'] };
-                setContact({ ...contact, contact_phones: updated });
-                setHasChanges(true);
-              }}
-              onBlur={handleAutoSave}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              <option value="mobile">Mobile</option>
-              <option value="office">Office</option>
-              <option value="fax">Fax</option>
-              <option value="home">Home</option>
-            </select>
-            <Input
-              type="tel"
-              value={formatPhoneNumber(phone.phone_number)}
-              onChange={(e) => {
-                const updated = [...(contact.contact_phones || [])];
-                // Store raw value while typing, will be formatted on blur
-                updated[originalIndex] = { ...updated[originalIndex], phone_number: e.target.value };
-                setContact({ ...contact, contact_phones: updated });
-                setHasChanges(true);
-                setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
-              }}
-              onBlur={() => {
-                const validation = validatePhoneNumber(phone.phone_number);
-                if (!validation.isValid) {
-                  setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: validation.error || 'Invalid phone' }));
-                } else {
-                  const formatted = formatPhoneNumber(phone.phone_number);
-                  if (formatted !== phone.phone_number) {
-                    const updated = [...(contact.contact_phones || [])];
-                    updated[originalIndex] = { ...updated[originalIndex], phone_number: formatted };
-                    setContact({ ...contact, contact_phones: updated });
-                  }
-                  setFieldErrors(prev => ({ ...prev, [`phone_${originalIndex}`]: '' }));
-                }
-                handleAutoSave();
-              }}
-              placeholder="0400 000 000"
-              className={cn(
-                phone.is_primary ? 'border-primary' : '',
-                fieldErrors[`phone_${originalIndex}`] && 'border-red-500 focus-visible:ring-red-500'
-              )}
-            />
-            {fieldErrors[`phone_${originalIndex}`] && (
-              <p className="text-xs text-red-500">{fieldErrors[`phone_${originalIndex}`]}</p>
-            )}
-            <Button
-              type="button"
-              variant={phone.is_primary ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                const updated = (contact.contact_phones || []).map((p, i) => ({
-                  ...p,
-                  is_primary: i === originalIndex
-                }));
-                setContact({ ...contact, contact_phones: updated });
-                setHasChanges(true);
-                handleAutoSave();
-              }}
-              title="Set as primary"
-            >
-              <CheckCircle className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                const updated = [...(contact.contact_phones || [])];
-                if (phone.id) {
-                  updated[originalIndex] = { ...updated[originalIndex], _destroy: true };
-                } else {
-                  updated.splice(originalIndex, 1);
-                }
-                setContact({ ...contact, contact_phones: updated });
-                setHasChanges(true);
-                handleAutoSave();
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ================================
-// Company Contact Info
-// ================================
-
-function CompanyContactInfo({ contact }: { contact: Contact }) {
-  if (!contact.primary_company) return null;
-
-  return (
-    <div className="space-y-4 p-4 rounded-lg border bg-muted/30 mt-6">
-      <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-        <Building2 className="h-4 w-4" />
-        {contact.primary_company.name} Contact Info
-      </div>
-
-      {/* Company ABN/ACN */}
-      {(contact.primary_company.abn || contact.primary_company.acn) && (
-        <div className="flex flex-wrap gap-3">
-          {contact.primary_company.abn && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-xs text-muted-foreground font-medium">ABN:</span>
-              <span className="font-mono">{formatABN(contact.primary_company.abn)}</span>
-            </div>
-          )}
-          {contact.primary_company.acn && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-xs text-muted-foreground font-medium">ACN:</span>
-              <span className="font-mono">{formatACN(contact.primary_company.acn)}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Company Emails */}
-      {contact.primary_company.contact_emails && contact.primary_company.contact_emails.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Emails</Label>
-          {contact.primary_company.contact_emails
-            .sort((a, b) => {
-              if (a.is_primary && !b.is_primary) return -1;
-              if (!a.is_primary && b.is_primary) return 1;
-              return a.position - b.position;
-            })
-            .map((email, idx) => (
-              <div key={idx} className="flex items-center gap-2 text-sm">
-                <Mail className="h-3 w-3 text-muted-foreground" />
-                <span>{email.email}</span>
-                {email.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-              </div>
-            ))}
-        </div>
-      )}
-
-      {/* Company Phones */}
-      {contact.primary_company.contact_phones && contact.primary_company.contact_phones.length > 0 && (
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Phones</Label>
-          {contact.primary_company.contact_phones
-            .sort((a, b) => {
-              if (a.is_primary && !b.is_primary) return -1;
-              if (!a.is_primary && b.is_primary) return 1;
-              return a.position - b.position;
-            })
-            .map((phone, idx) => (
-              <div key={idx} className="flex items-center gap-2 text-sm">
-                <Phone className="h-3 w-3 text-muted-foreground" />
-                <Badge variant="outline" className="text-xs">{phone.phone_type}</Badge>
-                <span>{phone.phone_number}</span>
-                {phone.is_primary && <Badge variant="secondary" className="text-xs">Primary</Badge>}
-              </div>
-            ))}
-        </div>
-      )}
-
-      {/* Company Website */}
-      {contact.primary_company.website && (
-        <div className="flex items-center gap-2 text-sm">
-          <Globe className="h-3 w-3 text-muted-foreground" />
-          <a href={contact.primary_company.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-            {contact.primary_company.website}
-          </a>
-        </div>
-      )}
-
-      {/* Company Address */}
-      {contact.primary_company.address && (
-        <div className="flex items-start gap-2 text-sm">
-          <MapPin className="h-3 w-3 text-muted-foreground mt-0.5" />
-          <span className="whitespace-pre-line">{contact.primary_company.address}</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ================================
-// Address Card
-// ================================
-
-interface Suburb {
-  id: number;
-  name: string;
-  postcode: string;
-  state: string;
-  council: string | null;
-}
-
-interface AddressCardProps {
-  contact: Contact;
-  setContact: React.Dispatch<React.SetStateAction<Contact | null>>;
-  setHasChanges: React.Dispatch<React.SetStateAction<boolean>>;
-  handleAutoSave: () => void;
-}
-
-function AddressCard({
-  contact,
-  setContact,
-  setHasChanges,
-  handleAutoSave,
-}: AddressCardProps) {
-  const [suburbSearch, setSuburbSearch] = React.useState("");
-  const [suburbResults, setSuburbResults] = React.useState<Suburb[]>([]);
-  const [searchingSuburb, setSearchingSuburb] = React.useState(false);
-  const [showSuburbDropdown, setShowSuburbDropdown] = React.useState(false);
-  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
-
-  // Refs for browser autofill detection
-  const streetInputRef = React.useRef<HTMLInputElement>(null);
-  const suburbInputRef = React.useRef<HTMLInputElement>(null);
-  const postcodeInputRef = React.useRef<HTMLInputElement>(null);
-
-  // Get the primary STREET address or create an empty one
-  // SSoT: contact_addresses is the source of truth
-  const getStreetAddress = (): ContactAddress => {
-    const existing = contact.contact_addresses?.find(
-      (a) => a.address_type === "STREET" && !a._destroy
-    );
-
-    if (existing) {
-      return existing;
+  // Load related entities
+  useEffect(() => {
+    if (contact.id) {
+      loadRelatedEntities();
     }
+  }, [contact.id]);
 
-    // Return empty address for new entry
-    return {
-      address_type: "STREET",
-      line1: "",
-      line2: null,
-      line3: null,
-      line4: null,
-      city: "",
-      region: "",
-      postal_code: "",
-      country: "Australia",
-      attention_to: null,
-      is_primary: true,
-    };
-  };
-
-  const streetAddress = getStreetAddress();
-
-  // Update address field
-  const updateAddressField = (field: keyof ContactAddress, value: string) => {
-    const addresses = contact.contact_addresses || [];
-    const existingIndex = addresses.findIndex(
-      (a) => a.address_type === "STREET" && !a._destroy
-    );
-
-    let updatedAddresses: ContactAddress[];
-    if (existingIndex >= 0) {
-      updatedAddresses = addresses.map((addr, idx) =>
-        idx === existingIndex ? { ...addr, [field]: value } : addr
-      );
-    } else {
-      // Create new address
-      const newAddress: ContactAddress = {
-        ...getStreetAddress(),
-        [field]: value,
-      };
-      updatedAddresses = [...addresses, newAddress];
-    }
-
-    setContact({ ...contact, contact_addresses: updatedAddresses });
-    setHasChanges(true);
-  };
-
-  // Search suburbs
-  const searchSuburbs = async (query: string) => {
-    if (query.length < 2) {
-      setSuburbResults([]);
-      return;
-    }
-
-    setSearchingSuburb(true);
+  const loadRelatedEntities = useCallback(async () => {
+    if (!contact.id) return;
+    setLoadingRelated(true);
     try {
-      const response = await api.get<{ suburbs: Suburb[] }>(
-        `/api/v1/suburbs/search?q=${encodeURIComponent(query)}`
-      );
-      setSuburbResults(response.suburbs || []);
-    } catch (error) {
-      console.error("Failed to search suburbs:", error);
-      setSuburbResults([]);
+      const response = await api.get<{
+        success: boolean;
+        relationships: { outgoing: ContactRelationship[]; incoming: ContactRelationship[] };
+      }>(`/api/v1/contacts/${contact.id}/relationships`);
+      if (response.success) {
+        const all = [...(response.relationships.outgoing || []), ...(response.relationships.incoming || [])];
+        setRelatedEntities(all);
+      }
+    } catch {
+      // Silent fail - relationships are optional
     } finally {
-      setSearchingSuburb(false);
+      setLoadingRelated(false);
     }
-  };
+  }, [contact.id]);
 
-  // Debounced suburb search
-  const handleSuburbSearchChange = (value: string) => {
-    setSuburbSearch(value);
-    updateAddressField("city", value);
-
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    searchTimeoutRef.current = setTimeout(() => {
-      searchSuburbs(value);
-    }, 300);
-  };
-
-  // State abbreviation map for correcting full names to abbreviations
-  const stateAbbreviations: Record<string, string> = {
-    "queensland": "QLD",
-    "new south wales": "NSW",
-    "victoria": "VIC",
-    "south australia": "SA",
-    "western australia": "WA",
-    "tasmania": "TAS",
-    "northern territory": "NT",
-    "australian capital territory": "ACT",
-  };
-
-  // Normalize state to abbreviation
-  const normalizeState = (state: string | undefined): string | undefined => {
-    if (!state) return undefined;
-    const trimmed = state.trim();
-    // If already an abbreviation, return uppercase
-    if (trimmed.length <= 3) return trimmed.toUpperCase();
-    // Try to find full name match
-    return stateAbbreviations[trimmed.toLowerCase()] || trimmed;
-  };
-
-  // Comprehensive address validation and auto-fill
-  // Handles: suburb lookup, postcode lookup, state correction, mismatch detection
-  const validateAndCorrectAddress = async () => {
-    const currentCity = streetAddress.city?.trim();
-    const currentPostcode = streetAddress.postal_code?.trim();
-    const currentRegion = streetAddress.region?.trim();
-
-    // Normalize state format first (e.g., "Queensland" → "QLD")
-    const normalizedRegion = normalizeState(currentRegion);
-    let needsUpdate = normalizedRegion !== currentRegion;
-
-    let updates: Partial<ContactAddress> = {};
-    if (needsUpdate && normalizedRegion) {
-      updates.region = normalizedRegion;
-    }
-
-    try {
-      // Strategy 1: If suburb is filled, look it up to fill/correct state and postcode
-      if (currentCity && currentCity.length >= 2) {
-        const response = await api.get<{ suburbs: Suburb[] }>(
-          `/api/v1/suburbs/search?q=${encodeURIComponent(currentCity)}`
+  // Generic save function for single field updates
+  const saveField = useCallback(
+    async (fieldName: string, value: string | boolean): Promise<void> => {
+      try {
+        const response = await api.patch<{ contact: Contact }>(
+          `/api/v1/contacts/${contact.id}`,
+          { contact: { [fieldName]: value } }
         );
-        const suburbs = response.suburbs || [];
-
-        // Find exact match by name (case-insensitive)
-        const exactMatch = suburbs.find(
-          (s) => s.name.toLowerCase() === currentCity.toLowerCase()
-        );
-
-        if (exactMatch) {
-          // If postcode also filled, prefer the suburb that matches both
-          if (currentPostcode) {
-            const postcodeMatch = suburbs.find(
-              (s) =>
-                s.name.toLowerCase() === currentCity.toLowerCase() &&
-                s.postcode === currentPostcode
-            );
-            if (postcodeMatch) {
-              // Perfect match - use this suburb's state
-              if (!normalizedRegion || normalizedRegion !== postcodeMatch.state) {
-                updates.region = postcodeMatch.state;
-                needsUpdate = true;
-              }
-            } else {
-              // Suburb found but postcode doesn't match - correct to suburb's postcode
-              updates.region = exactMatch.state;
-              updates.postal_code = exactMatch.postcode;
-              needsUpdate = true;
-            }
-          } else {
-            // No postcode - fill from suburb
-            updates.region = exactMatch.state;
-            updates.postal_code = exactMatch.postcode;
-            needsUpdate = true;
-          }
-        }
+        onContactUpdate(response.contact);
+      } catch (err) {
+        toast({
+          title: "Error saving",
+          description: err instanceof Error ? err.message : "Failed to save",
+          variant: "destructive",
+        });
+        throw err;
       }
-      // Strategy 2: If postcode is filled but no suburb, look up by postcode
-      else if (currentPostcode && currentPostcode.length === 4 && !currentCity) {
-        const response = await api.get<{ suburbs: Suburb[] }>(
-          `/api/v1/suburbs/search?q=${encodeURIComponent(currentPostcode)}`
+    },
+    [contact.id, onContactUpdate, toast]
+  );
+
+  // Save phones
+  const savePhones = useCallback(
+    async (phones: ContactPhone[]): Promise<void> => {
+      try {
+        // Filter out destroyed items that were never saved
+        const phonesToSave = phones
+          .filter((p) => !(p._destroy && !p.id))
+          .map((p) => {
+            const { _tempId, ...rest } = p as ContactPhone & { _tempId?: string };
+            return rest;
+          });
+
+        const response = await api.patch<{ contact: Contact }>(
+          `/api/v1/contacts/${contact.id}`,
+          { contact: { contact_phones_attributes: phonesToSave } }
         );
-        const suburbs = response.suburbs || [];
-
-        // Filter to exact postcode matches
-        const postcodeMatches = suburbs.filter(s => s.postcode === currentPostcode);
-
-        if (postcodeMatches.length === 1) {
-          // Only one suburb for this postcode - auto-fill it
-          updates.city = postcodeMatches[0].name;
-          updates.region = postcodeMatches[0].state;
-          needsUpdate = true;
-        } else if (postcodeMatches.length > 1) {
-          // Multiple suburbs - at least fill the state (they'll all be the same)
-          if (!normalizedRegion) {
-            updates.region = postcodeMatches[0].state;
-            needsUpdate = true;
-          }
-        }
+        onContactUpdate(response.contact);
+      } catch (err) {
+        toast({
+          title: "Error saving phones",
+          description: err instanceof Error ? err.message : "Failed to save",
+          variant: "destructive",
+        });
+        throw err;
       }
+    },
+    [contact.id, onContactUpdate, toast]
+  );
 
-      // Apply updates if needed
-      if (needsUpdate && Object.keys(updates).length > 0) {
-        const addresses = contact.contact_addresses || [];
-        const existingIndex = addresses.findIndex(
+  // Save emails
+  const saveEmails = useCallback(
+    async (emails: ContactEmail[]): Promise<void> => {
+      try {
+        // Filter out destroyed items that were never saved
+        const emailsToSave = emails
+          .filter((e) => !(e._destroy && !e.id))
+          .map((e) => {
+            const { _tempId, ...rest } = e as ContactEmail & { _tempId?: string };
+            return rest;
+          });
+
+        // Also sync primary email to legacy field
+        const primaryEmail = emailsToSave.find((e) => e.is_primary && !e._destroy);
+
+        const response = await api.patch<{ contact: Contact }>(
+          `/api/v1/contacts/${contact.id}`,
+          {
+            contact: {
+              contact_emails_attributes: emailsToSave,
+              email: primaryEmail?.email || null,
+            },
+          }
+        );
+        onContactUpdate(response.contact);
+      } catch (err) {
+        toast({
+          title: "Error saving emails",
+          description: err instanceof Error ? err.message : "Failed to save",
+          variant: "destructive",
+        });
+        throw err;
+      }
+    },
+    [contact.id, onContactUpdate, toast]
+  );
+
+  // Save address
+  const saveAddress = useCallback(
+    async (address: ContactAddress): Promise<void> => {
+      try {
+        // Get existing addresses and update/add the street address
+        const existingAddresses = contact.contact_addresses || [];
+        const streetIndex = existingAddresses.findIndex(
           (a) => a.address_type === "STREET" && !a._destroy
         );
 
-        const updatedAddress: ContactAddress = {
-          ...getStreetAddress(),
-          ...updates,
-        };
-
-        let updatedAddresses: ContactAddress[];
-        if (existingIndex >= 0) {
-          updatedAddresses = addresses.map((addr, idx) =>
-            idx === existingIndex ? { ...addr, ...updatedAddress } : addr
+        let addressesToSave: ContactAddress[];
+        if (streetIndex >= 0) {
+          // Update existing
+          addressesToSave = existingAddresses.map((a, i) =>
+            i === streetIndex ? { ...a, ...address } : a
           );
         } else {
-          updatedAddresses = [...addresses, updatedAddress];
+          // Add new
+          addressesToSave = [...existingAddresses, address];
         }
 
-        setContact({ ...contact, contact_addresses: updatedAddresses });
-        setHasChanges(true);
+        const response = await api.patch<{ contact: Contact }>(
+          `/api/v1/contacts/${contact.id}`,
+          { contact: { contact_addresses_attributes: addressesToSave } }
+        );
+        onContactUpdate(response.contact);
+      } catch (err) {
+        toast({
+          title: "Error saving address",
+          description: err instanceof Error ? err.message : "Failed to save",
+          variant: "destructive",
+        });
+        throw err;
       }
-    } catch (error) {
-      console.error("Failed to validate/correct address:", error);
+    },
+    [contact.id, contact.contact_addresses, onContactUpdate, toast]
+  );
+
+  // Get entity type options
+  const entityTypeOptions = entityTypeMetadata.map((et) => ({
+    value: et.value,
+    label: et.label,
+  }));
+
+  // Get street address
+  const streetAddress = contact.contact_addresses?.find(
+    (a) => a.address_type === "STREET" && !a._destroy
+  ) || null;
+
+  // Compute display name based on entity type
+  const computeDisplayName = useCallback((entityType: string, contact: Contact): string => {
+    if (hasFirstLastName(entityType)) {
+      const parts = [contact.first_name, contact.middle_name, contact.last_name].filter(Boolean);
+      return parts.join(" ") || contact.display_name;
     }
-  };
-
-  // Select suburb
-  const handleSelectSuburb = (suburb: Suburb) => {
-    const addresses = contact.contact_addresses || [];
-    const existingIndex = addresses.findIndex(
-      (a) => a.address_type === "STREET" && !a._destroy
-    );
-
-    const updatedAddress: ContactAddress = {
-      ...getStreetAddress(),
-      city: suburb.name,
-      region: suburb.state,
-      postal_code: suburb.postcode,
-    };
-
-    let updatedAddresses: ContactAddress[];
-    if (existingIndex >= 0) {
-      updatedAddresses = addresses.map((addr, idx) =>
-        idx === existingIndex ? { ...addr, ...updatedAddress } : addr
-      );
-    } else {
-      updatedAddresses = [...addresses, updatedAddress];
-    }
-
-    setContact({ ...contact, contact_addresses: updatedAddresses });
-    setSuburbSearch(suburb.name);
-    setHasChanges(true);
-    setShowSuburbDropdown(false);
-    setSuburbResults([]);
-    handleAutoSave();
-  };
-
-  // Close dropdown when clicking outside
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setShowSuburbDropdown(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return contact.company_name_or_trust || contact.display_name;
   }, []);
 
-  // Detect browser autofill (Chrome, Safari, Google)
-  // Browser autofill bypasses React onChange, so we need to check DOM values
-  React.useEffect(() => {
-    const checkAutofill = () => {
-      const streetEl = streetInputRef.current;
-      const suburbEl = suburbInputRef.current;
-      const postcodeEl = postcodeInputRef.current;
-
-      if (!streetEl && !suburbEl && !postcodeEl) return;
-
-      // Check if DOM values differ from React state (indicates autofill)
-      const domStreet = streetEl?.value || "";
-      const domSuburb = suburbEl?.value || "";
-      const domPostcode = postcodeEl?.value || "";
-
-      const stateStreet = streetAddress.line1 || "";
-      const stateSuburb = streetAddress.city || "";
-      const statePostcode = streetAddress.postal_code || "";
-
-      const hasAutofill =
-        (domStreet && domStreet !== stateStreet) ||
-        (domSuburb && domSuburb !== stateSuburb) ||
-        (domPostcode && domPostcode !== statePostcode);
-
-      if (hasAutofill) {
-        // Capture autofilled values into React state
-        const addresses = contact.contact_addresses || [];
-        const existingIndex = addresses.findIndex(
-          (a) => a.address_type === "STREET" && !a._destroy
-        );
-
-        const updatedAddress: ContactAddress = {
-          ...getStreetAddress(),
-          line1: domStreet || stateStreet,
-          city: domSuburb || stateSuburb,
-          postal_code: domPostcode || statePostcode,
-        };
-
-        let updatedAddresses: ContactAddress[];
-        if (existingIndex >= 0) {
-          updatedAddresses = addresses.map((addr, idx) =>
-            idx === existingIndex ? { ...addr, ...updatedAddress } : addr
-          );
-        } else {
-          updatedAddresses = [...addresses, updatedAddress];
-        }
-
-        setContact({ ...contact, contact_addresses: updatedAddresses });
-        if (domSuburb) setSuburbSearch(domSuburb);
-        setHasChanges(true);
-
-        // Trigger validation after capturing autofill
-        setTimeout(() => {
-          validateAndCorrectAddress();
-          handleAutoSave();
-        }, 100);
-      }
-    };
-
-    // Check for autofill after a short delay (browsers fill after focus)
-    const timeoutId = setTimeout(checkAutofill, 500);
-
-    // Also listen for input events which may fire on autofill
-    const handleInput = () => {
-      setTimeout(checkAutofill, 50);
-    };
-
-    streetInputRef.current?.addEventListener("input", handleInput);
-    suburbInputRef.current?.addEventListener("input", handleInput);
-    postcodeInputRef.current?.addEventListener("input", handleInput);
-
-    return () => {
-      clearTimeout(timeoutId);
-      streetInputRef.current?.removeEventListener("input", handleInput);
-      suburbInputRef.current?.removeEventListener("input", handleInput);
-      postcodeInputRef.current?.removeEventListener("input", handleInput);
-    };
-  }, [streetAddress.line1, streetAddress.city, streetAddress.postal_code]);
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Home className="h-5 w-5" />
-          Address
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Street Address */}
-        <div className="space-y-2">
-          <Label htmlFor="street_address">Street Address</Label>
-          <Input
-            ref={streetInputRef}
-            id="street_address"
-            name="street-address"
-            autoComplete="street-address"
-            value={streetAddress.line1}
-            onChange={(e) => updateAddressField("line1", e.target.value)}
-            onBlur={handleAutoSave}
-            placeholder="e.g. 123 Main Street"
-          />
-        </div>
+    <div className="max-w-2xl mx-auto space-y-8">
+      {/* Hero Section */}
+      <ContactHero
+        displayName={contact.display_name}
+        entityType={contact.entity_type}
+        isActive={contact.is_active}
+        jobsCount={contact.jobs_count}
+        purchaseOrdersCount={contact.purchase_orders_count}
+        quotesCount={contact.quotes_count}
+        isXeroCustomer={contact["is_customer?"]}
+        isXeroSupplier={contact["is_supplier?"]}
+      />
 
-        {/* Address Line 2 */}
-        <div className="space-y-2">
-          <Label htmlFor="address_line2">Address Line 2 (Optional)</Label>
-          <Input
-            id="address_line2"
-            value={streetAddress.line2 || ""}
-            onChange={(e) => updateAddressField("line2", e.target.value)}
-            onBlur={handleAutoSave}
-            placeholder="e.g. Unit 5, Level 2"
-          />
-        </div>
+      <Separator />
 
-        {/* Suburb with auto-complete */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="space-y-2 relative" ref={dropdownRef}>
-            <Label htmlFor="suburb">Suburb</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={suburbInputRef}
-                id="suburb"
-                name="address-level2"
-                autoComplete="address-level2"
-                value={suburbSearch || streetAddress.city}
-                onChange={(e) => handleSuburbSearchChange(e.target.value)}
-                onFocus={() => {
-                  setShowSuburbDropdown(true);
-                  if (streetAddress.city) {
-                    setSuburbSearch(streetAddress.city);
-                  }
-                }}
-                onBlur={() => {
-                  // Delay to allow click on dropdown item
-                  setTimeout(async () => {
-                    // Validate and correct address (handles browser autocomplete, mismatches, etc.)
-                    await validateAndCorrectAddress();
-                    handleAutoSave();
-                  }, 200);
-                }}
-                placeholder="Search suburb..."
-                className="pl-9"
-              />
-              {searchingSuburb && (
-                <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-            </div>
-
-            {/* Suburb dropdown */}
-            {showSuburbDropdown && suburbResults.length > 0 && (
-              <div className="absolute z-50 w-full mt-1 max-h-60 overflow-auto bg-background border rounded-md shadow-lg">
-                {suburbResults.map((suburb) => (
-                  <button
-                    key={suburb.id}
-                    type="button"
-                    className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex justify-between items-center"
-                    onClick={() => handleSelectSuburb(suburb)}
-                  >
-                    <span className="font-medium">{suburb.name}</span>
-                    <span className="text-muted-foreground text-xs">
-                      {suburb.postcode} {suburb.state}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* State */}
-          <div className="space-y-2">
-            <Label htmlFor="state">State</Label>
-            <Select
-              value={streetAddress.region}
-              onValueChange={(value) => {
-                updateAddressField("region", value);
-                handleAutoSave();
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select state" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="QLD">QLD</SelectItem>
-                <SelectItem value="NSW">NSW</SelectItem>
-                <SelectItem value="VIC">VIC</SelectItem>
-                <SelectItem value="SA">SA</SelectItem>
-                <SelectItem value="WA">WA</SelectItem>
-                <SelectItem value="TAS">TAS</SelectItem>
-                <SelectItem value="NT">NT</SelectItem>
-                <SelectItem value="ACT">ACT</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Postcode */}
-          <div className="space-y-2">
-            <Label htmlFor="postcode">Postcode</Label>
-            <Input
-              ref={postcodeInputRef}
-              id="postcode"
-              name="postal-code"
-              autoComplete="postal-code"
-              value={streetAddress.postal_code}
-              onChange={(e) => updateAddressField("postal_code", e.target.value)}
-              onBlur={async () => {
-                // Validate and correct address (can auto-fill suburb/state from postcode)
-                await validateAndCorrectAddress();
-                handleAutoSave();
-              }}
-              placeholder="4000"
-              maxLength={4}
+      {/* Identity Section */}
+      <PropertySection title="Identity">
+        {hasFirstLastName(contact.entity_type) ? (
+          <>
+            <PropertyRow
+              label="First Name"
+              value={contact.first_name}
+              onSave={(value) => saveField("first_name", value)}
+              placeholder="Enter first name"
             />
-          </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          Start typing a suburb name to auto-fill postcode and state.
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Sortable Employee Item (for DnD)
-// ================================
-
-interface SortableEmployeeItemProps {
-  employee: NonNullable<Contact['employees']>[number];
-  employeeRoles: Record<string, string[]>;
-  onRolesChange: (employeeId: number, roleTypes: string[]) => void;
-  onRemove: (employeeId: number) => void;
-  isPrimary: boolean;
-  availableRoleTypes: { value: string; label: string }[];
-}
-
-function SortableEmployeeItem({
-  employee,
-  employeeRoles,
-  onRolesChange,
-  onRemove,
-  isPrimary,
-  availableRoleTypes,
-}: SortableEmployeeItemProps) {
-  return (
-    <SortableItem
-      id={employee.id}
-      showBadge={false}
-      variant="card"
-      className={cn(
-        "gap-3 p-3 rounded-lg",
-        isPrimary && "bg-primary/5 border-primary/20"
-      )}
-      actions={
-        <div className="flex items-center gap-2">
-          <MultipleSelector
-            value={(employeeRoles[employee.id.toString()] || []).map(v => ({ value: v, label: availableRoleTypes.find(r => r.value === v)?.label || v }))}
-            onChange={(options) => onRolesChange(employee.id, options.map(o => o.value))}
-            placeholder="Select roles..."
-            options={availableRoleTypes}
-            className="w-40"
-            hidePlaceholderWhenSelected
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onRemove(employee.id)}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
-          <User className="h-5 w-5 text-muted-foreground" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline truncate">
-              {employee.display_name}
-            </Link>
-            {isPrimary && (
-              <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0">
-                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                Primary
-              </Badge>
-            )}
-          </div>
-          {employee.email && (
-            <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
-          )}
-        </div>
-      </div>
-    </SortableItem>
-  );
-}
-
-// ================================
-// Associated People Card
-// ================================
-
-interface AssociatedPeopleCardProps {
-  contact: Contact;
-  formData: ContactFormData;
-  employeeRoles: Record<string, string[]>;
-  handleEmployeeRolesChange: (employeeId: number, roleTypes: string[]) => void;
-  handleRemoveEmployee: (employeeId: number) => void;
-  handleEmployeeReorder: (newEmployees: Contact["employees"]) => void;
-  relationshipTypeMetadata: RelationshipTypeMetadata[];
-  getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
-}
-
-function AssociatedPeopleCard({
-  contact,
-  formData,
-  employeeRoles,
-  handleEmployeeRolesChange,
-  handleRemoveEmployee,
-  handleEmployeeReorder,
-  relationshipTypeMetadata,
-  getValidRelationshipTypes,
-}: AssociatedPeopleCardProps) {
-  if (!contact.employees || contact.employees.length === 0) return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          People
-          <Badge variant="secondary" className="ml-2">{contact.employees.length}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <SortableList
-          items={contact.employees}
-          onReorder={handleEmployeeReorder}
-          className="space-y-3"
-        >
-          {contact.employees.map((employee, index) => (
-            <SortableEmployeeItem
-              key={employee.id}
-              employee={employee}
-              employeeRoles={employeeRoles}
-              onRolesChange={handleEmployeeRolesChange}
-              onRemove={handleRemoveEmployee}
-              isPrimary={index === 0}
-              availableRoleTypes={getValidRelationshipTypes(
-                relationshipTypeMetadata,
-                'person',
-                formData.entity_type
-              )}
+            <PropertyRow
+              label="Middle Name"
+              value={contact.middle_name}
+              onSave={(value) => saveField("middle_name", value)}
+              placeholder="Enter middle name"
             />
-          ))}
-        </SortableList>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Sortable Company Item (for DnD)
-// ================================
-
-interface SortableCompanyItemProps {
-  company: Option;
-  companyRoles: Record<string, string[]>;
-  onRolesChange: (companyId: string, roleTypes: string[]) => void;
-  onRemove: () => void;
-  isPrimary: boolean;
-  availableRoleTypes: { value: string; label: string }[];
-}
-
-function SortableCompanyItem({
-  company,
-  companyRoles,
-  onRolesChange,
-  onRemove,
-  isPrimary,
-  availableRoleTypes,
-}: SortableCompanyItemProps) {
-  return (
-    <SortableItem
-      id={company.value}
-      showBadge={false}
-      variant="card"
-      className={cn(
-        "gap-3 p-3 rounded-lg",
-        isPrimary && "bg-primary/5 border-primary/20"
-      )}
-      actions={
-        <div className="flex items-center gap-2">
-          <MultipleSelector
-            value={(companyRoles[company.value] || []).map(v => ({ value: v, label: availableRoleTypes.find(r => r.value === v)?.label || v }))}
-            onChange={(options) => onRolesChange(company.value, options.map(o => o.value))}
-            placeholder="Select roles..."
-            options={availableRoleTypes}
-            className="w-40"
-            hidePlaceholderWhenSelected
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
-      }
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
-          <Building2 className="h-5 w-5 text-muted-foreground" />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <Link href={`/contacts/${company.value}`} className="text-sm font-medium hover:underline truncate">
-              {company.label}
-            </Link>
-            {isPrimary && (
-              <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0">
-                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                Primary
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-    </SortableItem>
-  );
-}
-
-// ================================
-// Associated Companies Card
-// ================================
-
-interface AssociatedCompaniesCardProps {
-  formData: ContactFormData;
-  selectedCompanies: Option[];
-  companyRoles: Record<string, string[]>;
-  handleCompanyChange: (newOptions: Option[]) => void;
-  handleCompanyReorder: (newCompanies: Option[]) => void;
-  handleCompanyRolesChange: (companyId: string, roleTypes: string[]) => void;
-  relationshipTypeMetadata: RelationshipTypeMetadata[];
-  getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
-}
-
-// Wrapper type to add id to Option for SortableList
-type CompanyWithId = Option & { id: string };
-
-function AssociatedCompaniesCard({
-  formData,
-  selectedCompanies,
-  companyRoles,
-  handleCompanyChange,
-  handleCompanyReorder,
-  handleCompanyRolesChange,
-  relationshipTypeMetadata,
-  getValidRelationshipTypes,
-}: AssociatedCompaniesCardProps) {
-  // Map companies to have id property for SortableList
-  const companiesWithId: CompanyWithId[] = selectedCompanies.map(c => ({ ...c, id: c.value }));
-
-  // Handle reorder - convert back to Option[] without id
-  const handleReorder = (newItems: CompanyWithId[]) => {
-    const newCompanies = newItems.map(({ id, ...rest }) => rest as Option);
-    handleCompanyReorder(newCompanies);
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Building2 className="h-5 w-5" />
-          Companies
-          <Badge variant="secondary" className="ml-2">{selectedCompanies.length}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <SortableList
-          items={companiesWithId}
-          onReorder={handleReorder}
-          className="space-y-3"
-        >
-          {selectedCompanies.map((company, index) => (
-            <SortableCompanyItem
-              key={company.value}
-              company={company}
-              companyRoles={companyRoles}
-              onRolesChange={handleCompanyRolesChange}
-              onRemove={() => {
-                const newSelected = selectedCompanies.filter(c => c.value !== company.value);
-                handleCompanyChange(newSelected);
-              }}
-              isPrimary={index === 0}
-              availableRoleTypes={getValidRelationshipTypes(
-                relationshipTypeMetadata,
-                formData.entity_type,
-                'company'
-              )}
+            <PropertyRow
+              label="Last Name"
+              value={contact.last_name}
+              onSave={(value) => saveField("last_name", value)}
+              placeholder="Enter last name"
             />
-          ))}
-        </SortableList>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Related Entities Card
-// ================================
-
-interface RelatedEntitiesCardProps {
-  formData: ContactFormData;
-  relatedEntities: ContactRelationship[];
-  loadingRelatedEntities: boolean;
-  showAddRelatedEntity: boolean;
-  setShowAddRelatedEntity: React.Dispatch<React.SetStateAction<boolean>>;
-  availableContacts: Option[];
-  relationshipTypeMetadata: RelationshipTypeMetadata[];
-  newRelatedEntityContactId: string;
-  setNewRelatedEntityContactId: React.Dispatch<React.SetStateAction<string>>;
-  newRelatedEntityType: string;
-  setNewRelatedEntityType: React.Dispatch<React.SetStateAction<string>>;
-  addingRelatedEntity: boolean;
-  handleAddRelatedEntity: () => Promise<void>;
-  handleRemoveRelatedEntity: (relationshipId: number, sourceContactId: number) => void;
-  getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
-}
-
-function RelatedEntitiesCard({
-  formData,
-  relatedEntities,
-  loadingRelatedEntities,
-  showAddRelatedEntity,
-  setShowAddRelatedEntity,
-  availableContacts,
-  relationshipTypeMetadata,
-  newRelatedEntityContactId,
-  setNewRelatedEntityContactId,
-  newRelatedEntityType,
-  setNewRelatedEntityType,
-  addingRelatedEntity,
-  handleAddRelatedEntity,
-  handleRemoveRelatedEntity,
-  getValidRelationshipTypes,
-}: RelatedEntitiesCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Link2 className="h-5 w-5" />
-            Related Entities
-            {relatedEntities.length > 0 && (
-              <Badge variant="secondary" className="ml-2">{relatedEntities.length}</Badge>
-            )}
-          </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddRelatedEntity(!showAddRelatedEntity)}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add Relationship
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {/* Add Relationship Form */}
-        {showAddRelatedEntity && (
-          <div className="mb-4 p-4 border rounded-lg bg-muted/30 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Related Contact</Label>
-                <Select
-                  value={newRelatedEntityContactId}
-                  onValueChange={setNewRelatedEntityContactId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select contact..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableContacts.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Relationship Type</Label>
-                <Select
-                  value={newRelatedEntityType}
-                  onValueChange={setNewRelatedEntityType}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {getValidRelationshipTypes(relationshipTypeMetadata, formData.entity_type, null).map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                onClick={handleAddRelatedEntity}
-                disabled={!newRelatedEntityContactId || !newRelatedEntityType || addingRelatedEntity}
-              >
-                {addingRelatedEntity ? "Adding..." : "Add"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setShowAddRelatedEntity(false);
-                  setNewRelatedEntityContactId("");
-                  setNewRelatedEntityType("");
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
+          </>
+        ) : (
+          <PropertyRow
+            label="Company/Trust Name"
+            value={contact.company_name_or_trust}
+            onSave={(value) => saveField("company_name_or_trust", value)}
+            placeholder="Enter company or trust name"
+          />
         )}
 
-        {/* Related Entities List */}
-        {loadingRelatedEntities ? (
-          <div className="text-center py-4 text-muted-foreground">
-            Loading relationships...
-          </div>
-        ) : relatedEntities.length === 0 ? (
-          <div className="text-center py-4 text-muted-foreground">
-            <p className="text-sm">No related entities</p>
-            <p className="text-xs mt-1">
-              Add relationships like parent companies, subsidiaries, family members, or business partners
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {relatedEntities.map((rel) => (
-              <div
-                key={rel.id}
-                className="flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors"
-              >
-                {/* Entity Icon */}
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  {rel.other_contact?.entity_type === 'person' ? (
-                    <User className="h-5 w-5 text-primary" />
-                  ) : rel.other_contact?.entity_type === 'trust' ? (
-                    <Scale className="h-5 w-5 text-primary" />
-                  ) : (
-                    <Building2 className="h-5 w-5 text-primary" />
-                  )}
-                </div>
+        <PropertyRow
+          label="Display Name"
+          value={contact.display_name}
+          onSave={async () => {}}
+          readonly
+          hint="Auto-generated from name fields"
+        />
 
-                {/* Entity Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Link href={`/contacts/${rel.other_contact?.id}`} className="text-sm font-medium hover:underline">
-                      {rel.other_contact?.name || 'Unknown'}
-                    </Link>
-                    <Badge variant="outline" className="text-xs">
-                      {rel.other_contact?.entity_type}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
-                      {rel.direction === 'outgoing' ? '→' : '←'} {rel.relationship_type_label || rel.relationship_type.replace(/_/g, ' ')}
-                    </Badge>
-                    {rel.ownership_percentage && (
-                      <span className="text-xs text-muted-foreground">
-                        {rel.ownership_percentage}%
-                      </span>
-                    )}
-                  </div>
-                  {rel.other_contact?.email && (
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                      <Mail className="h-3 w-3" />
-                      {rel.other_contact.email}
-                    </div>
-                  )}
-                </div>
+        <PropertyRow
+          label="Entity Type"
+          value={contact.entity_type}
+          onSave={(value) => saveField("entity_type", value)}
+          type="select"
+          options={entityTypeOptions}
+        />
 
-                {/* Actions */}
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveRelatedEntity(rel.id, rel.source_contact_id)}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        <PropertyRow
+          label="Active"
+          value={contact.is_active}
+          onSave={(value) => saveField("is_active", value)}
+          type="switch"
+          hint="Is this contact currently active?"
+        />
+
+        <PropertyRow
+          label="Team Contact"
+          value={contact.is_team_contact}
+          onSave={(value) => saveField("is_team_contact", value)}
+          type="switch"
+          hint="Part of the internal team?"
+        />
+      </PropertySection>
+
+      {/* Contact Section */}
+      <PropertySection title="Contact">
+        <EmailPropertyGroup
+          contactId={contact.id}
+          emails={contact.contact_emails || []}
+          onSave={saveEmails}
+        />
+
+        <div className="my-3" />
+
+        <PhonePropertyGroup
+          contactId={contact.id}
+          phones={contact.contact_phones || []}
+          onSave={savePhones}
+        />
+
+        <div className="my-3" />
+
+        <PropertyRow
+          label="Website"
+          value={contact.website}
+          onSave={(value) => saveField("website", value)}
+          type="url"
+          placeholder="https://example.com"
+          externalLink
+        />
+      </PropertySection>
+
+      {/* Address Section */}
+      <PropertySection title="Address">
+        <AddressPropertyGroup
+          contactId={contact.id}
+          address={streetAddress}
+          onSave={saveAddress}
+        />
+      </PropertySection>
+
+      {/* Company Association - for Person entities */}
+      {canHaveEmployer(contact.entity_type) && contact.primary_company && (
+        <PropertySection title="Employment">
+          <div className="py-2 px-3 -mx-3 rounded bg-muted/30">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div className="flex-1">
+                <span className="text-xs text-muted-foreground">Works at</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <Link
+                    href={`/contacts/${contact.primary_company.id}`}
+                    className="text-sm font-medium hover:underline"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                  <Link href={`/contacts/${rel.other_contact?.id}`}>
-                    <Button variant="ghost" size="sm">
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
+                    {contact.primary_company.name}
                   </Link>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
                 </div>
+              </div>
+            </div>
+          </div>
+        </PropertySection>
+      )}
+
+      {/* Employees - for Company entities */}
+      {canHaveEmployees(contact.entity_type) && contact.employees && contact.employees.length > 0 && (
+        <PropertySection title="Employees">
+          <div className="space-y-1">
+            {contact.employees.map((employee) => (
+              <Link
+                key={employee.id}
+                href={`/contacts/${employee.id}`}
+                className="flex items-center gap-3 py-2 px-3 -mx-3 rounded hover:bg-muted/50"
+              >
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-1">
+                  <span className="text-sm">{employee.display_name}</span>
+                  {employee.primary_role && (
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {employee.primary_role}
+                    </Badge>
+                  )}
+                </div>
+                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+              </Link>
+            ))}
+          </div>
+        </PropertySection>
+      )}
+
+      {/* Related Entities */}
+      {relatedEntities.length > 0 && (
+        <PropertySection title="Related Contacts">
+          <div className="space-y-1">
+            {relatedEntities.map((rel) => {
+              const relatedContact = rel.other_contact || rel.related_contact;
+              if (!relatedContact) return null;
+
+              // Get display name from either name format
+              const displayName = "display_name" in relatedContact
+                ? relatedContact.display_name
+                : "name" in relatedContact
+                  ? relatedContact.name
+                  : "Unknown";
+
+              return (
+                <Link
+                  key={rel.id}
+                  href={`/contacts/${relatedContact.id}`}
+                  className="flex items-center gap-3 py-2 px-3 -mx-3 rounded hover:bg-muted/50"
+                >
+                  <Link2 className="h-4 w-4 text-muted-foreground" />
+                  <div className="flex-1">
+                    <span className="text-sm">{displayName}</span>
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {rel.relationship_type_label || rel.relationship_type}
+                    </Badge>
+                  </div>
+                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                </Link>
+              );
+            })}
+          </div>
+        </PropertySection>
+      )}
+
+      {/* Business & Tax - Hide for employees with primary company */}
+      {!(canHaveEmployer(contact.entity_type) && contact.primary_company) && (
+        <PropertySection title="Business & Tax">
+          <PropertyRow
+            label="ABN"
+            value={contact.abn}
+            onSave={(value) => saveField("abn", value)}
+            format={formatABN}
+            validate={validateABN}
+            placeholder="00 000 000 000"
+          />
+          <PropertyRow
+            label="ACN"
+            value={contact.acn}
+            onSave={(value) => saveField("acn", value)}
+            format={formatACN}
+            validate={validateACN}
+            placeholder="000 000 000"
+          />
+          <PropertyRow
+            label="Sync with Xero"
+            value={contact.sync_with_xero}
+            onSave={(value) => saveField("sync_with_xero", value)}
+            type="switch"
+            hint="Keep contact synced with Xero"
+          />
+        </PropertySection>
+      )}
+
+      {/* Notes */}
+      <PropertySection title="Notes">
+        <PropertyRow
+          label="Notes"
+          value={contact.notes}
+          onSave={(value) => saveField("notes", value)}
+          type="textarea"
+          placeholder="Add notes about this contact..."
+          labelWidth="w-0"
+        />
+      </PropertySection>
+
+      {/* Contact Persons - for companies */}
+      {contact.contact_persons && contact.contact_persons.length > 0 && (
+        <PropertySection title="Contact Persons">
+          <div className="space-y-1">
+            {contact.contact_persons.map((person) => (
+              <div
+                key={person.id}
+                className="flex items-center gap-3 py-2 px-3 -mx-3 rounded bg-muted/30"
+              >
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <div className="flex-1">
+                  <span className="text-sm">
+                    {person.first_name} {person.last_name}
+                  </span>
+                  {person.role && (
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({person.role})
+                    </span>
+                  )}
+                  {person.is_primary && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      Primary
+                    </Badge>
+                  )}
+                </div>
+                {person.email && (
+                  <span className="text-xs text-muted-foreground">
+                    {person.email}
+                  </span>
+                )}
               </div>
             ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+        </PropertySection>
+      )}
 
-// ================================
-// Business & Tax Card
-// ================================
-
-interface BusinessTaxCardProps {
-  contact: Contact;
-  formData: ContactFormData;
-  fieldErrors: Record<string, string>;
-  setFieldErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  handleInputChange: (field: string, value: string | boolean) => void;
-  handleAutoSave: () => void;
-}
-
-function BusinessTaxCard({
-  contact,
-  formData,
-  fieldErrors,
-  setFieldErrors,
-  handleInputChange,
-  handleAutoSave,
-}: BusinessTaxCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Building2 className="h-5 w-5" />
-          Business & Tax
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="abn">
-            {isPerson(formData.entity_type) ? 'ABN (Sole Trader)' : 'ABN / Tax Number'}
-          </Label>
-          <Input
-            id="abn"
-            value={formData.abn}
-            onChange={(e) => {
-              handleInputChange("abn", e.target.value);
-              setFieldErrors(prev => ({ ...prev, abn: '' }));
-            }}
-            onBlur={() => {
-              const validation = validateABN(formData.abn);
-              if (!validation.isValid) {
-                setFieldErrors(prev => ({ ...prev, abn: validation.error || 'Invalid ABN' }));
-              } else {
-                const formatted = formatABN(formData.abn);
-                if (formatted !== formData.abn) {
-                  handleInputChange("abn", formatted);
-                }
-                setFieldErrors(prev => ({ ...prev, abn: '' }));
-              }
-              handleAutoSave();
-            }}
-            placeholder="XX XXX XXX XXX"
-            className={cn(fieldErrors.abn && 'border-red-500 focus-visible:ring-red-500')}
-          />
-          {fieldErrors.abn && (
-            <p className="text-xs text-red-500">{fieldErrors.abn}</p>
-          )}
-          {isPerson(formData.entity_type) && !fieldErrors.abn && (
-            <p className="text-xs text-muted-foreground">For sole traders/contractors only. ACN is company-only.</p>
-          )}
-        </div>
-
-        {/* ACN field - only for companies/trusts */}
-        {!isPerson(formData.entity_type) && (
-          <div className="space-y-2">
-            <Label htmlFor="acn">ACN (Australian Company Number)</Label>
-            <Input
-              id="acn"
-              value={formData.acn}
-              onChange={(e) => {
-                handleInputChange("acn", e.target.value);
-                setFieldErrors(prev => ({ ...prev, acn: '' }));
-              }}
-              onBlur={() => {
-                const validation = validateACN(formData.acn);
-                if (!validation.isValid) {
-                  setFieldErrors(prev => ({ ...prev, acn: validation.error || 'Invalid ACN' }));
-                } else {
-                  const formatted = formatACN(formData.acn);
-                  if (formatted !== formData.acn) {
-                    handleInputChange("acn", formatted);
-                  }
-                  setFieldErrors(prev => ({ ...prev, acn: '' }));
-                }
-                handleAutoSave();
-              }}
-              placeholder="XXX XXX XXX"
-              className={cn(fieldErrors.acn && 'border-red-500 focus-visible:ring-red-500')}
-            />
-            {fieldErrors.acn && (
-              <p className="text-xs text-red-500">{fieldErrors.acn}</p>
-            )}
-            <p className="text-xs text-muted-foreground">9-digit company registration number</p>
+      {/* Groups */}
+      {contact.contact_groups && contact.contact_groups.length > 0 && (
+        <PropertySection title="Groups">
+          <div className="flex flex-wrap gap-2 py-2">
+            {contact.contact_groups.map((group) => (
+              <Badge key={group.id} variant="secondary">
+                {group.name}
+              </Badge>
+            ))}
           </div>
-        )}
+        </PropertySection>
+      )}
 
-        {contact.linked_company && (
-          <Link href={`/corporate/companies/${contact.linked_company.id}`}>
-            <Button variant="outline" size="sm" className="w-full"><ExternalLink className="h-4 w-4 mr-2" />View Corporate Record</Button>
-          </Link>
-        )}
-      </CardContent>
-    </Card>
+      {/* System Info Footer */}
+      <Separator />
+      <div className="text-xs text-muted-foreground flex items-center gap-4 py-2">
+        <span>ID: {contact.id}</span>
+        <span>
+          Created:{" "}
+          {new Date(contact.created_at).toLocaleDateString("en-AU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
+        </span>
+        <span>
+          Updated:{" "}
+          {new Date(contact.updated_at).toLocaleDateString("en-AU", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })}
+        </span>
+      </div>
+    </div>
   );
 }
 
-// ================================
-// Notes Card
-// ================================
-
-interface NotesCardProps {
-  formData: ContactFormData;
-  handleInputChange: (field: string, value: string | boolean) => void;
-  handleAutoSave: () => void;
-}
-
-function NotesCard({
-  formData,
-  handleInputChange,
-  handleAutoSave,
-}: NotesCardProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg flex items-center gap-2">
-          <FileText className="h-5 w-5" />
-          Notes
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Textarea id="notes" value={formData.notes} onChange={(e) => handleInputChange("notes", e.target.value)} onBlur={handleAutoSave} placeholder="Internal notes..." rows={4} />
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Contact Persons Card
-// ================================
-
-interface ContactPersonsCardProps {
-  contact: Contact;
-  setEditModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-function ContactPersonsCard({ contact, setEditModalOpen }: ContactPersonsCardProps) {
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Contact Persons
-          <Badge variant="secondary" className="ml-2">{contact.contact_persons.length}</Badge>
-        </CardTitle>
-        <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
-          <Pencil className="h-4 w-4 mr-2" />Edit
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {contact.contact_persons.map((person) => (
-            <div key={person.id} className={cn("flex items-center justify-between p-3 rounded-lg border", person.is_primary && "bg-primary/5 border-primary/20")}>
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center"><User className="h-4 w-4 text-muted-foreground" /></div>
-                <div>
-                  <p className="text-sm font-medium">{person.first_name} {person.last_name}{person.is_primary && <Badge variant="outline" className="ml-2 text-xs">Primary</Badge>}</p>
-                  <p className="text-xs text-muted-foreground">{person.email} {person.mobile && `| ${person.mobile}`}</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Groups Card
-// ================================
-
-function GroupsCard({ contact }: { contact: Contact }) {
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-lg">Groups</CardTitle></CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-2">
-          {contact.contact_groups.map((group) => (<Badge key={group.id} variant="secondary">{group.name}</Badge>))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// LGAs Card
-// ================================
-
-function LGAsCard({ contact }: { contact: Contact }) {
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-lg">Service Areas (LGAs)</CardTitle></CardHeader>
-      <CardContent>
-        <div className="flex flex-wrap gap-2">
-          {contact.lgas.map((lga, idx) => (<Badge key={idx} variant="outline">{lga}</Badge>))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// Quick Stats Card
-// ================================
-
-function QuickStatsCard({ contact }: { contact: Contact }) {
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-lg">Quick Stats</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Jobs</span>
-          <span className="text-lg font-semibold">{contact.jobs_count || 0}</span>
-        </div>
-        <Separator />
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Purchase Orders</span>
-          <span className="text-lg font-semibold">{contact.purchase_orders_count || 0}</span>
-        </div>
-        <Separator />
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Quotes</span>
-          <span className="text-lg font-semibold">{contact.quotes_count || 0}</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ================================
-// System Info Card
-// ================================
-
-function SystemInfoCard({ contact }: { contact: Contact }) {
-  return (
-    <Card>
-      <CardHeader><CardTitle className="text-lg">System Info</CardTitle></CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">ID</span>
-          <span className="font-mono">{contact.id}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Created</span>
-          <span>{new Date(contact.created_at).toLocaleDateString()}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Updated</span>
-          <span>{new Date(contact.updated_at).toLocaleDateString()}</span>
-        </div>
-        {contact.xero_contact_id && (
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Xero ID</span>
-            <span className="font-mono text-xs truncate max-w-[120px]">{contact.xero_contact_id.slice(0, 8)}...</span>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+export default ContactOverviewTab;
