@@ -110,7 +110,7 @@ class AiProcessingPipeline
 
   # Plan Identification: Pattern Matching
   def run_plan_pattern_matching(text)
-    plan_types = PlanType.active.to_a
+    plan_types = PlanType.active  # Must be ActiveRecord::Relation for find_by
     result = PlanIdentification::PatternMatchingLayer.match_from_text(text, plan_types)
 
     pattern_data = {
@@ -127,7 +127,7 @@ class AiProcessingPipeline
 
   # Plan Identification: AI Validation
   def run_plan_ai_validation(pdf_content)
-    plan_types = PlanType.active.to_a
+    plan_types = PlanType.active  # Must be ActiveRecord::Relation for find_by
     result = PlanIdentification::AiValidationLayer.extract(
       pdf_content,
       plan_types: plan_types

@@ -243,6 +243,7 @@ export function PdfFieldsTab() {
 
   // Drag handlers
   const handleDragStart = (e: React.DragEvent, fieldId: number) => {
+    console.log('[DRAG] handleDragStart called!', { fieldId, target: e.target });
     addDebugLog(`Drag start: field ${fieldId}`);
     setDraggingFieldId(fieldId);
 
@@ -621,6 +622,8 @@ export function PdfFieldsTab() {
                         {/* Draggable field panel - 2 boxes only */}
                         <div
                           draggable
+                          onMouseDown={() => console.log('[CLICK] Mouse down on field:', field.id, field.display_name)}
+                          onClick={() => console.log('[CLICK] Click on field:', field.id, field.display_name)}
                           onDragStart={(e) => handleDragStart(e, field.id)}
                           onDragEnd={handleDragEnd}
                           className={cn(
