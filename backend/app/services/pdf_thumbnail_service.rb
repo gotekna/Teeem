@@ -7,13 +7,13 @@
 #   PdfThumbnailService.new(revision).generate!
 #
 class PdfThumbnailService
-  # Micro thumbnail (instant display, small but readable)
-  MICRO_WIDTH = 300
+  # Micro thumbnail (instant display, large enough for preview panel)
+  MICRO_WIDTH = 600   # Large enough to fill preview panel without pixelation
   MICRO_BLUR = 0      # No blur - keep it readable
-  MICRO_QUALITY = 50  # Lower quality to keep file small
+  MICRO_QUALITY = 60  # Balance quality vs file size
 
   # Full thumbnail (high quality, loads in background)
-  FULL_WIDTH = 500
+  FULL_WIDTH = 800    # Larger for when user clicks "View Full PDF"
   FULL_QUALITY = 75
 
   # Shared settings

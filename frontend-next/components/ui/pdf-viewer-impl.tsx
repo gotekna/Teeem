@@ -125,9 +125,31 @@ export function PDFViewerImpl({
     fetchPDF();
   }, [url]); // Only depend on URL - use ref for callbacks
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+  const onDocumentLoadSuccess = async ({ numPages, getPage }: { numPages: number; getPage: (pageNum: number) => Promise<unknown> }) => {
     setNumPages(numPages);
     setPageNumber(1);
+
+    // Get first page dimensions to calculate initial fit scale BEFORE rendering
+    try {
+      const page = await getPage(1) as { view: number[] };
+      if (page?.view) {
+        // PDF view array: [x, y, width, height]
+        const pdfWidth = page.view[2] - page.view[0];
+        const pdfHeight = page.view[3] - page.view[1];
+        setPageSize({ width: pdfWidth, height: pdfHeight });
+
+        // Calculate fit scale immediately if we have container dimensions
+        if (containerWidth > 0 && containerHeight > 0) {
+          const scaleForWidth = containerWidth / pdfWidth;
+          const scaleForHeight = containerHeight / pdfHeight;
+          const fitScale = Math.min(scaleForWidth, scaleForHeight);
+          setScale(fitScale);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not get page dimensions:", err);
+      // Fall back to scale 1.0, will auto-fit after render
+    }
   };
 
   const onPageRenderSuccess = (page: { width: number; height: number }) => {
