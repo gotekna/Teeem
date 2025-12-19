@@ -61,6 +61,11 @@ module PlanIdentification
       new(plan_types).match(sheet_name)
     end
 
+    # Match from raw OCR text (longer text that may contain plan type info)
+    def self.match_from_text(ocr_text, plan_types = nil)
+      new(plan_types).match_from_text(ocr_text)
+    end
+
     def initialize(plan_types = nil)
       @plan_types = plan_types || PlanType.active
     end
@@ -90,7 +95,74 @@ module PlanIdentification
       MatchResult.new(confidence: 0, reason: "no_match")
     end
 
+    # Match from raw OCR text (full page text extraction)
+    # This analyzes longer text to find plan type indicators
+    def match_from_text(ocr_text)
+      return MatchResult.new(reason: "blank_input") if ocr_text.blank?
+
+      normalized = normalize(ocr_text)
+
+      # Strategy 1: Look for plan type names directly in text (85% confidence)
+      plan_type = find_plan_type_in_text(normalized)
+      if plan_type
+        return MatchResult.new(plan_type: plan_type, confidence: 85, reason: "text_contains_type")
+      end
+
+      # Strategy 2: Look for keywords in text (75% confidence)
+      plan_type, keyword = keyword_match(normalized)
+      if plan_type
+        return MatchResult.new(plan_type: plan_type, confidence: 75, reason: "text_keyword:#{keyword}")
+      end
+
+      # Strategy 3: Extract title block patterns (70% confidence)
+      # Look for common patterns like "Drawing: Floor Plan" or "Sheet: Elevation"
+      sheet_name = extract_sheet_name_from_text(normalized)
+      if sheet_name.present?
+        result = match(sheet_name)
+        if result.matched?
+          # Reduce confidence slightly since we're extracting from raw text
+          return MatchResult.new(
+            plan_type: result.plan_type,
+            confidence: [result.confidence - 10, 60].max,
+            reason: "extracted_sheet:#{result.reason}"
+          )
+        end
+      end
+
+      # No match found
+      MatchResult.new(confidence: 0, reason: "no_match_in_text")
+    end
+
     private
+
+    # Find plan type names directly in the text
+    def find_plan_type_in_text(normalized)
+      @plan_types.each do |plan_type|
+        plan_name = plan_type.name.downcase
+        # Look for the plan type name as a complete phrase
+        if normalized.include?(plan_name)
+          return plan_type
+        end
+      end
+      nil
+    end
+
+    # Extract sheet name from common title block patterns
+    def extract_sheet_name_from_text(text)
+      # Common patterns in architectural drawings
+      patterns = [
+        /(?:drawing|sheet|dwg|title)[\s:]+([a-z0-9\s]+(?:plan|elevation|section|detail|schedule|perspective))/i,
+        /(?:drawing|sheet|dwg|title)[\s:]+([a-z0-9\s]{3,30})/i,
+        /^([a-z]+\s+(?:plan|elevation|section|detail|schedule|perspective))/i
+      ]
+
+      patterns.each do |pattern|
+        match = text.match(pattern)
+        return match[1].strip if match
+      end
+
+      nil
+    end
 
     def normalize(text)
       text.to_s.downcase.strip

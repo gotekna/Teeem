@@ -4,42 +4,22 @@
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSidebar } from "@/contexts/SidebarContext";
 import {
-  Home,
-  Briefcase,
-  Calendar,
-  Shield,
   Users,
-  FileText,
   Settings,
   Sun,
   Moon,
   Menu,
   LogOut,
-  FolderOpen,
-  Target,
-  Package,
-  Building2,
-  ListTodo,
-  FileQuestion,
-  Layers,
-  CalendarClock,
-  ExternalLink,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Wrench,
-  Scale,
-  History,
-  Workflow,
   Loader2,
-  Mail,
 } from "lucide-react";
 import {
   Persona,
-  PERSONA_CONFIG,
   getStoredPersona,
   setStoredPersona,
 } from "@/lib/personas";
@@ -55,39 +35,8 @@ import {
 } from "./popover";
 import { Badge } from "./badge";
 import { api } from "@/lib/api";
-import { urls } from "@/lib/url-utils";
-import { useNavigation, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
+import { useNavigation, useToggleNavCollapse, type NavigationItem, type NavigationChildItem } from "@/hooks/useNavigation";
 import { getIcon } from "@/lib/icon-map";
-
-interface HardcodedNavItem {
-  name: string;
-  href: string;
-  icon: typeof Home;
-  badgeKey?: string;
-}
-
-const navigationItems: HardcodedNavItem[] = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Leads", href: "/leads", icon: Target, badgeKey: "pendingProposals" },
-  { name: "Jobs", href: urls.jobs(), icon: Briefcase },
-  { name: "Tasks", href: urls.tasks(), icon: ListTodo },
-  { name: "Schedule", href: "/schedule-master", icon: CalendarClock },
-  { name: "Meetings", href: "/meetings", icon: Calendar },
-  { name: "WHS", href: "/whs", icon: Shield },
-  { name: "Finance", href: "/finance", icon: Layers, badgeKey: "pendingBills" },
-  { name: "Purchase Orders", href: "/purchase_orders", icon: FileText },
-  { name: "Quote Requests", href: "/quote-requests", icon: FileQuestion },
-  { name: "Contacts", href: urls.contacts(), icon: Users },
-  { name: "Email", href: "/email", icon: Mail },
-  { name: "Price Book", href: urls.pricebook(), icon: Package },
-  { name: "Price Histories", href: "/price_histories", icon: History },
-  { name: "Documents", href: "/documents", icon: FolderOpen },
-  { name: "Workflows", href: "/workflows/processes", icon: Workflow },
-  { name: "Corporate", href: "/corporate", icon: Building2 },
-  { name: "Cases", href: "/cases", icon: Scale, badgeKey: "pendingCaseProposals" },
-  { name: "Portal", href: "/portal", icon: ExternalLink },
-  { name: "Admin", href: "/admin", icon: Wrench },
-];
 
 export function Sidebar() {
   const { isExpanded, setIsExpanded } = useSidebar();
@@ -95,10 +44,10 @@ export function Sidebar() {
   const [badges, setBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
-  const [collapsedItems, setCollapsedItems] = useState<Set<number>>(new Set());
 
-  // Fetch navigation from API
-  const { data: apiNavigation, isError: navError } = useNavigation();
+  // Fetch navigation from API (SSoT - order from NavigationItem, collapse from user prefs)
+  const { data: apiNavigation, isLoading: navLoading, isError: navError } = useNavigation();
+  const toggleCollapseMutation = useToggleNavCollapse();
   const [deployedAt, setDeployedAt] = useState<string | null>(null);
   const [loadingHref, setLoadingHref] = useState<string | null>(null);
   const pathname = usePathname();
@@ -119,34 +68,8 @@ export function Sidebar() {
     setPersona(getStoredPersona());
   }, []);
 
-  // Initialize collapsed items from API data (collapsed by default)
-  useEffect(() => {
-    if (apiNavigation?.items) {
-      // Check localStorage first for user preference
-      const saved = localStorage.getItem('teeem-nav-collapsed');
-      if (saved) {
-        try {
-          setCollapsedItems(new Set(JSON.parse(saved)));
-        } catch {
-          // Fall back to API defaults
-          const defaultCollapsed = new Set(
-            apiNavigation.items
-              .filter((item) => item.has_children && item.is_collapsed)
-              .map((item) => item.id)
-          );
-          setCollapsedItems(defaultCollapsed);
-        }
-      } else {
-        // Use API defaults - collapsed by default for items with is_collapsed=true
-        const defaultCollapsed = new Set(
-          apiNavigation.items
-            .filter((item) => item.has_children && item.is_collapsed)
-            .map((item) => item.id)
-        );
-        setCollapsedItems(defaultCollapsed);
-      }
-    }
-  }, [apiNavigation]);
+  // Collapse state is now managed by the API (stored in database per user)
+  // No need for local state - use apiNavigation.items[].is_collapsed directly
 
   // Load backend version
   useEffect(() => {
@@ -260,29 +183,9 @@ export function Sidebar() {
     setStoredPersona(newPersona);
   };
 
-  // Filter navigation items based on persona (fallback for hardcoded items)
-  const filteredItems = useMemo(() => {
-    const config = PERSONA_CONFIG[persona];
-    if (config.items === 'all') return navigationItems;
-    return navigationItems.filter(item => config.items.includes(item.href));
-  }, [persona]);
-
-  // Use API navigation if available
-  const useApiNavigation = apiNavigation && !navError && Array.isArray(apiNavigation.items);
-
-  // Toggle item collapsed state
+  // Toggle item collapsed state (saves to database via API)
   const toggleItemCollapse = (itemId: number) => {
-    setCollapsedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      // Save to localStorage
-      localStorage.setItem('teeem-nav-collapsed', JSON.stringify([...next]));
-      return next;
-    });
+    toggleCollapseMutation.mutate(itemId);
   };
 
   const handleLogout = () => {
@@ -367,7 +270,7 @@ export function Sidebar() {
     const badgeCount = item.badge_key ? badges[item.badge_key] : 0;
     const isItemLoading = loadingHref === item.href;
     const hasChildren = item.has_children && item.children.length > 0;
-    const isCollapsed = collapsedItems.has(item.id);
+    const isCollapsed = item.is_collapsed; // From API (stored in database per user)
 
     return (
       <div key={item.id}>
@@ -478,72 +381,22 @@ export function Sidebar() {
         </div>
       )}
 
-      {/* Main Navigation */}
+      {/* Main Navigation - SSoT from NavigationItem table */}
       <nav className="flex-1 py-4 flex flex-col gap-0.5 px-2 overflow-y-auto">
-        {useApiNavigation ? (
+        {navLoading ? (
+          /* Loading state */
+          <div className="flex items-center justify-center py-8">
+            <Loader2 size={20} className="animate-spin text-muted-foreground" />
+          </div>
+        ) : navError ? (
+          /* Error state */
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            Failed to load navigation
+          </div>
+        ) : apiNavigation?.items ? (
           /* API-driven navigation with nested items */
           apiNavigation.items.map((item) => renderNavItem(item, mobile))
-        ) : (
-          /* Fallback to hardcoded navigation */
-          filteredItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
-            const isLoading = loadingHref === item.href;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch={false}
-                onClick={() => !active && setLoadingHref(item.href)}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-                  active
-                    ? "bg-secondary text-secondary-foreground"
-                    : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-                )}
-              >
-                <div className="relative shrink-0">
-                  {isLoading ? (
-                    <Loader2 size={16} className="animate-spin text-primary" />
-                  ) : (
-                    <Icon size={16} />
-                  )}
-                  {badgeCount > 0 && !isExpanded && !mobile && (
-                    <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-yellow-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                      {badgeCount > 9 ? "9+" : badgeCount}
-                    </span>
-                  )}
-                </div>
-                <span
-                  className={cn(
-                    "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm flex items-center gap-2",
-                    isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0",
-                    isLoading && "opacity-50"
-                  )}
-                >
-                  {item.name}
-                  {badgeCount > 0 && (isExpanded || mobile) && (
-                    <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                      {badgeCount}
-                    </Badge>
-                  )}
-                </span>
-                {!isExpanded && !mobile && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
-                    {item.name}
-                    {badgeCount > 0 && (
-                      <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
-                        {badgeCount}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-              </Link>
-            );
-          })
-        )}
+        ) : null}
       </nav>
 
       {/* Version Info */}

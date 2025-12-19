@@ -46,6 +46,14 @@ class PlanFolderProcessJob < ApplicationJob
         display_name: result.display_name || scan.file_name.gsub(/\.pdf$/i, "")
       )
 
+      # Link the AiProcessingLog to the newly created job_plan for correction tracking
+      if result.log_id.present?
+        AiProcessingLog.where(id: result.log_id).update_all(
+          processable_type: "JobPlan",
+          processable_id: job_plan.id
+        )
+      end
+
       # Get file metadata for revision
       file_info = client.get_file_metadata(scan.sharepoint_file_id)
       web_url = file_info&.dig("webUrl")

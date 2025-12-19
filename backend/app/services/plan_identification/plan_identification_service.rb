@@ -26,15 +26,16 @@ module PlanIdentification
   #   - Any future plan identification → MUST use this service
   #
   class PlanIdentificationService
-    # Confidence thresholds
+    # Confidence thresholds (defaults - can be overridden by AiServiceConfig)
     AUTO_ASSIGN_THRESHOLD = 95       # Auto-assign without review
     SPOT_CHECK_THRESHOLD = 80        # Auto-assign but flag for spot-check
     REVIEW_THRESHOLD = 60            # Auto-assign but queue for review
     HUMAN_REQUIRED_THRESHOLD = 60    # Below this, require human review
-    AI_INVOKE_THRESHOLD = 80         # Invoke AI when pattern match below this
 
-    def self.identify(pdf_content, job, page_number: 1)
-      new(job).identify_from_pdf(pdf_content, page_number)
+    SERVICE_TYPE = "plan_identification"
+
+    def self.identify(pdf_content, job, page_number: 1, processable: nil)
+      new(job).identify_from_pdf(pdf_content, page_number, processable: processable)
     end
 
     def self.identify_from_text(sheet_name, job)
@@ -48,11 +49,70 @@ module PlanIdentification
     def initialize(job)
       @job = job
       @plan_types = PlanType.active
+      @config = AiServiceConfig.for(SERVICE_TYPE)
     end
 
     # Identify from PDF content (full pipeline)
-    def identify_from_pdf(pdf_content, page_number = 1)
+    # Uses AiProcessingPipeline with configurable OCR/AI settings
+    def identify_from_pdf(pdf_content, page_number = 1, processable: nil)
       Rails.logger.info "[PlanIdentificationService] Starting identification for page #{page_number}"
+
+      # Use the configurable pipeline
+      pipeline = AiProcessingPipeline.new(
+        service_type: SERVICE_TYPE,
+        processable: processable
+      )
+
+      # Run the pipeline
+      pipeline_result = pipeline.process(pdf_content, filename: processable&.try(:file_name))
+
+      # Extract plan type from result
+      plan_type_id = pipeline_result[:type_id]
+      final_plan_type = plan_type_id ? @plan_types.find_by(id: plan_type_id) : nil
+
+      # If pipeline didn't find a type but has AI data, try to match
+      if final_plan_type.nil? && pipeline_result[:ai]
+        ai_type = pipeline_result.dig(:ai, :type)
+        final_plan_type = @plan_types.find_by("LOWER(name) = ?", ai_type&.downcase) if ai_type
+      end
+
+      # Get sheet info from AI result
+      sheet_info = pipeline_result.dig(:ai, :sheet_info) || {}
+
+      # Calculate status
+      confidence = pipeline_result[:confidence] || 0
+      status = determine_status(confidence)
+
+      # Find matching job_plan_tab based on plan type
+      job_plan_tab = find_job_plan_tab(final_plan_type)
+
+      # Build result
+      result = Result.new(
+        plan_type: final_plan_type,
+        plan_category: final_plan_type&.plan_categories&.first,
+        job_plan_tab: job_plan_tab,
+        confidence: confidence,
+        status: status,
+        display_name: sheet_info[:name],
+        short_name: build_short_name_from_pipeline(sheet_info),
+        sheet_number: sheet_info[:number],
+        sheet_name: sheet_info[:name],
+        sheet_date: sheet_info[:date],
+        sheet_issue: sheet_info[:issue],
+        match_reason: pipeline_result[:method],
+        ai_invoked: pipeline_result[:ai].present?,
+        log_id: pipeline_result[:log_id]
+      )
+
+      log_identification_result(result, pipeline_result)
+
+      result
+    end
+
+    # Legacy method - direct AI identification (bypasses OCR layer)
+    # Use this when you specifically want AI-only processing
+    def identify_from_pdf_legacy(pdf_content, page_number = 1)
+      Rails.logger.info "[PlanIdentificationService] Legacy identification for page #{page_number}"
 
       # Layer 3 first: AI extracts sheet info from PDF
       ai_result = AiValidationLayer.extract(pdf_content, page_number: page_number, plan_types: @plan_types)
@@ -77,7 +137,7 @@ module PlanIdentification
       job_plan_tab = find_job_plan_tab(final_plan_type)
 
       # Build result
-      result = Result.new(
+      Result.new(
         plan_type: final_plan_type,
         plan_category: final_plan_type&.plan_categories&.first,
         job_plan_tab: job_plan_tab,
@@ -92,11 +152,6 @@ module PlanIdentification
         match_reason: pattern_result.reason,
         ai_invoked: true
       )
-
-      # Create audit record (Phase 1 - just log for now, DB table in next step)
-      log_identification(result, pattern_result, ai_result)
-
-      result
     end
 
     # Identify from text only (pattern matching, optionally invoke AI)
@@ -210,6 +265,13 @@ module PlanIdentification
       parts.join(" - ").presence
     end
 
+    def build_short_name_from_pipeline(sheet_info)
+      parts = []
+      parts << sheet_info[:number] if sheet_info[:number].present?
+      parts << sheet_info[:name] if sheet_info[:name].present?
+      parts.join(" - ").presence
+    end
+
     def log_identification(result, pattern_result, ai_result)
       Rails.logger.info(
         "[PlanIdentificationService] Identified: " \
@@ -218,6 +280,19 @@ module PlanIdentification
         "status=#{result.status}, " \
         "pattern=#{pattern_result.reason}, " \
         "ai_invoked=#{result.ai_invoked}"
+      )
+    end
+
+    def log_identification_result(result, pipeline_result)
+      Rails.logger.info(
+        "[PlanIdentificationService] Pipeline result: " \
+        "plan_type=#{result.plan_type&.name || 'none'}, " \
+        "confidence=#{result.confidence}%, " \
+        "status=#{result.status}, " \
+        "method=#{pipeline_result[:method]}, " \
+        "ocr=#{pipeline_result[:ocr] ? 'yes' : 'no'}, " \
+        "ai=#{pipeline_result[:ai] ? 'yes' : 'no'}, " \
+        "log_id=#{pipeline_result[:log_id]}"
       )
     end
   end

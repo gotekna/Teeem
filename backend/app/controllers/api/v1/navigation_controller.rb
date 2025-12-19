@@ -2,77 +2,47 @@ module Api
   module V1
     class NavigationController < ApplicationController
       # GET /api/v1/navigation
-      # Returns user's personalized navigation (nested structure)
+      # Returns navigation from SSoT (NavigationItem) with user's collapse preferences
       def index
-        # Initialize user's nav config if it doesn't exist
-        UserNavigationConfig.initialize_for_user(current_user) unless current_user.user_navigation_configs.exists?
+        # Sync user's collapse prefs for any new items added by admin
+        UserNavigationConfig.sync_for_user(current_user)
 
-        user_role = current_user.role
+        # Get user's collapse preferences
+        collapse_prefs = current_user.user_navigation_configs
+                           .pluck(:navigation_item_id, :is_collapsed)
+                           .to_h
 
-        # Get user's navigation config with items
-        configs = current_user.user_navigation_configs
-          .visible
-          .ordered
-          .includes(navigation_item: :children)
-
-        # Filter by role visibility and build nested structure
-        visible_configs = configs.select do |config|
-          item = config.navigation_item
-          item.is_active && item.visible_to?(current_user)
-        end
-
-        # Separate top-level items and children
-        top_level = visible_configs.select { |c| c.parent_id.nil? }
-        children_by_parent = visible_configs.group_by(&:parent_id)
+        # Get items from SSoT (NavigationItem), ordered by admin-set position
+        items = NavigationItem.active.top_level.ordered
+                  .includes(:children)
+                  .select { |item| item.visible_to?(current_user) }
 
         render json: {
           success: true,
           navigation: {
-            items: top_level.map { |config| item_with_children_json(config, children_by_parent) }
+            items: items.map { |item| item_with_children_json(item, collapse_prefs) }
           }
         }
       end
 
-      # PATCH /api/v1/navigation/reorder
-      # Update user's navigation order
-      def reorder
-        params[:items].each_with_index do |item_data, index|
-          config = current_user.user_navigation_configs.find_by(navigation_item_id: item_data[:id])
-          next unless config
-
-          config.update!(
-            position: index,
-            parent_id: item_data[:parent_id]
-          )
-        end
-
-        render json: { success: true }
-      end
-
       # PATCH /api/v1/navigation/:id/toggle_collapse
+      # Toggle user's collapse preference for a navigation item
       def toggle_collapse
-        config = current_user.user_navigation_configs.find_by(navigation_item_id: params[:id])
-        if config
-          config.update!(is_collapsed: !config.is_collapsed)
-          render json: { success: true, is_collapsed: config.is_collapsed }
-        else
-          render json: { success: false, error: "Config not found" }, status: :not_found
+        config = current_user.user_navigation_configs.find_or_create_by!(
+          navigation_item_id: params[:id]
+        ) do |c|
+          # Set default from NavigationItem if creating new
+          c.is_collapsed = NavigationItem.find(params[:id]).is_collapsed_default
         end
-      end
 
-      # PATCH /api/v1/navigation/:id/toggle_hidden
-      def toggle_hidden
-        config = current_user.user_navigation_configs.find_by(navigation_item_id: params[:id])
-        if config
-          config.update!(is_hidden: !config.is_hidden)
-          render json: { success: true, is_hidden: config.is_hidden }
-        else
-          render json: { success: false, error: "Config not found" }, status: :not_found
-        end
+        config.update!(is_collapsed: !config.is_collapsed)
+        render json: { success: true, is_collapsed: config.is_collapsed }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Navigation item not found" }, status: :not_found
       end
 
       # POST /api/v1/navigation/reset
-      # Reset user's navigation to system defaults
+      # Reset user's collapse preferences to system defaults
       def reset
         UserNavigationConfig.reset_for_user(current_user)
         render json: { success: true }
@@ -80,9 +50,12 @@ module Api
 
       private
 
-      def item_with_children_json(config, children_by_parent)
-        item = config.navigation_item
-        children = (children_by_parent[item.id] || []).sort_by(&:position)
+      def item_with_children_json(item, collapse_prefs)
+        # Get visible children, ordered by position
+        visible_children = item.children.active.ordered.select { |child| child.visible_to?(current_user) }
+
+        # User's collapse preference, or default from NavigationItem
+        is_collapsed = collapse_prefs.key?(item.id) ? collapse_prefs[item.id] : item.is_collapsed_default
 
         {
           id: item.id,
@@ -90,22 +63,21 @@ module Api
           href: item.href,
           icon: item.icon,
           badge_key: item.badge_key,
-          position: config.position,
-          is_collapsed: config.is_collapsed,
-          has_children: children.any?,
-          children: children.map { |child_config| child_item_json(child_config) }
+          position: item.position,
+          is_collapsed: is_collapsed,
+          has_children: visible_children.any?,
+          children: visible_children.map { |child| child_item_json(child, collapse_prefs) }
         }
       end
 
-      def child_item_json(config)
-        item = config.navigation_item
+      def child_item_json(child, collapse_prefs)
         {
-          id: item.id,
-          name: item.name,
-          href: item.href,
-          icon: item.icon,
-          badge_key: item.badge_key,
-          position: config.position
+          id: child.id,
+          name: child.name,
+          href: child.href,
+          icon: child.icon,
+          badge_key: child.badge_key,
+          position: child.position
         }
       end
     end

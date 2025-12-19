@@ -16,6 +16,14 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # PDF Field Positions (Admin: manage text overlay positions on PDF templates)
+      resources :pdf_field_positions, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          post :preview       # POST /api/v1/pdf_field_positions/preview - generate preview PDF
+          post :bulk_update   # POST /api/v1/pdf_field_positions/bulk_update - update multiple positions
+        end
+      end
+
       # Plan Folder Scans (for Revit plan import workflow)
       resources :plan_folder_scans, only: [:index, :destroy] do
         collection do
@@ -80,12 +88,10 @@ Rails.application.routes.draw do
       get "system/metrics", to: "system#metrics"
       get "system/scheduled_jobs", to: "system#scheduled_jobs"
 
-      # Navigation (sidebar menu configuration)
+      # Navigation (sidebar menu - SSoT is NavigationItem, user stores collapse only)
       get "navigation", to: "navigation#index"
-      patch "navigation/reorder", to: "navigation#reorder"
       post "navigation/reset", to: "navigation#reset"
       patch "navigation/:id/toggle_collapse", to: "navigation#toggle_collapse"
-      patch "navigation/:id/toggle_hidden", to: "navigation#toggle_hidden"
 
       # Admin: Navigation system config
       resources :navigation_groups, only: [ :index, :create, :update, :destroy ] do

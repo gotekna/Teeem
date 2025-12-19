@@ -79,6 +79,7 @@ import { SharePointTab } from "./components/SharePointTab";
 import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
 import { NavigationTab } from "./components/NavigationTab";
 import { JobTabsConfigTab } from "./components/JobTabsConfigTab";
+import { PdfFieldsTab } from "./components/PdfFieldsTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -119,6 +120,7 @@ const MAIN_TABS = [
   { id: "performance", label: "Performance", icon: BarChart },
   { id: "scheduled-jobs", label: "Scheduled Jobs", icon: Clock },
   { id: "email-accounts", label: "Email Accounts", icon: Mail },
+  { id: "pdf-fields", label: "PDF Fields", icon: FileText },
 ];
 
 const COMPANY_TABS = [
@@ -846,6 +848,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="email-accounts">
             <EmailAccountsTab />
+          </TabsContent>
+          <TabsContent value="pdf-fields">
+            <PdfFieldsTab />
           </TabsContent>
         </div>
       </Tabs>

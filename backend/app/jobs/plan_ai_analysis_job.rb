@@ -26,7 +26,8 @@ class PlanAiAnalysisJob < ApplicationJob
     return unless content
 
     # Use PlanIdentificationService (THE ONE SSoT)
-    result = PlanIdentification::PlanIdentificationService.identify(content, plan.job)
+    # Pass processable: plan so AiProcessingLog links to this JobPlan for correction tracking
+    result = PlanIdentification::PlanIdentificationService.identify(content, plan.job, processable: plan)
 
     Rails.logger.info "[PlanAiAnalysisJob] Service result: #{result.to_h.inspect}"
 

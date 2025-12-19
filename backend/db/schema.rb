@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073046) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073051) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -122,6 +122,47 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073046) do
     t.index ["created_by_id"], name: "index_agent_definitions_on_created_by_id"
     t.index ["last_run_by_id"], name: "index_agent_definitions_on_last_run_by_id"
     t.index ["updated_by_id"], name: "index_agent_definitions_on_updated_by_id"
+  end
+
+  create_table "ai_processing_logs", force: :cascade do |t|
+    t.string "service_type", null: false
+    t.string "processable_type"
+    t.bigint "processable_id"
+    t.string "input_identifier"
+    t.jsonb "ocr_result"
+    t.jsonb "pattern_result"
+    t.jsonb "ai_result"
+    t.string "final_type"
+    t.integer "final_confidence"
+    t.string "decision_method"
+    t.boolean "user_corrected", default: false
+    t.string "corrected_to"
+    t.bigint "corrected_by_id"
+    t.datetime "corrected_at"
+    t.integer "ocr_duration_ms"
+    t.integer "ai_duration_ms"
+    t.integer "total_duration_ms"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corrected_by_id"], name: "index_ai_processing_logs_on_corrected_by_id"
+    t.index ["created_at"], name: "index_ai_processing_logs_on_created_at"
+    t.index ["processable_type", "processable_id"], name: "index_ai_processing_logs_on_processable"
+    t.index ["service_type", "user_corrected"], name: "index_ai_processing_logs_on_service_type_and_user_corrected"
+    t.index ["service_type"], name: "index_ai_processing_logs_on_service_type"
+  end
+
+  create_table "ai_service_configs", force: :cascade do |t|
+    t.string "service_type", null: false
+    t.string "display_name", null: false
+    t.boolean "ocr_enabled", default: true
+    t.integer "ai_threshold", default: 80
+    t.string "ai_model", default: "sonnet"
+    t.boolean "ai_always", default: false
+    t.boolean "active", default: true
+    t.jsonb "extra_config", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_type"], name: "index_ai_service_configs_on_service_type", unique: true
   end
 
   create_table "asset_insurances", force: :cascade do |t|
@@ -2269,7 +2310,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073046) do
     t.index ["from_email"], name: "index_email_warehouse_on_from_email"
     t.index ["imap_credential_id"], name: "index_email_warehouse_on_imap_credential_id"
     t.index ["internet_headers"], name: "index_email_warehouse_on_internet_headers", using: :gin
-    t.index ["internet_message_id"], name: "index_email_warehouse_on_internet_message_id", unique: true
+    t.index ["internet_message_id", "mailbox_owner_email"], name: "index_email_warehouse_on_message_id_and_mailbox", unique: true
+    t.index ["internet_message_id"], name: "index_email_warehouse_on_internet_message_id"
     t.index ["is_latest_in_thread"], name: "index_email_warehouse_on_is_latest_in_thread"
     t.index ["job_id", "is_latest_in_thread", "received_at"], name: "idx_email_warehouse_job_latest_received"
     t.index ["job_id", "is_latest_in_thread"], name: "index_email_warehouse_on_job_id_and_is_latest_in_thread"
@@ -3783,6 +3825,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073046) do
     t.index ["purchase_order_id", "payment_date"], name: "index_payments_on_purchase_order_id_and_payment_date"
     t.index ["purchase_order_id"], name: "index_payments_on_purchase_order_id"
     t.index ["xero_payment_id"], name: "index_payments_on_xero_payment_id"
+  end
+
+  create_table "pdf_field_positions", force: :cascade do |t|
+    t.string "pdf_template_key", null: false
+    t.string "field_key", null: false
+    t.string "display_name"
+    t.integer "page", default: 1
+    t.decimal "x", precision: 10, scale: 2
+    t.decimal "y", precision: 10, scale: 2
+    t.integer "font_size", default: 10
+    t.string "test_value"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["pdf_template_key", "field_key"], name: "index_pdf_field_positions_on_pdf_template_key_and_field_key", unique: true
   end
 
   create_table "people_documents", force: :cascade do |t|
@@ -6039,6 +6096,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073046) do
   add_foreign_key "agent_definitions", "users", column: "created_by_id"
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
+  add_foreign_key "ai_processing_logs", "users", column: "corrected_by_id"
   add_foreign_key "asset_insurances", "assets"
   add_foreign_key "asset_service_histories", "assets"
   add_foreign_key "asset_service_histories", "users"

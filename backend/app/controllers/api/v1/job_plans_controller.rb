@@ -73,7 +73,12 @@ module Api
 
       # PATCH/PUT /api/v1/jobs/:job_id/job_plans/:id
       def update
+        old_plan_type_id = @job_plan.plan_type_id
+
         if @job_plan.update(job_plan_params)
+          # Track correction if plan_type_id was changed by user
+          track_plan_type_correction(old_plan_type_id) if plan_type_changed?(old_plan_type_id)
+
           render json: {
             success: true,
             data: serialize_plan(@job_plan)
@@ -454,6 +459,37 @@ module Api
 
       # SSoT: Plan type matching is now in PlanIdentification::PatternMatchingLayer
       # Use PlanIdentification::PlanIdentificationService.identify_from_text(sheet_name, job)
+
+      def plan_type_changed?(old_plan_type_id)
+        params[:job_plan]&.key?(:plan_type_id) &&
+          @job_plan.plan_type_id != old_plan_type_id
+      end
+
+      # Track user correction to AI identification for learning
+      def track_plan_type_correction(old_plan_type_id)
+        # Find the most recent AI processing log for this job plan
+        log = AiProcessingLog.where(
+          processable_type: "JobPlan",
+          processable_id: @job_plan.id
+        ).order(created_at: :desc).first
+
+        return unless log
+
+        # Get the new plan type name for recording
+        new_plan_type = @job_plan.plan_type
+        new_value = new_plan_type&.name || "none"
+
+        # Record the correction
+        log.record_correction!(new_value, user: current_user)
+
+        Rails.logger.info(
+          "[PlanTypeCorrection] User #{current_user.id} corrected JobPlan #{@job_plan.id}: " \
+          "#{log.final_type || 'none'} → #{new_value}"
+        )
+      rescue StandardError => e
+        # Don't fail the update if correction tracking fails
+        Rails.logger.error("[PlanTypeCorrection] Failed to track correction: #{e.message}")
+      end
     end
   end
 end

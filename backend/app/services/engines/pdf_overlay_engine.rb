@@ -285,6 +285,11 @@ module Engines
     end
 
     def field_mapping_for_template
+      # SSoT: Load positions from database first, fall back to hardcoded constants
+      db_positions = load_positions_from_database
+      return db_positions if db_positions.present?
+
+      # Fallback to hardcoded constants (for backwards compatibility)
       case template_key
       when :qbcc_contract
         QBCC_CONTRACT_FIELDS
@@ -295,6 +300,15 @@ module Engines
       else
         {}
       end
+    end
+
+    def load_positions_from_database
+      return {} unless defined?(PdfFieldPosition)
+
+      PdfFieldPosition.positions_for_template(template_key.to_s)
+    rescue StandardError => e
+      Rails.logger.warn "[PdfOverlayEngine] Failed to load positions from DB: #{e.message}"
+      {}
     end
 
     def build_data_context(job:, contact:, extra_data:)
