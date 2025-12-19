@@ -28,7 +28,6 @@ import {
   ClipboardCheck,
   Star,
   Wrench,
-  Zap,
   BookOpen,
   Sparkles,
   BarChart,
@@ -62,7 +61,6 @@ import { MeetingTypesTab } from "./components/MeetingTypesTab";
 import { SupervisorChecklistTab } from "./components/SupervisorChecklistTab";
 import { GoldStandardTab } from "./components/GoldStandardTab";
 import { DeveloperToolsTab } from "./components/DeveloperToolsTab";
-import { ClaudeShortcutsTab } from "./components/ClaudeShortcutsTab";
 import { UserManualTab } from "./components/UserManualTab";
 import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
@@ -114,7 +112,6 @@ const MAIN_TABS = [
   { id: "financial", label: "Financial", icon: Banknote },
   { id: "pricebook", label: "Price Book", icon: DollarSign },
   { id: "supervisor-checklist", label: "Supervisor Checklist", icon: ClipboardCheck },
-  { id: "claude-shortcuts", label: "Claude Shortcuts", icon: Zap },
   { id: "user-manual", label: "User Manual", icon: BookOpen },
   { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
   { id: "performance", label: "Performance", icon: BarChart },
@@ -859,9 +856,6 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="job-tabs" className="flex-1 min-h-0 overflow-auto">
             <JobTabsConfigTab />
-          </TabsContent>
-          <TabsContent value="claude-shortcuts" className="flex-1 min-h-0 overflow-auto">
-            <ClaudeShortcutsTab />
           </TabsContent>
           <TabsContent value="user-manual" className="flex-1 min-h-0 overflow-auto">
             <UserManualTab />

@@ -117,7 +117,7 @@ module Api
             abbreviation: doc.document_type_record.abbreviation || doc.document_type_record.name[0..2].upcase
           } : nil,
           fiscal_year: doc.year&.to_s,
-          company_name: doc.company&.name,
+          company_name: doc.corporate_company&.name,
           verified: doc.ai_verification_status == "verified",
           verified_at: doc.validated_at&.iso8601,
           verified_by: doc.user_validated_by&.name
