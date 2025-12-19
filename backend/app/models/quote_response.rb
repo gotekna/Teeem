@@ -82,17 +82,18 @@ class QuoteResponse < ApplicationRecord
   def record_kudos_event
     return unless contact.subcontractor_account.present?
 
-    case status
-    when "submitted"
-      KudosEvent.create!(
-        subcontractor_account: contact.subcontractor_account,
-        quote_response: self,
-        event_type: "quote_submitted",
-        expected_time: quote_request.created_at + 24.hours,
-        actual_time: submitted_at,
-        points_awarded: calculate_quote_response_points
-      )
-    end
+    # DISABLED: Kudos system temporarily disabled
+    # case status
+    # when "submitted"
+    #   KudosEvent.create!(
+    #     subcontractor_account: contact.subcontractor_account,
+    #     quote_response: self,
+    #     event_type: "quote_submitted",
+    #     expected_time: quote_request.created_at + 24.hours,
+    #     actual_time: submitted_at,
+    #     points_awarded: calculate_quote_response_points
+    #   )
+    # end
   end
 
   def calculate_quote_response_points

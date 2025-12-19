@@ -269,7 +269,8 @@ class PurchaseOrder < ApplicationRecord
   def mark_arrived!(time = Time.current)
     transaction do
       update!(arrived_at: time)
-      KudosEvent.record_arrival(self, time) if contact&.subcontractor_account
+      # DISABLED: Kudos system temporarily disabled
+      # KudosEvent.record_arrival(self, time) if contact&.subcontractor_account
     end
   end
 
@@ -279,7 +280,8 @@ class PurchaseOrder < ApplicationRecord
         completed_at: time,
         status: "received"
       )
-      KudosEvent.record_completion(self, time) if contact&.subcontractor_account
+      # DISABLED: Kudos system temporarily disabled
+      # KudosEvent.record_completion(self, time) if contact&.subcontractor_account
     end
   end
 

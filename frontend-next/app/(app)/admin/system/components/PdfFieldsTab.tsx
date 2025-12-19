@@ -456,12 +456,15 @@ export function PdfFieldsTab() {
           />
         </div>
 
-        <div className="flex items-center gap-1 border-2 border-purple-500 p-1">
+        <div className="flex items-center gap-1">
           <Button
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            onClick={() => {
+              console.log('[PAGE] Previous clicked, currentPage:', currentPage);
+              setCurrentPage((p) => Math.max(1, p - 1));
+            }}
             disabled={currentPage <= 1}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -473,7 +476,10 @@ export function PdfFieldsTab() {
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => {
+              console.log('[PAGE] Next clicked, currentPage:', currentPage);
+              setCurrentPage((p) => Math.min(totalPages, p + 1));
+            }}
             disabled={currentPage >= totalPages}
           >
             <ChevronRight className="h-4 w-4" />
@@ -580,22 +586,89 @@ export function PdfFieldsTab() {
           }} disabled={!selectedFieldId}>+</Button>
         </div>
 
-        {/* Coordinates display - always show for selected field */}
-        {(selectedFieldId || draggingFieldId) && (() => {
-          const fieldId = draggingFieldId || selectedFieldId;
-          const field = positions.find(p => p.id === fieldId);
+        {/* Manual X/Y coordinate controls */}
+        {selectedFieldId && (() => {
+          const field = positions.find(p => p.id === selectedFieldId);
           if (!field) return null;
           return (
-            <div className="flex items-center gap-2 ml-4 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
+            <>
+              <div className="flex items-center gap-1">
+                <span className="text-xs w-4">X</span>
+                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+                  const newX = Math.max(0, field.x - 5);
+                  savePosition(field.id, { x: newX, y: field.y });
+                }}>-</Button>
+                <Input
+                  type="number"
+                  value={field.x}
+                  onChange={(e) => {
+                    const newX = Math.max(0, Math.min(PDF_WIDTH, parseInt(e.target.value) || 0));
+                    setPositions(prev => prev.map(p => p.id === field.id ? { ...p, x: newX } : p));
+                  }}
+                  onBlur={(e) => {
+                    const newX = Math.max(0, Math.min(PDF_WIDTH, parseInt(e.target.value) || 0));
+                    savePosition(field.id, { x: newX, y: field.y });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const newX = Math.max(0, Math.min(PDF_WIDTH, parseInt((e.target as HTMLInputElement).value) || 0));
+                      savePosition(field.id, { x: newX, y: field.y });
+                    }
+                  }}
+                  className="h-6 w-16 text-xs text-center font-mono px-1"
+                />
+                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+                  const newX = Math.min(PDF_WIDTH, field.x + 5);
+                  savePosition(field.id, { x: newX, y: field.y });
+                }}>+</Button>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs w-4">Y</span>
+                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+                  const newY = Math.max(0, field.y - 5);
+                  savePosition(field.id, { x: field.x, y: newY });
+                }}>-</Button>
+                <Input
+                  type="number"
+                  value={field.y}
+                  onChange={(e) => {
+                    const newY = Math.max(0, Math.min(PDF_HEIGHT, parseInt(e.target.value) || 0));
+                    setPositions(prev => prev.map(p => p.id === field.id ? { ...p, y: newY } : p));
+                  }}
+                  onBlur={(e) => {
+                    const newY = Math.max(0, Math.min(PDF_HEIGHT, parseInt(e.target.value) || 0));
+                    savePosition(field.id, { x: field.x, y: newY });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const newY = Math.max(0, Math.min(PDF_HEIGHT, parseInt((e.target as HTMLInputElement).value) || 0));
+                      savePosition(field.id, { x: field.x, y: newY });
+                    }
+                  }}
+                  className="h-6 w-16 text-xs text-center font-mono px-1"
+                />
+                <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+                  const newY = Math.min(PDF_HEIGHT, field.y + 5);
+                  savePosition(field.id, { x: field.x, y: newY });
+                }}>+</Button>
+              </div>
+            </>
+          );
+        })()}
+
+        {/* Coordinates display during drag */}
+        {draggingFieldId && dropPreview && (() => {
+          const field = positions.find(p => p.id === draggingFieldId);
+          if (!field) return null;
+          return (
+            <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
               <span className="text-xs font-mono">
-                x:<span className={cn("font-bold", draggingFieldId && dropPreview && "text-green-600")}>{draggingFieldId && dropPreview ? dropPreview.x : field.x}</span>
+                x:<span className="font-bold text-green-600">{dropPreview.x}</span>
               </span>
               <span className="text-xs font-mono">
-                y:<span className={cn("font-bold", draggingFieldId && dropPreview && "text-green-600")}>{draggingFieldId && dropPreview ? dropPreview.y : field.y}</span>
+                y:<span className="font-bold text-green-600">{dropPreview.y}</span>
               </span>
-              {draggingFieldId && dropPreview && (
-                <span className="text-xs text-muted-foreground">(was {field.x}, {field.y})</span>
-              )}
+              <span className="text-xs text-muted-foreground">(was {field.x}, {field.y})</span>
             </div>
           );
         })()}
@@ -627,6 +700,7 @@ export function PdfFieldsTab() {
               </div>
               {/* PDF iframe - toolbar=0 hides browser PDF viewer controls */}
               <iframe
+                key={`pdf-page-${currentPage}`}
                 src={`${pdfUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0`}
                 className="absolute inset-0 w-full h-full pointer-events-none"
                 style={{ border: "none" }}
@@ -768,6 +842,7 @@ export function PdfFieldsTab() {
                   Page {currentPage + 1}
                 </div>
                 <iframe
+                  key={`pdf-page-${currentPage + 1}`}
                   src={`${pdfUrl}#page=${currentPage + 1}&toolbar=0&navpanes=0&scrollbar=0`}
                   className="absolute inset-0 w-full h-full pointer-events-none"
                   style={{ border: "none" }}
