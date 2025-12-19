@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
-import { PlanReextractionModal } from "@/components/jobs/PlanReextractionModal";
+import { PlanProcessingModal } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
 import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
 
@@ -134,22 +134,11 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   // Drag and drop state
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
-  const [processingPlanSet, setProcessingPlanSet] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState("");
-  const [uploadProgress, setUploadProgress] = useState<{
-    status: string;
-    progress_percent: number;
-    current_step: string;
-    plans_created: string[];
-    total_pages: number | null;
-    processed_pages: number;
-    error_message: string | null;
-  } | null>(null);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Re-extraction modal state
-  const [showReextractionModal, setShowReextractionModal] = useState(false);
-  const [reextractionId, setReextractionId] = useState<number | null>(null);
+  // Unified processing modal state (uploads and reextractions)
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [processingMode, setProcessingMode] = useState<"upload" | "reextraction">("upload");
+  const [processingId, setProcessingId] = useState<number | null>(null);
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {
@@ -277,106 +266,21 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       return;
     }
 
-    setProcessingPlanSet(true);
-    setProcessingProgress("Uploading plan set...");
-    setUploadProgress(null);
-
     try {
       const formData = new FormData();
       formData.append("file", file);
 
       const result = await api.postFormData<{
         success: boolean;
-        data?: {
-          id: number;
-          status: string;
-          progress_percent: number;
-          current_step: string;
-          plans_created: string[];
-          total_pages: number | null;
-          processed_pages: number;
-          error_message: string | null;
-        };
+        data?: { id: number };
         error?: string;
       }>(`/api/v1/jobs/${jobId}/plan_uploads`, formData, { timeout: 60000 });
 
-      if (result.success && result.data) {
-        const uploadId = result.data.id;
-        setUploadProgress(result.data);
-        setProcessingProgress(result.data.current_step);
-
-        toast({
-          title: "Upload Started",
-          description: "Processing your plan set...",
-        });
-
-        // Start polling for progress
-        pollIntervalRef.current = setInterval(async () => {
-          try {
-            const statusResult = await api.get<{
-              success: boolean;
-              data?: {
-                id: number;
-                status: string;
-                progress_percent: number;
-                current_step: string;
-                plans_created: string[];
-                total_pages: number | null;
-                processed_pages: number;
-                error_message: string | null;
-              };
-            }>(`/api/v1/jobs/${jobId}/plan_uploads/${uploadId}`);
-
-            if (statusResult.success && statusResult.data) {
-              const progress = statusResult.data;
-              setUploadProgress(progress);
-              setProcessingProgress(progress.current_step);
-
-              if (progress.status === "completed") {
-                if (pollIntervalRef.current) {
-                  clearInterval(pollIntervalRef.current);
-                  pollIntervalRef.current = null;
-                }
-                toast({
-                  title: "Plans Created",
-                  description: `Created ${progress.plans_created.length} plans from ${progress.total_pages} pages`,
-                });
-                setProcessingPlanSet(false);
-                setUploadProgress(null);
-                fetchPlans();
-                fetchTabs();
-              }
-
-              if (progress.status === "failed") {
-                if (pollIntervalRef.current) {
-                  clearInterval(pollIntervalRef.current);
-                  pollIntervalRef.current = null;
-                }
-                toast({
-                  title: "Processing Failed",
-                  description: progress.error_message || "Unknown error",
-                  variant: "destructive",
-                });
-                setProcessingPlanSet(false);
-                setUploadProgress(null);
-              }
-            }
-          } catch {
-            // Ignore polling errors
-          }
-        }, 2000);
-
-        // Safety timeout - stop polling after 5 minutes
-        setTimeout(() => {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-            setProcessingPlanSet(false);
-            setUploadProgress(null);
-            fetchPlans();
-            fetchTabs();
-          }
-        }, 300000);
+      if (result.success && result.data?.id) {
+        // Show progress modal
+        setProcessingMode("upload");
+        setProcessingId(result.data.id);
+        setShowProcessingModal(true);
       } else {
         throw new Error(result.error || "Failed to start upload");
       }
@@ -388,19 +292,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           err instanceof Error ? err.message : "Failed to upload plan set",
         variant: "destructive",
       });
-      setProcessingPlanSet(false);
-      setUploadProgress(null);
     }
   };
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, []);
 
   // Drag and drop handlers
   const handleDragEnter = (e: DragEvent) => {
@@ -484,8 +377,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       if (response.success && response.data?.id) {
         // Show progress modal
-        setReextractionId(response.data.id);
-        setShowReextractionModal(true);
+        setProcessingMode("reextraction");
+        setProcessingId(response.data.id);
+        setShowProcessingModal(true);
       } else {
         toast({
           title: "Error",
@@ -503,16 +397,18 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Handle reextraction modal completion
-  const handleReextractionComplete = () => {
-    setShowReextractionModal(false);
-    setReextractionId(null);
-    // Refresh plans to show updated names
+  // Handle processing modal completion (both uploads and reextractions)
+  const handleProcessingComplete = () => {
+    setShowProcessingModal(false);
+    setProcessingId(null);
+    // Refresh plans to show updated data
     fetchPlans();
     fetchTabs();
     toast({
-      title: "Re-extraction Complete",
-      description: "Plans have been re-extracted and renamed",
+      title: processingMode === "upload" ? "Upload Complete" : "Re-extraction Complete",
+      description: processingMode === "upload"
+        ? "Plans have been created from the PDF"
+        : "Plans have been re-extracted and renamed",
     });
   };
 
@@ -735,70 +631,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       )}
 
-      {/* Processing overlay with progress */}
-      {processingPlanSet && (
-        <div className="absolute inset-0 z-50 bg-background/80 flex items-center justify-center">
-          <div className="w-[400px] p-6 bg-card border rounded-lg shadow-lg">
-            <div className="flex items-center gap-3 mb-4">
-              <Loader2 className="h-8 w-8 text-primary animate-spin shrink-0" />
-              <div>
-                <p className="font-medium">Processing Plan Set</p>
-                <p className="text-sm text-muted-foreground">
-                  {processingProgress}
-                </p>
-              </div>
-            </div>
-
-            {uploadProgress && (
-              <>
-                <div className="mb-4">
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-muted-foreground">
-                      {uploadProgress.processed_pages} of{" "}
-                      {uploadProgress.total_pages || "?"} pages
-                    </span>
-                    <span className="font-medium">
-                      {uploadProgress.progress_percent}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-muted rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-primary transition-all duration-300"
-                      style={{ width: `${uploadProgress.progress_percent}%` }}
-                    />
-                  </div>
-                </div>
-
-                {uploadProgress.plans_created.length > 0 && (
-                  <div className="max-h-[200px] overflow-y-auto">
-                    <p className="text-xs font-medium text-muted-foreground mb-2">
-                      Plans created ({uploadProgress.plans_created.length})
-                    </p>
-                    <div className="space-y-1">
-                      {uploadProgress.plans_created.map((name, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-sm py-1 px-2 bg-muted/50 rounded"
-                        >
-                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
-                          <span className="truncate">{name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-
-            {!uploadProgress && (
-              <p className="text-sm text-muted-foreground text-center">
-                Uploading to SharePoint...
-              </p>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Category filter + Add Plan button */}
       <div className="px-4 pb-2 shrink-0">
         <div className="flex items-center justify-between">
@@ -936,13 +768,14 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         }}
       />
 
-      {/* Re-extraction Progress Modal */}
-      <PlanReextractionModal
+      {/* Unified Processing Progress Modal (uploads and re-extractions) */}
+      <PlanProcessingModal
         jobId={jobId}
-        reextractionId={reextractionId}
-        open={showReextractionModal}
-        onClose={() => setShowReextractionModal(false)}
-        onComplete={handleReextractionComplete}
+        mode={processingMode}
+        processId={processingId}
+        open={showProcessingModal}
+        onClose={() => setShowProcessingModal(false)}
+        onComplete={handleProcessingComplete}
       />
 
       {/* Add Plan Dialog */}

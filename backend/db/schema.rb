@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073052) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073053) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3127,10 +3127,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073052) do
     t.bigint "issued_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "thumbnail_file_id"
+    t.string "thumbnail_url"
+    t.datetime "thumbnail_generated_at"
     t.index ["is_on_issue"], name: "index_job_plan_revisions_on_is_on_issue"
     t.index ["issued_by_id"], name: "index_job_plan_revisions_on_issued_by_id"
     t.index ["job_plan_id", "revision"], name: "index_job_plan_revisions_on_job_plan_id_and_revision", unique: true
     t.index ["job_plan_id"], name: "index_job_plan_revisions_on_job_plan_id"
+    t.index ["thumbnail_file_id"], name: "index_job_plan_revisions_on_thumbnail_file_id"
   end
 
   create_table "job_plan_tabs", force: :cascade do |t|
