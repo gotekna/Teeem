@@ -30,10 +30,11 @@ class BatchPlanReextractionJob < ApplicationJob
 
     Rails.logger.info "[BatchPlanReextractionJob] Starting re-extraction for job #{@job.id}"
 
-    # Get plans with SharePoint files
+    # Get plans with SharePoint files (exclude "All Plans" combined PDF)
     plans = @job.job_plans.includes(:current_revision, :plan_type)
                  .joins(:current_revision)
                  .where.not(job_plan_revisions: { sharepoint_file_id: nil })
+                 .where.not(display_name: "All Plans")
                  .order(:id)
 
     @operation.start_processing!(total: plans.count)
