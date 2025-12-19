@@ -5,6 +5,9 @@ module Api
 
       # GET /api/v1/company_xero_connections
       # Returns ALL Xero organizations (credentials) and their linked TEEEM companies
+      #
+      # SSoT: Uses XeroConnectionHealth service for unified status computation.
+      # This ensures the status shown here matches XeroConnectionCard on company pages.
       def index
         # Get all Xero credentials (organizations)
         all_credentials = XeroCredential.all.order(created_at: :desc)
@@ -14,19 +17,29 @@ module Api
 
         # Build response showing all Xero orgs with their linked companies
         organizations = all_credentials.map do |credential|
+          # SSoT: Compute health from XeroConnectionHealth (THE ONE source)
+          health = XeroConnectionHealth.for_credential(credential)
+
           # Find all companies linked to this Xero org
           linked_companies = all_connections.select { |conn| conn.xero_tenant_id == credential.tenant_id }
 
           {
             tenant_id: credential.tenant_id,
             tenant_name: credential.tenant_name,
-            # Use effectively_connected? which checks BOTH token expiry AND status field
-            connected: credential.effectively_connected?,
-            status: credential.status || "connected", # Include status for UI to show degraded/disconnected
+            # SSoT: Unified status from XeroConnectionHealth
+            connected: health.connected,
+            display_status: health.display_status,
+            message: health.message,
+            needs_attention: health.needs_attention,
+            action_required: health.action_required,
+            # Legacy fields for backwards compatibility
+            status: credential.status || "connected",
             degraded: credential.degraded?,
             expires_at: credential.expires_at,
             expired: credential.expired?,
             companies: linked_companies.map do |conn|
+              # SSoT: Company status derived from credential health
+              company_health = XeroConnectionHealth.for_company(conn.corporate_company)
               {
                 id: conn.id,
                 company_id: conn.company_id,
@@ -36,8 +49,11 @@ module Api
                 },
                 xero_tenant_id: conn.xero_tenant_id,
                 xero_tenant_name: conn.xero_tenant_name,
+                # SSoT: Unified status from XeroConnectionHealth
+                connected: company_health.connected,
+                display_status: company_health.display_status,
+                # Legacy field for backwards compatibility
                 connection_status: conn.connection_status,
-                connected: conn.connected?,
                 last_sync_at: conn.last_sync_at,
                 days_since_last_sync: conn.days_since_last_sync
               }

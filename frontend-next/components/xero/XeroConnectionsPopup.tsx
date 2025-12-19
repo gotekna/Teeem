@@ -15,6 +15,8 @@ interface CompanyLink {
   xero_tenant_name: string;
   connection_status: string;
   connected?: boolean;
+  // SSoT: Unified status from XeroConnectionHealth service
+  display_status?: 'connected' | 'warning' | 'error' | 'disconnected';
   last_sync_at?: string;
   days_since_last_sync?: number;
 }
@@ -27,6 +29,11 @@ interface XeroOrganization {
   expires_at: string;
   status?: string; // 'connected' | 'degraded' | 'disconnected'
   degraded?: boolean;
+  // SSoT: Unified status from XeroConnectionHealth service
+  display_status?: 'connected' | 'warning' | 'error' | 'disconnected';
+  message?: string;
+  needs_attention?: boolean;
+  action_required?: string;
   companies: CompanyLink[];
 }
 
@@ -209,14 +216,14 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                   {/* Xero Organization Header */}
                   <div className="flex items-center justify-between border-b border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                     <div className="flex items-center space-x-3">
-                      {/* Organization Status */}
+                      {/* Organization Status - SSoT: Uses display_status from backend */}
                       <div className="relative">
-                        {org.connected ? (
+                        {(org.display_status === 'connected' || (!org.display_status && org.connected)) ? (
                           <>
                             <CheckCircle className="h-6 w-6 text-green-500" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-green-500 border-2 border-white dark:border-gray-800" />
                           </>
-                        ) : org.degraded || org.status === 'degraded' ? (
+                        ) : (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? (
                           <>
                             <AlertTriangle className="h-6 w-6 text-orange-500" />
                             <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-orange-500 border-2 border-white dark:border-gray-800" />
@@ -250,20 +257,26 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                     <div className="text-right">
                       {org.companies.length > 0 ? (
                         <>
+                          {/* SSoT: Use display_status to determine company connection counts */}
                           <span className={`text-sm font-medium ${
-                            org.companies.every(c => c.connected) ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'
+                            org.companies.every(c => c.display_status === 'connected' || (!c.display_status && c.connected))
+                              ? 'text-green-600 dark:text-green-400'
+                              : 'text-orange-600 dark:text-orange-400'
                           }`}>
-                            {org.companies.filter(c => c.connected).length} / {org.companies.length}
+                            {org.companies.filter(c => c.display_status === 'connected' || (!c.display_status && c.connected)).length} / {org.companies.length}
                           </span>
                           <p className="text-xs text-gray-500 dark:text-gray-400">linked</p>
                         </>
                       ) : (
+                        /* SSoT: Use display_status from backend */
                         <span className={`text-sm font-medium ${
-                          org.connected ? 'text-green-600 dark:text-green-400' :
-                          org.degraded || org.status === 'degraded' ? 'text-orange-600 dark:text-orange-400' :
+                          (org.display_status === 'connected' || (!org.display_status && org.connected)) ? 'text-green-600 dark:text-green-400' :
+                          (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? 'text-orange-600 dark:text-orange-400' :
                           'text-red-600 dark:text-red-400'
                         }`}>
-                          {org.connected ? 'Connected' : org.degraded || org.status === 'degraded' ? 'Needs Re-auth' : 'Expired'}
+                          {(org.display_status === 'connected' || (!org.display_status && org.connected)) ? 'Connected' :
+                           (org.display_status === 'warning' || org.degraded || org.status === 'degraded') ? 'Needs Re-auth' :
+                           org.message || 'Disconnected'}
                         </span>
                       )}
                     </div>
@@ -278,10 +291,12 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
                           className="flex items-center justify-between rounded-md bg-white p-3 dark:bg-gray-800"
                         >
                           <div className="flex items-center space-x-3 flex-1">
-                            {/* Company Status */}
+                            {/* Company Status - SSoT: Uses display_status from backend */}
                             <div>
-                              {connection.connected ? (
+                              {(connection.display_status === 'connected' || (!connection.display_status && connection.connected)) ? (
                                 <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : connection.display_status === 'warning' ? (
+                                <AlertTriangle className="h-4 w-4 text-orange-500" />
                               ) : (
                                 <XCircle className="h-4 w-4 text-red-500" />
                               )}

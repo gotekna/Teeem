@@ -3079,15 +3079,22 @@ function ActivityTab() {
 
 
 // Xero Connection Card for BANK tab
+// SSoT: Status fields from XeroConnectionHealth service
 interface XeroConnectionStatus {
   connected: boolean;
-  connection_status?: string;
+  // SSoT: Unified status from XeroConnectionHealth service
+  display_status?: 'connected' | 'warning' | 'error' | 'disconnected';
+  message?: string;
+  needs_attention?: boolean;
+  action_required?: string;
   xero_tenant_name?: string;
   xero_tenant_id?: string;
   last_sync_at?: string;
+  days_since_sync?: number;
+  // Legacy fields (for backwards compatibility)
+  connection_status?: string;
   last_sync_error?: string;
   token_expires_at?: string;
-  days_since_sync?: number;
 }
 
 // SSoT: ATO Setup Card - Shows Contact data as source of truth
@@ -3394,41 +3401,49 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
                   </span>
                 )}
               </h3>
+              {/* SSoT: Use display_status from XeroConnectionHealth service */}
               <div className="flex items-center gap-3 text-sm">
-                {status?.connected ? (
+                {(status?.display_status === 'connected' || (!status?.display_status && status?.connected)) ? (
                   <>
                     <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
                       <CheckCircle className="h-3.5 w-3.5" />
                       Connected
                     </span>
-                    {status.last_sync_at && (
+                    {status?.last_sync_at && (
                       <span className="text-muted-foreground">
                         Last sync: {format(new Date(status.last_sync_at), "d MMM yyyy, h:mm a")}
                       </span>
                     )}
-                    {status.days_since_sync !== undefined && status.days_since_sync !== null && status.days_since_sync > 7 && (
+                    {status?.days_since_sync !== undefined && status?.days_since_sync !== null && status?.days_since_sync > 7 && (
                       <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
                         <AlertTriangle className="h-3 w-3 mr-1" />
                         {status.days_since_sync} days since last sync
                       </Badge>
                     )}
                   </>
+                ) : status?.display_status === 'warning' ? (
+                  <span className="flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {status?.message || 'Needs attention'}
+                  </span>
                 ) : (
                   <span className="flex items-center gap-1.5 text-muted-foreground">
                     <XCircle className="h-3.5 w-3.5" />
-                    Not connected
+                    {status?.message || 'Not connected'}
                   </span>
                 )}
-                {status?.last_sync_error && (
+                {/* Show needs_attention indicator if action required */}
+                {status?.needs_attention && status?.action_required === 'reconnect' && (
                   <Badge variant="destructive" className="text-xs">
-                    Error: {status.last_sync_error}
+                    Reconnect Required
                   </Badge>
                 )}
               </div>
             </div>
           </div>
+          {/* SSoT: Use display_status to determine which buttons to show */}
           <div className="flex items-center gap-2">
-            {status?.connected ? (
+            {(status?.display_status === 'connected' || status?.display_status === 'warning' || (!status?.display_status && status?.connected)) ? (
               <>
                 <Button
                   variant="outline"
@@ -3477,7 +3492,7 @@ function XeroConnectionCard({ companyId, companyName, onSyncComplete, onConnecti
                 ) : (
                   <Link2 className="h-4 w-4 mr-2" />
                 )}
-                Connect to Xero
+                {status?.action_required === 'reconnect' ? 'Reconnect to Xero' : 'Connect to Xero'}
               </Button>
             )}
           </div>

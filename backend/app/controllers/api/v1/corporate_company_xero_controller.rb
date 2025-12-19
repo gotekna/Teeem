@@ -5,37 +5,34 @@ module Api
 
       # GET /api/v1/companies/:company_id/xero/status
       # Returns the Xero connection status for this company
+      #
+      # SSoT: Uses XeroConnectionHealth service for unified status computation.
+      # This ensures the status shown here matches XeroConnectionsPopup.
       def status
+        # SSoT: Compute health from XeroConnectionHealth (THE ONE source)
+        health = XeroConnectionHealth.for_company(@company)
+
+        # Attempt token refresh if needed (self-healing)
         connection = @company.corporate_company_xero_connection
-
-        if connection.nil?
-          render json: {
-            success: true,
-            connected: false,
-            message: "Not connected to Xero"
-          }
-        else
-          # Check if tokens need refresh
-          if connection.needs_refresh?
-            begin
-              connection.refresh_tokens!
-            rescue StandardError => e
-              Rails.logger.error("Failed to refresh Xero tokens for company #{@company.id}: #{e.message}")
-            end
+        if connection&.xero_credential&.needs_refresh?
+          begin
+            connection.refresh_tokens!
+            # Re-compute health after refresh
+            health = XeroConnectionHealth.for_company(@company)
+          rescue StandardError => e
+            Rails.logger.error("Failed to refresh Xero tokens for company #{@company.id}: #{e.message}")
           end
-
-          render json: {
-            success: true,
-            connected: connection.connected?,
-            connection_status: connection.connection_status,
-            xero_tenant_name: connection.xero_tenant_name,
-            xero_tenant_id: connection.xero_tenant_id,
-            last_sync_at: connection.last_sync_at,
-            last_sync_error: connection.last_sync_error,
-            token_expires_at: connection.token_expires_at,
-            days_since_sync: connection.days_since_last_sync
-          }
         end
+
+        render json: {
+          success: true,
+          # SSoT: Unified health status from XeroConnectionHealth
+          **health.to_json_hash,
+          # Legacy fields for backwards compatibility (will be removed in Phase 4)
+          connection_status: connection&.connection_status,
+          last_sync_error: connection&.last_sync_error,
+          token_expires_at: connection&.token_expires_at
+        }
       end
 
       # POST /api/v1/companies/:company_id/xero/link
