@@ -591,15 +591,16 @@ module Api
           end
         end
 
-        if fixed_count > 0
-          HealthKudosEvent.record_bulk_fix(
-            user: auto ? nil : current_user,
-            fix_type: "name_casing",
-            record_type: "Contact",
-            record_ids: item_ids.presence || [],
-            points_per_record: HealthKudosEvent::POINTS[:name_casing]
-          )
-        end
+        # DISABLED: Health gamification temporarily disabled
+        # if fixed_count > 0
+        #   HealthKudosEvent.record_bulk_fix(
+        #     user: auto ? nil : current_user,
+        #     fix_type: "name_casing",
+        #     record_type: "Contact",
+        #     record_ids: item_ids.presence || [],
+        #     points_per_record: HealthKudosEvent::POINTS[:name_casing]
+        #   )
+        # end
 
         {
           success: true,
@@ -660,15 +661,16 @@ module Api
           end
         end
 
-        if fixed_count > 0
-          HealthKudosEvent.record_bulk_fix(
-            user: auto ? nil : current_user,
-            fix_type: "website_prefix",
-            record_type: "Contact",
-            record_ids: fixed_ids,
-            points_per_record: HealthKudosEvent::POINTS[:website_prefix]
-          )
-        end
+        # DISABLED: Health gamification temporarily disabled
+        # if fixed_count > 0
+        #   HealthKudosEvent.record_bulk_fix(
+        #     user: auto ? nil : current_user,
+        #     fix_type: "website_prefix",
+        #     record_type: "Contact",
+        #     record_ids: fixed_ids,
+        #     points_per_record: HealthKudosEvent::POINTS[:website_prefix]
+        #   )
+        # end
 
         {
           success: true,
@@ -711,15 +713,16 @@ module Api
           end
         end
 
-        if fixed_count > 0
-          HealthKudosEvent.record_bulk_fix(
-            user: auto ? nil : current_user,
-            fix_type: "phone_format",
-            record_type: "Contact",
-            record_ids: fixed_ids,
-            points_per_record: HealthKudosEvent::POINTS[:phone_format]
-          )
-        end
+        # DISABLED: Health gamification temporarily disabled
+        # if fixed_count > 0
+        #   HealthKudosEvent.record_bulk_fix(
+        #     user: auto ? nil : current_user,
+        #     fix_type: "phone_format",
+        #     record_type: "Contact",
+        #     record_ids: fixed_ids,
+        #     points_per_record: HealthKudosEvent::POINTS[:phone_format]
+        #   )
+        # end
 
         {
           success: true,
@@ -753,15 +756,16 @@ module Api
           end
         end
 
-        if fixed_count > 0
-          HealthKudosEvent.record_bulk_fix(
-            user: auto ? nil : current_user,
-            fix_type: "email_lowercase",
-            record_type: "Contact",
-            record_ids: fixed_ids,
-            points_per_record: HealthKudosEvent::POINTS[:email_lowercase]
-          )
-        end
+        # DISABLED: Health gamification temporarily disabled
+        # if fixed_count > 0
+        #   HealthKudosEvent.record_bulk_fix(
+        #     user: auto ? nil : current_user,
+        #     fix_type: "email_lowercase",
+        #     record_type: "Contact",
+        #     record_ids: fixed_ids,
+        #     points_per_record: HealthKudosEvent::POINTS[:email_lowercase]
+        #   )
+        # end
 
         {
           success: true,
@@ -800,15 +804,16 @@ module Api
           end
         end
 
-        if fixed_count > 0
-          HealthKudosEvent.record_bulk_fix(
-            user: auto ? nil : current_user,
-            fix_type: "abn_format",
-            record_type: "CorporateCompany",
-            record_ids: fixed_ids,
-            points_per_record: HealthKudosEvent::POINTS[:abn_format]
-          )
-        end
+        # DISABLED: Health gamification temporarily disabled
+        # if fixed_count > 0
+        #   HealthKudosEvent.record_bulk_fix(
+        #     user: auto ? nil : current_user,
+        #     fix_type: "abn_format",
+        #     record_type: "CorporateCompany",
+        #     record_ids: fixed_ids,
+        #     points_per_record: HealthKudosEvent::POINTS[:abn_format]
+        #   )
+        # end
 
         {
           success: true,
@@ -847,15 +852,16 @@ module Api
           end
         end
 
-        if fixed_count > 0
-          HealthKudosEvent.record_bulk_fix(
-            user: auto ? nil : current_user,
-            fix_type: "acn_format",
-            record_type: "CorporateCompany",
-            record_ids: fixed_ids,
-            points_per_record: HealthKudosEvent::POINTS[:acn_format]
-          )
-        end
+        # DISABLED: Health gamification temporarily disabled
+        # if fixed_count > 0
+        #   HealthKudosEvent.record_bulk_fix(
+        #     user: auto ? nil : current_user,
+        #     fix_type: "acn_format",
+        #     record_type: "CorporateCompany",
+        #     record_ids: fixed_ids,
+        #     points_per_record: HealthKudosEvent::POINTS[:acn_format]
+        #   )
+        # end
 
         {
           success: true,

@@ -247,16 +247,17 @@ module SelfHealing
     fix_types.each do |fix_type|
       points = SELF_HEALING_POINTS[fix_type] || 1
 
-      HealthKudosEvent.record_system_fix(
-        fix_type: fix_type,
-        record: self,
-        points: points,
-        details: {
-          original_values: @self_healing_original_values,
-          model: self.class.name
-        },
-        description: "Auto-fixed #{fix_type.to_s.humanize.downcase} in #{self.class.name}"
-      )
+      # DISABLED: Health gamification temporarily disabled
+      # HealthKudosEvent.record_system_fix(
+      #   fix_type: fix_type,
+      #   record: self,
+      #   points: points,
+      #   details: {
+      #     original_values: @self_healing_original_values,
+      #     model: self.class.name
+      #   },
+      #   description: "Auto-fixed #{fix_type.to_s.humanize.downcase} in #{self.class.name}"
+      # )
     end
 
     # Clear the tracking arrays

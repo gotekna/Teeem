@@ -28,6 +28,7 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
+  AlertCircle,
 } from "lucide-react";
 import { SignatureCaptureStep } from "./signature-capture-step";
 import { cn } from "@/lib/utils";
@@ -87,12 +88,23 @@ export function PositionedSigningStep({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captureMode, setCaptureMode] = useState<"signature" | "initials" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const apiUrl = getApiBaseUrl();
   const pdfUrl = `${apiUrl}/api/v1/sign/${token}/document`;
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
+    setPdfError(null);
+  }, []);
+
+  const onDocumentLoadError = useCallback((error: Error) => {
+    console.error("Failed to load PDF:", error);
+    if (error.message.includes("OneDrive not connected")) {
+      setPdfError("The document storage is not connected. Please contact the sender.");
+    } else {
+      setPdfError("Failed to load the document. Please try again or contact the sender.");
+    }
   }, []);
 
   const onPageLoadSuccess = useCallback((page: any) => {
@@ -320,9 +332,19 @@ export function PositionedSigningStep({
             <Document
               file={pdfUrl}
               onLoadSuccess={onDocumentLoadSuccess}
+              onLoadError={onDocumentLoadError}
               loading={
                 <div className="flex items-center justify-center h-64">
                   <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              }
+              error={
+                <div className="flex flex-col items-center justify-center h-64 text-center p-4">
+                  <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+                  <p className="font-medium text-destructive">Failed to load document</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    {pdfError || "Please try again or contact the sender."}
+                  </p>
                 </div>
               }
             >
