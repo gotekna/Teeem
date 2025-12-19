@@ -103,6 +103,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Job Tabs (per-user configuration)
+      get "job_tabs", to: "job_tabs#index"
+      patch "job_tabs/reorder", to: "job_tabs#reorder"
+      post "job_tabs/reset", to: "job_tabs#reset"
+      patch "job_tabs/:id/toggle_hidden", to: "job_tabs#toggle_hidden"
+      patch "job_tabs/:id/set_parent", to: "job_tabs#set_parent"
+
       # Health checks - NEW unified endpoints
       get "health/unified", to: "health#unified"       # Main unified health dashboard
       post "health/fix", to: "health#fix"              # Fix health issues

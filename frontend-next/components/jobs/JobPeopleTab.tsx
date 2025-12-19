@@ -593,7 +593,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                 const displayName =
                   contact.contact?.display_name || contact.contact?.company_name || "Unknown";
                 const email = contact.contact?.email;
-                const mobile = contact.contact?.mobile_phone || contact.contact?.office_phone || contact.contact?.phone;
+                const mobile = contact.contact?.phone || contact.contact?.mobile_phone;
                 const isPrimary = contact.primary;
 
                 return (

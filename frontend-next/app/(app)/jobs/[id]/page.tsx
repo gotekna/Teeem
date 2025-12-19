@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { WrappingTabsList } from "@/components/ui/wrapping-tabs-list";
+import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
+import { useJobTabs } from "@/lib/hooks/useJobTabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
@@ -165,26 +166,7 @@ interface JobStage {
   name: string;
 }
 
-const tabs = [
-  { name: "Overview", slug: "overview", icon: ClipboardList },
-  { name: "Contract", slug: "contract", icon: FileSignature },
-  { name: "Plans", slug: "plans", icon: Map },
-  { name: "Specifications", slug: "specifications", icon: FileText },
-  { name: "Colours", slug: "colours", icon: Palette },
-  { name: "Claims", slug: "claims", icon: TrendingUp },
-  { name: "People", slug: "people", icon: Users },
-  { name: "Purchase Orders", slug: "purchase-orders", icon: ShoppingCart },
-  { name: "Estimates", slug: "estimates", icon: FileText },
-  { name: "Profit", slug: "profit", icon: TrendingUp },
-  { name: "Activity", slug: "activity", icon: TrendingUp },
-  { name: "Budget", slug: "budget", icon: DollarSign },
-  { name: "Schedule", slug: "schedule", icon: Calendar },
-  { name: "WHS", slug: "whs", icon: Shield },
-  { name: "Rain Log", slug: "rain-log", icon: Cloud },
-  { name: "Documents", slug: "documents", icon: FileText },
-  { name: "Coms", slug: "coms", icon: MessageSquare },
-  { name: "Settings", slug: "settings", icon: Settings },
-];
+// Static tabs removed - now using dynamic tabs from useJobTabs hook
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
@@ -622,6 +604,9 @@ export default function JobDetailPage() {
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
 
+  // Dynamic job tabs configuration
+  const { tabs: jobTabs, loading: tabsLoading } = useJobTabs();
+
   // Edit mode state
   const [isEditing, setIsEditing] = React.useState(false);
   const [editForm, setEditForm] = React.useState<Partial<Job>>({});
@@ -776,7 +761,7 @@ export default function JobDetailPage() {
     }
   };
 
-  if (loading) {
+  if (loading || tabsLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -889,7 +874,11 @@ export default function JobDetailPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <WrappingTabsList tabs={tabs} />
+        <HierarchicalTabsList
+          tabs={jobTabs}
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+        />
 
         <TabsContent value="overview" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

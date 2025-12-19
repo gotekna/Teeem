@@ -44,6 +44,14 @@ import {
   Palette,
   Map,
   Clock,
+  // Job tab icons
+  ClipboardList,
+  FileSignature,
+  TrendingUp,
+  ShoppingCart,
+  Activity,
+  Cloud,
+  MessageSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -94,6 +102,14 @@ export const ICON_MAP: Record<string, LucideIcon> = {
   Palette,
   Map,
   Clock,
+  // Job tab icons
+  ClipboardList,
+  FileSignature,
+  TrendingUp,
+  ShoppingCart,
+  Activity,
+  Cloud,
+  MessageSquare,
 };
 
 // List of available icons for the icon picker

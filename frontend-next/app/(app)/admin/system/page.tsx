@@ -78,6 +78,7 @@ import { PlansTab } from "./components/PlansTab";
 import { SharePointTab } from "./components/SharePointTab";
 import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
 import { NavigationTab } from "./components/NavigationTab";
+import { JobTabsConfigTab } from "./components/JobTabsConfigTab";
 
 const TIMEZONES = [
   { value: "Australia/Brisbane", label: "Brisbane (AEST/AEDT)" },
@@ -103,6 +104,7 @@ const MAIN_TABS = [
   { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "navigation", label: "Navigation", icon: Menu },
+  { id: "job-tabs", label: "Job Tabs", icon: FileText },
   { id: "plans", label: "Plans", icon: Map },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
@@ -823,6 +825,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="navigation">
             <NavigationTab />
+          </TabsContent>
+          <TabsContent value="job-tabs">
+            <JobTabsConfigTab />
           </TabsContent>
           <TabsContent value="claude-shortcuts">
             <ClaudeShortcutsTab />

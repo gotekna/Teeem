@@ -66,8 +66,8 @@ module Engines
     QBCC_CONTRACT_FIELDS = {
       # Item 6: C and Total (no form fields exist on page 2)
       # Positions adjusted based on visual testing
-      weekends_holidays_overlay: { type: :text, page: 2, x: 538, y: 263, size: 10 },  # C. after "etc.) ="
-      total_completion_overlay: { type: :text, page: 2, x: 460, y: 252, size: 10 }    # Between "A+B+C):" and "Calendar days"
+      weekends_holidays_overlay: { type: :text, page: 2, x: 548, y: 263, size: 10 },  # C. after "etc.) ="
+      total_completion_overlay: { type: :text, page: 2, x: 485, y: 252, size: 10 }    # Between "A+B+C):" and "Calendar days"
     }.freeze
 
     # AcroForm field mappings for QBCC Contract

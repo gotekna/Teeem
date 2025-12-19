@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073043) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073046) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3177,6 +3177,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073043) do
     t.index ["position"], name: "index_job_status_stages_on_position"
   end
 
+  create_table "job_tabs", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.string "icon", null: false
+    t.integer "position", default: 0, null: false
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_job_tabs_on_is_active"
+    t.index ["position"], name: "index_job_tabs_on_position"
+    t.index ["slug"], name: "index_job_tabs_on_slug", unique: true
+  end
+
   create_table "job_type_statuses", force: :cascade do |t|
     t.bigint "job_type_id", null: false
     t.bigint "job_status_id", null: false
@@ -5351,6 +5364,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073043) do
     t.index ["name"], name: "index_user_groups_on_name", unique: true
   end
 
+  create_table "user_job_tab_configs", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "job_tab_id", null: false
+    t.integer "position", default: 0, null: false
+    t.integer "parent_job_tab_id"
+    t.boolean "is_hidden", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_tab_id"], name: "index_user_job_tab_configs_on_job_tab_id"
+    t.index ["user_id", "job_tab_id"], name: "idx_user_job_tab_config_unique", unique: true
+    t.index ["user_id", "parent_job_tab_id"], name: "index_user_job_tab_configs_on_user_id_and_parent_job_tab_id"
+    t.index ["user_id", "position"], name: "index_user_job_tab_configs_on_user_id_and_position"
+    t.index ["user_id"], name: "index_user_job_tab_configs_on_user_id"
+  end
+
   create_table "user_microsoft_tokens", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.text "access_token"
@@ -6401,6 +6429,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073043) do
   add_foreign_key "tasks", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "user_job_tab_configs", "job_tabs"
+  add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
+  add_foreign_key "user_job_tab_configs", "users"
   add_foreign_key "user_microsoft_tokens", "users"
   add_foreign_key "user_navigation_configs", "navigation_items"
   add_foreign_key "user_navigation_configs", "users"
