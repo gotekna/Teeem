@@ -51,8 +51,23 @@ class PdfThumbnailService
 
   def download_pdf
     Rails.logger.info "[PdfThumbnail] Downloading PDF from SharePoint..."
-    client = MicrosoftGraphClient.new
-    client.download_file(@revision.sharepoint_file_id)
+    credential = OrganizationSharePointCredential.active_credential
+    raise ThumbnailError, "SharePoint not connected" unless credential&.valid_credential?
+
+    # Use appropriate client based on credential type
+    if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+      client = MicrosoftAppGraphClient.new(credential)
+      sharepoint_config = CorporateCompanySetting.sharepoint_config
+      raise ThumbnailError, "SharePoint not configured" unless sharepoint_config[:configured]
+
+      client.get_drive_item_content(
+        drive_id: sharepoint_config[:drive_id],
+        item_id: @revision.sharepoint_file_id
+      )
+    else
+      client = MicrosoftGraphClient.new(credential)
+      client.download_file(@revision.sharepoint_file_id)
+    end
   end
 
   def convert_to_thumbnail(pdf_content)
@@ -92,26 +107,54 @@ class PdfThumbnailService
   def upload_thumbnail(thumbnail_content)
     Rails.logger.info "[PdfThumbnail] Uploading thumbnail to SharePoint..."
 
-    client = MicrosoftGraphClient.new
-
-    # Get parent folder ID from the original file
-    file_info = client.get_file(@revision.sharepoint_file_id)
-    parent_folder_id = file_info.dig('parentReference', 'id')
-
-    raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
+    credential = OrganizationSharePointCredential.active_credential
+    raise ThumbnailError, "SharePoint not connected" unless credential&.valid_credential?
 
     # Generate thumbnail filename: original_name_thumb.png
     base_name = File.basename(@revision.file_name || 'plan', '.*')
     thumbnail_name = "#{base_name}_thumb.#{THUMBNAIL_FORMAT}"
 
-    # Upload thumbnail
-    result = client.upload_file_content(parent_folder_id, thumbnail_name, thumbnail_content)
+    # Use appropriate client based on credential type
+    if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+      client = MicrosoftAppGraphClient.new(credential)
+      sharepoint_config = CorporateCompanySetting.sharepoint_config
+      raise ThumbnailError, "SharePoint not configured" unless sharepoint_config[:configured]
 
-    {
-      file_id: result[:id],
-      name: result[:name],
-      web_url: result[:web_url]
-    }
+      # Get parent folder from original file
+      file_info = client.get_drive_item(sharepoint_config[:drive_id], @revision.sharepoint_file_id)
+      parent_folder_id = file_info.dig('parentReference', 'id')
+      raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
+
+      # Upload thumbnail to same folder
+      result = client.upload_to_folder(
+        drive_id: sharepoint_config[:drive_id],
+        parent_folder_id: parent_folder_id,
+        filename: thumbnail_name,
+        content: thumbnail_content
+      )
+
+      {
+        file_id: result['id'],
+        name: result['name'],
+        web_url: result['webUrl']
+      }
+    else
+      client = MicrosoftGraphClient.new(credential)
+
+      # Get parent folder ID from the original file
+      file_info = client.get_file(@revision.sharepoint_file_id)
+      parent_folder_id = file_info.dig('parentReference', 'id')
+      raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
+
+      # Upload thumbnail
+      result = client.upload_file_content(parent_folder_id, thumbnail_name, thumbnail_content)
+
+      {
+        file_id: result[:id],
+        name: result[:name],
+        web_url: result[:web_url]
+      }
+    end
   end
 
   def update_revision(thumbnail_info)
