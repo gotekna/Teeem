@@ -32,6 +32,8 @@ export function useAuthenticatedImage(url: string | null) {
       setError(null);
 
       try {
+        console.log("[useAuthenticatedImage] Fetching:", url);
+
         // Fetch with credentials (sends auth cookies)
         const response = await fetch(url, {
           method: "GET",
@@ -41,28 +43,36 @@ export function useAuthenticatedImage(url: string | null) {
           },
         });
 
+        console.log("[useAuthenticatedImage] Response status:", response.status, response.statusText);
+
         if (!response.ok) {
-          throw new Error(`Failed to load image: ${response.status} ${response.statusText}`);
+          const errorMsg = `Failed to load image: ${response.status} ${response.statusText}`;
+          console.error("[useAuthenticatedImage]", errorMsg);
+          throw new Error(errorMsg);
         }
 
         // Convert to blob
         const blob = await response.blob();
+        console.log("[useAuthenticatedImage] Blob created:", blob.size, "bytes");
 
         // Check if the component is still mounted
         if (cancelled) {
+          console.log("[useAuthenticatedImage] Component unmounted, skipping");
           return;
         }
 
         // Create object URL
         objectUrl = URL.createObjectURL(blob);
+        console.log("[useAuthenticatedImage] Object URL created:", objectUrl);
         setImageUrl(objectUrl);
       } catch (err) {
         if (!cancelled) {
-          console.error("Error loading authenticated image:", err);
+          console.error("[useAuthenticatedImage] Error:", err);
           setError(err instanceof Error ? err : new Error("Unknown error"));
         }
       } finally {
         if (!cancelled) {
+          console.log("[useAuthenticatedImage] Setting loading to false");
           setLoading(false);
         }
       }
