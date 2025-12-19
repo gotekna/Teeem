@@ -22,6 +22,10 @@ export interface NavigationChildItem {
   icon: string;
   badge_key: string | null;
   position: number;
+  // Support for 2-level nesting (grandchildren)
+  is_collapsed?: boolean;
+  has_children?: boolean;
+  children?: NavigationChildItem[];
 }
 
 interface NavigationData {

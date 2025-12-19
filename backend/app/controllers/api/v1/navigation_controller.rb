@@ -13,8 +13,9 @@ module Api
                            .to_h
 
         # Get items from SSoT (NavigationItem), ordered by admin-set position
+        # Eager load 2 levels of children to avoid N+1 queries
         items = NavigationItem.active.top_level.ordered
-                  .includes(:children)
+                  .includes(children: :children)
                   .select { |item| item.visible_to?(current_user) }
 
         render json: {
@@ -71,13 +72,32 @@ module Api
       end
 
       def child_item_json(child, collapse_prefs)
+        # Get visible grandchildren, ordered by position (supports 2 levels of nesting)
+        visible_grandchildren = child.children.active.ordered.select { |gc| gc.visible_to?(current_user) }
+        is_collapsed = collapse_prefs.key?(child.id) ? collapse_prefs[child.id] : child.is_collapsed_default
+
         {
           id: child.id,
           name: child.name,
           href: child.href,
           icon: child.icon,
           badge_key: child.badge_key,
-          position: child.position
+          position: child.position,
+          is_collapsed: is_collapsed,
+          has_children: visible_grandchildren.any?,
+          children: visible_grandchildren.map { |gc| grandchild_item_json(gc) }
+        }
+      end
+
+      def grandchild_item_json(grandchild)
+        # Grandchildren are the final level - no deeper nesting
+        {
+          id: grandchild.id,
+          name: grandchild.name,
+          href: grandchild.href,
+          icon: grandchild.icon,
+          badge_key: grandchild.badge_key,
+          position: grandchild.position
         }
       end
     end

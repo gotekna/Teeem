@@ -295,14 +295,20 @@ export function NavigationTab() {
   };
 
   // Render a navigation item with its children
-  const renderItem = (item: NavigationItem, index: number, total: number, isChild = false) => {
+  // depth: 0 = top-level, 1 = child, 2 = grandchild (max depth)
+  const MAX_NESTING_DEPTH = 2;
+  const renderItem = (item: NavigationItem, index: number, total: number, depth = 0) => {
     const Icon = getIcon(item.icon);
     const children = getChildren(item.id);
     const hasChildren = children.length > 0;
     const isExpanded = expandedItems.has(item.id);
+    // Level 0 and 1 can have children (creates level 1 and 2)
+    // Level 2 (grandchildren) cannot have children
+    const canHaveChildren = depth < MAX_NESTING_DEPTH;
+    const canExpand = depth < MAX_NESTING_DEPTH;
 
     return (
-      <div key={item.id} className={cn(isChild && "ml-6")}>
+      <div key={item.id} className={cn(depth > 0 && "ml-6")}>
         <SortableItem
           id={item.id}
           position={index + 1}
@@ -313,7 +319,7 @@ export function NavigationTab() {
           className={cn(!item.is_active && "opacity-50")}
           actions={
             <div className="flex items-center gap-1">
-              {!isChild && (
+              {canHaveChildren && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -345,7 +351,7 @@ export function NavigationTab() {
         >
           <div className="flex items-center gap-2 min-w-0">
             {/* Expand/Collapse button for items with children */}
-            {!isChild && (
+            {canExpand && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -384,8 +390,8 @@ export function NavigationTab() {
           </div>
         </SortableItem>
 
-        {/* Children (expanded) */}
-        {!isChild && hasChildren && isExpanded && (
+        {/* Children (expanded) - supports 2 levels of nesting */}
+        {canExpand && hasChildren && isExpanded && (
           <div className="mt-1">
             <SortableList
               items={children}
@@ -393,7 +399,7 @@ export function NavigationTab() {
               className="space-y-1"
             >
               {children.map((child, childIndex) =>
-                renderItem(child, childIndex, children.length, true)
+                renderItem(child, childIndex, children.length, depth + 1)
               )}
             </SortableList>
           </div>
@@ -448,7 +454,7 @@ export function NavigationTab() {
               className="space-y-1"
             >
               {topLevelItems.map((item, index) =>
-                renderItem(item, index, topLevelItems.length, false)
+                renderItem(item, index, topLevelItems.length, 0)
               )}
             </SortableList>
           )}

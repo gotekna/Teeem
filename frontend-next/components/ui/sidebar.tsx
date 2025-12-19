@@ -228,7 +228,8 @@ export function Sidebar() {
   const renderNavLink = (
     item: { href: string; icon: string; name: string; badge_key?: string | null },
     isChild = false,
-    mobile = false
+    mobile = false,
+    isGrandchild = false // 2nd level nesting
   ) => {
     const ItemIcon = getIcon(item.icon);
     const active = isActive(item.href);
@@ -243,7 +244,8 @@ export function Sidebar() {
         onClick={() => !active && setLoadingHref(item.href)}
         className={cn(
           "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
-          isChild && (isExpanded || mobile) && "pl-7",
+          isChild && (isExpanded || mobile) && !isGrandchild && "pl-7",
+          isGrandchild && (isExpanded || mobile) && "pl-14", // Extra indent for grandchildren
           active
             ? "bg-secondary text-secondary-foreground"
             : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
@@ -372,11 +374,70 @@ export function Sidebar() {
           </Link>
         </div>
 
-        {/* Children (when expanded) */}
+        {/* Children (when expanded) - supports 2 levels of nesting */}
         {hasChildren && !isCollapsed && (
           <div className="flex flex-col">
-            {item.children.map((child) =>
-              renderNavLink(
+            {item.children.map((child) => {
+              const hasGrandchildren = child.has_children && child.children && child.children.length > 0;
+              const isChildCollapsed = child.is_collapsed ?? false;
+
+              if (hasGrandchildren) {
+                // Child has grandchildren - render recursively
+                return (
+                  <div key={child.id}>
+                    <div className="flex items-center">
+                      {/* Expand/collapse for children with grandchildren */}
+                      {(isExpanded || mobile) && (
+                        <button
+                          onClick={() => toggleItemCollapse(child.id)}
+                          className="p-1 hover:bg-secondary/50 rounded shrink-0 ml-7"
+                        >
+                          <ChevronDown
+                            size={12}
+                            className={cn(
+                              "transition-transform text-muted-foreground",
+                              isChildCollapsed && "-rotate-90"
+                            )}
+                          />
+                        </button>
+                      )}
+                      {(!isExpanded && !mobile) && <div className="w-0" />}
+                      {renderNavLink(
+                        {
+                          href: child.href,
+                          icon: child.icon,
+                          name: child.name,
+                          badge_key: child.badge_key,
+                        },
+                        true,
+                        mobile,
+                        false // Not double-nested yet
+                      )}
+                    </div>
+                    {/* Grandchildren */}
+                    {!isChildCollapsed && child.children && (
+                      <div className="flex flex-col">
+                        {child.children.map((grandchild) =>
+                          renderNavLink(
+                            {
+                              href: grandchild.href,
+                              icon: grandchild.icon,
+                              name: grandchild.name,
+                              badge_key: grandchild.badge_key,
+                            },
+                            true,
+                            mobile,
+                            true // Double-nested (grandchild)
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Child without grandchildren - simple render
+              return renderNavLink(
                 {
                   href: child.href,
                   icon: child.icon,
@@ -385,8 +446,8 @@ export function Sidebar() {
                 },
                 true,
                 mobile
-              )
-            )}
+              );
+            })}
           </div>
         )}
       </div>
