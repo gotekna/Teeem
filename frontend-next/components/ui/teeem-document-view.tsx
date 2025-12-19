@@ -226,54 +226,141 @@ export function TeeemDocumentView<T extends DocumentItem>({
     setSelectedIds([]);
   };
 
-  // Drag-to-select state
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragMode, setDragMode] = useState<'add' | 'remove'>('add');
-  const draggedIdsRef = useRef<Set<number>>(new Set());
+  // Drag-to-select state (same pattern as TeeemTableView)
+  const dragStateRef = useRef<{
+    isDragging: boolean;
+    startRowId: number | null;
+    currentRowId: number | null;
+    startX: number;
+    startY: number;
+  } | null>(null);
+
+  const [dragRange, setDragRange] = useState<{
+    startId: number;
+    endId: number;
+  } | null>(null);
+
+  // Get ordered list of document IDs
+  const getDocumentIds = useCallback(() => {
+    return documents.map(getDocumentId);
+  }, [documents, getDocumentId]);
 
   // Drag-to-select handlers
-  const handleDragStart = (id: number, isCurrentlySelected: boolean) => {
-    setIsDragging(true);
-    // If item is already selected, drag will deselect; otherwise drag will select
-    setDragMode(isCurrentlySelected ? 'remove' : 'add');
-    draggedIdsRef.current = new Set([id]);
-
-    // Apply immediately to first item
-    if (isCurrentlySelected) {
-      setSelectedIds(prev => prev.filter(i => i !== id));
-    } else {
-      setSelectedIds(prev => [...prev, id]);
-    }
-  };
-
-  const handleDragEnter = (id: number) => {
-    if (!isDragging || draggedIdsRef.current.has(id)) return;
-
-    draggedIdsRef.current.add(id);
-
-    if (dragMode === 'add') {
-      setSelectedIds(prev => prev.includes(id) ? prev : [...prev, id]);
-    } else {
-      setSelectedIds(prev => prev.filter(i => i !== id));
-    }
-  };
-
-  const handleDragEnd = () => {
-    setIsDragging(false);
-    draggedIdsRef.current = new Set();
-  };
-
-  // Global mouseup listener to end drag
-  useEffect(() => {
-    const handleMouseUp = () => {
-      if (isDragging) {
-        handleDragEnd();
-      }
+  const handleSelectMouseDown = useCallback((rowId: number, e: React.MouseEvent) => {
+    // Don't start drag immediately - wait to see if mouse moves
+    dragStateRef.current = {
+      isDragging: false,
+      startRowId: rowId,
+      currentRowId: rowId,
+      startX: e.clientX,
+      startY: e.clientY,
     };
+  }, []);
 
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
-  }, [isDragging]);
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragStateRef.current) return;
+
+    // If not yet dragging, check if mouse has moved enough to start
+    if (!dragStateRef.current.isDragging) {
+      const deltaX = Math.abs(e.clientX - dragStateRef.current.startX);
+      const deltaY = Math.abs(e.clientY - dragStateRef.current.startY);
+      const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+      // Start dragging if moved more than 5 pixels
+      if (distance > 5) {
+        dragStateRef.current.isDragging = true;
+        if (dragStateRef.current.startRowId !== null) {
+          setDragRange({
+            startId: dragStateRef.current.startRowId,
+            endId: dragStateRef.current.startRowId,
+          });
+        }
+      }
+      return;
+    }
+
+    // During drag, find which row the mouse is over using elementFromPoint
+    const element = document.elementFromPoint(e.clientX, e.clientY);
+    if (!element) return;
+
+    // Find the closest element with data-doc-id
+    const row = element.closest('[data-doc-id]');
+    if (row) {
+      const rowId = row.getAttribute('data-doc-id');
+      if (rowId) {
+        const parsedId = Number(rowId);
+        dragStateRef.current.currentRowId = parsedId;
+        if (dragStateRef.current.startRowId !== null) {
+          setDragRange({
+            startId: dragStateRef.current.startRowId,
+            endId: parsedId,
+          });
+        }
+      }
+    }
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    setDragRange(null);
+
+    if (!dragStateRef.current?.isDragging) {
+      // Single click - toggle selection
+      if (dragStateRef.current?.startRowId !== null) {
+        const id = dragStateRef.current.startRowId;
+        setSelectedIds(prev =>
+          prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+      }
+      dragStateRef.current = null;
+      return;
+    }
+
+    // Process the drag selection
+    const { startRowId, currentRowId } = dragStateRef.current;
+
+    if (startRowId !== null && currentRowId !== null) {
+      const docIds = getDocumentIds();
+      const startIndex = docIds.indexOf(startRowId);
+      const endIndex = docIds.indexOf(currentRowId);
+
+      if (startIndex !== -1 && endIndex !== -1) {
+        const minIndex = Math.min(startIndex, endIndex);
+        const maxIndex = Math.max(startIndex, endIndex);
+        const rowsInRange = docIds.slice(minIndex, maxIndex + 1);
+
+        setSelectedIds(prev => {
+          const next = new Set(prev);
+          rowsInRange.forEach(id => next.add(id));
+          return Array.from(next);
+        });
+      }
+    }
+
+    dragStateRef.current = null;
+  }, [getDocumentIds]);
+
+  // Check if a row is in the current drag range (for visual highlighting)
+  const isInDragRange = useCallback((id: number) => {
+    if (!dragRange) return false;
+    const docIds = getDocumentIds();
+    const startIndex = docIds.indexOf(dragRange.startId);
+    const endIndex = docIds.indexOf(dragRange.endId);
+    const rowIndex = docIds.indexOf(id);
+    if (startIndex === -1 || endIndex === -1 || rowIndex === -1) return false;
+    const minIndex = Math.min(startIndex, endIndex);
+    const maxIndex = Math.max(startIndex, endIndex);
+    return rowIndex >= minIndex && rowIndex <= maxIndex;
+  }, [dragRange, getDocumentIds]);
+
+  // Attach global mouse listeners for drag
+  useEffect(() => {
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleMouseMove, handleMouseUp]);
 
   // Rename handlers
   const startRename = () => {
@@ -396,13 +483,13 @@ export function TeeemDocumentView<T extends DocumentItem>({
             return (
               <div
                 key={id}
+                data-doc-id={id}
                 className={cn(
                   "flex items-center gap-2 px-3 py-2 border-b cursor-pointer hover:bg-muted/50 transition-colors",
                   isSelected && "bg-muted",
-                  isDragging && "select-none"
+                  isInDragRange(id) && "bg-blue-100 dark:bg-blue-900/30"
                 )}
                 onClick={() => setSelectedDocument(doc)}
-                onMouseEnter={() => enableSelection && handleDragEnter(id)}
               >
                 {enableSelection && (
                   <div
@@ -410,9 +497,8 @@ export function TeeemDocumentView<T extends DocumentItem>({
                     onMouseDown={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      handleDragStart(id, selectedIds.includes(id));
+                      handleSelectMouseDown(id, e);
                     }}
-                    onMouseEnter={() => handleDragEnter(id)}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Checkbox

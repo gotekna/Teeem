@@ -140,8 +140,7 @@ const XERO_SUB_TABS = [
   { id: "accounts", name: "Accounts" },
   { id: "profit-loss", name: "Profit & Loss" },
   { id: "balance-sheet", name: "Balance Sheet" },
-  { id: "profit-loss-pdf", name: "P&L PDF Reports" },
-  { id: "balance-sheet-pdf", name: "Balance Sheet PDF" },
+  { id: "reports", name: "Reports" },
   { id: "bank-accounts", name: "Bank Accounts" },
 ];
 
@@ -4744,6 +4743,59 @@ interface PdfReport {
   net_assets?: number;
 }
 
+// Combined Reports Panel with inner tabs for P&L and Balance Sheet PDFs
+function XeroReportsPanel({ companyId }: { companyId: string }) {
+  const [activeReportTab, setActiveReportTab] = React.useState<"profit_loss" | "balance_sheet">("profit_loss");
+
+  return (
+    <div className="space-y-4">
+      {/* Inner tabs for report types */}
+      <div className="flex gap-2 border-b border-border">
+        <button
+          onClick={() => setActiveReportTab("profit_loss")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeReportTab === "profit_loss"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Profit & Loss
+        </button>
+        <button
+          onClick={() => setActiveReportTab("balance_sheet")}
+          className={cn(
+            "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+            activeReportTab === "balance_sheet"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Balance Sheet
+        </button>
+      </div>
+
+      {/* Report content based on selected tab */}
+      {activeReportTab === "profit_loss" && (
+        <XeroPdfReportsCard
+          companyId={companyId}
+          reportType="profit_loss"
+          title="Profit & Loss PDF Reports"
+          foundationId={488}
+        />
+      )}
+      {activeReportTab === "balance_sheet" && (
+        <XeroPdfReportsCard
+          companyId={companyId}
+          reportType="balance_sheet"
+          title="Balance Sheet PDF Reports"
+          foundationId={489}
+        />
+      )}
+    </div>
+  );
+}
+
 function XeroPdfReportsCard({
   companyId,
   reportType,
@@ -5510,33 +5562,12 @@ export default function CompanyDetailPage() {
                 <XeroBalanceSheetCard companyId={companyId} />
               )}
 
-              {xeroSubTab === "profit-loss-pdf" && (
-                <XeroPdfReportsCard
-                  companyId={companyId}
-                  reportType="profit_loss"
-                  title="Profit & Loss PDF Reports"
-                  foundationId={488}
-                />
-              )}
-
-              {xeroSubTab === "balance-sheet-pdf" && (
-                <XeroPdfReportsCard
-                  companyId={companyId}
-                  reportType="balance_sheet"
-                  title="Balance Sheet PDF Reports"
-                  foundationId={489}
-                />
+              {xeroSubTab === "reports" && (
+                <XeroReportsPanel companyId={companyId} />
               )}
 
               {xeroSubTab === "bank-accounts" && (
                 <XeroBankAccountsCard companyId={companyId} />
-              )}
-
-              {xeroSubTab === "bank-statement" && (
-                <div className="p-4 text-center text-gray-500">
-                  <p>Bank Statement reports are available in the Gold Standard Tables.</p>
-                  <p className="text-sm mt-2">Foundation ID: 487</p>
-                </div>
               )}
 
               {/* Document folder sub-tabs from database (SSoT) */}
