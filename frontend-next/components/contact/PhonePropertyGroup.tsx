@@ -199,8 +199,8 @@ function PhoneRow({
     return (
       <div
         className={cn(
-          "flex items-center gap-2 py-1.5 px-2 -mx-2 rounded transition-colors",
-          isNew ? "bg-blue-50 dark:bg-blue-950/30" : "bg-muted/30",
+          "flex items-center gap-2 py-1.5 px-2 -mx-2 transition-colors",
+          isNew ? "bg-blue-50 dark:bg-blue-950/30" : "bg-[#F2F1EF] dark:bg-[#1D1D1D]",
           error && "bg-red-50 dark:bg-red-950/30"
         )}
       >
@@ -291,7 +291,7 @@ function PhoneRow({
 
         {/* Error display */}
         {error && (
-          <span className="text-xs text-red-500 absolute -bottom-4 left-28">
+          <span className="text-[11px] text-red-500 absolute -bottom-4 left-28">
             {error}
           </span>
         )}
@@ -303,19 +303,19 @@ function PhoneRow({
   return (
     <div
       className={cn(
-        "group flex items-center gap-2 py-1.5 px-2 -mx-2 rounded transition-colors cursor-pointer hover:bg-muted/50",
+        "group flex items-center gap-2 py-1.5 px-2 -mx-2 transition-colors cursor-pointer hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]",
         showSuccess && "bg-green-50 dark:bg-green-950/30"
       )}
       onClick={onStartEdit}
     >
       {/* Type badge */}
-      <span className="flex items-center gap-1 text-xs text-muted-foreground w-16 shrink-0">
+      <span className="flex items-center gap-1 text-[11px] text-[#878787] w-16 shrink-0">
         <Icon className="h-3.5 w-3.5" />
         <span className="capitalize">{phone.phone_type}</span>
       </span>
 
       {/* Phone number */}
-      <span className="flex-1 text-sm">
+      <span className="flex-1 text-[14px] text-[#606060] dark:text-gray-300">
         {formatPhoneNumber(phone.phone_number) || phone.phone_number}
       </span>
 
@@ -484,12 +484,12 @@ export function PhonePropertyGroup({
     <div className={cn("space-y-1", className)}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">Phones</span>
+        <span className="text-[14px] text-[#878787]">Phones</span>
         <Button
           type="button"
           variant="ghost"
           size="sm"
-          className="h-7 px-2 text-muted-foreground hover:text-foreground"
+          className="h-7 px-2 text-[#878787] hover:text-[#606060]"
           onClick={handleAdd}
           disabled={isAdding}
         >
@@ -501,7 +501,7 @@ export function PhonePropertyGroup({
       {/* Phone list */}
       <div className="space-y-0.5">
         {visiblePhones.length === 0 && !isAdding && (
-          <p className="text-sm text-muted-foreground italic py-2 px-2">
+          <p className="text-[14px] text-[#878787] italic py-2 px-2">
             No phone numbers
           </p>
         )}

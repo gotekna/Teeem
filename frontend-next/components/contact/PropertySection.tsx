@@ -16,6 +16,10 @@ export interface PropertySectionProps {
 
 /**
  * PropertySection - A titled section divider for grouping PropertyRows
+ *
+ * Brand Guidelines Applied:
+ * - 11px label text
+ * - #878787 text color
  */
 export function PropertySection({
   title,
@@ -26,7 +30,7 @@ export function PropertySection({
   return (
     <div className={cn("space-y-1", className)}>
       <div className="flex items-center justify-between py-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[#878787]">
           {title}
         </h3>
         {action}

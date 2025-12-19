@@ -155,7 +155,11 @@ export function KanbanColumn<T extends KanbanItem = KanbanItem>({
               disabled={!cardReorderable}
             >
               <div className="space-y-2">
-                {items.map((item) => renderCard(item, false))}
+                {items.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderCard(item, false)}
+                  </React.Fragment>
+                ))}
               </div>
             </SortableContext>
           )}

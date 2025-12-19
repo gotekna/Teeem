@@ -16,7 +16,6 @@ import {
 import {
   PropertyRow,
   PropertySection,
-  ContactHero,
   PhonePropertyGroup,
   EmailPropertyGroup,
   AddressPropertyGroup,
@@ -226,31 +225,8 @@ export function ContactOverviewTab({
     (a) => a.address_type === "STREET" && !a._destroy
   ) || null;
 
-  // Compute display name based on entity type
-  const computeDisplayName = useCallback((entityType: string, contact: Contact): string => {
-    if (hasFirstLastName(entityType)) {
-      const parts = [contact.first_name, contact.middle_name, contact.last_name].filter(Boolean);
-      return parts.join(" ") || contact.display_name;
-    }
-    return contact.company_name_or_trust || contact.display_name;
-  }, []);
-
   return (
     <div className="max-w-2xl mx-auto space-y-8">
-      {/* Hero Section */}
-      <ContactHero
-        displayName={contact.display_name}
-        entityType={contact.entity_type}
-        isActive={contact.is_active}
-        jobsCount={contact.jobs_count}
-        purchaseOrdersCount={contact.purchase_orders_count}
-        quotesCount={contact.quotes_count}
-        isXeroCustomer={contact["is_customer?"]}
-        isXeroSupplier={contact["is_supplier?"]}
-      />
-
-      <Separator />
-
       {/* Identity Section */}
       <PropertySection title="Identity">
         {hasFirstLastName(contact.entity_type) ? (
@@ -284,14 +260,6 @@ export function ContactOverviewTab({
         )}
 
         <PropertyRow
-          label="Display Name"
-          value={contact.display_name}
-          onSave={async () => {}}
-          readonly
-          hint="Auto-generated from name fields"
-        />
-
-        <PropertyRow
           label="Entity Type"
           value={contact.entity_type}
           onSave={(value) => saveField("entity_type", value)}
@@ -304,7 +272,6 @@ export function ContactOverviewTab({
           value={contact.is_active}
           onSave={(value) => saveField("is_active", value)}
           type="switch"
-          hint="Is this contact currently active?"
         />
 
         <PropertyRow
@@ -312,7 +279,6 @@ export function ContactOverviewTab({
           value={contact.is_team_contact}
           onSave={(value) => saveField("is_team_contact", value)}
           type="switch"
-          hint="Part of the internal team?"
         />
       </PropertySection>
 
@@ -356,19 +322,19 @@ export function ContactOverviewTab({
       {/* Company Association - for Person entities */}
       {canHaveEmployer(contact.entity_type) && contact.primary_company && (
         <PropertySection title="Employment">
-          <div className="py-2 px-3 -mx-3 rounded bg-muted/30">
+          <div className="py-2 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D]">
             <div className="flex items-center gap-3">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <Building2 className="h-4 w-4 text-[#878787]" />
               <div className="flex-1">
-                <span className="text-xs text-muted-foreground">Works at</span>
+                <span className="text-[11px] text-[#878787]">Works at</span>
                 <div className="flex items-center gap-2 mt-0.5">
                   <Link
                     href={`/contacts/${contact.primary_company.id}`}
-                    className="text-sm font-medium hover:underline"
+                    className="text-[14px] text-[#606060] dark:text-gray-300 font-medium hover:underline"
                   >
                     {contact.primary_company.name}
                   </Link>
-                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                  <ExternalLink className="h-3 w-3 text-[#878787]" />
                 </div>
               </div>
             </div>
@@ -384,18 +350,18 @@ export function ContactOverviewTab({
               <Link
                 key={employee.id}
                 href={`/contacts/${employee.id}`}
-                className="flex items-center gap-3 py-2 px-3 -mx-3 rounded hover:bg-muted/50"
+                className="flex items-center gap-3 py-2 px-3 -mx-3 hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]"
               >
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Users className="h-4 w-4 text-[#878787]" />
                 <div className="flex-1">
-                  <span className="text-sm">{employee.display_name}</span>
+                  <span className="text-[14px] text-[#606060] dark:text-gray-300">{employee.display_name}</span>
                   {employee.primary_role && (
-                    <Badge variant="outline" className="ml-2 text-xs">
+                    <Badge variant="outline" className="ml-2 text-[11px]">
                       {employee.primary_role}
                     </Badge>
                   )}
                 </div>
-                <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                <ExternalLink className="h-3 w-3 text-[#878787]" />
               </Link>
             ))}
           </div>
@@ -421,16 +387,16 @@ export function ContactOverviewTab({
                 <Link
                   key={rel.id}
                   href={`/contacts/${relatedContact.id}`}
-                  className="flex items-center gap-3 py-2 px-3 -mx-3 rounded hover:bg-muted/50"
+                  className="flex items-center gap-3 py-2 px-3 -mx-3 hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]"
                 >
-                  <Link2 className="h-4 w-4 text-muted-foreground" />
+                  <Link2 className="h-4 w-4 text-[#878787]" />
                   <div className="flex-1">
-                    <span className="text-sm">{displayName}</span>
-                    <Badge variant="outline" className="ml-2 text-xs">
+                    <span className="text-[14px] text-[#606060] dark:text-gray-300">{displayName}</span>
+                    <Badge variant="outline" className="ml-2 text-[11px]">
                       {rel.relationship_type_label || rel.relationship_type}
                     </Badge>
                   </div>
-                  <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                  <ExternalLink className="h-3 w-3 text-[#878787]" />
                 </Link>
               );
             })}
@@ -486,26 +452,26 @@ export function ContactOverviewTab({
             {contact.contact_persons.map((person) => (
               <div
                 key={person.id}
-                className="flex items-center gap-3 py-2 px-3 -mx-3 rounded bg-muted/30"
+                className="flex items-center gap-3 py-2 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D]"
               >
-                <Users className="h-4 w-4 text-muted-foreground" />
+                <Users className="h-4 w-4 text-[#878787]" />
                 <div className="flex-1">
-                  <span className="text-sm">
+                  <span className="text-[14px] text-[#606060] dark:text-gray-300">
                     {person.first_name} {person.last_name}
                   </span>
                   {person.role && (
-                    <span className="text-xs text-muted-foreground ml-2">
+                    <span className="text-[11px] text-[#878787] ml-2">
                       ({person.role})
                     </span>
                   )}
                   {person.is_primary && (
-                    <Badge variant="secondary" className="ml-2 text-xs">
+                    <Badge variant="secondary" className="ml-2 text-[11px]">
                       Primary
                     </Badge>
                   )}
                 </div>
                 {person.email && (
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-[11px] text-[#878787]">
                     {person.email}
                   </span>
                 )}
@@ -530,7 +496,7 @@ export function ContactOverviewTab({
 
       {/* System Info Footer */}
       <Separator />
-      <div className="text-xs text-muted-foreground flex items-center gap-4 py-2">
+      <div className="text-[11px] text-[#878787] flex items-center gap-4 py-2">
         <span>ID: {contact.id}</span>
         <span>
           Created:{" "}

@@ -18,9 +18,10 @@ class GeneratePlanThumbnailJob < ApplicationJob
       return
     end
 
-    # Skip if thumbnail already exists (unless force regeneration)
-    if revision.thumbnail_url.present? && !force
-      Rails.logger.info "[GeneratePlanThumbnail] Revision ##{revision_id} already has thumbnail, skipping"
+    # Skip if BOTH thumbnails already exist (unless force regeneration)
+    # We need both thumbnail_url (full) AND micro_thumbnail_base64 (instant preview)
+    if revision.thumbnail_url.present? && revision.micro_thumbnail_base64.present? && !force
+      Rails.logger.info "[GeneratePlanThumbnail] Revision ##{revision_id} already has both thumbnails, skipping"
       return
     end
 

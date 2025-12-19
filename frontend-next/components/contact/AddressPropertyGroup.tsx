@@ -60,6 +60,11 @@ const AUSTRALIAN_STATES = [
 
 /**
  * AddressPropertyGroup - Address fields (street, suburb, state, postcode)
+ *
+ * Brand Guidelines Applied:
+ * - Square corners (no rounded)
+ * - Text: #606060 body, #878787 labels
+ * - Hover: bg-[#F2F1EF] dark:bg-[#1D1D1D]
  */
 export function AddressPropertyGroup({
   contactId,
@@ -218,23 +223,23 @@ export function AddressPropertyGroup({
     return (
       <div
         className={cn(
-          "group py-2.5 px-3 -mx-3 rounded transition-all cursor-pointer hover:bg-muted/50",
+          "group py-2.5 px-3 -mx-3 transition-all cursor-pointer hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]",
           showSuccess && "bg-green-50 dark:bg-green-950/30",
           className
         )}
         onClick={() => setIsEditing(true)}
       >
         <div className="flex items-start gap-3">
-          <MapPin className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <MapPin className="h-4 w-4 text-[#878787] mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            <span className="text-[11px] font-medium text-[#878787] uppercase tracking-wider">
               Address
             </span>
             <div className="flex items-center gap-2 mt-1">
               <span
                 className={cn(
-                  "text-sm",
-                  !displayAddress && "text-muted-foreground italic"
+                  "text-[14px] text-[#606060] dark:text-gray-300",
+                  !displayAddress && "text-[#878787] italic"
                 )}
               >
                 {displayAddress || "No address set"}
@@ -244,7 +249,7 @@ export function AddressPropertyGroup({
               )}
             </div>
           </div>
-          <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0 mt-0.5" />
+          <Pencil className="h-4 w-4 text-[#878787] opacity-0 group-hover:opacity-100 shrink-0 mt-0.5" />
         </div>
       </div>
     );
@@ -254,7 +259,7 @@ export function AddressPropertyGroup({
   return (
     <div
       className={cn(
-        "py-3 px-3 -mx-3 bg-muted/30 rounded transition-colors space-y-3",
+        "py-3 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors space-y-3",
         error && "bg-red-50 dark:bg-red-950/30",
         className
       )}
@@ -262,8 +267,8 @@ export function AddressPropertyGroup({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <MapPin className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <MapPin className="h-4 w-4 text-[#878787]" />
+          <span className="text-[11px] font-medium text-[#878787] uppercase tracking-wider">
             Address
           </span>
         </div>
@@ -282,7 +287,7 @@ export function AddressPropertyGroup({
 
       {/* Street */}
       <div>
-        <label className="text-xs text-muted-foreground">Street Address</label>
+        <label className="text-[11px] text-[#878787]">Street Address</label>
         <Input
           value={draft.line1 || ""}
           onChange={(e) => setDraft((prev) => ({ ...prev, line1: e.target.value }))}
@@ -296,7 +301,7 @@ export function AddressPropertyGroup({
 
       {/* Suburb with autocomplete */}
       <div className="relative">
-        <label className="text-xs text-muted-foreground">Suburb</label>
+        <label className="text-[11px] text-[#878787]">Suburb</label>
         <div className="relative mt-1">
           <Input
             ref={suburbInputRef}
@@ -346,7 +351,7 @@ export function AddressPropertyGroup({
       {/* State and Postcode in a row */}
       <div className="flex gap-3">
         <div className="flex-1">
-          <label className="text-xs text-muted-foreground">State</label>
+          <label className="text-[11px] text-[#878787]">State</label>
           <Select
             value={draft.region || ""}
             onValueChange={(value) => {
@@ -369,7 +374,7 @@ export function AddressPropertyGroup({
           </Select>
         </div>
         <div className="w-28">
-          <label className="text-xs text-muted-foreground">Postcode</label>
+          <label className="text-[11px] text-[#878787]">Postcode</label>
           <Input
             value={draft.postal_code || ""}
             onChange={(e) =>
@@ -386,7 +391,7 @@ export function AddressPropertyGroup({
       </div>
 
       {/* Error */}
-      {error && <p className="text-xs text-red-500">{error}</p>}
+      {error && <p className="text-[11px] text-red-500">{error}</p>}
     </div>
   );
 }

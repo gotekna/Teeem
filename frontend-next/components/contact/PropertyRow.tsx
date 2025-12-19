@@ -52,6 +52,11 @@ export interface PropertyRowProps {
 /**
  * PropertyRow - A click-to-edit property field
  *
+ * Brand Guidelines Applied:
+ * - Square corners (no rounded)
+ * - Text: #606060 body, #878787 labels
+ * - Hover: bg-[#F2F1EF] dark:bg-[#1D1D1D]
+ *
  * Behavior:
  * - Read mode: Shows label + value, hover reveals edit icon
  * - Click → Edit mode: Shows input, auto-focused
@@ -220,7 +225,7 @@ export const PropertyRow = memo(function PropertyRow({
     return (
       <div
         className={cn(
-          "flex items-center py-2.5 px-3 -mx-3 rounded transition-colors",
+          "flex items-center py-2.5 px-3 -mx-3 transition-colors",
           showSuccess && "bg-green-50 dark:bg-green-950/30",
           error && "bg-red-50 dark:bg-red-950/30",
           className
@@ -228,14 +233,14 @@ export const PropertyRow = memo(function PropertyRow({
       >
         <span
           className={cn(
-            "shrink-0 text-sm text-muted-foreground",
+            "shrink-0 text-[14px] text-[#878787]",
             labelWidth
           )}
         >
           {label}
         </span>
         <div className="flex-1 flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
+          <span className="text-[14px] text-[#878787]">
             {hint}
           </span>
           <div className="flex items-center gap-2">
@@ -249,7 +254,7 @@ export const PropertyRow = memo(function PropertyRow({
           </div>
         </div>
         {error && (
-          <span className="text-xs text-red-500 ml-2">{error}</span>
+          <span className="text-[11px] text-red-500 ml-2">{error}</span>
         )}
       </div>
     );
@@ -260,8 +265,8 @@ export const PropertyRow = memo(function PropertyRow({
     return (
       <div
         className={cn(
-          "group flex items-start py-2.5 px-3 -mx-3 rounded transition-all cursor-pointer",
-          !readonly && "hover:bg-muted/50",
+          "group flex items-start py-2.5 px-3 -mx-3 transition-all cursor-pointer",
+          !readonly && "hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]",
           showSuccess && "bg-green-50 dark:bg-green-950/30",
           readonly && "cursor-default",
           className
@@ -270,7 +275,7 @@ export const PropertyRow = memo(function PropertyRow({
       >
         <span
           className={cn(
-            "shrink-0 text-sm text-muted-foreground pt-0.5",
+            "shrink-0 text-[14px] text-[#878787] pt-0.5",
             labelWidth
           )}
         >
@@ -280,8 +285,8 @@ export const PropertyRow = memo(function PropertyRow({
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "text-sm break-words",
-                !displayValue && "text-muted-foreground italic"
+                "text-[14px] text-[#606060] dark:text-gray-300 break-words",
+                !displayValue && "text-[#878787] italic"
               )}
             >
               {displayValue || placeholder || "Not set"}
@@ -316,7 +321,7 @@ export const PropertyRow = memo(function PropertyRow({
             )}
           </div>
           {hint && !readonly && (
-            <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>
+            <p className="text-[11px] text-[#878787] mt-0.5">{hint}</p>
           )}
         </div>
         {!readonly && (
@@ -331,14 +336,14 @@ export const PropertyRow = memo(function PropertyRow({
     return (
       <div
         className={cn(
-          "flex items-start py-1.5 px-3 -mx-3 bg-muted/30 rounded transition-colors",
+          "flex items-start py-1.5 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors",
           error && "bg-red-50 dark:bg-red-950/30",
           className
         )}
       >
         <span
           className={cn(
-            "shrink-0 text-sm text-muted-foreground pt-2",
+            "shrink-0 text-[14px] text-[#878787] pt-2",
             labelWidth
           )}
         >
@@ -375,7 +380,7 @@ export const PropertyRow = memo(function PropertyRow({
           </button>
         </div>
         {error && (
-          <span className="text-xs text-red-500 ml-2 pt-2">{error}</span>
+          <span className="text-[11px] text-red-500 ml-2 pt-2">{error}</span>
         )}
       </div>
     );
@@ -386,14 +391,14 @@ export const PropertyRow = memo(function PropertyRow({
     return (
       <div
         className={cn(
-          "flex items-start py-1.5 px-3 -mx-3 bg-muted/30 rounded transition-colors",
+          "flex items-start py-1.5 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors",
           error && "bg-red-50 dark:bg-red-950/30",
           className
         )}
       >
         <span
           className={cn(
-            "shrink-0 text-sm text-muted-foreground pt-2",
+            "shrink-0 text-[14px] text-[#878787] pt-2",
             labelWidth
           )}
         >
@@ -432,8 +437,8 @@ export const PropertyRow = memo(function PropertyRow({
               </button>
             </div>
           </div>
-          {error && <span className="text-xs text-red-500">{error}</span>}
-          <span className="text-xs text-muted-foreground">
+          {error && <span className="text-[11px] text-red-500">{error}</span>}
+          <span className="text-[11px] text-[#878787]">
             Press Escape to cancel, Cmd+Enter to save
           </span>
         </div>
@@ -445,14 +450,14 @@ export const PropertyRow = memo(function PropertyRow({
   return (
     <div
       className={cn(
-        "flex items-start py-1.5 px-3 -mx-3 bg-muted/30 rounded transition-colors",
+        "flex items-start py-1.5 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D] transition-colors",
         error && "bg-red-50 dark:bg-red-950/30",
         className
       )}
     >
       <span
         className={cn(
-          "shrink-0 text-sm text-muted-foreground pt-2",
+          "shrink-0 text-[14px] text-[#878787] pt-2",
           labelWidth
         )}
       >
@@ -480,7 +485,7 @@ export const PropertyRow = memo(function PropertyRow({
             <X className="h-4 w-4" />
           </button>
         </div>
-        {error && <span className="text-xs text-red-500 mt-1 block">{error}</span>}
+        {error && <span className="text-[11px] text-red-500 mt-1 block">{error}</span>}
       </div>
     </div>
   );
