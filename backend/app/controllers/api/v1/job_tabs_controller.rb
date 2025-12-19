@@ -1,8 +1,6 @@
 module Api
   module V1
     class JobTabsController < ApplicationController
-      before_action :require_authentication
-
       # GET /api/v1/job_tabs
       # Returns user's personalized job tab configuration
       def index
