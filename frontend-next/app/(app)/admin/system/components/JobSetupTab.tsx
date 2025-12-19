@@ -35,7 +35,6 @@ import {
 import {
   Plus,
   Loader2,
-  GripVertical,
   Pencil,
   Trash2,
   Briefcase,
@@ -48,6 +47,9 @@ import {
   Percent,
   Receipt,
 } from "lucide-react";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle, ItemBadge } from "@/components/ui/dnd";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -122,7 +124,7 @@ const SEQ_COUNCILS = [
   "Toowoomba Regional Council",
 ];
 
-// Individual sortable item component
+// Individual sortable item component - uses standard DnD primitives
 function SortableItem<T extends { id: number; name: string; color?: string; position: number }>({
   item,
   index,
@@ -138,10 +140,6 @@ function SortableItem<T extends { id: number; name: string; color?: string; posi
   onDelete: (id: number) => void;
   onPositionChange: (newPosition: number) => void;
 }) {
-  const [isEditingPosition, setIsEditingPosition] = React.useState(false);
-  const [positionValue, setPositionValue] = React.useState(String(index + 1));
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
   const {
     attributes,
     listeners,
@@ -157,41 +155,6 @@ function SortableItem<T extends { id: number; name: string; color?: string; posi
     transition,
   };
 
-  React.useEffect(() => {
-    if (isEditingPosition && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditingPosition]);
-
-  React.useEffect(() => {
-    setPositionValue(String(index + 1));
-  }, [index]);
-
-  const handlePositionClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setPositionValue(String(index + 1));
-    setIsEditingPosition(true);
-  };
-
-  const handlePositionSubmit = () => {
-    const newPos = parseInt(positionValue, 10);
-    if (!isNaN(newPos) && newPos >= 1 && newPos <= totalItems && newPos !== index + 1) {
-      onPositionChange(newPos);
-    }
-    setIsEditingPosition(false);
-    setPositionValue(String(index + 1));
-  };
-
-  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handlePositionSubmit();
-    } else if (e.key === "Escape") {
-      setIsEditingPosition(false);
-      setPositionValue(String(index + 1));
-    }
-  };
-
   return (
     <div
       ref={setNodeRef}
@@ -202,34 +165,15 @@ function SortableItem<T extends { id: number; name: string; color?: string; posi
         isOver && !isDragging && "border-t-4 border-t-primary pt-4 mt-1"
       )}
     >
-      {/* Drag handle with position number */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-        {isEditingPosition ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={positionValue}
-            onChange={(e) => setPositionValue(e.target.value)}
-            onBlur={handlePositionSubmit}
-            onKeyDown={handlePositionKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            className="w-6 h-5 text-[10px] font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
-          />
-        ) : (
-          <button
-            onClick={handlePositionClick}
-            className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
-            title="Click to change position"
-          >
-            {index + 1}
-          </button>
-        )}
-      </div>
+      {/* DnD Primitives: DragHandle + ItemBadge */}
+      <DragHandle {...attributes} {...listeners} size="sm" />
+      <ItemBadge
+        position={index + 1}
+        editable
+        onPositionChange={onPositionChange}
+        maxPosition={totalItems}
+        size="sm"
+      />
 
       {/* Color indicator */}
       {item.color && (
@@ -391,10 +335,12 @@ function SortableList<T extends { id: number; name: string; color?: string; posi
             <DragOverlay>
               {activeItem ? (
                 <div className="flex items-center gap-2 p-2 rounded-md border bg-background shadow-lg scale-[1.02] border-primary">
-                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  <div className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-primary/20 text-primary rounded">
-                    {sortedItems.findIndex((i) => i.id === activeItem.id) + 1}
-                  </div>
+                  <DragHandle size="sm" />
+                  <ItemBadge
+                    position={sortedItems.findIndex((i) => i.id === activeItem.id) + 1}
+                    size="sm"
+                    color="primary"
+                  />
                   {activeItem.color && (
                     <div
                       className="w-3 h-3 rounded-full"
@@ -447,17 +393,9 @@ function ClaimStageItem({
         isDragging && "opacity-50 shadow-lg scale-[1.02] z-50 border-primary"
       )}
     >
-      {/* Drag handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="flex items-center gap-1.5 cursor-grab active:cursor-grabbing touch-none"
-      >
-        <GripVertical className="h-4 w-4 text-muted-foreground" />
-        <span className="flex items-center justify-center w-5 h-5 text-[10px] font-medium bg-muted rounded">
-          {index + 1}
-        </span>
-      </div>
+      {/* DnD Primitives: DragHandle + ItemBadge */}
+      <DragHandle {...attributes} {...listeners} size="sm" />
+      <ItemBadge position={index + 1} size="sm" />
 
       {/* Stage name */}
       <span className="flex-1 text-sm font-medium truncate">{stage.name}</span>

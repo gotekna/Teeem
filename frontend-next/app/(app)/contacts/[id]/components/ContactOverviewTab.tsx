@@ -19,12 +19,14 @@ import {
   Plus,
   Link2,
   Scale,
-  GripVertical,
   Star,
   Search,
   Loader2,
   Home,
 } from "lucide-react";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle } from "@/components/ui/dnd";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1971,14 +1973,7 @@ function SortableEmployeeItem({
         isPrimary && "bg-primary/5 border-primary/20"
       )}
     >
-      <button
-        type="button"
-        className="cursor-grab active:cursor-grabbing touch-none"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="h-5 w-5 text-muted-foreground" />
-      </button>
+      <DragHandle {...attributes} {...listeners} size="md" />
 
       <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
         <User className="h-5 w-5 text-muted-foreground" />
@@ -2149,14 +2144,7 @@ function SortableCompanyItem({
         isPrimary && "bg-primary/5 border-primary/20"
       )}
     >
-      <button
-        type="button"
-        className="cursor-grab active:cursor-grabbing touch-none"
-        {...attributes}
-        {...listeners}
-      >
-        <GripVertical className="h-5 w-5 text-muted-foreground" />
-      </button>
+      <DragHandle {...attributes} {...listeners} size="md" />
 
       <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
         <Building2 className="h-5 w-5 text-muted-foreground" />

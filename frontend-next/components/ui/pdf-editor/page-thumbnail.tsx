@@ -1,12 +1,22 @@
 "use client";
 
+/**
+ * PageThumbnail - Sortable page thumbnail for PDF editor
+ *
+ * Uses DnD primitives from @/components/ui/dnd for consistency.
+ * See: frontend-next/lib/component-registry.ts
+ */
+
 import * as React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Trash2, GripVertical } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { PDFPage } from "./types";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle, ItemBadge } from "@/components/ui/dnd";
 
 interface PageThumbnailProps {
   page: PDFPage;
@@ -53,14 +63,13 @@ export function PageThumbnail({
       onClick={onSelect}
     >
       {/* Drag handle */}
-      <div
+      <DragHandle
         {...attributes}
         {...listeners}
-        className="absolute top-1 left-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/20 cursor-grab active:cursor-grabbing"
+        size="sm"
+        className="absolute top-1 left-1 opacity-0 group-hover:opacity-100"
         onClick={(e) => e.stopPropagation()}
-      >
-        <GripVertical className="h-3 w-3 text-muted-foreground" />
-      </div>
+      />
 
       {/* Delete button */}
       {totalPages > 1 && (
@@ -93,9 +102,7 @@ export function PageThumbnail({
       </div>
 
       {/* Page number */}
-      <span className="mt-1 text-xs text-muted-foreground">
-        {index + 1}
-      </span>
+      <ItemBadge position={index + 1} size="sm" color="gray" className="mt-1" />
 
       {/* Annotations indicator */}
       {page.annotations.length > 0 && (

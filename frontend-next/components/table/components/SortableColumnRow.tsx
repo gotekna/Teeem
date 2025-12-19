@@ -1,9 +1,15 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+/**
+ * SortableColumnRow - Sortable row for column management
+ *
+ * Uses DnD primitives from @/components/ui/dnd for consistency.
+ * See: frontend-next/lib/component-registry.ts
+ */
+
+import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -12,6 +18,9 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import type { TableColumn } from "../types";
+
+// DnD Primitives - SSoT for drag and drop UI
+import { DragHandle, ItemBadge } from "@/components/ui/dnd";
 
 interface SortableColumnRowProps {
   id: string;
@@ -48,10 +57,6 @@ export function SortableColumnRow({
   getColumnTypeLabel,
   getColumnTypeValidationRules,
 }: SortableColumnRowProps) {
-  const [isEditingPosition, setIsEditingPosition] = useState(false);
-  const [positionValue, setPositionValue] = useState(String(index));
-  const inputRef = useRef<HTMLInputElement>(null);
-
   const {
     attributes,
     listeners,
@@ -73,39 +78,6 @@ export function SortableColumnRow({
   const validationRules = getColumnTypeValidationRules(columnType);
   const isSystemColumn = ['id', 'created_at', 'updated_at'].includes(column.key);
 
-  // Focus input when editing starts
-  useEffect(() => {
-    if (isEditingPosition && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditingPosition]);
-
-  const handlePositionClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isVisible) {
-      setPositionValue(String(index));
-      setIsEditingPosition(true);
-    }
-  };
-
-  const handlePositionSubmit = () => {
-    const newPos = parseInt(positionValue, 10);
-    if (!isNaN(newPos) && newPos >= 1 && newPos <= totalVisible) {
-      onReorder(newPos);
-    }
-    setIsEditingPosition(false);
-  };
-
-  const handlePositionKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handlePositionSubmit();
-    } else if (e.key === 'Escape') {
-      setIsEditingPosition(false);
-      setPositionValue(String(index));
-    }
-  };
-
   return (
     <TableRow
       ref={setNodeRef}
@@ -120,33 +92,15 @@ export function SortableColumnRow({
       {/* Drag Handle + Position */}
       <TableCell className="w-16">
         <div className="flex items-center gap-1">
-          <div
-            {...attributes}
-            {...listeners}
-            className="cursor-grab active:cursor-grabbing touch-none p-1 hover:bg-muted rounded"
-          >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-          </div>
+          <DragHandle {...attributes} {...listeners} size="sm" />
           {isVisible && (
-            isEditingPosition ? (
-              <input
-                ref={inputRef}
-                type="text"
-                value={positionValue}
-                onChange={(e) => setPositionValue(e.target.value)}
-                onBlur={handlePositionSubmit}
-                onKeyDown={handlePositionKeyDown}
-                className="w-8 h-6 text-xs font-medium text-center bg-background border border-primary rounded focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            ) : (
-              <button
-                onClick={handlePositionClick}
-                className="flex items-center justify-center w-6 h-6 text-xs font-medium bg-muted hover:bg-primary/20 hover:text-primary rounded cursor-pointer transition-colors"
-                title="Click to change position"
-              >
-                {index}
-              </button>
-            )
+            <ItemBadge
+              position={index}
+              editable
+              onPositionChange={onReorder}
+              maxPosition={totalVisible}
+              size="sm"
+            />
           )}
         </div>
       </TableCell>

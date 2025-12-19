@@ -22,7 +22,7 @@ import type { ColumnPriority } from "@/lib/column-priority";
 import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-types";
 
 // DnD Primitives - SSoT for drag and drop UI
-import { DragHandle, PositionBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
+import { DragHandle, ItemBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
 
 interface Column {
   id: number;
@@ -109,9 +109,9 @@ export function SortableColumnItem({
       {/* DnD Primitive: DragHandle */}
       <DragHandle {...attributes} {...listeners} size="sm" />
 
-      {/* DnD Primitive: PositionBadge - editable when onReorder is provided */}
+      {/* DnD Primitive: ItemBadge - editable when onReorder is provided */}
       {index !== undefined && (
-        <PositionBadge
+        <ItemBadge
           position={index}
           editable={!!onReorder}
           onPositionChange={onReorder}
