@@ -833,67 +833,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         </div>
       </div>
 
-      {/* Action bar for selected plan - top right over preview */}
-      {selectedPlan && (
-        <div className="absolute top-0 left-[30%] right-0 px-3 py-2 z-10 bg-card border-b flex items-center justify-end gap-2">
-          <span className="text-sm text-muted-foreground mr-auto truncate">
-            {selectedPlan.display_name}
-          </span>
-          {!selectedPlan.current_revision?.is_on_issue && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                setApproveLoading(true);
-                try {
-                  await handleSetOnIssue(selectedPlan);
-                } finally {
-                  setApproveLoading(false);
-                }
-              }}
-              disabled={approveLoading}
-            >
-              {approveLoading ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <CheckCircle className="h-4 w-4 mr-1" />
-              )}
-              Set On Issue
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => {
-                const newName = prompt("Enter new name:", selectedPlan.display_name);
-                if (newName && newName !== selectedPlan.display_name) {
-                  handleRename(selectedPlan, newName);
-                }
-              }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleReprocess(selectedPlan)}>
-                <Sparkles className="h-4 w-4 mr-2" />
-                Re-extract from PDF
-              </DropdownMenuItem>
-              {selectedPlan.current_revision?.sharepoint_web_url && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => window.open(selectedPlan.current_revision?.sharepoint_web_url || "", "_blank")}>
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Open in SharePoint
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
+      {/* Action bar removed - plan name already shown in sidebar, actions available via right-click */}
 
       {/* TeeemDocumentView - fills entire container */}
       <div className="absolute inset-0">

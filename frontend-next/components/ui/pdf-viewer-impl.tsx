@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { PDFViewerProps } from "./pdf-viewer";
 import { cn } from "@/lib/utils";
-import { Loader2, FileText, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader2, FileText, ExternalLink, RefreshCw, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./button";
 import { getCachedPdf, cachePdf } from "@/lib/pdf-cache";
 
@@ -37,10 +37,28 @@ export function PDFViewerImpl({
   const [isLoading, setIsLoading] = React.useState(true);
   const [loadError, setLoadError] = React.useState<string | null>(null);
   const [isCached, setIsCached] = React.useState(false);
+  const [pageCount, setPageCount] = React.useState<number>(1);
+  const [currentPage, setCurrentPage] = React.useState<number>(1);
 
   // Store onError in ref to avoid re-fetching when callback changes
   const onErrorRef = React.useRef(onError);
   onErrorRef.current = onError;
+
+  // Helper to get page count from PDF blob using PDF.js (via react-pdf)
+  const getPageCount = async (blob: Blob): Promise<number> => {
+    try {
+      // Dynamically import pdfjs from react-pdf
+      const { pdfjs } = await import("react-pdf");
+      pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+      const arrayBuffer = await blob.arrayBuffer();
+      const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+      return pdf.numPages;
+    } catch {
+      // If PDF.js fails, assume single page
+      return 1;
+    }
+  };
 
   // Load PDF with caching
   React.useEffect(() => {
@@ -51,14 +69,24 @@ export function PDFViewerImpl({
       setIsLoading(true);
       setLoadError(null);
       setIsCached(false);
+      setCurrentPage(1);
+      setPageCount(1);
 
       try {
+        let blob: Blob;
+
         // 1. Check browser cache first (INSTANT if cached)
         const cached = await getCachedPdf(url);
         if (cached && mounted) {
+          blob = cached;
           currentBlobUrl = URL.createObjectURL(cached);
           setBlobUrl(currentBlobUrl);
           setIsCached(true);
+
+          // Get page count async
+          const pages = await getPageCount(blob);
+          if (mounted) setPageCount(pages);
+
           setIsLoading(false);
           return;
         }
@@ -87,7 +115,7 @@ export function PDFViewerImpl({
           throw new Error(`Failed to fetch PDF: ${errorText}`);
         }
 
-        const blob = await response.blob();
+        blob = await response.blob();
 
         // 3. Cache for next time (async, don't wait)
         cachePdf(url, blob).catch(() => {
@@ -98,6 +126,11 @@ export function PDFViewerImpl({
         if (mounted) {
           currentBlobUrl = URL.createObjectURL(blob);
           setBlobUrl(currentBlobUrl);
+
+          // Get page count async
+          const pages = await getPageCount(blob);
+          if (mounted) setPageCount(pages);
+
           setIsLoading(false);
         }
       } catch (err) {
@@ -181,9 +214,49 @@ export function PDFViewerImpl({
     );
   }
 
+  // Page navigation handlers
+  const goToPage = (page: number) => {
+    if (page >= 1 && page <= pageCount) {
+      setCurrentPage(page);
+    }
+  };
+
+  const prevPage = () => goToPage(currentPage - 1);
+  const nextPage = () => goToPage(currentPage + 1);
+
+  // Build iframe URL with page parameter
+  const iframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}` : "";
+
   // Success state - iframe with native PDF viewer
   return (
     <div className={cn("h-full w-full relative", className)}>
+      {/* Floating page navigation - only show for multi-page PDFs */}
+      {pageCount > 1 && (
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={prevPage}
+            disabled={currentPage <= 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium min-w-[80px] text-center">
+            {currentPage} / {pageCount}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={nextPage}
+            disabled={currentPage >= pageCount}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Cache indicator (dev only) */}
       {process.env.NODE_ENV === "development" && isCached && (
         <div className="absolute top-2 right-2 z-10 bg-green-500 text-white text-xs px-2 py-1 rounded">
@@ -193,7 +266,7 @@ export function PDFViewerImpl({
 
       {/* iframe uses browser's native PDF viewer */}
       <iframe
-        src={blobUrl}
+        src={iframeSrc}
         className="w-full h-full border-0"
         title="PDF Viewer"
       />

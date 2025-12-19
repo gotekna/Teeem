@@ -70,20 +70,8 @@ const PersonStructureChart = dynamic(
   { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div> }
 );
 
-// Import from centralized utilities
-import {
-  convertColumnsToTEEEMFormat,
-  type ApiColumn,
-} from "@/lib/corporate/column-utils";
-import {
-  CORPORATE_TABLE_IDS,
-  COLUMN_WIDTH_OVERRIDES,
-} from "@/lib/corporate/config";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { getEntityTypeLabel, isPerson, isCompany, isTrust } from "@/lib/entity-types";
-
-// Use centralized table ID
-const COMPANIES_TABLE_ID = CORPORATE_TABLE_IDS.COMPANIES;
 
 // ===== TYPES =====
 
@@ -498,7 +486,6 @@ export default function CorporateDashboardPage() {
   });
   const [upcomingCompliance, setUpcomingCompliance] = React.useState<ComplianceItem[]>([]);
   const [companies, setCompanies] = React.useState<TableRow[]>([]);
-  const [columns, setColumns] = React.useState<TableColumn[]>([]);
 
   // Company groups state
   const [groups, setGroups] = React.useState<CompanyGroup[]>([]);
@@ -573,7 +560,6 @@ export default function CorporateDashboardPage() {
   // Load initial data
   React.useEffect(() => {
     loadDashboardData();
-    fetchColumns();
     loadGroups();
   }, []);
 
@@ -628,20 +614,6 @@ export default function CorporateDashboardPage() {
     }
   };
 
-  const fetchColumns = async () => {
-    try {
-      const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(`/api/v1/foundations/${COMPANIES_TABLE_ID}`);
-      const dbColumns = response?.foundation?.columns || [];
-      const teeemColumns = convertColumnsToTEEEMFormat(
-        dbColumns,
-        COMPANIES_TABLE_ID,
-        COLUMN_WIDTH_OVERRIDES.companies
-      );
-      setColumns(teeemColumns);
-    } catch (err) {
-      console.error("Failed to fetch columns:", err);
-    }
-  };
 
   const loadGroups = async () => {
     try {
