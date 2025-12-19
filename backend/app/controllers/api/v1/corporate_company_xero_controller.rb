@@ -27,11 +27,7 @@ module Api
         render json: {
           success: true,
           # SSoT: Unified health status from XeroConnectionHealth
-          **health.to_json_hash,
-          # Legacy fields for backwards compatibility (will be removed in Phase 4)
-          connection_status: connection&.connection_status,
-          last_sync_error: connection&.last_sync_error,
-          token_expires_at: connection&.token_expires_at
+          **health.to_json_hash
         }
       end
 
@@ -120,8 +116,7 @@ module Api
         connection.assign_attributes(
           xero_credential_id: credential.id,
           xero_tenant_id: credential.tenant_id,
-          xero_tenant_name: credential.tenant_name,
-          connection_status: "connected"
+          xero_tenant_name: credential.tenant_name
         )
 
         if connection.save

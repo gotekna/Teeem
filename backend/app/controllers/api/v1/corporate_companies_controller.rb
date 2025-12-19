@@ -502,9 +502,7 @@ module Api
             connected: health.connected,
             tenant_name: xero_connection.xero_tenant_name,
             last_sync: xero_connection.last_sync_at,
-            status: health.display_status,
-            # Legacy field for backwards compatibility
-            connection_status: xero_connection.connection_status
+            status: health.display_status
           }
         else
           { connected: false }

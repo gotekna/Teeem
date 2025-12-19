@@ -208,13 +208,14 @@ module Api
           last_sync: onedrive_credential&.last_synced_at || documents.where(source: "onedrive").maximum(:last_modified_at)
         }
 
-        # Xero stats
-        xero_connections = CorporateCompanyXeroConnection.where(connection_status: "connected")
+        # Xero stats - SSoT: Filter connections by XeroConnectionHealth
+        all_xero_connections = CorporateCompanyXeroConnection.includes(:xero_credential).where.not(xero_credential_id: nil)
+        connected_xero_connections = all_xero_connections.select(&:connected?)
         xero_stats = {
-          connected: xero_connections.exists?,
-          tenant_name: xero_connections.first&.xero_tenant_name,
-          companies_connected: xero_connections.count,
-          last_sync: xero_connections.maximum(:last_sync_at)
+          connected: connected_xero_connections.any?,
+          tenant_name: connected_xero_connections.first&.xero_tenant_name,
+          companies_connected: connected_xero_connections.count,
+          last_sync: all_xero_connections.maximum(:last_sync_at)
         }
 
         # Job documents (CAD/BIM files) stats
