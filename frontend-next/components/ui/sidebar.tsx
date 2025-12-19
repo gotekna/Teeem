@@ -117,49 +117,70 @@ export function Sidebar() {
 
   // Load badge counts (pending proposals, etc.)
   useEffect(() => {
+    // Helper to safely fetch with retry on auth errors
+    const safeFetch = async <T,>(
+      endpoint: string,
+      retries = 2,
+      delay = 500
+    ): Promise<T | null> => {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          return await api.get<T>(endpoint);
+        } catch (error: unknown) {
+          const isAuthError = error instanceof Error &&
+            (error.message.includes('401') ||
+             error.message.includes('Unauthorized') ||
+             error.message.includes('Session expired'));
+
+          // Don't retry auth errors - user needs to re-login
+          if (isAuthError) {
+            return null;
+          }
+
+          // Retry transient errors with delay
+          if (attempt < retries) {
+            await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
+          }
+        }
+      }
+      return null;
+    };
+
     const loadBadgeCounts = async () => {
-      try {
-        // Load pending email job proposals count (for Leads)
-        const jobResponse = await api.get<{ proposals: Array<{ status: string }> }>(
-          "/api/v1/email_job_proposals?status=pending"
-        );
+      // Load pending email job proposals count (for Leads)
+      const jobResponse = await safeFetch<{ proposals: Array<{ status: string }> }>(
+        "/api/v1/email_job_proposals?status=pending"
+      );
+      if (jobResponse) {
         const pendingJobCount = (jobResponse.proposals || []).filter(p => p.status === "pending").length;
         setBadges(prev => ({ ...prev, pendingProposals: pendingJobCount }));
-      } catch (error) {
-        console.debug("Failed to load job proposal badge counts:", error);
       }
 
-      try {
-        // Load pending email case proposals count (for Cases)
-        const caseResponse = await api.get<{ proposals: Array<{ status: string }> }>(
-          "/api/v1/email_case_proposals?status=pending"
-        );
+      // Load pending email case proposals count (for Cases)
+      const caseResponse = await safeFetch<{ proposals: Array<{ status: string }> }>(
+        "/api/v1/email_case_proposals?status=pending"
+      );
+      if (caseResponse) {
         const pendingCaseCount = (caseResponse.proposals || []).filter(p => p.status === "pending").length;
         setBadges(prev => ({ ...prev, pendingCaseProposals: pendingCaseCount }));
-      } catch (error) {
-        console.debug("Failed to load case proposal badge counts:", error);
       }
 
-      try {
-        // Load pending bills count (for Finance)
-        const billResponse = await api.get<{ pending: number; errors: number; awaiting_approval: number }>(
-          "/api/v1/bill_inbox/stats"
-        );
+      // Load pending bills count (for Finance)
+      const billResponse = await safeFetch<{ pending: number; errors: number; awaiting_approval: number }>(
+        "/api/v1/bill_inbox/stats"
+      );
+      if (billResponse) {
         // Show badge for pending + errors + awaiting approval
         const pendingBillsCount = (billResponse.pending || 0) + (billResponse.errors || 0) + (billResponse.awaiting_approval || 0);
         setBadges(prev => ({ ...prev, pendingBills: pendingBillsCount }));
-      } catch (error) {
-        console.debug("Failed to load bill inbox badge counts:", error);
       }
 
-      try {
-        // Load pending plans count (for Plans under Documents)
-        const plansResponse = await api.get<{ pending_count: number }>(
-          "/api/v1/plan_folder_scans/pending_count"
-        );
+      // Load pending plans count (for Plans under Documents)
+      const plansResponse = await safeFetch<{ pending_count: number }>(
+        "/api/v1/plan_folder_scans/pending_count"
+      );
+      if (plansResponse) {
         setBadges(prev => ({ ...prev, plans_pending: plansResponse.pending_count || 0 }));
-      } catch (error) {
-        console.debug("Failed to load plans pending badge counts:", error);
       }
     };
 
@@ -168,10 +189,15 @@ export function Sidebar() {
       if (badgeFetchingRef.current) return;
       badgeFetchingRef.current = true;
 
-      loadBadgeCounts();
+      // Small delay to ensure auth state is fully propagated
+      const initialDelay = setTimeout(() => {
+        loadBadgeCounts();
+      }, 100);
+
       // Refresh every 60 seconds
       const interval = setInterval(loadBadgeCounts, 60000);
       return () => {
+        clearTimeout(initialDelay);
         clearInterval(interval);
         badgeFetchingRef.current = false;
       };

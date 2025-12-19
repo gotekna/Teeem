@@ -106,7 +106,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Star, Code } from 'lucide-react';
-import { reorderByPosition } from "@/components/ui/dnd";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import {
   getEntityTypeLabel,
@@ -192,332 +191,6 @@ function getValidRelationshipTypes(
       return sourceMatch && targetMatch;
     })
     .map(m => ({ value: m.value, label: m.label }));
-}
-
-// Sortable Employee Item Component
-interface SortableEmployeeItemProps {
-  employee: any;
-  index: number;
-  employeeRoles: Record<string, string[]>;
-  onRolesChange: (employeeId: number, roleTypes: string[]) => void;
-  onRemove: (employeeId: number) => void;
-  onPositionChange: (employeeId: number, position: number) => void;
-  isPrimary: boolean;
-  availableRoleTypes: Option[]; // SSoT: Valid role types for this entity combination
-}
-
-function SortableEmployeeItem({
-  employee,
-  index,
-  employeeRoles,
-  onRolesChange,
-  onRemove,
-  onPositionChange,
-  isPrimary,
-  availableRoleTypes,
-}: SortableEmployeeItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: employee.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const roles = employeeRoles[employee.id.toString()] || [];
-  const roleOptions = roles.map(roleType => ({
-    value: roleType,
-    label: availableRoleTypes.find(r => r.value === roleType)?.label || roleType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-  }));
-
-  const [positionInput, setPositionInput] = useState(String(index + 1));
-
-  // Update position input when index changes (after drag)
-  useEffect(() => {
-    setPositionInput(String(index + 1));
-  }, [index]);
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-start gap-3 p-3 rounded-lg border transition-colors",
-        isDragging ? "bg-accent" : "hover:bg-accent/50",
-        isPrimary && "border-yellow-400 bg-yellow-50/30 dark:bg-yellow-900/10"
-      )}
-    >
-      {/* Drag Handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing mt-2 shrink-0"
-      >
-        <GripVertical className="h-5 w-5 text-muted-foreground" />
-      </div>
-
-      {/* Position Input */}
-      <div className="shrink-0 mt-1">
-        <Input
-          type="number"
-          min={1}
-          value={positionInput}
-          onChange={(e) => setPositionInput(e.target.value)}
-          onFocus={(e) => e.target.select()}
-          onBlur={() => {
-            const newPos = parseInt(positionInput);
-            if (!isNaN(newPos) && newPos >= 1) {
-              onPositionChange(employee.id, newPos);
-            } else {
-              setPositionInput(String(index + 1)); // Reset to current position
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              const newPos = parseInt(positionInput);
-              if (!isNaN(newPos) && newPos >= 1) {
-                onPositionChange(employee.id, newPos);
-              }
-            }
-          }}
-          className="w-14 h-8 text-center text-sm"
-        />
-      </div>
-
-      {/* Primary Star */}
-      {isPrimary && (
-        <div className="shrink-0 mt-2" title="Primary Contact">
-          <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-        </div>
-      )}
-
-      {/* Avatar */}
-      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-        <User className="h-5 w-5 text-primary" />
-      </div>
-
-      {/* Employee Info */}
-      <div className="flex-1 min-w-0">
-        <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline">
-          {employee.display_name}
-        </Link>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-          {employee.email && (
-            <span className="flex items-center gap-1">
-              <Mail className="h-3 w-3" />
-              {employee.email}
-            </span>
-          )}
-          {employee.mobile_phone && (
-            <span className="flex items-center gap-1">
-              <Phone className="h-3 w-3" />
-              {employee.mobile_phone}
-            </span>
-          )}
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Role:</span>
-          <MultipleSelector
-            value={roleOptions}
-            onChange={(selectedRoles) => {
-              const roleTypes = selectedRoles.map(r => r.value);
-              onRolesChange(employee.id, roleTypes);
-            }}
-            placeholder="Select roles..."
-            options={availableRoleTypes}
-            className="flex-1 max-w-md"
-            badgeClassName="text-xs"
-            hidePlaceholderWhenSelected
-            emptyIndicator={
-              <p className="text-center text-xs text-muted-foreground">
-                No role types available
-              </p>
-            }
-          />
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onRemove(employee.id)}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-        <Link href={`/contacts/${employee.id}`}>
-          <Button variant="ghost" size="sm">
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-// Sortable Company Item Component (for person contacts)
-interface SortableCompanyItemProps {
-  company: Option;
-  index: number;
-  companyRoles: Record<string, string[]>;
-  onRolesChange: (companyId: string, roleTypes: string[]) => void;
-  onRemove: () => void;
-  onPositionChange: (companyId: string, position: number) => void;
-  isPrimary: boolean;
-  availableRoleTypes: Option[]; // SSoT: Valid role types for this entity combination
-}
-
-function SortableCompanyItem({
-  company,
-  index,
-  companyRoles,
-  onRolesChange,
-  onRemove,
-  onPositionChange,
-  isPrimary,
-  availableRoleTypes,
-}: SortableCompanyItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: company.value });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const roles = companyRoles[company.value] || [];
-  const roleOptions = roles.map(roleType => ({
-    value: roleType,
-    label: availableRoleTypes.find(r => r.value === roleType)?.label || roleType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-  }));
-
-  const [positionInput, setPositionInput] = useState(String(index + 1));
-
-  // Update position input when index changes (after drag)
-  useEffect(() => {
-    setPositionInput(String(index + 1));
-  }, [index]);
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-start gap-3 p-3 rounded-lg border transition-colors",
-        isDragging ? "bg-accent" : "hover:bg-accent/50",
-        isPrimary && "border-yellow-400 bg-yellow-50/30 dark:bg-yellow-900/10"
-      )}
-    >
-      {/* Drag Handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing mt-2 shrink-0"
-      >
-        <GripVertical className="h-5 w-5 text-muted-foreground" />
-      </div>
-
-      {/* Position Input */}
-      <div className="shrink-0 mt-1">
-        <Input
-          type="number"
-          min={1}
-          value={positionInput}
-          onChange={(e) => setPositionInput(e.target.value)}
-          onFocus={(e) => e.target.select()}
-          onBlur={() => {
-            const newPos = parseInt(positionInput);
-            if (!isNaN(newPos) && newPos >= 1) {
-              onPositionChange(company.value, newPos);
-            } else {
-              setPositionInput(String(index + 1)); // Reset to current position
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              const newPos = parseInt(positionInput);
-              if (!isNaN(newPos) && newPos >= 1) {
-                onPositionChange(company.value, newPos);
-              }
-            }
-          }}
-          className="w-14 h-8 text-center text-sm"
-        />
-      </div>
-
-      {/* Primary Star */}
-      {isPrimary && (
-        <div className="shrink-0 mt-2" title="Primary Company">
-          <Star className="h-5 w-5 text-yellow-500 fill-yellow-500" />
-        </div>
-      )}
-
-      {/* Company Icon */}
-      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-        <Building2 className="h-5 w-5 text-primary" />
-      </div>
-
-      {/* Company Info */}
-      <div className="flex-1 min-w-0">
-        <Link href={`/contacts/${company.value}`} className="text-sm font-medium hover:underline">
-          {company.label}
-        </Link>
-        <div className="mt-2 flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground">Role:</span>
-          <MultipleSelector
-            value={roleOptions}
-            onChange={(selectedRoles) => {
-              const roleTypes = selectedRoles.map(r => r.value);
-              onRolesChange(company.value, roleTypes);
-            }}
-            placeholder="Select roles..."
-            options={availableRoleTypes}
-            className="flex-1 max-w-md"
-            badgeClassName="text-xs"
-            hidePlaceholderWhenSelected
-            emptyIndicator={
-              <p className="text-center text-xs text-muted-foreground">
-                No role types available
-              </p>
-            }
-          />
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onRemove}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-        <Link href={`/contacts/${company.value}`}>
-          <Button variant="ghost" size="sm">
-            <ExternalLink className="h-4 w-4" />
-          </Button>
-        </Link>
-      </div>
-    </div>
-  );
 }
 
 export default function ContactDetailPage() {
@@ -1511,27 +1184,6 @@ export default function ContactDetailPage() {
     }
   };
 
-  const handleCompanyPositionChange = async (companyId: string, newPosition: number) => {
-    if (!selectedCompanies) return;
-
-    // Map to items with id for reorderByPosition
-    const companiesWithId = selectedCompanies.map(c => ({ ...c, id: c.value }));
-    const reordered = reorderByPosition(companiesWithId, companyId, newPosition);
-    const newCompanies = reordered.map(({ id, ...rest }) => rest as Option);
-
-    setSelectedCompanies(newCompanies);
-
-    try {
-      const company_ids = newCompanies.map(c => parseInt(c.value));
-      await api.post(`/api/v1/contacts/${contact!.id}/reorder_companies`, { company_ids });
-      // Reload to update Primary Company display
-      await loadContact();
-    } catch (err) {
-      console.error("Failed to reorder companies:", err);
-      loadContact();
-    }
-  };
-
   // Handle employee selection changes (for company contacts)
   const handleEmployeeChange = async (newSelectedEmployees: Option[]) => {
     console.log('[Employee Change] Called with:', newSelectedEmployees);
@@ -1765,29 +1417,6 @@ export default function ContactDetailPage() {
   // Handle employee reordering (from SortableList)
   const handleEmployeeReorder = async (newEmployees: Contact["employees"]) => {
     if (!contact?.employees || !newEmployees) return;
-
-    // Optimistically update UI
-    setContact({ ...contact, employees: newEmployees });
-
-    // Save to backend
-    try {
-      const employee_ids = newEmployees.map(e => e.id);
-      await api.post(`/api/v1/contacts/${contact.id}/reorder_employees`, {
-        employee_ids
-      });
-    } catch (err) {
-      console.error("Failed to reorder employees:", err);
-      alert("Failed to save employee order");
-      // Reload to get correct order from server
-      loadContact();
-    }
-  };
-
-  // Handle manual position change via input
-  const handleEmployeePositionChange = async (employeeId: number, newPosition: number) => {
-    if (!contact?.employees) return;
-
-    const newEmployees = reorderByPosition(contact.employees, employeeId, newPosition);
 
     // Optimistically update UI
     setContact({ ...contact, employees: newEmployees });
@@ -2256,7 +1885,6 @@ export default function ContactDetailPage() {
             handleCompanyChange={handleCompanyChange}
             handleCompanyReorder={handleCompanyReorder}
             handleCompanyRolesChange={handleCompanyRolesChange}
-            handleCompanyPositionChange={handleCompanyPositionChange}
             showAddCompany={showAddCompany}
             setShowAddCompany={setShowAddCompany}
             newCompanyName={newCompanyName}
@@ -2270,7 +1898,6 @@ export default function ContactDetailPage() {
             handleEmployeeChange={handleEmployeeChange}
             handleEmployeeReorder={handleEmployeeReorder}
             handleEmployeeRolesChange={handleEmployeeRolesChange}
-            handleEmployeePositionChange={handleEmployeePositionChange}
             handleRemoveEmployee={handleRemoveEmployee}
             showAddEmployee={showAddEmployee}
             setShowAddEmployee={setShowAddEmployee}

@@ -25,8 +25,6 @@ import {
   Home,
 } from "lucide-react";
 
-// DnD Primitives - SSoT for drag and drop UI
-import { DragHandle } from "@/components/ui/dnd";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,9 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { SortableList, DragHandle } from '@/components/ui/dnd';
+// DnD - standard components from @/components/ui/dnd
+import { SortableList, SortableItem } from '@/components/ui/dnd';
 import {
   hasFirstLastName,
   canHaveEmployees,
@@ -128,7 +125,6 @@ interface ContactOverviewTabProps {
   handleCompanyChange: (newOptions: Option[]) => void;
   handleCompanyReorder: (newCompanies: Option[]) => void;
   handleCompanyRolesChange: (companyId: string, roleTypes: string[]) => void;
-  handleCompanyPositionChange: (companyId: string, newPosition: number) => void;
   showAddCompany: boolean;
   setShowAddCompany: React.Dispatch<React.SetStateAction<boolean>>;
   newCompanyName: string;
@@ -143,7 +139,6 @@ interface ContactOverviewTabProps {
   handleEmployeeChange: (newOptions: Option[]) => void;
   handleEmployeeReorder: (newEmployees: Contact["employees"]) => void;
   handleEmployeeRolesChange: (employeeId: number, roleTypes: string[]) => void;
-  handleEmployeePositionChange: (employeeId: number, newPosition: number) => void;
   handleRemoveEmployee: (employeeId: number) => void;
   showAddEmployee: boolean;
   setShowAddEmployee: React.Dispatch<React.SetStateAction<boolean>>;
@@ -193,7 +188,6 @@ export function ContactOverviewTab({
   handleCompanyChange,
   handleCompanyReorder,
   handleCompanyRolesChange,
-  handleCompanyPositionChange,
   showAddCompany,
   setShowAddCompany,
   newCompanyName,
@@ -207,7 +201,6 @@ export function ContactOverviewTab({
   handleEmployeeChange,
   handleEmployeeReorder,
   handleEmployeeRolesChange,
-  handleEmployeePositionChange,
   handleRemoveEmployee,
   showAddEmployee,
   setShowAddEmployee,
@@ -307,7 +300,6 @@ export function ContactOverviewTab({
             handleEmployeeRolesChange={handleEmployeeRolesChange}
             handleRemoveEmployee={handleRemoveEmployee}
             handleEmployeeReorder={handleEmployeeReorder}
-            handleEmployeePositionChange={handleEmployeePositionChange}
             relationshipTypeMetadata={relationshipTypeMetadata}
             getValidRelationshipTypes={getValidRelationshipTypes}
           />
@@ -322,7 +314,6 @@ export function ContactOverviewTab({
             handleCompanyChange={handleCompanyChange}
             handleCompanyReorder={handleCompanyReorder}
             handleCompanyRolesChange={handleCompanyRolesChange}
-            handleCompanyPositionChange={handleCompanyPositionChange}
             relationshipTypeMetadata={relationshipTypeMetadata}
             getValidRelationshipTypes={getValidRelationshipTypes}
           />
@@ -1912,92 +1903,75 @@ function AddressCard({
 
 interface SortableEmployeeItemProps {
   employee: NonNullable<Contact['employees']>[number];
-  index: number;
   employeeRoles: Record<string, string[]>;
   onRolesChange: (employeeId: number, roleTypes: string[]) => void;
   onRemove: (employeeId: number) => void;
-  onPositionChange: (employeeId: number, newPosition: number) => void;
   isPrimary: boolean;
   availableRoleTypes: { value: string; label: string }[];
 }
 
 function SortableEmployeeItem({
   employee,
-  index,
   employeeRoles,
   onRolesChange,
   onRemove,
-  onPositionChange,
   isPrimary,
   availableRoleTypes,
 }: SortableEmployeeItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: employee.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
+    <SortableItem
+      id={employee.id}
+      showBadge={false}
+      variant="card"
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors",
-        isDragging && "opacity-50 bg-accent",
+        "gap-3 p-3 rounded-lg",
         isPrimary && "bg-primary/5 border-primary/20"
       )}
-    >
-      <DragHandle {...attributes} {...listeners} size="md" />
-
-      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
-        <User className="h-5 w-5 text-muted-foreground" />
-      </div>
-
-      <div className="flex-1 min-w-0">
+      actions={
         <div className="flex items-center gap-2">
-          <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline truncate">
-            {employee.display_name}
-          </Link>
-          {isPrimary && (
-            <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-              Primary
-            </Badge>
+          <MultipleSelector
+            value={(employeeRoles[employee.id.toString()] || []).map(v => ({ value: v, label: availableRoleTypes.find(r => r.value === v)?.label || v }))}
+            onChange={(options) => onRolesChange(employee.id, options.map(o => o.value))}
+            placeholder="Select roles..."
+            options={availableRoleTypes}
+            className="w-40"
+            hidePlaceholderWhenSelected
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onRemove(employee.id)}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+          <User className="h-5 w-5 text-muted-foreground" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Link href={`/contacts/${employee.id}`} className="text-sm font-medium hover:underline truncate">
+              {employee.display_name}
+            </Link>
+            {isPrimary && (
+              <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                Primary
+              </Badge>
+            )}
+          </div>
+          {employee.email && (
+            <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
           )}
         </div>
-        {employee.email && (
-          <p className="text-xs text-muted-foreground truncate">{employee.email}</p>
-        )}
       </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        <MultipleSelector
-          value={(employeeRoles[employee.id.toString()] || []).map(v => ({ value: v, label: availableRoleTypes.find(r => r.value === v)?.label || v }))}
-          onChange={(options) => onRolesChange(employee.id, options.map(o => o.value))}
-          placeholder="Select roles..."
-          options={availableRoleTypes}
-          className="w-40"
-          hidePlaceholderWhenSelected
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => onRemove(employee.id)}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    </SortableItem>
   );
 }
 
@@ -2012,7 +1986,6 @@ interface AssociatedPeopleCardProps {
   handleEmployeeRolesChange: (employeeId: number, roleTypes: string[]) => void;
   handleRemoveEmployee: (employeeId: number) => void;
   handleEmployeeReorder: (newEmployees: Contact["employees"]) => void;
-  handleEmployeePositionChange: (employeeId: number, newPosition: number) => void;
   relationshipTypeMetadata: RelationshipTypeMetadata[];
   getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
 }
@@ -2024,7 +1997,6 @@ function AssociatedPeopleCard({
   handleEmployeeRolesChange,
   handleRemoveEmployee,
   handleEmployeeReorder,
-  handleEmployeePositionChange,
   relationshipTypeMetadata,
   getValidRelationshipTypes,
 }: AssociatedPeopleCardProps) {
@@ -2049,11 +2021,9 @@ function AssociatedPeopleCard({
             <SortableEmployeeItem
               key={employee.id}
               employee={employee}
-              index={index}
               employeeRoles={employeeRoles}
               onRolesChange={handleEmployeeRolesChange}
               onRemove={handleRemoveEmployee}
-              onPositionChange={handleEmployeePositionChange}
               isPrimary={index === 0}
               availableRoleTypes={getValidRelationshipTypes(
                 relationshipTypeMetadata,
@@ -2074,89 +2044,72 @@ function AssociatedPeopleCard({
 
 interface SortableCompanyItemProps {
   company: Option;
-  index: number;
   companyRoles: Record<string, string[]>;
   onRolesChange: (companyId: string, roleTypes: string[]) => void;
   onRemove: () => void;
-  onPositionChange: (companyId: string, newPosition: number) => void;
   isPrimary: boolean;
   availableRoleTypes: { value: string; label: string }[];
 }
 
 function SortableCompanyItem({
   company,
-  index,
   companyRoles,
   onRolesChange,
   onRemove,
-  onPositionChange,
   isPrimary,
   availableRoleTypes,
 }: SortableCompanyItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: company.value });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
+    <SortableItem
+      id={company.value}
+      showBadge={false}
+      variant="card"
       className={cn(
-        "flex items-center gap-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors",
-        isDragging && "opacity-50 bg-accent",
+        "gap-3 p-3 rounded-lg",
         isPrimary && "bg-primary/5 border-primary/20"
       )}
-    >
-      <DragHandle {...attributes} {...listeners} size="md" />
-
-      <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
-        <Building2 className="h-5 w-5 text-muted-foreground" />
-      </div>
-
-      <div className="flex-1 min-w-0">
+      actions={
         <div className="flex items-center gap-2">
-          <Link href={`/contacts/${company.value}`} className="text-sm font-medium hover:underline truncate">
-            {company.label}
-          </Link>
-          {isPrimary && (
-            <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0">
-              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-              Primary
-            </Badge>
-          )}
+          <MultipleSelector
+            value={(companyRoles[company.value] || []).map(v => ({ value: v, label: availableRoleTypes.find(r => r.value === v)?.label || v }))}
+            onChange={(options) => onRolesChange(company.value, options.map(o => o.value))}
+            placeholder="Select roles..."
+            options={availableRoleTypes}
+            className="w-40"
+            hidePlaceholderWhenSelected
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onRemove}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      }
+    >
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
+          <Building2 className="h-5 w-5 text-muted-foreground" />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <Link href={`/contacts/${company.value}`} className="text-sm font-medium hover:underline truncate">
+              {company.label}
+            </Link>
+            {isPrimary && (
+              <Badge variant="outline" className="text-xs flex items-center gap-1 shrink-0">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                Primary
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        <MultipleSelector
-          value={(companyRoles[company.value] || []).map(v => ({ value: v, label: availableRoleTypes.find(r => r.value === v)?.label || v }))}
-          onChange={(options) => onRolesChange(company.value, options.map(o => o.value))}
-          placeholder="Select roles..."
-          options={availableRoleTypes}
-          className="w-40"
-          hidePlaceholderWhenSelected
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onRemove}
-          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </div>
-    </div>
+    </SortableItem>
   );
 }
 
@@ -2171,7 +2124,6 @@ interface AssociatedCompaniesCardProps {
   handleCompanyChange: (newOptions: Option[]) => void;
   handleCompanyReorder: (newCompanies: Option[]) => void;
   handleCompanyRolesChange: (companyId: string, roleTypes: string[]) => void;
-  handleCompanyPositionChange: (companyId: string, newPosition: number) => void;
   relationshipTypeMetadata: RelationshipTypeMetadata[];
   getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
 }
@@ -2186,7 +2138,6 @@ function AssociatedCompaniesCard({
   handleCompanyChange,
   handleCompanyReorder,
   handleCompanyRolesChange,
-  handleCompanyPositionChange,
   relationshipTypeMetadata,
   getValidRelationshipTypes,
 }: AssociatedCompaniesCardProps) {
@@ -2218,14 +2169,12 @@ function AssociatedCompaniesCard({
             <SortableCompanyItem
               key={company.value}
               company={company}
-              index={index}
               companyRoles={companyRoles}
               onRolesChange={handleCompanyRolesChange}
               onRemove={() => {
                 const newSelected = selectedCompanies.filter(c => c.value !== company.value);
                 handleCompanyChange(newSelected);
               }}
-              onPositionChange={handleCompanyPositionChange}
               isPrimary={index === 0}
               availableRoleTypes={getValidRelationshipTypes(
                 relationshipTypeMetadata,

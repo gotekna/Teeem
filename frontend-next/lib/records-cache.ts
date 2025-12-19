@@ -34,6 +34,41 @@ const SESSION_STORAGE_TTL_MS = 30 * 60 * 1000;
 // Session storage key prefix
 const STORAGE_PREFIX = 'teeem-records-cache-v1-';
 
+// Log deduplication - prevents flooding console with repeated identical logs
+const recentLogs = new Map<string, { count: number; lastTime: number }>();
+const LOG_DEDUPE_MS = 1000; // Dedupe identical logs within 1 second
+
+function dedupedLog(message: string): void {
+  const now = Date.now();
+  const existing = recentLogs.get(message);
+
+  if (existing && (now - existing.lastTime) < LOG_DEDUPE_MS) {
+    // Same message within dedupe window - increment count, don't log
+    existing.count++;
+    existing.lastTime = now;
+    return;
+  }
+
+  // Log any suppressed duplicates from the previous batch
+  if (existing && existing.count > 1) {
+    console.log(`[RecordsCache] (${existing.count - 1} identical logs suppressed)`);
+  }
+
+  // Log new message and reset counter
+  console.log(message);
+  recentLogs.set(message, { count: 1, lastTime: now });
+
+  // Clean up old entries (prevent memory leak)
+  if (recentLogs.size > 50) {
+    const cutoff = now - LOG_DEDUPE_MS * 10;
+    for (const [key, value] of recentLogs) {
+      if (value.lastTime < cutoff) {
+        recentLogs.delete(key);
+      }
+    }
+  }
+}
+
 /**
  * Get cached records for a foundation
  */
@@ -43,12 +78,12 @@ export function getCachedRecords(foundationId: string | number): CachedRecords |
   if (memoryCache) {
     const age = Date.now() - memoryCache.timestamp;
     if (age < DEFAULT_TTL_MS) {
-      console.log(`[RecordsCache] HIT (memory): ${foundationId}, ${memoryCache.records.length} records, age: ${Math.round(age / 1000)}s`);
+      dedupedLog(`[RecordsCache] HIT (memory): ${foundationId}, ${memoryCache.records.length} records, age: ${Math.round(age / 1000)}s`);
       return memoryCache;
     }
     // Expired - remove it
     recordsCache.delete(foundationId);
-    console.log(`[RecordsCache] EXPIRED (memory): ${foundationId}`);
+    dedupedLog(`[RecordsCache] EXPIRED (memory): ${foundationId}`);
   }
 
   // Check sessionStorage (survives page refresh)
@@ -59,21 +94,21 @@ export function getCachedRecords(foundationId: string | number): CachedRecords |
         const parsed = JSON.parse(stored) as CachedRecords;
         const age = Date.now() - parsed.timestamp;
         if (age < SESSION_STORAGE_TTL_MS) {
-          console.log(`[RecordsCache] HIT (session): ${foundationId}, ${parsed.records.length} records, age: ${Math.round(age / 1000)}s`);
+          dedupedLog(`[RecordsCache] HIT (session): ${foundationId}, ${parsed.records.length} records, age: ${Math.round(age / 1000)}s`);
           // Restore to memory cache for faster subsequent access
           recordsCache.set(foundationId, parsed);
           return parsed;
         }
         // Expired - remove it
         sessionStorage.removeItem(`${STORAGE_PREFIX}${foundationId}`);
-        console.log(`[RecordsCache] EXPIRED (session): ${foundationId}`);
+        dedupedLog(`[RecordsCache] EXPIRED (session): ${foundationId}`);
       }
     } catch (e) {
       console.warn('[RecordsCache] Failed to read from sessionStorage:', e);
     }
   }
 
-  console.log(`[RecordsCache] MISS: ${foundationId}`);
+  dedupedLog(`[RecordsCache] MISS: ${foundationId}`);
   return null;
 }
 
@@ -97,7 +132,7 @@ export function setCachedRecords(
 
   // Always store in memory (instant, no size limit concerns)
   recordsCache.set(foundationId, entry);
-  console.log(`[RecordsCache] SET (memory): ${foundationId}, ${records.length} records`);
+  dedupedLog(`[RecordsCache] SET (memory): ${foundationId}, ${records.length} records`);
 
   // Try to persist to sessionStorage for page refresh survival
   // But only if the data isn't too large (avoid quota issues)
@@ -107,9 +142,9 @@ export function setCachedRecords(
       // Only persist if under 2MB (sessionStorage is typically 5MB total)
       if (json.length < 2 * 1024 * 1024) {
         sessionStorage.setItem(`${STORAGE_PREFIX}${foundationId}`, json);
-        console.log(`[RecordsCache] SET (session): ${foundationId}, ${Math.round(json.length / 1024)}KB`);
+        dedupedLog(`[RecordsCache] SET (session): ${foundationId}, ${Math.round(json.length / 1024)}KB`);
       } else {
-        console.log(`[RecordsCache] SKIP (session): ${foundationId}, too large (${Math.round(json.length / 1024)}KB)`);
+        dedupedLog(`[RecordsCache] SKIP (session): ${foundationId}, too large (${Math.round(json.length / 1024)}KB)`);
       }
     } catch (e) {
       // Quota exceeded or other error - that's fine, memory cache still works
@@ -161,7 +196,7 @@ export function clearCachedRecords(foundationId: string | number): void {
       // Ignore
     }
   }
-  console.log(`[RecordsCache] CLEARED: ${foundationId}`);
+  dedupedLog(`[RecordsCache] CLEARED: ${foundationId}`);
 }
 
 /**
@@ -183,7 +218,7 @@ export function clearAllCachedRecords(): void {
       // Ignore
     }
   }
-  console.log('[RecordsCache] ALL CLEARED');
+  dedupedLog('[RecordsCache] ALL CLEARED');
 }
 
 /**
