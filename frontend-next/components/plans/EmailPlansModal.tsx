@@ -325,6 +325,10 @@ export function EmailPlansModal({
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="pl-9"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                 />
                 {searching && (
                   <Spinner className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4" />
