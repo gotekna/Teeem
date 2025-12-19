@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
-import { PlanProcessingModal } from "@/components/jobs/PlanProcessingModal";
+import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
 import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
 
@@ -138,10 +138,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
-  // Unified processing modal state (uploads and reextractions)
+  // Unified processing modal state (all batch operations)
   const [showProcessingModal, setShowProcessingModal] = useState(false);
-  const [processingMode, setProcessingMode] = useState<"upload" | "reextraction">("upload");
-  const [processingId, setProcessingId] = useState<number | null>(null);
+  const [operationType, setOperationType] = useState<OperationType>("plan_upload");
+  const [operationId, setOperationId] = useState<number | null>(null);
 
   // Fetch plans
   const fetchPlans = useCallback(async () => {
@@ -287,8 +287,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       if (result.success && result.data?.id) {
         // Show progress modal
-        setProcessingMode("upload");
-        setProcessingId(result.data.id);
+        setOperationType("plan_upload");
+        setOperationId(result.data.id);
         setShowProcessingModal(true);
       } else {
         throw new Error(result.error || "Failed to start upload");
@@ -374,11 +374,13 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Re-extract all plans from PDF (uses PlanReextractionJob with progress tracking)
+  // Re-extract all plans from PDF (uses BatchOperation for progress tracking)
   const handleRerunAi = async () => {
     try {
-      // Start batch re-extraction via new API
-      const response = await api.post(`/api/v1/jobs/${jobId}/plan_reextractions`) as {
+      // Start batch re-extraction via BatchOperation API (SSoT)
+      const response = await api.post(`/api/v1/jobs/${jobId}/batch_operations`, {
+        operation_type: "plan_reextract"
+      }) as {
         success: boolean;
         data?: { id: number };
         error?: string;
@@ -386,8 +388,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       if (response.success && response.data?.id) {
         // Show progress modal
-        setProcessingMode("reextraction");
-        setProcessingId(response.data.id);
+        setOperationType("plan_reextract");
+        setOperationId(response.data.id);
         setShowProcessingModal(true);
       } else {
         toast({
@@ -406,18 +408,28 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Handle processing modal completion (both uploads and reextractions)
+  // Handle processing modal completion (all batch operations)
   const handleProcessingComplete = () => {
     setShowProcessingModal(false);
-    setProcessingId(null);
+    setOperationId(null);
     // Refresh plans to show updated data
     fetchPlans();
     fetchTabs();
+    const titles: Record<OperationType, string> = {
+      plan_upload: "Upload Complete",
+      plan_reextract: "Re-extraction Complete",
+      folder_scan: "Scan Complete",
+      folder_process: "Processing Complete",
+    };
+    const descriptions: Record<OperationType, string> = {
+      plan_upload: "Plans have been created from the PDF",
+      plan_reextract: "Plans have been re-extracted and renamed",
+      folder_scan: "Folders have been scanned for new files",
+      folder_process: "Files have been processed into plans",
+    };
     toast({
-      title: processingMode === "upload" ? "Upload Complete" : "Re-extraction Complete",
-      description: processingMode === "upload"
-        ? "Plans have been created from the PDF"
-        : "Plans have been re-extracted and renamed",
+      title: titles[operationType],
+      description: descriptions[operationType],
     });
   };
 
@@ -778,11 +790,11 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         }}
       />
 
-      {/* Unified Processing Progress Modal (uploads and re-extractions) */}
+      {/* Unified Processing Progress Modal (all batch operations) */}
       <PlanProcessingModal
         jobId={jobId}
-        mode={processingMode}
-        processId={processingId}
+        operationType={operationType}
+        operationId={operationId}
         open={showProcessingModal}
         onClose={() => setShowProcessingModal(false)}
         onComplete={handleProcessingComplete}

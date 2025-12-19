@@ -549,22 +549,15 @@ export function PdfFieldsTab() {
                           transformOrigin: "top left",
                         }}
                       >
-                        {/* Drop point marker */}
-                        <div className="absolute w-2 h-2 bg-red-500 rounded-full -translate-x-1 -translate-y-1" />
-
-                        {/* Preview text offset to the right */}
+                        {/* Preview box - same style as the blue field box */}
                         <div
-                          className="absolute left-8 top-4 bg-green-500/90 text-white px-2 py-1 rounded whitespace-nowrap border-2 border-green-600 shadow-lg"
+                          className="bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-lg"
                           style={{
                             fontSize: `${fontSize}px`,
                             fontFamily: 'Helvetica, Arial, sans-serif',
                           }}
                         >
                           {previewText}
-                        </div>
-                        {/* Coordinates label */}
-                        <div className="absolute left-8 top-12 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-mono">
-                          x: {Math.round(dropPreview.x)}, y: {Math.round(PDF_HEIGHT - dropPreview.y)}
                         </div>
                       </div>
                     );
@@ -672,19 +665,6 @@ export function PdfFieldsTab() {
                                 transform: 'translate(-50%, -50%)',
                               }}
                             />
-
-                            {/* New coordinates label */}
-                            <div
-                              className="absolute bg-blue-600 text-white text-[11px] px-2 py-1 rounded font-mono whitespace-nowrap shadow-lg z-40"
-                              style={{
-                                left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                                top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
-                                transform: `translate(16px, -50%) scale(${100 / zoom})`,
-                                transformOrigin: "left center",
-                              }}
-                            >
-                              → x:{Math.round(dropPreview.x)} y:{Math.round(PDF_HEIGHT - dropPreview.y)}
-                            </div>
                           </>
                         )}
                       </React.Fragment>

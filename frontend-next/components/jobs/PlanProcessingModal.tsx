@@ -11,99 +11,106 @@ import { Progress } from "@/components/ui/progress"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
-import { CheckCircle, AlertTriangle, Loader2, Upload, Sparkles } from "lucide-react"
+import { CheckCircle, AlertTriangle, Loader2, Upload, Sparkles, FolderSearch, FileCheck } from "lucide-react"
 import { api } from "@/lib/api"
 
 // =============================================================================
-// PlanProcessingModal - Unified progress modal for plan uploads & re-extractions
+// PlanProcessingModal - Unified progress modal for ALL batch operations
 // =============================================================================
-// This component is THE SSoT for showing plan processing progress.
-// Used for:
-// - Initial PDF uploads (dropping files into Plans tab)
-// - Re-extract All from PDF (re-running AI identification)
+// This component is THE SSoT for showing batch operation progress.
+// Uses BatchOperation API (SSoT for all batch operations)
+//
+// Supports:
+// - plan_upload: Upload and split multi-page PDF into plans
+// - plan_reextract: Re-extract and rename existing plans from PDF
+// - folder_scan: Scan SharePoint folders for new plan files
+// - folder_process: Process pending scanned files into plans
 // =============================================================================
 
-type ProcessingMode = "upload" | "reextraction"
+export type OperationType = "plan_upload" | "plan_reextract" | "folder_scan" | "folder_process"
 
-interface UploadProgress {
+// Unified progress interface from BatchOperation.as_json_status
+interface BatchOperationProgress {
   id: number
-  status: "pending" | "uploading" | "splitting" | "processing" | "completed" | "failed"
-  current_step: string
-  progress_percent: number
-  total_pages: number | null
-  processed_pages: number
-  plans_created: string[]
-  plans_count: number
-  error_message: string | null
-  duration: string | null
-}
-
-interface ReextractionProgress {
-  id: number
+  job_id: number | null
+  operation_type: OperationType
+  operation_title: string
   status: "pending" | "processing" | "completed" | "failed"
   current_step: string
   progress_percent: number
-  total_plans: number
-  processed_plans: number
-  current_plan_name: string | null
-  plans_updated: string[]
-  plans_count: number
-  rename_errors: { file: string; error: string }[]
+  total_items: number
+  processed_items: number
+  items_label: string
+  current_item_name: string | null
+  items_completed: string[]
+  items_count: number
+  completed_items_label: string
+  operation_errors: { item: string; message: string }[]
   error_message: string | null
   duration: string | null
+  metadata: Record<string, unknown>
+  started_at: string | null
+  completed_at: string | null
+  created_at: string
 }
 
 interface PlanProcessingModalProps {
-  jobId: number
-  mode: ProcessingMode
-  processId: number | null
+  jobId?: number  // Optional for global operations (folder_scan, folder_process)
+  operationType: OperationType
+  operationId: number | null
   open: boolean
   onClose: () => void
   onComplete: () => void
 }
 
+// Icon mapping for operation types
+const operationIcons: Record<OperationType, React.ReactNode> = {
+  plan_upload: <Upload className="h-5 w-5" />,
+  plan_reextract: <Sparkles className="h-5 w-5" />,
+  folder_scan: <FolderSearch className="h-5 w-5" />,
+  folder_process: <FileCheck className="h-5 w-5" />,
+}
+
 export function PlanProcessingModal({
   jobId,
-  mode,
-  processId,
+  operationType,
+  operationId,
   open,
   onClose,
   onComplete,
 }: PlanProcessingModalProps) {
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null)
-  const [reextractionProgress, setReextractionProgress] = useState<ReextractionProgress | null>(null)
+  const [progress, setProgress] = useState<BatchOperationProgress | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  const isUpload = mode === "upload"
-  const progress = isUpload ? uploadProgress : reextractionProgress
+  // Build API endpoint based on whether operation is job-scoped or global
+  const getEndpoint = useCallback(() => {
+    if (!operationId) return null
+    if (jobId) {
+      return `/api/v1/jobs/${jobId}/batch_operations/${operationId}`
+    }
+    return `/api/v1/batch_operations/${operationId}`
+  }, [jobId, operationId])
 
-  // Fetch progress based on mode
+  // Fetch progress
   const fetchProgress = useCallback(async () => {
-    if (!processId) return null
+    const endpoint = getEndpoint()
+    if (!endpoint) return null
 
     try {
-      const endpoint = isUpload
-        ? `/api/v1/jobs/${jobId}/plan_uploads/${processId}`
-        : `/api/v1/jobs/${jobId}/plan_reextractions/${processId}`
-
-      const response = await api.get(endpoint) as { success: boolean; data: UploadProgress | ReextractionProgress }
+      const response = await api.get(endpoint) as { success: boolean; data: BatchOperationProgress }
       if (response.success) {
-        if (isUpload) {
-          setUploadProgress(response.data as UploadProgress)
-        } else {
-          setReextractionProgress(response.data as ReextractionProgress)
-        }
+        setProgress(response.data)
         return response.data
       }
     } catch (error) {
       console.error("Failed to fetch progress:", error)
     }
     return null
-  }, [jobId, processId, isUpload])
+  }, [getEndpoint])
 
   // Poll for progress while open
   useEffect(() => {
-    if (!open || !processId) {
+    if (!open || !operationId) {
       return
     }
 
@@ -127,13 +134,12 @@ export function PlanProcessingModal({
         pollIntervalRef.current = null
       }
     }
-  }, [open, processId, fetchProgress])
+  }, [open, operationId, fetchProgress])
 
   // Reset state when modal closes
   useEffect(() => {
     if (!open) {
-      setUploadProgress(null)
-      setReextractionProgress(null)
+      setProgress(null)
     }
   }, [open])
 
@@ -148,34 +154,19 @@ export function PlanProcessingModal({
   const isFailed = progress?.status === "failed"
   const isProcessing = !isComplete && !isFailed
 
-  // Get display values based on mode
-  const title = isUpload ? "Processing Plan Set" : "Re-extracting Plans from PDF"
-  const icon = isUpload ? <Upload className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />
-
+  // Get display values from unified progress
+  const title = progress?.operation_title || "Processing..."
+  const icon = operationIcons[operationType]
   const currentStep = progress?.current_step || "Preparing..."
   const progressPercent = progress?.progress_percent || 0
-
-  // Progress counts
-  const processedCount = isUpload
-    ? (uploadProgress?.processed_pages || 0)
-    : (reextractionProgress?.processed_plans || 0)
-  const totalCount = isUpload
-    ? (uploadProgress?.total_pages || 0)
-    : (reextractionProgress?.total_plans || 0)
-  const countLabel = isUpload ? "pages" : "plans"
-
-  // Items list
-  const items = isUpload
-    ? (uploadProgress?.plans_created || [])
-    : (reextractionProgress?.plans_updated || [])
-  const itemsLabel = isUpload ? "Plans Created" : "Plans Updated"
-
-  // Current item being processed (reextraction only)
-  const currentItemName = !isUpload ? reextractionProgress?.current_plan_name : null
-
-  // Errors
+  const processedCount = progress?.processed_items || 0
+  const totalCount = progress?.total_items || 0
+  const countLabel = progress?.items_label || "items"
+  const items = progress?.items_completed || []
+  const itemsLabel = progress?.completed_items_label || "Items Completed"
+  const currentItemName = progress?.current_item_name
   const errorMessage = progress?.error_message
-  const renameErrors = !isUpload ? (reextractionProgress?.rename_errors || []) : []
+  const operationErrors = progress?.operation_errors || []
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && handleClose()}>
@@ -201,10 +192,10 @@ export function PlanProcessingModal({
             <Progress value={progressPercent} className="h-2" />
           </div>
 
-          {/* Current item being processed (reextraction only) */}
+          {/* Current item being processed */}
           {isProcessing && currentItemName && (
             <div className="rounded-md bg-muted/50 px-3 py-2">
-              <span className="text-sm text-muted-foreground">Identifying: </span>
+              <span className="text-sm text-muted-foreground">Processing: </span>
               <span className="text-sm font-medium">{currentItemName}</span>
             </div>
           )}
@@ -231,13 +222,20 @@ export function PlanProcessingModal({
             </div>
           )}
 
-          {/* Rename errors warning (reextraction only) */}
-          {renameErrors.length > 0 && (
+          {/* Operation errors warning */}
+          {operationErrors.length > 0 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                {renameErrors.length} file(s) could not be renamed in SharePoint.
-                Display names were updated but filenames remain unchanged.
+                {operationErrors.length} item(s) had errors during processing.
+                <ul className="mt-2 text-xs space-y-1">
+                  {operationErrors.slice(0, 3).map((err, i) => (
+                    <li key={i}>• {err.item}: {err.message}</li>
+                  ))}
+                  {operationErrors.length > 3 && (
+                    <li>...and {operationErrors.length - 3} more</li>
+                  )}
+                </ul>
               </AlertDescription>
             </Alert>
           )}
