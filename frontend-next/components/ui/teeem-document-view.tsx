@@ -54,6 +54,7 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
   onReprocess?: (doc: T) => Promise<void>;
   onRefresh?: () => void;
   onSelect?: (doc: T | null) => void;
+  onSelectionChange?: (ids: number[]) => void;
 
   // Selection & Bulk Actions
   enableSelection?: boolean;
@@ -101,6 +102,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   onReprocess,
   onRefresh,
   onSelect,
+  onSelectionChange,
   enableSelection = false,
   bulkActions,
   leftActions,
@@ -147,6 +149,11 @@ export function TeeemDocumentView<T extends DocumentItem>({
       onSelect?.(null);
     }
   }, [selectedDocument, onSelect]);
+
+  // Notify parent when checkbox selection changes
+  useEffect(() => {
+    onSelectionChange?.(selectedIds);
+  }, [selectedIds, onSelectionChange]);
 
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false);

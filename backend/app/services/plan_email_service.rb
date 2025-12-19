@@ -18,6 +18,66 @@ class PlanEmailService
       return { success: false, message: 'No plan files found to attach' }
     end
 
+    # Try to send via Microsoft Graph (user's Outlook) if available
+    if @sender&.outlook_credential&.valid_credential?
+      send_via_outlook(attachments)
+    else
+      send_via_mailer(attachments)
+    end
+  rescue StandardError => e
+    Rails.logger.error("PlanEmailService error: #{e.message}")
+    { success: false, message: e.message }
+  end
+
+  # Get the sender email address that will be used
+  def self.sender_email_for(user)
+    if user&.outlook_credential&.valid_credential?
+      user.email
+    else
+      # Fallback to system email (from ApplicationMailer default)
+      "noreply@teeem.com.au"
+    end
+  end
+
+  private
+
+  def send_via_outlook(attachments)
+    outlook = OutlookService.new(@sender)
+
+    # Convert attachments to Outlook format (base64 encoded)
+    outlook_attachments = attachments.map do |att|
+      {
+        name: att[:filename],
+        content_type: att[:content_type],
+        content: Base64.strict_encode64(att[:content])
+      }
+    end
+
+    # Convert plain text body to HTML
+    html_body = @body.gsub("\n", "<br>")
+
+    result = outlook.send_email(
+      to: @recipients,
+      subject: @subject,
+      body: html_body,
+      attachments: outlook_attachments
+    )
+
+    if result[:success]
+      {
+        success: true,
+        message: "Email sent successfully with #{attachments.size} plan(s)",
+        sent_to: @recipients,
+        sent_from: @sender.email
+      }
+    else
+      # Fall back to mailer if Outlook fails
+      Rails.logger.warn("Outlook send failed: #{result[:error]}, falling back to mailer")
+      send_via_mailer(attachments)
+    end
+  end
+
+  def send_via_mailer(attachments)
     # Send email using BpmnMailer (handles attachments)
     BpmnMailer.workflow_email(
       to: @recipients,
@@ -29,14 +89,10 @@ class PlanEmailService
     {
       success: true,
       message: "Email sent successfully with #{attachments.size} plan(s)",
-      sent_to: @recipients
+      sent_to: @recipients,
+      sent_from: "noreply@teeem.com.au"
     }
-  rescue StandardError => e
-    Rails.logger.error("PlanEmailService error: #{e.message}")
-    { success: false, message: e.message }
   end
-
-  private
 
   def collect_attachments
     attachments = []

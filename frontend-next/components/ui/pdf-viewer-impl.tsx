@@ -51,9 +51,11 @@ export function PDFViewerImpl({
   React.useEffect(() => {
     const updateDimensions = () => {
       if (contentRef.current) {
-        // Subtract padding (32px = 16px * 2 for p-4, 48px for pt-12 toolbar space)
+        // Subtract padding from available space:
+        // - horizontal: p-4 = 16px left + 16px right = 32px
+        // - vertical: pt-12 = 48px top + p-4 bottom = 16px = 64px total
         const width = contentRef.current.clientWidth - 32;
-        const height = contentRef.current.clientHeight - 16; // pt-12 already in layout
+        const height = contentRef.current.clientHeight - 64;
         setContainerWidth(width);
         setContainerHeight(height);
       }

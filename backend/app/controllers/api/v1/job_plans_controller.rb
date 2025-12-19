@@ -137,51 +137,42 @@ module Api
       def suggested_recipients
         recipients = []
 
-        # Add job client if has email
-        if @job.client.present?
-          client = @job.client
-          if client.email.present?
-            recipients << {
-              id: client.id,
-              name: client.name,
-              email: client.email,
-              role: 'Client',
-              type: 'client'
-            }
-          end
+        # Add all job contacts with their roles
+        @job.job_contacts.includes(:contact).each do |job_contact|
+          contact = job_contact.contact
+          next unless contact&.email.present?
+
+          # Map role to display name and type
+          role_display = case job_contact.role&.downcase
+                         when 'client' then 'Client'
+                         when 'site_supervisor', 'supervisor' then 'Site Supervisor'
+                         when 'architect' then 'Architect'
+                         when 'builder' then 'Builder'
+                         when 'engineer' then 'Engineer'
+                         when 'certifier' then 'Certifier'
+                         else job_contact.role&.titleize || 'Contact'
+                         end
+
+          type = case job_contact.role&.downcase
+                 when 'client' then 'client'
+                 when 'site_supervisor', 'supervisor' then 'supervisor'
+                 when 'contractor', 'builder' then 'contractor'
+                 else 'contact'
+                 end
+
+          recipients << {
+            id: contact.id,
+            name: contact.name,
+            email: contact.email,
+            role: role_display,
+            type: type
+          }
         end
 
-        # Add site supervisor if has email
-        if @job.respond_to?(:site_supervisor) && @job.site_supervisor.present?
-          supervisor = @job.site_supervisor
-          if supervisor.respond_to?(:email) && supervisor.email.present?
-            recipients << {
-              id: supervisor.id,
-              name: supervisor.respond_to?(:name) ? supervisor.name : supervisor.to_s,
-              email: supervisor.email,
-              role: 'Site Supervisor',
-              type: 'supervisor'
-            }
-          end
-        end
-
-        # Add primary contact if different from client
-        if @job.respond_to?(:primary_contact) && @job.primary_contact.present?
-          contact = @job.primary_contact
-          if contact.email.present? && contact.email != @job.client&.email
-            recipients << {
-              id: contact.id,
-              name: contact.name,
-              email: contact.email,
-              role: 'Primary Contact',
-              type: 'contact'
-            }
-          end
-        end
-
-        # Add contractors assigned to the job
+        # Add contractors assigned to the job (if separate from job_contacts)
         if @job.respond_to?(:contractors)
           @job.contractors.each do |contractor|
+            next if recipients.any? { |r| r[:email] == contractor.email }
             if contractor.email.present?
               recipients << {
                 id: contractor.id,
@@ -196,7 +187,8 @@ module Api
 
         render json: {
           success: true,
-          data: recipients.uniq { |r| r[:email] }
+          data: recipients.uniq { |r| r[:email] },
+          sender_email: PlanEmailService.sender_email_for(current_user)
         }
       end
 

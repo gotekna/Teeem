@@ -72,6 +72,7 @@ export function EmailPlansModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SuggestedRecipient[]>([]);
   const [searching, setSearching] = useState(false);
+  const [senderEmail, setSenderEmail] = useState<string>("");
 
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -94,11 +95,14 @@ export function EmailPlansModal({
   const fetchSuggestedRecipients = async () => {
     setLoading(true);
     try {
-      const response = await api.get<{ success: boolean; data: SuggestedRecipient[] }>(
+      const response = await api.get<{ success: boolean; data: SuggestedRecipient[]; sender_email?: string }>(
         `/api/v1/jobs/${jobId}/job_plans/suggested_recipients`
       );
       if (response.success) {
         setSuggestedRecipients(response.data || []);
+        if (response.sender_email) {
+          setSenderEmail(response.sender_email);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch suggested recipients:", err);
@@ -115,11 +119,21 @@ export function EmailPlansModal({
     }
     setSearching(true);
     try {
-      const response = await api.get<{ success: boolean; data: SuggestedRecipient[] }>(
-        `/api/v1/contacts/search?q=${encodeURIComponent(query)}&has_email=true`
+      const response = await api.get<{ success: boolean; data: Array<{ id: number; display_name: string; email: string }> }>(
+        `/api/v1/contacts?search=${encodeURIComponent(query)}&per_page=10`
       );
-      if (response.success) {
-        setSearchResults(response.data || []);
+      if (response.success && response.data) {
+        // Transform contacts to SuggestedRecipient format, filtering to only those with email
+        const withEmail = response.data
+          .filter(c => c.email)
+          .map(c => ({
+            id: c.id,
+            name: c.display_name,
+            email: c.email,
+            role: 'Contact',
+            type: 'contact' as const
+          }));
+        setSearchResults(withEmail);
       }
     } catch (err) {
       console.error("Failed to search contacts:", err);
@@ -239,6 +253,14 @@ export function EmailPlansModal({
           </div>
         ) : (
           <div className="space-y-4 py-4">
+            {/* From Email */}
+            {senderEmail && (
+              <div className="flex items-center gap-2 text-sm">
+                <Label className="text-muted-foreground">From:</Label>
+                <span className="font-medium">{senderEmail}</span>
+              </div>
+            )}
+
             {/* Selected Plans Summary */}
             <div className="space-y-2">
               <Label>Plans to Send</Label>

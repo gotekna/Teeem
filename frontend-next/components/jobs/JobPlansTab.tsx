@@ -32,6 +32,8 @@ import {
   Sparkles,
   Pencil,
   ExternalLink,
+  FolderOpen,
+  Download,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -737,6 +739,62 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
                   <Sparkles className="h-4 w-4 mr-2" />
                   Re-extract All from PDF
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={async () => {
+                  // Scan SharePoint folder for new plans
+                  try {
+                    const response = await api.post(`/api/v1/jobs/${jobId}/batch_operations`, {
+                      operation_type: "folder_scan"
+                    }) as { success: boolean; data?: { id: number }; error?: string };
+
+                    if (response.success && response.data?.id) {
+                      setOperationType("folder_scan");
+                      setOperationId(response.data.id);
+                      setShowProcessingModal(true);
+                    } else {
+                      toast({
+                        title: "Error",
+                        description: response.error || "Failed to start folder scan",
+                        variant: "destructive",
+                      });
+                    }
+                  } catch (err) {
+                    toast({
+                      title: "Error",
+                      description: "Failed to start folder scan",
+                      variant: "destructive",
+                    });
+                  }
+                }}>
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                  Scan Folder for New Plans
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  // Open SharePoint folder for this job's plans
+                  window.open(`https://teeemptyltd.sharepoint.com/sites/TEEEM/Shared%20Documents/TEEEM%20Jobs/${jobCode}/Plans`, "_blank");
+                }}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Open SharePoint Folder
+                </DropdownMenuItem>
+                {(selectedPlan?.current_revision?.sharepoint_file_id || selectedPlanIds.length > 0) && (
+                  <DropdownMenuItem onClick={() => {
+                    // Download selected plans' PDFs
+                    if (selectedPlanIds.length > 0) {
+                      // Download all checkbox-selected plans
+                      const selectedPlansData = plans.filter(p => selectedPlanIds.includes(p.id));
+                      selectedPlansData.forEach(plan => {
+                        if (plan.current_revision?.sharepoint_file_id) {
+                          window.open(`${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${plan.current_revision.sharepoint_file_id}`, "_blank");
+                        }
+                      });
+                    } else if (selectedPlan?.current_revision?.sharepoint_file_id) {
+                      // Download single-selected plan
+                      window.open(`${getApiBaseUrl()}/api/v1/organization_onedrive/download?file_id=${selectedPlan.current_revision.sharepoint_file_id}`, "_blank");
+                    }
+                  }}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download {selectedPlanIds.length > 1 ? `(${selectedPlanIds.length})` : "Selected"}
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -747,18 +805,21 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
             Add Plan
           </Button>
 
-          {/* Email button - shows when plan selected */}
-          {selectedPlan && (
+          {/* Email button - shows when any plan selected (checkbox or click) */}
+          {(selectedPlan || selectedPlanIds.length > 0) && (
             <Button
               size="sm"
               variant="outline"
               onClick={() => {
-                setSelectedPlanIds([selectedPlan.id]);
+                // Use checkbox selection if available, otherwise use single selection
+                if (selectedPlanIds.length === 0 && selectedPlan) {
+                  setSelectedPlanIds([selectedPlan.id]);
+                }
                 setShowEmailModal(true);
               }}
             >
               <Mail className="h-4 w-4 mr-1" />
-              Email
+              Email {selectedPlanIds.length > 0 ? `(${selectedPlanIds.length})` : ""}
             </Button>
           )}
         </div>
@@ -844,6 +905,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           onApprove={handleSetOnIssue}
           onReprocess={handleReprocess}
           onSelect={handlePlanSelect}
+          onSelectionChange={setSelectedPlanIds}
           enableSelection
           bulkActions={(ids, clearSelection) => (
             <Button
