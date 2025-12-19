@@ -1727,10 +1727,8 @@ export default function CorporateDashboardPage() {
         <TabsContent value="companies" className="mt-4">
           <TeeemTableView
             foundationId="companies"
-            foundationIdNumeric={COMPANIES_TABLE_ID}
             tableName="All Companies"
             entries={companies}
-            // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
             onEdit={handleEdit}
             onDelete={handleDelete}
             onBulkDelete={handleBulkDelete}
@@ -1738,7 +1736,6 @@ export default function CorporateDashboardPage() {
             enableExport={true}
             enableSchemaEditor={true}
             hideUpdateViewButton={true}
-            onColumnUpdate={fetchColumns}
             leftActions={
               <Button onClick={() => router.push("/corporate/companies/new")}>
                 <Plus className="h-4 w-4 mr-2" />
