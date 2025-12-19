@@ -144,7 +144,8 @@ class BatchPlanUploadJob < ApplicationJob
     plan = @job.job_plans.create!(
       job_plan_tab_id: job_plan_tab_id,
       plan_type_id: nil,
-      display_name: "All Plans"
+      display_name: "All Plans",
+      is_combined_pdf: true
     )
 
     plan.add_revision!(

@@ -627,7 +627,7 @@ export function PdfFieldsTab() {
                           onDragStart={(e) => handleDragStart(e, field.id)}
                           onDragEnd={handleDragEnd}
                           className={cn(
-                            "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-20",
+                            "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-50",
                             isDragging ? "opacity-30" : ""
                           )}
                           style={{
@@ -635,6 +635,7 @@ export function PdfFieldsTab() {
                             bottom: `${savedBottomPercent}%`,
                             transform: `translate(8px, 50%) scale(${100 / zoom})`,
                             transformOrigin: "bottom left",
+                            pointerEvents: "auto",
                           }}
                         >
                           {/* Box 1: Field Name (Blue) with drag handle */}

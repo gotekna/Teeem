@@ -27,6 +27,8 @@ class JobPlan < ApplicationRecord
 
   scope :ordered, -> { includes(:plan_type).order('plan_types.sequence_order', 'plan_types.code', :variant_suffix) }
   scope :on_issue, -> { joins(:current_revision).where(job_plan_revisions: { is_on_issue: true }) }
+  scope :regular_plans, -> { where(is_combined_pdf: false) }
+  scope :combined_pdfs, -> { where(is_combined_pdf: true) }
 
   # Full display name: "02 - SITE PLAN" or "02b - SITE PLAN"
   def computed_display_name
