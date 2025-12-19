@@ -39,6 +39,7 @@ class Job < ApplicationRecord
   has_many :job_plans, dependent: :destroy
   has_many :plan_uploads, dependent: :destroy
   has_many :plan_reextractions, dependent: :destroy
+  has_many :batch_operations, dependent: :destroy
 
   # SM Gantt associations (Schedule Master v2)
   has_many :sm_tasks, dependent: :destroy

@@ -43,11 +43,21 @@ module Api
 
       # PATCH/PUT /api/v1/pdf_field_positions/:id
       def update
+        Rails.logger.info "[PDF] Update called for position #{@position.id}"
+        Rails.logger.info "[PDF] Raw params: #{params.inspect}"
+        Rails.logger.info "[PDF] Position params: #{position_params.inspect}"
+
         if @position.update(position_params)
+          Rails.logger.info "[PDF] Update successful! New coords: x=#{@position.x}, y=#{@position.y}"
           render json: { success: true, data: position_json(@position) }
         else
+          Rails.logger.error "[PDF] Update failed! Errors: #{@position.errors.full_messages.join(', ')}"
           render json: { success: false, error: @position.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
+      rescue StandardError => e
+        Rails.logger.error "[PDF] Exception in update: #{e.class} - #{e.message}"
+        Rails.logger.error e.backtrace.first(5).join("\n")
+        raise
       end
 
       # DELETE /api/v1/pdf_field_positions/:id
@@ -109,7 +119,9 @@ module Api
       private
 
       def set_pdf_field_position
+        Rails.logger.info "[PDF] set_pdf_field_position called with id: #{params[:id]}"
         @position = PdfFieldPosition.find(params[:id])
+        Rails.logger.info "[PDF] Found position: #{@position.inspect}"
       end
 
       def position_params

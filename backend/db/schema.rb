@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073053) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073054) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -367,6 +367,31 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073053) do
     t.index ["status"], name: "index_bank_transactions_on_status"
     t.index ["xero_contact_id"], name: "index_bank_transactions_on_xero_contact_id"
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
+  end
+
+  create_table "batch_operations", force: :cascade do |t|
+    t.bigint "job_id"
+    t.bigint "user_id"
+    t.string "operation_type", null: false
+    t.string "status", default: "pending", null: false
+    t.string "current_step"
+    t.string "current_item_name"
+    t.integer "total_items", default: 0
+    t.integer "processed_items", default: 0
+    t.jsonb "items_completed", default: []
+    t.jsonb "operation_errors", default: []
+    t.jsonb "metadata", default: {}
+    t.text "error_message"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "operation_type"], name: "index_batch_operations_on_job_id_and_operation_type"
+    t.index ["job_id"], name: "index_batch_operations_on_job_id"
+    t.index ["operation_type"], name: "index_batch_operations_on_operation_type"
+    t.index ["status", "operation_type"], name: "index_batch_operations_on_status_and_operation_type"
+    t.index ["status"], name: "index_batch_operations_on_status"
+    t.index ["user_id"], name: "index_batch_operations_on_user_id"
   end
 
   create_table "bill_inboxes", force: :cascade do |t|
@@ -6128,6 +6153,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073053) do
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporate_companies", column: "company_id"
+  add_foreign_key "batch_operations", "jobs"
+  add_foreign_key "batch_operations", "users"
   add_foreign_key "bill_inboxes", "bpmn_process_instances"
   add_foreign_key "bill_inboxes", "contacts", column: "supplier_id"
   add_foreign_key "bill_inboxes", "corporate_companies"

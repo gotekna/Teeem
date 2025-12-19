@@ -192,13 +192,20 @@ export function PdfFieldsTab() {
   // Save position
   const savePosition = async (id: number, updates: Partial<PdfFieldPosition>) => {
     addDebugLog(`Saving: id=${id}, x=${updates.x}, y=${updates.y}`);
+    console.log("[PDF Save] Starting save...", { id, updates });
     try {
       setSaving(true);
+
+      // Log what we're sending
+      const requestBody = { pdf_field_position: updates };
+      console.log("[PDF Save] Request body:", JSON.stringify(requestBody, null, 2));
+
       const response = await api.patch<{ success: boolean; data: PdfFieldPosition }>(
         `/api/v1/pdf_field_positions/${id}`,
-        { pdf_field_position: updates }
+        requestBody
       );
 
+      console.log("[PDF Save] Response:", response);
       addDebugLog(`API response: ${JSON.stringify(response).substring(0, 200)}`);
 
       if (response.success && response.data) {
@@ -211,14 +218,20 @@ export function PdfFieldsTab() {
         loadPdfPreview();
       } else {
         addDebugLog(`Save failed - response.success=${response.success}`);
+        console.error("[PDF Save] Save failed:", response);
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       addDebugLog(`SAVE ERROR: ${errorMsg}`);
-      console.error("Save error details:", err);
+      console.error("[PDF Save] Exception:", err);
+      // Log full error details
+      if (err && typeof err === 'object') {
+        console.error("[PDF Save] Error status:", (err as { status?: number }).status);
+        console.error("[PDF Save] Error data:", (err as { data?: unknown }).data);
+      }
       toast({
         title: "Error",
-        description: "Failed to save position",
+        description: `Failed to save position: ${errorMsg}`,
         variant: "destructive",
       });
     } finally {

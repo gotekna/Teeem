@@ -86,7 +86,7 @@ export function PlanProcessingModal({
         ? `/api/v1/jobs/${jobId}/plan_uploads/${processId}`
         : `/api/v1/jobs/${jobId}/plan_reextractions/${processId}`
 
-      const response = await api.get(endpoint)
+      const response = await api.get(endpoint) as { success: boolean; data: UploadProgress | ReextractionProgress }
       if (response.success) {
         if (isUpload) {
           setUploadProgress(response.data as UploadProgress)

@@ -16,6 +16,14 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # Batch Operations - Global routes for folder_scan, folder_process
+      # (Job-scoped routes are also nested under /jobs/:job_id/batch_operations)
+      resources :batch_operations, only: [ :create, :show ] do
+        collection do
+          get :active  # GET /api/v1/batch_operations/active
+        end
+      end
+
       # AI Processing Pipeline (Admin: configure OCR/AI settings per service)
       # Dashboard: /admin/system/ai-processing
       resources :ai_processing, only: [] do
@@ -335,6 +343,14 @@ Rails.application.routes.draw do
 
         # Plan reextractions - Batch re-extraction with progress tracking
         resources :plan_reextractions, only: [ :create, :show ]
+
+        # Batch operations - THE SSoT for all batch operation progress tracking
+        # Replaces: plan_uploads, plan_reextractions (backward compatible routes kept above)
+        resources :batch_operations, only: [ :create, :show ] do
+          collection do
+            get :active  # GET /api/v1/jobs/:job_id/batch_operations/active
+          end
+        end
 
         # Meetings (nested under jobs)
         resources :meetings, only: [ :index, :create ]
