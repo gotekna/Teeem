@@ -143,18 +143,6 @@ namespace :teeem do
           database_table_name: "whs_incidents"
         },
         {
-          id: 211,  # Fixed ID - matches production
-          name: "Contact Roles",
-          slug: "contact-roles",
-          icon: "👥",
-          file_location: "components/settings/ContactRolesManagement.jsx",
-          model_class: "ContactRole",
-          description: "Contact role definitions",
-          has_saved_views: false,
-          api_endpoint: "/api/v1/contact_roles",
-          database_table_name: "contact_roles"
-        },
-        {
           id: 212,  # Fixed ID - matches production
           name: "User Management",
           slug: "user-management",

@@ -36,7 +36,6 @@ import {
   ExternalLink,
   FileText,
   Tag,
-  UserCog,
   Palette,
   Mail,
   Map,
@@ -52,7 +51,6 @@ import { SecurityTab } from "./components/SecurityTab";
 import { PermissionsTab } from "./components/PermissionsTab";
 import { CorporateTab } from "./components/CorporateTab";
 import { HolidaysTab } from "./components/HolidaysTab";
-import { ContactRolesTab } from "./components/ContactRolesTab";
 import { WorkflowsTab } from "./components/WorkflowsTab";
 import { FoldersTab } from "./components/FoldersTab";
 import { JobSetupTab } from "./components/JobSetupTab";
@@ -104,7 +102,6 @@ const MAIN_TABS = [
   { id: "warehouse", label: "Warehouse", icon: BarChart },
   { id: "brand-guidelines", label: "Brand Guidelines", icon: Palette },
   { id: "contact-types", label: "Contacts", icon: Tag },
-  { id: "contact-roles", label: "Contact Roles", icon: UserCog },
   { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "navigation", label: "Navigation", icon: Menu },
@@ -776,9 +773,6 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="contact-types" className="flex-1 min-h-0 overflow-auto">
             <ContactTypesTab />
-          </TabsContent>
-          <TabsContent value="contact-roles" className="flex-1 min-h-0 overflow-auto">
-            <ContactRolesTab />
           </TabsContent>
           <TabsContent value="plans" className="flex-1 min-h-0 overflow-auto">
             <PlansTab />

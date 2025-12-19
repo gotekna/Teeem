@@ -96,7 +96,6 @@ namespace :teeem do
       "WhsInduction" => "whs_inductions",
       "WhsInspection" => "whs_inspections",
       "WhsIncident" => "whs_incidents",
-      "ContactRole" => "contact_roles",
       "User" => "users",
       "InspiringQuote" => "inspiring_quotes",
       "Contact" => "contacts",

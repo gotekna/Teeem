@@ -10,7 +10,6 @@ namespace :teeem do
       208 => "whs_inductions",          # WHS Inductions
       209 => "whs_inspections",         # WHS Inspections
       210 => "whs_incidents",           # WHS Incidents
-      211 => "contact_roles",           # Contact Roles
       213 => "inspiring_quotes",        # Inspiring Quotes (Test)
       215 => "suppliers",               # Suppliers
       216 => "estimates",               # Estimates

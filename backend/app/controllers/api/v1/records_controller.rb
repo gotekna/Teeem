@@ -689,7 +689,7 @@ module Api
         if @foundation.model_class == "Contact" && permitted.key?("roles")
           value = permitted["roles"]
           if value.is_a?(Array) && value.first.is_a?(Integer)
-            # Map lookup IDs to their string values from the ContactRole lookup table
+            # Map lookup IDs to their string values from the lookup table
             roles_col = columns.find { |c| c.column_name == "roles" }
             if roles_col&.lookup_foundation_id.present?
               lookup_foundation = Foundation.find_by(id: roles_col.lookup_foundation_id)

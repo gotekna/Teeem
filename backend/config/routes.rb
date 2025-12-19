@@ -580,8 +580,6 @@ Rails.application.routes.draw do
       # Gold Table Sync Check - Compare column types across all sources
       get "gold_table_sync", to: "gold_table_sync#index"
 
-      # Contact roles management
-      resources :contact_roles, only: [ :index, :create, :update, :destroy ]
 
       # Global shareholdings view (all shareholdings across all companies)
       resources :shareholdings, only: [ :index ]

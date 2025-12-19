@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_165919) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_165920) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1286,15 +1286,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_165919) do
     t.index ["relationship_type"], name: "index_contact_relationships_on_relationship_type"
     t.index ["source_contact_id", "related_contact_id", "relationship_type"], name: "index_contact_relationships_unique_by_type", unique: true
     t.index ["source_contact_id"], name: "index_contact_relationships_on_source_contact_id"
-  end
-
-  create_table "contact_roles", force: :cascade do |t|
-    t.string "name", null: false
-    t.boolean "active", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.text "contact_types", default: "{}"
-    t.index ["name"], name: "index_contact_roles_on_name", unique: true
   end
 
   create_table "contact_types", force: :cascade do |t|

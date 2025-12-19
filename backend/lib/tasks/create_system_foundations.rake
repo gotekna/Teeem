@@ -19,7 +19,6 @@ namespace :teeem do
       { model: "SmResource", icon: "👷", feature: "Schedule Manager", name: "SM Resources" },
       { model: "Project", icon: "📋", feature: "Projects" },
       { model: "ProjectTask", icon: "✓", feature: "Projects" },
-      { model: "ContactRole", icon: "🏷️", feature: "Company", name: "Contact Roles" },
       { model: "Role", icon: "🔐", feature: "Company", name: "Roles" },
       { model: "JobType", icon: "📁", feature: "Jobs", name: "Job Types" },
       { model: "JobStatus", icon: "🚦", feature: "Jobs", name: "Job Statuses" },
