@@ -80,13 +80,15 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
 
       if (response?.success && response.xero_accounts) {
         // Map backend response to our interface
-        const mapped = response.xero_accounts.map(acc => ({
+        const mapped: XeroBankAccount[] = response.xero_accounts.map(acc => ({
           account_id: acc.xero_account_id,
           name: acc.xero_account_name,
           code: acc.xero_bank_account_type || "",
           type: acc.xero_bank_account_type || "BANK",
           bank_account_number: acc.xero_account_number,
           currency_code: "AUD",
+          status: "ACTIVE",
+          linked: true,
         }));
         setBankAccounts(mapped);
         // Auto-select first account

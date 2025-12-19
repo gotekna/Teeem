@@ -4,18 +4,22 @@
  * This directory contains all reusable Xero integration components.
  * Components are organized by function:
  *
- * Extracted Components (in this directory):
+ * Connection & Setup:
+ * - XeroConnectionCard: OAuth connection management (connects/disconnects Xero)
  * - XeroSetupWizard: Guides first-time users through Xero setup
  * - XeroConnectionsPopup: Shows Xero connection status in header
  *
- * Inline Components (still in company page, to be extracted):
- * - XeroConnectionCard: OAuth connection management (600+ LOC)
- * - XeroAccountsCard: Chart of Accounts display (325 LOC)
- * - XeroProfitLossCard: P&L report display (143 LOC)
- * - XeroBalanceSheetCard: Balance Sheet display (159 LOC)
- * - XeroBankAccountsCard: Bank accounts + transactions (294 LOC)
- * - XeroOverviewCard: Connection overview dashboard
- * - XeroReportsPanel: Combined PDF reports
+ * Overview & Status:
+ * - XeroOverviewCard: Connection overview dashboard with quick stats
+ *
+ * Financial Data:
+ * - XeroAccountsCard: Chart of Accounts display with group comparison
+ * - XeroProfitLossCard: P&L report display (in XeroFinancialReports)
+ * - XeroBalanceSheetCard: Balance Sheet display (in XeroFinancialReports)
+ * - XeroBankAccountsCard: Bank accounts with transactions
+ *
+ * Reports:
+ * - XeroReportsPanel: Combined PDF reports panel with inner tabs
  *
  * Contact Linking Components (in /components/contacts/):
  * - LinkXeroContactModal: Link TEEEM contact to Xero
@@ -28,6 +32,18 @@
 // Types
 export * from './types';
 
-// Components
+// Connection & Setup Components
 export { XeroSetupWizard } from './XeroSetupWizard';
 export { XeroConnectionsPopup } from './XeroConnectionsPopup';
+export { XeroConnectionCard } from './XeroConnectionCard';
+
+// Overview & Status Components
+export { XeroOverviewCard } from './XeroOverviewCard';
+
+// Financial Data Components
+export { XeroAccountsCard } from './XeroAccountsCard';
+export { XeroProfitLossCard, XeroBalanceSheetCard } from './XeroFinancialReports';
+export { XeroBankAccountsCard } from './XeroBankAccountsCard';
+
+// Reports Components
+export { XeroReportsPanel } from './XeroReportsPanel';

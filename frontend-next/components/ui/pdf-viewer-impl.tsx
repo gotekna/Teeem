@@ -80,8 +80,11 @@ export function PDFViewerImpl({
         // 1. Check browser cache first (INSTANT if cached)
         const cached = await getCachedPdf(url);
         if (cached && mounted) {
-          blob = cached;
-          currentBlobUrl = URL.createObjectURL(cached);
+          // Ensure correct MIME type even for cached blobs
+          blob = cached.type === "application/pdf"
+            ? cached
+            : new Blob([cached], { type: "application/pdf" });
+          currentBlobUrl = URL.createObjectURL(blob);
           setBlobUrl(currentBlobUrl);
           setIsCached(true);
 
@@ -117,7 +120,13 @@ export function PDFViewerImpl({
           throw new Error(`Failed to fetch PDF: ${errorText}`);
         }
 
-        blob = await response.blob();
+        const rawBlob = await response.blob();
+
+        // Ensure correct MIME type for PDF display in iframe
+        // Some servers return application/octet-stream which causes browser to download
+        blob = rawBlob.type === "application/pdf"
+          ? rawBlob
+          : new Blob([rawBlob], { type: "application/pdf" });
 
         // 3. Cache for next time (async, don't wait)
         cachePdf(url, blob).catch(() => {

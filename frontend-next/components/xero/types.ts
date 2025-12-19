@@ -116,6 +116,7 @@ export interface XeroBankTransaction {
   reference?: string;
   description: string;
   amount: number;
+  balance?: number;
   contact_name?: string;
   status: string;
   line_items?: {
