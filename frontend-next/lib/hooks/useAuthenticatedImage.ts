@@ -34,13 +34,26 @@ export function useAuthenticatedImage(url: string | null) {
       try {
         console.log("[useAuthenticatedImage] Fetching:", url);
 
-        // Fetch with credentials (sends auth cookies)
+        // Get JWT token from localStorage (same as api.ts does)
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+        // Build headers with JWT token
+        const headers: HeadersInit = {
+          Accept: "image/png, image/jpeg, image/jpg, image/webp, image/*",
+        };
+
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+          console.log("[useAuthenticatedImage] Added Authorization header");
+        } else {
+          console.warn("[useAuthenticatedImage] No auth token found in localStorage");
+        }
+
+        // Fetch with credentials and Authorization header
         const response = await fetch(url, {
           method: "GET",
           credentials: "include", // Send cookies for cross-origin requests
-          headers: {
-            Accept: "image/png, image/jpeg, image/jpg, image/webp, image/*",
-          },
+          headers,
         });
 
         console.log("[useAuthenticatedImage] Response status:", response.status, response.statusText);
