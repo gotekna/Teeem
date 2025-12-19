@@ -103,6 +103,24 @@ class OrganizationSharePointCredential < ApplicationRecord
     active.any? { |cred| cred.valid_credential? }
   end
 
+  # Factory method to get the appropriate Graph client
+  # Returns MicrosoftAppGraphClient for app credentials, MicrosoftGraphClient for delegated
+  # SSoT Migration: This handles the credential type mismatch during migration
+  def self.graph_client
+    warn_deprecation
+
+    credential = active_credential
+    return nil unless credential
+
+    # If it's a MicrosoftCredential with app type, use MicrosoftAppGraphClient
+    if credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
+      MicrosoftAppGraphClient.new(credential)
+    else
+      # Delegated credentials or legacy credentials use MicrosoftGraphClient
+      MicrosoftGraphClient.new(credential)
+    end
+  end
+
   # Check if token is expired or about to expire (within 5 minutes)
   def token_expired?
     return true if token_expires_at.nil?

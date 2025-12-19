@@ -1031,13 +1031,36 @@ module Api
         end
 
         begin
-          client = MicrosoftGraphClient.new(credential)
+          # Check if using app credentials (requires different API calls)
+          is_app_credential = credential.is_a?(MicrosoftCredential) && credential.credential_type == "app"
 
-          # Get file metadata first
-          file_metadata = client.get_file(file_id)
+          if is_app_credential
+            # App credentials use MicrosoftAppGraphClient with explicit site/drive
+            client = MicrosoftAppGraphClient.new(credential)
+            sharepoint_config = CorporateCompanySetting.sharepoint_config
 
-          # Download file content
-          file_content = client.download_file(file_id)
+            unless sharepoint_config[:configured]
+              return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
+            end
+
+            # Get file metadata
+            file_metadata = client.get_drive_item(sharepoint_config[:drive_id], file_id)
+
+            # Download file content
+            file_content = client.get_drive_item_content(
+              drive_id: sharepoint_config[:drive_id],
+              item_id: file_id
+            )
+          else
+            # Delegated credentials use MicrosoftGraphClient with /me endpoints
+            client = MicrosoftGraphClient.new(credential)
+
+            # Get file metadata first
+            file_metadata = client.get_file(file_id)
+
+            # Download file content
+            file_content = client.download_file(file_id)
+          end
 
           # Send file to user (inline for preview, attachment for download)
           disposition = params[:preview] == "true" ? "inline" : "attachment"
@@ -1046,9 +1069,9 @@ module Api
             type: file_metadata["file"]&.dig("mimeType") || "application/octet-stream",
             disposition: disposition
 
-        rescue MicrosoftGraphClient::AuthenticationError => e
+        rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
-        rescue MicrosoftGraphClient::APIError => e
+        rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
           render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "Failed to download file: #{e.message}"
