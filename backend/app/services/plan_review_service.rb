@@ -77,7 +77,7 @@ class PlanReviewService
     rescue NoConstructionError => e
       handle_error("Must be matched to job first: #{e.message}")
     rescue OneDriveNotConnectedError => e
-      handle_error("OneDrive not connected: #{e.message}")
+      handle_error("SharePoint not connected: #{e.message}")
     rescue StandardError => e
       handle_error("Analysis failed: #{e.message}")
     end

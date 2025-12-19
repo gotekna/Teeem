@@ -11,7 +11,7 @@ module Bpmn
         org = @subject.try(:organization) || Organization.current
         onedrive = OnedriveService.new(org)
 
-        raise "OneDrive not connected" unless onedrive.connected?
+        raise "SharePoint not connected" unless onedrive.connected?
 
         files_synced = []
 

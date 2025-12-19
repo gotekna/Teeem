@@ -579,7 +579,7 @@ module Api
       def plan_set
         credential = OrganizationSharePointCredential.active_credential
         unless credential
-          return render json: { success: false, error: "OneDrive not connected" }, status: :unprocessable_entity
+          return render json: { success: false, error: "SharePoint not connected" }, status: :unprocessable_entity
         end
 
         client = MicrosoftGraphClient.new(credential)

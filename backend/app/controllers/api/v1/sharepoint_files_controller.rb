@@ -123,7 +123,7 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected or token expired" }, status: :unauthorized
         end
 
         # Get folder template (use default or specified)
@@ -176,7 +176,7 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected or token expired" }, status: :unauthorized
         end
 
         begin
@@ -209,7 +209,7 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected or token expired" }, status: :unauthorized
         end
 
         uploaded_file = params[:file]
@@ -263,7 +263,7 @@ module Api
         credential = @job.one_drive_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected or token expired" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected or token expired" }, status: :unauthorized
         end
 
         file_id = params[:file_id]

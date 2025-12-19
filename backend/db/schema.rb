@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_165920) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_202207) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -340,6 +340,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_165920) do
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
     t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
+  end
+
+  create_table "bank_statement_templates", force: :cascade do |t|
+    t.string "bank_code"
+    t.string "bank_name"
+    t.string "primary_color"
+    t.string "secondary_color"
+    t.string "text_on_primary"
+    t.string "account_type"
+    t.string "date_format"
+    t.jsonb "detection_patterns"
+    t.string "layout_style"
+    t.boolean "is_active"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bank_code"], name: "index_bank_statement_templates_on_bank_code"
   end
 
   create_table "bank_transactions", force: :cascade do |t|
@@ -1574,6 +1590,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_165920) do
     t.string "xero_attachment_id"
     t.boolean "sync_to_xero", default: false, null: false
     t.string "focus", default: "company", null: false
+    t.boolean "is_pdf_eligible", default: true, null: false
+    t.datetime "orphaned_at"
+    t.string "orphan_reason"
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"
@@ -1589,8 +1608,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_165920) do
     t.index ["financial_years"], name: "index_corporate_company_documents_on_financial_years", using: :gin
     t.index ["focus"], name: "index_corporate_company_documents_on_focus"
     t.index ["folder"], name: "index_corporate_company_documents_on_folder"
+    t.index ["is_pdf_eligible"], name: "index_corporate_company_documents_on_is_pdf_eligible", where: "((source)::text = 'xero'::text)"
     t.index ["job_id"], name: "index_corporate_company_documents_on_job_id"
     t.index ["loan_id"], name: "index_corporate_company_documents_on_loan_id"
+    t.index ["orphaned_at"], name: "index_corporate_company_documents_on_orphaned_at", where: "(orphaned_at IS NOT NULL)"
     t.index ["sharepoint_file_id"], name: "index_corporate_company_documents_on_sharepoint_file_id", unique: true, where: "(sharepoint_file_id IS NOT NULL)"
     t.index ["source", "external_id"], name: "index_corporate_company_documents_on_source_and_external_id", unique: true, where: "(external_id IS NOT NULL)"
     t.index ["source"], name: "index_corporate_company_documents_on_source"

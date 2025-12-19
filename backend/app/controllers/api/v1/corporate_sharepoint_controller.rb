@@ -12,7 +12,7 @@ module Api
         unless @credential
           return render json: {
             connected: false,
-            error: "OneDrive not connected. Please connect via Settings > Integrations."
+            error: "SharePoint not connected. Please connect via Settings > Integrations."
           }
         end
 
@@ -34,7 +34,7 @@ module Api
       # Preview what documents would be scanned
       def preview
         unless @credential
-          return render json: { success: false, error: "OneDrive not connected" }
+          return render json: { success: false, error: "SharePoint not connected" }
         end
 
         service = CorporateOnedriveService.new(@credential, folder_path: params[:folder_path])
@@ -47,7 +47,7 @@ module Api
       # Scan all companies and link documents
       def scan
         unless @credential
-          return render json: { success: false, error: "OneDrive not connected" }
+          return render json: { success: false, error: "SharePoint not connected" }
         end
 
         service = CorporateOnedriveService.new(@credential, folder_path: params[:folder_path])
@@ -60,7 +60,7 @@ module Api
       # Scan a specific company's folder
       def scan_company
         unless @credential
-          return render json: { success: false, error: "OneDrive not connected" }
+          return render json: { success: false, error: "SharePoint not connected" }
         end
 
         company = CorporateCompany.find(params[:company_id])
@@ -121,7 +121,7 @@ module Api
       # Browse OneDrive folders
       def browse
         unless @credential
-          return render json: { success: false, error: "OneDrive not connected" }
+          return render json: { success: false, error: "SharePoint not connected" }
         end
 
         client = MicrosoftGraphClient.new(@credential)

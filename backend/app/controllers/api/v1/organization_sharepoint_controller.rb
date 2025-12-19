@@ -249,7 +249,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         # If folder_id is provided, use direct selection (from folder browser)
@@ -356,7 +356,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -384,7 +384,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -431,7 +431,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         site_name = params[:site_name]
@@ -480,7 +480,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         folder_id = params[:folder_id] # Optional - if not provided, browse root
@@ -562,7 +562,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         folder_name = params[:folder_name]
@@ -613,7 +613,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -651,7 +651,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
+          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         # Get folder template (use default or specified)
@@ -728,7 +728,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
+          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         # Get folder template (use default or specified)
@@ -789,7 +789,7 @@ module Api
         credential = get_onedrive_credential
 
         unless credential
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -835,7 +835,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         uploaded_file = params[:file]
@@ -894,7 +894,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -967,7 +967,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         query = params[:q] || params[:query]
@@ -1021,7 +1021,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         file_id = params[:file_id]
@@ -1085,7 +1085,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -1113,7 +1113,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         foundation_id = params[:foundation_id]
@@ -1258,7 +1258,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -1286,7 +1286,7 @@ module Api
 
         unless credential&.valid_credential?
           Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
-          return render json: { error: "OneDrive not connected. Please connect in Settings first." }, status: :unauthorized
+          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
         end
 
         folder_path = params[:folder_path] || "Corporate File"
@@ -1397,7 +1397,7 @@ module Api
         credential = get_onedrive_credential
 
         unless credential
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -1517,7 +1517,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -1560,7 +1560,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         begin
@@ -1699,7 +1699,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         # Determine the new name
@@ -1766,7 +1766,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         documents = JobDocument.where(id: document_ids, rename_status: "pending")
@@ -1821,7 +1821,7 @@ module Api
         credential = OrganizationSharePointCredential.active_credential
 
         unless credential&.valid_credential?
-          return render json: { error: "OneDrive not connected" }, status: :unauthorized
+          return render json: { error: "SharePoint not connected" }, status: :unauthorized
         end
 
         dry_run = params[:dry_run] != "false" && params[:dry_run] != false

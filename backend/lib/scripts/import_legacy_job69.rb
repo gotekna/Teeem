@@ -8,7 +8,7 @@ puts ""
 
 credential = OrganizationOneDriveCredential.active_credential
 unless credential&.valid_credential?
-  puts "ERROR: OneDrive not connected"
+  puts "ERROR: SharePoint not connected"
   exit 1
 end
 

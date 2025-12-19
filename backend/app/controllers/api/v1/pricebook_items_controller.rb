@@ -735,7 +735,7 @@ module Api
           # Get OneDrive credentials
           credential = OrganizationSharePointCredential.first
           unless credential && credential.valid_credential?
-            return render json: { error: "OneDrive not connected" }, status: :service_unavailable
+            return render json: { error: "SharePoint not connected" }, status: :service_unavailable
           end
 
           # Initialize Microsoft Graph client

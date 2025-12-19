@@ -1,0 +1,2 @@
+class BankStatementTemplate < ApplicationRecord
+end

@@ -33,7 +33,7 @@ class CreateJobFoldersJob < ApplicationJob
         onedrive_folder_creation_status: "failed",
         onedrive_folders_created_at: nil
       )
-      Rails.logger.error "CreateJobFoldersJob failed: OneDrive not connected"
+      Rails.logger.error "CreateJobFoldersJob failed: SharePoint not connected"
       return
     end
 

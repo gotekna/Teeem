@@ -81,7 +81,7 @@ class CaseFolderService
   def graph_client
     @graph_client ||= begin
       credential = OrganizationSharePointCredential.active_credential
-      raise "OneDrive not connected for organization" unless credential
+      raise "SharePoint not connected for organization" unless credential
 
       MicrosoftGraphClient.new(credential)
     end

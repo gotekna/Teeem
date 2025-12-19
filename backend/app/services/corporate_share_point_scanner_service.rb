@@ -67,7 +67,7 @@ class CorporateSharePointScannerService
   # Scan OneDrive for corporate documents and link them to companies
   def scan_all
     client = get_onedrive_client
-    return { success: false, error: "OneDrive not connected" } unless client
+    return { success: false, error: "SharePoint not connected" } unless client
 
     # Try to find corporate folder - try multiple paths if auto-detect enabled
     corporate_folder = nil
@@ -145,7 +145,7 @@ class CorporateSharePointScannerService
   # Scan a specific company's OneDrive folder
   def scan_company(company)
     client = get_onedrive_client
-    return { success: false, error: "OneDrive not connected" } unless client
+    return { success: false, error: "SharePoint not connected" } unless client
 
     # Find the corporate root folder
     corporate_folder = find_folder_by_path(client, @folder_path)
@@ -211,7 +211,7 @@ class CorporateSharePointScannerService
   # Preview what would be scanned (without linking)
   def preview
     client = get_onedrive_client
-    return { success: false, error: "OneDrive not connected" } unless client
+    return { success: false, error: "SharePoint not connected" } unless client
 
     # Try to find corporate folder - try multiple paths if auto-detect enabled
     corporate_folder = nil
