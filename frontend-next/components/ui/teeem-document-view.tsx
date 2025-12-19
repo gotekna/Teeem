@@ -305,10 +305,10 @@ export function TeeemDocumentView<T extends DocumentItem>({
 
     if (!dragStateRef.current?.isDragging) {
       // Single click - toggle selection
-      if (dragStateRef.current?.startRowId !== null) {
-        const id = dragStateRef.current.startRowId;
+      const startId = dragStateRef.current?.startRowId;
+      if (startId !== null && startId !== undefined) {
         setSelectedIds(prev =>
-          prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+          prev.includes(startId) ? prev.filter(i => i !== startId) : [...prev, startId]
         );
       }
       dragStateRef.current = null;
