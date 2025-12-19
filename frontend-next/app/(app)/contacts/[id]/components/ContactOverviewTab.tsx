@@ -46,22 +46,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
+import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { SortableList, DragHandle } from '@/components/ui/dnd';
 import {
   hasFirstLastName,
   canHaveEmployees,
@@ -139,7 +126,7 @@ interface ContactOverviewTabProps {
   loadingCompanies: boolean;
   companyRoles: Record<string, string[]>;
   handleCompanyChange: (newOptions: Option[]) => void;
-  handleCompanyDragEnd: (event: any) => void;
+  handleCompanyReorder: (newCompanies: Option[]) => void;
   handleCompanyRolesChange: (companyId: string, roleTypes: string[]) => void;
   handleCompanyPositionChange: (companyId: string, newPosition: number) => void;
   showAddCompany: boolean;
@@ -154,7 +141,7 @@ interface ContactOverviewTabProps {
   loadingPeople: boolean;
   employeeRoles: Record<string, string[]>;
   handleEmployeeChange: (newOptions: Option[]) => void;
-  handleEmployeeDragEnd: (event: any) => void;
+  handleEmployeeReorder: (newEmployees: Contact["employees"]) => void;
   handleEmployeeRolesChange: (employeeId: number, roleTypes: string[]) => void;
   handleEmployeePositionChange: (employeeId: number, newPosition: number) => void;
   handleRemoveEmployee: (employeeId: number) => void;
@@ -183,8 +170,6 @@ interface ContactOverviewTabProps {
   getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
   // Modals
   setEditModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  // DnD sensors
-  sensors: ReturnType<typeof useSensors>;
 }
 
 export function ContactOverviewTab({
@@ -206,7 +191,7 @@ export function ContactOverviewTab({
   loadingCompanies,
   companyRoles,
   handleCompanyChange,
-  handleCompanyDragEnd,
+  handleCompanyReorder,
   handleCompanyRolesChange,
   handleCompanyPositionChange,
   showAddCompany,
@@ -220,7 +205,7 @@ export function ContactOverviewTab({
   loadingPeople,
   employeeRoles,
   handleEmployeeChange,
-  handleEmployeeDragEnd,
+  handleEmployeeReorder,
   handleEmployeeRolesChange,
   handleEmployeePositionChange,
   handleRemoveEmployee,
@@ -247,7 +232,6 @@ export function ContactOverviewTab({
   handleRemoveRelatedEntity,
   getValidRelationshipTypes,
   setEditModalOpen,
-  sensors,
 }: ContactOverviewTabProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -322,11 +306,10 @@ export function ContactOverviewTab({
             employeeRoles={employeeRoles}
             handleEmployeeRolesChange={handleEmployeeRolesChange}
             handleRemoveEmployee={handleRemoveEmployee}
-            handleEmployeeDragEnd={handleEmployeeDragEnd}
+            handleEmployeeReorder={handleEmployeeReorder}
             handleEmployeePositionChange={handleEmployeePositionChange}
             relationshipTypeMetadata={relationshipTypeMetadata}
             getValidRelationshipTypes={getValidRelationshipTypes}
-            sensors={sensors}
           />
         )}
 
@@ -337,12 +320,11 @@ export function ContactOverviewTab({
             selectedCompanies={selectedCompanies}
             companyRoles={companyRoles}
             handleCompanyChange={handleCompanyChange}
-            handleCompanyDragEnd={handleCompanyDragEnd}
+            handleCompanyReorder={handleCompanyReorder}
             handleCompanyRolesChange={handleCompanyRolesChange}
             handleCompanyPositionChange={handleCompanyPositionChange}
             relationshipTypeMetadata={relationshipTypeMetadata}
             getValidRelationshipTypes={getValidRelationshipTypes}
-            sensors={sensors}
           />
         )}
 
@@ -2029,11 +2011,10 @@ interface AssociatedPeopleCardProps {
   employeeRoles: Record<string, string[]>;
   handleEmployeeRolesChange: (employeeId: number, roleTypes: string[]) => void;
   handleRemoveEmployee: (employeeId: number) => void;
-  handleEmployeeDragEnd: (event: any) => void;
+  handleEmployeeReorder: (newEmployees: Contact["employees"]) => void;
   handleEmployeePositionChange: (employeeId: number, newPosition: number) => void;
   relationshipTypeMetadata: RelationshipTypeMetadata[];
   getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
-  sensors: ReturnType<typeof useSensors>;
 }
 
 function AssociatedPeopleCard({
@@ -2042,11 +2023,10 @@ function AssociatedPeopleCard({
   employeeRoles,
   handleEmployeeRolesChange,
   handleRemoveEmployee,
-  handleEmployeeDragEnd,
+  handleEmployeeReorder,
   handleEmployeePositionChange,
   relationshipTypeMetadata,
   getValidRelationshipTypes,
-  sensors,
 }: AssociatedPeopleCardProps) {
   if (!contact.employees || contact.employees.length === 0) return null;
 
@@ -2060,36 +2040,29 @@ function AssociatedPeopleCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleEmployeeDragEnd}
+        <SortableList
+          items={contact.employees}
+          onReorder={handleEmployeeReorder}
+          className="space-y-3"
         >
-          <SortableContext
-            items={contact.employees.map(e => e.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-3">
-              {contact.employees.map((employee, index) => (
-                <SortableEmployeeItem
-                  key={employee.id}
-                  employee={employee}
-                  index={index}
-                  employeeRoles={employeeRoles}
-                  onRolesChange={handleEmployeeRolesChange}
-                  onRemove={handleRemoveEmployee}
-                  onPositionChange={handleEmployeePositionChange}
-                  isPrimary={index === 0}
-                  availableRoleTypes={getValidRelationshipTypes(
-                    relationshipTypeMetadata,
-                    'person',
-                    formData.entity_type
-                  )}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+          {contact.employees.map((employee, index) => (
+            <SortableEmployeeItem
+              key={employee.id}
+              employee={employee}
+              index={index}
+              employeeRoles={employeeRoles}
+              onRolesChange={handleEmployeeRolesChange}
+              onRemove={handleRemoveEmployee}
+              onPositionChange={handleEmployeePositionChange}
+              isPrimary={index === 0}
+              availableRoleTypes={getValidRelationshipTypes(
+                relationshipTypeMetadata,
+                'person',
+                formData.entity_type
+              )}
+            />
+          ))}
+        </SortableList>
       </CardContent>
     </Card>
   );
@@ -2196,26 +2169,36 @@ interface AssociatedCompaniesCardProps {
   selectedCompanies: Option[];
   companyRoles: Record<string, string[]>;
   handleCompanyChange: (newOptions: Option[]) => void;
-  handleCompanyDragEnd: (event: any) => void;
+  handleCompanyReorder: (newCompanies: Option[]) => void;
   handleCompanyRolesChange: (companyId: string, roleTypes: string[]) => void;
   handleCompanyPositionChange: (companyId: string, newPosition: number) => void;
   relationshipTypeMetadata: RelationshipTypeMetadata[];
   getValidRelationshipTypes: (metadata: RelationshipTypeMetadata[], sourceType: string, targetType: string | null) => { value: string; label: string }[];
-  sensors: ReturnType<typeof useSensors>;
 }
+
+// Wrapper type to add id to Option for SortableList
+type CompanyWithId = Option & { id: string };
 
 function AssociatedCompaniesCard({
   formData,
   selectedCompanies,
   companyRoles,
   handleCompanyChange,
-  handleCompanyDragEnd,
+  handleCompanyReorder,
   handleCompanyRolesChange,
   handleCompanyPositionChange,
   relationshipTypeMetadata,
   getValidRelationshipTypes,
-  sensors,
 }: AssociatedCompaniesCardProps) {
+  // Map companies to have id property for SortableList
+  const companiesWithId: CompanyWithId[] = selectedCompanies.map(c => ({ ...c, id: c.value }));
+
+  // Handle reorder - convert back to Option[] without id
+  const handleReorder = (newItems: CompanyWithId[]) => {
+    const newCompanies = newItems.map(({ id, ...rest }) => rest as Option);
+    handleCompanyReorder(newCompanies);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -2226,39 +2209,32 @@ function AssociatedCompaniesCard({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleCompanyDragEnd}
+        <SortableList
+          items={companiesWithId}
+          onReorder={handleReorder}
+          className="space-y-3"
         >
-          <SortableContext
-            items={selectedCompanies.map(c => c.value)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-3">
-              {selectedCompanies.map((company, index) => (
-                <SortableCompanyItem
-                  key={company.value}
-                  company={company}
-                  index={index}
-                  companyRoles={companyRoles}
-                  onRolesChange={handleCompanyRolesChange}
-                  onRemove={() => {
-                    const newSelected = selectedCompanies.filter(c => c.value !== company.value);
-                    handleCompanyChange(newSelected);
-                  }}
-                  onPositionChange={handleCompanyPositionChange}
-                  isPrimary={index === 0}
-                  availableRoleTypes={getValidRelationshipTypes(
-                    relationshipTypeMetadata,
-                    formData.entity_type,
-                    'company'
-                  )}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
+          {selectedCompanies.map((company, index) => (
+            <SortableCompanyItem
+              key={company.value}
+              company={company}
+              index={index}
+              companyRoles={companyRoles}
+              onRolesChange={handleCompanyRolesChange}
+              onRemove={() => {
+                const newSelected = selectedCompanies.filter(c => c.value !== company.value);
+                handleCompanyChange(newSelected);
+              }}
+              onPositionChange={handleCompanyPositionChange}
+              isPrimary={index === 0}
+              availableRoleTypes={getValidRelationshipTypes(
+                relationshipTypeMetadata,
+                formData.entity_type,
+                'company'
+              )}
+            />
+          ))}
+        </SortableList>
       </CardContent>
     </Card>
   );

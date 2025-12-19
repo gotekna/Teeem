@@ -105,24 +105,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Star, Code } from 'lucide-react';
+import { Star, Code } from 'lucide-react';
+import { reorderByPosition } from "@/components/ui/dnd";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import {
   getEntityTypeLabel,
@@ -662,14 +646,6 @@ export default function ContactDetailPage() {
   const [newEmployeeFirstName, setNewEmployeeFirstName] = useState("");
   const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
   const [creatingEmployee, setCreatingEmployee] = useState(false);
-
-  // Drag and drop sensors for employee ordering
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   const activeTab = searchParams.get("tab") || "overview";
   const activeSubTab = searchParams.get("subtab") || "identity";
@@ -1515,17 +1491,11 @@ export default function ContactDetailPage() {
     }
   };
 
-  // Handle drag end for company reordering
-  const handleCompanyDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || !selectedCompanies) return;
-
-    const oldIndex = selectedCompanies.findIndex(c => c.value === active.id);
-    const newIndex = selectedCompanies.findIndex(c => c.value === over.id);
-    if (oldIndex === newIndex) return;
+  // Handle company reordering (from SortableList)
+  const handleCompanyReorder = async (newCompanies: Option[]) => {
+    if (!selectedCompanies) return;
 
     // Optimistically update UI
-    const newCompanies = arrayMove(selectedCompanies, oldIndex, newIndex);
     setSelectedCompanies(newCompanies);
 
     // Save to backend
@@ -1543,13 +1513,12 @@ export default function ContactDetailPage() {
 
   const handleCompanyPositionChange = async (companyId: string, newPosition: number) => {
     if (!selectedCompanies) return;
-    const oldIndex = selectedCompanies.findIndex(c => c.value === companyId);
-    if (oldIndex === -1) return;
 
-    const newIndex = Math.max(0, Math.min(newPosition - 1, selectedCompanies.length - 1));
-    if (oldIndex === newIndex) return;
+    // Map to items with id for reorderByPosition
+    const companiesWithId = selectedCompanies.map(c => ({ ...c, id: c.value }));
+    const reordered = reorderByPosition(companiesWithId, companyId, newPosition);
+    const newCompanies = reordered.map(({ id, ...rest }) => rest as Option);
 
-    const newCompanies = arrayMove(selectedCompanies, oldIndex, newIndex);
     setSelectedCompanies(newCompanies);
 
     try {
@@ -1793,19 +1762,11 @@ export default function ContactDetailPage() {
     }
   };
 
-  // Handle drag end for employee reordering
-  const handleEmployeeDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (!over || !contact?.employees) return;
-
-    const oldIndex = contact.employees.findIndex(e => e.id === active.id);
-    const newIndex = contact.employees.findIndex(e => e.id === over.id);
-
-    if (oldIndex === newIndex) return;
+  // Handle employee reordering (from SortableList)
+  const handleEmployeeReorder = async (newEmployees: Contact["employees"]) => {
+    if (!contact?.employees || !newEmployees) return;
 
     // Optimistically update UI
-    const newEmployees = arrayMove(contact.employees, oldIndex, newIndex);
     setContact({ ...contact, employees: newEmployees });
 
     // Save to backend
@@ -1826,16 +1787,9 @@ export default function ContactDetailPage() {
   const handleEmployeePositionChange = async (employeeId: number, newPosition: number) => {
     if (!contact?.employees) return;
 
-    const oldIndex = contact.employees.findIndex(e => e.id === employeeId);
-    if (oldIndex === -1) return;
-
-    // Convert 1-based position to 0-based index
-    const newIndex = Math.max(0, Math.min(newPosition - 1, contact.employees.length - 1));
-
-    if (oldIndex === newIndex) return;
+    const newEmployees = reorderByPosition(contact.employees, employeeId, newPosition);
 
     // Optimistically update UI
-    const newEmployees = arrayMove(contact.employees, oldIndex, newIndex);
     setContact({ ...contact, employees: newEmployees });
 
     // Save to backend
@@ -2300,7 +2254,7 @@ export default function ContactDetailPage() {
             loadingCompanies={loadingCompanies}
             companyRoles={companyRoles}
             handleCompanyChange={handleCompanyChange}
-            handleCompanyDragEnd={handleCompanyDragEnd}
+            handleCompanyReorder={handleCompanyReorder}
             handleCompanyRolesChange={handleCompanyRolesChange}
             handleCompanyPositionChange={handleCompanyPositionChange}
             showAddCompany={showAddCompany}
@@ -2314,7 +2268,7 @@ export default function ContactDetailPage() {
             loadingPeople={loadingPeople}
             employeeRoles={employeeRoles}
             handleEmployeeChange={handleEmployeeChange}
-            handleEmployeeDragEnd={handleEmployeeDragEnd}
+            handleEmployeeReorder={handleEmployeeReorder}
             handleEmployeeRolesChange={handleEmployeeRolesChange}
             handleEmployeePositionChange={handleEmployeePositionChange}
             handleRemoveEmployee={handleRemoveEmployee}
@@ -2341,7 +2295,6 @@ export default function ContactDetailPage() {
             handleRemoveRelatedEntity={handleRemoveRelatedEntity}
             getValidRelationshipTypes={getValidRelationshipTypes}
             setEditModalOpen={setEditModalOpen}
-            sensors={sensors}
           />
         </TabsContent>
 
