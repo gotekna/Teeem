@@ -224,8 +224,8 @@ export function PDFViewerImpl({
   const prevPage = () => goToPage(currentPage - 1);
   const nextPage = () => goToPage(currentPage + 1);
 
-  // Build iframe URL with page parameter and hidden toolbar for max PDF size
-  const iframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&toolbar=0&navpanes=0` : "";
+  // Build iframe URL with page-fit zoom and hidden toolbar for max PDF size
+  const iframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&zoom=page-fit&toolbar=0&navpanes=0` : "";
 
   // Success state - iframe with native PDF viewer
   return (
