@@ -55,6 +55,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import dynamic from "next/dynamic";
 
 // Dynamically import the charts to avoid SSR issues with React Flow
@@ -480,6 +481,7 @@ function BeneficiariesTable() {
 // ===== MAIN COMPONENT =====
 
 export default function CorporateDashboardPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
   const searchParams = useSearchParams();
 

@@ -270,6 +270,84 @@ grep -rn "<Input" frontend-next/app --include="*.tsx" | grep -v "aria-label\|<la
 
 **Reference:** `TEEEM_DOCS/COMPONENTS.md`
 
+### Step 5.5: Layout Compliance (NEW - Page Scroll/Height Chain)
+
+**CRITICAL: Pages must have proper height chain for scrolling to work.**
+
+This catches the exact issue we fixed: TabsContent without scroll classes, pages without proper layout mode.
+
+```bash
+echo "=== Layout Compliance Check ==="
+
+# Check 1: Pages using TeeemTableView without useSetLayoutMode
+echo ""
+echo "--- Pages with TeeemTableView missing useSetLayoutMode ---"
+for file in $(grep -rl "TeeemTableView" frontend-next/app --include="*.tsx"); do
+  if ! grep -q "useSetLayoutMode" "$file"; then
+    echo "  ⚠️  $file - has TeeemTableView but no useSetLayoutMode"
+  fi
+done
+
+# Check 2: TabsContent missing scroll classes
+echo ""
+echo "--- TabsContent missing scroll classes ---"
+grep -rn "<TabsContent" frontend-next/app --include="*.tsx" | grep -v "overflow-auto\|overflow-y-auto\|min-h-0" | head -20
+
+# Check 3: Pages with useSetLayoutMode but missing height chain
+echo ""
+echo "--- Layout mode pages missing h-full on container ---"
+for file in $(grep -rl "useSetLayoutMode" frontend-next/app --include="*.tsx"); do
+  # Check if file has proper height chain (h-full, flex-1, etc.)
+  if ! grep -q "h-full\|flex-1" "$file"; then
+    echo "  ⚠️  $file - uses layout mode but may be missing height chain"
+  fi
+done
+
+# Check 4: Admin System tabs specifically (where we just fixed issues)
+echo ""
+echo "--- Admin System Page TabsContent Audit ---"
+ADMIN_SYSTEM="frontend-next/app/(app)/admin/system/page.tsx"
+if [ -f "$ADMIN_SYSTEM" ]; then
+  total_tabs=$(grep -c "<TabsContent" "$ADMIN_SYSTEM" 2>/dev/null || echo 0)
+  tabs_with_scroll=$(grep -c "<TabsContent.*overflow-auto" "$ADMIN_SYSTEM" 2>/dev/null || echo 0)
+  tabs_missing=$((total_tabs - tabs_with_scroll))
+
+  if [ "$tabs_missing" -gt 0 ]; then
+    echo "  ⚠️  Admin System: $tabs_missing of $total_tabs tabs missing scroll classes"
+    grep -n "<TabsContent" "$ADMIN_SYSTEM" | grep -v "overflow-auto" | head -10
+  else
+    echo "  ✅ Admin System: All $total_tabs tabs have scroll classes"
+  fi
+fi
+
+# Check 5: Look for common anti-patterns
+echo ""
+echo "--- Common Layout Anti-Patterns ---"
+
+# Pattern: space-y-X without overflow handling (content gets cut off)
+echo "Files with space-y on root that might need scroll:"
+grep -rln "return.*<div.*className.*space-y-" frontend-next/app/\(app\) --include="*.tsx" 2>/dev/null | while read file; do
+  if ! grep -q "overflow-auto\|overflow-y-auto\|h-full" "$file"; then
+    echo "  ⚠️  $file - has space-y without overflow handling"
+  fi
+done | head -10
+```
+
+**Expected:**
+- All pages with TeeemTableView use `useSetLayoutMode("full-height")`
+- All TabsContent have `className="flex-1 min-h-0 overflow-auto"`
+- Proper height chain: parent → child with h-full/flex-1
+- No content getting cut off without scroll
+
+**The Gold Standard Pattern for TabsContent:**
+```tsx
+<TabsContent value="my-tab" className="flex-1 min-h-0 overflow-auto">
+  <MyTabComponent />
+</TabsContent>
+```
+
+**Reference:** See `frontend-next/app/(app)/admin/system/page.tsx` for correct TabsContent pattern
+
 ### Step 6: Gold Standard Column Types
 
 **Validate all columns use one of the 31 valid types:**
@@ -765,12 +843,13 @@ Total: X issues to fix
 
 | Command | Scope | Time |
 |---------|-------|------|
-| `/t` | Full review (all 10 checks) | ~10-15 min |
+| `/t` | Full review (all 11 checks) | ~10-15 min |
 | `/t ssot` | SSoT violations only | ~10 sec |
 | `/t sync` | Sync Risk Patterns - catches manual lists | ~15 sec |
 | `/t comp` | Standard components only | ~10 sec |
 | `/t table` | **Table Page Pattern** - columns prop, headers, -mx-4 | ~10 sec |
 | `/t ui` | **UI Compliance** - dark mode, hex colors, a11y | ~15 sec |
+| `/t layout` | **Layout Compliance** - scroll classes, height chain, useSetLayoutMode | ~15 sec |
 | `/t gold` | Gold Standard column types | ~10 sec |
 | `/t model` | Model Auditor only | ~15 sec |
 | `/t sec` | Security only | ~10 sec |

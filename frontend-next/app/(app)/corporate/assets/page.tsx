@@ -7,8 +7,10 @@ import { Plus, Loader2 } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useCorporateTable } from "@/hooks/use-corporate-table";
 import type { TableRow } from "@/components/table/types";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 export default function AssetsPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
 
   // Use the corporate table hook for assets

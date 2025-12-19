@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { api } from "@/lib/api";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 // Define columns for Users table
 import { TableColumn, TableRow } from "@/components/table/types";
@@ -93,6 +94,7 @@ interface User {
 }
 
 export default function UsersPage() {
+  useSetLayoutMode("full-height");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

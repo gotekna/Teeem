@@ -768,31 +768,31 @@ function SystemAdminPageContent() {
           <TabsContent value="company" className="flex-1 min-h-0 overflow-auto">
             <CompanySettingsTab />
           </TabsContent>
-          <TabsContent value="warehouse">
+          <TabsContent value="warehouse" className="flex-1 min-h-0 overflow-auto">
             <WarehouseTab />
           </TabsContent>
           <TabsContent value="brand-guidelines" className="flex-1 min-h-0 overflow-auto">
             <BrandGuidelinesTab />
           </TabsContent>
-          <TabsContent value="contact-types">
+          <TabsContent value="contact-types" className="flex-1 min-h-0 overflow-auto">
             <ContactTypesTab />
           </TabsContent>
-          <TabsContent value="contact-roles">
+          <TabsContent value="contact-roles" className="flex-1 min-h-0 overflow-auto">
             <ContactRolesTab />
           </TabsContent>
-          <TabsContent value="plans">
+          <TabsContent value="plans" className="flex-1 min-h-0 overflow-auto">
             <PlansTab />
           </TabsContent>
-          <TabsContent value="schedule-master">
+          <TabsContent value="schedule-master" className="flex-1 min-h-0 overflow-auto">
             <ScheduleMasterTab />
           </TabsContent>
-          <TabsContent value="sm-gantt-v2">
+          <TabsContent value="sm-gantt-v2" className="flex-1 min-h-0 overflow-auto">
             <SMGanttTab />
           </TabsContent>
-          <TabsContent value="meeting-types">
+          <TabsContent value="meeting-types" className="flex-1 min-h-0 overflow-auto">
             <MeetingTypesTab />
           </TabsContent>
-          <TabsContent value="whs">
+          <TabsContent value="whs" className="flex-1 min-h-0 overflow-auto">
             <Card>
               <CardHeader>
                 <CardTitle>Workplace Health & Safety</CardTitle>
@@ -822,7 +822,7 @@ function SystemAdminPageContent() {
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="financial">
+          <TabsContent value="financial" className="flex-1 min-h-0 overflow-auto">
             <Card>
               <CardHeader>
                 <CardTitle>Financial Tracking & Reporting</CardTitle>
@@ -848,40 +848,40 @@ function SystemAdminPageContent() {
               </CardContent>
             </Card>
           </TabsContent>
-          <TabsContent value="pricebook">
+          <TabsContent value="pricebook" className="flex-1 min-h-0 overflow-auto">
             <PlaceholderTab title="Price Book" description="Price book configuration" />
           </TabsContent>
-          <TabsContent value="supervisor-checklist">
+          <TabsContent value="supervisor-checklist" className="flex-1 min-h-0 overflow-auto">
             <SupervisorChecklistTab />
           </TabsContent>
           <TabsContent value="components" className="flex-1 min-h-0 overflow-auto">
             <GoldStandardTab />
           </TabsContent>
-          <TabsContent value="developer-tools">
+          <TabsContent value="developer-tools" className="flex-1 min-h-0 overflow-auto">
             <DeveloperToolsTab />
           </TabsContent>
-          <TabsContent value="navigation">
+          <TabsContent value="navigation" className="flex-1 min-h-0 overflow-auto">
             <NavigationTab />
           </TabsContent>
-          <TabsContent value="job-tabs">
+          <TabsContent value="job-tabs" className="flex-1 min-h-0 overflow-auto">
             <JobTabsConfigTab />
           </TabsContent>
-          <TabsContent value="claude-shortcuts">
+          <TabsContent value="claude-shortcuts" className="flex-1 min-h-0 overflow-auto">
             <ClaudeShortcutsTab />
           </TabsContent>
-          <TabsContent value="user-manual">
+          <TabsContent value="user-manual" className="flex-1 min-h-0 overflow-auto">
             <UserManualTab />
           </TabsContent>
-          <TabsContent value="inspiring-quotes">
+          <TabsContent value="inspiring-quotes" className="flex-1 min-h-0 overflow-auto">
             <InspiringQuotesTab />
           </TabsContent>
-          <TabsContent value="performance">
+          <TabsContent value="performance" className="flex-1 min-h-0 overflow-auto">
             <PerformanceTab />
           </TabsContent>
-          <TabsContent value="scheduled-jobs">
+          <TabsContent value="scheduled-jobs" className="flex-1 min-h-0 overflow-auto">
             <ScheduledJobsTab />
           </TabsContent>
-          <TabsContent value="email-accounts">
+          <TabsContent value="email-accounts" className="flex-1 min-h-0 overflow-auto">
             <EmailAccountsTab />
           </TabsContent>
           <TabsContent value="pdf-fields" className="flex-1 min-h-0 overflow-auto">

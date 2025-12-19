@@ -21,6 +21,9 @@ import {
   ZoomIn,
   ZoomOut,
   GripVertical,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -40,6 +43,7 @@ interface PdfFieldPosition {
   active: boolean;
   box_width: number | null;
   box_height: number | null;
+  text_align: "left" | "center" | "right";
   updated_at: string;
 }
 
@@ -588,6 +592,42 @@ export function PdfFieldsTab() {
           }} disabled={!selectedFieldId}>+</Button>
         </div>
 
+        {/* Text alignment controls */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs w-8">Align</span>
+          {(["left", "center", "right"] as const).map((align) => {
+            const selectedField = positions.find(p => p.id === selectedFieldId);
+            const isActive = selectedField?.text_align === align || (!selectedField?.text_align && align === "left");
+            const Icon = align === "left" ? AlignLeft : align === "center" ? AlignCenter : AlignRight;
+            return (
+              <Button
+                key={align}
+                variant={isActive ? "default" : "outline"}
+                size="icon"
+                className="h-6 w-6"
+                onClick={async () => {
+                  if (!selectedFieldId) return;
+                  try {
+                    const response = await api.patch<{ success: boolean; data: PdfFieldPosition }>(
+                      `/api/v1/pdf_field_positions/${selectedFieldId}`,
+                      { pdf_field_position: { text_align: align } }
+                    );
+                    if (response.success && response.data) {
+                      setPositions(prev => prev.map(p => p.id === selectedFieldId ? response.data : p));
+                    }
+                  } catch (err) {
+                    console.error("Failed to save alignment:", err);
+                  }
+                }}
+                disabled={!selectedFieldId}
+                title={align.charAt(0).toUpperCase() + align.slice(1)}
+              >
+                <Icon className="h-3 w-3" />
+              </Button>
+            );
+          })}
+        </div>
+
         {/* Manual X/Y coordinate controls */}
         {selectedFieldId && (() => {
           const field = positions.find(p => p.id === selectedFieldId);
@@ -711,16 +751,16 @@ export function PdfFieldsTab() {
 
       </div>
 
-      {/* PDF Preview - takes remaining width, full height */}
+      {/* PDF Preview - takes remaining width, full height, scrollable */}
       <div
-        className="flex-1 relative bg-gray-100 dark:bg-gray-900 overflow-auto"
+        className="flex-1 bg-gray-100 dark:bg-gray-900 overflow-auto min-h-0"
       >
         {loadingPdf ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         ) : pdfUrl ? (
-          <div className="flex gap-2 p-2">
+          <div className="flex gap-2 p-2 pb-8" style={{ minHeight: 'min-content' }}>
             {/* Current Page (interactive) */}
             <div
               ref={containerRef}
@@ -876,7 +916,7 @@ export function PdfFieldsTab() {
                         setPreviewHeight(field.box_height || 0);
                       }}
                       className={cn(
-                        "bg-green-600/90 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg cursor-pointer",
+                        "bg-green-600/90 text-white px-1 py-0 rounded shadow-lg cursor-pointer",
                         draggingFieldId === field.id ? "opacity-30" : "",
                         selectedFieldId === field.id && "ring-2 ring-yellow-400"
                       )}
@@ -886,6 +926,9 @@ export function PdfFieldsTab() {
                         height: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
                         lineHeight: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
                         ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
+                        textAlign: field.text_align || "left",
+                        whiteSpace: field.box_width ? "normal" : "nowrap",
+                        overflow: "hidden",
                         pointerEvents: "auto",
                       }}
                       title={`${fieldName} | x=${field.x}, y=${field.y}`}
@@ -1016,7 +1059,7 @@ export function PdfFieldsTab() {
                     </div>
                   );
                 })()}
-                {/* Fields on next page (view only, not draggable) */}
+                {/* Fields on next page (now clickable to select and navigate) */}
                 {positions.filter(p => p.page === currentPage + 1).map((field) => {
                   const fieldName = field.display_name || field.field_key;
                   const fieldContent = field.test_value || "";
@@ -1027,30 +1070,59 @@ export function PdfFieldsTab() {
                   return (
                     <div
                       key={field.id}
-                      className="absolute z-50"
+                      className="absolute"
                       style={{
                         left: `${savedLeftPercent}%`,
                         bottom: `${savedBottomPercent}%`,
                         transform: `scale(${100 / zoom})`,
                         transformOrigin: "bottom left",
+                        zIndex: selectedFieldId === field.id ? 100 : 50,
+                        pointerEvents: "auto",
                       }}
                     >
-                      <div className="flex items-center rounded shadow-lg mb-0.5">
-                        <div className="bg-gray-500 text-white px-0.5 py-0.5 rounded-l flex items-center">
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFieldId(field.id);
+                          setCurrentPage(currentPage + 1); // Navigate to this page
+                          setPreviewWidth(field.box_width || 0);
+                          setPreviewHeight(field.box_height || 0);
+                        }}
+                        className={cn(
+                          "flex items-center rounded shadow-lg mb-0.5 cursor-pointer hover:ring-2 hover:ring-white",
+                          selectedFieldId === field.id && "ring-2 ring-yellow-400"
+                        )}
+                        style={{ pointerEvents: "auto" }}
+                      >
+                        <div className="bg-gray-600 text-white px-0.5 py-0.5 rounded-l flex items-center">
                           <GripVertical className="h-3 w-3" />
                         </div>
-                        <div className="bg-blue-400 text-white text-[10px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-medium">
+                        <div className="bg-blue-500 text-white text-[10px] px-1.5 py-0.5 rounded-r whitespace-nowrap font-medium">
                           {fieldName}
                         </div>
                       </div>
                       <div
-                        className="bg-green-400/90 text-white px-1 py-0 rounded whitespace-nowrap shadow-lg"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedFieldId(field.id);
+                          setCurrentPage(currentPage + 1); // Navigate to this page
+                          setPreviewWidth(field.box_width || 0);
+                          setPreviewHeight(field.box_height || 0);
+                        }}
+                        className={cn(
+                          "bg-green-500/90 text-white px-1 py-0 rounded shadow-lg cursor-pointer",
+                          selectedFieldId === field.id && "ring-2 ring-yellow-400"
+                        )}
                         style={{
                           fontSize: `${fontSize}px`,
                           fontFamily: 'Helvetica, Arial, sans-serif',
                           height: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
                           lineHeight: `${field.box_height && field.box_height > 0 ? field.box_height : 12}px`,
                           ...(field.box_width && field.box_width > 0 && { width: `${field.box_width}px`, minWidth: `${field.box_width}px` }),
+                          textAlign: field.text_align || "left",
+                          whiteSpace: field.box_width ? "normal" : "nowrap",
+                          overflow: "hidden",
+                          pointerEvents: "auto",
                         }}
                       >
                         {fieldContent || "(empty)"}

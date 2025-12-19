@@ -5,6 +5,7 @@ import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/out
 import TeeemTableView from "@/components/table/TeeemTableView";
 import TransactionForm from "@/components/financial/TransactionForm";
 import { api } from "@/lib/api";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import type { TableColumn, TableRow } from "@/components/table/types";
 
 // Define columns for financial transactions table
@@ -133,6 +134,7 @@ interface Summary {
 }
 
 export default function FinancialTransactionsPage() {
+  useSetLayoutMode("full-height");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTransactionForm, setShowTransactionForm] = useState(false);

@@ -82,7 +82,7 @@ class JobClaimStage < ApplicationRecord
                             "pending"
                           end
 
-    self.payment_date = external_invoice.fully_paid_on_date if payment_status == "paid"
+    self.payment_date = external_invoice.fully_paid_date if payment_status == "paid"
   end
 
   # Display helpers

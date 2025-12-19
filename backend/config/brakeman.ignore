@@ -1,6 +1,14 @@
 {
   "ignored_warnings": [
     {
+      "fingerprint": "04f33e1ad0ec023010b89f3754214cfad24d12d54bcb722546cd1a88b29a0ed9",
+      "note": "Path traversal false positive - input sanitized with gsub(/[^a-z0-9_-]/i, '') removing all path chars"
+    },
+    {
+      "fingerprint": "8f8da9ded5643ecd014725860b101a55cce542c6f5b59549e56a5fea33478b2a",
+      "note": "Path traversal false positive - input sanitized with gsub(/[^a-z0-9_-]/i, '') removing all path chars"
+    },
+    {
       "fingerprint": "244cbfa5641d385c945c5269e6048b1b1fdb665be6792807d4ac8da33e82e253",
       "note": "Case contact role - business relationship type, not privilege escalation"
     },
@@ -11,10 +19,6 @@
     {
       "fingerprint": "3767395b8ce6c84c7305413d764781b1d82018bafd22894e9ab01ce99005d596",
       "note": "File path from ImportSession model, originally sanitized on upload"
-    },
-    {
-      "fingerprint": "4a6fb5f089d19e6e63e62ac8eeb0e036e9adf4d6ba8606a6e8a8c3c8e546a27c",
-      "note": "Uses quote_column_name() and validates columns against Foundation schema"
     },
     {
       "fingerprint": "50ce553f343ab75b1771c550460053c3c2bb70902ecfce77dae8c06924b6f468",
@@ -45,6 +49,6 @@
       "note": "Job contact role - business relationship type, not privilege escalation"
     }
   ],
-  "updated": "2025-12-13",
+  "updated": "2025-12-19",
   "brakeman_version": "7.1.1"
 }

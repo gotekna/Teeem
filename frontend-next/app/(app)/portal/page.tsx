@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   Plus,
   Users,
@@ -26,6 +27,7 @@ import { api } from "@/lib/api";
 // Foundation ID for Portal Users table
 
 export default function PortalPage() {
+  useSetLayoutMode("full-height");
   const [activeTab, setActiveTab] = useState("users");
 
   // Use foundation hook for TeeemTableView

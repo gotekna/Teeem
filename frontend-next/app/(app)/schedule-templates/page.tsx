@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   Plus,
   Calendar,
@@ -33,6 +34,7 @@ import { api } from "@/lib/api";
 // Foundation ID for Schedule Templates table
 
 export default function ScheduleTemplatesPage() {
+  useSetLayoutMode("full-height");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   // Use foundation hook for TeeemTableView

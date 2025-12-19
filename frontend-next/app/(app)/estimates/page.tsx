@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import {
   Plus,
   FileText,
@@ -27,6 +28,7 @@ function formatCurrency(value: number): string {
 }
 
 export default function EstimatesPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView

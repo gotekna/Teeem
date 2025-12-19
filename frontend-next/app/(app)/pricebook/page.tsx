@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
@@ -13,6 +14,7 @@ import { PricebookDetailDrawer } from "@/components/pricebook/PricebookDetailDra
 import type { TableRow } from "@/components/table/types";
 
 export default function PriceBookPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView with server-side stats
