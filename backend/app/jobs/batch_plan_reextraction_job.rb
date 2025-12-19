@@ -30,8 +30,8 @@ class BatchPlanReextractionJob < ApplicationJob
 
     Rails.logger.info "[BatchPlanReextractionJob] Starting re-extraction for job #{@job.id}"
 
-    # Get regular plans with SharePoint files (exclude combined PDFs)
-    plans = @job.job_plans.regular_plans
+    # Get ALL plans with SharePoint files (including combined PDFs like "All Plans")
+    plans = @job.job_plans
                  .includes(:current_revision, :plan_type)
                  .joins(:current_revision)
                  .where.not(job_plan_revisions: { sharepoint_file_id: nil })
@@ -40,7 +40,11 @@ class BatchPlanReextractionJob < ApplicationJob
     @operation.start_processing!(total: plans.count)
 
     plans.each_with_index do |plan, index|
-      process_single_plan!(plan, index)
+      if plan.is_combined_pdf?
+        process_combined_pdf!(plan, index)
+      else
+        process_single_plan!(plan, index)
+      end
     rescue => e
       Rails.logger.error "[BatchPlanReextractionJob] Error processing plan #{plan.id}: #{e.message}"
       @operation.add_error!(item: plan.display_name, message: e.message)
@@ -55,6 +59,43 @@ class BatchPlanReextractionJob < ApplicationJob
   end
 
   private
+
+  # Process combined PDFs (like "All Plans") using the same template format
+  def process_combined_pdf!(plan, index)
+    @operation.update_progress!(
+      processed: index,
+      current_name: plan.display_name
+    )
+
+    revision = plan.current_revision
+    return unless revision&.sharepoint_file_id.present?
+
+    old_display_name = plan.display_name
+    old_filename = revision.file_name
+
+    # Build template values for combined PDF (use "ALL PLANS" instead of plan type name)
+    template_values = build_combined_pdf_template_values(plan)
+
+    # Use global default templates with "ALL PLANS" substituted
+    new_filename = sanitize_filename(resolve_combined_template(:short, template_values)) + ".pdf"
+    new_display_name = resolve_combined_template(:long, template_values)
+
+    Rails.logger.info "[BatchPlanReextractionJob] Combined PDF #{plan.id}: '#{old_display_name}' -> '#{new_display_name}'"
+
+    # Update plan record
+    plan.update!(display_name: new_display_name)
+
+    # Rename SharePoint file if different
+    if old_filename != new_filename
+      credential = OrganizationSharePointCredential.active_credential
+      return unless credential
+
+      client = MicrosoftGraphClient.new(credential)
+      rename_sharepoint_file!(revision, new_filename, client)
+    end
+
+    @operation.add_completed_item!(new_display_name)
+  end
 
   def process_single_plan!(plan, index)
     # Update progress for UI feedback
@@ -175,5 +216,43 @@ class BatchPlanReextractionJob < ApplicationJob
   rescue => e
     Rails.logger.error "[BatchPlanReextractionJob] Failed to rename SharePoint file: #{e.message}"
     @operation.add_error!(item: revision.file_name, message: "Failed to rename: #{e.message}")
+  end
+
+  # Build template values for combined PDFs (All Plans)
+  # Uses "00" as code and "ALL PLANS" as name
+  def build_combined_pdf_template_values(plan)
+    revision = plan.current_revision
+
+    {
+      # Job context
+      job_code: format_job_code(@job),
+      job_name: @job.name,
+      job_address: @job.name,
+      lot_number: @job.lot_number.to_s,
+      street_name: @job.street_name.to_s,
+      suburb: @job.suburb.to_s,
+      project_name: @job.name,
+      # Combined PDF uses "00" code and "ALL PLANS" name
+      code: "00",
+      name: "ALL PLANS",
+      description: "Combined PDF containing all plans",
+      category: "",
+      category_code: "",
+      # Revision context
+      rev: revision&.revision || "A",
+      date: Date.today.strftime("%Y%m%d"),
+      variant: ""
+    }
+  end
+
+  # Resolve template for combined PDFs using global defaults
+  def resolve_combined_template(type, values)
+    template = if type == :short
+      PlanType.default_short_template
+    else
+      PlanType.default_long_template
+    end
+
+    PlanType.new.send(:resolve_template, template, values)
   end
 end

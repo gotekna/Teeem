@@ -545,6 +545,7 @@ export function PdfFieldsTab() {
                     width: `${PDF_WIDTH * (zoom / 100)}px`,
                     height: `${PDF_HEIGHT * (zoom / 100)}px`,
                   }}
+                  onClick={(e) => console.log('[CONTAINER] Click on container at', e.clientX, e.clientY)}
                 >
                   {/* PDF iframe */}
                   <iframe
@@ -586,19 +587,6 @@ export function PdfFieldsTab() {
 
 
                   {/* Field markers */}
-                  {(() => {
-                    // Debug: Log all fields on this page
-                    console.group(`[PDF Fields] Page ${currentPage} - ${fieldsOnPage.length} fields`);
-                    fieldsOnPage.forEach((f) => {
-                      console.log(`  ${f.display_name || f.field_key}`, {
-                        id: f.id,
-                        value: f.test_value || "(empty)",
-                        position: `x:${f.x} y:${f.y}`,
-                      });
-                    });
-                    console.groupEnd();
-                    return null;
-                  })()}
                   {fieldsOnPage.map((field) => {
                     const isDragging = draggingFieldId === field.id;
                     const fieldName = field.display_name || field.field_key;

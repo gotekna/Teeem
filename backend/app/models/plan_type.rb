@@ -51,17 +51,17 @@ class PlanType < ApplicationRecord
     plan_categories.pluck(:name).join(", ")
   end
 
-  # Resolve short name template with given values
+  # Resolve short name template for SharePoint filenames
   # Priority: plan_type custom > global default > fallback
-  # options: code, name, variant
+  # options: code, name, variant, job_code, etc.
   def resolve_short_name(options = {})
     template = short_name_template.presence || self.class.default_short_template
     resolve_template(template, options)
   end
 
-  # Resolve long name template with given values
+  # Resolve long name template for Display names (shown in tables/lists)
   # Priority: plan_type custom > global default > fallback
-  # options: job_code, code, name, rev, date, variant
+  # options: code, name, variant, job_code, rev, date, etc.
   def resolve_long_name(options = {})
     template = long_name_template.presence || self.class.default_long_template
     resolve_template(template, options)
