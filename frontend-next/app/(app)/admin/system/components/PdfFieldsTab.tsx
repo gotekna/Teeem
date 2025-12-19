@@ -628,6 +628,41 @@ export function PdfFieldsTab() {
           })}
         </div>
 
+        {/* Page selector for moving field between pages */}
+        {selectedFieldId && (() => {
+          const field = positions.find(p => p.id === selectedFieldId);
+          if (!field) return null;
+          return (
+            <div className="flex items-center gap-1">
+              <span className="text-xs w-8">Page</span>
+              <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+                if (field.page > 1) {
+                  savePosition(field.id, { page: field.page - 1 });
+                }
+              }} disabled={field.page <= 1}>-</Button>
+              <Input
+                type="number"
+                value={field.page}
+                onChange={(e) => {
+                  const newPage = Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1));
+                  setPositions(prev => prev.map(p => p.id === field.id ? { ...p, page: newPage } : p));
+                }}
+                onBlur={(e) => {
+                  const newPage = Math.max(1, Math.min(totalPages, parseInt(e.target.value) || 1));
+                  savePosition(field.id, { page: newPage });
+                }}
+                className="h-6 w-12 text-xs text-center font-mono px-1"
+              />
+              <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => {
+                if (field.page < totalPages) {
+                  savePosition(field.id, { page: field.page + 1 });
+                }
+              }} disabled={field.page >= totalPages}>+</Button>
+              <span className="text-[10px] text-muted-foreground">/ {totalPages}</span>
+            </div>
+          );
+        })()}
+
         {/* Manual X/Y coordinate controls */}
         {selectedFieldId && (() => {
           const field = positions.find(p => p.id === selectedFieldId);

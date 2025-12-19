@@ -63,17 +63,27 @@ export function PDFViewerImpl({
 
     updateDimensions();
 
+    // Also measure after a short delay to catch late layout calculations
+    const timeoutId = setTimeout(updateDimensions, 100);
+
     const resizeObserver = new ResizeObserver(updateDimensions);
     if (contentRef.current) {
       resizeObserver.observe(contentRef.current);
     }
 
-    return () => resizeObserver.disconnect();
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+    };
   }, []);
 
   // Fetch PDF with credentials for authenticated API endpoints
   // Only re-fetch when URL changes, not when callbacks change
   React.useEffect(() => {
+    // Reset scale to null when URL changes so new PDF auto-fits
+    setScale(null);
+    setPageSize(null);
+
     const fetchPDF = async () => {
       try {
         setIsLoading(true);
@@ -121,7 +131,17 @@ export function PDFViewerImpl({
   };
 
   const onPageRenderSuccess = (page: { width: number; height: number }) => {
-    setPageSize({ width: page.width, height: page.height });
+    const newPageSize = { width: page.width, height: page.height };
+    setPageSize(newPageSize);
+
+    // Force auto-fit recalculation now that we know the PDF dimensions
+    // This handles the case where container was measured before PDF loaded
+    if (scale === null && containerWidth > 0 && containerHeight > 0) {
+      const scaleForWidth = containerWidth / newPageSize.width;
+      const scaleForHeight = containerHeight / newPageSize.height;
+      const fitScale = Math.min(scaleForWidth, scaleForHeight);
+      setScale(fitScale);
+    }
   };
 
   // Filter highlights for current page
