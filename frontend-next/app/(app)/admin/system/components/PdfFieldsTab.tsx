@@ -291,6 +291,20 @@ export function PdfFieldsTab() {
     if (!isMouseDragging && draggingFieldId) {
       console.log('[SELECT] Field selected:', draggingFieldId);
       setSelectedFieldId(draggingFieldId);
+
+      // Initialize W/H based on the field's content
+      const field = positions.find(p => p.id === draggingFieldId);
+      if (field) {
+        const text = field.test_value || field.display_name || '';
+        const fontSize = field.font_size || 10;
+        // Estimate width: ~0.6 * fontSize per character + padding
+        const estimatedWidth = Math.round(text.length * fontSize * 0.6 + 12);
+        // Estimate height: fontSize + padding
+        const estimatedHeight = Math.round(fontSize + 8);
+        setPreviewWidth(estimatedWidth);
+        setPreviewHeight(estimatedHeight);
+      }
+
       setDraggingFieldId(null);
       setMouseDownPos(null);
       return;
@@ -327,19 +341,31 @@ export function PdfFieldsTab() {
     setIsMouseDragging(false);
     setDropPreview(null);
     setMouseDownPos(null);
-  }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition]);
+  }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition, positions]);
 
   // Global mouse event listeners for drag
   React.useEffect(() => {
     if (draggingFieldId) {
+      // Prevent scrolling during drag
+      const preventScroll = (e: Event) => {
+        if (isMouseDragging) {
+          e.preventDefault();
+        }
+      };
+
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
+      document.body.style.overflow = 'hidden';
+      document.body.style.userSelect = 'none';
+
       return () => {
         window.removeEventListener('mousemove', handleMouseMove);
         window.removeEventListener('mouseup', handleMouseUp);
+        document.body.style.overflow = '';
+        document.body.style.userSelect = '';
       };
     }
-  }, [draggingFieldId, handleMouseMove, handleMouseUp]);
+  }, [draggingFieldId, isMouseDragging, handleMouseMove, handleMouseUp]);
 
   // Get fields for current page
   const fieldsOnPage = positions.filter((p) => p.page === currentPage);

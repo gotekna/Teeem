@@ -1482,6 +1482,11 @@ module Api
           # ============================================
           # STAGE 2: PDF Download (Xero -> Active Storage)
           # ============================================
+          # SSoT: Exclude DRAFT invoices from PDF count - Xero doesn't generate PDFs until finalized
+          # Draft invoices have no invoice number and can never have PDFs
+          pdf_eligible_invoices = invoices_with_contacts.where.not(status: "draft")
+          total_pdf_eligible = pdf_eligible_invoices.count
+
           # Count invoices that have PDFs downloaded (filter by tenant if provided)
           pdf_query = CorporateCompanyDocument.where(source: "xero")
                                               .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
@@ -1494,8 +1499,8 @@ module Api
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
 
-          pdfs_pending = total_with_contacts - invoices_with_pdfs
-          pdf_progress = total_with_contacts.zero? ? 0 : ((invoices_with_pdfs.to_f / total_with_contacts) * 100).round(1)
+          pdfs_pending = [total_pdf_eligible - invoices_with_pdfs, 0].max  # Ensure non-negative
+          pdf_progress = total_pdf_eligible.zero? ? 100 : [((invoices_with_pdfs.to_f / total_pdf_eligible) * 100).round(1), 100].min  # Cap at 100%
 
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           pdf_sync_status_query = XeroSyncStatus.where(sync_type: "pdfs")
@@ -1754,8 +1759,9 @@ module Api
               },
 
               # Stage 2: PDF Download (Xero -> Active Storage)
+              # SSoT: Excludes DRAFT invoices since Xero doesn't generate PDFs for drafts
               stage2_pdf_download: {
-                total_to_sync: total_with_contacts,
+                total_to_sync: total_pdf_eligible,
                 downloaded: invoices_with_pdfs,
                 pending: pdfs_pending,
                 progress_percentage: pdf_progress,
