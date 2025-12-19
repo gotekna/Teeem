@@ -451,6 +451,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Bank Statement Templates (SSoT for PDF statement generation branding)
+      # Admin UI: Admin > System > Company > Doc Templates > Bank Statements
+      resources :bank_statement_templates, only: [ :index, :show, :create, :update, :destroy ] do
+        member do
+          post :test_pdf  # Generate sample PDF with this template
+        end
+      end
+
       # Specification Templates (for job specifications)
       resources :specification_templates, only: [ :index, :show, :create, :update, :destroy ] do
         collection do

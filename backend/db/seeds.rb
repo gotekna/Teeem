@@ -486,3 +486,11 @@ puts "Seeding Meeting Types..."
 load Rails.root.join('db', 'seeds', 'meeting_types.rb')
 
 puts "Meeting Types seed complete!"
+
+# Bank Statement Templates Seed Data
+puts "\n" + "="*50
+puts "Seeding Bank Statement Templates..."
+
+load Rails.root.join('db', 'seeds', 'bank_statement_templates.rb')
+
+puts "Bank Statement Templates seed complete!"

@@ -1072,7 +1072,7 @@ module Api
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
           render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
         rescue StandardError => e
           Rails.logger.error "Failed to download file: #{e.message}"
           render json: { error: "Failed to download file: #{e.message}" }, status: :internal_server_error
