@@ -15,7 +15,16 @@ import {
   Check,
   X,
   CheckCircle,
+  MoreHorizontal,
+  Sparkles,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 // Base document interface - consumers extend this
@@ -39,6 +48,7 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
   // Actions
   onRename?: (doc: T, newName: string) => Promise<void>;
   onApprove?: (doc: T) => Promise<void>;
+  onReprocess?: (doc: T) => Promise<void>;
   onRefresh?: () => void;
 
   // Selection & Bulk Actions
@@ -65,6 +75,7 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
     rename?: string;
     approve?: string;
     openExternal?: string;
+    reprocess?: string;
   };
 
   // Styling
@@ -82,6 +93,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   getRevision,
   onRename,
   onApprove,
+  onReprocess,
   onRefresh,
   enableSelection = false,
   bulkActions,
@@ -102,6 +114,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
     rename: actionLabelsInput?.rename ?? "Rename",
     approve: actionLabelsInput?.approve ?? "Approve",
     openExternal: actionLabelsInput?.openExternal ?? "Open",
+    reprocess: actionLabelsInput?.reprocess ?? "Re-extract from PDF",
   };
 
   // Selection state
@@ -115,6 +128,9 @@ export function TeeemDocumentView<T extends DocumentItem>({
 
   // Approve state
   const [approveLoading, setApproveLoading] = useState(false);
+
+  // Reprocess state
+  const [reprocessLoading, setReprocessLoading] = useState(false);
 
   // Selection handlers
   const toggleSelection = (id: number) => {
@@ -170,6 +186,18 @@ export function TeeemDocumentView<T extends DocumentItem>({
       await onApprove(selectedDocument);
     } finally {
       setApproveLoading(false);
+    }
+  };
+
+  // Reprocess handler
+  const handleReprocess = async () => {
+    if (!selectedDocument || !onReprocess) return;
+
+    setReprocessLoading(true);
+    try {
+      await onReprocess(selectedDocument);
+    } finally {
+      setReprocessLoading(false);
     }
   };
 
@@ -363,15 +391,9 @@ export function TeeemDocumentView<T extends DocumentItem>({
               )}
             </div>
 
-            {/* Right: Action buttons */}
+            {/* Right: Action buttons + dropdown */}
             {!isRenaming && (
               <div className="flex items-center gap-2 shrink-0">
-                {onRename && (
-                  <Button size="sm" variant="outline" onClick={startRename}>
-                    <Pencil className="h-4 w-4 mr-1" />
-                    {actionLabels.rename}
-                  </Button>
-                )}
                 {onApprove && status === "draft" && (
                   <Button
                     size="sm"
@@ -387,16 +409,45 @@ export function TeeemDocumentView<T extends DocumentItem>({
                     {actionLabels.approve}
                   </Button>
                 )}
-                {externalUrl && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => window.open(externalUrl, "_blank")}
-                  >
-                    <ExternalLink className="h-4 w-4 mr-1" />
-                    {actionLabels.openExternal}
-                  </Button>
-                )}
+
+                {/* Three-dot dropdown menu */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {onRename && (
+                      <DropdownMenuItem onClick={startRename}>
+                        <Pencil className="h-4 w-4 mr-2" />
+                        {actionLabels.rename}
+                      </DropdownMenuItem>
+                    )}
+                    {onReprocess && (
+                      <DropdownMenuItem
+                        onClick={handleReprocess}
+                        disabled={reprocessLoading}
+                      >
+                        {reprocessLoading ? (
+                          <Spinner className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Sparkles className="h-4 w-4 mr-2" />
+                        )}
+                        {actionLabels.reprocess}
+                      </DropdownMenuItem>
+                    )}
+                    {externalUrl && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => window.open(externalUrl, "_blank")}>
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          {actionLabels.openExternal}
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             )}
           </div>

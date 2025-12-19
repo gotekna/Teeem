@@ -16,6 +16,21 @@ Rails.application.routes.draw do
       # Feature Trackers
       resources :feature_trackers, only: [ :index, :create, :update, :destroy ]
 
+      # AI Processing Pipeline (Admin: configure OCR/AI settings per service)
+      # Dashboard: /admin/system/ai-processing
+      resources :ai_processing, only: [] do
+        collection do
+          get :configs           # GET /api/v1/ai_processing/configs - list all service configs
+          get :logs              # GET /api/v1/ai_processing/logs - paginated processing logs
+          get :stats             # GET /api/v1/ai_processing/stats - accuracy per service
+          get :learning_summary  # GET /api/v1/ai_processing/learning_summary - overall insights
+        end
+      end
+      patch "ai_processing/configs/:id", to: "ai_processing#update_config"
+      get "ai_processing/logs/:id", to: "ai_processing#show_log"
+      post "ai_processing/logs/:id/record_correction", to: "ai_processing#record_correction"
+      get "ai_processing/insights/:service_type", to: "ai_processing#insights"
+
       # PDF Field Positions (Admin: manage text overlay positions on PDF templates)
       resources :pdf_field_positions, only: [:index, :show, :create, :update, :destroy] do
         collection do
@@ -303,6 +318,7 @@ Rails.application.routes.draw do
           member do
             post :add_revision    # POST /api/v1/jobs/:job_id/job_plans/:id/add_revision
             put :set_on_issue     # PUT /api/v1/jobs/:job_id/job_plans/:id/set_on_issue
+            post :reprocess       # POST /api/v1/jobs/:job_id/job_plans/:id/reprocess - Re-run AI/OCR
           end
           resources :revisions, controller: "job_plan_revisions", only: [ :index, :show, :create, :update, :destroy ]
         end

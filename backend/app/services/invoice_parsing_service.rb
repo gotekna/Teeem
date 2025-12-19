@@ -56,19 +56,15 @@ class InvoiceParsingService
 
   private
 
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def extract_pdf_text
     # Download from SharePoint (SSoT)
     content = @bill.download_invoice_file
     return "" unless content
 
     if @bill.invoice_file_content_type == "application/pdf"
-      # Write to temp file for PDF::Reader
-      Tempfile.create([ "invoice", ".pdf" ], binmode: true) do |temp_file|
-        temp_file.write(content)
-        temp_file.rewind
-        reader = PDF::Reader.new(temp_file.path)
-        reader.pages.map(&:text).join("\n")
-      end
+      result = PdfTextExtractionService.extract(content, join_pages: true)
+      result[:success] ? result[:text] : ""
     else
       # For images, we'll rely on Claude's vision capability
       ""

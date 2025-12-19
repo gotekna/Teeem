@@ -2,7 +2,7 @@ module Api
   module V1
     class JobPlansController < ApplicationController
       before_action :set_job
-      before_action :set_job_plan, only: [:show, :update, :destroy, :add_revision, :set_on_issue]
+      before_action :set_job_plan, only: [:show, :update, :destroy, :add_revision, :set_on_issue, :reprocess]
 
       # GET /api/v1/jobs/:job_id/job_plans
       def index
@@ -307,6 +307,28 @@ module Api
             queued_count: queued_plans.length,
             plans_queued: queued_plans,
             message: "#{queued_plans.length} plans queued for AI analysis"
+          }
+        }
+      end
+
+      # POST /api/v1/jobs/:job_id/job_plans/:id/reprocess
+      # Reprocess a single plan with the AI Processing Pipeline (OCR + AI)
+      def reprocess
+        unless @job_plan.current_revision&.sharepoint_file_id.present?
+          return render json: {
+            success: false,
+            error: "Plan has no file attached to reprocess"
+          }, status: :unprocessable_entity
+        end
+
+        # Queue AI analysis job for this specific plan
+        PlanAiAnalysisJob.perform_later(@job_plan.id)
+
+        render json: {
+          success: true,
+          data: {
+            message: "Plan queued for AI reprocessing",
+            plan_name: @job_plan.display_name
           }
         }
       end

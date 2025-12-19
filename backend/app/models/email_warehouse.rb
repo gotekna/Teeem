@@ -405,6 +405,7 @@ class EmailWarehouse < ApplicationRecord
   end
 
   # Extract text from all attached PDF files
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def extract_pdf_text
     return nil unless files.attached?
 
@@ -414,15 +415,14 @@ class EmailWarehouse < ApplicationRecord
       next unless file.content_type == "application/pdf"
 
       begin
-        file.open do |temp_file|
-          reader = PDF::Reader.new(temp_file.path)
-          text = reader.pages.map(&:text).join("\n")
-          pdf_texts << {
-            filename: file.filename.to_s,
-            text: text,
-            pages: reader.page_count
-          }
-        end
+        result = PdfTextExtractionService.extract(file.blob, join_pages: true)
+        next unless result[:success]
+
+        pdf_texts << {
+          filename: file.filename.to_s,
+          text: result[:text],
+          pages: result[:page_count]
+        }
       rescue StandardError => e
         Rails.logger.error "Failed to extract PDF text from #{file.filename}: #{e.message}"
       end

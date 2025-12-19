@@ -185,37 +185,18 @@ class DocumentVerificationService
     end
   end
 
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def extract_pdf_text(content)
-    Tempfile.create([ "doc", ".pdf" ]) do |file|
-      file.binmode
-      file.write(content)
-      file.rewind
+    result = PdfTextExtractionService.extract(
+      content,
+      max_chars_per_page: 1500,
+      include_page_numbers: true
+    )
 
-      begin
-        reader = PDF::Reader.new(file.path)
-        # Extract text page-by-page with page numbers
-        pages_text = []
-        reader.pages.each_with_index do |page, index|
-          page_text = page.text.to_s.strip
-          if page_text.present?
-            pages_text << {
-              page: index + 1,
-              text: page_text[0..1500] # Limit each page to 1500 chars
-            }
-          end
-        end
+    return nil unless result[:success]
 
-        # Return structured page data
-        return { pages: pages_text, total_pages: reader.page_count } if pages_text.any?
-        nil
-      rescue PDF::Reader::MalformedPDFError => e
-        Rails.logger.warn("Malformed PDF: #{e.message}")
-        nil
-      rescue StandardError => e
-        Rails.logger.warn("PDF extraction error: #{e.message}")
-        nil
-      end
-    end
+    # Return in format expected by build_prompt
+    { pages: result[:pages], total_pages: result[:page_count] }
   end
 
   MAX_RETRIES = 3

@@ -94,26 +94,24 @@ class AsicConnectService
     end
   end
 
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def parse_pdf_extract(file_path)
-    require "pdf-reader"
+    result = PdfTextExtractionService.extract(file_path, join_pages: true)
 
-    begin
-      reader = PDF::Reader.new(file_path)
-      text = reader.pages.map(&:text).join("\n")
-
-      directors = extract_directors_from_text(text)
-
-      {
-        success: true,
-        directors: directors,
-        source: "pdf_extract"
-      }
-    rescue StandardError => e
-      {
+    unless result[:success]
+      return {
         success: false,
-        error: "Failed to parse PDF: #{e.message}"
+        error: result[:error] || "Failed to parse PDF"
       }
     end
+
+    directors = extract_directors_from_text(result[:text])
+
+    {
+      success: true,
+      directors: directors,
+      source: "pdf_extract"
+    }
   end
 
   def parse_excel_extract(file_path)

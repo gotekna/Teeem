@@ -244,22 +244,16 @@ class DocumentDuplicateService
     end
   end
 
+  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
   def self.extract_pdf_preview(content)
-    Tempfile.create([ "doc", ".pdf" ]) do |file|
-      file.binmode
-      file.write(content)
-      file.rewind
+    result = PdfTextExtractionService.extract(
+      content,
+      max_pages: 1,
+      max_chars_per_page: 500,
+      join_pages: true
+    )
 
-      begin
-        reader = PDF::Reader.new(file.path)
-        # Get first page text
-        first_page = reader.pages.first
-        first_page&.text.to_s[0..500]
-      rescue StandardError => e
-        Rails.logger.warn("PDF extraction failed: #{e.message}")
-        nil
-      end
-    end
+    result[:success] ? result[:text] : nil
   end
 
   def self.analyze_with_ai(doc_contents)

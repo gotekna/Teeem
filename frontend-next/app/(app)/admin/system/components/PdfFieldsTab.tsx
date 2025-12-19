@@ -14,14 +14,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  FileText,
   Loader2,
-  Save,
-  Eye,
   RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
   GripVertical,
-  Check,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -49,38 +48,59 @@ interface Job {
 }
 
 const TEMPLATE_OPTIONS = [
-  { value: "qbcc_contract", label: "QBCC Contract" },
-  { value: "qbcc_consumer_guide", label: "QBCC Consumer Guide" },
-  { value: "qbcc_general_conditions", label: "QBCC General Conditions" },
+  { value: "qbcc_contract", label: "QBCC Contract", pages: 5 },
+  { value: "qbcc_consumer_guide", label: "QBCC Consumer Guide", pages: 2 },
+  { value: "qbcc_general_conditions", label: "QBCC General Conditions", pages: 16 },
 ];
+
+// PDF dimensions in points (A4)
+const PDF_WIDTH = 595;
+const PDF_HEIGHT = 842;
 
 export function PdfFieldsTab() {
   const { toast } = useToast();
   const [positions, setPositions] = React.useState<PdfFieldPosition[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [generating, setGenerating] = React.useState(false);
   const [selectedTemplate, setSelectedTemplate] = React.useState("qbcc_contract");
   const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
   const [jobs, setJobs] = React.useState<Job[]>([]);
-  const [editingId, setEditingId] = React.useState<number | null>(null);
-  const [editValues, setEditValues] = React.useState<Partial<PdfFieldPosition>>({});
-  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [currentPage, setCurrentPage] = React.useState(2);
+  const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = React.useState(false);
+  const [zoom, setZoom] = React.useState(100);
+  const [debugLogs, setDebugLogs] = React.useState<string[]>([]);
+  const [pdfError, setPdfError] = React.useState<string | null>(null);
+  const [draggingFieldId, setDraggingFieldId] = React.useState<number | null>(null);
+  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+  const [dropPreview, setDropPreview] = React.useState<{ x: number; y: number } | null>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  // Debug logger
+  const addDebugLog = React.useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = `[${timestamp}] ${message}`;
+    console.log(`[PdfFieldsTab] ${message}`);
+    setDebugLogs((prev) => [...prev.slice(-19), logEntry]);
+  }, []);
 
   // Load positions
   const loadPositions = React.useCallback(async () => {
     try {
       setLoading(true);
+      addDebugLog(`Fetching positions for template: ${selectedTemplate}`);
       const response = await api.get<{
         success: boolean;
         data: { positions: PdfFieldPosition[]; templates: string[] };
       }>(`/api/v1/pdf_field_positions?template=${selectedTemplate}`);
 
       if (response.success && response.data) {
+        addDebugLog(`Loaded ${response.data.positions.length} positions`);
         setPositions(response.data.positions);
       }
     } catch (err) {
-      console.error("Failed to load positions:", err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      addDebugLog(`POSITIONS ERROR: ${errorMsg}`);
       toast({
         title: "Error",
         description: "Failed to load field positions",
@@ -89,25 +109,71 @@ export function PdfFieldsTab() {
     } finally {
       setLoading(false);
     }
-  }, [selectedTemplate, toast]);
+  }, [selectedTemplate, toast, addDebugLog]);
 
-  // Load jobs for picker
+  // Load jobs
   const loadJobs = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: Job[] }>(
-        "/api/v1/jobs?fields=id,name&limit=100"
-      );
-      if (response.success && response.data) {
-        setJobs(response.data);
-        // Auto-select first job
-        if (response.data.length > 0 && !selectedJob) {
-          setSelectedJob(response.data[0]);
+      const response = await api.get<{ jobs: Job[] }>("/api/v1/jobs?per_page=100");
+      if (response.jobs) {
+        setJobs(response.jobs);
+        if (response.jobs.length > 0) {
+          const wategos = response.jobs.find((j) =>
+            j.name?.toLowerCase().includes("wategos")
+          );
+          setSelectedJob(wategos || response.jobs[0]);
         }
       }
     } catch (err) {
       console.error("Failed to load jobs:", err);
     }
-  }, [selectedJob]);
+  }, []);
+
+  // Load PDF preview
+  const loadPdfPreview = React.useCallback(async () => {
+    if (!selectedJob) return;
+
+    try {
+      setLoadingPdf(true);
+      setPdfError(null);
+
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+      const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
+      addDebugLog(`Loading preview: ${selectedTemplate}, job=${selectedJob.id}`);
+
+      const response = await fetch(
+        `${backendUrl}/api/v1/pdf_field_positions/preview?template=${selectedTemplate}&job_id=${selectedJob.id}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        }
+      );
+
+      if (response.ok) {
+        const blob = await response.blob();
+        setPdfUrl(URL.createObjectURL(blob));
+        addDebugLog(`PDF loaded: ${blob.size} bytes`);
+      } else {
+        const errorText = await response.text();
+        addDebugLog(`PDF ERROR: ${response.status} - ${errorText}`);
+        setPdfError(`${response.status}: ${errorText}`);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      addDebugLog(`FETCH ERROR: ${errorMsg}`);
+      setPdfError(errorMsg);
+    } finally {
+      setLoadingPdf(false);
+    }
+  }, [selectedTemplate, selectedJob, addDebugLog]);
+
+  React.useEffect(() => {
+    addDebugLog("Component mounted");
+  }, [addDebugLog]);
 
   React.useEffect(() => {
     loadPositions();
@@ -117,45 +183,33 @@ export function PdfFieldsTab() {
     loadJobs();
   }, [loadJobs]);
 
-  // Start editing a position
-  const startEditing = (position: PdfFieldPosition) => {
-    setEditingId(position.id);
-    setEditValues({
-      x: position.x,
-      y: position.y,
-      font_size: position.font_size,
-      page: position.page,
-    });
-  };
-
-  // Cancel editing
-  const cancelEditing = () => {
-    setEditingId(null);
-    setEditValues({});
-  };
+  React.useEffect(() => {
+    if (selectedJob) {
+      loadPdfPreview();
+    }
+  }, [selectedJob, loadPdfPreview]);
 
   // Save position
-  const savePosition = async (id: number) => {
+  const savePosition = async (id: number, updates: Partial<PdfFieldPosition>) => {
+    addDebugLog(`Saving: id=${id}, x=${updates.x}, y=${updates.y}`);
     try {
       setSaving(true);
       const response = await api.patch<{ success: boolean; data: PdfFieldPosition }>(
         `/api/v1/pdf_field_positions/${id}`,
-        { pdf_field_position: editValues }
+        { pdf_field_position: updates }
       );
 
       if (response.success && response.data) {
         setPositions((prev) =>
           prev.map((p) => (p.id === id ? response.data : p))
         );
-        setEditingId(null);
-        setEditValues({});
-        toast({
-          title: "Saved",
-          description: "Position updated successfully",
-        });
+        toast({ title: "Saved", description: "Position updated" });
+        addDebugLog("Position saved, reloading PDF...");
+        loadPdfPreview();
       }
     } catch (err) {
-      console.error("Failed to save position:", err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      addDebugLog(`SAVE ERROR: ${errorMsg}`);
       toast({
         title: "Error",
         description: "Failed to save position",
@@ -166,41 +220,83 @@ export function PdfFieldsTab() {
     }
   };
 
-  // Generate preview PDF
-  const generatePreview = async () => {
-    try {
-      setGenerating(true);
-      // Use blob response for PDF
-      const response = await fetch(
-        `/api/v1/pdf_field_positions/preview?template=${selectedTemplate}&job_id=${selectedJob?.id || ""}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+  // Drag handlers
+  const handleDragStart = (e: React.DragEvent, fieldId: number) => {
+    addDebugLog(`Drag start: field ${fieldId}`);
+    setDraggingFieldId(fieldId);
 
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setPreviewUrl(url);
-        // Open in new tab
-        window.open(url, "_blank");
-      } else {
-        throw new Error("Failed to generate preview");
-      }
-    } catch (err) {
-      console.error("Failed to generate preview:", err);
-      toast({
-        title: "Error",
-        description: "Failed to generate preview PDF",
-        variant: "destructive",
-      });
-    } finally {
-      setGenerating(false);
+    // Calculate offset from mouse to field center
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    setDragOffset({
+      x: e.clientX - rect.left - rect.width / 2,
+      y: e.clientY - rect.top - rect.height / 2,
+    });
+
+    // Set drag image
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(fieldId));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+
+    // Update drop preview position
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const scale = zoom / 100;
+      const previewX = (e.clientX - rect.left) / scale;
+      const previewY = (e.clientY - rect.top) / scale;
+      setDropPreview({ x: previewX, y: previewY });
     }
   };
+
+  const handleDragLeave = () => {
+    setDropPreview(null);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropPreview(null);
+
+    if (!draggingFieldId || !containerRef.current) {
+      addDebugLog("Drop ignored: no field or container");
+      return;
+    }
+
+    const rect = containerRef.current.getBoundingClientRect();
+    const scale = zoom / 100;
+
+    // Calculate drop position relative to PDF container
+    const dropX = (e.clientX - rect.left) / scale;
+    const dropY = (e.clientY - rect.top) / scale;
+
+    // Convert to PDF coordinates (y is inverted)
+    const pdfX = Math.round(Math.max(0, Math.min(PDF_WIDTH, dropX)));
+    const pdfY = Math.round(Math.max(0, Math.min(PDF_HEIGHT, PDF_HEIGHT - dropY)));
+
+    addDebugLog(`Drop: screen(${dropX.toFixed(0)}, ${dropY.toFixed(0)}) → pdf(${pdfX}, ${pdfY})`);
+
+    savePosition(draggingFieldId, { x: pdfX, y: pdfY });
+    setDraggingFieldId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingFieldId(null);
+    setDropPreview(null);
+  };
+
+  // Get fields for current page
+  const fieldsOnPage = positions.filter((p) => p.page === currentPage);
+
+  // Convert PDF coords to screen position
+  const pdfToScreen = (x: number, y: number) => ({
+    left: `${(x / PDF_WIDTH) * 100}%`,
+    bottom: `${(y / PDF_HEIGHT) * 100}%`,
+  });
+
+  const templateConfig = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
+  const totalPages = templateConfig?.pages || 5;
 
   if (loading) {
     return (
@@ -211,37 +307,30 @@ export function PdfFieldsTab() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with controls */}
+    <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold">PDF Field Positions</h2>
+          <h2 className="text-xl font-semibold">PDF Field Position Editor</h2>
           <p className="text-sm text-muted-foreground">
-            Configure text overlay positions for PDF templates (SSoT)
+            Drag fields using the grip handle to reposition them on the PDF
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadPositions}
-            disabled={loading}
-          >
-            <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
-            Refresh
-          </Button>
-        </div>
+        <Button variant="outline" size="sm" onClick={loadPositions} disabled={loading}>
+          <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Template and Job selectors */}
+      {/* Controls */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Template</Label>
+        <CardContent className="pt-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Template</Label>
               <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select template" />
+                <SelectTrigger className="h-9">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {TEMPLATE_OPTIONS.map((opt) => (
@@ -252,223 +341,297 @@ export function PdfFieldsTab() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Preview Job (for real data)</Label>
+            <div className="space-y-1">
+              <Label className="text-xs">Job (for preview data)</Label>
               <ComboboxDropdown
                 selectedItem={selectedJob ? { id: String(selectedJob.id), label: selectedJob.name || `Job ${selectedJob.id}` } : undefined}
                 onSelect={(item) => {
                   if (item) {
                     const job = jobs.find((j) => String(j.id) === item.id);
                     setSelectedJob(job || null);
-                  } else {
-                    setSelectedJob(null);
                   }
                 }}
                 items={jobs.map((j) => ({
                   id: String(j.id),
                   label: j.name || `Job ${j.id}`,
                 }))}
-                placeholder="Select a job..."
-                searchPlaceholder="Search jobs..."
-                emptyResults="No jobs found"
+                placeholder="Select job..."
+                searchPlaceholder="Search..."
+                emptyResults="No jobs"
               />
             </div>
-          </div>
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={generatePreview}
-              disabled={generating || !selectedJob}
-            >
-              {generating ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Eye className="h-4 w-4 mr-2" />
-              )}
-              Generate Preview
-            </Button>
+            <div className="space-y-1">
+              <Label className="text-xs">Page</Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-sm font-medium w-16 text-center">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Field positions table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Field Positions
-            <Badge variant="secondary" className="ml-2">
-              {positions.length} fields
-            </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {positions.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No field positions configured for this template
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {/* Header */}
-              <div className="grid grid-cols-12 gap-2 px-3 py-2 bg-muted rounded-md text-sm font-medium">
-                <div className="col-span-3">Field</div>
-                <div className="col-span-1 text-center">Page</div>
-                <div className="col-span-2 text-center">X</div>
-                <div className="col-span-2 text-center">Y</div>
-                <div className="col-span-1 text-center">Size</div>
-                <div className="col-span-3 text-right">Actions</div>
-              </div>
-
-              {/* Rows */}
-              {positions.map((pos) => (
+      {/* Main Editor */}
+      <div className="grid grid-cols-4 gap-4">
+        {/* Field List */}
+        <Card className="col-span-1">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm">Fields on Page {currentPage}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {fieldsOnPage.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No fields on this page</p>
+            ) : (
+              fieldsOnPage.map((field) => (
                 <div
-                  key={pos.id}
-                  className={cn(
-                    "grid grid-cols-12 gap-2 px-3 py-2 rounded-md border items-center",
-                    editingId === pos.id && "bg-primary/5 border-primary"
-                  )}
+                  key={field.id}
+                  className="p-2 rounded border bg-card hover:bg-muted transition-colors"
                 >
-                  <div className="col-span-3 flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium text-sm">
-                        {pos.display_name || pos.field_key}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {pos.field_key}
-                      </div>
-                    </div>
+                    <span className="text-sm font-medium truncate flex-1">
+                      {field.display_name || field.field_key}
+                    </span>
                   </div>
-
-                  <div className="col-span-1 text-center">
-                    {editingId === pos.id ? (
-                      <Input
-                        type="number"
-                        value={editValues.page || ""}
-                        onChange={(e) =>
-                          setEditValues({ ...editValues, page: parseInt(e.target.value) })
-                        }
-                        className="h-8 text-center"
-                      />
-                    ) : (
-                      <Badge variant="outline">{pos.page}</Badge>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 text-center">
-                    {editingId === pos.id ? (
-                      <Input
-                        type="number"
-                        value={editValues.x || ""}
-                        onChange={(e) =>
-                          setEditValues({ ...editValues, x: parseFloat(e.target.value) })
-                        }
-                        className="h-8 text-center"
-                        step="0.1"
-                      />
-                    ) : (
-                      <code className="text-sm">{pos.x}</code>
-                    )}
-                  </div>
-
-                  <div className="col-span-2 text-center">
-                    {editingId === pos.id ? (
-                      <Input
-                        type="number"
-                        value={editValues.y || ""}
-                        onChange={(e) =>
-                          setEditValues({ ...editValues, y: parseFloat(e.target.value) })
-                        }
-                        className="h-8 text-center"
-                        step="0.1"
-                      />
-                    ) : (
-                      <code className="text-sm">{pos.y}</code>
-                    )}
-                  </div>
-
-                  <div className="col-span-1 text-center">
-                    {editingId === pos.id ? (
-                      <Input
-                        type="number"
-                        value={editValues.font_size || ""}
-                        onChange={(e) =>
-                          setEditValues({
-                            ...editValues,
-                            font_size: parseInt(e.target.value),
-                          })
-                        }
-                        className="h-8 text-center"
-                      />
-                    ) : (
-                      <code className="text-sm">{pos.font_size}</code>
-                    )}
-                  </div>
-
-                  <div className="col-span-3 flex justify-end gap-1">
-                    {editingId === pos.id ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={cancelEditing}
-                          disabled={saving}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => savePosition(pos.id)}
-                          disabled={saving}
-                        >
-                          {saving ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => startEditing(pos)}
-                      >
-                        Edit
-                      </Button>
-                    )}
+                  <div className="text-xs text-muted-foreground mt-1 ml-6">
+                    x: {field.x}, y: {field.y}
                   </div>
                 </div>
-              ))}
+              ))
+            )}
+
+            {positions.filter((p) => p.page !== currentPage).length > 0 && (
+              <>
+                <div className="border-t my-3" />
+                <p className="text-xs text-muted-foreground font-medium">Other Pages</p>
+                {positions
+                  .filter((p) => p.page !== currentPage)
+                  .map((field) => (
+                    <div
+                      key={field.id}
+                      className="p-2 rounded border opacity-50 cursor-pointer hover:opacity-100"
+                      onClick={() => setCurrentPage(field.page)}
+                    >
+                      <div className="text-xs">
+                        <span className="font-medium">{field.display_name}</span>
+                        <Badge variant="outline" className="ml-2 text-[10px]">
+                          Page {field.page}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* PDF Preview */}
+        <Card className="col-span-3">
+          <CardHeader className="py-3 flex flex-row items-center justify-between">
+            <CardTitle className="text-sm">
+              PDF Preview
+              {saving && <Badge variant="secondary" className="ml-2">Saving...</Badge>}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setZoom((z) => Math.max(50, z - 25))}
+              >
+                <ZoomOut className="h-3 w-3" />
+              </Button>
+              <span className="text-xs w-12 text-center">{zoom}%</span>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setZoom((z) => Math.min(200, z + 25))}
+              >
+                <ZoomIn className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadPdfPreview}
+                disabled={loadingPdf}
+              >
+                {loadingPdf ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                <span className="ml-1">Reload</span>
+              </Button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <div
+              className="relative bg-gray-100 dark:bg-gray-900 rounded overflow-auto"
+              style={{ height: "600px" }}
+            >
+              {loadingPdf ? (
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : pdfUrl ? (
+                <div
+                  ref={containerRef}
+                  className="relative inline-block"
+                  style={{
+                    width: `${PDF_WIDTH * (zoom / 100)}px`,
+                    height: `${PDF_HEIGHT * (zoom / 100)}px`,
+                  }}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  {/* PDF iframe */}
+                  <iframe
+                    src={`${pdfUrl}#page=${currentPage}`}
+                    className="absolute inset-0 w-full h-full pointer-events-none"
+                    style={{ border: "none" }}
+                  />
+
+                  {/* Drop preview indicator */}
+                  {dropPreview && draggingFieldId && (() => {
+                    const draggingField = positions.find(p => p.id === draggingFieldId);
+                    if (!draggingField) return null;
+
+                    // Get test value or display name for preview
+                    const previewText = draggingField.test_value || draggingField.display_name || draggingField.field_key;
+                    const fontSize = draggingField.font_size || 10;
+
+                    return (
+                      <div
+                        className="absolute pointer-events-none z-50"
+                        style={{
+                          left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
+                          top: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                          transform: `scale(${100 / zoom})`,
+                          transformOrigin: "top left",
+                        }}
+                      >
+                        {/* Preview text at actual PDF font size */}
+                        <div
+                          className="bg-green-500/80 text-white px-1 rounded whitespace-nowrap border-2 border-green-600"
+                          style={{
+                            fontSize: `${fontSize}px`,
+                            fontFamily: 'Helvetica, Arial, sans-serif',
+                          }}
+                        >
+                          {previewText}
+                        </div>
+                        {/* Coordinates label */}
+                        <div className="mt-1 bg-black/80 text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap font-mono">
+                          x: {Math.round(dropPreview.x)}, y: {Math.round(PDF_HEIGHT - dropPreview.y)}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Draggable field markers */}
+                  {fieldsOnPage.map((field) => {
+                    const pos = pdfToScreen(field.x, field.y);
+                    const isDragging = draggingFieldId === field.id;
+                    return (
+                      <div
+                        key={field.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, field.id)}
+                        onDragEnd={handleDragEnd}
+                        className={cn(
+                          "absolute flex items-center gap-1 px-1 py-0.5 rounded text-xs font-mono whitespace-nowrap cursor-grab active:cursor-grabbing",
+                          isDragging
+                            ? "opacity-50 bg-primary text-primary-foreground"
+                            : "bg-yellow-400 text-black hover:bg-yellow-300 shadow-md"
+                        )}
+                        style={{
+                          left: pos.left,
+                          bottom: pos.bottom,
+                          transform: `translateX(-50%) translateY(50%) scale(${100 / zoom})`,
+                          transformOrigin: "bottom center",
+                        }}
+                      >
+                        <GripVertical className="h-3 w-3 shrink-0 opacity-60" />
+                        <span>{field.display_name || field.field_key}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  Select a job to load PDF preview
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Instructions */}
       <Card>
-        <CardHeader>
-          <CardTitle>How to Use</CardTitle>
+        <CardContent className="py-3">
+          <div className="flex items-center gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">1</Badge>
+              <span>Find the field marker on the PDF</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">2</Badge>
+              <span>Drag it using the grip handle</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">3</Badge>
+              <span>Drop where you want it - saves automatically</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Debug Panel */}
+      <Card>
+        <CardHeader className="py-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm text-orange-500">Debug Console</CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => setDebugLogs([])}>
+            Clear
+          </Button>
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>
-            1. Select the PDF template you want to configure
-          </p>
-          <p>
-            2. Select a job to use real data in the preview
-          </p>
-          <p>
-            3. Edit the X, Y coordinates to move fields on the PDF
-          </p>
-          <p>
-            4. Click Generate Preview to see the result
-          </p>
-          <p>
-            5. Repeat until positions are correct
-          </p>
-          <p className="text-xs mt-4">
-            <strong>Note:</strong> X increases to the right, Y increases upward (PDF coordinate system).
-            Typical page dimensions: 595 x 842 points (A4).
-          </p>
+        <CardContent className="py-2">
+          <div className="bg-black text-green-400 font-mono text-xs p-3 rounded h-32 overflow-y-auto">
+            {debugLogs.length === 0 ? (
+              <div className="text-gray-500">Waiting for actions...</div>
+            ) : (
+              debugLogs.map((log, i) => (
+                <div key={i} className={cn(
+                  log.includes("ERROR") && "text-red-400",
+                  log.includes("saved") && "text-green-400"
+                )}>
+                  {log}
+                </div>
+              ))
+            )}
+          </div>
+          {pdfError && (
+            <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-red-700 dark:text-red-300 text-sm">
+              <strong>PDF Error:</strong> {pdfError}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

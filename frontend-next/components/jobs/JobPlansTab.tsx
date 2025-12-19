@@ -29,7 +29,6 @@ import {
   Upload,
   X,
   MoreHorizontal,
-  RefreshCw,
   Sparkles,
 } from "lucide-react";
 import {
@@ -468,48 +467,12 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Fix plan categories - reassign plans to correct tabs based on plan types
-  const handleFixCategories = async () => {
-    try {
-      const response = await api.post(`/api/v1/jobs/${jobId}/job_plans/fix_categories`) as {
-        success: boolean;
-        data?: { fixed_count: number; plans_fixed: string[] };
-        error?: string;
-      };
-
-      if (response.success) {
-        const count = response.data?.fixed_count || 0;
-        toast({
-          title: count > 0 ? "Categories Fixed" : "All Good",
-          description: count > 0
-            ? `Fixed ${count} plan(s): ${response.data?.plans_fixed?.join(", ")}`
-            : "All plans are already in the correct categories",
-        });
-        fetchPlans();
-        fetchTabs();
-      } else {
-        toast({
-          title: "Error",
-          description: response.error || "Failed to fix categories",
-          variant: "destructive",
-        });
-      }
-    } catch (err) {
-      console.error("Error fixing categories:", err);
-      toast({
-        title: "Error",
-        description: "Failed to fix plan categories",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Re-run AI analysis on all plans
+  // Re-extract all plans from PDF (uses PdfTextExtractionService SSoT)
   const handleRerunAi = async () => {
     try {
       toast({
-        title: "Starting AI Analysis",
-        description: "Queuing plans for AI analysis...",
+        title: "Re-extracting Plans",
+        description: "Queuing all plans for PDF text extraction...",
       });
 
       const response = await api.post(`/api/v1/jobs/${jobId}/job_plans/rerun_ai`) as {
@@ -521,10 +484,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       if (response.success) {
         const count = response.data?.queued_count || 0;
         toast({
-          title: "AI Analysis Queued",
+          title: "Extraction Started",
           description: count > 0
-            ? `${count} plan(s) queued for analysis. Results will update shortly.`
-            : "No plans with files to analyze",
+            ? `${count} plan(s) queued. Results will update shortly.`
+            : "No plans with files to extract",
         });
         // Refresh after a short delay to show initial results
         setTimeout(() => {
@@ -534,15 +497,15 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       } else {
         toast({
           title: "Error",
-          description: response.error || "Failed to queue AI analysis",
+          description: response.error || "Failed to queue extraction",
           variant: "destructive",
         });
       }
     } catch (err) {
-      console.error("Error running AI analysis:", err);
+      console.error("Error extracting plans:", err);
       toast({
         title: "Error",
-        description: "Failed to run AI analysis",
+        description: "Failed to extract plans",
         variant: "destructive",
       });
     }
@@ -574,6 +537,39 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
         variant: "destructive",
       });
       throw new Error(response.error);
+    }
+  };
+
+  // Handle re-extract single plan from PDF (uses PdfTextExtractionService SSoT)
+  const handleReprocess = async (plan: JobPlan) => {
+    if (!plan.current_revision?.sharepoint_file_id) {
+      toast({
+        title: "Error",
+        description: "Plan has no file to extract from",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const response = await api.post(
+      `/api/v1/jobs/${jobId}/job_plans/${plan.id}/reprocess`
+    ) as { success: boolean; data?: { message: string }; error?: string };
+
+    if (response.success) {
+      toast({
+        title: "Extraction Started",
+        description: "Plan type will update shortly",
+      });
+      // Refresh after a delay to show results
+      setTimeout(() => {
+        fetchPlans();
+      }, 3000);
+    } else {
+      toast({
+        title: "Error",
+        description: response.error || "Failed to extract from PDF",
+        variant: "destructive",
+      });
     }
   };
 
@@ -869,13 +865,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
                   {/* Actions */}
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleFixCategories}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Fix Plan Categories
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleRerunAi}>
                     <Sparkles className="h-4 w-4 mr-2" />
-                    Re-run AI Analysis
+                    Re-extract All from PDF
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -905,6 +897,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
           getRevision={(p) => p.current_revision?.revision_label || null}
           onRename={handleRename}
           onApprove={handleSetOnIssue}
+          onReprocess={handleReprocess}
           enableSelection
           bulkActions={(ids, clearSelection) => (
             <Button
