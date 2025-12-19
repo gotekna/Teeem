@@ -1474,6 +1474,12 @@ Rails.application.routes.draw do
       post "xero/alerts/:id/dismiss", to: "xero_alerts#dismiss"
       get "xero/health", to: "xero_alerts#health"
 
+      # Xero Health Monitoring (SSoT observability)
+      get "xero/health/dashboard", to: "xero_health#index"
+      get "xero/health/events", to: "xero_health#events"
+      get "xero/health/analytics", to: "xero_health#analytics"
+      post "xero/health/check", to: "xero_health#check"
+
       # Xero Feature Tabs (SSoT for Xero sub-tabs on company pages)
       get "xero/tabs", to: "xero_tabs#index"
       get "xero/tabs/:id", to: "xero_tabs#show"

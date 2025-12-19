@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_220004) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_221348) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1752,13 +1752,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_220004) do
     t.datetime "last_sync_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "connection_status", default: "disconnected"
-    t.text "last_sync_error"
     t.bigint "xero_credential_id"
     t.string "accounting_method"
     t.date "financial_year_end"
     t.index ["company_id"], name: "index_corporate_company_xero_connections_on_company_id", unique: true
-    t.index ["connection_status"], name: "index_corporate_company_xero_connections_on_connection_status"
     t.index ["xero_credential_id"], name: "index_corporate_company_xero_connections_on_xero_credential_id"
     t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"
   end
@@ -6131,6 +6128,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_220004) do
     t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
   end
 
+  create_table "xero_health_events", force: :cascade do |t|
+    t.bigint "xero_credential_id"
+    t.string "event_type", null: false
+    t.string "from_status"
+    t.string "to_status"
+    t.string "trigger"
+    t.text "message"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event_type", "created_at"], name: "index_xero_health_events_on_event_type_and_created_at"
+    t.index ["from_status", "to_status"], name: "index_xero_health_events_on_from_status_and_to_status"
+    t.index ["xero_credential_id", "created_at"], name: "index_xero_health_events_on_xero_credential_id_and_created_at"
+    t.index ["xero_credential_id"], name: "index_xero_health_events_on_xero_credential_id"
+  end
+
   create_table "xero_sync_events", force: :cascade do |t|
     t.bigint "xero_credential_id"
     t.string "sync_type", null: false
@@ -6624,5 +6637,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_220004) do
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
   add_foreign_key "xero_feature_tabs", "document_folders"
+  add_foreign_key "xero_health_events", "xero_credentials"
   add_foreign_key "xero_sync_events", "xero_credentials"
 end

@@ -183,6 +183,69 @@ class XeroConnectionHealth
       false
     end
 
+    # Run health check on all credentials and log results
+    # Called by XeroHealthMonitorJob
+    def run_health_check
+      results = {
+        total: 0,
+        connected_count: 0,
+        warning_count: 0,
+        error_count: 0,
+        disconnected_count: 0,
+        credentials: []
+      }
+
+      XeroCredential.find_each do |credential|
+        health = for_credential(credential)
+        results[:total] += 1
+
+        case health.display_status
+        when "connected" then results[:connected_count] += 1
+        when "warning" then results[:warning_count] += 1
+        when "error" then results[:error_count] += 1
+        when "disconnected" then results[:disconnected_count] += 1
+        end
+
+        results[:credentials] << {
+          id: credential.id,
+          tenant_name: credential.tenant_name,
+          display_status: health.display_status,
+          needs_attention: health.needs_attention
+        }
+
+        # Log status change if different from last known status
+        check_for_status_change(credential, health)
+      end
+
+      # Log the health check
+      XeroHealthEvent.log_health_check(results: results)
+
+      results
+    end
+
+    # Check if credential status changed and log if so
+    def check_for_status_change(credential, current_health)
+      # Get last status from most recent event
+      last_event = XeroHealthEvent
+        .for_credential(credential)
+        .status_changes
+        .order(created_at: :desc)
+        .first
+
+      last_status = last_event&.to_status || "unknown"
+      current_status = current_health.display_status
+
+      return if last_status == current_status
+
+      XeroHealthEvent.log_status_change(
+        credential,
+        from: last_status,
+        to: current_status,
+        trigger: "health_check",
+        message: current_health.message
+      )
+    end
+
     # Public helper to create a disconnected status - useful for models that delegate
     def disconnected_status(message)
       HealthStatus.new(

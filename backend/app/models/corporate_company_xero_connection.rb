@@ -3,11 +3,11 @@
 # - Sync timing: XeroSyncStatus (last_synced_at, next_sync_at per sync_type)
 # - Company mapping: This model (which company links to which Xero tenant)
 # - Connection health: XeroConnectionHealth service (THE SSoT for status computation)
+# - Health events: XeroHealthEvent (tracks all state transitions)
 #
-# DEPRECATED columns on this model (kept for backwards compatibility):
-# - connection_status -> Use XeroConnectionHealth.for_company(company) instead
-# - last_sync_at -> Use XeroSyncStatus.last_synced_at instead
-# - last_sync_error -> Use XeroSyncStatus.last_error instead
+# REMOVED columns (Phase 4 of SSoT migration):
+# - connection_status -> Now computed by XeroConnectionHealth.for_company()
+# - last_sync_error -> Now tracked in XeroHealthEvent
 #
 class CorporateCompanyXeroConnection < ApplicationRecord
   # Associations
@@ -17,18 +17,15 @@ class CorporateCompanyXeroConnection < ApplicationRecord
 
   # Validations
   validates :xero_tenant_id, presence: true, uniqueness: { scope: :company_id }
-  validates :connection_status, inclusion: { in: %w[connected disconnected error pending] }
 
-  # Scopes
-  scope :connected, -> { where(connection_status: "connected") }
-  scope :disconnected, -> { where(connection_status: "disconnected") }
-  scope :with_errors, -> { where(connection_status: "error") }
+  # Scopes - SSoT: Use health service for status filtering
+  scope :with_credential, -> { where.not(xero_credential_id: nil) }
   # DEPRECATED: Use XeroSyncStatus for sync timing checks instead
   scope :needs_sync, -> { where("last_sync_at IS NULL OR last_sync_at < ?", 7.days.ago) }
 
   # Callbacks
   after_create :create_connection_activity, if: :connected?
-  after_commit :sync_bank_accounts_from_xero, if: :just_connected?
+  after_commit :sync_bank_accounts_from_xero, if: :just_linked?
 
   # Instance methods
   # SSoT: Delegate to XeroConnectionHealth service for unified status
@@ -76,15 +73,24 @@ class CorporateCompanyXeroConnection < ApplicationRecord
 
   # Link this company to a Xero credential
   def link_to_credential!(credential)
+    was_unlinked = xero_credential_id.nil?
+
     update!(
       xero_credential: credential,
       xero_tenant_id: credential.tenant_id,
-      xero_tenant_name: credential.tenant_name,
-      connection_status: "connected",
-      last_sync_error: nil
+      xero_tenant_name: credential.tenant_name
     )
 
-    create_connection_activity
+    # Log the connection event
+    XeroHealthEvent.log_status_change(
+      credential,
+      from: "disconnected",
+      to: "connected",
+      trigger: "link_to_credential",
+      message: "Company #{corporate_company&.name} linked to Xero org #{credential.tenant_name}"
+    )
+
+    create_connection_activity if was_unlinked
   end
 
   # For backwards compatibility during migration
@@ -103,10 +109,16 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   end
 
   def mark_disconnected!(error_message = nil)
-    update!(
-      connection_status: "disconnected",
-      last_sync_error: error_message
-    )
+    # Log the disconnect event
+    if xero_credential.present?
+      XeroHealthEvent.log_status_change(
+        xero_credential,
+        from: display_status,
+        to: "disconnected",
+        trigger: "mark_disconnected",
+        message: error_message || "Connection disconnected"
+      )
+    end
 
     corporate_company.corporate_company_activities.create!(
       activity_type: "xero_disconnected",
@@ -118,21 +130,20 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   end
 
   def mark_error!(error_message)
-    update!(
-      connection_status: "error",
-      last_sync_error: error_message
-    )
+    # Log the error event
+    if xero_credential.present?
+      XeroHealthEvent.log_self_heal_failed(
+        xero_credential,
+        strategy: "mark_error",
+        error: error_message
+      )
+    end
   end
 
   # SSoT: Delegates sync tracking to XeroSyncStatus
-  # The last_sync_at column on this model is DEPRECATED - use XeroSyncStatus instead
   def sync_successful!(sync_type: "invoices")
-    # Update local status for connection health only
-    update!(
-      connection_status: "connected",
-      last_sync_at: Time.current,  # DEPRECATED: kept for backwards compatibility
-      last_sync_error: nil
-    )
+    # Update local timestamp for backwards compatibility
+    update!(last_sync_at: Time.current)
 
     # SSoT: Update the authoritative sync status record
     XeroSyncStatus.complete_sync!(
@@ -159,38 +170,52 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   end
 
   # Refresh tokens using XeroTokenManager - Single Source of Truth
-  # XeroTokenManager handles:
-  # - 30-minute grace period retry for transient failures
-  # - Poisoned token detection
-  # - Proactive refresh buffer (15 min before expiry)
-  # - PostgreSQL advisory locks for concurrent safety
   def refresh_tokens!
     return false unless xero_credential.present?
+
+    start_time = Time.current
+
+    # Log self-heal started
+    XeroHealthEvent.log_self_heal_started(xero_credential, strategy: "token_refresh")
 
     # Delegate directly to XeroTokenManager
     result = XeroTokenManager.refresh_credential(xero_credential)
 
+    duration_ms = ((Time.current - start_time) * 1000).to_i
+
     if result[:success]
-      update!(connection_status: "connected", last_sync_error: nil)
+      XeroHealthEvent.log_self_heal_completed(
+        xero_credential,
+        strategy: "token_refresh",
+        duration_ms: duration_ms
+      )
       true
     elsif result[:poisoned]
       # Token is permanently dead - user must reconnect
-      mark_error!("Token poisoned - reconnection required: #{result[:error]}")
+      XeroHealthEvent.log_token_poisoned(xero_credential, reason: result[:error])
       false
     else
-      mark_error!(result[:error])
+      XeroHealthEvent.log_self_heal_failed(
+        xero_credential,
+        strategy: "token_refresh",
+        error: result[:error]
+      )
       false
     end
   rescue StandardError => e
-    mark_error!(e.message)
+    XeroHealthEvent.log_self_heal_failed(
+      xero_credential,
+      strategy: "token_refresh",
+      error: e.message
+    )
     false
   end
 
   private
 
-  # Check if this connection was just connected (status changed to connected)
-  def just_connected?
-    connected? && saved_change_to_connection_status? && connection_status_before_last_save != "connected"
+  # Check if this connection just got a credential linked
+  def just_linked?
+    saved_change_to_xero_credential_id? && xero_credential_id_before_last_save.nil? && xero_credential_id.present?
   end
 
   # SSoT: Auto-sync bank accounts when Xero connection is established
