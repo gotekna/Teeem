@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_202207) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_220004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6113,6 +6113,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_202207) do
     t.index ["duplicate_group_id"], name: "index_xero_duplicate_items_on_duplicate_group_id"
   end
 
+  create_table "xero_feature_tabs", force: :cascade do |t|
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.string "tab_group", default: "data"
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "component_name"
+    t.bigint "document_folder_id"
+    t.string "icon_name"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_folder_id"], name: "index_xero_feature_tabs_on_document_folder_id"
+    t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
+    t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
+    t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
+  end
+
   create_table "xero_sync_events", force: :cascade do |t|
     t.bigint "xero_credential_id"
     t.string "sync_type", null: false
@@ -6605,5 +6623,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_202207) do
   add_foreign_key "xero_chart_of_accounts", "corporate_groups", column: "company_group_id"
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
+  add_foreign_key "xero_feature_tabs", "document_folders"
   add_foreign_key "xero_sync_events", "xero_credentials"
 end

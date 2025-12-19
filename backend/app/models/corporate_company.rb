@@ -151,8 +151,9 @@ class CorporateCompany < ApplicationRecord
     status == "active"
   end
 
+  # SSoT: Use connected? which delegates to XeroConnectionHealth service
   def has_xero_connection?
-    corporate_company_xero_connection.present? && corporate_company_xero_connection.connection_status == "connected"
+    corporate_company_xero_connection.present? && corporate_company_xero_connection.connected?
   end
 
   # SharePoint folder URL for this company's root folder (SSoT: from CorporateCompanySetting)

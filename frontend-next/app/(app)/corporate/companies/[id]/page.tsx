@@ -5234,6 +5234,16 @@ export default function CompanyDetailPage() {
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
   const [xeroDocumentFolders, setXeroDocumentFolders] = React.useState<Array<{ id: string; name: string; description: string; folderId: number }>>([]);
+  // SSoT: Xero tabs loaded from API (replaces hardcoded XERO_SUB_TABS)
+  const [xeroFeatureTabs, setXeroFeatureTabs] = React.useState<Array<{
+    id: string;
+    name: string;
+    type: 'functional' | 'document';
+    component?: string;
+    folderId?: number;
+    description?: string;
+    group?: string;
+  }>>([]);
 
   // Map folder names to icons
   const getFolderIcon = (folderName: string) => {
@@ -5307,6 +5317,32 @@ export default function CompanyDetailPage() {
       // Fallback to hard-coded list if API fails
       setDocumentFolderTabs([]);
       setXeroDocumentFolders([]);
+    }
+  }, []);
+
+  // Load Xero feature tabs from API (SSoT)
+  const loadXeroTabs = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{
+        id: string;
+        name: string;
+        type: 'functional' | 'document';
+        component?: string;
+        folderId?: number;
+        description?: string;
+        group?: string;
+      }> }>("/api/v1/xero/tabs");
+      if (response.success && response.data) {
+        setXeroFeatureTabs(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load Xero tabs from API, using fallback:", error);
+      // Fallback to hardcoded XERO_SUB_TABS if API fails
+      setXeroFeatureTabs(XERO_SUB_TABS.map(tab => ({
+        id: tab.id,
+        name: tab.name,
+        type: 'functional' as const
+      })));
     }
   }, []);
 

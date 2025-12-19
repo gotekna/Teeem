@@ -1473,6 +1473,12 @@ Rails.application.routes.draw do
       get "xero/alerts/count", to: "xero_alerts#count"
       post "xero/alerts/:id/dismiss", to: "xero_alerts#dismiss"
       get "xero/health", to: "xero_alerts#health"
+
+      # Xero Feature Tabs (SSoT for Xero sub-tabs on company pages)
+      get "xero/tabs", to: "xero_tabs#index"
+      get "xero/tabs/:id", to: "xero_tabs#show"
+      patch "xero/tabs/:id", to: "xero_tabs#update"
+      post "xero/tabs/reorder", to: "xero_tabs#reorder"
       get "xero/rate_limits", to: "xero_alerts#rate_limits"
 
       # Xero Duplicate Detection & Merge
