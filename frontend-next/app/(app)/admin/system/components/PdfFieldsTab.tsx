@@ -76,6 +76,7 @@ export function PdfFieldsTab() {
   const [dropPreview, setDropPreview] = React.useState<{ x: number; y: number } | null>(null);
   const [previewWidth, setPreviewWidth] = React.useState<number>(0); // 0 = auto
   const [previewHeight, setPreviewHeight] = React.useState<number>(0); // 0 = auto
+  const [isMouseDragging, setIsMouseDragging] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Debug logger
@@ -241,56 +242,52 @@ export function PdfFieldsTab() {
     }
   };
 
-  // Drag handlers
-  const handleDragStart = (e: React.DragEvent, fieldId: number) => {
-    console.log('[DRAG] handleDragStart called!', { fieldId, target: e.target });
+  // Mouse-based drag handlers (more reliable than HTML5 drag and drop)
+  const handleMouseDown = (e: React.MouseEvent, fieldId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('[DRAG] Mouse down - starting drag for field:', fieldId);
     addDebugLog(`Drag start: field ${fieldId}`);
     setDraggingFieldId(fieldId);
+    setIsMouseDragging(true);
 
-    // Calculate offset from mouse to field center
+    // Calculate initial offset
     const rect = (e.target as HTMLElement).getBoundingClientRect();
     setDragOffset({
-      x: e.clientX - rect.left - rect.width / 2,
-      y: e.clientY - rect.top - rect.height / 2,
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
     });
 
-    // Set drag image
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(fieldId));
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-
-    // Update drop preview position
+    // Initial preview position
     if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
+      const containerRect = containerRef.current.getBoundingClientRect();
       const scale = zoom / 100;
-      const previewX = (e.clientX - rect.left) / scale;
-      const previewY = (e.clientY - rect.top) / scale;
+      const previewX = (e.clientX - containerRect.left) / scale;
+      const previewY = (e.clientY - containerRect.top) / scale;
       setDropPreview({ x: previewX, y: previewY });
     }
   };
 
-  const handleDragLeave = () => {
-    setDropPreview(null);
-  };
+  const handleMouseMove = React.useCallback((e: MouseEvent) => {
+    if (!isMouseDragging || !containerRef.current) return;
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDropPreview(null);
+    const rect = containerRef.current.getBoundingClientRect();
+    const scale = zoom / 100;
+    const previewX = (e.clientX - rect.left) / scale;
+    const previewY = (e.clientY - rect.top) / scale;
+    setDropPreview({ x: previewX, y: previewY });
+  }, [isMouseDragging, zoom]);
 
+  const handleMouseUp = React.useCallback((e: MouseEvent) => {
+    if (!isMouseDragging || !draggingFieldId || !containerRef.current) {
+      setIsMouseDragging(false);
+      setDraggingFieldId(null);
+      setDropPreview(null);
+      return;
+    }
+
+    console.log('[DRAG] Mouse up - completing drag');
     addDebugLog(`Drop event fired! draggingFieldId=${draggingFieldId}`);
-
-    if (!draggingFieldId) {
-      addDebugLog("Drop ignored: no draggingFieldId");
-      return;
-    }
-    if (!containerRef.current) {
-      addDebugLog("Drop ignored: no containerRef");
-      return;
-    }
 
     const rect = containerRef.current.getBoundingClientRect();
     const scale = zoom / 100;
@@ -308,12 +305,21 @@ export function PdfFieldsTab() {
 
     savePosition(draggingFieldId, { x: pdfX, y: pdfY });
     setDraggingFieldId(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggingFieldId(null);
+    setIsMouseDragging(false);
     setDropPreview(null);
-  };
+  }, [isMouseDragging, draggingFieldId, zoom, addDebugLog, savePosition]);
+
+  // Global mouse event listeners for drag
+  React.useEffect(() => {
+    if (isMouseDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isMouseDragging, handleMouseMove, handleMouseUp]);
 
   // Get fields for current page
   const fieldsOnPage = positions.filter((p) => p.page === currentPage);
@@ -539,9 +545,6 @@ export function PdfFieldsTab() {
                     width: `${PDF_WIDTH * (zoom / 100)}px`,
                     height: `${PDF_HEIGHT * (zoom / 100)}px`,
                   }}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
                 >
                   {/* PDF iframe */}
                   <iframe
@@ -621,14 +624,10 @@ export function PdfFieldsTab() {
 
                         {/* Draggable field panel - 2 boxes only */}
                         <div
-                          draggable
-                          onMouseDown={() => console.log('[CLICK] Mouse down on field:', field.id, field.display_name)}
-                          onClick={() => console.log('[CLICK] Click on field:', field.id, field.display_name)}
-                          onDragStart={(e) => handleDragStart(e, field.id)}
-                          onDragEnd={handleDragEnd}
+                          onMouseDown={(e) => handleMouseDown(e, field.id)}
                           className={cn(
-                            "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-50",
-                            isDragging ? "opacity-30" : ""
+                            "absolute flex flex-col gap-1 cursor-grab active:cursor-grabbing z-50 select-none",
+                            draggingFieldId === field.id ? "opacity-30" : ""
                           )}
                           style={{
                             left: `${savedLeftPercent}%`,
@@ -639,7 +638,7 @@ export function PdfFieldsTab() {
                           }}
                         >
                           {/* Box 1: Field Name (Blue) with drag handle */}
-                          <div className="flex items-center rounded shadow-lg hover:ring-2 hover:ring-white">
+                          <div className="flex items-center rounded shadow-lg hover:ring-2 hover:ring-white pointer-events-none">
                             <div className="bg-gray-700 text-white px-0.5 py-0.5 rounded-l flex items-center">
                               <GripVertical className="h-3 w-3" />
                             </div>
@@ -649,7 +648,7 @@ export function PdfFieldsTab() {
                           </div>
                           {/* Box 2: Value (Green) */}
                           <div
-                            className="bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg"
+                            className="bg-green-600 text-white px-1.5 py-0.5 rounded whitespace-nowrap shadow-lg pointer-events-none"
                             style={{
                               fontSize: `${fontSize}px`,
                               fontFamily: 'Helvetica, Arial, sans-serif',

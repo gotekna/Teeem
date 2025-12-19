@@ -11,7 +11,7 @@
 #
 # SSoT Compliance:
 # - Uses PlanIdentificationService for ALL plan type matching
-# - Uses PlanType.resolve_short_name/resolve_long_name for naming
+# - Uses PlanType.resolve_short_name (SharePoint filename) / resolve_long_name (Display name)
 # - Uses MicrosoftGraphClient for SharePoint operations
 # =============================================================================
 class PlanReextractionJob < ApplicationJob
@@ -93,8 +93,9 @@ class PlanReextractionJob < ApplicationJob
       template_values = build_template_values(plan, result, variant_suffix)
 
       # Resolve templates (SSoT: PlanType model)
-      new_display_name = result.plan_type.resolve_short_name(template_values)
-      new_filename = sanitize_filename(result.plan_type.resolve_long_name(template_values)) + ".pdf"
+      # Short name = SharePoint filename, Long name = Display name
+      new_filename = sanitize_filename(result.plan_type.resolve_short_name(template_values)) + ".pdf"
+      new_display_name = result.plan_type.resolve_long_name(template_values)
 
       Rails.logger.info "[PlanReextractionJob] Plan #{plan.id}: '#{old_display_name}' -> '#{new_display_name}'"
 

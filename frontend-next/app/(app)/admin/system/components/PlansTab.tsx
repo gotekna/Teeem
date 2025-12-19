@@ -636,7 +636,7 @@ function TypesSection() {
           {editingDefaults ? (
             <div className="space-y-4">
               <TokenBuilder
-                label="Default Short Name Template"
+                label="Default Short Name Template (SharePoint filename)"
                 value={globalDefaults.short_name_template}
                 onChange={(value) => setGlobalDefaults({ ...globalDefaults, short_name_template: value })}
                 placeholders={PLAN_TYPE_PLACEHOLDERS}
@@ -658,10 +658,10 @@ function TypesSection() {
                   Variant: "a",
                   ProjectName: "Wategors Estate",
                 }}
-                helpText="Used for display in tables and lists"
+                helpText="Used for SharePoint file naming"
               />
               <TokenBuilder
-                label="Default Long Name Template (SharePoint filename)"
+                label="Default Long Name Template (Display Name)"
                 value={globalDefaults.long_name_template}
                 onChange={(value) => setGlobalDefaults({ ...globalDefaults, long_name_template: value })}
                 placeholders={PLAN_TYPE_PLACEHOLDERS}
@@ -683,7 +683,7 @@ function TypesSection() {
                   Variant: "a",
                   ProjectName: "Wategors Estate",
                 }}
-                helpText="Used for file names when saving to SharePoint"
+                helpText="Used for display in tables and lists"
               />
             </div>
           ) : (
@@ -878,7 +878,7 @@ function TypesSection() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <TokenBuilder
-                    label="Short Name Template"
+                    label="Short Name Template (SharePoint filename)"
                     value={formData.short_name_template}
                     onChange={(value) => setFormData({ ...formData, short_name_template: value })}
                     placeholders={PLAN_TYPE_PLACEHOLDERS}
@@ -913,7 +913,7 @@ function TypesSection() {
 
                 <div className="space-y-2">
                   <TokenBuilder
-                    label="Long Name Template (SharePoint filename)"
+                    label="Long Name Template (Display Name)"
                     value={formData.long_name_template}
                     onChange={(value) => setFormData({ ...formData, long_name_template: value })}
                     placeholders={PLAN_TYPE_PLACEHOLDERS}

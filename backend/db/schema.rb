@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_073054) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_19_073055) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3187,6 +3187,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_073054) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "current_revision_id"
+    t.boolean "is_combined_pdf", default: false, null: false
     t.index ["current_revision_id"], name: "index_job_plans_on_current_revision_id"
     t.index ["job_id", "plan_type_id", "variant_suffix"], name: "idx_job_plans_unique_per_job", unique: true
     t.index ["job_id"], name: "index_job_plans_on_job_id"
