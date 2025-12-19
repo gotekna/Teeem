@@ -76,7 +76,6 @@ export function PdfFieldsTab() {
   const [dropPreview, setDropPreview] = React.useState<{ x: number; y: number } | null>(null);
   const [previewWidth, setPreviewWidth] = React.useState<number>(0); // 0 = auto
   const [previewHeight, setPreviewHeight] = React.useState<number>(0); // 0 = auto
-  const [lastSelectedFieldId, setLastSelectedFieldId] = React.useState<number | null>(null); // Persist last selection
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Debug logger
@@ -246,7 +245,6 @@ export function PdfFieldsTab() {
   const handleDragStart = (e: React.DragEvent, fieldId: number) => {
     addDebugLog(`Drag start: field ${fieldId}`);
     setDraggingFieldId(fieldId);
-    setLastSelectedFieldId(fieldId); // Remember this field for persistent preview
 
     // Calculate offset from mouse to field center
     const rect = (e.target as HTMLElement).getBoundingClientRect();
@@ -437,6 +435,22 @@ export function PdfFieldsTab() {
 
         {saving && <Badge variant="secondary" className="ml-2">Saving...</Badge>}
 
+        <div className="border-l h-6 mx-2" />
+
+        {/* Preview box size controls */}
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Preview:</span>
+          <span className="text-xs">W</span>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => Math.max(0, w - 10))}>-</Button>
+          <span className="text-xs font-mono w-8 text-center">{previewWidth || 'auto'}</span>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewWidth(w => w + 10)}>+</Button>
+          <span className="text-xs ml-2">H</span>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => Math.max(0, h - 2))}>-</Button>
+          <span className="text-xs font-mono w-8 text-center">{previewHeight || 'auto'}</span>
+          <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => setPreviewHeight(h => h + 2)}>+</Button>
+          <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { setPreviewWidth(0); setPreviewHeight(0); }}>Reset</Button>
+        </div>
+
         {/* Coordinates display when dragging */}
         {draggingFieldId && (
           <div className="flex items-center gap-2 ml-4 px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded border">
@@ -453,60 +467,6 @@ export function PdfFieldsTab() {
           </div>
         )}
 
-        {/* Preview box size controls - only show when a field has been selected */}
-        {lastSelectedFieldId && (
-          <div className="flex items-center gap-2 ml-2 px-2 py-1 bg-green-50 dark:bg-green-900/30 rounded border border-green-200 dark:border-green-800">
-            <span className="text-xs font-medium text-green-700 dark:text-green-300">Preview Size:</span>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-green-600 dark:text-green-400">W:</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-xs"
-                onClick={() => setPreviewWidth(w => Math.max(0, w - 10))}
-              >
-                -
-              </Button>
-              <span className="text-xs font-mono w-8 text-center">{previewWidth || 'auto'}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-xs"
-                onClick={() => setPreviewWidth(w => w + 10)}
-              >
-                +
-              </Button>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-green-600 dark:text-green-400">H:</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-xs"
-                onClick={() => setPreviewHeight(h => Math.max(0, h - 2))}
-              >
-                -
-              </Button>
-              <span className="text-xs font-mono w-8 text-center">{previewHeight || 'auto'}</span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-xs"
-                onClick={() => setPreviewHeight(h => h + 2)}
-              >
-                +
-              </Button>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-5 text-xs px-1"
-              onClick={() => { setPreviewWidth(0); setPreviewHeight(0); }}
-            >
-              Reset
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* Main Editor */}
@@ -606,11 +566,11 @@ export function PdfFieldsTab() {
                           transformOrigin: "top left",
                         }}
                       >
-                        {/* Preview box - adjustable size */}
+                        {/* Preview box - shows value at drop position */}
                         <span
                           className="inline-block bg-green-600 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-lg"
                           style={{
-                            ...(previewWidth > 0 && { width: `${previewWidth}px` }),
+                            ...(previewWidth > 0 && { width: `${previewWidth}px`, minWidth: `${previewWidth}px` }),
                             ...(previewHeight > 0 && { height: `${previewHeight}px`, lineHeight: `${previewHeight}px` }),
                           }}
                         >
@@ -620,38 +580,6 @@ export function PdfFieldsTab() {
                     );
                   })()}
 
-                  {/* Persistent preview - shows last selected field at its saved position */}
-                  {!draggingFieldId && lastSelectedFieldId && (() => {
-                    const selectedField = positions.find(p => p.id === lastSelectedFieldId);
-                    if (!selectedField || selectedField.page !== currentPage) return null;
-
-                    const previewText = selectedField.test_value || selectedField.display_name || selectedField.field_key;
-                    const leftPercent = (selectedField.x / PDF_WIDTH) * 100;
-                    const bottomPercent = (selectedField.y / PDF_HEIGHT) * 100;
-
-                    return (
-                      <div
-                        className="absolute pointer-events-none z-10"
-                        style={{
-                          left: `${leftPercent}%`,
-                          bottom: `${bottomPercent}%`,
-                          transform: `scale(${100 / zoom})`,
-                          transformOrigin: "bottom left",
-                        }}
-                      >
-                        {/* Persistent preview box - adjustable size, slightly transparent */}
-                        <span
-                          className="inline-block bg-green-500/80 text-white text-[11px] px-1.5 py-0.5 rounded whitespace-nowrap font-semibold shadow-lg border-2 border-green-300"
-                          style={{
-                            ...(previewWidth > 0 && { width: `${previewWidth}px` }),
-                            ...(previewHeight > 0 && { height: `${previewHeight}px`, lineHeight: `${previewHeight}px` }),
-                          }}
-                        >
-                          {previewText}
-                        </span>
-                      </div>
-                    );
-                  })()}
 
                   {/* Field markers */}
                   {(() => {
