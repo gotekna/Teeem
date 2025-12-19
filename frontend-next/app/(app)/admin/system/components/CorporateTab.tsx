@@ -950,13 +950,12 @@ const CURRENT_OVERVIEW_TABS = [
 
 const CURRENT_XERO_TABS = [
   { id: "connection", name: "Connection", visible: true },
+  { id: "overview", name: "Overview", visible: true },
   { id: "accounts", name: "Accounts", visible: true },
   { id: "profit-loss", name: "Profit & Loss", visible: true },
   { id: "balance-sheet", name: "Balance Sheet", visible: true },
-  { id: "profit-loss-pdf", name: "P&L PDF Reports", visible: true },
-  { id: "balance-sheet-pdf", name: "Balance Sheet PDF", visible: true },
+  { id: "reports", name: "Reports", visible: true },
   { id: "bank-accounts", name: "Bank Accounts", visible: true },
-  { id: "bank-statement", name: "Bank Statement", visible: true },
 ];
 
 function CompanyTabsSubTab() {
