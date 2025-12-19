@@ -53,7 +53,8 @@ interface ContactType {
 interface ContactRole {
   id: number;
   name: string;
-  contact_types: ContactType[];
+  // Backend returns string array like ["customer", "supplier"], not objects
+  contact_types: string[];
   contact_types_display?: string;
 }
 
@@ -97,18 +98,18 @@ export function ContactRolesTab() {
       setRoles(rolesData);
     } catch (error) {
       console.error("Failed to load data:", error);
-      // Mock data
+      // Mock data - contact_types is array of strings
       setContactTypes([
         { id: 1, name: "Customer", code: "customer" },
         { id: 2, name: "Supplier", code: "supplier" },
         { id: 3, name: "Universal", code: "universal" },
       ]);
       setRoles([
-        { id: 1, name: "Owner", contact_types: [{ id: 1, name: "Customer", code: "customer" }] },
-        { id: 2, name: "Architect", contact_types: [{ id: 1, name: "Customer", code: "customer" }] },
-        { id: 3, name: "Sales Rep", contact_types: [{ id: 2, name: "Supplier", code: "supplier" }] },
-        { id: 4, name: "Account Manager", contact_types: [{ id: 2, name: "Supplier", code: "supplier" }] },
-        { id: 5, name: "Primary Contact", contact_types: [{ id: 3, name: "Universal", code: "universal" }] },
+        { id: 1, name: "Owner", contact_types: ["customer"] },
+        { id: 2, name: "Architect", contact_types: ["customer"] },
+        { id: 3, name: "Sales Rep", contact_types: ["supplier"] },
+        { id: 4, name: "Account Manager", contact_types: ["supplier"] },
+        { id: 5, name: "Primary Contact", contact_types: ["universal"] },
       ]);
     } finally {
       setLoading(false);
@@ -128,9 +129,13 @@ export function ContactRolesTab() {
   };
 
   const handleOpenEditDialog = (role: ContactRole) => {
+    // Map string codes to ContactType IDs
+    const typeIds = (role.contact_types || [])
+      .map((code) => contactTypes.find((t) => t.code === code)?.id)
+      .filter((id): id is number => id !== undefined);
     setFormData({
       name: role.name,
-      contact_type_ids: role.contact_types.map((t) => t.id),
+      contact_type_ids: typeIds,
     });
     setEditingRole(role);
     setShowAddDialog(true);
@@ -144,15 +149,23 @@ export function ContactRolesTab() {
 
     setSaving(true);
     try {
+      // Convert IDs back to string codes for backend
+      const contactTypeCodes = formData.contact_type_ids
+        .map((id) => contactTypes.find((t) => t.id === id)?.code)
+        .filter((code): code is string => code !== undefined);
+
+      const payload = {
+        contact_role: {
+          name: formData.name,
+          contact_types: contactTypeCodes,
+        },
+      };
+
       if (editingRole) {
-        await api.patch(`/api/v1/contact_roles/${editingRole.id}`, {
-          contact_role: formData,
-        });
+        await api.patch(`/api/v1/contact_roles/${editingRole.id}`, payload);
         toast({ title: "Success", description: "Role updated successfully" });
       } else {
-        await api.post("/api/v1/contact_roles", {
-          contact_role: formData,
-        });
+        await api.post("/api/v1/contact_roles", payload);
         toast({ title: "Success", description: "Role created successfully" });
       }
       setShowAddDialog(false);
@@ -197,8 +210,9 @@ export function ContactRolesTab() {
 
   const getFilteredRoles = (typeCode: string) => {
     if (typeCode === "all") return roles;
+    // contact_types is array of strings like ["customer", "supplier"]
     return roles.filter((role) =>
-      role.contact_types.some((t) => t.code === typeCode)
+      Array.isArray(role.contact_types) && role.contact_types.includes(typeCode)
     );
   };
 
@@ -266,11 +280,14 @@ export function ContactRolesTab() {
                         <TableCell className="font-medium">{role.name}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {role.contact_types.map((type) => (
-                              <Badge key={type.id} variant="outline">
-                                {type.name}
-                              </Badge>
-                            ))}
+                            {(Array.isArray(role.contact_types) ? role.contact_types : []).map((typeCode) => {
+                              const typeObj = contactTypes.find((t) => t.code === typeCode);
+                              return (
+                                <Badge key={typeCode} variant="outline">
+                                  {typeObj?.name || typeCode}
+                                </Badge>
+                              );
+                            })}
                           </div>
                         </TableCell>
                         <TableCell>

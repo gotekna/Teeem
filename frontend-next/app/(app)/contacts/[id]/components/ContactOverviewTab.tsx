@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   hasFirstLastName,
@@ -20,6 +21,7 @@ import {
   EmailPropertyGroup,
   AddressPropertyGroup,
 } from "@/components/contact";
+import { SortableList, SortableItem, DragHandle } from "@/components/ui/dnd";
 import type {
   Contact,
   ContactEmail,
@@ -34,7 +36,8 @@ import {
   validateABN,
   validateACN,
 } from "../types";
-import { Link2, Users, Building2, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { Link2, Users, Building2, ExternalLink, Plus, Trash2, ChevronDown, ChevronRight, Search, X, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import Link from "next/link";
 
 // Simplified props - component manages its own state
@@ -63,12 +66,36 @@ export function ContactOverviewTab({
   const [relatedEntities, setRelatedEntities] = useState<ContactRelationship[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
 
+  // Employer/company link state
+  const [showCompanySearch, setShowCompanySearch] = useState(false);
+  const [companySearchQuery, setCompanySearchQuery] = useState("");
+  const [companySearchResults, setCompanySearchResults] = useState<{ id: number; name: string; entity_type: string }[]>([]);
+  const [searchingCompany, setSearchingCompany] = useState(false);
+  const [savingCompanyLink, setSavingCompanyLink] = useState(false);
+  const [selectedRole, setSelectedRole] = useState<string>("");
+  const [companyRelationships, setCompanyRelationships] = useState<ContactRelationship[]>([]);
+  const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string }[]>([]);
+
   // Load related entities
   useEffect(() => {
     if (contact.id) {
       loadRelatedEntities();
     }
   }, [contact.id]);
+
+  // Load available contact roles
+  useEffect(() => {
+    const loadRoles = async () => {
+      try {
+        const response = await api.get<{ id: number; name: string }[]>("/api/v1/contact_roles");
+        setAvailableRoles(response || []);
+      } catch {
+        // Fallback to empty - will just show employee link without role selection
+        setAvailableRoles([]);
+      }
+    };
+    loadRoles();
+  }, []);
 
   const loadRelatedEntities = useCallback(async () => {
     if (!contact.id) return;
@@ -79,8 +106,17 @@ export function ContactOverviewTab({
         relationships: { outgoing: ContactRelationship[]; incoming: ContactRelationship[] };
       }>(`/api/v1/contacts/${contact.id}/relationships`);
       if (response.success) {
-        const all = [...(response.relationships.outgoing || []), ...(response.relationships.incoming || [])];
-        setRelatedEntities(all);
+        const outgoing = response.relationships.outgoing || [];
+        const incoming = response.relationships.incoming || [];
+
+        // Extract company relationships (person → company links)
+        const companyRelTypes = ["employee_of", "contractor_for", "owner_of", "beneficial_owner_of", "partner_in"];
+        const companyRels = outgoing.filter(r => companyRelTypes.includes(r.relationship_type));
+        setCompanyRelationships(companyRels);
+
+        // Other relationships (excluding company links to avoid duplication)
+        const otherRels = [...outgoing, ...incoming].filter(r => !companyRelTypes.includes(r.relationship_type));
+        setRelatedEntities(otherRels);
       }
     } catch {
       // Silent fail - relationships are optional
@@ -88,6 +124,127 @@ export function ContactOverviewTab({
       setLoadingRelated(false);
     }
   }, [contact.id]);
+
+  // Search for companies to link
+  const searchCompanies = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setCompanySearchResults([]);
+      return;
+    }
+    setSearchingCompany(true);
+    try {
+      const response = await api.get<{ contacts?: Array<{ id: number; display_name?: string; company_name_or_trust?: string; entity_type: string }> }>("/api/v1/contacts", {
+        params: {
+          search: query,
+          per_page: 10,
+          entity_types: "company,trust,partnership,sole_trader"
+        },
+      });
+      // Exclude self and already-linked companies
+      const linkedCompanyIds = companyRelationships.map(r => r.related_contact_id);
+      const companies = (response.contacts || [])
+        .filter(c => c.id !== contact.id && !linkedCompanyIds.includes(c.id))
+        .map(c => ({
+          id: c.id,
+          name: c.display_name || c.company_name_or_trust || "Unknown",
+          entity_type: c.entity_type,
+        }));
+      setCompanySearchResults(companies);
+    } catch {
+      setCompanySearchResults([]);
+    } finally {
+      setSearchingCompany(false);
+    }
+  }, [contact.id, companyRelationships]);
+
+  // Debounced company search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (companySearchQuery) {
+        searchCompanies(companySearchQuery);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [companySearchQuery, searchCompanies]);
+
+  // Add company link - always employee_of, with optional role
+  const addCompanyLink = useCallback(async (companyId: number) => {
+    setSavingCompanyLink(true);
+    try {
+      await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
+        relationship: {
+          related_contact_id: companyId,
+          relationship_type: "employee_of", // Always employee_of
+          role_in_relationship: selectedRole || null, // Optional role from contact_roles
+        },
+      });
+
+      // Refresh contact and relationships
+      const [contactRes] = await Promise.all([
+        api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`),
+        loadRelatedEntities(),
+      ]);
+      onContactUpdate(contactRes.contact);
+
+      // Reset search state
+      setShowCompanySearch(false);
+      setCompanySearchQuery("");
+      setCompanySearchResults([]);
+      setSelectedRole("");
+
+      toast({
+        title: "Company linked",
+        description: selectedRole ? `Added as ${selectedRole}` : "Added as employee",
+      });
+    } catch (err) {
+      toast({
+        title: "Error linking company",
+        description: err instanceof Error ? err.message : "Failed to link company",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCompanyLink(false);
+    }
+  }, [contact.id, selectedRole, onContactUpdate, loadRelatedEntities, toast]);
+
+  // Remove company relationship
+  const removeCompanyLink = useCallback(async (relationshipId: number) => {
+    setSavingCompanyLink(true);
+    try {
+      await api.delete(`/api/v1/contacts/${contact.id}/relationships/${relationshipId}`);
+
+      // Refresh contact and relationships
+      const [contactRes] = await Promise.all([
+        api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`),
+        loadRelatedEntities(),
+      ]);
+      onContactUpdate(contactRes.contact);
+
+      toast({
+        title: "Link removed",
+        description: "Company relationship removed",
+      });
+    } catch (err) {
+      toast({
+        title: "Error removing link",
+        description: err instanceof Error ? err.message : "Failed to remove link",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingCompanyLink(false);
+    }
+  }, [contact.id, onContactUpdate, loadRelatedEntities, toast]);
+
+  // Reorder company relationships (for DnD)
+  const reorderCompanyLinks = useCallback(async (newOrder: ContactRelationship[]) => {
+    // Update local state immediately for responsive UI
+    setCompanyRelationships(newOrder);
+
+    // The first employee_of relationship becomes primary
+    // We need to delete and recreate relationships in new order
+    // For now, just update local state - backend will sync primary_company_id
+    // TODO: Implement proper reordering API if needed
+  }, []);
 
   // Generic save function for single field updates
   const saveField = useCallback(
@@ -225,278 +382,536 @@ export function ContactOverviewTab({
     (a) => a.address_type === "STREET" && !a._destroy
   ) || null;
 
+  // Helper: check if this is a person (not a company/trust)
+  const isPerson = hasFirstLastName(contact.entity_type);
+
+  // Calculate relationship counts for display
+  const employeeCount = contact.employees?.length || 0;
+  const relatedCount = relatedEntities.length;
+  const hasRelationships = employeeCount > 0 || relatedCount > 0 || contact.primary_company;
+
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
-      {/* Identity Section */}
-      <PropertySection title="Identity">
-        {hasFirstLastName(contact.entity_type) ? (
-          <>
-            <PropertyRow
-              label="First Name"
-              value={contact.first_name}
-              onSave={(value) => saveField("first_name", value)}
-              placeholder="Enter first name"
-            />
-            <PropertyRow
-              label="Middle Name"
-              value={contact.middle_name}
-              onSave={(value) => saveField("middle_name", value)}
-              placeholder="Enter middle name"
-            />
-            <PropertyRow
-              label="Last Name"
-              value={contact.last_name}
-              onSave={(value) => saveField("last_name", value)}
-              placeholder="Enter last name"
-            />
-          </>
-        ) : (
-          <PropertyRow
-            label="Company/Trust Name"
-            value={contact.company_name_or_trust}
-            onSave={(value) => saveField("company_name_or_trust", value)}
-            placeholder="Enter company or trust name"
-          />
-        )}
+    <div className="space-y-6">
+      {/* Two-column grid layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* LEFT COLUMN */}
+        <div className="space-y-6">
+          {/* Identity Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Identity</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {isPerson ? (
+                <>
+                  <PropertyRow
+                    label="First Name"
+                    value={contact.first_name}
+                    onSave={(value) => saveField("first_name", value)}
+                    placeholder="Enter first name"
+                  />
+                  <PropertyRow
+                    label="Middle Name"
+                    value={contact.middle_name}
+                    onSave={(value) => saveField("middle_name", value)}
+                    placeholder="Enter middle name"
+                  />
+                  <PropertyRow
+                    label="Last Name"
+                    value={contact.last_name}
+                    onSave={(value) => saveField("last_name", value)}
+                    placeholder="Enter last name"
+                  />
+                </>
+              ) : (
+                <PropertyRow
+                  label="Company/Trust Name"
+                  value={contact.company_name_or_trust}
+                  onSave={(value) => saveField("company_name_or_trust", value)}
+                  placeholder="Enter company or trust name"
+                />
+              )}
 
-        <PropertyRow
-          label="Entity Type"
-          value={contact.entity_type}
-          onSave={(value) => saveField("entity_type", value)}
-          type="select"
-          options={entityTypeOptions}
-        />
+              <PropertyRow
+                label="Entity Type"
+                value={contact.entity_type}
+                onSave={(value) => saveField("entity_type", value)}
+                type="select"
+                options={entityTypeOptions}
+              />
 
-        <PropertyRow
-          label="Active"
-          value={contact.is_active}
-          onSave={(value) => saveField("is_active", value)}
-          type="switch"
-        />
+              <PropertyRow
+                label="Active"
+                value={contact.is_active}
+                onSave={(value) => saveField("is_active", value)}
+                type="switch"
+              />
 
-        <PropertyRow
-          label="Team Contact"
-          value={contact.is_team_contact}
-          onSave={(value) => saveField("is_team_contact", value)}
-          type="switch"
-        />
-      </PropertySection>
+              <PropertyRow
+                label="Team Contact"
+                value={contact.is_team_contact}
+                onSave={(value) => saveField("is_team_contact", value)}
+                type="switch"
+              />
+            </CardContent>
+          </Card>
 
-      {/* Contact Section */}
-      <PropertySection title="Contact">
-        <EmailPropertyGroup
-          contactId={contact.id}
-          emails={contact.contact_emails || []}
-          onSave={saveEmails}
-        />
-
-        <div className="my-3" />
-
-        <PhonePropertyGroup
-          contactId={contact.id}
-          phones={contact.contact_phones || []}
-          onSave={savePhones}
-        />
-
-        <div className="my-3" />
-
-        <PropertyRow
-          label="Website"
-          value={contact.website}
-          onSave={(value) => saveField("website", value)}
-          type="url"
-          placeholder="https://example.com"
-          externalLink
-        />
-      </PropertySection>
-
-      {/* Address Section */}
-      <PropertySection title="Address">
-        <AddressPropertyGroup
-          contactId={contact.id}
-          address={streetAddress}
-          onSave={saveAddress}
-        />
-      </PropertySection>
-
-      {/* Company Association - for Person entities */}
-      {canHaveEmployer(contact.entity_type) && contact.primary_company && (
-        <PropertySection title="Employment">
-          <div className="py-2 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D]">
-            <div className="flex items-center gap-3">
-              <Building2 className="h-4 w-4 text-[#878787]" />
-              <div className="flex-1">
-                <span className="text-[11px] text-[#878787]">Works at</span>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <Link
-                    href={`/contacts/${contact.primary_company.id}`}
-                    className="text-[14px] text-[#606060] dark:text-gray-300 font-medium hover:underline"
-                  >
-                    {contact.primary_company.name}
-                  </Link>
-                  <ExternalLink className="h-3 w-3 text-[#878787]" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </PropertySection>
-      )}
-
-      {/* Employees - for Company entities */}
-      {canHaveEmployees(contact.entity_type) && contact.employees && contact.employees.length > 0 && (
-        <PropertySection title="Employees">
-          <div className="space-y-1">
-            {contact.employees.map((employee) => (
-              <Link
-                key={employee.id}
-                href={`/contacts/${employee.id}`}
-                className="flex items-center gap-3 py-2 px-3 -mx-3 hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]"
-              >
-                <Users className="h-4 w-4 text-[#878787]" />
-                <div className="flex-1">
-                  <span className="text-[14px] text-[#606060] dark:text-gray-300">{employee.display_name}</span>
-                  {employee.primary_role && (
-                    <Badge variant="outline" className="ml-2 text-[11px]">
-                      {employee.primary_role}
-                    </Badge>
-                  )}
-                </div>
-                <ExternalLink className="h-3 w-3 text-[#878787]" />
-              </Link>
-            ))}
-          </div>
-        </PropertySection>
-      )}
-
-      {/* Related Entities */}
-      {relatedEntities.length > 0 && (
-        <PropertySection title="Related Contacts">
-          <div className="space-y-1">
-            {relatedEntities.map((rel) => {
-              const relatedContact = rel.other_contact || rel.related_contact;
-              if (!relatedContact) return null;
-
-              // Get display name from either name format
-              const displayName = "display_name" in relatedContact
-                ? relatedContact.display_name
-                : "name" in relatedContact
-                  ? relatedContact.name
-                  : "Unknown";
-
-              return (
-                <Link
-                  key={rel.id}
-                  href={`/contacts/${relatedContact.id}`}
-                  className="flex items-center gap-3 py-2 px-3 -mx-3 hover:bg-[#F2F1EF] dark:hover:bg-[#1D1D1D]"
-                >
-                  <Link2 className="h-4 w-4 text-[#878787]" />
-                  <div className="flex-1">
-                    <span className="text-[14px] text-[#606060] dark:text-gray-300">{displayName}</span>
-                    <Badge variant="outline" className="ml-2 text-[11px]">
-                      {rel.relationship_type_label || rel.relationship_type}
-                    </Badge>
-                  </div>
-                  <ExternalLink className="h-3 w-3 text-[#878787]" />
-                </Link>
-              );
-            })}
-          </div>
-        </PropertySection>
-      )}
-
-      {/* Business & Tax - Hide for employees with primary company */}
-      {!(canHaveEmployer(contact.entity_type) && contact.primary_company) && (
-        <PropertySection title="Business & Tax">
-          <PropertyRow
-            label="ABN"
-            value={contact.abn}
-            onSave={(value) => saveField("abn", value)}
-            format={formatABN}
-            validate={validateABN}
-            placeholder="00 000 000 000"
-          />
-          <PropertyRow
-            label="ACN"
-            value={contact.acn}
-            onSave={(value) => saveField("acn", value)}
-            format={formatACN}
-            validate={validateACN}
-            placeholder="000 000 000"
-          />
-          <PropertyRow
-            label="Sync with Xero"
-            value={contact.sync_with_xero}
-            onSave={(value) => saveField("sync_with_xero", value)}
-            type="switch"
-            hint="Keep contact synced with Xero"
-          />
-        </PropertySection>
-      )}
-
-      {/* Notes */}
-      <PropertySection title="Notes">
-        <PropertyRow
-          label="Notes"
-          value={contact.notes}
-          onSave={(value) => saveField("notes", value)}
-          type="textarea"
-          placeholder="Add notes about this contact..."
-          labelWidth="w-0"
-        />
-      </PropertySection>
-
-      {/* Contact Persons - for companies */}
-      {contact.contact_persons && contact.contact_persons.length > 0 && (
-        <PropertySection title="Contact Persons">
-          <div className="space-y-1">
-            {contact.contact_persons.map((person) => (
-              <div
-                key={person.id}
-                className="flex items-center gap-3 py-2 px-3 -mx-3 bg-[#F2F1EF] dark:bg-[#1D1D1D]"
-              >
-                <Users className="h-4 w-4 text-[#878787]" />
-                <div className="flex-1">
-                  <span className="text-[14px] text-[#606060] dark:text-gray-300">
-                    {person.first_name} {person.last_name}
-                  </span>
-                  {person.role && (
-                    <span className="text-[11px] text-[#878787] ml-2">
-                      ({person.role})
-                    </span>
-                  )}
-                  {person.is_primary && (
-                    <Badge variant="secondary" className="ml-2 text-[11px]">
-                      Primary
-                    </Badge>
-                  )}
-                </div>
-                {person.email && (
-                  <span className="text-[11px] text-[#878787]">
-                    {person.email}
-                  </span>
+          {/* Business & Tax Card - Hide for employees with primary company */}
+          {!(canHaveEmployer(contact.entity_type) && contact.primary_company) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Business & Tax</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <PropertyRow
+                  label="ABN"
+                  value={contact.abn}
+                  onSave={(value) => saveField("abn", value)}
+                  format={formatABN}
+                  validate={validateABN}
+                  placeholder="00 000 000 000"
+                />
+                {/* ACN only for companies/trusts */}
+                {!isPerson && (
+                  <PropertyRow
+                    label="ACN"
+                    value={contact.acn}
+                    onSave={(value) => saveField("acn", value)}
+                    format={formatACN}
+                    validate={validateACN}
+                    placeholder="000 000 000"
+                  />
                 )}
-              </div>
-            ))}
-          </div>
-        </PropertySection>
-      )}
+                <PropertyRow
+                  label="Sync with Xero"
+                  value={contact.sync_with_xero}
+                  onSave={(value) => saveField("sync_with_xero", value)}
+                  type="switch"
+                  hint="Keep contact synced with Xero"
+                />
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Groups */}
-      {contact.contact_groups && contact.contact_groups.length > 0 && (
-        <PropertySection title="Groups">
-          <div className="flex flex-wrap gap-2 py-2">
-            {contact.contact_groups.map((group) => (
-              <Badge key={group.id} variant="secondary">
-                {group.name}
-              </Badge>
-            ))}
-          </div>
-        </PropertySection>
-      )}
+          {/* Notes Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <PropertyRow
+                label="Notes"
+                value={contact.notes}
+                onSave={(value) => saveField("notes", value)}
+                type="textarea"
+                placeholder="Add notes about this contact..."
+                labelWidth="w-0"
+              />
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* System Info Footer */}
+        {/* RIGHT COLUMN */}
+        <div className="space-y-6">
+          {/* Contact Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Contact</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <EmailPropertyGroup
+                contactId={contact.id}
+                emails={contact.contact_emails || []}
+                onSave={saveEmails}
+              />
+
+              <div className="my-3" />
+
+              <PhonePropertyGroup
+                contactId={contact.id}
+                phones={contact.contact_phones || []}
+                onSave={savePhones}
+              />
+
+              {/* Website only for companies/trusts */}
+              {!isPerson && (
+                <>
+                  <div className="my-3" />
+                  <PropertyRow
+                    label="Website"
+                    value={contact.website}
+                    onSave={(value) => saveField("website", value)}
+                    type="url"
+                    placeholder="https://example.com"
+                    externalLink
+                  />
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Address Card */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Address</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <AddressPropertyGroup
+                contactId={contact.id}
+                address={streetAddress}
+                onSave={saveAddress}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Relationships Card - shows company links, employees, and related contacts */}
+          {/* Always show for persons (to add company links) or when there are relationships */}
+          {(canHaveEmployer(contact.entity_type) || hasRelationships || companyRelationships.length > 0) && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">
+                  Relationships
+                  {(employeeCount + relatedCount + companyRelationships.length) > 0 && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      {employeeCount + relatedCount + companyRelationships.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-4">
+                {/* Company Links - for persons (with DnD reordering) */}
+                {canHaveEmployer(contact.entity_type) && (
+                  <div>
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                      Companies
+                      {companyRelationships.length > 0 && (
+                        <span className="ml-1">({companyRelationships.length})</span>
+                      )}
+                    </div>
+
+                    {/* Show linked companies with DnD */}
+                    {companyRelationships.length > 0 && (
+                      <SortableList
+                        items={companyRelationships}
+                        onReorder={reorderCompanyLinks}
+                        className="space-y-1 mb-3"
+                      >
+                        {companyRelationships.map((rel, index) => {
+                          const company = rel.related_contact || rel.other_contact;
+                          const companyName = company
+                            ? ("display_name" in company ? company.display_name : "name" in company ? company.name : "Unknown")
+                            : "Unknown";
+                          const roleLabel = rel.role_in_relationship || "Employee";
+                          const isPrimary = index === 0;
+
+                          return (
+                            <SortableItem
+                              key={rel.id}
+                              id={rel.id}
+                              className="flex items-center gap-2 py-2 px-2 -mx-2 rounded-md bg-muted/30 group"
+                            >
+                              <DragHandle className="opacity-0 group-hover:opacity-100 transition-opacity cursor-grab" />
+                              <div className="h-8 w-8 rounded-full flex items-center justify-center shrink-0 bg-green-100 dark:bg-green-900/30">
+                                <Building2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <Link
+                                    href={`/contacts/${company?.id}`}
+                                    className="text-sm font-medium truncate hover:underline"
+                                  >
+                                    {companyName}
+                                  </Link>
+                                  {isPrimary && (
+                                    <Badge variant="default" className="text-[10px] h-4 px-1.5 bg-green-600">
+                                      Primary
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {roleLabel}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <Link href={`/contacts/${company?.id}`}>
+                                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </Button>
+                                </Link>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  onClick={() => removeCompanyLink(rel.id)}
+                                  disabled={savingCompanyLink}
+                                >
+                                  {savingCompanyLink ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                                  )}
+                                </Button>
+                              </div>
+                            </SortableItem>
+                          );
+                        })}
+                      </SortableList>
+                    )}
+
+                    {/* Add company link interface */}
+                    {showCompanySearch ? (
+                      <div className="space-y-3">
+                        {/* Role selector from contact_roles API */}
+                        {availableRoles.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            <Button
+                              variant={selectedRole === "" ? "default" : "outline"}
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => setSelectedRole("")}
+                            >
+                              Employee
+                            </Button>
+                            {availableRoles.map((role) => (
+                              <Button
+                                key={role.id}
+                                variant={selectedRole === role.name ? "default" : "outline"}
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => setSelectedRole(role.name)}
+                              >
+                                {role.name}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Company search */}
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search for a company..."
+                            value={companySearchQuery}
+                            onChange={(e) => setCompanySearchQuery(e.target.value)}
+                            className="pl-9 pr-8"
+                            autoFocus
+                          />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                            onClick={() => {
+                              setShowCompanySearch(false);
+                              setCompanySearchQuery("");
+                              setCompanySearchResults([]);
+                              setSelectedRole("");
+                            }}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+
+                        {/* Search results */}
+                        {searchingCompany ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : companySearchResults.length > 0 ? (
+                          <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1">
+                            {companySearchResults.map((company) => (
+                              <button
+                                key={company.id}
+                                onClick={() => addCompanyLink(company.id)}
+                                disabled={savingCompanyLink}
+                                className="w-full text-left px-3 py-2 hover:bg-muted rounded-md transition-colors flex items-center gap-3"
+                              >
+                                <div className="h-7 w-7 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                                  <Building2 className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">{company.name}</div>
+                                  <div className="text-xs text-muted-foreground capitalize">{company.entity_type}</div>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : companySearchQuery.length >= 2 ? (
+                          <div className="text-sm text-muted-foreground text-center py-3">
+                            No companies found
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground text-center py-2">
+                            Type at least 2 characters to search
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      /* Add company button */
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setShowCompanySearch(true)}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-2" />
+                        Link Company
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Employees - for companies */}
+                {canHaveEmployees(contact.entity_type) && employeeCount > 0 && (
+                  <div>
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                      Employees ({employeeCount})
+                    </div>
+                    <div className="space-y-1">
+                      {contact.employees?.slice(0, 5).map((employee) => (
+                        <Link
+                          key={employee.id}
+                          href={`/contacts/${employee.id}`}
+                          className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                            <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate">{employee.display_name}</div>
+                            {employee.primary_role && (
+                              <div className="text-xs text-muted-foreground">{employee.primary_role}</div>
+                            )}
+                          </div>
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        </Link>
+                      ))}
+                      {employeeCount > 5 && (
+                        <div className="text-xs text-muted-foreground text-center py-2">
+                          +{employeeCount - 5} more employees
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Related Contacts */}
+                {relatedCount > 0 && (
+                  <div>
+                    <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                      Related Contacts ({relatedCount})
+                    </div>
+                    <div className="space-y-1">
+                      {relatedEntities.slice(0, 5).map((rel) => {
+                        const relatedContact = rel.other_contact || rel.related_contact;
+                        if (!relatedContact) return null;
+
+                        const displayName = "display_name" in relatedContact
+                          ? relatedContact.display_name
+                          : "name" in relatedContact
+                            ? relatedContact.name
+                            : "Unknown";
+
+                        return (
+                          <Link
+                            key={rel.id}
+                            href={`/contacts/${relatedContact.id}`}
+                            className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                              <Link2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">{displayName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {rel.relationship_type_label || rel.relationship_type}
+                              </div>
+                            </div>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          </Link>
+                        );
+                      })}
+                      {relatedCount > 5 && (
+                        <div className="text-xs text-muted-foreground text-center py-2">
+                          +{relatedCount - 5} more contacts
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Contact Persons Card - for companies */}
+          {contact.contact_persons && contact.contact_persons.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">
+                  Contact Persons
+                  <Badge variant="secondary" className="ml-2 text-xs">
+                    {contact.contact_persons.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="space-y-1">
+                  {contact.contact_persons.map((person) => (
+                    <div
+                      key={person.id}
+                      className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md bg-muted/30"
+                    >
+                      <div className="h-8 w-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                        <Users className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">
+                            {person.first_name} {person.last_name}
+                          </span>
+                          {person.is_primary && (
+                            <Badge variant="secondary" className="text-[10px] shrink-0">
+                              Primary
+                            </Badge>
+                          )}
+                        </div>
+                        {(person.role || person.email) && (
+                          <div className="text-xs text-muted-foreground truncate">
+                            {person.role && <span>{person.role}</span>}
+                            {person.role && person.email && <span> · </span>}
+                            {person.email && <span>{person.email}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Groups Card */}
+          {contact.contact_groups && contact.contact_groups.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Groups</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="flex flex-wrap gap-2">
+                  {contact.contact_groups.map((group) => (
+                    <Badge key={group.id} variant="secondary">
+                      {group.name}
+                    </Badge>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
+
+      {/* System Info Footer - spans full width */}
       <Separator />
-      <div className="text-[11px] text-[#878787] flex items-center gap-4 py-2">
+      <div className="text-[11px] text-muted-foreground flex items-center gap-4 py-2">
         <span>ID: {contact.id}</span>
         <span>
           Created:{" "}
