@@ -2,8 +2,10 @@
 # - OAuth tokens: XeroCredential (access_token, refresh_token, expires_at, status)
 # - Sync timing: XeroSyncStatus (last_synced_at, next_sync_at per sync_type)
 # - Company mapping: This model (which company links to which Xero tenant)
+# - Connection health: XeroConnectionHealth service (THE SSoT for status computation)
 #
 # DEPRECATED columns on this model (kept for backwards compatibility):
+# - connection_status -> Use XeroConnectionHealth.for_company(company) instead
 # - last_sync_at -> Use XeroSyncStatus.last_synced_at instead
 # - last_sync_error -> Use XeroSyncStatus.last_error instead
 #
@@ -29,8 +31,21 @@ class CorporateCompanyXeroConnection < ApplicationRecord
   after_commit :sync_bank_accounts_from_xero, if: :just_connected?
 
   # Instance methods
+  # SSoT: Delegate to XeroConnectionHealth service for unified status
   def connected?
-    connection_status == "connected" && xero_credential.present? && !token_expired?
+    return false unless xero_credential.present?
+    XeroConnectionHealth.for_credential(xero_credential).connected
+  end
+
+  # SSoT: Get full health status from XeroConnectionHealth
+  def health_status
+    return XeroConnectionHealth.disconnected_status("No Xero credential linked") unless xero_credential.present?
+    XeroConnectionHealth.for_credential(xero_credential)
+  end
+
+  # SSoT: Get display status from unified health
+  def display_status
+    health_status.display_status
   end
 
   def token_expired?

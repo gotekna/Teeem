@@ -494,14 +494,17 @@ module Api
           by_folder: onedrive_docs.group(:folder).count
         }
 
-        # Xero connection stats
+        # Xero connection stats - SSoT: Use XeroConnectionHealth
         xero_connection = @company.corporate_company_xero_connection
         xero_stats = if xero_connection
+          health = xero_connection.health_status
           {
-            connected: xero_connection.connection_status == "connected",
+            connected: health.connected,
             tenant_name: xero_connection.xero_tenant_name,
             last_sync: xero_connection.last_sync_at,
-            status: xero_connection.connection_status
+            status: health.display_status,
+            # Legacy field for backwards compatibility
+            connection_status: xero_connection.connection_status
           }
         else
           { connected: false }
@@ -600,9 +603,9 @@ module Api
           extra: { synced_documents: onedrive_docs }
         }
 
-        # 4. Xero Connection
+        # 4. Xero Connection - SSoT: Use connected? which delegates to XeroConnectionHealth
         xero = @company.corporate_company_xero_connection
-        xero_connected = xero&.connection_status == "connected"
+        xero_connected = xero&.connected?
         xero_last_sync = xero&.last_sync_at
         xero_stale = xero_last_sync.nil? || xero_last_sync < 24.hours.ago
 

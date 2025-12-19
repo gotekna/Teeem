@@ -183,8 +183,7 @@ class XeroConnectionHealth
       false
     end
 
-    private
-
+    # Public helper to create a disconnected status - useful for models that delegate
     def disconnected_status(message)
       HealthStatus.new(
         connected: false,
