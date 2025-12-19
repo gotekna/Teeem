@@ -1479,6 +1479,11 @@ Rails.application.routes.draw do
       get "xero/health/events", to: "xero_health#events"
       get "xero/health/analytics", to: "xero_health#analytics"
       post "xero/health/check", to: "xero_health#check"
+      # Predictive Health Analysis (Phase 5)
+      get "xero/health/predictions", to: "xero_health#predictions"
+      get "xero/health/warnings", to: "xero_health#warnings"
+      get "xero/health/patterns", to: "xero_health#patterns"
+      get "xero/health/trends", to: "xero_health#trends"
 
       # Xero Feature Tabs (SSoT for Xero sub-tabs on company pages)
       get "xero/tabs", to: "xero_tabs#index"

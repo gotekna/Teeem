@@ -72,6 +72,67 @@ module Api
         }
       end
 
+      # ============================================
+      # PHASE 5: PREDICTIVE HEALTH ENDPOINTS
+      # ============================================
+
+      # GET /api/v1/xero/health/predictions
+      # Returns predictive health analysis
+      def predictions
+        credentials_with_risk = XeroCredential.all.map do |credential|
+          {
+            id: credential.id,
+            tenant_name: credential.tenant_name,
+            risk_score: XeroHealthEvent.risk_score_for(credential),
+            health_score: 100 - XeroHealthEvent.risk_score_for(credential)
+          }
+        end.sort_by { |c| -c[:risk_score] }
+
+        render json: {
+          success: true,
+          predictions: {
+            credentials: credentials_with_risk,
+            high_risk_count: credentials_with_risk.count { |c| c[:risk_score] >= 70 },
+            elevated_risk_count: credentials_with_risk.count { |c| c[:risk_score] >= 40 && c[:risk_score] < 70 },
+            healthy_count: credentials_with_risk.count { |c| c[:risk_score] < 40 }
+          }
+        }
+      end
+
+      # GET /api/v1/xero/health/warnings
+      # Returns early warnings for potential issues
+      def warnings
+        warnings = XeroHealthEvent.early_warnings
+
+        render json: {
+          success: true,
+          warnings: warnings,
+          critical_count: warnings.count { |w| w[:severity] == "critical" },
+          warning_count: warnings.count { |w| w[:severity] == "warning" }
+        }
+      end
+
+      # GET /api/v1/xero/health/patterns
+      # Returns failure patterns analysis
+      def patterns
+        credential = params[:credential_id].present? ? XeroCredential.find_by(id: params[:credential_id]) : nil
+
+        render json: {
+          success: true,
+          patterns: XeroHealthEvent.failure_patterns(credential),
+          scope: credential ? credential.tenant_name : "all_credentials"
+        }
+      end
+
+      # GET /api/v1/xero/health/trends
+      # Returns trend analysis
+      def trends
+        render json: {
+          success: true,
+          trends: XeroHealthEvent.trend_analysis
+        }
+      end
+
       private
 
       def overall_status(credentials_health)

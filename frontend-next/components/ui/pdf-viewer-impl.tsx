@@ -39,6 +39,8 @@ export function PDFViewerImpl({
   const [isCached, setIsCached] = React.useState(false);
   const [pageCount, setPageCount] = React.useState<number>(1);
   const [currentPage, setCurrentPage] = React.useState<number>(1);
+  const [containerKey, setContainerKey] = React.useState<number>(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Store onError in ref to avoid re-fetching when callback changes
   const onErrorRef = React.useRef(onError);
@@ -167,6 +169,40 @@ export function PDFViewerImpl({
     setBlobUrl(null);
   }, []);
 
+  // ResizeObserver to re-fit PDF when container size changes
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !blobUrl) return;
+
+    let resizeTimeout: NodeJS.Timeout | null = null;
+    let lastWidth = container.clientWidth;
+    let lastHeight = container.clientHeight;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        // Only trigger if size changed significantly (>5px threshold to avoid micro-changes)
+        if (Math.abs(width - lastWidth) > 5 || Math.abs(height - lastHeight) > 5) {
+          lastWidth = width;
+          lastHeight = height;
+          // Debounce to avoid excessive re-renders during resize drag
+          if (resizeTimeout) clearTimeout(resizeTimeout);
+          resizeTimeout = setTimeout(() => {
+            // Increment key to force iframe remount, which re-applies page-fit zoom
+            setContainerKey((k) => k + 1);
+          }, 150);
+        }
+      }
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+      if (resizeTimeout) clearTimeout(resizeTimeout);
+    };
+  }, [blobUrl]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -229,7 +265,7 @@ export function PDFViewerImpl({
 
   // Success state - iframe with native PDF viewer
   return (
-    <div className={cn("h-full w-full relative", className)}>
+    <div ref={containerRef} className={cn("h-full w-full relative", className)}>
       {/* Floating page navigation - only show for multi-page PDFs */}
       {pageCount > 1 && (
         <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-background/90 backdrop-blur-sm border rounded-md shadow-sm px-1 py-0.5">
@@ -266,6 +302,7 @@ export function PDFViewerImpl({
 
       {/* iframe uses browser's native PDF viewer */}
       <iframe
+        key={containerKey}
         src={iframeSrc}
         className="w-full h-full border-0"
         title="PDF Viewer"

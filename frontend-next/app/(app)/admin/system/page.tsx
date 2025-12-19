@@ -41,6 +41,7 @@ import {
   Clock,
   Menu,
   Brain,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,7 @@ import { NavigationTab } from "./components/NavigationTab";
 import { JobTabsConfigTab } from "./components/JobTabsConfigTab";
 import { PdfFieldsTab } from "./components/PdfFieldsTab";
 import { AiProcessingTab } from "./components/AiProcessingTab";
+import { XeroHealthTab } from "./components/XeroHealthTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 const TIMEZONES = [
@@ -119,6 +121,7 @@ const MAIN_TABS = [
   { id: "email-accounts", label: "Email Accounts", icon: Mail },
   { id: "pdf-fields", label: "PDF Fields", icon: FileText },
   { id: "ai-processing", label: "AI Processing", icon: Brain },
+  { id: "xero-health", label: "Xero Health", icon: Activity },
 ];
 
 const COMPANY_TABS = [
@@ -878,6 +881,9 @@ function SystemAdminPageContent() {
 
           <TabsContent value="ai-processing" className="flex-1 min-h-0 overflow-auto">
             <AiProcessingTab />
+          </TabsContent>
+          <TabsContent value="xero-health" className="flex-1 min-h-0 overflow-auto">
+            <XeroHealthTab />
           </TabsContent>
         </div>
       </Tabs>

@@ -118,7 +118,7 @@ export function XeroSetupWizard({ companyId, companyName, onComplete, onDismiss 
         `/api/v1/companies/${companyId}/xero/sync`,
         { sync_type: type }
       );
-      if (response.success) {
+      if (response?.success) {
         toast({
           title: "Sync completed",
           description: response.message || `Successfully synced ${type.replace('_', ' ')}`,
