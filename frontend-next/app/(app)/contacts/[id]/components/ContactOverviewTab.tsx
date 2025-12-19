@@ -83,18 +83,19 @@ export function ContactOverviewTab({
     }
   }, [contact.id]);
 
-  // Load available contact roles from contact_types Foundation (SSoT)
+  // Load available contact roles from contact_types API (SSoT - same as ContactTypesTab)
   useEffect(() => {
     const loadRoles = async () => {
       try {
-        const response = await api.get<{ records: Array<{ id: number; name: string; display_name: string }> }>("/api/v1/records/contact_types", {
-          params: { active: true, per_page: 50 }
-        });
-        // Map to id/name format, using display_name for user-friendly labels
-        const roles = (response.records || []).map(r => ({
-          id: r.id,
-          name: r.display_name || r.name
-        }));
+        // Use same API as ContactTypesTab: /api/v1/contact_types
+        const response = await api.get<Array<{ id: number; name: string; display_name: string; active: boolean }>>("/api/v1/contact_types");
+        // Filter to active only, map to id/name format using display_name for user-friendly labels
+        const roles = (response || [])
+          .filter(r => r.active)
+          .map(r => ({
+            id: r.id,
+            name: r.display_name || r.name
+          }));
         setAvailableRoles(roles);
       } catch {
         // Fallback to empty - will just show employee link without role selection

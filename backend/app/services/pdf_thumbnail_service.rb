@@ -7,10 +7,10 @@
 #   PdfThumbnailService.new(revision).generate!
 #
 class PdfThumbnailService
-  # Micro thumbnail (instant display, blurred placeholder)
-  MICRO_WIDTH = 50
-  MICRO_BLUR = 10
-  MICRO_QUALITY = 60
+  # Micro thumbnail (instant display, small but readable)
+  MICRO_WIDTH = 300
+  MICRO_BLUR = 0      # No blur - keep it readable
+  MICRO_QUALITY = 50  # Lower quality to keep file small
 
   # Full thumbnail (high quality, loads in background)
   FULL_WIDTH = 500
@@ -87,10 +87,10 @@ class PdfThumbnailService
     end
   end
 
-  # Generate micro thumbnail: 50px wide, blurred, WebP
-  # Target size: ~3KB for inline base64 delivery
+  # Generate micro thumbnail: 300px wide, sharp, WebP
+  # Target size: ~10-15KB for inline base64 delivery (readable preview)
   def generate_micro_thumbnail(pdf_content)
-    Rails.logger.info "[PdfThumbnail] Generating micro thumbnail (50px blurred WebP)..."
+    Rails.logger.info "[PdfThumbnail] Generating micro thumbnail (#{MICRO_WIDTH}px WebP)..."
 
     pdf_file = Tempfile.new(['pdf_micro', '.pdf'], binmode: true)
     output_file = Tempfile.new(['micro', ".#{THUMBNAIL_FORMAT}"], binmode: true)
@@ -106,8 +106,8 @@ class PdfThumbnailService
       MiniMagick::Tool::Convert.new do |convert|
         convert.density THUMBNAIL_DENSITY
         convert << "#{pdf_file.path}[0]"      # First page only
-        convert.resize "#{MICRO_WIDTH}x"       # 50px wide
-        convert.blur "0x#{MICRO_BLUR}"         # Gaussian blur (radius 0, sigma 10)
+        convert.resize "#{MICRO_WIDTH}x"       # 300px wide
+        convert.blur "0x#{MICRO_BLUR}" if MICRO_BLUR > 0  # Only blur if configured
         convert.quality MICRO_QUALITY          # Lower quality = smaller file
         convert << "#{THUMBNAIL_FORMAT}:#{output_path}"
       end
