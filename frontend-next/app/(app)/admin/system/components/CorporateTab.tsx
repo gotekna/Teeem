@@ -48,6 +48,10 @@ import {
   Building2,
   ExternalLink,
   FolderOpen,
+  LayoutGrid,
+  GripVertical,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -882,6 +886,161 @@ function CompaniesSubTab() {
   );
 }
 
+// ===== COMPANY TABS CONFIG SUB-TAB =====
+// Current tabs shown on company detail pages - stored in frontend-next/app/(app)/corporate/companies/[id]/page.tsx
+const CURRENT_DOCUMENT_TABS = [
+  { id: "overview", name: "Overview", visible: true },
+  { id: "company", name: "COMPANY", visible: true },
+  { id: "xero", name: "XERO", visible: true },
+  { id: "bank", name: "BANK", visible: true },
+  { id: "ato", name: "ATO", visible: true },
+  { id: "asic", name: "ASIC", visible: true },
+  { id: "registry", name: "REGISTRY", visible: true },
+  { id: "dividends", name: "DIVIDENDS", visible: true },
+  { id: "financials", name: "FINANCIALS", visible: true },
+  { id: "loans", name: "LOANS", visible: true },
+  { id: "assets", name: "ASSETS", visible: true },
+  { id: "insurance", name: "INSURANCE", visible: true },
+  { id: "minutes", name: "MINUTES", visible: true },
+  { id: "advice", name: "ADVICE", visible: true },
+  { id: "general", name: "GENERAL", visible: true },
+  { id: "documents", name: "Documents", visible: true },
+  { id: "data", name: "Data", visible: true },
+  { id: "activity", name: "Activity", visible: true },
+];
+
+const CURRENT_OVERVIEW_TABS = [
+  { id: "info", name: "Information", visible: true },
+  { id: "corporate", name: "Corporate", visible: true },
+  { id: "bank-accounts", name: "Bank Accounts", visible: true },
+  { id: "directors", name: "Directors", visible: true },
+  { id: "shareholdings", name: "Shareholdings", visible: true },
+  { id: "consolidation", name: "Consolidation", visible: true },
+];
+
+const CURRENT_XERO_TABS = [
+  { id: "connection", name: "Connection", visible: true },
+  { id: "accounts", name: "Accounts", visible: true },
+  { id: "profit-loss", name: "Profit & Loss", visible: true },
+  { id: "balance-sheet", name: "Balance Sheet", visible: true },
+  { id: "profit-loss-pdf", name: "P&L PDF Reports", visible: true },
+  { id: "balance-sheet-pdf", name: "Balance Sheet PDF", visible: true },
+  { id: "bank-accounts", name: "Bank Accounts", visible: true },
+  { id: "bank-statement", name: "Bank Statement", visible: true },
+];
+
+function CompanyTabsSubTab() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-medium">Company Page Tabs</h3>
+          <p className="text-sm text-muted-foreground">
+            Configure which tabs appear on company detail pages
+          </p>
+        </div>
+      </div>
+
+      {/* Main Document Tabs */}
+      <Card>
+        <CardContent className="pt-6">
+          <h4 className="font-medium mb-4">Main Navigation Tabs</h4>
+          <p className="text-sm text-muted-foreground mb-4">
+            These tabs appear in the main navigation bar on company pages.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+            {CURRENT_DOCUMENT_TABS.map((tab) => (
+              <div
+                key={tab.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+              >
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                  <span className="text-sm font-medium">{tab.name}</span>
+                </div>
+                {tab.visible ? (
+                  <Eye className="h-4 w-4 text-green-600" />
+                ) : (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Overview Sub-Tabs */}
+      <Card>
+        <CardContent className="pt-6">
+          <h4 className="font-medium mb-4">Overview Sub-Tabs</h4>
+          <p className="text-sm text-muted-foreground mb-4">
+            These tabs appear under the Overview section.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {CURRENT_OVERVIEW_TABS.map((tab) => (
+              <div
+                key={tab.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+              >
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                  <span className="text-sm font-medium">{tab.name}</span>
+                </div>
+                {tab.visible ? (
+                  <Eye className="h-4 w-4 text-green-600" />
+                ) : (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Xero Sub-Tabs */}
+      <Card>
+        <CardContent className="pt-6">
+          <h4 className="font-medium mb-4">Xero Sub-Tabs</h4>
+          <p className="text-sm text-muted-foreground mb-4">
+            These tabs appear under the Xero section.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {CURRENT_XERO_TABS.map((tab) => (
+              <div
+                key={tab.id}
+                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+              >
+                <div className="flex items-center gap-2">
+                  <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                  <span className="text-sm font-medium">{tab.name}</span>
+                </div>
+                {tab.visible ? (
+                  <Eye className="h-4 w-4 text-green-600" />
+                ) : (
+                  <EyeOff className="h-4 w-4 text-muted-foreground" />
+                )}
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SSoT Info */}
+      <Card className="bg-muted/30">
+        <CardContent className="pt-6">
+          <h4 className="font-medium mb-2">SSoT Location</h4>
+          <p className="text-sm text-muted-foreground font-mono">
+            frontend-next/app/(app)/corporate/companies/[id]/page.tsx
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Look for: DOCUMENT_TABS, OVERVIEW_SUB_TABS, XERO_SUB_TABS constants
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ===== MAIN CORPORATE TAB =====
 export function CorporateTab() {
   const [activeSubTab, setActiveSubTab] = React.useState("groups");
@@ -914,6 +1073,10 @@ export function CorporateTab() {
             <Building2 className="h-4 w-4" />
             Companies
           </TabsTrigger>
+          <TabsTrigger value="company-tabs" className="flex items-center gap-2">
+            <LayoutGrid className="h-4 w-4" />
+            Company Tabs
+          </TabsTrigger>
         </TabsList>
 
         <div className="mt-6">
@@ -922,6 +1085,9 @@ export function CorporateTab() {
           </TabsContent>
           <TabsContent value="companies">
             <CompaniesSubTab />
+          </TabsContent>
+          <TabsContent value="company-tabs">
+            <CompanyTabsSubTab />
           </TabsContent>
         </div>
       </Tabs>
