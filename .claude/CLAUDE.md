@@ -204,7 +204,7 @@ Before creating ANY UI component:
 2. If THE ONE exists, use it. NEVER create duplicates.
 3. Visual reference: `/admin/system?tab=components` → UI Components tab
 
-### Quick Reference (34 Standard Components)
+### Quick Reference (38 Standard Components)
 
 **Tier 1: Core Primitives**
 | Need | THE ONE | Import Path |
@@ -249,13 +249,21 @@ Before creating ANY UI component:
 | Invoice Viewing | `BillsInvoiceViewer` | `@/components/invoice/BillsInvoiceViewer` |
 | Document Preview | `DocumentPreviewModal` | `@/components/corporate/DocumentPreviewModal` |
 
-**Tier 5: Patterns**
+**Tier 5: Patterns - DnD**
 | Need | THE ONE | Import Path |
 |------|---------|-------------|
 | Drag Handle | `DragHandle` | `@/components/ui/dnd` |
 | Sortable List | `SortableList` | `@/components/ui/dnd` |
 | Sortable Item | `SortableItem` | `@/components/ui/dnd` |
-| Position Badge | `PositionBadge` | `@/components/ui/dnd` |
+| Item Badge | `ItemBadge` | `@/components/ui/dnd` |
+| Kanban Board | `KanbanBoard` | `@/components/ui/kanban` |
+| Kanban Column | `KanbanColumn` | `@/components/ui/kanban` |
+| Kanban Card | `KanbanCard` | `@/components/ui/kanban` |
+| Gantt Chart | `GanttChart` | `@/components/ui/gantt` |
+
+**Tier 5: Patterns - Templates**
+| Need | THE ONE | Import Path |
+|------|---------|-------------|
 | Token Builder | `TokenBuilder` | `@/components/ui/tokens` |
 | Token Palette | `TokenPalette` | `@/components/ui/tokens` |
 | Token Badge | `TokenBadge` | `@/components/ui/tokens` |
@@ -268,6 +276,7 @@ Before creating ANY UI component:
 | `drawer.tsx` | `Sheet` |
 | `collapsible.tsx` | `Accordion` |
 | `data-table.tsx` | `TeeemTableView` |
+| `PositionBadge` | `ItemBadge` |
 
 ### Adding New Standard Components
 Tell Claude: **"Add [ComponentName] as a standard component"**

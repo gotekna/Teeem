@@ -8,8 +8,9 @@
  *
  * Components:
  * - DragHandle: 6-dot grip icon for drag operations
- * - PositionBadge: Editable/read-only position number
- * - SortableItem: Base item with handle, position, content, and actions
+ * - ItemBadge: Flexible badge (position, label, icon, or custom) - THE ONE
+ * - PositionBadge: DEPRECATED - use ItemBadge instead
+ * - SortableItem: Base item with handle, badge, content, and actions
  * - SortableList: DnD context wrapper with standard configuration
  *
  * Usage:
@@ -18,7 +19,7 @@
  *   SortableList,
  *   SortableItem,
  *   DragHandle,
- *   PositionBadge,
+ *   ItemBadge,
  *   reorderByPosition,
  * } from "@/components/ui/dnd";
  *
@@ -30,7 +31,7 @@
  *           key={item.id}
  *           id={item.id}
  *           position={index + 1}
- *           editablePosition
+ *           editableBadge
  *           onPositionChange={(pos) => {
  *             setItems(reorderByPosition(items, item.id, pos));
  *           }}
@@ -41,12 +42,29 @@
  *     </SortableList>
  *   );
  * }
+ *
+ * // With custom badge:
+ * <SortableItem id="1" badgeLabel="02a" badgeColor="purple">
+ *   Custom labeled item
+ * </SortableItem>
+ *
+ * // With icon badge:
+ * <SortableItem id="1" badgeIcon={Star} badgeColor="orange">
+ *   Starred item
+ * </SortableItem>
  * ```
  */
 
 // Components
 export { DragHandle, type DragHandleProps } from "./DragHandle";
-export { PositionBadge, type PositionBadgeProps } from "./PositionBadge";
+export {
+  ItemBadge,
+  type ItemBadgeProps,
+  type ItemBadgeColor,
+  // Backwards compatibility - deprecated aliases
+  PositionBadge,
+  type PositionBadgeProps,
+} from "./ItemBadge";
 export { SortableItem, type SortableItemProps } from "./SortableItem";
 export {
   SortableList,
@@ -55,15 +73,42 @@ export {
   reorderByPosition,
 } from "./SortableList";
 
-// Configuration
+// Configuration - Core
 export {
   createDndSensors,
+  type SensorConfig,
   defaultCollisionDetection,
+  POINTER_ACTIVATION_CONSTRAINT,
+} from "./dnd-config";
+
+// Configuration - Sorting Strategies
+export {
   verticalListSortingStrategy,
   horizontalListSortingStrategy,
   rectSortingStrategy,
-  POINTER_ACTIVATION_CONSTRAINT,
+} from "./dnd-config";
+
+// Configuration - Style Classes
+export {
   DRAG_HANDLE_CLASSES,
   DRAGGING_CLASSES,
   DROP_TARGET_CLASSES,
+} from "./dnd-config";
+
+// Configuration - Color System
+export {
+  DND_COLOR_CLASSES,
+  type DndColor,
+} from "./dnd-config";
+
+// Configuration - Animation Presets
+export {
+  ANIMATION_PRESETS,
+  type AnimationPreset,
+} from "./dnd-config";
+
+// Configuration - Collision Strategies
+export {
+  COLLISION_STRATEGIES,
+  type CollisionStrategy,
 } from "./dnd-config";

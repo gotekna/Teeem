@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import type { SavedView } from "../types";
 
 // DnD Primitives - SSoT for drag and drop UI
-import { DragHandle, PositionBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
+import { DragHandle, ItemBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
 
 interface SortableViewItemProps {
   view: SavedView;
@@ -85,8 +85,8 @@ export function SortableViewItem({
         onClick={(e) => e.stopPropagation()}
       />
 
-      {/* DnD Primitive: PositionBadge */}
-      <PositionBadge position={index} size="md" />
+      {/* DnD Primitive: ItemBadge */}
+      <ItemBadge position={index} size="md" />
 
       <div className="flex-1 min-w-0 overflow-hidden">
         <div className="flex items-center gap-1.5">

@@ -27,6 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAuthenticatedImage } from "@/lib/hooks/useAuthenticatedImage";
 
 // Base document interface - consumers extend this
 export interface DocumentItem {
@@ -85,6 +86,38 @@ export interface TeeemDocumentViewProps<T extends DocumentItem> {
 
   // Styling
   className?: string;
+}
+
+// Helper component for authenticated image loading
+function AuthenticatedImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const { imageUrl, loading, error } = useAuthenticatedImage(src);
+
+  if (loading) {
+    return (
+      <div className={cn("flex items-center justify-center", className)}>
+        <Spinner className="h-8 w-8" />
+        <p className="text-sm text-muted-foreground ml-2">Loading thumbnail...</p>
+      </div>
+    );
+  }
+
+  if (error || !imageUrl) {
+    return (
+      <div className={cn("flex items-center justify-center text-muted-foreground", className)}>
+        <FileText className="h-16 w-16 opacity-50" />
+      </div>
+    );
+  }
+
+  return <img src={imageUrl} alt={alt} className={className} />;
 }
 
 export function TeeemDocumentView<T extends DocumentItem>({
@@ -367,7 +400,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
             className="h-full w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 cursor-pointer group"
             onClick={() => setShowFullPdf(true)}
           >
-            <img
+            <AuthenticatedImage
               src={thumbnailUrl}
               alt={name}
               className="max-h-full max-w-full object-contain"

@@ -74,33 +74,33 @@ class PdfThumbnailService
     Rails.logger.info "[PdfThumbnail] Converting page 1 to PNG..."
 
     # Write PDF to temp file
-    Tempfile.create(['pdf_thumbnail', '.pdf'], binmode: true) do |pdf_file|
+    pdf_file = Tempfile.new(['pdf_thumbnail', '.pdf'], binmode: true)
+    output_file = Tempfile.new(['thumbnail', '.png'], binmode: true)
+
+    begin
       pdf_file.write(pdf_content)
       pdf_file.flush
+      pdf_file.close # Close so ImageMagick can read it
 
-      # Create output temp file for PNG
-      output_file = Tempfile.new(['thumbnail', '.png'], binmode: true)
       output_path = output_file.path
       output_file.close
 
-      begin
-        # Use MiniMagick to convert PDF page 1 to PNG
-        # -density sets DPI, [0] selects first page
-        image = MiniMagick::Image.open(pdf_file.path + '[0]') do |b|
-          b.density THUMBNAIL_DENSITY
-        end
-
-        # Resize to target width, maintaining aspect ratio
-        image.resize "#{THUMBNAIL_WIDTH}x"
-        image.format THUMBNAIL_FORMAT
-        image.quality THUMBNAIL_QUALITY
-        image.write output_path
-
-        # Read the generated thumbnail
-        File.binread(output_path)
-      ensure
-        File.delete(output_path) if File.exist?(output_path)
+      # Use MiniMagick::Tool::Convert directly - the [0] syntax works in command context
+      MiniMagick::Tool::Convert.new do |convert|
+        convert.density THUMBNAIL_DENSITY
+        convert << "#{pdf_file.path}[0]"  # [0] = first page
+        convert.resize "#{THUMBNAIL_WIDTH}x"
+        convert.quality THUMBNAIL_QUALITY
+        convert << output_path
       end
+
+      Rails.logger.info "[PdfThumbnail] Conversion complete, reading output..."
+
+      # Read the generated thumbnail
+      File.binread(output_path)
+    ensure
+      pdf_file.unlink if pdf_file
+      output_file.unlink if output_file
     end
   end
 
@@ -122,7 +122,7 @@ class PdfThumbnailService
 
       # Get parent folder from original file
       file_info = client.get_drive_item(sharepoint_config[:drive_id], @revision.sharepoint_file_id)
-      parent_folder_id = file_info.dig('parentReference', 'id')
+      parent_folder_id = file_info[:parent_id]
       raise ThumbnailError, "Could not determine parent folder" unless parent_folder_id
 
       # Upload thumbnail to same folder

@@ -96,7 +96,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Pattern Components
-import { DragHandle, PositionBadge, SortableList, SortableItem } from "@/components/ui/dnd";
+import { DragHandle, PositionBadge, ItemBadge, SortableList, SortableItem } from "@/components/ui/dnd";
+import {
+  KanbanBoard,
+  KanbanCard,
+  type KanbanColumnDef,
+  type CardMoveEvent,
+} from "@/components/ui/kanban";
 import { TokenBadge, TokenPalette, TokenBuilder } from "@/components/ui/tokens";
 
 // Specialized Components (Tier 4)
@@ -529,6 +535,76 @@ function PositionBadgeDemo() {
   );
 }
 
+function ItemBadgeDemo() {
+  const [position, setPosition] = React.useState(1);
+  const [label, setLabel] = React.useState("02a");
+  return (
+    <div className="space-y-4">
+      {/* Content Types */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Content types:</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <ItemBadge position={1} />
+            <span className="text-xs text-muted-foreground">position</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ItemBadge label="02a" />
+            <span className="text-xs text-muted-foreground">label</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ItemBadge icon={Settings} />
+            <span className="text-xs text-muted-foreground">icon</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ItemBadge renderContent={() => <span className="text-[8px]">CUSTOM</span>} />
+            <span className="text-xs text-muted-foreground">custom</span>
+          </div>
+        </div>
+      </div>
+      {/* Colors */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Color variants:</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <ItemBadge position={1} color="default" />
+          <ItemBadge position={2} color="primary" />
+          <ItemBadge position={3} color="purple" />
+          <ItemBadge position={4} color="orange" />
+          <ItemBadge position={5} color="blue" />
+          <ItemBadge position={6} color="green" />
+          <ItemBadge position={7} color="gray" />
+          <ItemBadge position={8} color="red" />
+        </div>
+      </div>
+      {/* Editable */}
+      <div>
+        <p className="text-xs text-muted-foreground mb-2">Editable:</p>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <ItemBadge
+              position={position}
+              editable
+              onPositionChange={setPosition}
+              maxPosition={10}
+              color="purple"
+            />
+            <span className="text-xs text-muted-foreground">click to edit</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <ItemBadge
+              label={label}
+              editable
+              onLabelChange={setLabel}
+              color="orange"
+            />
+            <span className="text-xs text-muted-foreground">click to edit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TokenBadgeDemo() {
   return (
     <div className="flex flex-wrap gap-2">
@@ -626,6 +702,77 @@ function SortableItemDemo() {
         <SortableItem id="simple" position={3} showHandle showPosition variant="simple">
           <span className="text-sm">Simple variant</span>
         </SortableItem>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// KANBAN DEMO
+// =============================================================================
+
+interface KanbanDemoItem {
+  id: number;
+  name: string;
+  status: "todo" | "doing" | "done";
+  priority?: "high" | "low";
+}
+
+function KanbanBoardDemo() {
+  const [items, setItems] = React.useState<KanbanDemoItem[]>([
+    { id: 1, name: "Design mockups", status: "todo", priority: "high" },
+    { id: 2, name: "API integration", status: "todo" },
+    { id: 3, name: "Write tests", status: "doing", priority: "high" },
+    { id: 4, name: "Fix login bug", status: "doing" },
+    { id: 5, name: "Update docs", status: "done" },
+  ]);
+
+  const columns: KanbanColumnDef<KanbanDemoItem>[] = [
+    { id: "todo", title: "To Do", color: "gray" },
+    { id: "doing", title: "In Progress", color: "blue", wipLimit: 3 },
+    { id: "done", title: "Done", color: "green" },
+  ];
+
+  const getItemColumn = (item: KanbanDemoItem) => item.status;
+
+  const handleCardMove = (event: CardMoveEvent<KanbanDemoItem>) => {
+    const { item, toColumnId } = event;
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id ? { ...i, status: toColumnId as KanbanDemoItem["status"] } : i
+      )
+    );
+  };
+
+  const renderCard = (item: KanbanDemoItem, isDragging: boolean) => (
+    <KanbanCard key={item.id} id={item.id} isDragging={isDragging}>
+      <div className="px-2 py-1.5 text-xs flex items-center gap-1.5">
+        <span className="flex-1 truncate">{item.name}</span>
+        {item.priority === "high" && (
+          <Badge variant="destructive" className="text-[9px] px-1 py-0 h-3.5">
+            High
+          </Badge>
+        )}
+      </div>
+    </KanbanCard>
+  );
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground">
+        Drag cards between columns. WIP limit of 3 on &quot;In Progress&quot;.
+      </p>
+      <div className="h-48 overflow-hidden">
+        <KanbanBoard
+          columns={columns}
+          items={items}
+          getItemColumn={getItemColumn}
+          renderCard={renderCard}
+          onCardMove={handleCardMove}
+          columnGap="sm"
+          minColumnWidth={120}
+          className="h-full"
+        />
       </div>
     </div>
   );
@@ -877,12 +1024,15 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   tooltip: TooltipDemo,
   "drag-handle": DragHandleDemo,
   "position-badge": PositionBadgeDemo,
+  "item-badge": ItemBadgeDemo,
   "token-badge": TokenBadgeDemo,
   "token-palette": TokenPaletteDemo,
   "token-builder": TokenBuilderDemo,
   // Sortable components
   "sortable-list": SortableListDemo,
   "sortable-item": SortableItemDemo,
+  // Kanban
+  "kanban-board": KanbanBoardDemo,
   // Specialized components (Tier 4)
   "pdf-viewer": PDFViewerDemo,
   "pdf-editor": PDFEditorDemo,

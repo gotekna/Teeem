@@ -868,6 +868,7 @@ class MicrosoftAppGraphClient
       mime_type: item.dig("file", "mimeType"),
       download_url: item["@microsoft.graph.downloadUrl"],
       parent_drive_id: item.dig("parentReference", "driveId"),
+      parent_id: item.dig("parentReference", "id"),
       parent_path: item.dig("parentReference", "path")
     }
   end

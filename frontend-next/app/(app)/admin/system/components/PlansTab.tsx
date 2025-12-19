@@ -36,7 +36,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { TokenBuilder } from "@/components/ui/tokens/TokenBuilder";
 import type { PlaceholderToken } from "@/lib/placeholders";
-import { SortableList, SortableItem } from "@/components/ui/dnd";
+import { SortableList, SortableItem, ItemBadge } from "@/components/ui/dnd";
 
 // Custom placeholders for Plan Types
 const PLAN_TYPE_PLACEHOLDERS: PlaceholderToken[] = [
@@ -609,6 +609,25 @@ function TypesSection() {
     }
   };
 
+  const handlePositionChange = async (typeId: number, newPosition: number) => {
+    if (newPosition < 1 || newPosition > types.length) return;
+
+    // Find the item and its current index
+    const currentIndex = types.findIndex((t) => t.id === typeId);
+    if (currentIndex === -1) return;
+
+    const newIndex = newPosition - 1; // Convert to 0-based
+    if (currentIndex === newIndex) return;
+
+    // Reorder the array
+    const newTypes = [...types];
+    const [removed] = newTypes.splice(currentIndex, 1);
+    newTypes.splice(newIndex, 0, removed);
+
+    // Use existing reorder handler
+    handleReorder(newTypes);
+  };
+
   const filteredTypes = filterCategory === "all"
     ? types
     : types.filter(t => t.category_ids?.includes(parseInt(filterCategory)));
@@ -794,11 +813,21 @@ function TypesSection() {
                   }
                 >
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                      <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                        {type.code}
-                      </span>
-                    </div>
+                    {/* Position badge - editable for reordering */}
+                    <ItemBadge
+                      position={index + 1}
+                      color="default"
+                      size="md"
+                      editable
+                      onPositionChange={(newPos) => handlePositionChange(type.id, newPos)}
+                      maxPosition={types.length}
+                    />
+                    {/* Code badge - displays plan type code */}
+                    <ItemBadge
+                      label={type.code}
+                      color="orange"
+                      size="lg"
+                    />
                     <div className="space-y-1 min-w-0">
                       <p className="font-medium">{type.name}</p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
