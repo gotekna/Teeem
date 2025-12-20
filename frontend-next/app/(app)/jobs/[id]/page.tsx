@@ -1028,6 +1028,14 @@ export default function JobDetailPage() {
                 location={job.location}
                 latitude={job.latitude}
                 longitude={job.longitude}
+                lotNumber={job.lot_number}
+                streetNumber={job.street_number}
+                streetName={job.street_name}
+                streetType={job.street_type}
+                suburb={job.suburb}
+                postcode={job.postcode}
+                state={job.state}
+                council={job.council}
                 onLocationUpdate={(data) => {
                   // Update job state with new location data using functional update
                   console.log("Job page received location update:", data);

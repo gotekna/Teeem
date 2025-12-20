@@ -171,6 +171,7 @@ export function LocationMap({
   suburb,
   postcode,
   state,
+  council,
   onLocationUpdate,
 }: LocationMapProps) {
   const [mapPosition, setMapPosition] = useState<[number, number] | null>(null);
@@ -457,15 +458,16 @@ export function LocationMap({
     setShowAddressForm(true);
   };
 
-  const handleEditClick = () => {
+  const handleEditClick = async () => {
     setIsEditMode(true);
     setTempPosition(mapPosition);
     setSearchAddress("");
 
-    // Check if we have existing job address data
+    // Check if we have existing job address data OR coordinates
     const hasExistingData = lotNumber || streetNumber || streetName || suburb;
+    const hasCoordinates = latitude && longitude;
 
-    if (hasExistingData) {
+    if (hasExistingData || hasCoordinates) {
       // Pre-fill form with existing job data
       setFormLotNumber(lotNumber || "");
       setFormStreetNumber(streetNumber || "");
@@ -479,6 +481,32 @@ export function LocationMap({
       setSuburbSearchResults([]);
       setShowSuburbDropdown(false);
       setShowAddressForm(true);
+
+      // SSoT: Look up council from suburbs table based on SUBURB NAME (not postcode)
+      // Important: Same postcode can have different councils (e.g., Rochedale South = Logan, Rochedale = Brisbane)
+      if (suburb) {
+        try {
+          // Search by suburb name, not postcode
+          const response = await api.get<{ suburbs: SuburbSearchResult[] }>(
+            `/api/v1/suburbs/search?q=${encodeURIComponent(suburb)}`
+          );
+          const suburbs = response.suburbs || [];
+          // Match by suburb name only (exact, case-insensitive)
+          const match = suburbs.find(
+            (s) => s.name.toLowerCase() === suburb.toLowerCase()
+          );
+          if (match?.council) {
+            setFormCouncil(match.council);
+          } else {
+            setFormCouncil("");
+          }
+        } catch (err) {
+          console.error("Failed to lookup council from suburbs:", err);
+          setFormCouncil("");
+        }
+      } else {
+        setFormCouncil("");
+      }
     } else {
       // No existing data, show search form
       setShowAddressForm(false);
@@ -595,20 +623,25 @@ export function LocationMap({
       return;
     }
 
-    // Validate required fields
-    if (!formLotNumber.trim() && !formStreetNumber.trim()) {
-      setError("Please enter a lot number or street number");
-      return;
-    }
+    // Check if this is just a pin move on existing job (has original location and all address fields)
+    const hasExistingAddress = originalLocation && (formLotNumber || formStreetNumber) && formStreetName && formSuburb;
 
-    if (!formStreetName.trim()) {
-      setError("Please enter a street name");
-      return;
-    }
+    // Validate required fields only if no existing complete address
+    if (!hasExistingAddress) {
+      if (!formLotNumber.trim() && !formStreetNumber.trim()) {
+        setError("Please enter a lot number or street number");
+        return;
+      }
 
-    if (!formSuburb.trim()) {
-      setError("Please enter a suburb");
-      return;
+      if (!formStreetName.trim()) {
+        setError("Please enter a street name");
+        return;
+      }
+
+      if (!formSuburb.trim()) {
+        setError("Please enter a suburb");
+        return;
+      }
     }
 
     setSaving(true);
@@ -731,7 +764,7 @@ export function LocationMap({
       <Dialog open={dialogOpen} onOpenChange={(open) => {
         if (!open) handleCancelEdit();
       }}>
-        <DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[95vw] w-[95vw] h-[90vh] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
@@ -739,221 +772,211 @@ export function LocationMap({
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4">
-            {/* Address Search - hide when form is showing */}
-            {!showAddressForm && (
-              <>
-                <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    Search for an address or suburb below, or click on the map to place a pin and enter the address manually.
-                  </p>
-                </div>
+          <div className="flex-1 flex gap-4 min-h-0 overflow-hidden">
+            {/* Left Panel - Search & Form */}
+            <div className="w-[350px] flex-shrink-0 overflow-y-auto space-y-4 pr-2">
+              {/* Address Search - hide when form is showing */}
+              {!showAddressForm && (
+                <>
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      Search for an address or click on the map to place a pin.
+                    </p>
+                  </div>
 
-                <div className="relative">
-                  <Label htmlFor="address-search">Search Address or Suburb</Label>
-                  <Input
-                    id="address-search"
-                    value={searchAddress}
-                    onChange={(e) => setSearchAddress(e.target.value)}
-                    placeholder="e.g., Tingalpa, 123 Main Street Brisbane"
-                    className="mt-1"
-                  />
-                  {searching && (
-                    <Loader2 className="absolute right-3 top-9 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
+                  <div className="relative">
+                    <Label htmlFor="address-search">Search Address or Suburb</Label>
+                    <Input
+                      id="address-search"
+                      value={searchAddress}
+                      onChange={(e) => setSearchAddress(e.target.value)}
+                      placeholder="e.g., Tingalpa, 123 Main St"
+                      className="mt-1"
+                    />
+                    {searching && (
+                      <Loader2 className="absolute right-3 top-9 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
 
-                  {showSuggestions && addressSuggestions.length > 0 && (
-                    <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                      {addressSuggestions.map((suggestion) => (
-                        <button
-                          key={suggestion.id}
-                          type="button"
-                          onClick={() => handleAddressSelect(suggestion)}
-                          className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors"
-                        >
-                          {suggestion.placeName}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    {showSuggestions && addressSuggestions.length > 0 && (
+                      <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {addressSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            onClick={() => handleAddressSelect(suggestion)}
+                            className="w-full text-left px-4 py-2 text-sm hover:bg-muted transition-colors"
+                          >
+                            {suggestion.placeName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
-                <div className="flex justify-center">
                   <Button
                     variant="outline"
                     size="sm"
+                    className="w-full"
                     onClick={() => setShowAddressForm(true)}
                   >
                     Skip Search &amp; Enter Manually
                   </Button>
-                </div>
-              </>
-            )}
+                </>
+              )}
 
-            {/* Address Form - shown after selecting a location */}
-            {showAddressForm && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-sm font-semibold">Address Details</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setShowAddressForm(false);
-                      resetForm();
-                    }}
-                  >
-                    Search Again
-                  </Button>
-                </div>
-
-                {/* Preview Title */}
-                {(formLotNumber || formStreetNumber) && formStreetName && formSuburb && (
-                  <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
-                    <p className="text-xs text-muted-foreground mb-1">Job title will be:</p>
-                    <p className="text-sm font-semibold text-green-800 dark:text-green-200">
-                      {getPreviewTitle()}
-                    </p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs">Lot Number</Label>
-                    <Input
-                      value={formLotNumber}
-                      onChange={(e) => setFormLotNumber(e.target.value)}
-                      placeholder="e.g., 123"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Street Number</Label>
-                    <Input
-                      value={formStreetNumber}
-                      onChange={(e) => setFormStreetNumber(e.target.value)}
-                      placeholder="e.g., 45"
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-xs">Street Name <span className="text-red-500">*</span></Label>
-                    <Input
-                      value={formStreetName}
-                      onChange={(e) => setFormStreetName(e.target.value)}
-                      placeholder="e.g., Fleming"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-xs">Street Type</Label>
-                    <Input
-                      value={formStreetType}
-                      onChange={(e) => setFormStreetType(e.target.value)}
-                      placeholder="e.g., Road, Street, Court"
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                <div className="relative">
-                  <Label className="text-xs">Suburb <span className="text-red-500">*</span></Label>
-                  <Input
-                    ref={suburbInputRef}
-                    value={suburbSearchQuery || formSuburb}
-                    onChange={(e) => {
-                      setSuburbSearchQuery(e.target.value);
-                      setShowSuburbDropdown(true);
-                      setFormSuburb(e.target.value);
-                    }}
-                    onFocus={() => {
-                      if (suburbSearchQuery.length >= 2 || formSuburb.length >= 2) {
-                        setShowSuburbDropdown(true);
-                      }
-                    }}
-                    placeholder="Search suburb or postcode..."
-                    autoComplete="off"
-                    className="mt-1"
-                  />
-                  {/* Suburb search dropdown */}
-                  {showSuburbDropdown && (suburbSearchResults.length > 0 || suburbSearchLoading) && (
-                    <div
-                      ref={suburbDropdownRef}
-                      className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-60 overflow-auto"
+              {/* Address Form - shown after selecting a location */}
+              {showAddressForm && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold">Address Details</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowAddressForm(false);
+                        resetForm();
+                      }}
                     >
-                      {suburbSearchLoading ? (
-                        <div className="p-3 text-center text-sm text-muted-foreground">
-                          <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                          Searching...
-                        </div>
-                      ) : (
-                        suburbSearchResults.map((suburb) => (
-                          <button
-                            key={suburb.id}
-                            type="button"
-                            onClick={() => handleSuburbSelect(suburb)}
-                            className="w-full px-3 py-2 text-left hover:bg-muted flex items-center justify-between text-sm"
-                          >
-                            <span>
-                              <span className="font-medium">{suburb.name}</span>
-                              <span className="text-muted-foreground ml-2">{suburb.postcode}</span>
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {suburb.state}
-                              {suburb.council && (
-                                <span className="ml-1 text-green-600 dark:text-green-400">
-                                  ({suburb.council.replace(" Council", "").replace(" Regional", "").replace(" City", "")})
-                                </span>
-                              )}
-                            </span>
-                          </button>
-                        ))
-                      )}
+                      Search Again
+                    </Button>
+                  </div>
+
+                  {/* Preview Title */}
+                  {(formLotNumber || formStreetNumber) && formStreetName && formSuburb && (
+                    <div className="p-2 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+                      <p className="text-xs text-muted-foreground">Job title:</p>
+                      <p className="text-sm font-semibold text-green-800 dark:text-green-200">
+                        {getPreviewTitle()}
+                      </p>
                     </div>
                   )}
-                </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs">State</Label>
-                    <Input
-                      value={formState}
-                      readOnly
-                      placeholder="Auto-filled from suburb"
-                      className="mt-1 bg-muted/50"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Lot Number</Label>
+                      <Input
+                        value={formLotNumber}
+                        onChange={(e) => setFormLotNumber(e.target.value)}
+                        placeholder="e.g., 123"
+                        className="mt-1 h-8"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Street Number</Label>
+                      <Input
+                        value={formStreetNumber}
+                        onChange={(e) => setFormStreetNumber(e.target.value)}
+                        placeholder="e.g., 45"
+                        className="mt-1 h-8"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label className="text-xs">Postcode</Label>
-                    <Input
-                      value={formPostcode}
-                      readOnly
-                      placeholder="Auto-filled from suburb"
-                      className="mt-1 bg-muted/50"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Council</Label>
-                    <Input
-                      value={formCouncil}
-                      readOnly
-                      placeholder="Auto-filled from suburb"
-                      className="mt-1 bg-muted/50"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Auto-filled from suburb</p>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Street Name <span className="text-red-500">*</span></Label>
+                      <Input
+                        value={formStreetName}
+                        onChange={(e) => setFormStreetName(e.target.value)}
+                        placeholder="e.g., Fleming"
+                        className="mt-1 h-8"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Street Type</Label>
+                      <Input
+                        value={formStreetType}
+                        onChange={(e) => setFormStreetType(e.target.value)}
+                        placeholder="e.g., Road"
+                        className="mt-1 h-8"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <Label className="text-xs">Suburb <span className="text-red-500">*</span></Label>
+                    <Input
+                      ref={suburbInputRef}
+                      value={suburbSearchQuery || formSuburb}
+                      onChange={(e) => {
+                        setSuburbSearchQuery(e.target.value);
+                        setShowSuburbDropdown(true);
+                        setFormSuburb(e.target.value);
+                      }}
+                      onFocus={() => {
+                        if (suburbSearchQuery.length >= 2 || formSuburb.length >= 2) {
+                          setShowSuburbDropdown(true);
+                        }
+                      }}
+                      placeholder="Search suburb..."
+                      autoComplete="off"
+                      className="mt-1 h-8"
+                    />
+                    {showSuburbDropdown && (suburbSearchResults.length > 0 || suburbSearchLoading) && (
+                      <div
+                        ref={suburbDropdownRef}
+                        className="absolute z-50 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-auto"
+                      >
+                        {suburbSearchLoading ? (
+                          <div className="p-2 text-center text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                            Searching...
+                          </div>
+                        ) : (
+                          suburbSearchResults.map((suburb) => (
+                            <button
+                              key={suburb.id}
+                              type="button"
+                              onClick={() => handleSuburbSelect(suburb)}
+                              className="w-full px-2 py-1.5 text-left hover:bg-muted flex items-center justify-between text-sm"
+                            >
+                              <span>
+                                <span className="font-medium">{suburb.name}</span>
+                                <span className="text-muted-foreground ml-1">{suburb.postcode}</span>
+                              </span>
+                              <span className="text-xs text-muted-foreground">{suburb.state}</span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-xs">State</Label>
+                      <Input
+                        value={formState}
+                        readOnly
+                        placeholder="Auto"
+                        className="mt-1 h-8 bg-muted/50 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Postcode</Label>
+                      <Input
+                        value={formPostcode}
+                        readOnly
+                        placeholder="Auto"
+                        className="mt-1 h-8 bg-muted/50 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Council</Label>
+                      <Input
+                        value={formCouncil}
+                        readOnly
+                        placeholder="Auto"
+                        className="mt-1 h-8 bg-muted/50 text-xs"
+                      />
+                    </div>
+                  </div>
+
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="w-full"
                     onClick={geocodeFromFormFields}
                     disabled={geocoding || (!formSuburb && !formStreetName)}
                   >
@@ -969,49 +992,65 @@ export function LocationMap({
                       </>
                     )}
                   </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Or click on the map below to place the pin manually
-                  </p>
                 </div>
-              </div>
-            )}
+              )}
 
-            {error && (
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">{error}</p>
-              </div>
-            )}
+              {error && (
+                <div className="p-2 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">{error}</p>
+                </div>
+              )}
+            </div>
 
-            {displayPosition && (
-              <div className="rounded-lg overflow-hidden border">
+            {/* Right Panel - Map (takes remaining space) */}
+            <div className="flex-1 flex flex-col min-h-0 rounded-lg overflow-hidden border">
+              {displayPosition ? (
+                <>
+                  <MapContainer
+                    center={displayPosition}
+                    zoom={15}
+                    style={{ height: "100%", width: "100%", flex: 1 }}
+                    scrollWheelZoom={true}
+                  >
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <DraggableMarker
+                      position={displayPosition}
+                      onDragEnd={(pos) => setTempPosition(pos)}
+                    />
+                    <MapClickHandler onMapClick={(pos) => setTempPosition(pos)} />
+                  </MapContainer>
+                  <div className="bg-muted px-4 py-2 flex items-center justify-between shrink-0">
+                    <p className="text-xs text-muted-foreground">
+                      Drag the pin or click on the map to move it
+                    </p>
+                    {tempPosition && typeof tempPosition[0] === 'number' && typeof tempPosition[1] === 'number' && (
+                      <p className="text-xs text-muted-foreground">
+                        {tempPosition[0].toFixed(6)}, {tempPosition[1].toFixed(6)}
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : (
                 <MapContainer
-                  center={displayPosition}
-                  zoom={15}
-                  style={{ height: "40vh", minHeight: "300px", width: "100%" }}
+                  center={DEFAULT_POSITION}
+                  zoom={10}
+                  style={{ height: "100%", width: "100%", flex: 1 }}
                   scrollWheelZoom={true}
                 >
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  <DraggableMarker
-                    position={displayPosition}
-                    onDragEnd={(pos) => setTempPosition(pos)}
-                  />
-                  <MapClickHandler onMapClick={(pos) => setTempPosition(pos)} />
+                  <MapClickHandler onMapClick={(pos) => {
+                    setTempPosition(pos);
+                    setShowAddressForm(true);
+                  }} />
                 </MapContainer>
-                <div className="bg-muted px-4 py-2 flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    Drag the pin or click on the map to move it
-                  </p>
-                  {tempPosition && typeof tempPosition[0] === 'number' && typeof tempPosition[1] === 'number' && (
-                    <p className="text-xs text-muted-foreground">
-                      {tempPosition[0].toFixed(6)}, {tempPosition[1].toFixed(6)}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

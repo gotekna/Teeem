@@ -1,20 +1,14 @@
 class CouncilLookupService
+  # SSoT: Council is determined by suburb NAME, not postcode
+  # Same postcode can have different councils (e.g., Rochedale South = Logan, Rochedale = Brisbane)
   def self.find_council(postcode:, suburb:)
-    return nil if postcode.blank? && suburb.blank?
+    return nil if suburb.blank?
 
-    # Primary: postcode + suburb
-    if postcode.present? && suburb.present?
-      council = AustralianCouncil.lookup_council(
-        postcode: postcode,
-        suburb: suburb
-      )
-      return council if council.present?
-    end
-
-    # Fallback: postcode only
-    if postcode.present?
-      councils = AustralianCouncil.where(postcode: postcode).pluck(:council_name).uniq
-      return councils.first if councils.one?
+    # Primary: Match by suburb name (exact, case-insensitive) - SSoT
+    if suburb.present?
+      # Use Suburb table as SSoT (not AustralianCouncil which is empty)
+      suburb_record = Suburb.find_by("name ILIKE ?", suburb)
+      return suburb_record.council if suburb_record&.council.present?
     end
 
     nil
