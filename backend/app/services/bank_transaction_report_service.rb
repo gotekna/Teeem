@@ -332,17 +332,10 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 24, variant: :bold)
     canvas.text("nab", at: [ 75, 798 ])
 
-    # Account title and contact info - top right
+    # Account title and contact info - top right (page number is in footer)
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 10, variant: :bold)
     canvas.text("NAB Business Everyday Account", at: [ 380, 810 ])
-
-    # Page number - right-aligned at far edge (x=545 is right margin)
-    canvas.font("Helvetica", size: 8)
-    page_text = "#{page_num} of #{total_pages}"
-    page_text_width = canvas.font.width(canvas.font_size, page_text)
-    canvas.text(page_text, at: [ 545 - page_text_width, 810 ])
-
     canvas.font("Helvetica", size: 7)
     canvas.text("For further information call the", at: [ 380, 796 ])
     canvas.text("Business Servicing Team on 13 10 12", at: [ 380, 786 ])
