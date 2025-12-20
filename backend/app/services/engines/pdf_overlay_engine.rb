@@ -591,11 +591,16 @@ module Engines
     end
 
     def apply_aligned_text_overlays(doc, data, explicit_mapping, position_settings)
+      Rails.logger.info "[PdfOverlayEngine] apply_aligned_text_overlays called with #{position_settings.keys.count} position settings"
+
       position_settings.each do |data_key, pos|
         next if pos[:text_align] == "left"  # Left-aligned handled by form fill
 
         value = data[data_key]
-        next if value.blank?
+        if value.blank?
+          Rails.logger.debug "[PdfOverlayEngine] Skipping #{data_key}: no value"
+          next
+        end
 
         page_index = (pos[:page] || 1) - 1
         page = doc.pages[page_index]
@@ -607,7 +612,16 @@ module Engines
 
         # Calculate x position based on alignment
         box_width = pos[:box_width] || 100
-        text_width = canvas.font.wrapped_font.width(value.to_s) * font_size / 1000.0
+
+        # Calculate text width - approximate if font metrics unavailable
+        text_str = value.to_s
+        begin
+          font_obj = canvas.font("Helvetica")
+          text_width = font_obj.wrapped_font.width(text_str) * font_size / 1000.0
+        rescue
+          # Fallback: approximate width (Helvetica avg char width is ~0.5 * font_size)
+          text_width = text_str.length * font_size * 0.5
+        end
 
         x = pos[:x]
         case pos[:text_align]
@@ -621,10 +635,11 @@ module Engines
         y = pos[:y] + 4  # Small offset from bottom
 
         canvas.text(value.to_s, at: [x, y])
-        Rails.logger.debug "[PdfOverlayEngine] Overlay text '#{value}' at (#{x.round(1)}, #{y.round(1)}) align=#{pos[:text_align]}"
+        Rails.logger.info "[PdfOverlayEngine] OVERLAY: '#{value}' at (#{x.round(1)}, #{y.round(1)}) page=#{pos[:page]} align=#{pos[:text_align]} box_w=#{box_width} text_w=#{text_width.round(1)}"
       end
     rescue StandardError => e
-      Rails.logger.warn "[PdfOverlayEngine] Aligned overlay error: #{e.message}"
+      Rails.logger.error "[PdfOverlayEngine] Aligned overlay error: #{e.message}"
+      Rails.logger.error e.backtrace.first(3).join("\n")
     end
 
     def fill_checkbox_field(field, pdf_field_name, data)
