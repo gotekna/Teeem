@@ -14,6 +14,12 @@
 # - Superfund: Self-managed super funds
 # - Trustee: Companies acting as trustees (subset of Company)
 #
+# SharePoint Folder Integration:
+# - has_sharepoint_folder: Whether this tab has a corresponding SharePoint folder
+# - sharepoint_folder_path: The folder path in SharePoint (e.g., "BANK", "XERO")
+# - sub_tabs: JSON array of sub-tabs with their folder paths
+#   Format: [{ key: "statements", name: "Statements", folder: "Statements" }]
+#
 class CorporateEntityTab < ApplicationRecord
   # Validations
   validates :tab_key, presence: true, uniqueness: true
@@ -72,6 +78,62 @@ class CorporateEntityTab < ApplicationRecord
     for_group("documents").for_entity_type(entity_type).ordered.map do |tab|
       { id: tab.tab_key, name: tab.display_name, icon: tab.icon_name }
     end
+  end
+
+  # SharePoint folder scopes
+  scope :with_sharepoint_folder, -> { where(has_sharepoint_folder: true) }
+
+  # Get full SharePoint path for this tab
+  def full_sharepoint_path
+    return nil unless has_sharepoint_folder && sharepoint_folder_path.present?
+
+    config = CorporateCompanySetting.sharepoint_config
+    base_path = config[:root_path] || "/Shared Documents"
+    "#{base_path}/#{sharepoint_folder_path}"
+  end
+
+  # Get document types that belong to this tab
+  def document_types
+    return [] unless tab_group == "documents"
+
+    tab_name = tab_key.upcase
+    # tabs is JSONB array, use @> for contains check
+    DocumentType.where("primary_tab = ? OR tabs @> ?", tab_name, [tab_name].to_json)
+  end
+
+  # Get document types with primary flag
+  def document_types_with_primary
+    return [] unless tab_group == "documents"
+
+    tab_name = tab_key.upcase
+    # tabs is JSONB array, use @> for contains check
+    DocumentType.where("primary_tab = ? OR tabs @> ?", tab_name, [tab_name].to_json).map do |dt|
+      {
+        id: dt.id,
+        name: dt.name,
+        display_name: dt.display_name,
+        is_primary: dt.primary_tab == tab_name
+      }
+    end
+  end
+
+  # Convert to JSON for API
+  def as_api_json
+    {
+      id: id,
+      tab_key: tab_key,
+      display_name: display_name,
+      tab_group: tab_group,
+      entity_types: entity_types || [],
+      order_position: order_position,
+      enabled: enabled,
+      icon_name: icon_name,
+      description: description,
+      has_sharepoint_folder: has_sharepoint_folder,
+      sharepoint_folder_path: sharepoint_folder_path,
+      sub_tabs: sub_tabs || [],
+      document_types: document_types_with_primary
+    }
   end
 
   # Seed default tabs from the hardcoded values

@@ -925,7 +925,7 @@ const XERO_TABS_FALLBACK = [
   { id: "connection", name: "Connection", type: "functional", enabled: true },
 ];
 
-// Entity tab interface
+// Entity tab interface (matches API response)
 interface EntityTab {
   id: string;
   name: string;
@@ -937,6 +937,11 @@ interface EntityTab {
   order_position?: number;
   description?: string;
   component?: string;
+  // SharePoint folder config
+  has_sharepoint_folder?: boolean;
+  sharepoint_folder_path?: string;
+  sub_tabs?: Array<{ key: string; name: string; folder: string }>;
+  document_types?: Array<{ id: number; name: string; display_name: string; is_primary: boolean }>;
 }
 
 function CompanyTabsSubTab() {
@@ -958,6 +963,10 @@ function CompanyTabsSubTab() {
 
   // Toggle state
   const [togglingTab, setTogglingTab] = React.useState<string | null>(null);
+
+  // Tab detail dialog state
+  const [selectedTab, setSelectedTab] = React.useState<EntityTab | null>(null);
+  const [showTabDetail, setShowTabDetail] = React.useState(false);
 
   // SSoT: Load entity tabs from new API
   const loadEntityTabs = React.useCallback(async () => {
@@ -1024,6 +1033,12 @@ function CompanyTabsSubTab() {
     } finally {
       setTogglingTab(null);
     }
+  };
+
+  // Open tab detail dialog
+  const handleOpenTabDetail = (tab: EntityTab) => {
+    setSelectedTab(tab);
+    setShowTabDetail(true);
   };
 
   // Group tabs by type

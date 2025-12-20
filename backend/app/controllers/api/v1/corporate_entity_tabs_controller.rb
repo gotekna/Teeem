@@ -112,7 +112,10 @@ module Api
           :icon_name,
           :description,
           :component_name,
-          entity_types: []
+          :has_sharepoint_folder,
+          :sharepoint_folder_path,
+          entity_types: [],
+          sub_tabs: [:key, :name, :folder]
         )
       end
 
@@ -127,7 +130,11 @@ module Api
           enabled: tab.enabled,
           order_position: tab.order_position,
           description: tab.description,
-          component: tab.component_name
+          component: tab.component_name,
+          has_sharepoint_folder: tab.has_sharepoint_folder,
+          sharepoint_folder_path: tab.sharepoint_folder_path,
+          sub_tabs: tab.sub_tabs || [],
+          document_types: tab.document_types_with_primary
         }
       end
     end

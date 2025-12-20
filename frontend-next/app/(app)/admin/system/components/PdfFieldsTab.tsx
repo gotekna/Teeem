@@ -191,6 +191,34 @@ export function PdfFieldsTab() {
   // Compact mode - hides blue info box and drag handles in mapping dialog
   const [compactMode, setCompactMode] = React.useState(false);
 
+  // Dialog state for search and alignment
+  const [dialogSearch, setDialogSearch] = React.useState("");
+  const [dialogHAlign, setDialogHAlign] = React.useState<"left" | "center" | "right">("center");
+  const [dialogVAlign, setDialogVAlign] = React.useState<"top" | "middle" | "bottom">("middle");
+
+  // Reset dialog alignment defaults when clicked field changes
+  // Currency fields ($) default to right, others to center
+  React.useEffect(() => {
+    if (clickedDetectedField) {
+      // Check if there's already a mapped field to inherit alignment from
+      const existingMapping = positions.find(
+        (p) => p.page === clickedDetectedField.page &&
+          Math.abs(p.x - clickedDetectedField.x) < 10 &&
+          Math.abs(p.y - clickedDetectedField.y) < 10
+      );
+      if (existingMapping) {
+        setDialogHAlign(existingMapping.text_align || "center");
+      } else {
+        // Smart defaults based on field name
+        const fieldName = clickedDetectedField.name.toLowerCase();
+        const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment|value)/.test(fieldName);
+        setDialogHAlign(isCurrency ? "right" : "center");
+      }
+      setDialogVAlign("middle");
+      setDialogSearch("");
+    }
+  }, [clickedDetectedField, positions]);
+
   // Show blank template (no job data filled in)
   const [showBlankTemplate, setShowBlankTemplate] = React.useState(() => {
     if (typeof window !== 'undefined') {
@@ -1312,7 +1340,12 @@ export function PdfFieldsTab() {
       )}
 
       {/* Click-to-Map Dialog (masterpiece UX) */}
-      <Dialog open={!!clickedDetectedField} onOpenChange={(open) => !open && setClickedDetectedField(null)}>
+      <Dialog open={!!clickedDetectedField} onOpenChange={(open) => {
+        if (!open) {
+          setClickedDetectedField(null);
+          setDialogSearch("");
+        }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1325,87 +1358,140 @@ export function PdfFieldsTab() {
           </DialogHeader>
 
           {clickedDetectedField && (
-            <div className="space-y-4">
-              {/* Compact mode toggle */}
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  {compactMode ? "Clean view" : "Full view"}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setCompactMode(!compactMode)}
-                  className="h-7 text-xs"
-                >
-                  {compactMode ? "Show Details" : "Hide Details"}
-                </Button>
+            <div className="space-y-3">
+              {/* Currently mapped field indicator */}
+              {(() => {
+                const currentlyMappedField = positions.find(
+                  (p) => p.page === clickedDetectedField.page &&
+                    Math.abs(p.x - clickedDetectedField.x) < 10 &&
+                    Math.abs(p.y - clickedDetectedField.y) < 10
+                );
+                if (!currentlyMappedField) return null;
+                return (
+                  <div className="p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-md">
+                    <div className="text-xs text-green-600 dark:text-green-400 font-medium">Currently mapped to:</div>
+                    <div className="text-sm font-semibold text-green-800 dark:text-green-200">
+                      {currentlyMappedField.display_name}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Search */}
+              <Input
+                placeholder="Search fields..."
+                value={dialogSearch}
+                onChange={(e) => setDialogSearch(e.target.value)}
+                className="h-8"
+              />
+
+              {/* Alignment controls */}
+              <div className="flex items-center gap-4">
+                {/* Horizontal alignment */}
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground w-6">H:</span>
+                  {(["left", "center", "right"] as const).map((align) => {
+                    const Icon = align === "left" ? AlignLeft : align === "center" ? AlignCenter : AlignRight;
+                    return (
+                      <Button
+                        key={align}
+                        variant={dialogHAlign === align ? "default" : "outline"}
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setDialogHAlign(align)}
+                        title={align.charAt(0).toUpperCase() + align.slice(1)}
+                      >
+                        <Icon className="h-3 w-3" />
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                {/* Vertical alignment */}
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-muted-foreground w-6">V:</span>
+                  {(["top", "middle", "bottom"] as const).map((align) => (
+                    <Button
+                      key={align}
+                      variant={dialogVAlign === align ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setDialogVAlign(align)}
+                    >
+                      {align.charAt(0).toUpperCase()}
+                    </Button>
+                  ))}
+                </div>
               </div>
 
-              {/* Detected field info - hidden in compact mode */}
-              {!compactMode && (
-                <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                  <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    PDF Form Field
-                  </div>
-                  <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                    {clickedDetectedField.name}
-                  </div>
-                  <div className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
-                    Page {clickedDetectedField.page} • {Math.round(clickedDetectedField.width)}×{Math.round(clickedDetectedField.height)}px
-                  </div>
-                </div>
-              )}
+              {/* Data field list */}
+              <div className="max-h-[180px] overflow-y-auto border rounded-md">
+                {(() => {
+                  const currentlyMappedField = positions.find(
+                    (p) => p.page === clickedDetectedField.page &&
+                      Math.abs(p.x - clickedDetectedField.x) < 10 &&
+                      Math.abs(p.y - clickedDetectedField.y) < 10
+                  );
 
-              {/* Data field selector - searchable */}
-              <div>
-                <Label className="text-sm font-medium">Map to Data Field</Label>
-                <div className="mt-1">
-                  <ComboboxDropdown
-                    selectedItem={undefined}
-                    onSelect={(item) => {
-                      if (item) {
-                        const field = positions.find(p => p.id === parseInt(item.id));
-                        if (field && clickedDetectedField) {
-                          // Determine text alignment based on field type
-                          // Currency fields → right aligned, Date fields → left aligned, Others → center
-                          const fieldKey = field.field_key.toLowerCase();
-                          const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment)/.test(fieldKey);
-                          const isDate = /(date|day|month|year)/.test(fieldKey);
-                          const textAlign = isCurrency ? "right" : isDate ? "left" : "center";
+                  const searchLower = dialogSearch.toLowerCase();
+                  const filtered = positions
+                    .filter((f) =>
+                      !dialogSearch ||
+                      f.display_name.toLowerCase().includes(searchLower) ||
+                      f.field_key.toLowerCase().includes(searchLower)
+                    )
+                    .sort((a, b) => {
+                      if (currentlyMappedField) {
+                        if (a.id === currentlyMappedField.id) return -1;
+                        if (b.id === currentlyMappedField.id) return 1;
+                      }
+                      return a.display_name.localeCompare(b.display_name);
+                    });
 
-                          // Update the field position to match detected field with smart alignment
+                  if (filtered.length === 0) {
+                    return <div className="p-3 text-sm text-muted-foreground text-center">No matching fields</div>;
+                  }
+
+                  return filtered.map((field) => {
+                    const value = previewValues[field.field_key] || field.test_value || "";
+                    const displayValue = value ? value.substring(0, 25) + (value.length > 25 ? "..." : "") : "empty";
+                    const isCurrentlyMapped = currentlyMappedField?.id === field.id;
+
+                    return (
+                      <button
+                        key={field.id}
+                        type="button"
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-sm border-b last:border-b-0",
+                          isCurrentlyMapped
+                            ? "bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800"
+                            : "hover:bg-accent"
+                        )}
+                        onClick={() => {
+                          // Use dialog alignment (smart defaults already applied via useEffect)
                           savePosition(field.id, {
                             x: Math.round(clickedDetectedField.x),
                             y: Math.round(clickedDetectedField.y),
                             page: clickedDetectedField.page,
                             box_width: Math.round(clickedDetectedField.width),
                             box_height: Math.round(clickedDetectedField.height),
-                            text_align: textAlign,
+                            text_align: dialogHAlign,
                           });
                           setClickedDetectedField(null);
+                          setDialogSearch("");
                           toast({
-                            title: "Field Mapped",
-                            description: `${field.display_name} → ${textAlign} aligned`,
+                            title: isCurrentlyMapped ? "Field Updated" : "Field Mapped",
+                            description: `${field.display_name} → H:${dialogHAlign} V:${dialogVAlign}`,
                           });
-                        }
-                      }
-                    }}
-                    items={positions
-                      .sort((a, b) => a.display_name.localeCompare(b.display_name))
-                      .map((field) => {
-                        // Use preview values from selected job if available
-                        const value = previewValues[field.field_key] || field.test_value || "";
-                        const displayValue = value ? value.substring(0, 40) + (value.length > 40 ? "..." : "") : "empty";
-                        return {
-                          id: String(field.id),
-                          label: `${field.display_name} (${displayValue})`,
-                        };
-                      })}
-                    placeholder={`Map "${clickedDetectedField.name}" to...`}
-                    searchPlaceholder="Type to search..."
-                    emptyResults="No matching fields"
-                  />
-                </div>
+                        }}
+                      >
+                        {isCurrentlyMapped && <span className="text-green-600 dark:text-green-400 mr-1">✓</span>}
+                        <span className="font-medium">{field.display_name}</span>
+                        <span className="text-muted-foreground ml-2">({displayValue})</span>
+                      </button>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}

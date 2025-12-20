@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_20_035033) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1758,6 +1758,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
     t.string "component_name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "has_sharepoint_folder", default: false
+    t.string "sharepoint_folder_path"
+    t.jsonb "sub_tabs", default: []
     t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
     t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
     t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
@@ -3625,9 +3628,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "organization_id"
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"
+    t.index ["organization_id", "credential_type", "is_active"], name: "idx_ms_creds_org_type_active_unique", unique: true, where: "((is_active = true) AND (organization_id IS NOT NULL))"
+    t.index ["organization_id"], name: "index_microsoft_credentials_on_organization_id"
     t.index ["owner_type", "owner_id", "credential_type"], name: "idx_ms_creds_owner_type"
     t.index ["owner_type", "owner_id", "is_active"], name: "idx_ms_creds_owner_active"
     t.index ["owner_type", "owner_id"], name: "index_microsoft_credentials_on_owner"
@@ -3762,9 +3768,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
     t.string "sharepoint_drive_id"
     t.string "sharepoint_drive_name"
     t.jsonb "bulk_sync_progress", default: {}
+    t.bigint "organization_id"
     t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
     t.index ["name", "is_active"], name: "index_org_microsoft_app_creds_on_name_and_active", unique: true, where: "(is_active = true)"
     t.index ["name"], name: "index_org_ms_app_creds_on_name"
+    t.index ["organization_id", "is_active"], name: "idx_legacy_ms_creds_org_active_unique", unique: true, where: "((is_active = true) AND (organization_id IS NOT NULL))"
+    t.index ["organization_id"], name: "idx_on_organization_id_ec93e8b0f4"
     t.index ["setup_by_id"], name: "index_organization_microsoft_app_credentials_on_setup_by_id"
     t.index ["sharepoint_drive_id"], name: "idx_on_sharepoint_drive_id_0a6d5a1255"
     t.index ["sharepoint_site_id"], name: "idx_on_sharepoint_site_id_47efe5ba09"
@@ -3804,6 +3813,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
     t.datetime "updated_at", null: false
     t.string "name"
     t.index ["name"], name: "index_org_outlook_creds_on_name"
+  end
+
+  create_table "organizations", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "slug", null: false
+    t.boolean "is_active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_organizations_on_name", unique: true
+    t.index ["slug"], name: "index_organizations_on_slug", unique: true
   end
 
   create_table "pay_now_requests", force: :cascade do |t|
@@ -6451,12 +6470,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
   add_foreign_key "meetings", "jobs"
   add_foreign_key "meetings", "meeting_types"
   add_foreign_key "meetings", "users", column: "created_by_id"
+  add_foreign_key "microsoft_credentials", "organizations"
   add_foreign_key "microsoft_credentials", "users", column: "connected_by_id"
   add_foreign_key "microsoft_credentials", "users", column: "setup_by_id"
   add_foreign_key "navigation_items", "navigation_groups", name: "navigation_items_navigation_group_id_fkey"
   add_foreign_key "navigation_items", "navigation_items", column: "parent_id", name: "fk_navigation_items_parent"
   add_foreign_key "notifications", "users"
   add_foreign_key "one_drive_credentials", "jobs"
+  add_foreign_key "organization_microsoft_app_credentials", "organizations"
   add_foreign_key "organization_microsoft_app_credentials", "users", column: "setup_by_id", name: "organization_microsoft_app_credentials_setup_by_id_fkey"
   add_foreign_key "organization_one_drive_credentials", "users", column: "connected_by_id"
   add_foreign_key "pay_now_requests", "contacts"

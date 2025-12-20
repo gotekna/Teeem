@@ -507,6 +507,10 @@ module Engines
       # Get explicit field mapping for this template
       explicit_mapping = form_field_mapping_for_template
 
+      # Load text alignment settings from PdfFieldPosition database records
+      # Maps data_key (e.g., :deposit) to text_align (e.g., "right")
+      alignment_settings = load_alignment_settings
+
       doc.acro_form.each_field do |field|
         pdf_field_name = field.full_field_name.to_s
         value = nil
@@ -542,7 +546,23 @@ module Engines
         end
 
         if value.present?
+          # Apply text alignment BEFORE setting value
+          # Quadding: 0=left, 1=center, 2=right
+          if data_key_used && alignment_settings[data_key_used]
+            quadding = case alignment_settings[data_key_used]
+                       when "left" then 0
+                       when "center" then 1
+                       when "right" then 2
+                       else 0
+                       end
+            field[:Q] = quadding
+            # Delete existing appearance to force regeneration with new alignment
+            field.delete(:AP) if field[:AP]
+            Rails.logger.debug "[PdfOverlayEngine] Set alignment for '#{pdf_field_name}' to #{alignment_settings[data_key_used]} (Q=#{quadding})"
+          end
+
           field.field_value = value.to_s
+
           # Generate appearance stream immediately (web PDF viewers don't respect NeedAppearances)
           field.create_appearances if field.respond_to?(:create_appearances)
           Rails.logger.debug "[PdfOverlayEngine] Filled '#{pdf_field_name}' with '#{value}'"
@@ -553,6 +573,18 @@ module Engines
       doc.acro_form[:NeedAppearances] = true
     rescue StandardError => e
       Rails.logger.warn "[PdfOverlayEngine] Form fill error: #{e.message}"
+    end
+
+    def load_alignment_settings
+      return {} unless defined?(PdfFieldPosition)
+
+      positions = PdfFieldPosition.where(pdf_template_key: template_key.to_s, active: true)
+      positions.each_with_object({}) do |pos, hash|
+        hash[pos.field_key.to_sym] = pos.text_align if pos.text_align.present?
+      end
+    rescue StandardError => e
+      Rails.logger.warn "[PdfOverlayEngine] Failed to load alignment settings: #{e.message}"
+      {}
     end
 
     def fill_checkbox_field(field, pdf_field_name, data)
