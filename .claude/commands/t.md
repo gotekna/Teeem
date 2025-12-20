@@ -4,7 +4,7 @@
 
 A focused code review aligned with CLAUDE.md philosophy. Checks the things that matter.
 
-## What This Checks (10 Categories)
+## What This Checks (11 Categories)
 
 | # | Category | Why It Matters |
 |---|----------|----------------|
@@ -18,6 +18,7 @@ A focused code review aligned with CLAUDE.md philosophy. Checks the things that 
 | 8 | **Security** | Always important |
 | 9 | **Performance** | PERF-001 to PERF-006 anti-patterns |
 | 10 | **Code Quality** | Bug patterns, dead code, over-engineering |
+| 11 | **Speed Loading Test** | Live browser page load times via Chrome DevTools |
 
 ## Key Docs (SSoT References)
 
@@ -813,6 +814,58 @@ find backend/app -name "*.rb" -exec wc -l {} \; | awk '$1 > 500 {print $1, $2}' 
 
 **Expected:** No data-loss patterns, no god objects over 500 lines
 
+### Step 11: Speed Loading Test (Live Browser)
+
+**Requires Chrome DevTools MCP.** If not running, tell user to run `/c` first.
+
+**Check if Chrome DevTools is available:**
+```bash
+lsof -i:9222 | head -3
+```
+
+If Chrome DevTools is running, spawn the Performance Auditor agent:
+
+```
+Use Task tool with:
+  subagent_type: "Performance Auditor"
+  prompt: "Run the Speed Loading Test via Chrome DevTools MCP.
+
+Test these pages in order:
+1. Jobs (/jobs) - measure Foundation API response
+2. Contacts (/contacts) - measure initial load
+3. Pricebook (/pricebook) - measure 500-record load
+4. Find heaviest job: run 'cd backend && bin/rails runner \"job = Job.left_joins(:purchase_orders, :bills).group(:id).order(Arel.sql('COUNT(DISTINCT purchase_orders.id) + COUNT(DISTINCT bills.id) DESC')).first; puts job.id\"'
+5. Test that job's detail page, Purchase Orders tab, and Profit tab
+6. Schedule Master (/schedule-master)
+7. Finance (/finance)
+
+For each page:
+- Navigate using mcp__chrome-devtools__navigate_page
+- Get network requests using mcp__chrome-devtools__list_network_requests
+- Find main API request and get details with mcp__chrome-devtools__get_network_request
+- Extract from server-timing header: x-runtime (API time), sql.active_record (SQL time)
+- Get payload size from content-length header
+
+Thresholds:
+- ✅ FAST: API <250ms, SQL <50ms, Payload <100KB
+- 🟡 MEDIUM: API 250-500ms, SQL 50-100ms, Payload 100-500KB
+- ❌ SLOW: API >500ms, SQL >100ms, Payload >500KB
+
+Return results in this format:
+Page | API Time | SQL Time | Payload | Status
+-----|----------|----------|---------|-------
+[each page result]
+
+SLOWEST: [page] at Xms
+LARGEST: [page] at XKB
+OVERALL: FAST or NEEDS WORK"
+```
+
+If Chrome DevTools is NOT running, report:
+```
+11. Speed Loading Test: SKIPPED (run /c first to enable Chrome DevTools)
+```
+
 ## Report Format
 
 ```
@@ -831,19 +884,22 @@ find backend/app -name "*.rb" -exec wc -l {} \; | awk '$1 > 500 {print $1, $2}' 
 8. Security:             [PASS/X issues]
 9. Performance:          [PASS/X issues]
 10. Code Quality:        [PASS/X issues]
+11. Speed Loading Test:  [FAST/NEEDS WORK/SKIPPED]
 
 ────────────────────────────────────────
 Total: X issues to fix
 ════════════════════════════════════════
 
 [DETAILS IF ISSUES FOUND]
+
+[SPEED TEST RESULTS - if Chrome DevTools was available]
 ```
 
 ## Quick Options
 
 | Command | Scope | Time |
 |---------|-------|------|
-| `/t` | Full review (all 11 checks) | ~10-15 min |
+| `/t` | Full review (all 11 checks + speed test agent) | ~12-18 min |
 | `/t ssot` | SSoT violations only | ~10 sec |
 | `/t sync` | Sync Risk Patterns - catches manual lists | ~15 sec |
 | `/t comp` | Standard components only | ~10 sec |
@@ -854,6 +910,7 @@ Total: X issues to fix
 | `/t model` | Model Auditor only | ~15 sec |
 | `/t sec` | Security only | ~10 sec |
 | `/t perf` | **Performance Masterpiece Audit** (4 parts, 13 checks) | ~5-10 min |
+| `/t speed` | **Speed Loading Test** - Live browser page load timing via Chrome DevTools | ~2-3 min |
 | `/t code` | Code Quality only (bug patterns, dead code) | ~30 sec |
 | `/t deep` | **Code Guardian** - Deep dive with manual review | ~20-30 min |
 
@@ -878,11 +935,86 @@ When you want to ensure code is **masterpiece quality**, run `/t deep`. This spa
 - Weekly codebase health check
 - When something "feels" messy
 
+### `/t speed` - Speed Loading Test (Live Browser Agent)
+
+**This spawns the Performance Auditor agent** to test ACTUAL page load times via Chrome DevTools MCP.
+
+**Requires Chrome DevTools.** If not running, start with `/c` first.
+
+#### How to Run
+
+When user runs `/t speed`, spawn the Performance Auditor agent:
+
+```
+Use Task tool with:
+  subagent_type: "Performance Auditor"
+  prompt: "Run the Speed Loading Test. Use Chrome DevTools MCP to navigate to each page and measure API response times from network requests. Test these pages in order:
+
+1. Jobs (/jobs) - measure Foundation API response
+2. Contacts (/contacts) - measure initial load
+3. Pricebook (/pricebook) - measure 500-record load
+4. Find heaviest job (most POs + Bills) and test its detail page
+5. Test Purchase Orders tab on that job
+6. Test Profit/Loss tab on that job
+7. Schedule Master (/schedule-master)
+8. Finance (/finance)
+
+For each page:
+- Navigate using mcp__chrome-devtools__navigate_page
+- Get network requests using mcp__chrome-devtools__list_network_requests
+- Find the main API request (usually /api/v1/foundations/...)
+- Get request details with mcp__chrome-devtools__get_network_request
+- Extract x-runtime from server-timing header
+- Record: API time, SQL time (sql.active_record), payload size (content-length)
+
+Performance Thresholds:
+- ✅ FAST: API <250ms, SQL <50ms, Payload <100KB
+- 🟡 MEDIUM: API 250-500ms, SQL 50-100ms, Payload 100-500KB
+- ❌ SLOW: API >500ms, SQL >100ms, Payload >500KB
+
+Produce final report in this format:
+╔════════════════════════════════════════════════════════════════════╗
+║              SPEED LOADING TEST - LIVE RESULTS                      ║
+╠════════════════════════════════════════════════════════════════════╣
+║  Page                    API Time    SQL Time    Payload    Status  ║
+╠════════════════════════════════════════════════════════════════════╣
+║  [results for each page...]                                         ║
+╠════════════════════════════════════════════════════════════════════╣
+║  SLOWEST: [Page] at XXXms                                           ║
+║  LARGEST: [Page] at XXKB                                            ║
+║  OVERALL: [FAST/NEEDS WORK]                                         ║
+╚════════════════════════════════════════════════════════════════════╝
+"
+```
+
+#### What It Tests
+
+| # | Page | What's Measured |
+|---|------|-----------------|
+| 1 | Jobs | Initial table load, Foundation API |
+| 2 | Contacts | Initial load (100 records via SSR) |
+| 3 | Pricebook | 500-record load with category grouping |
+| 4 | Job Detail (heavy) | Job with most POs/Bills (stress test) |
+| 5 | Purchase Orders tab | Paginated PO loading |
+| 6 | Profit/Loss tab | Invoice + Bill aggregation |
+| 7 | Schedule Master | Gantt chart rendering |
+| 8 | Finance | Financial dashboard load |
+
+#### When to Use
+
+- After backend performance changes
+- After adding new eager loading
+- Before releases (verify no regressions)
+- When users report slowness
+- Weekly health check
+
+**Note:** This tests ACTUAL browser experience, not just static code analysis.
+
 ## Philosophy
 
 This command embodies the Ultrathink principle: **"Simplify ruthlessly."**
 
-**Standard mode (`/t`)** - 10 checks that matter:
+**Standard mode (`/t`)** - 11 checks that matter:
 1. SSoT violations break the codebase philosophy
 2. Sync risk patterns create future bugs (manual lists that should be auto-derived)
 3. Wrong components create maintenance debt
@@ -893,6 +1025,7 @@ This command embodies the Ultrathink principle: **"Simplify ruthlessly."**
 8. Security issues risk the business
 9. Performance anti-patterns slow users down
 10. Code quality catches bugs before production
+11. Speed loading test verifies ACTUAL browser performance
 
 **Deep mode (`/t deep`)** - Full Code Guardian:
 - When you need to verify code is a **masterpiece**
