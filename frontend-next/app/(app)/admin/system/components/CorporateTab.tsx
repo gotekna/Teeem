@@ -613,7 +613,7 @@ function CompaniesSubTab() {
     try {
       const payload = {
         ...formData,
-        company_group_id: formData.company_group_id ? parseInt(formData.company_group_id) : null,
+        company_group_id: formData.company_group_id && formData.company_group_id !== "none" ? parseInt(formData.company_group_id) : null,
       };
 
       if (editingCompany) {
@@ -927,7 +927,7 @@ function CompaniesSubTab() {
                     <SelectValue placeholder="Select a group" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Group</SelectItem>
+                    <SelectItem value="none">No Group</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group.id} value={group.id.toString()}>
                         {group.name}
