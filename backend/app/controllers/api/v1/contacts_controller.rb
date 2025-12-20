@@ -132,9 +132,10 @@ module Api
         @contacts = @contacts.with_email if params[:with_email] == "true"
         @contacts = @contacts.with_phone if params[:with_phone] == "true"
 
-        # Filter by entity type (person, company, trust)
+        # Filter by entity type (person, company, trust) - supports comma-separated values
         if params[:entity_type].present?
-          @contacts = @contacts.where(entity_type: params[:entity_type])
+          entity_types = params[:entity_type].to_s.split(",").map(&:strip)
+          @contacts = @contacts.where(entity_type: entity_types)
         end
 
         # Filter to exclude contacts already in corporate (have company_group_id)

@@ -432,7 +432,7 @@ export function EntityTabsTable() {
                               "flex items-center gap-2 py-2 px-3 rounded-lg transition-colors cursor-pointer",
                               tab.enabled
                                 ? "hover:bg-muted/50"
-                                : "opacity-50 hover:bg-muted/30"
+                                : "bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20"
                             )}
                             onClick={() => toggleTab(tab.id)}
                           >
@@ -570,7 +570,7 @@ export function EntityTabsTable() {
                               ) : tab.enabled ? (
                                 <Eye className="h-4 w-4 text-green-600" />
                               ) : (
-                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                                <EyeOff className="h-4 w-4 text-red-500" />
                               )}
                             </button>
                           </div>
@@ -754,7 +754,7 @@ export function EntityTabsTable() {
               <span>Enabled</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+              <EyeOff className="h-3.5 w-3.5 text-red-500" />
               <span>Disabled</span>
             </div>
           </div>
