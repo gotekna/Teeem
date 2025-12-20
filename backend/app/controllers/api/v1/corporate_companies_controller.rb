@@ -98,6 +98,54 @@ module Api
         end
       end
 
+      # POST /api/v1/companies/create_from_contact
+      # Creates a CorporateCompany from an existing Contact
+      # This is the SSoT for "Add Existing" functionality
+      def create_from_contact
+        contact = Contact.find(params[:contact_id])
+
+        # Check if a CorporateCompany already exists for this contact
+        existing = CorporateCompany.find_by(contact_id: contact.id)
+        if existing
+          # Just update the company_group_id if it already exists
+          existing.update!(company_group_id: params[:company_group_id])
+          return render json: {
+            success: true,
+            message: "Company already exists - updated group assignment",
+            company: existing.as_json(methods: [ :formatted_acn, :formatted_abn ])
+          }
+        end
+
+        # Create new CorporateCompany from Contact data
+        @company = CorporateCompany.new(
+          contact_id: contact.id,
+          name: contact.display_name,
+          abn: contact.abn,
+          acn: contact.acn,
+          entity_type: contact.entity_type&.capitalize || "Company",
+          company_group_id: params[:company_group_id],
+          status: "active"
+        )
+
+        if @company.save
+          # Also update the contact's company_group_id for consistency
+          contact.update(company_group_id: params[:company_group_id])
+
+          render json: {
+            success: true,
+            message: "Company created successfully from contact",
+            company: @company.as_json(methods: [ :formatted_acn, :formatted_abn ])
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: @company.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Contact not found" }, status: :not_found
+      end
+
       # PATCH/PUT /api/v1/companies/:id
       def update
         if @company.update(company_params)

@@ -1731,6 +1731,7 @@ Rails.application.routes.draw do
         collection do
           post :import
           post :reload
+          post :create_from_contact  # SSoT: Add Existing Contact to Corporate
           get :health_report
           get :asic_logins
           get :xero_setup_overview

@@ -561,6 +561,7 @@ function CompaniesSubTab() {
   }, [contactSearchQuery, searchContacts]);
 
   // Add existing contact to corporate
+  // SSoT: Creates CorporateCompany record linked to the Contact
   const handleAddToCorporate = async () => {
     if (!selectedContactForAdd || !selectedGroupForAdd) {
       toast({ title: "Error", description: "Please select a contact and company group", variant: "destructive" });
@@ -569,8 +570,10 @@ function CompaniesSubTab() {
 
     setAddingToCorporate(true);
     try {
-      await api.patch(`/api/v1/contacts/${selectedContactForAdd.id}`, {
-        contact: { company_group_id: parseInt(selectedGroupForAdd) },
+      // SSoT: Use create_from_contact endpoint which properly creates CorporateCompany
+      await api.post("/api/v1/companies/create_from_contact", {
+        contact_id: selectedContactForAdd.id,
+        company_group_id: parseInt(selectedGroupForAdd),
       });
       toast({ title: "Success", description: `${selectedContactForAdd.display_name} added to corporate` });
       setShowAddExistingDialog(false);
