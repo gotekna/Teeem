@@ -538,10 +538,10 @@ function CompaniesSubTab() {
         entity_type: "company,trust",
         not_corporate: "true",
       });
-      const response = await api.get<{ data: Array<{ id: number; display_name: string; entity_type: string; abn?: string; acn?: string }> }>(
+      const response = await api.get<{ contacts: Array<{ id: number; display_name: string; entity_type: string; abn?: string; acn?: string }> }>(
         `/api/v1/contacts?${params}`
       );
-      setContactSearchResults(response.data || []);
+      setContactSearchResults(response.contacts || []);
     } catch (error) {
       console.error("Failed to search contacts:", error);
       setContactSearchResults([]);

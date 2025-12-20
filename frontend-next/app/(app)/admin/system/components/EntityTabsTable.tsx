@@ -24,6 +24,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import {
   ChevronDown,
   ChevronRight,
   Eye,
@@ -31,6 +39,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  FolderTree,
   Loader2,
   Plus,
   Trash2,
@@ -121,6 +130,10 @@ export function EntityTabsTable() {
   const [editingEntityTypes, setEditingEntityTypes] = React.useState<string | null>(null);
   const [addingSubTab, setAddingSubTab] = React.useState<{ tabId: string; name: string; folder: string } | null>(null);
   const [addingTab, setAddingTab] = React.useState<{ group: string; name: string; folder: string } | null>(null);
+
+  // Folder browser state
+  const [folderBrowserTab, setFolderBrowserTab] = React.useState<EntityTab | null>(null);
+  const [selectedFolder, setSelectedFolder] = React.useState<{ id?: string; name: string; path: string } | null>(null);
 
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
@@ -297,6 +310,32 @@ export function EntityTabsTable() {
     } catch (error) {
       console.error("Failed to update entity types:", error);
       toast({ title: "Error", description: "Failed to update entity types", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Save folder from browser
+  const handleSaveFolderFromBrowser = async () => {
+    if (!folderBrowserTab || !selectedFolder) return;
+    setSaving(true);
+    try {
+      // Extract folder name from path (last segment)
+      const folderName = selectedFolder.path.split("/").filter(Boolean).pop() || selectedFolder.name;
+
+      await api.patch(`/api/v1/corporate/entity_tabs/${folderBrowserTab.id}`, {
+        tab: {
+          has_sharepoint_folder: true,
+          sharepoint_folder_path: folderName,
+        }
+      });
+      await loadTabs();
+      setFolderBrowserTab(null);
+      setSelectedFolder(null);
+      toast({ title: "Folder linked", description: `"${folderBrowserTab.name}" now linked to /${folderName}` });
+    } catch (error) {
+      console.error("Failed to save folder:", error);
+      toast({ title: "Error", description: "Failed to save folder", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -491,21 +530,25 @@ export function EntityTabsTable() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingPath({ tabId: tab.id, value: tab.sharepoint_folder_path || "" });
+                                  setFolderBrowserTab(tab);
+                                  setSelectedFolder(null);
                                 }}
-                                className="text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                                className="flex items-center gap-1 text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"
                               >
+                                <FolderTree className="h-3 w-3" />
                                 /{tab.sharepoint_folder_path}
                               </button>
                             ) : groupKey === "documents" ? (
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingPath({ tabId: tab.id, value: tab.name.toUpperCase() });
+                                  setFolderBrowserTab(tab);
+                                  setSelectedFolder(null);
                                 }}
-                                className="text-xs text-muted-foreground hover:text-foreground italic"
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                               >
-                                + Set folder
+                                <FolderPlus className="h-3 w-3" />
+                                Link folder
                               </button>
                             ) : null}
 
@@ -717,6 +760,79 @@ export function EntityTabsTable() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Folder Browser Sheet */}
+      <Sheet open={!!folderBrowserTab} onOpenChange={(open) => !open && setFolderBrowserTab(null)}>
+        <SheetContent className="sm:max-w-2xl">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <FolderTree className="h-5 w-5" />
+              Link SharePoint Folder
+            </SheetTitle>
+            <SheetDescription>
+              Select a SharePoint folder for "{folderBrowserTab?.name}"
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-4">
+            {/* Current path info */}
+            {folderBrowserTab?.sharepoint_folder_path && (
+              <div className="text-sm">
+                <span className="text-muted-foreground">Current folder: </span>
+                <span className="font-mono text-blue-600">/{folderBrowserTab.sharepoint_folder_path}</span>
+              </div>
+            )}
+
+            {/* Folder browser */}
+            <div className="border rounded-lg p-4 bg-muted/20 min-h-[400px]">
+              <SharePointFolderBrowser
+                onSelect={(folder, path) => {
+                  if (folder) {
+                    setSelectedFolder({ id: folder.id, name: folder.name, path });
+                  } else {
+                    setSelectedFolder(null);
+                  }
+                }}
+                selectedFolderId={selectedFolder?.id}
+              />
+            </div>
+
+            {/* Selected folder preview */}
+            {selectedFolder && (
+              <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <FolderOpen className="h-5 w-5 text-green-600" />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{selectedFolder.name}</p>
+                  <p className="text-xs font-mono text-muted-foreground">{selectedFolder.path}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button variant="outline" onClick={() => setFolderBrowserTab(null)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveFolderFromBrowser}
+                disabled={!selectedFolder || saving}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    Link Folder
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
