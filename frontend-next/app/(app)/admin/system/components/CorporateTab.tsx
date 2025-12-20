@@ -948,14 +948,9 @@ const CURRENT_OVERVIEW_TABS = [
   { id: "consolidation", name: "Consolidation", visible: true },
 ];
 
-const CURRENT_XERO_TABS = [
-  { id: "connection", name: "Connection", visible: true },
-  { id: "overview", name: "Overview", visible: true },
-  { id: "accounts", name: "Accounts", visible: true },
-  { id: "profit-loss", name: "Profit & Loss", visible: true },
-  { id: "balance-sheet", name: "Balance Sheet", visible: true },
-  { id: "reports", name: "Reports", visible: true },
-  { id: "bank-accounts", name: "Bank Accounts", visible: true },
+// SSoT: Xero tabs loaded from API - minimal fallback only
+const XERO_TABS_FALLBACK = [
+  { id: "connection", name: "Connection", type: "functional", enabled: true },
 ];
 
 function CompanyTabsSubTab() {
@@ -983,9 +978,9 @@ function CompanyTabsSubTab() {
           setXeroTabs(response.data);
         }
       } catch (error) {
-        console.error("Failed to load Xero tabs:", error);
-        // Fallback to hardcoded
-        setXeroTabs(CURRENT_XERO_TABS.map(t => ({ ...t, type: 'functional', enabled: t.visible })));
+        console.error("Failed to load Xero tabs from API:", error);
+        // SSoT: Minimal fallback
+        setXeroTabs(XERO_TABS_FALLBACK);
       } finally {
         setLoadingXeroTabs(false);
       }
@@ -1137,15 +1132,15 @@ function CompanyTabsSubTab() {
         <CardContent className="pt-6">
           <h4 className="font-medium mb-2">SSoT Location</h4>
           <p className="text-sm text-muted-foreground">
-            Xero tabs are now loaded from the database via <code className="font-mono bg-muted px-1 rounded">GET /api/v1/xero/tabs</code>
+            Xero tabs are loaded from <code className="font-mono bg-muted px-1 rounded">GET /api/v1/xero/tabs</code>
           </p>
           <p className="text-sm text-muted-foreground mt-2">
             <span className="font-medium">Backend SSoT:</span>{' '}
-            <code className="font-mono bg-muted px-1 rounded">XeroFeatureTab</code> model + <code className="font-mono bg-muted px-1 rounded">DocumentFolder</code> (XERO children)
+            <code className="font-mono bg-muted px-1 rounded">XeroFeatureTab.all_tabs_ordered</code> - combines functional tabs + document folders, filters duplicates
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            <span className="font-medium">Frontend fallback:</span>{' '}
-            <code className="font-mono bg-muted px-1 rounded">XERO_SUB_TABS</code> in page.tsx (used if API fails)
+            <span className="font-medium">Duplicate prevention:</span>{' '}
+            Document folders with same name as functional tabs are automatically hidden (e.g., &ldquo;Reports&rdquo;)
           </p>
         </CardContent>
       </Card>

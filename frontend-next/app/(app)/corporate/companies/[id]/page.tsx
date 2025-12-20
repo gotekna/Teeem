@@ -147,15 +147,10 @@ const TRUSTEE_COMPANY_SUB_TABS = [
   { id: "trusts", name: "Trusts Managed" },
 ];
 
-// Xero sub-tabs
-const XERO_SUB_TABS = [
-  { id: "connection", name: "Connection" },
-  { id: "overview", name: "Overview" },
-  { id: "accounts", name: "Accounts" },
-  { id: "profit-loss", name: "Profit & Loss" },
-  { id: "balance-sheet", name: "Balance Sheet" },
-  { id: "reports", name: "Reports" },
-  { id: "bank-accounts", name: "Bank Accounts" },
+// SSoT: Xero tabs loaded from API (GET /api/v1/xero/tabs)
+// Minimal fallback only shows Connection tab if API fails
+const XERO_TABS_FALLBACK = [
+  { id: "connection", name: "Connection", type: "functional" as const },
 ];
 
 interface Director {
@@ -3192,7 +3187,7 @@ export default function CompanyDetailPage() {
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
   const [xeroDocumentFolders, setXeroDocumentFolders] = React.useState<Array<{ id: string; name: string; description: string; folderId: number }>>([]);
-  // SSoT: Xero tabs loaded from API (replaces hardcoded XERO_SUB_TABS)
+  // SSoT: Xero tabs loaded from API (GET /api/v1/xero/tabs)
   const [xeroFeatureTabs, setXeroFeatureTabs] = React.useState<Array<{
     id: string;
     name: string;
@@ -3294,13 +3289,9 @@ export default function CompanyDetailPage() {
         setXeroFeatureTabs(response.data);
       }
     } catch (error) {
-      console.error("Failed to load Xero tabs from API, using fallback:", error);
-      // Fallback to hardcoded XERO_SUB_TABS if API fails
-      setXeroFeatureTabs(XERO_SUB_TABS.map(tab => ({
-        id: tab.id,
-        name: tab.name,
-        type: 'functional' as const
-      })));
+      console.error("Failed to load Xero tabs from API, using minimal fallback:", error);
+      // SSoT: Minimal fallback - just Connection tab so user can still connect
+      setXeroFeatureTabs(XERO_TABS_FALLBACK);
     }
   }, []);
 
@@ -3366,30 +3357,12 @@ export default function CompanyDetailPage() {
     return [...documentFolderTabs, ...specialTabs];
   }, [documentFolderTabs]);
 
-  // SSoT: Xero sub-tabs loaded from API (functional + document folders combined)
-  // Falls back to hardcoded XERO_SUB_TABS + xeroDocumentFolders if API hasn't loaded yet
+  // SSoT: Xero tabs from API - includes functional tabs + document folders (no duplicates)
+  // Backend filters out document folders that match functional tab names
   const mergedXeroSubTabs = React.useMemo(() => {
-    // If API-loaded tabs are available, use them directly
-    if (xeroFeatureTabs.length > 0) {
-      return xeroFeatureTabs;
-    }
-
-    // Fallback: use hardcoded tabs + document folders
-    const functionalTabs = XERO_SUB_TABS.map(tab => ({
-      ...tab,
-      type: 'functional' as const
-    }));
-
-    const documentTabs = xeroDocumentFolders.map(folder => ({
-      id: folder.id,
-      name: folder.name,
-      type: 'document' as const,
-      folderId: folder.folderId,
-      description: folder.description
-    }));
-
-    return [...functionalTabs, ...documentTabs];
-  }, [xeroFeatureTabs, xeroDocumentFolders]);
+    // Use API data if available, minimal fallback otherwise
+    return xeroFeatureTabs.length > 0 ? xeroFeatureTabs : XERO_TABS_FALLBACK;
+  }, [xeroFeatureTabs]);
 
   React.useEffect(() => {
     loadCompany();
@@ -3759,12 +3732,12 @@ export default function CompanyDetailPage() {
                 <XeroBankAccountsCard companyId={companyId} />
               )}
 
-              {/* Document folder sub-tabs from database (SSoT) */}
+              {/* Document folder sub-tabs from API (SSoT) */}
               {xeroSubTab.startsWith('xero-doc-') && (
                 <CompanyDocumentsTab
                   companyId={companyId}
                   company={company}
-                  category={xeroDocumentFolders.find(f => f.id === xeroSubTab)?.name || 'XERO'}
+                  category={mergedXeroSubTabs.find(t => t.id === xeroSubTab)?.name || 'XERO'}
                 />
               )}
             </>

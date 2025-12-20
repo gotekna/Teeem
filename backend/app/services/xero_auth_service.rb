@@ -52,17 +52,20 @@ class XeroAuthService
       # Create or update Xero connection for this company
       connection = company.corporate_company_xero_connection || company.build_corporate_company_xero_connection
 
-      connection.assign_attributes(
-        xero_tenant_id: tenant["tenantId"],
-        xero_tenant_name: tenant["tenantName"],
-        xero_tenant_type: tenant["tenantType"],
+      # Save tenant type first (if column exists)
+      connection.xero_tenant_type = tenant["tenantType"] if connection.respond_to?(:xero_tenant_type=)
+      connection.xero_tenant_id = tenant["tenantId"]
+      connection.xero_tenant_name = tenant["tenantName"]
+      connection.save!
+
+      # SSoT: Use connect! method which creates/updates XeroCredential
+      connection.connect!(
         access_token: token.token,
         refresh_token: token.refresh_token,
-        token_expires_at: Time.current + token.expires_in.seconds,
-        connection_status: "connected"
+        expires_at: Time.current + token.expires_in.seconds,
+        tenant_id: tenant["tenantId"],
+        tenant_name: tenant["tenantName"]
       )
-
-      connection.save!
 
       Rails.logger.info("Xero OAuth successful for #{company.name}: #{tenant['tenantName']} (#{tenant['tenantId']})")
 
@@ -104,17 +107,18 @@ class XeroAuthService
 
       new_token = old_token.refresh!
 
-      connection.update!(
+      # SSoT: Update the XeroCredential (not the connection)
+      credential = connection.xero_credential
+      credential.update!(
         access_token: new_token.token,
         refresh_token: new_token.refresh_token,
-        token_expires_at: Time.current + new_token.expires_in.seconds,
-        connection_status: "connected",
-        last_sync_error: nil
+        expires_at: Time.current + new_token.expires_in.seconds,
+        status: "connected"
       )
 
-      Rails.logger.info("Xero token refreshed for #{connection.company.name}")
+      Rails.logger.info("Xero token refreshed for #{connection.corporate_company&.name}")
 
-      { success: true, expires_at: connection.token_expires_at }
+      { success: true, expires_at: credential.expires_at }
     rescue OAuth2::Error => e
       Rails.logger.error("Xero token refresh error: #{e.message}")
       connection.mark_error!("Token refresh failed: #{e.message}")

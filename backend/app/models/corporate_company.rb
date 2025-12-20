@@ -105,7 +105,8 @@ class CorporateCompany < ApplicationRecord
   # Scopes
   scope :active, -> { where(status: "active") }
   scope :by_group, ->(group) { where(company_group: group) }
-  scope :with_xero, -> { joins(:corporate_company_xero_connection).where(corporate_company_xero_connections: { connection_status: "connected" }) }
+  # SSoT: Join through to xero_credentials table for connection status
+  scope :with_xero, -> { joins(corporate_company_xero_connection: :xero_credential).where(xero_credentials: { status: "connected" }) }
   scope :top_level, -> { where(parent_company_id: nil) }
   scope :with_parent, -> { where.not(parent_company_id: nil) }
   scope :trustees, -> { where(is_trustee: true) }

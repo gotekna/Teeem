@@ -34,19 +34,26 @@ class XeroFeatureTab < ApplicationRecord
       }
     end
 
+    # SSoT: Get functional tab names to filter duplicates
+    functional_tab_names = functional_tabs.map { |t| t[:name].downcase }
+
     # Get document folder tabs (children of XERO folder)
+    # SSoT: Skip document folders that have same name as functional tabs (e.g., "Reports")
     xero_folder = DocumentFolder.find_by(name: "XERO")
     document_tabs = if xero_folder
-      DocumentFolder.where(parent_id: xero_folder.id, active: true).order(:order_position).map do |folder|
-        {
-          id: "xero-doc-#{folder.name.downcase.gsub(/\s+/, '-')}",
-          name: folder.name,
-          type: "document",
-          folderId: folder.id,
-          description: folder.description,
-          group: "documents"
-        }
-      end
+      DocumentFolder.where(parent_id: xero_folder.id, active: true)
+        .order(:order_position)
+        .reject { |folder| functional_tab_names.include?(folder.name.downcase) }  # SSoT: No duplicates
+        .map do |folder|
+          {
+            id: "xero-doc-#{folder.name.downcase.gsub(/\s+/, '-')}",
+            name: folder.name,
+            type: "document",
+            folderId: folder.id,
+            description: folder.description,
+            group: "documents"
+          }
+        end
     else
       []
     end

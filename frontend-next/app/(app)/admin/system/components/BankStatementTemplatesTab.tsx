@@ -214,6 +214,7 @@ export function BankStatementTemplatesTab() {
       const response = await fetch(
         `${apiUrl}/api/v1/bank_statement_templates/${template.id}/test_pdf`,
         {
+          credentials: "include",
           headers: {
             Authorization: `Bearer ${token}`,
           },
