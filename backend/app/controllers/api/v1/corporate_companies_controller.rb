@@ -726,6 +726,69 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/xero_setup_overview
+      # Returns Xero setup progress for all companies (admin overview)
+      # Uses only local database queries - no Xero API calls for performance
+      def xero_setup_overview
+        companies = CorporateCompany
+          .includes(:corporate_company_xero_connection, :bank_accounts)
+          .order(:name)
+
+        # Pre-fetch contact link counts by tenant_id for efficiency
+        tenant_ids = companies
+          .filter_map { |c| c.corporate_company_xero_connection&.xero_tenant_id }
+          .compact
+
+        contacts_by_tenant = ContactExternalLink
+          .where(provider: "xero", sync_enabled: true, external_tenant_id: tenant_ids)
+          .group(:external_tenant_id)
+          .count
+
+        render json: {
+          success: true,
+          companies: companies.map do |company|
+            connection = company.corporate_company_xero_connection
+            connected = connection&.connected? || false
+            tenant_id = connection&.xero_tenant_id
+
+            # Count bank accounts linked to Xero
+            bank_accounts_linked = company.bank_accounts.where.not(xero_account_id: nil).count
+
+            # Count contacts synced (from pre-fetched data)
+            contacts_synced = tenant_id ? (contacts_by_tenant[tenant_id] || 0) : 0
+
+            # Calculate setup progress (0-4 steps)
+            # Steps: 1. Connected, 2. Has tenant, 3. Bank accounts linked, 4. Contacts synced
+            steps_complete = 0
+            steps_complete += 1 if connected
+            steps_complete += 1 if tenant_id.present?
+            steps_complete += 1 if bank_accounts_linked > 0
+            steps_complete += 1 if contacts_synced > 0
+
+            {
+              id: company.id,
+              name: company.name,
+              entity_type: company.entity_type,
+              connected: connected,
+              xero_tenant_name: connection&.xero_tenant_name,
+              xero_tenant_id: tenant_id,
+              last_sync_at: connection&.last_sync_at,
+              bank_accounts_linked: bank_accounts_linked,
+              contacts_synced: contacts_synced,
+              steps_complete: steps_complete,
+              steps_total: 4,
+              setup_progress: connected ? (steps_complete.to_f / 4 * 100).round : 0
+            }
+          end,
+          summary: {
+            total: companies.count,
+            connected: companies.count { |c| c.corporate_company_xero_connection&.connected? },
+            with_bank_accounts: companies.count { |c| c.bank_accounts.where.not(xero_account_id: nil).exists? },
+            with_contacts: contacts_by_tenant.values.count { |v| v > 0 }
+          }
+        }
+      end
+
       # GET /api/v1/companies/asic_logins
       # Returns all companies' ASIC login credentials for table view
       # Only shows entity_type = Company (excludes Person, Trust, Superfund)

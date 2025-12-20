@@ -30,6 +30,38 @@ const Marker = dynamic(
   { ssr: false }
 );
 
+// Draggable marker component for edit mode
+const DraggableMarker = dynamic(
+  () =>
+    import("react-leaflet").then((mod) => {
+      const { Marker, useMap } = mod;
+      return function DraggableMarkerInner({
+        position,
+        onDragEnd,
+      }: {
+        position: [number, number];
+        onDragEnd: (pos: [number, number]) => void;
+      }) {
+        const map = useMap();
+        return (
+          <Marker
+            position={position}
+            draggable={true}
+            eventHandlers={{
+              dragend: (e) => {
+                const marker = e.target;
+                const pos = marker.getLatLng();
+                onDragEnd([pos.lat, pos.lng]);
+                map.panTo(pos);
+              },
+            }}
+          />
+        );
+      };
+    }),
+  { ssr: false }
+);
+
 interface LocationMapProps {
   jobId: string | number;
   location?: string | null;
@@ -962,12 +994,15 @@ export function LocationMap({
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  <Marker position={displayPosition} />
+                  <DraggableMarker
+                    position={displayPosition}
+                    onDragEnd={(pos) => setTempPosition(pos)}
+                  />
                   <MapClickHandler onMapClick={(pos) => setTempPosition(pos)} />
                 </MapContainer>
                 <div className="bg-muted px-4 py-2 flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    Click on the map to place the pin
+                    Drag the pin or click on the map to move it
                   </p>
                   {tempPosition && typeof tempPosition[0] === 'number' && typeof tempPosition[1] === 'number' && (
                     <p className="text-xs text-muted-foreground">

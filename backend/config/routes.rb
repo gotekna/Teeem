@@ -1719,6 +1719,7 @@ Rails.application.routes.draw do
           post :reload
           get :health_report
           get :asic_logins
+          get :xero_setup_overview
         end
         member do
           get :directors
