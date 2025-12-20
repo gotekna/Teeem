@@ -100,8 +100,9 @@ class ImapEmailService
     raise
   end
 
-  # Folders to sync from (INBOX + Sent Items for complete email history)
-  SYNC_FOLDERS = ["INBOX", "Sent Items"].freeze
+  # Folders to sync from (INBOX + Sent folder variants for complete email history)
+  # Different mail servers use different names for sent folder
+  SYNC_FOLDERS = ["INBOX", "Sent Items", "Sent", "INBOX.Sent"].freeze
 
   # Sync emails to EmailWarehouse
   # @param full_sync [Boolean] Whether to do a full sync (all emails) or incremental

@@ -71,87 +71,9 @@ module Engines
       item7_completion_overlay: { type: :text, page: 2, x: 420, y: 152, size: 10 }    # After "Completion Period of"
     }.freeze
 
-    # AcroForm field mappings for QBCC Contract
-    # Maps our data keys to PDF form field names
-    # VERIFIED field numbers from diagnostic PDF - 18 Dec 2025
-    QBCC_CONTRACT_FORM_FIELDS = {
-      # The Owner section (Page 1)
-      owner_name: "Text Field 4",           # Owner's name/s
-      owner_email: "Text Field 5",          # Email
-      owner_address: "Text Field 6",        # Postal address
-      owner_postcode: "Text Field 7",       # Postcode
-      owner_phone: "Text Field 8",          # Mobile phone
-      owner_home_phone: "Text Field 9",     # Home phone
-
-      # Owner's Authorised Representative section
-      owner_rep_name: "Text Field 11",      # Representative name
-      owner_rep_address: "Text Field 12",   # Postal address
-      owner_rep_postcode: "Text Field 14",  # Postcode
-      owner_rep_phone: "Text Field 13",     # Mobile phone
-      owner_rep_email: "Text Field 15",     # Email
-
-      # The Contractor section
-      builder_name: "Text Field 16",        # Contractor's name/s
-      builder_qbcc: "Text Field 17",        # QBCC Licence Number
-      builder_abn: "Text Field 18",         # ABN Number
-      builder_address: "Text Field 19",     # Business address
-      builder_postcode: "Text Field 20",    # Postcode
-      builder_phone: "Text Field 21",       # Mobile phone
-      builder_email: "Text Field 22",       # Email
-
-      # Item 2: Deposit (VERIFIED: Field 32)
-      deposit: "Text Field 32",              # Deposit amount
-
-      # Item 3: Description of Works (VERIFIED: Field 33)
-      description_of_works: "Text Field 33", # Building work description (from Job Type)
-
-      # Item 4: The Site (VERIFIED: Fields 34-40)
-      site_address: "Text Field 34",         # Site address line 1
-      site_address_2: "Text Field 35",       # Site address line 2
-      site_postcode: "Text Field 36",        # Site postcode
-      lot_number: "Text Field 37",           # Lot on plan
-      plan_type: "Text Field 38",            # Plan type (RP/SP/BUP)
-      plan_number: "Text Field 39",          # Plan number
-      local_authority: "Text Field 40",      # Local authority (council)
-
-      # Item 5: Starting Date (split into day/month/year)
-      start_date_day: "Text Field 41",       # Start date - day
-      start_date_month: "Text Field 42",     # Start date - month
-      start_date_year: "Text Field 43",      # Start date - year (2 digits)
-
-      # Item 6: Completion Period
-      construction_days: "Text Field 44",    # A. Construction days (working days)
-      weather_days: "Text Field 45",         # B(i). Inclement weather allowance (days)
-      other_delay_days: "Text Field 46",     # B(ii). Other likely delays (days)
-      delay_details: "Text Field 47",        # Details of delay (text description)
-      delay_details_2: "Text Field 48",      # Additional delay details
-      weekends_holidays: "Text Field 82",    # C. Non-working days (weekends/public holidays)
-      total_completion_days: "Text Field 83", # COMPLETION PERIOD (A+B+C) total calendar days
-
-      # Item 1: Contract Price breakdown (VERIFIED: Fields 27-29, 31)
-      fixed_price_component: "Text Field 27", # a. Fixed Price Component
-      prime_cost: "Text Field 28",            # b. Prime Cost Items
-      provisional_sums: "Text Field 29",      # c. Provisional Sums
-      contract_price: "Text Field 31",        # Total contract price (a + b + c)
-
-      # Item 8a: Progress Payments - percentages only (VERIFIED: Fields 55-59)
-      # Note: Deposit stage uses Item 2 field (32), not a separate stage field
-      stage_1_pct: "Text Field 55",          # Base/Slab %
-      stage_2_pct: "Text Field 56",          # Frame %
-      stage_3_pct: "Text Field 57",          # Enclosed %
-      stage_4_pct: "Text Field 58",          # Fixing %
-      stage_5_pct: "Text Field 59",          # Practical Completion %
-
-      # TODO: Item 10: Liquidated Damages - needs field verification
-      # (Field 47/48 are in Item 6 section, NOT Items 10-14)
-
-      # TODO: Item 14: Certification responsibility - needs field verification
-
-      # Item 15: Prime Cost, Provisional Sums details, and Special Conditions (TBC)
-      prime_cost_details: "Text Field 49",   # What the prime cost items are
-      provisional_sums_details: "Text Field 50", # What the provisional sum items are
-      special_conditions: "Text Field 51"    # Special conditions text
-    }.freeze
+    # SSoT: QBCC Contract form field mappings are now stored in PdfFieldPosition table
+    # Use Admin > System > PDF Fields to manage mappings
+    # Legacy QBCC_CONTRACT_FORM_FIELDS constant removed 20 Dec 2025
 
     # Checkbox field mappings for QBCC Contract
     QBCC_CONTRACT_CHECKBOX_FIELDS = {
@@ -708,18 +630,9 @@ module Engines
         hash[pos.field_key.to_sym] = pos.pdf_form_field_name
       end
     rescue StandardError => e
-      Rails.logger.warn "[PdfOverlayEngine] Failed to load form field mapping: #{e.message}"
-      # Fallback to legacy constants only if database unavailable
-      case template_key
-      when :qbcc_contract
-        QBCC_CONTRACT_FORM_FIELDS
-      when :qbcc_consumer_guide
-        QBCC_CONSUMER_GUIDE_FORM_FIELDS
-      when :qbcc_general_conditions
-        QBCC_GENERAL_CONDITIONS_FORM_FIELDS
-      else
-        {}
-      end
+      Rails.logger.error "[PdfOverlayEngine] CRITICAL: Failed to load form field mapping from database: #{e.message}"
+      Rails.logger.error "[PdfOverlayEngine] SSoT is PdfFieldPosition table - no fallback available"
+      {}
     end
 
     def apply_text_overlays(doc, data, field_mapping)
