@@ -209,11 +209,23 @@ export default function NewContactPage() {
     setSelectedCompanyName(null);
   };
 
-  // Add pending employee (will be created after company)
-  const addPendingEmployee = () => {
-    if (!newEmployeeName.trim()) return;
-    setPendingEmployees(prev => [...prev, { name: newEmployeeName.trim() }]);
-    setNewEmployeeName("");
+  // Select an existing person as employee
+  const selectEmployee = (person: ContactSearchResult) => {
+    setPendingEmployees(prev => [...prev, {
+      id: person.id,
+      name: person.display_name,
+      email: person.email || undefined
+    }]);
+    setEmployeeSearchOpen(false);
+    setEmployeeSearchQuery("");
+  };
+
+  // Create a new pending employee (will be created after company)
+  const createAndAddEmployee = () => {
+    if (!employeeSearchQuery.trim()) return;
+    setPendingEmployees(prev => [...prev, { name: employeeSearchQuery.trim() }]);
+    setEmployeeSearchOpen(false);
+    setEmployeeSearchQuery("");
   };
 
   const removePendingEmployee = (index: number) => {
@@ -297,24 +309,44 @@ export default function NewContactPage() {
 
       const newContactId = response?.contact?.id;
 
-      // If this entity can have employees and we have pending employees, create them
+      // If this entity can have employees and we have pending employees, link/create them
       if (entityCanHaveEmployees && newContactId && pendingEmployees.length > 0) {
+        let linkedCount = 0;
+        let createdCount = 0;
+
         for (const emp of pendingEmployees) {
           try {
-            await api.post("/api/v1/contacts", {
-              contact: {
-                display_name: emp.name,
-                entity_type: "person",
-                primary_company_id: newContactId,
-              },
-            });
+            if (emp.id) {
+              // Existing person - create employee_of relationship
+              await api.post(`/api/v1/contacts/${emp.id}/relationships`, {
+                relationship: {
+                  related_contact_id: newContactId,
+                  relationship_type: "employee_of",
+                },
+              });
+              linkedCount++;
+            } else {
+              // New person - create contact and link
+              await api.post("/api/v1/contacts", {
+                contact: {
+                  display_name: emp.name,
+                  entity_type: "person",
+                  primary_company_id: newContactId,
+                },
+              });
+              createdCount++;
+            }
           } catch (error) {
-            console.error("Failed to create employee:", error);
+            console.error("Failed to link/create employee:", error);
           }
         }
+
+        const parts = [];
+        if (linkedCount > 0) parts.push(`${linkedCount} linked`);
+        if (createdCount > 0) parts.push(`${createdCount} created`);
         toast({
           title: "Success",
-          description: `Contact created with ${pendingEmployees.length} employee(s)`
+          description: `Contact created with ${parts.join(", ")} employee(s)`
         });
       } else {
         toast({ title: "Success", description: "Contact created successfully" });
@@ -506,23 +538,76 @@ export default function NewContactPage() {
                     Employees / Key Contacts
                   </Label>
                   <p className="text-xs text-muted-foreground mb-2">
-                    Add people who work at this {createFormTypes.find(t => t.value === formData.entity_type)?.label?.toLowerCase() || "entity"} (optional)
+                    Search existing people or create new ones to link to this {createFormTypes.find(t => t.value === formData.entity_type)?.label?.toLowerCase() || "entity"} (optional)
                   </p>
                   <div className="flex gap-2">
-                    <Input
-                      placeholder="Employee name"
-                      value={newEmployeeName}
-                      onChange={(e) => setNewEmployeeName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          addPendingEmployee();
-                        }
-                      }}
-                    />
-                    <Button type="button" variant="outline" onClick={addPendingEmployee}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                    <Popover open={employeeSearchOpen} onOpenChange={setEmployeeSearchOpen}>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={employeeSearchOpen}
+                          className="w-full justify-between font-normal"
+                        >
+                          <span className="text-muted-foreground">Search people...</span>
+                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0" align="start">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search people by name..."
+                            value={employeeSearchQuery}
+                            onValueChange={setEmployeeSearchQuery}
+                          />
+                          <CommandList>
+                            {searchingEmployees && (
+                              <CommandEmpty>
+                                <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                              </CommandEmpty>
+                            )}
+                            {!searchingEmployees && employeeSearchQuery.length < 2 && (
+                              <CommandEmpty>Type at least 2 characters to search...</CommandEmpty>
+                            )}
+                            {!searchingEmployees && employeeSearchQuery.length >= 2 && employeeSearchResults.length === 0 && (
+                              <CommandEmpty>No people found</CommandEmpty>
+                            )}
+                            {employeeSearchResults.length > 0 && (
+                              <CommandGroup heading="People">
+                                {employeeSearchResults.map((person) => (
+                                  <CommandItem
+                                    key={person.id}
+                                    value={person.id.toString()}
+                                    onSelect={() => selectEmployee(person)}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        pendingEmployees.some(e => e.id === person.id) ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    <div>
+                                      <div className="font-medium">{person.display_name}</div>
+                                      {person.email && (
+                                        <div className="text-xs text-muted-foreground">{person.email}</div>
+                                      )}
+                                    </div>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            )}
+                            {employeeSearchQuery.length >= 2 && (
+                              <CommandGroup heading="Create New">
+                                <CommandItem onSelect={createAndAddEmployee}>
+                                  <Plus className="mr-2 h-4 w-4" />
+                                  Create &quot;{employeeSearchQuery}&quot; as new person
+                                </CommandItem>
+                              </CommandGroup>
+                            )}
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   {pendingEmployees.length > 0 && (
                     <div className="border rounded-lg divide-y mt-2">
@@ -530,7 +615,14 @@ export default function NewContactPage() {
                         <div key={index} className="flex items-center justify-between p-2">
                           <div className="flex items-center gap-2">
                             <User className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm">{emp.name}</span>
+                            <div>
+                              <span className="text-sm">{emp.name}</span>
+                              {emp.id ? (
+                                <span className="ml-2 text-xs text-green-600 dark:text-green-400">(existing)</span>
+                              ) : (
+                                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">(will be created)</span>
+                              )}
+                            </div>
                           </div>
                           <Button
                             type="button"

@@ -81,32 +81,46 @@ module Api
       # POST /api/v1/bank_statement_templates/:id/test_pdf
       # Generate a sample PDF using this template
       def test_pdf
+        # Try to find a real BankAccount for realistic preview data
+        # Look for accounts matching this template's bank_code or with corporate company
+        sample_account = find_sample_bank_account
+
         # Create sample transaction data for preview
         sample_transactions = [
           {
             date: Date.current - 5.days,
-            description: "Sample Deposit",
-            amount: 1500.00,
-            running_balance: 1500.00
+            description: "Direct Credit - Wages",
+            amount: 5500.00
+          },
+          {
+            date: Date.current - 4.days,
+            description: "BPAY - Origin Energy",
+            amount: -285.50
           },
           {
             date: Date.current - 3.days,
-            description: "Sample Payment - Utilities",
-            amount: -250.00,
-            running_balance: 1250.00
+            description: "Transfer from Savings",
+            amount: 1000.00
+          },
+          {
+            date: Date.current - 2.days,
+            description: "EFTPOS Purchase - Bunnings",
+            amount: -156.80
           },
           {
             date: Date.current - 1.day,
-            description: "Sample Transfer",
-            amount: 500.00,
-            running_balance: 1750.00
+            description: "ATM Withdrawal",
+            amount: -200.00
           }
         ]
 
         # Generate PDF using the template
+        account_name = sample_account&.corporate_company&.name || sample_account&.account_name || @template.bank_name
+
         service = BankTransactionReportService.new(
+          bank_account: sample_account,
           transactions: sample_transactions,
-          account_name: @template.bank_name,
+          account_name: account_name,
           start_date: Date.current - 7.days,
           end_date: Date.current,
           template: @template
@@ -221,6 +235,26 @@ module Api
           :is_active,
           detection_patterns: []
         )
+      end
+
+      # Find a sample BankAccount for realistic preview
+      # Prefers accounts with corporate company that has address data
+      def find_sample_bank_account
+        # First try to find by matching bank_code
+        if @template.bank_code.present? && @template.bank_code != "default"
+          account = BankAccount.joins(:corporate_company)
+                               .where(bank_code: @template.bank_code)
+                               .where.not(corporate_companies: { registered_office_address: [ nil, "" ] })
+                               .first
+          return account if account
+        end
+
+        # Fall back to any account with good address data
+        BankAccount.joins(:corporate_company)
+                   .where.not(corporate_companies: { registered_office_address: [ nil, "" ] })
+                   .where.not(bsb: [ nil, "" ])
+                   .where.not(account_number: [ nil, "" ])
+                   .first
       end
 
       def template_json(template)

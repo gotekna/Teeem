@@ -117,6 +117,7 @@ export function EntityTabsTable() {
 
   // Editing state
   const [editingPath, setEditingPath] = React.useState<{ tabId: string; value: string } | null>(null);
+  const [editingEntityTypes, setEditingEntityTypes] = React.useState<string | null>(null);
   const [addingSubTab, setAddingSubTab] = React.useState<{ tabId: string; name: string; folder: string } | null>(null);
   const [addingTab, setAddingTab] = React.useState<{ group: string; name: string; folder: string } | null>(null);
 
@@ -189,7 +190,7 @@ export function EntityTabsTable() {
     e.stopPropagation();
     setTogglingTabId(tab.id);
     try {
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.tab_key}`, {
+      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
         tab: { enabled: !tab.enabled }
       });
       await loadTabs();
@@ -210,7 +211,7 @@ export function EntityTabsTable() {
     if (!editingPath) return;
     setSaving(true);
     try {
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.tab_key}`, {
+      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
         tab: {
           has_sharepoint_folder: !!editingPath.value,
           sharepoint_folder_path: editingPath.value || null,
@@ -240,7 +241,7 @@ export function EntityTabsTable() {
           folder: addingSubTab.folder || addingSubTab.name,
         }
       ];
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.tab_key}`, {
+      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
         tab: { sub_tabs: newSubTabs }
       });
       await loadTabs();
@@ -261,7 +262,7 @@ export function EntityTabsTable() {
     setSaving(true);
     try {
       const newSubTabs = (tab.sub_tabs || []).filter((st) => st.key !== subTabKey);
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.tab_key}`, {
+      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
         tab: { sub_tabs: newSubTabs }
       });
       await loadTabs();
@@ -269,6 +270,32 @@ export function EntityTabsTable() {
     } catch (error) {
       console.error("Failed to delete sub-tab:", error);
       toast({ title: "Error", description: "Failed to delete sub-folder", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Toggle entity type on a tab
+  const handleToggleEntityType = async (tab: EntityTab, entityType: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSaving(true);
+    try {
+      const hasType = tab.entity_types.includes(entityType);
+      const newEntityTypes = hasType
+        ? tab.entity_types.filter((t) => t !== entityType)
+        : [...tab.entity_types, entityType];
+
+      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
+        tab: { entity_types: newEntityTypes }
+      });
+      await loadTabs();
+      toast({
+        title: hasType ? "Entity type removed" : "Entity type added",
+        description: `${entityType} ${hasType ? "removed from" : "added to"} "${tab.name}"`,
+      });
+    } catch (error) {
+      console.error("Failed to update entity types:", error);
+      toast({ title: "Error", description: "Failed to update entity types", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -395,24 +422,31 @@ export function EntityTabsTable() {
                             {/* Tab name */}
                             <span className="font-medium text-sm">{tab.name}</span>
 
-                            {/* Entity type badges */}
-                            <div className="flex gap-0.5 ml-2">
-                              {tab.entity_types.map((type) => {
+                            {/* Entity type badges - clickable to toggle */}
+                            <div className="flex gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
+                              {(["Company", "Trust", "Superfund"] as const).map((type) => {
                                 const config = ENTITY_TYPE_CONFIG[type];
-                                return config ? (
-                                  <Badge
+                                const isActive = tab.entity_types.includes(type);
+                                return (
+                                  <button
                                     key={type}
-                                    variant="outline"
+                                    onClick={(e) => handleToggleEntityType(tab, type, e)}
+                                    disabled={saving}
+                                    title={`${isActive ? "Remove" : "Add"} ${type}`}
                                     className={cn(
-                                      "text-[9px] px-1 py-0",
-                                      type === "Company" && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700",
-                                      type === "Trust" && "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700",
-                                      type === "Superfund" && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700",
+                                      "text-[9px] px-1.5 py-0.5 rounded border transition-all",
+                                      isActive ? (
+                                        type === "Company" && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700 hover:bg-blue-200 dark:hover:bg-blue-900/50"
+                                      ) : (
+                                        "bg-muted/30 text-muted-foreground/50 border-transparent hover:border-muted-foreground/30 hover:text-muted-foreground"
+                                      ),
+                                      isActive && type === "Trust" && "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700 hover:bg-purple-200 dark:hover:bg-purple-900/50",
+                                      isActive && type === "Superfund" && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700 hover:bg-green-200 dark:hover:bg-green-900/50",
                                     )}
                                   >
                                     {config.abbrev}
-                                  </Badge>
-                                ) : null;
+                                  </button>
+                                );
                               })}
                             </div>
 
