@@ -92,7 +92,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
   const getStatusColor = (displayStatus?: string) => {
     switch (displayStatus) {
       case 'connected': return 'bg-green-500';
-      case 'warning': return 'bg-yellow-500';
+      case 'warning': return 'bg-orange-500';
       case 'error': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
@@ -137,7 +137,7 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
           </div>
           <p className="text-lg font-semibold">{tenantStats?.contacts?.total_links || 0} linked</p>
           {tenantStats?.contacts?.pending_review && tenantStats.contacts.pending_review > 0 ? (
-            <p className="text-xs text-yellow-600 mt-1">
+            <p className="text-xs text-orange-600 mt-1">
               {tenantStats.contacts.pending_review} pending review
             </p>
           ) : (
@@ -178,14 +178,14 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
 
       {/* Health Alert (if needed) */}
       {status.needs_attention && (
-        <Card className="md:col-span-2 lg:col-span-4 border-yellow-200 bg-yellow-50 dark:border-yellow-900 dark:bg-yellow-950">
+        <Card className="md:col-span-2 lg:col-span-4 border-orange-200 bg-orange-50 dark:border-orange-900 dark:bg-orange-950">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
+              <AlertCircle className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-medium text-yellow-800 dark:text-yellow-200">{status.message || 'Attention Required'}</p>
+                <p className="font-medium text-orange-800 dark:text-orange-200">{status.message || 'Attention Required'}</p>
                 {status.action_required && (
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">{status.action_required}</p>
+                  <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">{status.action_required}</p>
                 )}
               </div>
             </div>

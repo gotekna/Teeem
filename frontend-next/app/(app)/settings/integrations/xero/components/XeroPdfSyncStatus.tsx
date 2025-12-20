@@ -283,7 +283,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         );
       case "warning":
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+          <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
             <AlertTriangle className="h-3 w-3 mr-1" />
             Stale
           </Badge>

@@ -630,7 +630,7 @@ export function XeroSyncSection({ contact, onContactUpdate }: XeroSyncSectionPro
                     <div
                       key={index}
                       className={`grid grid-cols-[1fr,auto,1fr] gap-4 p-3 rounded-lg ${
-                        mapping.isDifferent ? "bg-yellow-50 dark:bg-yellow-900/10" : "bg-muted/50"
+                        mapping.isDifferent ? "bg-orange-50 dark:bg-orange-900/10" : "bg-muted/50"
                       }`}
                     >
                       <div>

@@ -156,7 +156,7 @@ export function XeroHealthTab() {
       case "connected":
         return <CheckCircle2 className="h-5 w-5 text-green-500" />;
       case "warning":
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+        return <AlertTriangle className="h-5 w-5 text-orange-500" />;
       case "error":
         return <XCircle className="h-5 w-5 text-red-500" />;
       case "disconnected":
@@ -176,7 +176,7 @@ export function XeroHealthTab() {
     return (
       <Badge variant={variants[status] || "outline"} className={cn(
         status === "connected" && "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100",
-        status === "warning" && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
+        status === "warning" && "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100"
       )}>
         {status}
       </Badge>
@@ -237,7 +237,7 @@ export function XeroHealthTab() {
               <Shield className={cn(
                 "h-10 w-10",
                 dashboard?.overall_status === "connected" && "text-green-500",
-                dashboard?.overall_status === "warning" && "text-yellow-500",
+                dashboard?.overall_status === "warning" && "text-orange-500",
                 dashboard?.overall_status === "error" && "text-red-500",
                 dashboard?.overall_status === "disconnected" && "text-gray-400"
               )} />
@@ -266,7 +266,7 @@ export function XeroHealthTab() {
               </div>
               <AlertTriangle className={cn(
                 "h-10 w-10",
-                (dashboard?.needs_attention_count || 0) > 0 ? "text-yellow-500" : "text-gray-300"
+                (dashboard?.needs_attention_count || 0) > 0 ? "text-orange-500" : "text-gray-300"
               )} />
             </div>
           </CardContent>
@@ -291,10 +291,10 @@ export function XeroHealthTab() {
 
       {/* Warnings */}
       {warnings.length > 0 && (
-        <Card className="border-yellow-200 dark:border-yellow-800">
+        <Card className="border-orange-200 dark:border-orange-800">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-yellow-500" />
+              <AlertCircle className="h-5 w-5 text-orange-500" />
               Early Warnings ({warnings.length})
             </CardTitle>
             <CardDescription>Potential issues that need attention</CardDescription>
@@ -306,14 +306,14 @@ export function XeroHealthTab() {
                   key={idx}
                   className={cn(
                     "flex items-center justify-between p-3 rounded-lg",
-                    warning.severity === "critical" ? "bg-red-50 dark:bg-red-900/20" : "bg-yellow-50 dark:bg-yellow-900/20"
+                    warning.severity === "critical" ? "bg-red-50 dark:bg-red-900/20" : "bg-orange-50 dark:bg-orange-900/20"
                   )}
                 >
                   <div className="flex items-center gap-3">
                     {warning.severity === "critical" ? (
                       <XCircle className="h-5 w-5 text-red-500" />
                     ) : (
-                      <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                      <AlertTriangle className="h-5 w-5 text-orange-500" />
                     )}
                     <div>
                       <p className="font-medium">{warning.tenant_name}</p>
@@ -353,7 +353,7 @@ export function XeroHealthTab() {
                           className={cn(
                             "h-full rounded-full transition-all",
                             cred.health_score >= 70 ? "bg-green-500" :
-                            cred.health_score >= 40 ? "bg-yellow-500" : "bg-red-500"
+                            cred.health_score >= 40 ? "bg-orange-500" : "bg-red-500"
                           )}
                           style={{ width: `${cred.health_score}%` }}
                         />

@@ -257,7 +257,7 @@ function OutlookConnection() {
           </div>
           <Badge
             variant={status?.connected ? (status?.needs_refresh ? "outline" : "default") : "secondary"}
-            className={cn(status?.needs_refresh && "border-yellow-500 text-yellow-600")}
+            className={cn(status?.needs_refresh && "border-orange-500 text-orange-600")}
           >
             {status?.connected ? (
               status?.needs_refresh ? (
