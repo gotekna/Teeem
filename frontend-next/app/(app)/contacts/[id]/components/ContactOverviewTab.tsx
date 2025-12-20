@@ -76,6 +76,13 @@ export function ContactOverviewTab({
   const [companyRelationships, setCompanyRelationships] = useState<ContactRelationship[]>([]);
   const [availableRoles, setAvailableRoles] = useState<{ id: number; name: string }[]>([]);
 
+  // Employee/person link state (for companies)
+  const [showPersonSearch, setShowPersonSearch] = useState(false);
+  const [personSearchQuery, setPersonSearchQuery] = useState("");
+  const [personSearchResults, setPersonSearchResults] = useState<{ id: number; name: string; entity_type: string }[]>([]);
+  const [searchingPerson, setSearchingPerson] = useState(false);
+  const [savingPersonLink, setSavingPersonLink] = useState(false);
+
   // Load related entities
   useEffect(() => {
     if (contact.id) {
@@ -242,6 +249,85 @@ export function ContactOverviewTab({
       setSavingCompanyLink(false);
     }
   }, [contact.id, onContactUpdate, loadRelatedEntities, toast]);
+
+  // Search for people to add as employees (for companies)
+  const searchPeople = useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setPersonSearchResults([]);
+      return;
+    }
+    setSearchingPerson(true);
+    try {
+      const response = await api.get<{ contacts?: Array<{ id: number; display_name?: string; first_name?: string; last_name?: string; entity_type: string }> }>("/api/v1/contacts", {
+        params: {
+          search: query,
+          per_page: 10,
+          entity_type: "person"
+        },
+      });
+      // Exclude self and already-linked employees
+      const employeeIds = contact.employees?.map(e => e.id) || [];
+      const people = (response.contacts || [])
+        .filter(c => c.id !== contact.id && !employeeIds.includes(c.id))
+        .map(c => ({
+          id: c.id,
+          name: c.display_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || "Unknown",
+          entity_type: c.entity_type,
+        }));
+      setPersonSearchResults(people);
+    } catch {
+      setPersonSearchResults([]);
+    } finally {
+      setSearchingPerson(false);
+    }
+  }, [contact.id, contact.employees]);
+
+  // Debounce person search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (personSearchQuery) {
+        searchPeople(personSearchQuery);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [personSearchQuery, searchPeople]);
+
+  // Add person as employee (for companies)
+  const addPersonAsEmployee = useCallback(async (personId: number) => {
+    setSavingPersonLink(true);
+    try {
+      // Create relationship FROM person TO this company (employee_of)
+      await api.post(`/api/v1/contacts/${personId}/relationships`, {
+        contact_relationship: {
+          related_contact_id: contact.id,
+          relationship_type: "employee_of",
+          is_active: true,
+        },
+      });
+
+      // Refresh contact to get updated employees list
+      const contactRes = await api.get<{ contact: Contact }>(`/api/v1/contacts/${contact.id}`);
+      onContactUpdate(contactRes.contact);
+
+      // Reset search state
+      setShowPersonSearch(false);
+      setPersonSearchQuery("");
+      setPersonSearchResults([]);
+
+      toast({
+        title: "Person linked",
+        description: "Added as employee",
+      });
+    } catch (err) {
+      toast({
+        title: "Error linking person",
+        description: err instanceof Error ? err.message : "Failed to add employee",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPersonLink(false);
+    }
+  }, [contact.id, onContactUpdate, toast]);
 
   // Reorder company relationships (for DnD)
   const reorderCompanyLinks = useCallback(async (newOrder: ContactRelationship[]) => {
@@ -577,8 +663,8 @@ export function ContactOverviewTab({
           </Card>
 
           {/* Relationships Card - shows company links, employees, and related contacts */}
-          {/* Always show for persons (to add company links) or when there are relationships */}
-          {(canHaveEmployer(contact.entity_type) || hasRelationships || companyRelationships.length > 0) && (
+          {/* Always show for persons (to add company links), companies (to add employees), or when there are relationships */}
+          {(canHaveEmployer(contact.entity_type) || canHaveEmployees(contact.entity_type) || hasRelationships || companyRelationships.length > 0) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">
@@ -772,35 +858,112 @@ export function ContactOverviewTab({
                   </div>
                 )}
 
-                {/* Employees - for companies */}
-                {canHaveEmployees(contact.entity_type) && employeeCount > 0 && (
+                {/* People/Employees - for companies */}
+                {canHaveEmployees(contact.entity_type) && (
                   <div>
                     <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                      Employees ({employeeCount})
+                      People {employeeCount > 0 && `(${employeeCount})`}
                     </div>
-                    <div className="space-y-1">
-                      {contact.employees?.slice(0, 5).map((employee) => (
-                        <Link
-                          key={employee.id}
-                          href={`/contacts/${employee.id}`}
-                          className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md hover:bg-muted/50 transition-colors"
-                        >
-                          <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                            <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate">{employee.display_name}</div>
-                            {employee.primary_role && (
-                              <div className="text-xs text-muted-foreground">{employee.primary_role}</div>
-                            )}
-                          </div>
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        </Link>
-                      ))}
-                      {employeeCount > 5 && (
-                        <div className="text-xs text-muted-foreground text-center py-2">
-                          +{employeeCount - 5} more employees
+                    <div className="space-y-2">
+                      {/* Existing employees */}
+                      {employeeCount > 0 && (
+                        <div className="space-y-1">
+                          {contact.employees?.slice(0, 5).map((employee) => (
+                            <Link
+                              key={employee.id}
+                              href={`/contacts/${employee.id}`}
+                              className="flex items-center gap-3 py-2 px-3 -mx-3 rounded-md hover:bg-muted/50 transition-colors"
+                            >
+                              <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                <Users className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">{employee.display_name}</div>
+                                {employee.primary_role && (
+                                  <div className="text-xs text-muted-foreground">{employee.primary_role}</div>
+                                )}
+                              </div>
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            </Link>
+                          ))}
+                          {employeeCount > 5 && (
+                            <div className="text-xs text-muted-foreground text-center py-2">
+                              +{employeeCount - 5} more people
+                            </div>
+                          )}
                         </div>
+                      )}
+
+                      {/* Person search interface */}
+                      {showPersonSearch ? (
+                        <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              placeholder="Search for a person..."
+                              value={personSearchQuery}
+                              onChange={(e) => setPersonSearchQuery(e.target.value)}
+                              className="pl-9 pr-8"
+                              autoFocus
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
+                              onClick={() => {
+                                setShowPersonSearch(false);
+                                setPersonSearchQuery("");
+                                setPersonSearchResults([]);
+                              }}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+
+                          {/* Search results */}
+                          {searchingPerson ? (
+                            <div className="flex items-center justify-center py-4">
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : personSearchResults.length > 0 ? (
+                            <div className="max-h-48 overflow-y-auto space-y-1 border rounded-md p-1">
+                              {personSearchResults.map((person) => (
+                                <button
+                                  key={person.id}
+                                  onClick={() => addPersonAsEmployee(person.id)}
+                                  disabled={savingPersonLink}
+                                  className="w-full text-left px-3 py-2 hover:bg-muted rounded-md transition-colors flex items-center gap-3"
+                                >
+                                  <div className="h-7 w-7 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center shrink-0">
+                                    <Users className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-sm font-medium truncate">{person.name}</div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          ) : personSearchQuery.length >= 2 ? (
+                            <div className="text-sm text-muted-foreground text-center py-3">
+                              No people found
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground text-center py-2">
+                              Type at least 2 characters to search
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        /* Add person button */
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setShowPersonSearch(true)}
+                        >
+                          <Plus className="h-3.5 w-3.5 mr-2" />
+                          Add Person
+                        </Button>
                       )}
                     </div>
                   </div>
