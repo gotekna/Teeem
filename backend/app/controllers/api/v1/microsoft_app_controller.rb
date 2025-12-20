@@ -441,7 +441,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
     end
 
-    credential = OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
+    credential = OrganizationMicrosoftAppCredential.find_by(id: params[:id])
     unless credential
       return render json: { error: "Organization not found" }, status: :not_found
     end
