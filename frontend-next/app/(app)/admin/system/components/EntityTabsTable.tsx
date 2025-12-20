@@ -132,6 +132,16 @@ export function EntityTabsTable() {
   const [folderBrowserTab, setFolderBrowserTab] = React.useState<EntityTab | null>(null);
   const [selectedFolder, setSelectedFolder] = React.useState<{ id?: string; name: string; path: string } | null>(null);
 
+  // Xero feature tabs state (SSoT: shows what Xero sub-tabs will be created)
+  const [xeroFeatureTabs, setXeroFeatureTabs] = React.useState<Array<{
+    id: string;
+    name: string;
+    type: string;
+    component?: string;
+    group: string;
+    icon?: string;
+  }>>([]);
+
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
     try {
@@ -150,6 +160,32 @@ export function EntityTabsTable() {
   React.useEffect(() => {
     loadTabs();
   }, [loadTabs]);
+
+  // Load Xero feature tabs from API (SSoT: shows what Xero sub-tabs will be available)
+  const loadXeroFeatureTabs = React.useCallback(async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: Array<{
+          id: string;
+          name: string;
+          type: string;
+          component?: string;
+          group: string;
+          icon?: string;
+        }>;
+      }>("/api/v1/xero/tabs");
+      if (response.success && response.data) {
+        setXeroFeatureTabs(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to load Xero feature tabs:", error);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadXeroFeatureTabs();
+  }, [loadXeroFeatureTabs]);
 
   // Group tabs
   const groupedTabs = React.useMemo(() => {
@@ -535,92 +571,141 @@ export function EntityTabsTable() {
                           {/* Expanded: Sub-tabs */}
                           {isTabExpanded && (
                             <div className="ml-10 border-l-2 border-dashed border-muted pl-4 py-2 space-y-1">
-                              {/* Existing sub-tabs */}
-                              {tab.sub_tabs?.map((subTab) => (
-                                <div
-                                  key={subTab.key}
-                                  className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 text-sm group"
-                                >
-                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <span>{subTab.name}</span>
-                                  <span className="text-xs font-mono text-muted-foreground ml-auto">
-                                    /{subTab.folder}
-                                  </span>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-                                    onClick={(e) => handleDeleteSubTab(tab, subTab.key, e)}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              ))}
-
-                              {/* Add sub-tab form */}
-                              {addingSubTab?.tabId === tab.id ? (
-                                <div className="flex items-center gap-2 py-1.5 px-2 rounded bg-muted/30">
-                                  <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
-                                  <Input
-                                    value={addingSubTab.name}
-                                    onChange={(e) => setAddingSubTab({ ...addingSubTab, name: e.target.value })}
-                                    placeholder="Sub-folder name"
-                                    className="h-6 text-xs flex-1"
-                                    autoFocus
-                                  />
-                                  <Input
-                                    value={addingSubTab.folder}
-                                    onChange={(e) => setAddingSubTab({ ...addingSubTab, folder: e.target.value })}
-                                    placeholder="Folder path"
-                                    className="h-6 text-xs w-32 font-mono"
-                                  />
-                                  <Button
-                                    size="sm"
-                                    className="h-6 text-xs"
-                                    onClick={() => handleAddSubTab(tab)}
-                                    disabled={saving || !addingSubTab.name.trim()}
-                                  >
-                                    {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-6 text-xs"
-                                    onClick={() => setAddingSubTab(null)}
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setAddingSubTab({ tabId: tab.id, name: "", folder: "" })}
-                                  className="flex items-center gap-2 py-1.5 px-2 rounded text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                  Add sub-folder
-                                </button>
-                              )}
-
-                              {/* Document types (if any) */}
-                              {tab.document_types && tab.document_types.length > 0 && (
-                                <div className="pt-2 mt-2 border-t border-dashed">
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
-                                    Document Types ({tab.document_types.length})
+                              {/* XERO tab: Show unified Xero feature tabs (functional + document folders) */}
+                              {tab.name.toUpperCase() === "XERO" && xeroFeatureTabs.length > 0 ? (
+                                <>
+                                  <p className="text-[10px] text-muted-foreground mb-2">
+                                    These tabs appear on company pages when Xero is connected:
                                   </p>
-                                  <div className="flex flex-wrap gap-1">
-                                    {tab.document_types.slice(0, 6).map((dt) => (
-                                      <Badge key={dt.id} variant="outline" className="text-[9px]">
-                                        {dt.name}
-                                        {dt.is_primary && "*"}
-                                      </Badge>
+                                  <div className="space-y-1">
+                                    {xeroFeatureTabs.map((xeroTab) => (
+                                      <div
+                                        key={xeroTab.id}
+                                        className={cn(
+                                          "flex items-center gap-2 py-1.5 px-2 rounded text-sm",
+                                          xeroTab.group === "setup" && "bg-indigo-50 dark:bg-indigo-900/20",
+                                          xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
+                                          xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
+                                          xeroTab.group === "documents" && "bg-amber-50 dark:bg-amber-900/20",
+                                        )}
+                                      >
+                                        <Badge
+                                          variant="outline"
+                                          className={cn(
+                                            "text-[8px] px-1 py-0",
+                                            xeroTab.group === "setup" && "border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400",
+                                            xeroTab.group === "data" && "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
+                                            xeroTab.group === "reports" && "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
+                                            xeroTab.group === "documents" && "border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400",
+                                          )}
+                                        >
+                                          {xeroTab.group}
+                                        </Badge>
+                                        <span className="font-medium">{xeroTab.name}</span>
+                                        <span className="text-xs text-muted-foreground ml-auto">
+                                          {xeroTab.type === "functional" ? (
+                                            <span className="font-mono text-[10px]">{xeroTab.component}</span>
+                                          ) : (
+                                            <span className="flex items-center gap-1">
+                                              <FileText className="h-3 w-3" />
+                                              doc folder
+                                            </span>
+                                          )}
+                                        </span>
+                                      </div>
                                     ))}
-                                    {tab.document_types.length > 6 && (
-                                      <Badge variant="outline" className="text-[9px]">
-                                        +{tab.document_types.length - 6}
-                                      </Badge>
-                                    )}
                                   </div>
-                                </div>
+                                </>
+                              ) : (
+                                <>
+                                  {/* Regular tabs: Show sub-folders */}
+                                  {tab.sub_tabs?.map((subTab) => (
+                                    <div
+                                      key={subTab.key}
+                                      className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 text-sm group"
+                                    >
+                                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <span>{subTab.name}</span>
+                                      <span className="text-xs font-mono text-muted-foreground ml-auto">
+                                        /{subTab.folder}
+                                      </span>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                                        onClick={(e) => handleDeleteSubTab(tab, subTab.key, e)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+
+                                  {/* Add sub-tab form */}
+                                  {addingSubTab?.tabId === tab.id ? (
+                                    <div className="flex items-center gap-2 py-1.5 px-2 rounded bg-muted/30">
+                                      <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <Input
+                                        value={addingSubTab.name}
+                                        onChange={(e) => setAddingSubTab({ ...addingSubTab, name: e.target.value })}
+                                        placeholder="Sub-folder name"
+                                        className="h-6 text-xs flex-1"
+                                        autoFocus
+                                      />
+                                      <Input
+                                        value={addingSubTab.folder}
+                                        onChange={(e) => setAddingSubTab({ ...addingSubTab, folder: e.target.value })}
+                                        placeholder="Folder path"
+                                        className="h-6 text-xs w-32 font-mono"
+                                      />
+                                      <Button
+                                        size="sm"
+                                        className="h-6 text-xs"
+                                        onClick={() => handleAddSubTab(tab)}
+                                        disabled={saving || !addingSubTab.name.trim()}
+                                      >
+                                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-6 text-xs"
+                                        onClick={() => setAddingSubTab(null)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => setAddingSubTab({ tabId: tab.id, name: "", folder: "" })}
+                                      className="flex items-center gap-2 py-1.5 px-2 rounded text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" />
+                                      Add sub-folder
+                                    </button>
+                                  )}
+
+                                  {/* Document types (if any) */}
+                                  {tab.document_types && tab.document_types.length > 0 && (
+                                    <div className="pt-2 mt-2 border-t border-dashed">
+                                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                                        Document Types ({tab.document_types.length})
+                                      </p>
+                                      <div className="flex flex-wrap gap-1">
+                                        {tab.document_types.slice(0, 6).map((dt) => (
+                                          <Badge key={dt.id} variant="outline" className="text-[9px]">
+                                            {dt.name}
+                                            {dt.is_primary && "*"}
+                                          </Badge>
+                                        ))}
+                                        {tab.document_types.length > 6 && (
+                                          <Badge variant="outline" className="text-[9px]">
+                                            +{tab.document_types.length - 6}
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           )}

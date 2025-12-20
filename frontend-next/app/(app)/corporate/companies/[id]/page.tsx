@@ -965,6 +965,108 @@ function ShareholdingsTab({ company, companyId }: { company: Company; companyId:
   );
 }
 
+// Members Tab - For Charity and Superfund entities (similar to Shareholdings but without shares)
+function MembersTab({ company, companyId }: { company: Company; companyId: string }) {
+  const [members, setMembers] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const loadMembers = async () => {
+      try {
+        // TODO: Implement members API endpoint
+        // For now, use the same endpoint as shareholders but without share-specific data
+        const response = await api.get<{ success: boolean; data: { members?: any[] } }>(
+          `/api/v1/companies/${companyId}/members`
+        );
+        setMembers(response.data?.members || []);
+      } catch (error) {
+        console.error("Failed to load members:", error);
+        // Fallback to empty - API may not exist yet
+        setMembers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMembers();
+  }, [companyId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-medium">Members</h3>
+        <span className="text-sm text-muted-foreground">
+          {members.length} member{members.length !== 1 ? 's' : ''} registered
+        </span>
+      </div>
+
+      {members.length > 0 ? (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Member</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Type</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Joined</th>
+                <th className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {members.map((member, idx) => (
+                <tr key={member.id || idx} className="hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-300 text-xs font-medium">
+                        {member.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{member.name}</p>
+                        {member.email && (
+                          <p className="text-xs text-muted-foreground">{member.email}</p>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm capitalize">{member.member_type || "Member"}</td>
+                  <td className="px-4 py-3 text-sm">
+                    {member.joined_date ? format(new Date(member.joined_date), "dd/MM/yyyy") : "-"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge className={member.status === "active"
+                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                      : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300"
+                    }>
+                      {member.status || "Active"}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-12 border rounded-lg">
+          <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <p className="text-muted-foreground">No members recorded</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {company.entity_type === "Charity"
+              ? "Add charity members and their roles"
+              : "Add superfund members and their contribution details"
+            }
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Bank Accounts Tab - SSoT: Uses bank_accounts table via Foundation (ID: 350)
 function BankAccountsTab({ company, companyId }: { company: Company; companyId: string }) {
   const [entries, setEntries] = React.useState<any[]>([]);
@@ -3235,50 +3337,66 @@ export default function CompanyDetailPage() {
     return iconMap[folderName] || FileText;
   };
 
-  // Load document folders from API (SSoT) based on company entity type
-  const loadDocumentFolders = React.useCallback(async (company: Company) => {
+  // Load entity tabs from CorporateEntityTab API (SSoT) based on company entity type
+  // This replaces the hardcoded OVERVIEW_SUB_TABS and loads document tabs dynamically
+  const loadEntityTabs = React.useCallback(async (company: Company) => {
     try {
-      // Determine entity type for folder filtering
-      let entityType = "trading_company";
-      if (company.entity_type === "Trust" || company.entity_type === "Superfund") {
-        entityType = "trust";
-      } else if (company.is_trustee) {
-        entityType = "trustee_company";
-      }
+      // Determine entity type for CorporateEntityTab filtering
+      // The API expects: Company, Trust, Superfund, Charity
+      let entityType = company.entity_type || "Company";
+      // Normalize entity type (handle lowercase from legacy data)
+      if (entityType.toLowerCase() === "company") entityType = "Company";
+      if (entityType.toLowerCase() === "trust") entityType = "Trust";
+      if (entityType.toLowerCase() === "superfund") entityType = "Superfund";
+      if (entityType.toLowerCase() === "charity") entityType = "Charity";
 
-      // Fetch with hierarchy to get parent/child relationships
-      const data = await api.get<{ success: boolean; data: any[] }>(`/api/v1/document_folders?entity_type=${entityType}&active=true&hierarchy=true`);
+      // SSoT: Load tabs from CorporateEntityTab API
+      const response = await api.get<{ success: boolean; data: Array<{
+        id: string;
+        name: string;
+        group: string;
+        icon?: string;
+        component?: string;
+        sub_tabs?: Array<{ name: string; folder?: string }>;
+      }> }>(`/api/v1/corporate/entity_tabs?entity_type=${entityType}`);
 
-      if (data.success) {
-        // Map folder data to tab format with appropriate icons
-        const folderTabs = data.data.map((folder: any) => {
-          // Some folders need "-docs" suffix to avoid conflicts with other pages
-          const needsDocsSuffix = ['ASSETS', 'DIVIDENDS', 'LOANS', 'MINUTES'].includes(folder.name);
-          const tabId = folder.name.toLowerCase().replace(/_/g, '-') + (needsDocsSuffix ? '-docs' : '');
+      if (response.success && response.data) {
+        // Split tabs by group
+        const overviewTabs = response.data
+          .filter(t => t.group === "overview")
+          .map(t => ({ id: t.id, name: t.name }));
 
-          return {
-            id: tabId,
-            name: folder.name,
-            icon: getFolderIcon(folder.name)
-          };
-        });
-        setDocumentFolderTabs(folderTabs);
+        const documentTabs = response.data
+          .filter(t => t.group === "documents")
+          .map(t => {
+            // Some tabs need "-docs" suffix to avoid conflicts
+            const needsDocsSuffix = ['assets', 'dividends', 'loans', 'minutes'].includes(t.id);
+            return {
+              id: needsDocsSuffix ? `${t.id}-docs` : t.id,
+              name: t.name,
+              icon: getFolderIcon(t.name.toUpperCase())
+            };
+          });
 
-        // Extract XERO children for sub-tabs (SSoT for document folder sub-tabs)
-        const xeroFolder = data.data.find((f: any) => f.name === 'XERO');
-        if (xeroFolder?.children && xeroFolder.children.length > 0) {
-          const xeroChildren = xeroFolder.children.map((child: any) => ({
-            id: `xero-doc-${child.name.toLowerCase().replace(/\s+/g, '-')}`,
-            name: child.name,
-            description: child.description || '',
-            folderId: child.id
+        // Extract XERO sub-tabs if present
+        const xeroTab = response.data.find(t => t.id === "xero");
+        if (xeroTab?.sub_tabs && xeroTab.sub_tabs.length > 0) {
+          const xeroChildren = xeroTab.sub_tabs.map(st => ({
+            id: `xero-doc-${st.name.toLowerCase().replace(/\s+/g, '-')}`,
+            name: st.name,
+            description: '',
+            folderId: 0
           }));
           setXeroDocumentFolders(xeroChildren);
         }
+
+        setEntityOverviewTabs(overviewTabs);
+        setDocumentFolderTabs(documentTabs);
       }
     } catch (error) {
-      console.error("Failed to load document folders:", error);
-      // Fallback to hard-coded list if API fails
+      console.error("Failed to load entity tabs:", error);
+      // Fallback to empty - hardcoded constants will be used
+      setEntityOverviewTabs([]);
       setDocumentFolderTabs([]);
       setXeroDocumentFolders([]);
     }
@@ -3315,13 +3433,13 @@ export default function CompanyDetailPage() {
       );
       setCompany(response.company);
       // Load document folders based on company entity type
-      await loadDocumentFolders(response.company);
+      await loadEntityTabs(response.company);
     } catch (error) {
       console.error("Failed to load company:", error);
     } finally {
       setLoading(false);
     }
-  }, [companyId, loadDocumentFolders]);
+  }, [companyId, loadEntityTabs]);
 
   // Load document counts for tabs
   const loadDocumentCounts = React.useCallback(async () => {
@@ -3374,6 +3492,24 @@ export default function CompanyDetailPage() {
     // Use API data if available, minimal fallback otherwise
     return xeroFeatureTabs.length > 0 ? xeroFeatureTabs : XERO_TABS_FALLBACK;
   }, [xeroFeatureTabs]);
+
+  // SSoT: Overview sub-tabs from CorporateEntityTab API
+  // Returns entity-specific tabs (e.g., Company gets Directors/Shareholdings, Charity gets Directors/Members)
+  const computedOverviewTabs = React.useMemo(() => {
+    // Use API data if available
+    if (entityOverviewTabs.length > 0) {
+      return entityOverviewTabs;
+    }
+    // Fallback to hardcoded constants based on entity type
+    if (!company) return OVERVIEW_SUB_TABS;
+    if (company.entity_type === "Trust" || company.entity_type === "Superfund") {
+      return TRUST_SUB_TABS;
+    }
+    if (company.is_trustee) {
+      return TRUSTEE_COMPANY_SUB_TABS;
+    }
+    return OVERVIEW_SUB_TABS;
+  }, [entityOverviewTabs, company]);
 
   React.useEffect(() => {
     loadCompany();
@@ -3579,99 +3715,44 @@ export default function CompanyDetailPage() {
         <CardContent className="p-6">
           {activeTab === "overview" && (
             <div className="space-y-6">
-              {/* Overview Sub-tabs - Different tabs for Trust/Superfund entities */}
-              {company.entity_type === "Trust" || company.entity_type === "Superfund" ? (
-                <>
-                  <div className="border-b">
-                    <nav className="-mb-px flex gap-6">
-                      {TRUST_SUB_TABS.map((subTab) => (
-                        <button
-                          key={subTab.id}
-                          onClick={() => setOverviewSubTab(subTab.id)}
-                          className={cn(
-                            "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
-                            overviewSubTab === subTab.id
-                              ? "border-primary text-primary"
-                              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                          )}
-                        >
-                          {subTab.name}
-                        </button>
-                      ))}
-                    </nav>
-                  </div>
+              {/* Overview Sub-tabs - SSoT: From CorporateEntityTab API based on entity type */}
+              <div className="border-b">
+                <nav className="-mb-px flex gap-6">
+                  {computedOverviewTabs.map((subTab) => (
+                    <button
+                      key={subTab.id}
+                      onClick={() => setOverviewSubTab(subTab.id)}
+                      className={cn(
+                        "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
+                        overviewSubTab === subTab.id
+                          ? "border-primary text-primary"
+                          : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                      )}
+                    >
+                      {subTab.name}
+                    </button>
+                  ))}
+                </nav>
+              </div>
 
-                  {/* Trust-specific Sub-tab Content */}
-                  {overviewSubTab === "info" && <InformationTab company={company} />}
-                  {overviewSubTab === "trustee" && <TrusteeTab company={company} />}
-                  {overviewSubTab === "beneficiaries" && <BeneficiariesTab company={company} />}
-                  {overviewSubTab === "appointor" && <AppointorTab company={company} />}
-                  {overviewSubTab === "trust-deed" && <TrustDeedTab />}
-                  {overviewSubTab === "distributions" && <DistributionsTab />}
-                </>
-              ) : company.is_trustee ? (
-                // Corporate Trustee - Simplified tabs (company that acts as trustee for trusts)
-                <>
-                  <div className="border-b">
-                    <nav className="-mb-px flex gap-6">
-                      {TRUSTEE_COMPANY_SUB_TABS.map((subTab) => (
-                        <button
-                          key={subTab.id}
-                          onClick={() => setOverviewSubTab(subTab.id)}
-                          className={cn(
-                            "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
-                            overviewSubTab === subTab.id
-                              ? "border-primary text-primary"
-                              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                          )}
-                        >
-                          {subTab.name}
-                        </button>
-                      ))}
-                    </nav>
-                  </div>
-
-                  {/* Corporate Trustee Sub-tab Content */}
-                  {overviewSubTab === "info" && <InformationTab company={company} />}
-                  {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
-                  {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
-                  {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
-                  {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
-                </>
-              ) : (
-                // Trading Company - Full tabs
-                <>
-                  <div className="border-b">
-                    <nav className="-mb-px flex gap-6">
-                      {OVERVIEW_SUB_TABS.map((subTab) => (
-                        <button
-                          key={subTab.id}
-                          onClick={() => setOverviewSubTab(subTab.id)}
-                          className={cn(
-                            "border-b-2 py-2 px-1 text-sm font-medium transition-colors",
-                            overviewSubTab === subTab.id
-                              ? "border-primary text-primary"
-                              : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                          )}
-                        >
-                          {subTab.name}
-                        </button>
-                      ))}
-                    </nav>
-                  </div>
-
-                  {/* Company Sub-tab Content */}
-                  {overviewSubTab === "info" && <InformationTab company={company} />}
-                  {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
-                  {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
-                  {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
-                  {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
-                  {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
-                </>
-              )}
+              {/* Overview Sub-tab Content - Unified for all entity types */}
+              {overviewSubTab === "info" && <InformationTab company={company} />}
+              {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
+              {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
+              {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
+              {overviewSubTab === "shareholdings" && <ShareholdingsTab company={company} companyId={companyId} />}
+              {overviewSubTab === "consolidation" && <ConsolidationTab company={company} onUpdate={loadCompany} />}
+              {overviewSubTab === "members" && <MembersTab company={company} companyId={companyId} />}
+              {/* Trust-specific tabs */}
+              {overviewSubTab === "trustees" && <TrusteeTab company={company} />}
+              {overviewSubTab === "beneficiaries" && <BeneficiariesTab company={company} />}
+              {/* Legacy trust tabs (fallback) */}
+              {overviewSubTab === "trustee" && <TrusteeTab company={company} />}
+              {overviewSubTab === "appointor" && <AppointorTab company={company} />}
+              {overviewSubTab === "trust-deed" && <TrustDeedTab />}
+              {overviewSubTab === "distributions" && <DistributionsTab />}
+              {overviewSubTab === "trusts" && <TrustsTab company={company} onUpdate={loadCompany} />}
+              {overviewSubTab === "health" && <HealthTab company={company} onUpdate={loadCompany} />}
             </div>
           )}
 

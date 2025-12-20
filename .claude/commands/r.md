@@ -37,13 +37,11 @@ screen -X -S frontend quit 2>/dev/null || true
 screen -X -S frontend-next quit 2>/dev/null || true
 ```
 
-**Step 3: Start Servers and Chrome with Debugging (Parallel)**
+**Step 3: Start Servers (Parallel)**
 Run all start commands in a SINGLE message:
 ```bash
 screen -dmS backend bash -c 'cd /Users/robertharder/GitHub/teeem/backend && /Users/robertharder/.rbenv/shims/bundle exec rails server -p 3001'
 screen -dmS frontend-next bash -c 'cd /Users/robertharder/GitHub/teeem/frontend-next && npm run dev'
-# Only launch Chrome DevTools instance if not already running (persistent profile, won't affect main Chrome)
-lsof -i:9222 >/dev/null 2>&1 || /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222 --user-data-dir="$HOME/.chrome-debug" http://localhost:3000 &
 ```
 
 **Step 4: Verify Servers Started (Parallel)**
@@ -52,7 +50,6 @@ Run all checks in a SINGLE message:
 sleep 3
 lsof -i:3001 | head -2
 lsof -i:3000 | head -2
-lsof -i:9222 | head -2
 screen -ls || true
 ```
 
@@ -66,12 +63,12 @@ System Health:
 Local Servers:
 - Backend (port 3001): Running (PID: X) - screen session: backend
 - Frontend Next.js (port 3000): Running (PID: Y) - screen session: frontend-next
-- Chrome DevTools (port 9222): Running ✓ - Claude can read console (tabs preserved)
+
+💡 Need Chrome DevTools? Run /c
 
 URLs:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
-- Chrome DevTools: http://localhost:9222
 - Production: https://teeemlive.vercel.app
 
 View logs:
@@ -116,5 +113,6 @@ Breakdown:
 |---------|------|----------------|
 | Backend (Rails) | 3001 | backend |
 | Frontend (Next.js) | 3000 | frontend-next |
-| Chrome DevTools | 9222 | - (standalone) |
 | Old Frontend (Vite) | 5173 | frontend (legacy) |
+
+**For Chrome DevTools (port 9222), use `/c` command.**
