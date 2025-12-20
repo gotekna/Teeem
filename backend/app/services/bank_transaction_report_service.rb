@@ -805,7 +805,7 @@ class BankTransactionReportService
 
   def draw_boq_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)
     box_x = 320
-    box_y = 720
+    box_y = 690  # Lowered from 720 to avoid overlap with Statement Period (y=709)
     box_width = 230
     box_height = 80
 
