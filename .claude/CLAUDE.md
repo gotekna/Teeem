@@ -446,6 +446,34 @@ OAuth callbacks write to BOTH old and new tables. Graph clients try new table fi
 
 Graph clients detect permanent auth failures (AADSTS65001, AADSTS70000, etc.) and mark credentials as `dead`. Dead credentials require user to re-authenticate via OAuth.
 
+### 🔴 CRITICAL: Organization Isolation (SSoT)
+
+**Multi-org credential isolation is enforced via `organization_id` foreign key.**
+
+**NEVER use these patterns:**
+```ruby
+# ❌ DANGEROUS - Returns ANY credential without org context
+OrganizationMicrosoftAppCredential.active_credential
+MicrosoftCredential.active.first
+MicrosoftCredential.connected.first
+```
+
+**ALWAYS use org-scoped lookups:**
+```ruby
+# ✅ CORRECT - Org-scoped credential lookup
+MicrosoftCredential.active_for_org(organization)
+OrganizationMicrosoftAppCredential.active_for_org(organization)
+MicrosoftAppGraphClient.for_org(organization)
+OrgEmailSyncJob.perform_now('incremental', organization_id: org.id)
+```
+
+**In controllers, use the helper method:**
+```ruby
+credential = find_credential_with_org_context  # Reads org from params
+```
+
+**Why this matters:** Without org isolation, credentials from different organizations can be mixed, causing users to see each other's emails and data.
+
 ## 🔴 Xero Integration (SSoT: Live Webhooks)
 
 **Single Source of Truth:** Xero Webhooks (configured 2025-12-18)

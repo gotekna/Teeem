@@ -510,6 +510,9 @@ module Engines
       # Load position/alignment settings from PdfFieldPosition database records
       position_settings = load_position_settings
 
+      # Track fields to delete (for overlay alignment)
+      fields_to_delete = []
+
       doc.acro_form.each_field do |field|
         pdf_field_name = field.full_field_name.to_s
         value = nil
@@ -548,21 +551,10 @@ module Engines
           pos = position_settings[data_key_used]
           alignment = pos&.dig(:text_align) || "left"
 
-          # For non-left alignment, use text overlay instead of form fill (more reliable)
+          # For non-left alignment, mark field for deletion and use text overlay instead
           if alignment != "left" && pos
-            # AGGRESSIVELY clear the form field so it doesn't show behind our overlay
-            field.field_value = ""
-            field[:V] = nil  # Clear value
-            field[:DV] = nil  # Clear default value
-            # Remove all widget appearances
-            widgets = field[:Kids] || [field]
-            widgets.each do |widget|
-              widget = widget.value if widget.respond_to?(:value)
-              widget.delete(:AP) if widget.respond_to?(:delete)
-            end
-            field.delete(:AP)
-            # Don't create appearances - we want the field completely empty
-            Rails.logger.debug "[PdfOverlayEngine] Cleared form field '#{pdf_field_name}' - using overlay for #{alignment} alignment"
+            fields_to_delete << field
+            Rails.logger.debug "[PdfOverlayEngine] Marked '#{pdf_field_name}' for deletion - using overlay for #{alignment} alignment"
             next
           end
 
@@ -570,6 +562,12 @@ module Engines
           field.create_appearances if field.respond_to?(:create_appearances)
           Rails.logger.debug "[PdfOverlayEngine] Filled '#{pdf_field_name}' with '#{value}'"
         end
+      end
+
+      # Delete form fields that will use overlay (MUST be done after iteration)
+      fields_to_delete.each do |field|
+        doc.acro_form.delete_field(field)
+        Rails.logger.debug "[PdfOverlayEngine] Deleted form field for overlay"
       end
 
       # Now apply text overlays for fields that need non-left alignment
@@ -720,7 +718,14 @@ module Engines
     end
 
     def apply_text_overlays(doc, data, field_mapping)
+      # Load position settings to know which fields are handled by form fill or aligned overlay
+      position_settings = load_position_settings
+
       field_mapping.each do |field_name, config|
+        # Skip fields that have position settings - they're handled by
+        # form fill (left-aligned) or apply_aligned_text_overlays (non-left-aligned)
+        next if position_settings.key?(field_name)
+
         value = data[field_name]
         next if value.blank?
 

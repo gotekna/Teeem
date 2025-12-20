@@ -1,24 +1,22 @@
 # OrgEmailSyncJob - Sync emails for ALL users using Application permissions
 # No per-user OAuth needed - uses org-wide app credentials
 #
-# Usage:
-#   OrgEmailSyncJob.perform_now           # Sync all configured users
-#   OrgEmailSyncJob.perform_now('full')   # Full sync (goes back 3 years)
+# SSoT Usage (preferred - org-scoped):
+#   OrgEmailSyncJob.perform_now('incremental', organization_id: 1)
+#   OrgEmailSyncJob.perform_now('full', organization_id: org.id)
+#
+# Legacy Usage (deprecated - logs warning):
+#   OrgEmailSyncJob.perform_now           # Uses first active credential
 #   OrgEmailSyncJob.perform_later         # Queue for background processing
 
 class OrgEmailSyncJob < ApplicationJob
   queue_as :low
 
-  # Supports multi-org: pass credential_id or org_name to sync specific org
-  def perform(sync_type = "incremental", credential_id: nil, org_name: nil)
-    # Find credential - support specific org or default to first active
-    @credential = if credential_id.present?
-                    OrganizationMicrosoftAppCredential.find_by(id: credential_id)
-    elsif org_name.present?
-                    OrganizationMicrosoftAppCredential.find_by_name(org_name)
-    else
-                    OrganizationMicrosoftAppCredential.active_credential
-    end
+  # SSoT: Supports multi-org via organization_id (preferred)
+  # Falls back to credential_id or org_name for legacy compatibility (with warning)
+  def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil)
+    # SSoT: Find credential using org-scoped lookup
+    @credential = find_credential(organization_id: organization_id, credential_id: credential_id, org_name: org_name)
 
     unless @credential&.status == "connected"
       Rails.logger.info "[OrgEmailSync] Skipping - org Microsoft app not connected"
@@ -295,6 +293,46 @@ class OrgEmailSyncJob < ApplicationJob
 
     Rails.logger.info "[OrgEmailSync] Matched email #{email.id} to job #{best_match[:job].id} (#{best_match[:match_type]}, confidence: #{best_match[:confidence]})"
     best_match[:job]
+  end
+
+  # SSoT: Find credential with proper org scoping
+  # Priority: organization_id > credential_id > org_name > legacy fallback (with warning)
+  def find_credential(organization_id: nil, credential_id: nil, org_name: nil)
+    # 1. Organization ID (SSoT preferred method)
+    if organization_id.present?
+      org = Organization.find_by(id: organization_id)
+      if org
+        return MicrosoftCredential.active_for_org(org) ||
+               OrganizationMicrosoftAppCredential.active_for_org(org)
+      else
+        Rails.logger.warn "[OrgEmailSync] Organization not found: #{organization_id}"
+      end
+    end
+
+    # 2. Credential ID (direct lookup)
+    if credential_id.present?
+      cred = OrganizationMicrosoftAppCredential.find_by(id: credential_id) ||
+             MicrosoftCredential.find_by(id: credential_id)
+      return cred if cred
+    end
+
+    # 3. Organization name (lookup by name)
+    if org_name.present?
+      org = Organization.find_by_name_or_slug(org_name)
+      if org
+        return MicrosoftCredential.active_for_org(org) ||
+               OrganizationMicrosoftAppCredential.active_for_org(org)
+      else
+        # Legacy fallback: lookup by name field on credential
+        return OrganizationMicrosoftAppCredential.find_by_name(org_name)
+      end
+    end
+
+    # 4. Legacy fallback (deprecated - logs warning)
+    Rails.logger.warn "[OrgEmailSync] DEPRECATED: No organization context provided. " \
+                      "Use organization_id parameter for proper org isolation. " \
+                      "Falling back to first active credential."
+    OrganizationMicrosoftAppCredential.active_credential
   end
 
   def extract_text_from_html(html_content)

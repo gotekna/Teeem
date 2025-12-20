@@ -46,8 +46,14 @@ class CorporateEntityTab < ApplicationRecord
         group: tab.tab_group,
         icon: tab.icon_name,
         entity_types: tab.entity_types,
+        enabled: tab.enabled,
+        order_position: tab.order_position,
         component: tab.component_name,
-        description: tab.description
+        description: tab.description,
+        has_sharepoint_folder: tab.has_sharepoint_folder,
+        sharepoint_folder_path: tab.sharepoint_folder_path,
+        sub_tabs: tab.sub_tabs || [],
+        document_types: tab.document_types_with_primary
       }
     end
   end

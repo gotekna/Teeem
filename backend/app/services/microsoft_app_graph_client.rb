@@ -1,7 +1,11 @@
 # MicrosoftAppGraphClient - Uses Application permissions to access ANY user's data
 # This is different from MicrosoftGraphClient which uses delegated (user) permissions
 #
-# Usage:
+# SSoT Usage (preferred - org-scoped):
+#   client = MicrosoftAppGraphClient.for_org(organization)
+#   client = MicrosoftAppGraphClient.for_org('Tekna')
+#
+# Legacy Usage (deprecated - logs warning):
 #   client = MicrosoftAppGraphClient.new
 #   client.list_users
 #   client.get_user_emails('user@tekna.com.au')
@@ -19,6 +23,32 @@ class MicrosoftAppGraphClient
     MicrosoftTokenManager.dead_token_error?(error_message)
   end
 
+  # SSoT: Create client with org-scoped credential lookup (preferred)
+  # @param organization [Organization, String] Organization object or name/slug
+  # @return [MicrosoftAppGraphClient] Client scoped to the organization
+  def self.for_org(organization)
+    org = case organization
+          when Organization
+            organization
+          when String
+            Organization.find_by_name_or_slug(organization)
+          when Integer
+            Organization.find_by(id: organization)
+          else
+            raise ArgumentError, "organization must be an Organization, String, or Integer"
+          end
+
+    raise NotConnectedError, "Organization not found: #{organization}" unless org
+
+    # Try new MicrosoftCredential first (SSoT)
+    credential = MicrosoftCredential.active_for_org(org)
+    credential ||= OrganizationMicrosoftAppCredential.active_for_org(org)
+
+    raise NotConnectedError, "No SharePoint credential configured for #{org.name}. Configure in Admin > System > Connections." unless credential
+
+    new(credential)
+  end
+
   def initialize(credential = nil)
     @credential = credential || find_active_credential
     raise NotConnectedError, "SharePoint not configured. Please configure in Admin > System > Connections." unless @credential
@@ -34,7 +64,13 @@ class MicrosoftAppGraphClient
   private
 
   # Find active credential - supports both old and new model (SSoT migration)
+  # DEPRECATED: Use MicrosoftAppGraphClient.for_org(organization) instead
   def find_active_credential
+    # Log deprecation warning - this should not be called in new code
+    Rails.logger.warn "[MicrosoftAppGraphClient] DEPRECATED: find_active_credential called without org context. " \
+                      "Use MicrosoftAppGraphClient.for_org(organization) instead. " \
+                      "Caller: #{caller(1, 3).join(' <- ')}"
+
     # Try new unified MicrosoftCredential first
     if defined?(MicrosoftCredential) && ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
       new_cred = MicrosoftCredential.active.app_credentials.connected.first
