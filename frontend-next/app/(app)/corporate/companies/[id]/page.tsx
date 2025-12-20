@@ -94,6 +94,7 @@ import {
   XeroBalanceSheetCard,
   XeroBankAccountsCard,
   XeroReportsPanel,
+  XeroConsolidatedCard,
 } from "@/components/xero";
 
 // =============================================================================
@@ -3737,6 +3738,10 @@ export default function CompanyDetailPage() {
 
               {xeroSubTab === "bank-accounts" && (
                 <XeroBankAccountsCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "consolidated" && (
+                <XeroConsolidatedCard companyId={companyId} companyName={company?.name} />
               )}
 
               {/* Document folder sub-tabs from API (SSoT) */}

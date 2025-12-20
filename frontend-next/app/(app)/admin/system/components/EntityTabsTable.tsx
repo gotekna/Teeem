@@ -34,8 +34,6 @@ import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-brows
 import {
   ChevronDown,
   ChevronRight,
-  Eye,
-  EyeOff,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -123,7 +121,6 @@ export function EntityTabsTable() {
   const [saving, setSaving] = React.useState(false);
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set(["documents"]));
   const [expandedTabs, setExpandedTabs] = React.useState<Set<string>>(new Set());
-  const [togglingTabId, setTogglingTabId] = React.useState<string | null>(null);
 
   // Editing state
   const [editingPath, setEditingPath] = React.useState<{ tabId: string; value: string } | null>(null);
@@ -197,27 +194,6 @@ export function EntityTabsTable() {
       }
       return next;
     });
-  };
-
-  // Toggle tab enabled
-  const handleToggleEnabled = async (tab: EntityTab, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setTogglingTabId(tab.id);
-    try {
-      await api.patch(`/api/v1/corporate/entity_tabs/${tab.id}`, {
-        tab: { enabled: !tab.enabled }
-      });
-      await loadTabs();
-      toast({
-        title: tab.enabled ? "Tab disabled" : "Tab enabled",
-        description: `"${tab.name}" has been ${tab.enabled ? "disabled" : "enabled"}`,
-      });
-    } catch (error) {
-      console.error("Failed to toggle tab:", error);
-      toast({ title: "Error", description: "Failed to toggle tab", variant: "destructive" });
-    } finally {
-      setTogglingTabId(null);
-    }
   };
 
   // Save SharePoint path
@@ -428,12 +404,7 @@ export function EntityTabsTable() {
                         <div key={tab.id}>
                           {/* Tab Row */}
                           <div
-                            className={cn(
-                              "flex items-center gap-2 py-2 px-3 rounded-lg transition-colors cursor-pointer",
-                              tab.enabled
-                                ? "hover:bg-muted/50"
-                                : "bg-red-50 dark:bg-red-900/10 hover:bg-red-100 dark:hover:bg-red-900/20"
-                            )}
+                            className="flex items-center gap-2 py-2 px-3 rounded-lg transition-colors cursor-pointer hover:bg-muted/50"
                             onClick={() => toggleTab(tab.id)}
                           >
                             {/* Expand indicator */}
@@ -559,20 +530,6 @@ export function EntityTabsTable() {
                               </Badge>
                             )}
 
-                            {/* Enable toggle */}
-                            <button
-                              onClick={(e) => handleToggleEnabled(tab, e)}
-                              disabled={togglingTabId === tab.id}
-                              className="p-1 rounded hover:bg-muted transition-colors ml-2"
-                            >
-                              {togglingTabId === tab.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                              ) : tab.enabled ? (
-                                <Eye className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <EyeOff className="h-4 w-4 text-red-500" />
-                              )}
-                            </button>
                           </div>
 
                           {/* Expanded: Sub-tabs */}
@@ -748,14 +705,6 @@ export function EntityTabsTable() {
             <div className="flex items-center gap-1.5 ml-4">
               <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
               <span>Has SharePoint folder</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Eye className="h-3.5 w-3.5 text-green-600" />
-              <span>Enabled</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <EyeOff className="h-3.5 w-3.5 text-red-500" />
-              <span>Disabled</span>
             </div>
           </div>
         </CardContent>
