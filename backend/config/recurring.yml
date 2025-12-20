@@ -85,6 +85,19 @@ cleanup_stale_xero_links:
   schedule: at 3am every day
 
 # ============================================
+# CORPORATE FINANCIAL REPORTS
+# ============================================
+# Monthly P&L and Balance Sheet generation for all Xero-connected companies
+# Runs on the 1st of each month at 4am Brisbane time
+# Stores data in profit_loss_reports and balance_sheet_reports tables
+# Also uploads PDF reports to SharePoint
+
+corporate_financial_reports_monthly:
+  class: CorporateFinancialReportsJob
+  queue: low
+  schedule: at 4am on the 1st of every month
+
+# ============================================
 # DATA WAREHOUSE RECURRING JOBS
 # ============================================
 
