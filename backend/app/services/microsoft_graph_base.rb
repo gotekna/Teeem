@@ -22,15 +22,11 @@ class MicrosoftGraphBase
   class NotConnectedError < StandardError; end
   class RetrySignal < StandardError; end  # Internal signal for retry logic
 
-  # AADSTS error codes indicating refresh token is permanently dead
-  # Matches MicrosoftCredential::DEAD_TOKEN_ERROR_CODES
-  DEAD_TOKEN_ERROR_CODES = %w[
-    AADSTS65001
-    AADSTS70000
-    AADSTS70008
-    AADSTS54005
-    invalid_grant
-  ].freeze
+  # SSoT: Reference MicrosoftTokenManager for dead token error codes
+  # All dead token detection logic is centralized there
+  def self.dead_token_error_codes
+    MicrosoftTokenManager::DEAD_TOKEN_ERROR_CODES
+  end
 
   attr_reader :credential
 
@@ -238,8 +234,8 @@ class MicrosoftGraphBase
   end
 
   def dead_token_error?(error_message)
-    return false if error_message.blank?
-    DEAD_TOKEN_ERROR_CODES.any? { |code| error_message.to_s.include?(code) }
+    # SSoT: Use MicrosoftTokenManager for dead token detection
+    MicrosoftTokenManager.dead_token_error?(error_message)
   end
 
   def mark_credential_dead!(error_message)

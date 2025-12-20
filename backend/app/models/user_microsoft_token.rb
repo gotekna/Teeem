@@ -34,11 +34,14 @@ class UserMicrosoftToken < ApplicationRecord
   validates :user_id, uniqueness: true
   validates :status, inclusion: { in: STATUSES }
 
-  # Refresh tokens 20 minutes BEFORE they expire (proactive, not reactive)
-  # Microsoft access tokens typically expire after 60 minutes
-  # Buffer MUST be larger than job interval (15 min) to prevent timing gaps
-  # Example: Token expires 07:30, job at 07:15 checks 07:30 < 07:35 = true ✓
-  REFRESH_BUFFER = 20.minutes
+  # SSoT: Reference MicrosoftTokenManager for constants
+  # This model is DEPRECATED - use MicrosoftCredential instead
+  def self.refresh_buffer
+    MicrosoftTokenManager::REFRESH_BUFFER
+  end
+
+  # Keep constant for backward compatibility but delegate to SSoT
+  REFRESH_BUFFER = 20.minutes # Matches MicrosoftTokenManager::REFRESH_BUFFER
 
   scope :connected, -> { where(status: "connected") }
   scope :needs_refresh, -> { where("token_expires_at < ?", REFRESH_BUFFER.from_now) }
@@ -46,15 +49,13 @@ class UserMicrosoftToken < ApplicationRecord
   scope :alive, -> { where(refresh_token_dead: false) }
   scope :dead, -> { where(refresh_token_dead: true) }
 
-  # AADSTS error codes that indicate the refresh token is permanently dead
-  # and requires user to re-authenticate via OAuth flow
-  DEAD_TOKEN_ERROR_CODES = [
-    "AADSTS65001",  # User has not consented / consent revoked
-    "AADSTS70000",  # Grant has been revoked
-    "AADSTS70008",  # Refresh token expired (90+ days)
-    "AADSTS54005",  # OAuth2 authorization code invalid
-    "invalid_grant" # Generic dead token error
-  ].freeze
+  # SSoT: Reference MicrosoftTokenManager for dead token error codes
+  def self.dead_token_error?(error_message)
+    MicrosoftTokenManager.dead_token_error?(error_message)
+  end
+
+  # Keep constant for backward compatibility but delegate to SSoT
+  DEAD_TOKEN_ERROR_CODES = MicrosoftTokenManager::DEAD_TOKEN_ERROR_CODES
 
   # Check if token needs refresh (20 min buffer for proactive refresh)
   def needs_refresh?
@@ -110,9 +111,9 @@ class UserMicrosoftToken < ApplicationRecord
   end
 
   # Check if an error message indicates the refresh token is permanently dead
+  # SSoT: Delegates to MicrosoftTokenManager
   def dead_token_error?(error_message)
-    return false if error_message.blank?
-    DEAD_TOKEN_ERROR_CODES.any? { |code| error_message.include?(code) }
+    self.class.dead_token_error?(error_message)
   end
 
   # Get the reason for reconnection (for frontend display)

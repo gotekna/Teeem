@@ -6,14 +6,10 @@ class MicrosoftGraphClient
   class APIError < StandardError; end
   class DeadTokenError < AuthenticationError; end
 
-  # AADSTS error codes indicating refresh token is permanently dead (SSoT)
-  DEAD_TOKEN_ERROR_CODES = %w[
-    AADSTS65001
-    AADSTS70000
-    AADSTS70008
-    AADSTS54005
-    invalid_grant
-  ].freeze
+  # SSoT: Reference MicrosoftTokenManager for dead token error codes
+  def self.dead_token_error?(error_message)
+    MicrosoftTokenManager.dead_token_error?(error_message)
+  end
 
   def initialize(credential = nil)
     # Support both per-construction and organization-level credentials
@@ -942,10 +938,9 @@ class MicrosoftGraphClient
     raise AuthenticationError, "SharePoint credentials expired. Please reconnect SharePoint in Admin > System > Connections."
   end
 
-  # Check if error indicates dead token (SSoT)
+  # Check if error indicates dead token (SSoT: delegates to MicrosoftTokenManager)
   def dead_token_error?(error_message)
-    return false if error_message.blank?
-    DEAD_TOKEN_ERROR_CODES.any? { |code| error_message.to_s.include?(code) }
+    MicrosoftTokenManager.dead_token_error?(error_message)
   end
 
   # Mark credential as dead (SSoT)

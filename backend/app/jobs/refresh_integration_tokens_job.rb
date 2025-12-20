@@ -16,21 +16,25 @@ class RefreshIntegrationTokensJob < ApplicationJob
   retry_on PG::ConnectionBad, wait: 5.seconds, attempts: 5
 
   # Check connection health before running
-  # Skip if pool is critically exhausted to avoid making it worse
+  # FIX: Don't skip entirely - tokens could expire. Instead, run with delays.
   around_perform do |_job, block|
     connection_health = Rails.cache.read("connection_health")
 
     if connection_health&.dig(:status) == :critical
-      Rails.logger.warn "[TokenRefresh] SKIPPING due to critical connection pool exhaustion. Will retry next scheduled run."
+      Rails.logger.warn "[TokenRefresh] Connection pool critical - running with delays to prevent token expiry"
       Rails.logger.warn "[TokenRefresh] Pool status: #{connection_health[:message]}"
-      next # Skip this run, recurring job will try again in 15 min
-    end
-
-    if connection_health&.dig(:status) == :warning
+      # Set flag for delayed mode - checked by refresh methods
+      Thread.current[:token_refresh_delayed_mode] = true
+    elsif connection_health&.dig(:status) == :warning
       Rails.logger.info "[TokenRefresh] Running with elevated connection pool usage: #{connection_health[:message]}"
+      Thread.current[:token_refresh_delayed_mode] = false
+    else
+      Thread.current[:token_refresh_delayed_mode] = false
     end
 
     block.call
+  ensure
+    Thread.current[:token_refresh_delayed_mode] = nil
   end
 
   def perform
@@ -170,8 +174,8 @@ class RefreshIntegrationTokensJob < ApplicationJob
     Rails.logger.info "[TokenRefresh] Xero health: #{summary[:connected]} connected, #{summary[:degraded]} degraded, #{summary[:disconnected]} disconnected"
   end
 
-  # DUAL-WRITE: Refresh tokens in unified MicrosoftCredential table
-  # This is part of SSoT migration - eventually becomes the ONLY refresh logic
+  # SSoT: Refresh tokens via MicrosoftTokenManager (centralized with locking)
+  # Uses PostgreSQL advisory locks to prevent race conditions
   def refresh_unified_microsoft_credentials
     # Skip if MicrosoftCredential table doesn't exist yet (migration not run)
     unless ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
@@ -179,41 +183,43 @@ class RefreshIntegrationTokensJob < ApplicationJob
       return
     end
 
-    # Refresh all credentials that need refresh and are not dead
-    MicrosoftCredential.connected.alive.needs_refresh.find_each do |credential|
-      Rails.logger.info "[TokenRefresh] Refreshing MicrosoftCredential #{credential.id} (#{credential.credential_type}) expiring at #{credential.token_expires_at}"
+    credentials_to_refresh = MicrosoftTokenManager.credentials_needing_refresh
+    if credentials_to_refresh.none?
+      Rails.logger.debug "[TokenRefresh] No Microsoft credentials need refresh"
+      return
+    end
+
+    Rails.logger.info "[TokenRefresh] Refreshing #{credentials_to_refresh.count} Microsoft credential(s) via MicrosoftTokenManager"
+    delayed_mode = Thread.current[:token_refresh_delayed_mode]
+
+    credentials_to_refresh.find_each do |credential|
+      # Add delay if connection pool is critical
+      sleep(1) if delayed_mode
+
+      Rails.logger.info "[TokenRefresh] Refreshing MicrosoftCredential #{credential.id} (#{credential.credential_type}) via TokenManager"
 
       begin
-        if credential.app_credential?
-          # App credentials use client credentials flow
-          if credential.fetch_app_token!
-            Rails.logger.info "[TokenRefresh] MicrosoftCredential (app) #{credential.id} refreshed successfully"
-          else
-            Rails.logger.warn "[TokenRefresh] MicrosoftCredential (app) #{credential.id} refresh failed: #{credential.error_message}"
-          end
+        # Use MicrosoftTokenManager - handles locking, circuit breaker, error detection
+        result = MicrosoftTokenManager.refresh_credential(credential)
+
+        if result[:success]
+          Rails.logger.info "[TokenRefresh] MicrosoftCredential #{credential.id} refreshed, expires: #{result[:expires_at]}"
         else
-          # Delegated credentials use refresh token flow
-          if credential.refresh_delegated_token!
-            Rails.logger.info "[TokenRefresh] MicrosoftCredential (delegated) #{credential.id} refreshed successfully"
+          if credential.refresh_token_dead?
+            Rails.logger.error "[TokenRefresh] MicrosoftCredential #{credential.id} DEAD: #{result[:error]}"
           else
-            if credential.refresh_token_dead?
-              Rails.logger.error "[TokenRefresh] MicrosoftCredential #{credential.id} DEAD: #{credential.error_message}"
-            else
-              Rails.logger.warn "[TokenRefresh] MicrosoftCredential #{credential.id} refresh failed: #{credential.error_message}"
-            end
+            Rails.logger.warn "[TokenRefresh] MicrosoftCredential #{credential.id} failed: #{result[:error]}"
           end
         end
       rescue StandardError => e
-        credential.record_refresh_failure!(e.message)
+        MicrosoftTokenManager.record_api_failure(credential, e.message)
         Rails.logger.error "[TokenRefresh] MicrosoftCredential #{credential.id} error: #{e.message}"
       end
     end
 
-    # Log summary
-    total = MicrosoftCredential.count
-    connected = MicrosoftCredential.connected.count
-    dead = MicrosoftCredential.dead.count
-    Rails.logger.info "[TokenRefresh] MicrosoftCredential health: #{connected}/#{total} connected, #{dead} dead" if total > 0
+    # Log health summary
+    summary = MicrosoftTokenManager.health_summary
+    Rails.logger.info "[TokenRefresh] Microsoft health: #{summary[:connected]}/#{summary[:total]} connected, #{summary[:dead]} dead, #{summary[:error]} error"
   end
 
   # SELF-HEALING: Auto-reconnect app credentials that are in error/pending/disconnected state
@@ -246,10 +252,11 @@ class RefreshIntegrationTokensJob < ApplicationJob
         end
       end
 
-    # Heal unified MicrosoftCredential (app type) records
+    # Heal unified MicrosoftCredential (app type) records via MicrosoftTokenManager
     if ActiveRecord::Base.connection.table_exists?(:microsoft_credentials)
       MicrosoftCredential.app_credentials.active
         .where.not(status: "connected")
+        .where.not(refresh_token_dead: true) # Don't try to heal dead tokens
         .where.not(client_id: nil)
         .where.not(client_secret: nil)
         .where.not(tenant_id: nil)
@@ -257,14 +264,18 @@ class RefreshIntegrationTokensJob < ApplicationJob
           Rails.logger.info "[TokenRefresh] HEALING MicrosoftCredential (app) #{credential.name || credential.id} (status: #{credential.status})"
 
           begin
-            if credential.fetch_app_token!
+            # Use MicrosoftTokenManager for consistent locking and error handling
+            result = MicrosoftTokenManager.refresh_credential(credential)
+
+            if result[:success]
               Rails.logger.info "[TokenRefresh] HEALED MicrosoftCredential (app) #{credential.name || credential.id} - now connected"
               healed_count += 1
             else
-              Rails.logger.warn "[TokenRefresh] HEAL FAILED for MicrosoftCredential #{credential.id}: #{credential.error_message}"
+              Rails.logger.warn "[TokenRefresh] HEAL FAILED for MicrosoftCredential #{credential.id}: #{result[:error]}"
               failed_count += 1
             end
           rescue StandardError => e
+            MicrosoftTokenManager.record_api_failure(credential, e.message)
             Rails.logger.error "[TokenRefresh] HEAL ERROR for MicrosoftCredential #{credential.id}: #{e.message}"
             failed_count += 1
           end
