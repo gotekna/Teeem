@@ -15,6 +15,10 @@
 # - External (UI/messages): Always say "SharePoint" to users, never "OneDrive"
 #
 class MicrosoftCredential < ApplicationRecord
+  # Organization ownership - SSoT for multi-org isolation
+  # NOTE: optional: true during migration. Will be made required after all data backfilled.
+  belongs_to :organization, optional: true
+
   # Polymorphic ownership - optional for org-level credentials
   belongs_to :owner, polymorphic: true, optional: true
   belongs_to :setup_by, class_name: "User", optional: true
@@ -74,6 +78,19 @@ class MicrosoftCredential < ApplicationRecord
   scope :alive, -> { where(refresh_token_dead: false) }
   scope :dead, -> { where(refresh_token_dead: true) }
   scope :with_sharepoint, -> { where.not(sharepoint_site_id: nil).where.not(sharepoint_drive_id: nil) }
+
+  # SSoT: Organization-scoped credential lookup - ALWAYS use these instead of .first
+  scope :for_org, ->(org) { where(organization: org) }
+
+  # Get active app credential for a specific organization
+  def self.active_for_org(organization)
+    for_org(organization).active.app_credentials.connected.first
+  end
+
+  # Get active delegated credential for a specific organization
+  def self.delegated_for_org(organization)
+    for_org(organization).active.delegated_credentials.connected.first
+  end
 
   # Type predicates
   def app_credential?
@@ -306,14 +323,24 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # Class methods for backward compatibility with old credential models
+  # ⚠️ DEPRECATED: These methods return the FIRST credential without org context.
+  # Use active_for_org(organization) instead to ensure proper org isolation.
 
   # Organization-level app credential (legacy: OrganizationMicrosoftAppCredential)
+  # DEPRECATED: Use MicrosoftCredential.active_for_org(organization) instead
   def self.active_app_credential
+    Rails.logger.warn "[MicrosoftCredential] DEPRECATED: active_app_credential called without org context. " \
+                      "Use MicrosoftCredential.active_for_org(organization) instead. " \
+                      "Caller: #{caller(1, 3).join(' <- ')}"
     app_credentials.org_level.connected.first
   end
 
   # Organization-level delegated credential (legacy: OrganizationSharePointCredential)
+  # DEPRECATED: Use MicrosoftCredential.delegated_for_org(organization) instead
   def self.active_delegated_credential
+    Rails.logger.warn "[MicrosoftCredential] DEPRECATED: active_delegated_credential called without org context. " \
+                      "Use MicrosoftCredential.delegated_for_org(organization) instead. " \
+                      "Caller: #{caller(1, 3).join(' <- ')}"
     delegated_credentials.org_level.connected.first
   end
 

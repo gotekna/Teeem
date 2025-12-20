@@ -196,10 +196,14 @@ export function PdfFieldsTab() {
   const [dialogHAlign, setDialogHAlign] = React.useState<"left" | "center" | "right">("center");
   const [dialogVAlign, setDialogVAlign] = React.useState<"top" | "middle" | "bottom">("middle");
 
-  // Reset dialog alignment defaults when clicked field changes
-  // Currency fields ($) default to right, others to center
+  // Reset dialog alignment defaults ONLY when dialog opens (clickedDetectedField changes)
+  // Don't re-run when positions updates (that would reset user's alignment choice)
+  const prevClickedField = React.useRef<DetectedField | null>(null);
   React.useEffect(() => {
-    if (clickedDetectedField) {
+    // Only run when clickedDetectedField changes (dialog opens/closes)
+    if (clickedDetectedField && clickedDetectedField !== prevClickedField.current) {
+      prevClickedField.current = clickedDetectedField;
+
       // Check if there's already a mapped field to inherit alignment from
       const existingMapping = positions.find(
         (p) => p.page === clickedDetectedField.page &&
@@ -216,6 +220,8 @@ export function PdfFieldsTab() {
       }
       setDialogVAlign("middle");
       setDialogSearch("");
+    } else if (!clickedDetectedField) {
+      prevClickedField.current = null;
     }
   }, [clickedDetectedField, positions]);
 

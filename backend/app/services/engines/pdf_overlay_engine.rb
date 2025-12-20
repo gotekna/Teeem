@@ -550,8 +550,19 @@ module Engines
 
           # For non-left alignment, use text overlay instead of form fill (more reliable)
           if alignment != "left" && pos
-            # Skip form fill - will use overlay instead
-            Rails.logger.debug "[PdfOverlayEngine] Skipping form fill for '#{pdf_field_name}' - using overlay for #{alignment} alignment"
+            # AGGRESSIVELY clear the form field so it doesn't show behind our overlay
+            field.field_value = ""
+            field[:V] = nil  # Clear value
+            field[:DV] = nil  # Clear default value
+            # Remove all widget appearances
+            widgets = field[:Kids] || [field]
+            widgets.each do |widget|
+              widget = widget.value if widget.respond_to?(:value)
+              widget.delete(:AP) if widget.respond_to?(:delete)
+            end
+            field.delete(:AP)
+            # Don't create appearances - we want the field completely empty
+            Rails.logger.debug "[PdfOverlayEngine] Cleared form field '#{pdf_field_name}' - using overlay for #{alignment} alignment"
             next
           end
 
@@ -608,10 +619,21 @@ module Engines
 
         canvas = page.canvas(type: :overlay)
         font_size = pos[:font_size] || 10
-        canvas.font("Helvetica", size: font_size)
 
-        # Calculate x position based on alignment
+        # Calculate box dimensions
         box_width = pos[:box_width] || 100
+        box_height = pos[:box_height] || 16
+
+        # Draw WHITE RECTANGLE to cover any existing form field content
+        # This ensures no ghost text shows through from the form field
+        canvas.save_graphics_state
+        canvas.fill_color(255, 255, 255)  # White
+        canvas.rectangle(pos[:x], pos[:y], box_width, box_height)
+        canvas.fill
+        canvas.restore_graphics_state
+
+        # Now draw our text on top
+        canvas.font("Helvetica", size: font_size)
 
         # Calculate text width - approximate if font metrics unavailable
         text_str = value.to_s
@@ -634,8 +656,9 @@ module Engines
         # Y position: pos[:y] is bottom of box, add offset for baseline
         y = pos[:y] + 4  # Small offset from bottom
 
+        canvas.fill_color(0, 0, 0)  # Black text
         canvas.text(value.to_s, at: [x, y])
-        Rails.logger.info "[PdfOverlayEngine] OVERLAY: '#{value}' at (#{x.round(1)}, #{y.round(1)}) page=#{pos[:page]} align=#{pos[:text_align]} box_w=#{box_width} text_w=#{text_width.round(1)}"
+        Rails.logger.info "[PdfOverlayEngine] OVERLAY: '#{value}' at (#{x.round(1)}, #{y.round(1)}) page=#{pos[:page]} align=#{pos[:text_align]} box_w=#{box_width} text_w=#{text_width.round(1)} [with white bg]"
       end
     rescue StandardError => e
       Rails.logger.error "[PdfOverlayEngine] Aligned overlay error: #{e.message}"

@@ -20,6 +20,10 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
     Rails.logger.warn "[DEPRECATED] OrganizationMicrosoftAppCredential is deprecated. Use MicrosoftCredential instead."
   end
 
+  # Organization ownership - SSoT for multi-org isolation
+  # NOTE: optional: true during migration. Will be made required after all data backfilled.
+  belongs_to :organization, optional: true
+
   belongs_to :setup_by, class_name: "User", optional: true
   has_many :attachments, dependent: :nullify
 
@@ -36,6 +40,14 @@ class OrganizationMicrosoftAppCredential < ApplicationRecord
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :connected, -> { active.where(status: "connected") }
+
+  # SSoT: Organization-scoped credential lookup - ALWAYS use these instead of .first
+  scope :for_org, ->(org) { where(organization: org) }
+
+  # Get active app credential for a specific organization
+  def self.active_for_org(organization)
+    for_org(organization).active.connected.first
+  end
 
   # Multi-org support - returns all active credentials
   # SSoT Migration: Delegates to MicrosoftCredential
