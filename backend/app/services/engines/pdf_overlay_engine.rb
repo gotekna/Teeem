@@ -507,9 +507,8 @@ module Engines
       # Get explicit field mapping for this template
       explicit_mapping = form_field_mapping_for_template
 
-      # Load text alignment settings from PdfFieldPosition database records
-      # Maps data_key (e.g., :deposit) to text_align (e.g., "right")
-      alignment_settings = load_alignment_settings
+      # Load position/alignment settings from PdfFieldPosition database records
+      position_settings = load_position_settings
 
       doc.acro_form.each_field do |field|
         pdf_field_name = field.full_field_name.to_s
@@ -546,28 +545,24 @@ module Engines
         end
 
         if value.present?
-          # Apply text alignment BEFORE setting value
-          # Quadding: 0=left, 1=center, 2=right
-          if data_key_used && alignment_settings[data_key_used]
-            quadding = case alignment_settings[data_key_used]
-                       when "left" then 0
-                       when "center" then 1
-                       when "right" then 2
-                       else 0
-                       end
-            field[:Q] = quadding
-            # Delete existing appearance to force regeneration with new alignment
-            field.delete(:AP) if field[:AP]
-            Rails.logger.debug "[PdfOverlayEngine] Set alignment for '#{pdf_field_name}' to #{alignment_settings[data_key_used]} (Q=#{quadding})"
+          pos = position_settings[data_key_used]
+          alignment = pos&.dig(:text_align) || "left"
+
+          # For non-left alignment, use text overlay instead of form fill (more reliable)
+          if alignment != "left" && pos
+            # Skip form fill - will use overlay instead
+            Rails.logger.debug "[PdfOverlayEngine] Skipping form fill for '#{pdf_field_name}' - using overlay for #{alignment} alignment"
+            next
           end
 
           field.field_value = value.to_s
-
-          # Generate appearance stream immediately (web PDF viewers don't respect NeedAppearances)
           field.create_appearances if field.respond_to?(:create_appearances)
           Rails.logger.debug "[PdfOverlayEngine] Filled '#{pdf_field_name}' with '#{value}'"
         end
       end
+
+      # Now apply text overlays for fields that need non-left alignment
+      apply_aligned_text_overlays(doc, data, explicit_mapping, position_settings)
 
       # Fallback for viewers that do support NeedAppearances
       doc.acro_form[:NeedAppearances] = true
@@ -575,16 +570,61 @@ module Engines
       Rails.logger.warn "[PdfOverlayEngine] Form fill error: #{e.message}"
     end
 
-    def load_alignment_settings
+    def load_position_settings
       return {} unless defined?(PdfFieldPosition)
 
       positions = PdfFieldPosition.where(pdf_template_key: template_key.to_s, active: true)
       positions.each_with_object({}) do |pos, hash|
-        hash[pos.field_key.to_sym] = pos.text_align if pos.text_align.present?
+        hash[pos.field_key.to_sym] = {
+          page: pos.page,
+          x: pos.x.to_f,
+          y: pos.y.to_f,
+          box_width: pos.box_width.to_f,
+          box_height: pos.box_height.to_f,
+          font_size: pos.font_size || 10,
+          text_align: pos.text_align || "left"
+        }
       end
     rescue StandardError => e
-      Rails.logger.warn "[PdfOverlayEngine] Failed to load alignment settings: #{e.message}"
+      Rails.logger.warn "[PdfOverlayEngine] Failed to load position settings: #{e.message}"
       {}
+    end
+
+    def apply_aligned_text_overlays(doc, data, explicit_mapping, position_settings)
+      position_settings.each do |data_key, pos|
+        next if pos[:text_align] == "left"  # Left-aligned handled by form fill
+
+        value = data[data_key]
+        next if value.blank?
+
+        page_index = (pos[:page] || 1) - 1
+        page = doc.pages[page_index]
+        next unless page
+
+        canvas = page.canvas(type: :overlay)
+        font_size = pos[:font_size] || 10
+        canvas.font("Helvetica", size: font_size)
+
+        # Calculate x position based on alignment
+        box_width = pos[:box_width] || 100
+        text_width = canvas.font.wrapped_font.width(value.to_s) * font_size / 1000.0
+
+        x = pos[:x]
+        case pos[:text_align]
+        when "center"
+          x = pos[:x] + (box_width - text_width) / 2.0
+        when "right"
+          x = pos[:x] + box_width - text_width - 2  # 2pt padding from right edge
+        end
+
+        # Y position: pos[:y] is bottom of box, add offset for baseline
+        y = pos[:y] + 4  # Small offset from bottom
+
+        canvas.text(value.to_s, at: [x, y])
+        Rails.logger.debug "[PdfOverlayEngine] Overlay text '#{value}' at (#{x.round(1)}, #{y.round(1)}) align=#{pos[:text_align]}"
+      end
+    rescue StandardError => e
+      Rails.logger.warn "[PdfOverlayEngine] Aligned overlay error: #{e.message}"
     end
 
     def fill_checkbox_field(field, pdf_field_name, data)

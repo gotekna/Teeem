@@ -1128,7 +1128,7 @@ function CompanyTabsSubTab() {
                 <div>
                   <h4 className="font-medium">Document Folder Tabs</h4>
                   <p className="text-sm text-muted-foreground">
-                    Document categories shown on entity pages. Click to toggle visibility.
+                    Document categories shown on entity pages. Click folder icon for details, eye icon to toggle.
                   </p>
                 </div>
                 <Badge variant="secondary" className="text-xs">
@@ -1137,31 +1137,50 @@ function CompanyTabsSubTab() {
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {documentTabs.map((tab) => (
-                  <button
+                  <div
                     key={tab.id}
-                    onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
-                    disabled={togglingTab === tab.id}
                     className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
+                      "flex items-center justify-between p-3 rounded-lg border transition-colors",
                       tab.enabled !== false
-                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                        : "bg-muted/30 border-muted hover:bg-muted/50 opacity-60"
+                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                        : "bg-muted/30 border-muted opacity-60"
                     )}
                   >
-                    <div className="flex items-center gap-2">
-                      {togglingTab === tab.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <button
+                      onClick={() => handleOpenTabDetail(tab)}
+                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                      title="View tab details"
+                    >
+                      <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <div className="text-left">
+                        <span className="text-sm font-medium block">{tab.name}</span>
+                        {tab.has_sharepoint_folder && (
+                          <span className="text-[10px] text-muted-foreground">/{tab.sharepoint_folder_path}</span>
+                        )}
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {tab.sub_tabs && tab.sub_tabs.length > 0 && (
+                        <Badge variant="outline" className="text-[10px] px-1">
+                          {tab.sub_tabs.length}
+                        </Badge>
                       )}
-                      <span className="text-sm font-medium">{tab.name}</span>
+                      <button
+                        onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
+                        disabled={togglingTab === tab.id}
+                        className="p-1 rounded hover:bg-white/50 dark:hover:bg-black/20 transition-colors"
+                        title={tab.enabled !== false ? "Disable tab" : "Enable tab"}
+                      >
+                        {togglingTab === tab.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                        ) : tab.enabled !== false ? (
+                          <Eye className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <EyeOff className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
                     </div>
-                    {tab.enabled !== false ? (
-                      <Eye className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
+                  </div>
                 ))}
               </div>
             </CardContent>
@@ -1321,6 +1340,84 @@ function CompanyTabsSubTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Tab Detail Dialog */}
+      <Dialog open={showTabDetail} onOpenChange={setShowTabDetail}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5 text-blue-600" />
+              {selectedTab?.name} Tab
+            </DialogTitle>
+            <DialogDescription>
+              View tab configuration and linked document types
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTab && (
+            <div className="space-y-4">
+              {/* SharePoint Folder */}
+              <div className="p-4 rounded-lg bg-muted/50 border">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-sm">SharePoint Folder</h4>
+                  <Badge variant={selectedTab.has_sharepoint_folder ? "default" : "secondary"}>
+                    {selectedTab.has_sharepoint_folder ? "Enabled" : "Disabled"}
+                  </Badge>
+                </div>
+                {selectedTab.has_sharepoint_folder && selectedTab.sharepoint_folder_path && (
+                  <p className="text-sm text-muted-foreground font-mono">
+                    /Shared Documents/{selectedTab.sharepoint_folder_path}
+                  </p>
+                )}
+              </div>
+
+              {/* Sub-Tabs */}
+              {selectedTab.sub_tabs && selectedTab.sub_tabs.length > 0 && (
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <h4 className="font-medium text-sm mb-3">Sub-Tabs ({selectedTab.sub_tabs.length})</h4>
+                  <div className="space-y-2">
+                    {selectedTab.sub_tabs.map((subTab) => (
+                      <div key={subTab.key} className="flex items-center justify-between text-sm p-2 rounded bg-background">
+                        <span>{subTab.name}</span>
+                        <span className="text-muted-foreground font-mono text-xs">/{subTab.folder}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Document Types */}
+              {selectedTab.document_types && selectedTab.document_types.length > 0 && (
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <h4 className="font-medium text-sm mb-3">Document Types ({selectedTab.document_types.length})</h4>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {selectedTab.document_types.map((docType) => (
+                      <div key={docType.id} className="flex items-center justify-between text-sm p-2 rounded bg-background">
+                        <span>{docType.name}</span>
+                        {docType.is_primary && (
+                          <Badge variant="outline" className="text-[10px]">Primary</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Entity Types */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Applies to:</span>
+                {selectedTab.entity_types.map((type) => (
+                  <Badge key={type} variant="outline">{type}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTabDetail(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
