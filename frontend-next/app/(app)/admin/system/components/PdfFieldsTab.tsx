@@ -210,12 +210,23 @@ export function PdfFieldsTab() {
           Math.abs(p.x - clickedDetectedField.x) < 10 &&
           Math.abs(p.y - clickedDetectedField.y) < 10
       );
+
+      console.log("[PDF Dialog] Opening dialog for:", clickedDetectedField.name);
+      console.log("[PDF Dialog] Existing mapping found:", existingMapping ? {
+        field_key: existingMapping.field_key,
+        text_align: existingMapping.text_align,
+        x: existingMapping.x,
+        y: existingMapping.y,
+      } : null);
+
       if (existingMapping) {
+        console.log("[PDF Dialog] Setting alignment from existing:", existingMapping.text_align || "left");
         setDialogHAlign(existingMapping.text_align || "left");
       } else {
         // Smart defaults based on field name
         const fieldName = clickedDetectedField.name.toLowerCase();
         const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment|value)/.test(fieldName);
+        console.log("[PDF Dialog] No existing mapping, using smart default:", isCurrency ? "right" : "left");
         setDialogHAlign(isCurrency ? "right" : "left");
       }
       setDialogVAlign("middle");
@@ -1480,9 +1491,19 @@ export function PdfFieldsTab() {
                             ? "bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800"
                             : "hover:bg-accent"
                         )}
-                        onClick={() => {
+                        onClick={async () => {
+                          // Log the alignment being saved
+                          console.log("[PDF Map] Saving field with alignment:", {
+                            fieldId: field.id,
+                            fieldKey: field.field_key,
+                            dialogHAlign,
+                            dialogVAlign,
+                            detectedField: clickedDetectedField?.name,
+                          });
+
                           // Use dialog alignment (smart defaults already applied via useEffect)
-                          savePosition(field.id, {
+                          // AWAIT the save so positions state is updated before closing dialog
+                          await savePosition(field.id, {
                             x: Math.round(clickedDetectedField.x),
                             y: Math.round(clickedDetectedField.y),
                             page: clickedDetectedField.page,
