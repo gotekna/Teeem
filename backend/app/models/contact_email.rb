@@ -23,8 +23,15 @@ class ContactEmail < ApplicationRecord
   end
 
   def ensure_single_primary
-    if is_primary_changed? && is_primary?
-      ContactEmail.where(contact_id: contact_id).where.not(id: id).update_all(is_primary: false)
+    return unless is_primary? && (new_record? || is_primary_changed?)
+    return unless contact_id.present?
+
+    # For new records, unset all existing primaries
+    # For existing records, exclude self from the update
+    if new_record?
+      ContactEmail.where(contact_id: contact_id, is_primary: true).update_all(is_primary: false)
+    else
+      ContactEmail.where(contact_id: contact_id, is_primary: true).where.not(id: id).update_all(is_primary: false)
     end
   end
 end
