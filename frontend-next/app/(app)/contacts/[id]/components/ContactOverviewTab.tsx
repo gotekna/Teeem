@@ -187,7 +187,7 @@ export function ContactOverviewTab({
     setSavingCompanyLink(true);
     try {
       await api.post(`/api/v1/contacts/${contact.id}/relationships`, {
-        relationship: {
+        contact_relationship: {
           related_contact_id: companyId,
           relationship_type: "employee_of", // Always employee_of
           role_in_relationship: selectedRole || null, // Optional role from contact_types (SSoT)
