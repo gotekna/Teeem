@@ -100,6 +100,9 @@ class ImapEmailService
     raise
   end
 
+  # Folders to sync from (INBOX + Sent Items for complete email history)
+  SYNC_FOLDERS = ["INBOX", "Sent Items"].freeze
+
   # Sync emails to EmailWarehouse
   # @param full_sync [Boolean] Whether to do a full sync (all emails) or incremental
   # @return [Hash] Sync results
@@ -107,13 +110,20 @@ class ImapEmailService
     results = { synced: 0, skipped: 0, errors: 0, new_emails: [] }
 
     begin
-      emails = if full_sync
-                 fetch_emails(since: 90.days.ago, limit: 1000)
-               else
-                 fetch_new_emails(limit: 500)
-               end
+      # Sync from multiple folders
+      all_emails = []
+      SYNC_FOLDERS.each do |folder|
+        emails = if full_sync
+                   fetch_emails(folder: folder, since: 90.days.ago, limit: 500)
+                 else
+                   fetch_new_emails(folder: folder, limit: 250)
+                 end
+        all_emails.concat(emails)
+      rescue => e
+        Rails.logger.warn "[ImapEmailService] Skipping folder #{folder}: #{e.message}"
+      end
 
-      emails.each do |email_data|
+      all_emails.each do |email_data|
         begin
           # Check for existing email by message ID
           existing = EmailWarehouse.find_by(internet_message_id: email_data[:internet_message_id])

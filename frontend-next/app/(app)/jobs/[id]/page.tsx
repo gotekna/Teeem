@@ -786,9 +786,11 @@ export default function JobDetailPage() {
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Header row */}
-      <div className="shrink-0 bg-background px-3 pt-3 pb-2 flex items-start justify-between gap-4">
+    <div className="h-full flex flex-col overflow-auto">
+      {/* Sticky header and tabs */}
+      <div className="sticky top-0 z-10 bg-background">
+        {/* Header row */}
+        <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-1">
             <ArrowLeft className="h-4 w-4" />
@@ -872,18 +874,21 @@ export default function JobDetailPage() {
         </div>
       </div>
 
-      {/* Tabs trigger */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="shrink-0 px-3">
-        <HierarchicalTabsList
-          tabs={jobTabs}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-        />
-      </Tabs>
+        {/* Tabs trigger */}
+        <div className="px-3 pb-2">
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <HierarchicalTabsList
+              tabs={jobTabs}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+            />
+          </Tabs>
+        </div>
+      </div>
 
-      {/* Tab content */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 min-h-0 flex flex-col">
-        <TabsContent value="overview" className="mt-6 px-3">
+      {/* Tab content - scrollable */}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 px-3 pb-6">
+        <TabsContent value="overview" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Job Details */}
             <Card>
@@ -1080,47 +1085,47 @@ export default function JobDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="contract" className="mt-6">
+        <TabsContent value="contract" className="mt-4">
           <JobContractTab job={job} onUpdate={loadJob} />
         </TabsContent>
 
-        <TabsContent value="specifications" className="mt-6">
+        <TabsContent value="specifications" className="mt-4">
           <SpecificationBuilder jobId={job.id} jobTypeId={job.job_type_id} />
         </TabsContent>
 
-        <TabsContent value="colours" className="mt-6">
+        <TabsContent value="colours" className="mt-4">
           <ColourSelectionBuilder jobId={job.id} jobTypeId={job.job_type_id} />
         </TabsContent>
 
-        <TabsContent value="claims" className="mt-6">
+        <TabsContent value="claims" className="mt-4">
           <JobClaimStagesTab jobId={job.id} contractValue={job.contract_value} />
         </TabsContent>
 
-        <TabsContent value="people" className="mt-6">
+        <TabsContent value="people" className="mt-4">
           <JobPeopleTab jobId={job.id} onUpdate={loadJob} />
         </TabsContent>
 
-        <TabsContent value="purchase-orders" className="mt-6">
+        <TabsContent value="purchase-orders" className="mt-4">
           <JobPurchaseOrdersTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
-        <TabsContent value="estimates" className="mt-6">
+        <TabsContent value="estimates" className="mt-4">
           <JobEstimatorTab jobId={job.id} job={job} />
         </TabsContent>
 
-        <TabsContent value="profit" className="mt-6">
+        <TabsContent value="profit" className="mt-4">
           <JobProfitTab jobId={job.id} />
         </TabsContent>
 
-        <TabsContent value="activity" className="mt-6">
+        <TabsContent value="activity" className="mt-4">
           <JobActivityTab jobId={job.id} />
         </TabsContent>
 
-        <TabsContent value="budget" className="mt-6">
+        <TabsContent value="budget" className="mt-4">
           <JobBudgetTab jobId={job.id} />
         </TabsContent>
 
-        <TabsContent value="schedule" className="mt-6">
+        <TabsContent value="schedule" className="mt-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Schedule Master</CardTitle>
@@ -1136,7 +1141,7 @@ export default function JobDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="whs" className="mt-6">
+        <TabsContent value="whs" className="mt-4">
           <div className="space-y-6">
             {/* WHS Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1287,7 +1292,7 @@ export default function JobDetailPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="rain-log" className="mt-6">
+        <TabsContent value="rain-log" className="mt-4">
           <RainLogTab jobId={job.id} />
         </TabsContent>
 
@@ -1299,15 +1304,15 @@ export default function JobDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="documents" className="mt-6">
+        <TabsContent value="documents" className="mt-4">
           <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
-        <TabsContent value="coms" className="mt-6">
+        <TabsContent value="coms" className="mt-4">
           <JobCommunicationsTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
-        <TabsContent value="team" className="mt-6">
+        <TabsContent value="team" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Team Management</CardTitle>
@@ -1318,7 +1323,7 @@ export default function JobDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="settings" className="mt-6">
+        <TabsContent value="settings" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Job Settings</CardTitle>
@@ -1329,7 +1334,7 @@ export default function JobDetailPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="help" className="mt-6">
+        <TabsContent value="help" className="mt-4">
           <Card>
             <CardHeader>
               <CardTitle>Help & Documentation</CardTitle>
