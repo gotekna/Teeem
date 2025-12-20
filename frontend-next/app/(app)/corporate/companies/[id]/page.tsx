@@ -95,6 +95,7 @@ import {
   XeroBankAccountsCard,
   XeroReportsPanel,
   XeroConsolidatedCard,
+  XeroCompanyDocSyncCard,
 } from "@/components/xero";
 
 // =============================================================================
@@ -3195,6 +3196,8 @@ export default function CompanyDetailPage() {
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
   const [xeroDocumentFolders, setXeroDocumentFolders] = React.useState<Array<{ id: string; name: string; description: string; folderId: number }>>([]);
+  // SSoT: Entity tabs from CorporateEntityTab API (replaces hardcoded constants)
+  const [entityOverviewTabs, setEntityOverviewTabs] = React.useState<Array<{ id: string; name: string }>>([]);
   // SSoT: Xero tabs loaded from API (GET /api/v1/xero/tabs)
   const [xeroFeatureTabs, setXeroFeatureTabs] = React.useState<Array<{
     id: string;
@@ -3704,14 +3707,18 @@ export default function CompanyDetailPage() {
                   />
                   {/* Setup Wizard - shows after connection to guide first-time setup */}
                   {xeroConnected && (
-                    <XeroSetupWizard
-                      companyId={companyId}
-                      companyName={company?.name}
-                      onComplete={() => {
-                        // Optionally switch to overview tab when setup is complete
-                        setXeroSubTab("overview");
-                      }}
-                    />
+                    <>
+                      <XeroSetupWizard
+                        companyId={companyId}
+                        companyName={company?.name}
+                        onComplete={() => {
+                          // Optionally switch to overview tab when setup is complete
+                          setXeroSubTab("overview");
+                        }}
+                      />
+                      {/* Document Sync Status - shows PDF sync progress for this company */}
+                      <XeroCompanyDocSyncCard companyId={companyId} />
+                    </>
                   )}
                 </div>
               )}

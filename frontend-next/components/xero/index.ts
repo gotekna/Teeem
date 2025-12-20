@@ -48,3 +48,6 @@ export { XeroConsolidatedCard } from './XeroConsolidatedCard';
 
 // Reports Components
 export { XeroReportsPanel } from './XeroReportsPanel';
+
+// Company-specific Document Sync
+export { XeroCompanyDocSyncCard } from './XeroCompanyDocSyncCard';

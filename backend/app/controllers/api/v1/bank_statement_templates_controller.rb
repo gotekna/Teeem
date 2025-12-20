@@ -147,16 +147,60 @@ module Api
       end
 
       # GET /api/v1/bank_statement_templates/:id/reference_image
-      # Serve the reference image from SharePoint for comparison
+      # Serve the reference image - checks local files first, then SharePoint
       def reference_image
         unless @template.reference_image_path.present?
+          # Try to find a local reference file by convention
+          local_file = find_local_reference_file
+          if local_file
+            return send_local_reference_file(local_file)
+          end
+
           return render json: {
             success: false,
             error: "No reference image available for this template"
           }, status: :not_found
         end
 
-        # Get SharePoint configuration
+        # Check if it's a local file path first
+        if @template.reference_image_path.start_with?("reference_statements/")
+          local_path = Rails.root.join(@template.reference_image_path)
+          if File.exist?(local_path)
+            return send_local_reference_file(local_path)
+          end
+        end
+
+        # Try local reference_statements folder by convention (bank_code)
+        local_file = find_local_reference_file
+        if local_file
+          return send_local_reference_file(local_file)
+        end
+
+        # Fall back to SharePoint
+        serve_sharepoint_reference
+      end
+
+      private
+
+      def find_local_reference_file
+        find_local_reference_file_for(@template)
+      end
+
+      def send_local_reference_file(file_path)
+        content_type = case File.extname(file_path).downcase
+                       when ".png" then "image/png"
+                       when ".jpg", ".jpeg" then "image/jpeg"
+                       when ".pdf" then "application/pdf"
+                       else "application/octet-stream"
+                       end
+
+        send_file file_path,
+                  filename: File.basename(file_path),
+                  type: content_type,
+                  disposition: "inline"
+      end
+
+      def serve_sharepoint_reference
         sharepoint_config = CorporateCompanySetting.sharepoint_config
         unless sharepoint_config[:configured]
           return render json: {
@@ -166,11 +210,9 @@ module Api
         end
 
         begin
-          # Initialize Graph client
           client = MicrosoftAppGraphClient.new
           drive_id = sharepoint_config[:drive_id]
 
-          # Get item by path (Templates/Bank Statements/NAB.pdf)
           item = client.get_item_by_path(drive_id, @template.reference_image_path)
 
           unless item
@@ -180,13 +222,11 @@ module Api
             }, status: :not_found
           end
 
-          # Download the file content
           content = client.get_drive_item_content(
             drive_id: drive_id,
             item_id: item[:id]
           )
 
-          # Determine content type based on file extension
           content_type = case File.extname(@template.reference_image_path).downcase
                          when ".png" then "image/png"
                          when ".jpg", ".jpeg" then "image/jpeg"
@@ -210,8 +250,6 @@ module Api
           }, status: :service_unavailable
         end
       end
-
-      private
 
       def set_template
         @template = BankStatementTemplate.find(params[:id])
@@ -258,6 +296,7 @@ module Api
       end
 
       def template_json(template)
+        local_ref = find_local_reference_file_for(template)
         {
           id: template.id,
           bank_code: template.bank_code,
@@ -270,12 +309,31 @@ module Api
           date_format_preview: template.date_format_preview,
           detection_patterns: template.detection_patterns || [],
           layout_style: template.layout_style,
-          reference_image_path: template.reference_image_path,
-          has_reference_image: template.reference_image_path.present?,
+          reference_image_path: local_ref ? File.basename(local_ref) : template.reference_image_path,
+          has_reference_image: local_ref.present? || template.reference_image_path.present?,
           is_active: template.is_active,
           created_at: template.created_at,
           updated_at: template.updated_at
         }
+      end
+
+      def find_local_reference_file_for(template)
+        reference_dir = Rails.root.join("reference_statements")
+        return nil unless Dir.exist?(reference_dir)
+
+        bank_code = template.bank_code.upcase
+        patterns = [
+          "#{bank_code}_statement_reference.*",
+          "#{bank_code}_business_statement_guide.*",
+          "#{bank_code}_*.*"
+        ]
+
+        patterns.each do |pattern|
+          matches = Dir.glob(reference_dir.join(pattern), File::FNM_CASEFOLD)
+          return matches.first if matches.any?
+        end
+
+        nil
       end
     end
   end

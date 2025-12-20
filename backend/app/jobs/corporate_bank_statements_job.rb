@@ -197,6 +197,18 @@ class CorporateBankStatementsJob < ApplicationJob
       )
 
       if upload_result[:success]
+        # Create CompanyDocument record so it appears in the BANK tab
+        create_document_record(
+          company: company,
+          bank_account: bank_account,
+          filename: filename,
+          folder_path: folder_path,
+          month_date: month_date,
+          pdf_size: pdf_result[:pdf].bytesize,
+          sharepoint_url: upload_result[:web_url],
+          sharepoint_file_id: upload_result[:id]
+        )
+
         { success: true, path: "#{folder_path}/#{filename}", url: upload_result[:web_url] }
       else
         { success: false, error: upload_result[:error] }
@@ -205,5 +217,46 @@ class CorporateBankStatementsJob < ApplicationJob
       Rails.logger.error("[CorporateBankStatementsJob] SharePoint upload error: #{e.message}")
       { success: false, error: e.message }
     end
+  end
+
+  def create_document_record(company:, bank_account:, filename:, folder_path:, month_date:, pdf_size:, sharepoint_url:, sharepoint_file_id:)
+    account_name = bank_account.name || bank_account.account_name || "Account"
+    month_name = month_date.strftime("%B %Y")
+
+    # Calculate financial year (Australian: July-June)
+    fy_year = month_date.month >= 7 ? month_date.year + 1 : month_date.year
+    financial_year = "FY#{fy_year}"
+
+    CompanyDocument.create!(
+      company_id: company.id,
+      company_code: company.code,
+      title: "Bank Statement - #{account_name} - #{month_name}",
+      display_title: "Bank Statement - #{account_name} - #{month_name}",
+      document_type: "Bank Statement",
+      document_date: month_date.end_of_month,
+      file_name: filename,
+      file_url: sharepoint_url,
+      file_size: pdf_size,
+      mime_type: "application/pdf",
+      folder: "BANK",
+      register_folder: "BANK",
+      storage_type: "sharepoint",
+      source: "generated",
+      sharepoint_file_id: sharepoint_file_id,
+      onedrive_download_url: sharepoint_url,
+      expected_onedrive_path: "#{folder_path}/#{filename}",
+      financial_years: [financial_year],
+      uploaded_at: Time.current,
+      last_modified_at: Time.current,
+      # Mark as already verified since we generated it
+      ai_verification_status: "verified",
+      ai_verified_at: Time.current,
+      ai_confidence_score: 100
+    )
+
+    Rails.logger.info("[CorporateBankStatementsJob] Created CompanyDocument for #{filename}")
+  rescue StandardError => e
+    # Log but don't fail the job - the PDF is already uploaded to SharePoint
+    Rails.logger.error("[CorporateBankStatementsJob] Failed to create document record: #{e.message}")
   end
 end
