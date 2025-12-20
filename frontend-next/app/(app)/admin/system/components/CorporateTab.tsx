@@ -52,6 +52,11 @@ import {
   GripVertical,
   Eye,
   EyeOff,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -917,35 +922,23 @@ function CompaniesSubTab() {
 }
 
 // ===== COMPANY TABS CONFIG SUB-TAB =====
-// Current tabs shown on company detail pages - stored in frontend-next/app/(app)/corporate/companies/[id]/page.tsx
-const CURRENT_DOCUMENT_TABS = [
-  { id: "overview", name: "Overview", visible: true },
-  { id: "company", name: "COMPANY", visible: true },
-  { id: "xero", name: "XERO", visible: true },
-  { id: "bank", name: "BANK", visible: true },
-  { id: "ato", name: "ATO", visible: true },
-  { id: "asic", name: "ASIC", visible: true },
-  { id: "registry", name: "REGISTRY", visible: true },
-  { id: "dividends", name: "DIVIDENDS", visible: true },
-  { id: "financials", name: "FINANCIALS", visible: true },
-  { id: "loans", name: "LOANS", visible: true },
-  { id: "assets", name: "ASSETS", visible: true },
-  { id: "insurance", name: "INSURANCE", visible: true },
-  { id: "minutes", name: "MINUTES", visible: true },
-  { id: "advice", name: "ADVICE", visible: true },
-  { id: "general", name: "GENERAL", visible: true },
-  { id: "documents", name: "Documents", visible: true },
-  { id: "data", name: "Data", visible: true },
-  { id: "activity", name: "Activity", visible: true },
+
+// Overview sub-tabs - these are pure UI structure, not database-driven
+// They define the sections within the Overview tab on company pages
+const OVERVIEW_UI_TABS = [
+  { id: "info", name: "Information" },
+  { id: "corporate", name: "Corporate" },
+  { id: "bank-accounts", name: "Bank Accounts" },
+  { id: "directors", name: "Directors" },
+  { id: "shareholdings", name: "Shareholdings" },
+  { id: "consolidation", name: "Consolidation" },
 ];
 
-const CURRENT_OVERVIEW_TABS = [
-  { id: "info", name: "Information", visible: true },
-  { id: "corporate", name: "Corporate", visible: true },
-  { id: "bank-accounts", name: "Bank Accounts", visible: true },
-  { id: "directors", name: "Directors", visible: true },
-  { id: "shareholdings", name: "Shareholdings", visible: true },
-  { id: "consolidation", name: "Consolidation", visible: true },
+// Special UI tabs that are always shown (not document folders)
+const SPECIAL_UI_TABS = [
+  { id: "documents", name: "Documents" },
+  { id: "data", name: "Data" },
+  { id: "activity", name: "Activity" },
 ];
 
 // SSoT: Xero tabs loaded from API - minimal fallback only
@@ -954,6 +947,15 @@ const XERO_TABS_FALLBACK = [
 ];
 
 function CompanyTabsSubTab() {
+  // SSoT: Document folder tabs from API
+  const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{
+    id: string;
+    name: string;
+    type: 'folder' | 'ui';
+  }>>([]);
+  const [loadingDocTabs, setLoadingDocTabs] = React.useState(true);
+
+  // SSoT: Xero tabs from API
   const [xeroTabs, setXeroTabs] = React.useState<Array<{
     id: string;
     name: string;
@@ -962,6 +964,36 @@ function CompanyTabsSubTab() {
     enabled?: boolean;
   }>>([]);
   const [loadingXeroTabs, setLoadingXeroTabs] = React.useState(true);
+
+  // SSoT: Load document folder tabs from same API as company page
+  React.useEffect(() => {
+    const loadDocumentFolderTabs = async () => {
+      try {
+        const data = await api.get<{ success: boolean; data: Array<{
+          id: number;
+          name: string;
+          children?: Array<{ id: number; name: string }>;
+        }> }>("/api/v1/document_folders?parent=CORPORATE");
+        if (data.success && data.data) {
+          // Filter to top-level folders (not XERO children, those are separate)
+          const folderTabs = data.data
+            .filter((f: { name: string }) => f.name !== 'XERO') // XERO has its own SSoT
+            .map((folder: { name: string }) => ({
+              id: folder.name.toLowerCase().replace(/\s+/g, '-'),
+              name: folder.name,
+              type: 'folder' as const
+            }));
+          setDocumentFolderTabs(folderTabs);
+        }
+      } catch (error) {
+        console.error("Failed to load document folder tabs:", error);
+        setDocumentFolderTabs([]);
+      } finally {
+        setLoadingDocTabs(false);
+      }
+    };
+    loadDocumentFolderTabs();
+  }, []);
 
   // SSoT: Load Xero tabs from API
   React.useEffect(() => {
@@ -999,56 +1031,101 @@ function CompanyTabsSubTab() {
         </div>
       </div>
 
-      {/* Main Document Tabs */}
+      {/* Main Document Tabs - SSoT: Loaded from API */}
       <Card>
         <CardContent className="pt-6">
-          <h4 className="font-medium mb-4">Main Navigation Tabs</h4>
-          <p className="text-sm text-muted-foreground mb-4">
-            These tabs appear in the main navigation bar on company pages.
-          </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {CURRENT_DOCUMENT_TABS.map((tab) => (
-              <div
-                key={tab.id}
-                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-              >
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                  <span className="text-sm font-medium">{tab.name}</span>
-                </div>
-                {tab.visible ? (
-                  <Eye className="h-4 w-4 text-green-600" />
-                ) : (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                )}
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="font-medium">Main Navigation Tabs</h4>
+              <p className="text-sm text-muted-foreground">
+                Document folder tabs loaded from database. Manage in Admin &gt; Documents.
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              SSoT: API
+            </Badge>
           </div>
+          {loadingDocTabs ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              {/* Document Folder Tabs */}
+              <div className="mb-4">
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                  Document Folders ({documentFolderTabs.length})
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {documentFolderTabs.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20"
+                    >
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-medium">{tab.name}</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900/40">
+                        SharePoint
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Special UI Tabs */}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                  Special UI Tabs ({SPECIAL_UI_TABS.length})
+                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {SPECIAL_UI_TABS.map((tab) => (
+                    <div
+                      key={tab.id}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
+                    >
+                      <div className="flex items-center gap-2">
+                        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{tab.name}</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        UI
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {/* Overview Sub-Tabs */}
+      {/* Overview Sub-Tabs - UI Structure */}
       <Card>
         <CardContent className="pt-6">
-          <h4 className="font-medium mb-4">Overview Sub-Tabs</h4>
-          <p className="text-sm text-muted-foreground mb-4">
-            These tabs appear under the Overview section.
-          </p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="font-medium">Overview Sub-Tabs</h4>
+              <p className="text-sm text-muted-foreground">
+                UI structure tabs within the Overview section.
+              </p>
+            </div>
+            <Badge variant="outline" className="text-xs">
+              UI Structure
+            </Badge>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {CURRENT_OVERVIEW_TABS.map((tab) => (
+            {OVERVIEW_UI_TABS.map((tab) => (
               <div
                 key={tab.id}
                 className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
               >
                 <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground/50" />
+                  <LayoutGrid className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">{tab.name}</span>
                 </div>
-                {tab.visible ? (
-                  <Eye className="h-4 w-4 text-green-600" />
-                ) : (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                )}
+                <Eye className="h-4 w-4 text-green-600" />
               </div>
             ))}
           </div>
@@ -1130,18 +1207,29 @@ function CompanyTabsSubTab() {
       {/* SSoT Info */}
       <Card className="bg-muted/30">
         <CardContent className="pt-6">
-          <h4 className="font-medium mb-2">SSoT Location</h4>
-          <p className="text-sm text-muted-foreground">
-            Xero tabs are loaded from <code className="font-mono bg-muted px-1 rounded">GET /api/v1/xero/tabs</code>
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            <span className="font-medium">Backend SSoT:</span>{' '}
-            <code className="font-mono bg-muted px-1 rounded">XeroFeatureTab.all_tabs_ordered</code> - combines functional tabs + document folders, filters duplicates
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            <span className="font-medium">Duplicate prevention:</span>{' '}
-            Document folders with same name as functional tabs are automatically hidden (e.g., &ldquo;Reports&rdquo;)
-          </p>
+          <h4 className="font-medium mb-3">SSoT Architecture</h4>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+              <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">Document Folder Tabs</p>
+              <p>
+                <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">GET /api/v1/document_folders?parent=CORPORATE</code>
+              </p>
+              <p className="mt-1 text-xs">Manage via Admin &gt; Documents. Each folder becomes a main tab on company pages.</p>
+            </div>
+            <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
+              <p className="font-medium text-indigo-900 dark:text-indigo-100 mb-1">Xero Tabs</p>
+              <p>
+                <code className="font-mono bg-indigo-100 dark:bg-indigo-900/40 px-1 rounded">GET /api/v1/xero/tabs</code>
+              </p>
+              <p className="mt-1 text-xs">
+                Backend: <code className="font-mono">XeroFeatureTab.all_tabs_ordered</code> - combines functional tabs + XERO document folders, auto-filters duplicates.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+              <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">UI Structure Tabs</p>
+              <p className="text-xs">Overview sub-tabs and special tabs (Documents, Data, Activity) are pure UI structure - not database-driven.</p>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
