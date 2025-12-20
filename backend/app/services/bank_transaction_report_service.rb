@@ -807,7 +807,7 @@ class BankTransactionReportService
     box_x = 320
     box_y = 690  # Lowered from 720 to avoid overlap with Statement Period (y=709)
     box_width = 230
-    box_height = 80
+    box_height = 85  # Increased from 80 to fit Closing Balance inside the box
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line_width(1)
@@ -1393,10 +1393,10 @@ class BankTransactionReportService
     canvas.rectangle(0, header_top - header_height, 595, 4)
     canvas.fill
 
-    # "TEEEM" logo text - large and bold
+    # Bank name logo text - large and bold (uses template bank_name)
     canvas.fill_color(@branding[:text_on_primary])
     canvas.font("Helvetica", size: 32, variant: :bold)
-    canvas.text("TEEEM", at: [ 50, header_top - 42 ])
+    canvas.text(@branding[:bank_title], at: [ 50, header_top - 42 ])
 
     # "STATEMENT" in lighter weight, tracking out
     canvas.font("Helvetica", size: 11)
