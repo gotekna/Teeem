@@ -4,9 +4,6 @@ class ContactEmail < ApplicationRecord
   validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
   validates :position, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
-  # Ensure only one primary email per contact
-  validate :only_one_primary_per_contact
-
   scope :ordered, -> { order(:position) }
   scope :primary, -> { where(is_primary: true) }
 
@@ -14,15 +11,10 @@ class ContactEmail < ApplicationRecord
   before_validation :set_position, on: :create
 
   # If this is set as primary, unset all other primary emails for this contact
-  before_save :ensure_single_primary
+  # This runs BEFORE validation to ensure single primary is enforced correctly
+  before_validation :ensure_single_primary
 
   private
-
-  def only_one_primary_per_contact
-    if is_primary && ContactEmail.where(contact_id: contact_id, is_primary: true).where.not(id: id).exists?
-      errors.add(:is_primary, "contact already has a primary email")
-    end
-  end
 
   def set_position
     return if position.present?

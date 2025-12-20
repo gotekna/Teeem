@@ -3996,6 +3996,8 @@ module Api
           :fax_phone,
           :website,
           :tax_number,
+          :abn,
+          :acn,
           :sys_type_id,
           :parent_id,
           :parent,

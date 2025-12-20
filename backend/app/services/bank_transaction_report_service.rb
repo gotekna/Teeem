@@ -189,8 +189,16 @@ class BankTransactionReportService
         draw_summary_box(canvas, @opening_balance, total_debits, total_credits, closing_balance)
       end
 
-      # Transactions table
-      y_start = is_first_page ? 580 : 720
+      # Transactions table - y_start varies by bank layout
+      y_start = if is_first_page
+                  case @bank_type
+                  when :anz then 530      # ANZ has taller summary section
+                  when :commbank then 560 # CommBank needs more space
+                  else 580                # Default for NAB, Westpac, BOQ, TEEEM
+                  end
+                else
+                  720
+                end
       draw_transactions_section(canvas, page_transactions, y_start, is_first_page, is_last_page)
 
       # Footer
@@ -440,6 +448,11 @@ class BankTransactionReportService
   end
 
   def draw_nab_transactions(canvas, transactions_with_balance, y_start, is_first_page, is_last_page)
+    # Column right edges for right-alignment
+    debit_col_right = 390
+    credit_col_right = 460
+    balance_col_right = 545
+
     canvas.font("Helvetica", size: 11, variant: :bold)
     canvas.fill_color("000000")
     canvas.text("Transaction Details", at: [ 50, y_start + 5 ])
@@ -448,9 +461,10 @@ class BankTransactionReportService
     canvas.font("Helvetica", size: 8)
     canvas.text("Date", at: [ 50, y ])
     canvas.text("Particulars", at: [ 110, y ])
-    canvas.text("Debits", at: [ 340, y ])
-    canvas.text("Credits", at: [ 410, y ])
-    canvas.text("Balance", at: [ 480, y ])
+    # Right-align column headers
+    draw_right_aligned_text(canvas, "Debits", debit_col_right, y)
+    draw_right_aligned_text(canvas, "Credits", credit_col_right, y)
+    draw_right_aligned_text(canvas, "Balance", balance_col_right, y)
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line(50, y - 5, 545, y - 5)
@@ -463,7 +477,7 @@ class BankTransactionReportService
       first_txn = transactions_with_balance.first[:txn]
       canvas.text(format_date_nab(first_txn.transaction_date), at: [ 50, y ])
       canvas.text("Brought forward", at: [ 110, y ])
-      canvas.text(format_currency_cr_dr(@opening_balance), at: [ 480, y ])
+      draw_right_aligned_text(canvas, format_currency_cr_dr(@opening_balance), balance_col_right, y)
       y -= 14
     end
 
@@ -485,12 +499,12 @@ class BankTransactionReportService
 
       amount = BigDecimal(txn.total.to_s)
       if txn.transaction_type == "SPEND"
-        canvas.text(format_currency(amount), at: [ 340, y ])
+        draw_right_aligned_text(canvas, format_currency(amount), debit_col_right, y)
       else
-        canvas.text(format_currency(amount), at: [ 410, y ])
+        draw_right_aligned_text(canvas, format_currency(amount), credit_col_right, y)
       end
 
-      canvas.text(format_currency_cr_dr(balance), at: [ 480, y ])
+      draw_right_aligned_text(canvas, format_currency_cr_dr(balance), balance_col_right, y)
       y -= desc_line2.present? ? 22 : 14
     end
   end
@@ -754,7 +768,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.company&.name || account_name
+      company_name = @bank_account_record.corporate_company&.name || account_name
       bsb = @bank_account_record.formatted_bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -943,7 +957,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.company&.name || account_name
+      company_name = @bank_account_record.corporate_company&.name || account_name
       bsb = @bank_account_record.formatted_bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -1171,7 +1185,7 @@ class BankTransactionReportService
 
     # Get company/account details
     if @bank_account_record.present?
-      company_name = @bank_account_record.company&.name || account_name
+      company_name = @bank_account_record.corporate_company&.name || account_name
       bsb = @bank_account_record.formatted_bsb || "-"
       account_number = @bank_account_record.account_number || "-"
     else
@@ -1279,7 +1293,7 @@ class BankTransactionReportService
     canvas.text("Transaction details", at: [ 50, y_start + 5 ])
     canvas.font("Helvetica", size: 7)
     canvas.fill_color("666666")
-    canvas.text("Please retain this statement for taxation purposes", at: [ 150, y_start + 5 ])
+    canvas.text("Please retain this statement for taxation purposes", at: [ 180, y_start + 5 ])
 
     # Column headers
     y = y_start - 15
@@ -1814,6 +1828,14 @@ class BankTransactionReportService
     parts = formatted.split(".")
     parts[0] = parts[0].reverse.gsub(/(\d{3})(?=\d)/, '\\1,').reverse
     "$#{parts.join('.')}"
+  end
+
+  # Right-align text at a given x position (x is the right edge)
+  def draw_right_aligned_text(canvas, text, right_x, y)
+    text = text.to_s
+    # Approximate character width at font size 8: ~4.5 points per char
+    approx_width = text.length * 4.5
+    canvas.text(text, at: [ right_x - approx_width, y ])
   end
 
   def generate_filename
