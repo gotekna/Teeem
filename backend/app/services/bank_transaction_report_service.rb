@@ -356,12 +356,13 @@ class BankTransactionReportService
     canvas.fill_color("000000")
   end
 
-  # Draw Account Details box on right side of header (used by all bank types)
+  # Draw Account Details box on LEFT side below header text
+  # Summary box goes on the right at x=320
   def draw_account_details_box(canvas, account_name)
-    box_x = 320
-    box_y = 770
-    box_width = 235
-    box_height = 60
+    box_x = 50
+    box_y = 720
+    box_width = 260
+    box_height = 80
 
     # Light gray background
     canvas.fill_color("F5F5F5")
@@ -408,10 +409,10 @@ class BankTransactionReportService
   end
 
   def draw_nab_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)
-    box_x = 350
-    box_y = 770
-    box_width = 210
-    box_height = 100
+    box_x = 320
+    box_y = 720
+    box_width = 230
+    box_height = 80
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line_width(1)
@@ -752,10 +753,10 @@ class BankTransactionReportService
   end
 
   def draw_boq_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)
-    box_x = 350
-    box_y = 770
-    box_width = 210
-    box_height = 100
+    box_x = 320
+    box_y = 720
+    box_width = 230
+    box_height = 80
 
     canvas.stroke_color(BORDER_COLOR)
     canvas.line_width(1)
@@ -911,10 +912,10 @@ class BankTransactionReportService
   end
 
   def draw_commbank_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)
-    box_x = 350
-    box_y = 770
-    box_width = 210
-    box_height = 100
+    box_x = 320
+    box_y = 720
+    box_width = 230
+    box_height = 80
 
     # Yellow accent line at top
     canvas.fill_color(@branding[:primary_color])
@@ -1073,10 +1074,10 @@ class BankTransactionReportService
   end
 
   def draw_anz_summary(canvas, opening_balance, total_debits, total_credits, closing_balance)
-    box_x = 350
-    box_y = 770
-    box_width = 210
-    box_height = 100
+    box_x = 320
+    box_y = 720
+    box_width = 230
+    box_height = 80
 
     # Blue accent bar at top
     canvas.fill_color(@branding[:primary_color])

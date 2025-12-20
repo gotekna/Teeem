@@ -823,6 +823,8 @@ Rails.application.routes.draw do
           post :configure_sync
           post :sync_to_sharepoint
           delete :disconnect
+          # Mailbox access configuration (who can see which mailboxes)
+          get :organizations_with_mailboxes
           # SharePoint/OneDrive endpoints
           get :sharepoint_sites
           get :site_drives
@@ -835,6 +837,9 @@ Rails.application.routes.draw do
           post :configure_sharepoint
           put :update_sharepoint_config
           post :backfill_attachments
+        end
+        member do
+          put :user_mailbox_access, action: :update_user_mailbox_access
         end
       end
 

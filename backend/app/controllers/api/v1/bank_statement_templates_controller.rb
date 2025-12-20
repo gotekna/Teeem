@@ -112,9 +112,16 @@ module Api
           template: @template
         )
 
-        pdf_data = service.generate
+        result = service.generate
 
-        send_data pdf_data,
+        unless result[:success]
+          return render json: {
+            success: false,
+            error: result[:error] || "Failed to generate PDF"
+          }, status: :unprocessable_entity
+        end
+
+        send_data result[:pdf],
                   filename: "#{@template.bank_code}_sample_statement.pdf",
                   type: "application/pdf",
                   disposition: "inline"

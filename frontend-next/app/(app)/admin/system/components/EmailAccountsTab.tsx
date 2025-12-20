@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Mail,
   Plus,
@@ -36,9 +37,13 @@ import {
   Eye,
   EyeOff,
   Pencil,
+  Building2,
+  Users,
+  Save,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
+import { useToast } from "@/components/ui/use-toast";
 
 interface ImapCredential {
   id: number;
@@ -82,6 +87,229 @@ const DEFAULT_FORM = {
   username: "",
   password: "",
 };
+
+// MS365 Organization with mailboxes for access configuration
+interface MS365Organization {
+  id: number;
+  name: string;
+  status: string;
+  mailboxes: string[];
+  user_mailbox_access: Record<string, string[]>; // user_id -> mailbox emails
+}
+
+interface TeeemUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+// Component for configuring MS365 mailbox access
+function MS365MailboxAccessConfig() {
+  const { toast } = useToast();
+  const [organizations, setOrganizations] = useState<MS365Organization[]>([]);
+  const [teeemUsers, setTeeemUsers] = useState<TeeemUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<number | null>(null);
+  const [localAccess, setLocalAccess] = useState<Record<number, Record<string, string[]>>>({});
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        organizations: MS365Organization[];
+        teeem_users: TeeemUser[];
+      }>("/api/v1/microsoft_app/organizations_with_mailboxes");
+
+      if (response.success) {
+        setOrganizations(response.organizations);
+        setTeeemUsers(response.teeem_users);
+
+        // Initialize local access state from server data
+        const initialAccess: Record<number, Record<string, string[]>> = {};
+        response.organizations.forEach(org => {
+          initialAccess[org.id] = org.user_mailbox_access || {};
+        });
+        setLocalAccess(initialAccess);
+      }
+    } catch (error) {
+      console.error("Failed to fetch MS365 organizations:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const toggleMailboxAccess = (orgId: number, userId: string, mailbox: string) => {
+    setLocalAccess(prev => {
+      const orgAccess = { ...(prev[orgId] || {}) };
+      const userMailboxes = [...(orgAccess[userId] || [])];
+
+      const idx = userMailboxes.indexOf(mailbox);
+      if (idx === -1) {
+        userMailboxes.push(mailbox);
+      } else {
+        userMailboxes.splice(idx, 1);
+      }
+
+      orgAccess[userId] = userMailboxes;
+      return { ...prev, [orgId]: orgAccess };
+    });
+  };
+
+  const saveOrgAccess = async (orgId: number) => {
+    setSaving(orgId);
+    try {
+      await api.put(`/api/v1/microsoft_app/${orgId}/user_mailbox_access`, {
+        user_mailbox_access: localAccess[orgId] || {}
+      });
+      toast({
+        title: "Saved",
+        description: "Mailbox access configuration saved successfully",
+      });
+    } catch (error) {
+      console.error("Failed to save mailbox access:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save mailbox access configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const hasUserAccess = (orgId: number, userId: string, mailbox: string): boolean => {
+    return localAccess[orgId]?.[userId]?.includes(mailbox) || false;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (organizations.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center">
+          <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">
+            No Microsoft 365 organizations connected.
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Connect an organization in Admin → System → Connections
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {organizations.map(org => (
+        <Card key={org.id}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                  <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">{org.name}</CardTitle>
+                  <CardDescription>
+                    {org.mailboxes.length} mailboxes available
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={org.status === "connected" ? "default" : "secondary"}>
+                  {org.status === "connected" ? (
+                    <>
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Connected
+                    </>
+                  ) : (
+                    org.status
+                  )}
+                </Badge>
+                <Button
+                  size="sm"
+                  onClick={() => saveOrgAccess(org.id)}
+                  disabled={saving === org.id}
+                >
+                  {saving === org.id ? (
+                    <Spinner className="h-4 w-4 mr-1" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-1" />
+                  )}
+                  Save
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {org.mailboxes.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No mailboxes found. Try reconnecting or check permissions.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 pr-4 font-medium text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Users className="h-4 w-4" />
+                          User
+                        </div>
+                      </th>
+                      {org.mailboxes.map(mailbox => (
+                        <th key={mailbox} className="text-center px-2 py-2 font-medium">
+                          <div className="text-xs truncate max-w-[120px]" title={mailbox}>
+                            {mailbox.split("@")[0]}
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                            @{mailbox.split("@")[1]}
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teeemUsers.map(user => (
+                      <tr key={user.id} className="border-b last:border-b-0 hover:bg-muted/50">
+                        <td className="py-2 pr-4">
+                          <div className="font-medium">{user.name}</div>
+                          <div className="text-xs text-muted-foreground">{user.email}</div>
+                        </td>
+                        {org.mailboxes.map(mailbox => (
+                          <td key={mailbox} className="text-center px-2 py-2">
+                            <Checkbox
+                              checked={hasUserAccess(org.id, user.id.toString(), mailbox)}
+                              onCheckedChange={() =>
+                                toggleMailboxAccess(org.id, user.id.toString(), mailbox)
+                              }
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export function EmailAccountsTab() {
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
@@ -245,7 +473,7 @@ export function EmailAccountsTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-medium">Email Accounts</h3>
@@ -558,6 +786,17 @@ export function EmailAccountsTab() {
           ))}
         </div>
       )}
+
+      {/* MS365 Mailbox Access Configuration */}
+      <div className="mt-8 pt-8 border-t">
+        <div className="mb-4">
+          <h3 className="text-lg font-medium">Microsoft 365 Mailbox Access</h3>
+          <p className="text-sm text-muted-foreground">
+            Configure which users can access which mailboxes from connected Microsoft 365 organizations.
+          </p>
+        </div>
+        <MS365MailboxAccessConfig />
+      </div>
     </div>
   );
 }

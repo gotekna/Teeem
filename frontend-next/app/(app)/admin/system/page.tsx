@@ -761,8 +761,8 @@ function SystemAdminPageContent() {
           })}
         </TabsList>
 
-        <div className="mt-4 flex-1 min-h-0 flex flex-col">
-          <TabsContent value="company" className="flex-1 min-h-0 overflow-auto">
+        <div className="mt-4 flex-1 min-h-0 overflow-auto">
+          <TabsContent value="company" className="min-h-0">
             <CompanySettingsTab />
           </TabsContent>
           <TabsContent value="warehouse" className="flex-1 min-h-0 overflow-auto">
@@ -872,7 +872,7 @@ function SystemAdminPageContent() {
           <TabsContent value="scheduled-jobs" className="flex-1 min-h-0 overflow-auto">
             <ScheduledJobsTab />
           </TabsContent>
-          <TabsContent value="email-accounts" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="email-accounts" className="min-h-0">
             <EmailAccountsTab />
           </TabsContent>
           <TabsContent value="pdf-fields" className="flex-1 min-h-0 overflow-auto">

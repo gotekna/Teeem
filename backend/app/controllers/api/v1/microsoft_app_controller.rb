@@ -375,6 +375,78 @@ class Api::V1::MicrosoftAppController < ApplicationController
     }
   end
 
+  # GET /api/v1/microsoft_app/organizations_with_mailboxes
+  # List all MS365 orgs with their available mailboxes (for admin config UI)
+  def organizations_with_mailboxes
+    unless current_user_admin?
+      return render json: { error: "Only admins can view organization mailboxes" }, status: :forbidden
+    end
+
+    # Get all TEEEM users for the mapping UI
+    teeem_users = User.where(is_active: true).order(:name).map do |u|
+      { id: u.id, name: u.name, email: u.email }
+    end
+
+    organizations = OrganizationMicrosoftAppCredential.active.order(:name).map do |org|
+      # Get mailboxes from tenant
+      mailboxes = if org.status == "connected"
+        begin
+          org.list_tenant_users.map { |u| u[:email] }.compact.sort
+        rescue => e
+          Rails.logger.error "[MicrosoftApp] Failed to fetch mailboxes for #{org.name}: #{e.message}"
+          []
+        end
+      else
+        []
+      end
+
+      # Get current user-mailbox access configuration
+      user_mailbox_access = org.sync_config&.dig("user_mailbox_access") || {}
+
+      {
+        id: org.id,
+        name: org.name,
+        status: org.status,
+        mailboxes: mailboxes,
+        user_mailbox_access: user_mailbox_access
+      }
+    end
+
+    render json: {
+      success: true,
+      organizations: organizations,
+      teeem_users: teeem_users
+    }
+  end
+
+  # PUT /api/v1/microsoft_app/:organization_id/user_mailbox_access
+  # Configure which TEEEM users can access which mailboxes
+  def update_user_mailbox_access
+    unless current_user_admin?
+      return render json: { error: "Only admins can configure mailbox access" }, status: :forbidden
+    end
+
+    credential = OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
+    unless credential
+      return render json: { error: "Organization not found" }, status: :not_found
+    end
+
+    # user_mailbox_access format:
+    # { "34": ["robert@tekna.com.au", "rob.w@tekna.com.au"], "56": ["sam@tekna.com.au"] }
+    # Keys are TEEEM user IDs, values are arrays of allowed mailbox emails
+    user_mailbox_access = params[:user_mailbox_access] || {}
+
+    # Merge with existing sync_config
+    new_sync_config = (credential.sync_config || {}).merge("user_mailbox_access" => user_mailbox_access)
+    credential.update!(sync_config: new_sync_config)
+
+    render json: {
+      success: true,
+      message: "Mailbox access configuration saved for #{credential.name}",
+      user_mailbox_access: user_mailbox_access
+    }
+  end
+
   # DELETE /api/v1/microsoft_app/disconnect
   # Remove the organization-wide Microsoft access for a specific org
   def disconnect

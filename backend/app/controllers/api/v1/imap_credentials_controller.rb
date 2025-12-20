@@ -238,49 +238,12 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # Add connected Microsoft 365 organization accounts
     # These use Application permissions to access mailboxes
     OrganizationMicrosoftAppCredential.connected.order(:name).each do |org_cred|
-      # Determine user's email in this tenant
-      # Check sync_config first, then try to find synced emails for this user
-      user_emails = org_cred.sync_config&.dig("user_emails") || []
+      # SSoT: Check sync_config.user_mailbox_access for configured access
+      # Format: { "user_id" => ["email1@org.com", "email2@org.com"] }
+      user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
+      user_emails = user_mailbox_access[current_user.id.to_s] || []
 
-      # If no configured emails, check for emails synced from this org that match current user
-      if user_emails.empty?
-        # Find unique mailbox_owner_email values for this org that exist in EmailWarehouse
-        synced_mailboxes = EmailWarehouse
-          .where(microsoft_credential_id: org_cred.id)
-          .where.not(mailbox_owner_email: [nil, ""])
-          .distinct
-          .pluck(:mailbox_owner_email)
-          .compact
-
-        # Filter to mailboxes the current user likely owns (matching name patterns)
-        user_first_name = current_user.name&.split(" ")&.first&.downcase
-        user_emails = synced_mailboxes.select { |email|
-          email.downcase.include?(user_first_name || "") ||
-          email.downcase.start_with?("robert") ||  # Fallback for admin
-          synced_mailboxes.length == 1  # If only one mailbox, use it
-        }
-
-        # If still empty but mailboxes exist, show all of them
-        user_emails = synced_mailboxes if user_emails.empty? && synced_mailboxes.any?
-      end
-
-      # If still no emails, try to fetch user list from the tenant
-      if user_emails.empty?
-        begin
-          tenant_users = org_cred.list_tenant_users
-          # Find user matching current user's name or email pattern
-          user_first_name = current_user.name&.split(" ")&.first&.downcase || "robert"
-          matching_user = tenant_users.find { |u|
-            u[:email]&.downcase&.include?(user_first_name) ||
-            u[:name]&.downcase&.include?(user_first_name)
-          }
-          user_emails = [matching_user[:email]] if matching_user&.dig(:email)
-        rescue => e
-          Rails.logger.warn "[ImapCredentials] Failed to fetch tenant users for #{org_cred.name}: #{e.message}"
-        end
-      end
-
-      # Add each mailbox as a separate account
+      # Add each mailbox the user has been granted access to
       user_emails.each_with_index do |email, index|
         accounts << {
           id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
@@ -294,20 +257,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
         }
       end
 
-      # If no emails found, show org with ability to select mailbox
-      if user_emails.empty?
-        accounts << {
-          id: "ms365_#{org_cred.id}",
-          type: "ms365",
-          name: org_cred.name,
-          email_address: nil,
-          provider: "microsoft365",
-          is_active: org_cred.status == "connected",
-          is_default: false,
-          org_credential_id: org_cred.id,
-          needs_mailbox_config: true
-        }
-      end
+      # Note: We no longer fall back to showing all mailboxes or guessing by name.
+      # Admins must configure access in Admin > System > Email Accounts.
     end
 
     # Add user's personal Outlook credential (delegated access)
