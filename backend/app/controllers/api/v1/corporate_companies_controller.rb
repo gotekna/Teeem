@@ -7,9 +7,16 @@ module Api
                                          :investments, :trust_roles, :data_stats, :warehouse_health, :health ]
 
       # GET /api/v1/companies
-      # Supports fields=minimal for 91% payload reduction (55 → 5 columns)
+      # By default, only shows companies linked to a corporate group (have company_group_id)
+      # Use include_unlinked=true to show all companies
       def index
         @companies = CorporateCompany.includes(:corporate_company_directors, :corporate_company_xero_connection).all
+
+        # By default, only show companies linked to corporate (have company_group_id)
+        # Unless include_unlinked=true is passed
+        unless params[:include_unlinked] == "true"
+          @companies = @companies.where.not(company_group_id: nil)
+        end
 
         # Filtering
         @companies = @companies.by_group(params[:group]) if params[:group].present?
