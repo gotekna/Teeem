@@ -63,6 +63,7 @@ interface PdfFieldPosition {
   box_width: number | null;
   box_height: number | null;
   text_align: "left" | "center" | "right";
+  pdf_form_field_name: string | null;  // SSoT: PDF form field this data field maps to
   updated_at: string;
 }
 
@@ -204,11 +205,9 @@ export function PdfFieldsTab() {
     if (clickedDetectedField && clickedDetectedField !== prevClickedField.current) {
       prevClickedField.current = clickedDetectedField;
 
-      // Check if there's already a mapped field to inherit alignment from
+      // SSoT: Check if there's already a mapped field by pdf_form_field_name
       const existingMapping = positions.find(
-        (p) => p.page === clickedDetectedField.page &&
-          Math.abs(p.x - clickedDetectedField.x) < 10 &&
-          Math.abs(p.y - clickedDetectedField.y) < 10
+        (p) => p.pdf_form_field_name === clickedDetectedField.name
       );
 
       console.log("[PDF Dialog] Opening dialog for:", clickedDetectedField.name);
@@ -1150,12 +1149,10 @@ export function PdfFieldsTab() {
             {showDetectedFields && detectedFields
               .filter((df) => df.page === currentPage && df.is_text)
               .map((df, idx) => {
-                // Check if this detected field is already mapped and get the mapped field
-                // Match tolerance reduced to 10px to avoid overlapping matches
+                // Check if this detected field is already mapped using SSoT field name matching
+                // pdf_form_field_name stores the PDF field name (e.g., "Text Field 32")
                 const mappedField = positions.find(
-                  (p) => p.page === df.page &&
-                    Math.abs(p.x - df.x) < 10 &&
-                    Math.abs(p.y - df.y) < 10
+                  (p) => p.pdf_form_field_name === df.name
                 );
 
                 // Check if this field is part of an overflow group
@@ -1170,19 +1167,12 @@ export function PdfFieldsTab() {
                 let isOverflowMapped = false;
                 let overflowMappedField: PdfFieldPosition | undefined;
                 if (overflowGroup && !mappedField) {
-                  // Find the primary field (first in the group) and check if it's mapped
+                  // Find the primary field (first in the group) and check if it's mapped using SSoT
                   const primaryFieldName = overflowGroup.fields[0];
-                  const primaryDetectedField = detectedFields.find(
-                    (f) => f.name === primaryFieldName && f.page === currentPage
+                  overflowMappedField = positions.find(
+                    (p) => p.pdf_form_field_name === primaryFieldName
                   );
-                  if (primaryDetectedField) {
-                    overflowMappedField = positions.find(
-                      (p) => p.page === primaryDetectedField.page &&
-                        Math.abs(p.x - primaryDetectedField.x) < 10 &&
-                        Math.abs(p.y - primaryDetectedField.y) < 10
-                    );
-                    isOverflowMapped = !!overflowMappedField;
-                  }
+                  isOverflowMapped = !!overflowMappedField;
                 }
 
                 const isMapped = !!mappedField || isOverflowMapped;
@@ -1385,10 +1375,9 @@ export function PdfFieldsTab() {
             <div className="space-y-3">
               {/* Currently mapped field indicator */}
               {(() => {
+                // SSoT: Match by pdf_form_field_name instead of coordinates
                 const currentlyMappedField = positions.find(
-                  (p) => p.page === clickedDetectedField.page &&
-                    Math.abs(p.x - clickedDetectedField.x) < 10 &&
-                    Math.abs(p.y - clickedDetectedField.y) < 10
+                  (p) => p.pdf_form_field_name === clickedDetectedField.name
                 );
                 if (!currentlyMappedField) return null;
                 return (
@@ -1451,10 +1440,9 @@ export function PdfFieldsTab() {
               {/* Data field list */}
               <div className="max-h-[180px] overflow-y-auto border rounded-md">
                 {(() => {
+                  // SSoT: Match by pdf_form_field_name instead of coordinates
                   const currentlyMappedField = positions.find(
-                    (p) => p.page === clickedDetectedField.page &&
-                      Math.abs(p.x - clickedDetectedField.x) < 10 &&
-                      Math.abs(p.y - clickedDetectedField.y) < 10
+                    (p) => p.pdf_form_field_name === clickedDetectedField.name
                   );
 
                   const searchLower = dialogSearch.toLowerCase();
@@ -1503,6 +1491,7 @@ export function PdfFieldsTab() {
 
                           // Use dialog alignment (smart defaults already applied via useEffect)
                           // AWAIT the save so positions state is updated before closing dialog
+                          // Save the pdf_form_field_name to establish SSoT mapping
                           await savePosition(field.id, {
                             x: Math.round(clickedDetectedField.x),
                             y: Math.round(clickedDetectedField.y),
@@ -1510,6 +1499,7 @@ export function PdfFieldsTab() {
                             box_width: Math.round(clickedDetectedField.width),
                             box_height: Math.round(clickedDetectedField.height),
                             text_align: dialogHAlign,
+                            pdf_form_field_name: clickedDetectedField.name,
                           });
                           setClickedDetectedField(null);
                           setDialogSearch("");

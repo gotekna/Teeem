@@ -210,7 +210,7 @@ module Api
         params.require(:pdf_field_position).permit(
           :pdf_template_key, :field_key, :display_name,
           :page, :x, :y, :font_size, :test_value, :active,
-          :box_width, :box_height, :text_align
+          :box_width, :box_height, :text_align, :pdf_form_field_name
         )
       end
 
@@ -229,6 +229,7 @@ module Api
           box_width: position.box_width,
           box_height: position.box_height,
           text_align: position.text_align || "left",
+          pdf_form_field_name: position.pdf_form_field_name,
           updated_at: position.updated_at
         }
       end

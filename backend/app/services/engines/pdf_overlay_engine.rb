@@ -524,21 +524,13 @@ module Engines
           next
         end
 
-        # First check explicit mapping (data_key -> pdf_field_name)
+        # SSoT: Only use explicit mapping from PdfFieldPosition records
+        # NO auto-matching fallback - all mappings must be in the database
         explicit_mapping.each do |data_key, mapped_field_name|
           if mapped_field_name == pdf_field_name
             data_key_used = data_key
             value = data[data_key] if data.key?(data_key)
             break
-          end
-        end
-
-        # Fall back to generic name matching if no explicit mapping found
-        if data_key_used.nil?
-          generic_key = pdf_field_name.downcase.gsub(/[^a-z0-9]/, "_").to_sym
-          if data.key?(generic_key)
-            data_key_used = generic_key
-            value = data[generic_key]
           end
         end
 
@@ -591,7 +583,8 @@ module Engines
           box_width: pos.box_width.to_f,
           box_height: pos.box_height.to_f,
           font_size: pos.font_size || 10,
-          text_align: pos.text_align || "left"
+          text_align: pos.text_align || "left",
+          pdf_form_field_name: pos.pdf_form_field_name
         }
       end
     rescue StandardError => e
@@ -705,6 +698,18 @@ module Engines
     end
 
     def form_field_mapping_for_template
+      # SSoT: Build mapping from PdfFieldPosition records
+      # Each record maps field_key (data key) -> pdf_form_field_name (PDF field)
+      return {} unless defined?(PdfFieldPosition)
+
+      positions = PdfFieldPosition.where(pdf_template_key: template_key.to_s, active: true)
+                                  .where.not(pdf_form_field_name: [nil, ""])
+      positions.each_with_object({}) do |pos, hash|
+        hash[pos.field_key.to_sym] = pos.pdf_form_field_name
+      end
+    rescue StandardError => e
+      Rails.logger.warn "[PdfOverlayEngine] Failed to load form field mapping: #{e.message}"
+      # Fallback to legacy constants only if database unavailable
       case template_key
       when :qbcc_contract
         QBCC_CONTRACT_FORM_FIELDS
