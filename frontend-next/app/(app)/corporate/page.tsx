@@ -50,6 +50,7 @@ import {
   Maximize2,
   Minimize2,
   X,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -1390,8 +1391,8 @@ export default function CorporateDashboardPage() {
         <CardContent className="p-6">
           <h3 className="text-base font-medium mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <QuickAction label="Company Groups" icon={Building2} href="/company-groups" color="indigo" />
-            <QuickAction label="Add Company" icon={Plus} href="/corporate/companies/new" color="blue" />
+            <QuickAction label="Manage Groups" icon={Building2} href="/admin/system?tab=company&subtab=groups" color="indigo" />
+            <QuickAction label="Manage Companies" icon={Plus} href="/admin/system?tab=company&subtab=companies" color="blue" />
             <QuickAction label="Add Asset" icon={Package} href="/corporate/assets/new" />
             <QuickAction label="View Directors" icon={Users} href="/corporate/directors" />
             <QuickAction label="Compliance Calendar" icon={Calendar} href="/corporate/compliance-calendar" />
@@ -1450,108 +1451,17 @@ export default function CorporateDashboardPage() {
                   Manage company groups to organize related entities
                 </CardDescription>
               </div>
-              <Dialog open={showCreateGroupDialog} onOpenChange={(open) => {
-                setShowCreateGroupDialog(open);
-                if (!open) resetGroupForm();
-              }}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Group
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>{editingGroup ? "Edit Group" : "Create New Group"}</DialogTitle>
-                    <DialogDescription>
-                      {editingGroup
-                        ? "Update the group details below."
-                        : "Create a new company group to organize related companies and trusts."
-                      }
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="group-name">Name *</Label>
-                      <Input
-                        id="group-name"
-                        placeholder="e.g., Smith Family Group"
-                        value={newGroupForm.name}
-                        onChange={(e) => setNewGroupForm({ ...newGroupForm, name: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="group-description">Description</Label>
-                      <Textarea
-                        id="group-description"
-                        placeholder="Optional description of this group"
-                        value={newGroupForm.description}
-                        onChange={(e) => setNewGroupForm({ ...newGroupForm, description: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="group-registered-office">Default Registered Office</Label>
-                      <Input
-                        id="group-registered-office"
-                        placeholder="Address for registered office"
-                        value={newGroupForm.default_registered_office}
-                        onChange={(e) => setNewGroupForm({ ...newGroupForm, default_registered_office: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="group-principal-place">Default Principal Place of Business</Label>
-                      <Input
-                        id="group-principal-place"
-                        placeholder="Address for principal place"
-                        value={newGroupForm.default_principal_place}
-                        onChange={(e) => setNewGroupForm({ ...newGroupForm, default_principal_place: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label htmlFor="group-accountant">Default Accountant</Label>
-                        <Input
-                          id="group-accountant"
-                          placeholder="Accountant name"
-                          value={newGroupForm.default_accountant}
-                          onChange={(e) => setNewGroupForm({ ...newGroupForm, default_accountant: e.target.value })}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="group-accountant-contact">Accountant Contact</Label>
-                        <Input
-                          id="group-accountant-contact"
-                          placeholder="Contact details"
-                          value={newGroupForm.default_accountant_contact}
-                          onChange={(e) => setNewGroupForm({ ...newGroupForm, default_accountant_contact: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => {
-                      setShowCreateGroupDialog(false);
-                      resetGroupForm();
-                    }}>
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={editingGroup ? handleUpdateGroup : handleCreateGroup}
-                      disabled={savingGroup || !newGroupForm.name.trim()}
-                    >
-                      {savingGroup && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                      {editingGroup ? "Save Changes" : "Create Group"}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Button variant="outline" onClick={() => router.push("/admin/system?tab=company&subtab=groups")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Manage in Admin
+              </Button>
             </CardHeader>
             <CardContent>
               {groups.length === 0 ? (
                 <div className="text-center text-muted-foreground py-12">
                   <FolderOpen className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="text-lg font-medium">No groups yet</p>
-                  <p className="text-sm mt-1">Create your first company group to get started</p>
+                  <p className="text-sm mt-1">Create groups in Admin &gt; System &gt; Company</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1581,30 +1491,7 @@ export default function CorporateDashboardPage() {
                               )}
                               <Maximize2 className="h-4 w-4 text-muted-foreground" />
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openEditGroupDialog(group);
-                                }}
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteGroup(group);
-                                }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
+                            {/* Edit/Delete moved to Admin > Corporate */}
                           </div>
 
                           {/* Companies list */}
@@ -1729,17 +1616,14 @@ export default function CorporateDashboardPage() {
             foundationId="companies"
             tableName="All Companies"
             entries={companies}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onBulkDelete={handleBulkDelete}
             onRowDoubleClick={(company) => router.push(`/corporate/companies/${company.id}`)}
             enableExport={true}
             enableSchemaEditor={true}
             hideUpdateViewButton={true}
             leftActions={
-              <Button onClick={() => router.push("/corporate/companies/new")}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Company
+              <Button variant="outline" onClick={() => router.push("/admin/system?tab=company&subtab=companies")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Manage in Admin
               </Button>
             }
           />

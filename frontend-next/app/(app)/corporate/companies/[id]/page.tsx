@@ -96,7 +96,14 @@ import {
   XeroReportsPanel,
 } from "@/components/xero";
 
-// Document category tabs
+// =============================================================================
+// TAB CONFIGURATION
+// SSoT: GET /api/v1/corporate/entity_tabs (CorporateEntityTab model)
+// Manage via: Admin > System > Company > Entity Tabs
+// TODO: Migrate to API consumption (currently using fallback constants)
+// =============================================================================
+
+// Document category tabs (fallback - SSoT is database)
 const DOCUMENT_TABS = [
   { id: "advice", name: "ADVICE", icon: Briefcase },
   { id: "asic", name: "ASIC", icon: FileText },
@@ -118,7 +125,7 @@ const DOCUMENT_TABS = [
   { id: "activity", name: "Activity", icon: Clock },
 ];
 
-// Overview sub-tabs for Companies (Health accessed via header badge)
+// Overview sub-tabs for Companies (fallback - SSoT is database, group: "overview")
 const OVERVIEW_SUB_TABS = [
   { id: "info", name: "Information" },
   { id: "corporate", name: "Corporate" },
@@ -128,7 +135,7 @@ const OVERVIEW_SUB_TABS = [
   { id: "consolidation", name: "Consolidation" },
 ];
 
-// Trust-specific sub-tabs (only shown for Trust/Superfund entities)
+// Trust-specific sub-tabs (fallback - SSoT is database with entity_types filter)
 const TRUST_SUB_TABS = [
   { id: "info", name: "Information" },
   { id: "trustee", name: "Trustee" },
@@ -138,7 +145,7 @@ const TRUST_SUB_TABS = [
   { id: "distributions", name: "Distributions" },
 ];
 
-// Corporate Trustee sub-tabs (simplified - companies that act as trustees)
+// Corporate Trustee sub-tabs (fallback - SSoT is database)
 const TRUSTEE_COMPANY_SUB_TABS = [
   { id: "info", name: "Information" },
   { id: "corporate", name: "Corporate" },

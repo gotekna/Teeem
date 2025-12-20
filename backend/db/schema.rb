@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_20_011705) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_20_023601) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1744,6 +1744,24 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_011705) do
     t.index ["company_id"], name: "index_corporate_company_xero_connections_on_company_id", unique: true
     t.index ["xero_credential_id"], name: "index_corporate_company_xero_connections_on_xero_credential_id"
     t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"
+  end
+
+  create_table "corporate_entity_tabs", force: :cascade do |t|
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.string "tab_group", default: "documents"
+    t.string "entity_types", default: [], array: true
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "icon_name"
+    t.text "description"
+    t.string "component_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
+    t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
+    t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
+    t.index ["tab_key"], name: "index_corporate_entity_tabs_on_tab_key", unique: true
   end
 
   create_table "corporate_groups", force: :cascade do |t|

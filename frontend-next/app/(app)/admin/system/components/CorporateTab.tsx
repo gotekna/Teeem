@@ -920,35 +920,31 @@ function CompaniesSubTab() {
 
 // Overview sub-tabs - these are pure UI structure, not database-driven
 // They define the sections within the Overview tab on company pages
-const OVERVIEW_UI_TABS = [
-  { id: "info", name: "Information" },
-  { id: "corporate", name: "Corporate" },
-  { id: "bank-accounts", name: "Bank Accounts" },
-  { id: "directors", name: "Directors" },
-  { id: "shareholdings", name: "Shareholdings" },
-  { id: "consolidation", name: "Consolidation" },
-];
-
-// Special UI tabs that are always shown (not document folders)
-const SPECIAL_UI_TABS = [
-  { id: "documents", name: "Documents" },
-  { id: "data", name: "Data" },
-  { id: "activity", name: "Activity" },
-];
-
 // SSoT: Xero tabs loaded from API - minimal fallback only
 const XERO_TABS_FALLBACK = [
   { id: "connection", name: "Connection", type: "functional", enabled: true },
 ];
 
+// Entity tab interface
+interface EntityTab {
+  id: string;
+  name: string;
+  type: string;
+  group: string;
+  icon?: string;
+  entity_types: string[];
+  enabled?: boolean;
+  order_position?: number;
+  description?: string;
+  component?: string;
+}
+
 function CompanyTabsSubTab() {
-  // SSoT: Document folder tabs from API
-  const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{
-    id: string;
-    name: string;
-    type: 'folder' | 'ui';
-  }>>([]);
-  const [loadingDocTabs, setLoadingDocTabs] = React.useState(true);
+  const { toast } = useToast();
+
+  // SSoT: Entity tabs from new API
+  const [entityTabs, setEntityTabs] = React.useState<EntityTab[]>([]);
+  const [loadingEntityTabs, setLoadingEntityTabs] = React.useState(true);
 
   // SSoT: Xero tabs from API
   const [xeroTabs, setXeroTabs] = React.useState<Array<{
@@ -960,35 +956,27 @@ function CompanyTabsSubTab() {
   }>>([]);
   const [loadingXeroTabs, setLoadingXeroTabs] = React.useState(true);
 
-  // SSoT: Load document folder tabs from same API as company page
-  React.useEffect(() => {
-    const loadDocumentFolderTabs = async () => {
-      try {
-        const data = await api.get<{ success: boolean; data: Array<{
-          id: number;
-          name: string;
-          children?: Array<{ id: number; name: string }>;
-        }> }>("/api/v1/document_folders?parent=CORPORATE");
-        if (data.success && data.data) {
-          // Filter to top-level folders (not XERO children, those are separate)
-          const folderTabs = data.data
-            .filter((f: { name: string }) => f.name !== 'XERO') // XERO has its own SSoT
-            .map((folder: { name: string }) => ({
-              id: folder.name.toLowerCase().replace(/\s+/g, '-'),
-              name: folder.name,
-              type: 'folder' as const
-            }));
-          setDocumentFolderTabs(folderTabs);
-        }
-      } catch (error) {
-        console.error("Failed to load document folder tabs:", error);
-        setDocumentFolderTabs([]);
-      } finally {
-        setLoadingDocTabs(false);
+  // Toggle state
+  const [togglingTab, setTogglingTab] = React.useState<string | null>(null);
+
+  // SSoT: Load entity tabs from new API
+  const loadEntityTabs = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: EntityTab[] }>("/api/v1/corporate/entity_tabs");
+      if (response.success && response.data) {
+        setEntityTabs(response.data);
       }
-    };
-    loadDocumentFolderTabs();
+    } catch (error) {
+      console.error("Failed to load entity tabs:", error);
+      setEntityTabs([]);
+    } finally {
+      setLoadingEntityTabs(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    loadEntityTabs();
+  }, [loadEntityTabs]);
 
   // SSoT: Load Xero tabs from API
   React.useEffect(() => {
@@ -1006,7 +994,6 @@ function CompanyTabsSubTab() {
         }
       } catch (error) {
         console.error("Failed to load Xero tabs from API:", error);
-        // SSoT: Minimal fallback
         setXeroTabs(XERO_TABS_FALLBACK);
       } finally {
         setLoadingXeroTabs(false);
@@ -1015,117 +1002,203 @@ function CompanyTabsSubTab() {
     loadXeroTabs();
   }, []);
 
+  // Toggle tab enabled state
+  const handleToggleTab = async (tabId: string, currentEnabled: boolean) => {
+    setTogglingTab(tabId);
+    try {
+      await api.patch(`/api/v1/corporate/entity_tabs/${tabId}`, {
+        tab: { enabled: !currentEnabled }
+      });
+      await loadEntityTabs();
+      toast({
+        title: currentEnabled ? "Tab disabled" : "Tab enabled",
+        description: `Tab "${tabId}" has been ${currentEnabled ? 'disabled' : 'enabled'}`,
+      });
+    } catch (error) {
+      console.error("Failed to toggle tab:", error);
+      toast({
+        title: "Error",
+        description: "Failed to toggle tab",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingTab(null);
+    }
+  };
+
+  // Group tabs by type
+  const overviewTabs = entityTabs.filter(t => t.group === 'overview');
+  const documentTabs = entityTabs.filter(t => t.group === 'documents');
+  const specialTabs = entityTabs.filter(t => t.group === 'special');
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Company Page Tabs</h3>
+          <h3 className="text-lg font-medium">Entity Tabs</h3>
           <p className="text-sm text-muted-foreground">
-            Configure which tabs appear on company detail pages
+            Configure which tabs appear on company, trust, and superfund detail pages (SSoT)
           </p>
         </div>
+        <Badge variant="outline" className="text-xs">
+          SSoT: Database
+        </Badge>
       </div>
 
-      {/* Main Document Tabs - SSoT: Loaded from API */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h4 className="font-medium">Main Navigation Tabs</h4>
-              <p className="text-sm text-muted-foreground">
-                Document folder tabs loaded from database. Manage in Admin &gt; Documents.
-              </p>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              SSoT: API
-            </Badge>
-          </div>
-          {loadingDocTabs ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              {/* Document Folder Tabs */}
-              <div className="mb-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-                  Document Folders ({documentFolderTabs.length})
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {documentFolderTabs.map((tab) => (
-                    <div
-                      key={tab.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20"
-                    >
-                      <div className="flex items-center gap-2">
-                        <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-medium">{tab.name}</span>
-                      </div>
-                      <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900/40">
-                        SharePoint
-                      </Badge>
-                    </div>
-                  ))}
+      {loadingEntityTabs ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <>
+          {/* Overview Sub-Tabs - SSoT: From Database */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-medium">Overview Sub-Tabs</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Tabs within the Overview section. Click to toggle visibility.
+                  </p>
                 </div>
+                <Badge variant="secondary" className="text-xs">
+                  {overviewTabs.length} tabs
+                </Badge>
               </div>
-
-              {/* Special UI Tabs */}
-              <div>
-                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-                  Special UI Tabs ({SPECIAL_UI_TABS.length})
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                  {SPECIAL_UI_TABS.map((tab) => (
-                    <div
-                      key={tab.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-                    >
-                      <div className="flex items-center gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {overviewTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
+                    disabled={togglingTab === tab.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
+                      tab.enabled !== false
+                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30"
+                        : "bg-muted/30 border-muted hover:bg-muted/50 opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {togglingTab === tab.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
                         <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{tab.name}</span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        UI
-                      </Badge>
+                      )}
+                      <span className="text-sm font-medium">{tab.name}</span>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        {tab.entity_types.map((t) => (
+                          <Badge key={t} variant="outline" className="text-[10px] px-1">
+                            {t.charAt(0)}
+                          </Badge>
+                        ))}
+                      </div>
+                      {tab.enabled !== false ? (
+                        <Eye className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Overview Sub-Tabs - UI Structure */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h4 className="font-medium">Overview Sub-Tabs</h4>
-              <p className="text-sm text-muted-foreground">
-                UI structure tabs within the Overview section.
-              </p>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              UI Structure
-            </Badge>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {OVERVIEW_UI_TABS.map((tab) => (
-              <div
-                key={tab.id}
-                className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-              >
-                <div className="flex items-center gap-2">
-                  <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{tab.name}</span>
+          {/* Document Tabs - SSoT: From Database */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-medium">Document Folder Tabs</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Document categories shown on entity pages. Click to toggle visibility.
+                  </p>
                 </div>
-                <Eye className="h-4 w-4 text-green-600" />
+                <Badge variant="secondary" className="text-xs">
+                  {documentTabs.length} tabs
+                </Badge>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {documentTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
+                    disabled={togglingTab === tab.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
+                      tab.enabled !== false
+                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                        : "bg-muted/30 border-muted hover:bg-muted/50 opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {togglingTab === tab.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      )}
+                      <span className="text-sm font-medium">{tab.name}</span>
+                    </div>
+                    {tab.enabled !== false ? (
+                      <Eye className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Special Tabs - SSoT: From Database */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-medium">Special Tabs</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Main navigation tabs (Documents browser, Data, Activity).
+                  </p>
+                </div>
+                <Badge variant="secondary" className="text-xs">
+                  {specialTabs.length} tabs
+                </Badge>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {specialTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
+                    disabled={togglingTab === tab.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
+                      tab.enabled !== false
+                        ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                        : "bg-muted/30 border-muted hover:bg-muted/50 opacity-60"
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      {togglingTab === tab.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <LayoutGrid className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      )}
+                      <span className="text-sm font-medium">{tab.name}</span>
+                    </div>
+                    {tab.enabled !== false ? (
+                      <Eye className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* Xero Sub-Tabs - SSoT: Loaded from API */}
       <Card>
@@ -1204,12 +1277,14 @@ function CompanyTabsSubTab() {
         <CardContent className="pt-6">
           <h4 className="font-medium mb-3">SSoT Architecture</h4>
           <div className="space-y-3 text-sm text-muted-foreground">
-            <div className="p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
-              <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">Document Folder Tabs</p>
+            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+              <p className="font-medium text-green-900 dark:text-green-100 mb-1">Entity Tabs (NEW SSoT)</p>
               <p>
-                <code className="font-mono bg-blue-100 dark:bg-blue-900/40 px-1 rounded">GET /api/v1/document_folders?parent=CORPORATE</code>
+                <code className="font-mono bg-green-100 dark:bg-green-900/40 px-1 rounded">GET /api/v1/corporate/entity_tabs</code>
               </p>
-              <p className="mt-1 text-xs">Manage via Admin &gt; Documents. Each folder becomes a main tab on company pages.</p>
+              <p className="mt-1 text-xs">
+                Backend: <code className="font-mono">CorporateEntityTab</code> - Centralized tab config for all entity types (Company, Trust, Superfund).
+              </p>
             </div>
             <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
               <p className="font-medium text-indigo-900 dark:text-indigo-100 mb-1">Xero Tabs</p>
@@ -1217,12 +1292,16 @@ function CompanyTabsSubTab() {
                 <code className="font-mono bg-indigo-100 dark:bg-indigo-900/40 px-1 rounded">GET /api/v1/xero/tabs</code>
               </p>
               <p className="mt-1 text-xs">
-                Backend: <code className="font-mono">XeroFeatureTab.all_tabs_ordered</code> - combines functional tabs + XERO document folders, auto-filters duplicates.
+                Backend: <code className="font-mono">XeroFeatureTab</code> - Xero-specific sub-tabs (Connection, Transactions, etc.).
               </p>
             </div>
             <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-              <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">UI Structure Tabs</p>
-              <p className="text-xs">Overview sub-tabs and special tabs (Documents, Data, Activity) are pure UI structure - not database-driven.</p>
+              <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">Tab Groups</p>
+              <ul className="text-xs mt-1 space-y-1">
+                <li><span className="font-medium">overview:</span> Info, Corporate, Bank Accounts, Directors, etc.</li>
+                <li><span className="font-medium">documents:</span> Advice, ASIC, ATO, Bank, etc. (document folders)</li>
+                <li><span className="font-medium">special:</span> Documents browser, Data, Activity</li>
+              </ul>
             </div>
           </div>
         </CardContent>
@@ -1265,7 +1344,7 @@ export function CorporateTab() {
           </TabsTrigger>
           <TabsTrigger value="company-tabs" className="flex items-center gap-2">
             <LayoutGrid className="h-4 w-4" />
-            Company Tabs
+            Entity Tabs
           </TabsTrigger>
         </TabsList>
 

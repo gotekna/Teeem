@@ -229,6 +229,16 @@ module Engines
       @pdf_path = resolve_pdf_path
     end
 
+    # Compute preview values for a job (without generating PDF)
+    # Returns hash of field_key => computed_value
+    # Used by field editor to show what data will appear in each field
+    def compute_preview_values(job:)
+      data = build_data_context(job: job, contact: nil, extra_data: {})
+
+      # Return only the relevant data fields (exclude internal keys)
+      data.except(:weekends_holidays_overlay, :total_completion_overlay, :item7_completion_overlay)
+    end
+
     # Generate filled PDF
     # Returns binary PDF content
     def generate(job: nil, contact: nil, extra_data: {})

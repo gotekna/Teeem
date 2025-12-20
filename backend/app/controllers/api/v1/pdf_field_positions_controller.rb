@@ -140,6 +140,35 @@ module Api
         }
       end
 
+      # GET /api/v1/pdf_field_positions/preview_values
+      # Returns computed field values for a job (for preview in field editor)
+      # Params: template (required), job_id (required)
+      def preview_values
+        template_key = params[:template]&.to_sym
+        job_id = params[:job_id]
+
+        unless template_key.present? && job_id.present?
+          return render json: { success: false, error: "template and job_id required" }, status: :bad_request
+        end
+
+        job = Job.find_by(id: job_id)
+        unless job
+          return render json: { success: false, error: "Job not found" }, status: :not_found
+        end
+
+        # Get computed values from PDF overlay engine
+        engine = Engines::PdfOverlayEngine.new(template_key)
+        values = engine.compute_preview_values(job: job)
+
+        render json: {
+          success: true,
+          values: values,
+          job: { id: job.id, name: job.name }
+        }
+      rescue StandardError => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       private
 
       def set_pdf_field_position

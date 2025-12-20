@@ -42,9 +42,10 @@ Rails.application.routes.draw do
       # PDF Field Positions (Admin: manage text overlay positions on PDF templates)
       resources :pdf_field_positions, only: [:index, :show, :create, :update, :destroy] do
         collection do
-          get :detect_fields  # GET /api/v1/pdf_field_positions/detect_fields - parse PDF for form fields
-          post :preview       # POST /api/v1/pdf_field_positions/preview - generate preview PDF
-          post :bulk_update   # POST /api/v1/pdf_field_positions/bulk_update - update multiple positions
+          get :detect_fields   # GET /api/v1/pdf_field_positions/detect_fields - parse PDF for form fields
+          get :preview_values  # GET /api/v1/pdf_field_positions/preview_values - get computed values for job
+          post :preview        # POST /api/v1/pdf_field_positions/preview - generate preview PDF
+          post :bulk_update    # POST /api/v1/pdf_field_positions/bulk_update - update multiple positions
         end
       end
 
@@ -942,6 +943,15 @@ Rails.application.routes.draw do
         patch :sharepoint, on: :collection, action: :update_sharepoint
         post "sharepoint/test", on: :collection, action: :test_sharepoint
       end
+
+      # Corporate Entity Tabs (SSoT for company/trust/superfund tabs)
+      get "corporate/entity_tabs", to: "corporate_entity_tabs#index"
+      get "corporate/entity_tabs/:id", to: "corporate_entity_tabs#show"
+      post "corporate/entity_tabs", to: "corporate_entity_tabs#create"
+      patch "corporate/entity_tabs/:id", to: "corporate_entity_tabs#update"
+      delete "corporate/entity_tabs/:id", to: "corporate_entity_tabs#destroy"
+      post "corporate/entity_tabs/reorder", to: "corporate_entity_tabs#reorder"
+      post "corporate/entity_tabs/seed", to: "corporate_entity_tabs#seed"
 
       # Folder Templates for OneDrive sync
       resources :folder_templates do
