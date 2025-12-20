@@ -7,23 +7,47 @@ class Api::V1::EmailWarehouseController < ApplicationController
     emails = EmailWarehouse.all
 
     # Filter to only current user's emails (my_emails mode)
-    if params[:my_emails] == "true"
+    # Skip this filter if microsoft_credential_id is provided (we'll filter by that instead)
+    if params[:my_emails] == "true" && params[:microsoft_credential_id].blank?
       user_imap_ids = current_user.imap_credentials.pluck(:id)
       user_outlook_email = current_user.outlook_credential&.email
 
-      if user_imap_ids.any? && user_outlook_email.present?
-        # User has both IMAP and Outlook - show both
-        emails = emails.where(
-          "(source_type = 'imap' AND imap_credential_id IN (?)) OR (source_type = 'outlook' AND (from_email = ? OR ? = ANY(to_emails)))",
-          user_imap_ids, user_outlook_email, user_outlook_email
-        )
-      elsif user_imap_ids.any?
-        # Only IMAP accounts
-        emails = emails.where(source_type: "imap", imap_credential_id: user_imap_ids)
-      elsif user_outlook_email.present?
-        # Only Outlook
-        emails = emails.where(source_type: "outlook")
-          .where("from_email = ? OR ? = ANY(to_emails)", user_outlook_email, user_outlook_email)
+      # Get MS365 org credentials the user has mailbox access to
+      ms365_cred_ids = []
+      ms365_mailbox_emails = []
+      OrganizationMicrosoftAppCredential.connected.each do |org_cred|
+        user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
+        if user_mailboxes.any?
+          ms365_cred_ids << org_cred.id
+          ms365_mailbox_emails.concat(user_mailboxes)
+        end
+      end
+
+      conditions = []
+      bind_values = []
+
+      # IMAP accounts
+      if user_imap_ids.any?
+        conditions << "(source_type = 'imap' AND imap_credential_id IN (?))"
+        bind_values << user_imap_ids
+      end
+
+      # Personal Outlook
+      if user_outlook_email.present?
+        conditions << "(source_type = 'outlook' AND (from_email = ? OR ? = ANY(to_emails)))"
+        bind_values << user_outlook_email
+        bind_values << user_outlook_email
+      end
+
+      # MS365 org mailboxes - filter by credential AND mailbox email
+      if ms365_cred_ids.any?
+        conditions << "(microsoft_credential_id IN (?) AND mailbox_owner_email IN (?))"
+        bind_values << ms365_cred_ids
+        bind_values << ms365_mailbox_emails
+      end
+
+      if conditions.any?
+        emails = emails.where(conditions.join(" OR "), *bind_values)
       else
         # No accounts connected - return empty
         emails = emails.none
@@ -74,8 +98,22 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     # Filter by Microsoft 365 credential (org-level app credentials)
+    # Also validates user has access to this credential's mailboxes
     if params[:microsoft_credential_id].present?
-      emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
+      org_cred = OrganizationMicrosoftAppCredential.find_by(id: params[:microsoft_credential_id])
+      if org_cred
+        # Get the mailboxes this user is authorized to access
+        user_mailboxes = org_cred.sync_config&.dig("user_mailbox_access", current_user.id.to_s) || []
+        if user_mailboxes.any?
+          emails = emails.where(microsoft_credential_id: params[:microsoft_credential_id])
+                         .where(mailbox_owner_email: user_mailboxes)
+        else
+          # User has no access to this credential's mailboxes
+          emails = emails.none
+        end
+      else
+        emails = emails.none
+      end
     end
 
     # Pagination
