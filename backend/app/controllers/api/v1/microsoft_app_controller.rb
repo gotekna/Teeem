@@ -400,20 +400,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
         []
       end
 
-      # Filter mailboxes to only those belonging to this organization
-      # Match by organization name pattern in email domain
-      # e.g., "100xBestLife" matches emails containing "100xbestlife" or "100xbe"
-      # "Tekna" matches emails containing "tekna"
-      org_name_normalized = org.name.downcase.gsub(/[^a-z0-9]/, "")
-      mailboxes = all_mailboxes.select do |email|
-        email_domain = email.downcase.split("@").last.to_s
-        email_local = email.downcase.split("@").first.to_s
-
-        # Check if domain or local part contains the org name pattern
-        email_domain.include?(org_name_normalized) ||
-        email_domain.include?(org_name_normalized[0..5]) ||  # First 6 chars (e.g., "100xbe" from "100xbestlife")
-        email_local.include?(org_name_normalized[0..5])
-      end.sort
+      # Show all mailboxes from the tenant for each org
+      # Since all orgs may share the same Microsoft tenant, we don't filter by domain
+      # Admins configure which users can access which mailboxes per org
+      mailboxes = all_mailboxes.sort
 
       # Get current user-mailbox access configuration
       user_mailbox_access = org.sync_config&.dig("user_mailbox_access") || {}
