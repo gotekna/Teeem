@@ -817,6 +817,7 @@ Rails.application.routes.draw do
       resources :microsoft_app, only: [], controller: "microsoft_app" do
         collection do
           get :status
+          get :health_dashboard  # 4-square health dashboard for self-healing visibility
           post :setup
           post :setup_from_env  # Quick setup using existing OUTLOOK_* env vars
           get :admin_consent_url

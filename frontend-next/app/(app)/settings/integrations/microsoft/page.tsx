@@ -27,6 +27,8 @@ import {
   Shield,
   Users,
   Key,
+  Activity,
+  Heart,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -48,6 +50,16 @@ interface OrgCredential {
   token_valid?: boolean;
 }
 
+// Health info for per-org indicators (from health_dashboard endpoint)
+interface OrgHealthInfo {
+  token_valid: boolean;
+  token_expires_at: string | null;
+  consecutive_failures: number;
+  last_refresh_attempt_at: string | null;
+  last_error: string | null;
+  self_healing_available: boolean;
+}
+
 interface OrgAppStatus {
   configured: boolean;
   status: string;
@@ -67,6 +79,31 @@ interface TenantUser {
   email: string;
 }
 
+// Health dashboard data for 4-square display
+interface HealthDashboard {
+  overall_status: "healthy" | "warning" | "critical" | "disconnected";
+  connected_count: number;
+  total_count: number;
+  needs_attention_count: number;
+  warning_count: number;
+  self_healing: {
+    active: boolean;
+    last_refresh_at: string | null;
+    status: "active" | "inactive";
+  };
+  organizations: Array<{
+    id: number;
+    name: string;
+    status: string;
+    token_valid: boolean;
+    token_expires_at: string | null;
+    consecutive_failures: number;
+    last_refresh_attempt_at: string | null;
+    last_error: string | null;
+    self_healing_available: boolean;
+  }>;
+}
+
 // Pre-defined organizations that can be connected
 const AVAILABLE_ORGANIZATIONS = [
   { name: "Tekna", description: "Tekna Group Microsoft 365" },
@@ -80,6 +117,7 @@ export default function MicrosoftIntegrationPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const [orgStatus, setOrgStatus] = React.useState<OrgAppStatus | null>(null);
+  const [healthData, setHealthData] = React.useState<HealthDashboard | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -114,9 +152,19 @@ export default function MicrosoftIntegrationPage() {
     }
   };
 
+  const fetchHealthDashboard = async () => {
+    try {
+      const data = await api.get<HealthDashboard>("/api/v1/microsoft_app/health_dashboard");
+      setHealthData(data);
+    } catch (err) {
+      console.error("Failed to fetch health dashboard:", err);
+    }
+  };
+
   React.useEffect(() => {
     if (isAdmin) {
       fetchStatus();
+      fetchHealthDashboard();
     } else {
       setLoading(false);
     }
@@ -238,6 +286,105 @@ export default function MicrosoftIntegrationPage() {
         </CardHeader>
       </Card>
 
+      {/* Health Dashboard - 4 Squares */}
+      {healthData && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Overall Status */}
+          <Card className={`p-4 ${
+            healthData.overall_status === "healthy" ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/30" :
+            healthData.overall_status === "warning" ? "border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-950/30" :
+            healthData.overall_status === "critical" ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30" :
+            "border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-950/30"
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Heart className={`h-4 w-4 ${
+                healthData.overall_status === "healthy" ? "text-green-600 dark:text-green-400" :
+                healthData.overall_status === "warning" ? "text-yellow-600 dark:text-yellow-400" :
+                healthData.overall_status === "critical" ? "text-red-600 dark:text-red-400" :
+                "text-gray-400"
+              }`} />
+              <span className="text-xs text-muted-foreground font-medium">Overall Status</span>
+            </div>
+            <div className={`text-lg font-semibold capitalize ${
+              healthData.overall_status === "healthy" ? "text-green-700 dark:text-green-300" :
+              healthData.overall_status === "warning" ? "text-yellow-700 dark:text-yellow-300" :
+              healthData.overall_status === "critical" ? "text-red-700 dark:text-red-300" :
+              "text-gray-600 dark:text-gray-400"
+            }`}>
+              {healthData.overall_status === "healthy" ? "Healthy" :
+               healthData.overall_status === "warning" ? "Warning" :
+               healthData.overall_status === "critical" ? "Critical" :
+               "Disconnected"}
+            </div>
+          </Card>
+
+          {/* Connected Count */}
+          <Card className="p-4 border-blue-200 bg-blue-50/50 dark:border-blue-800 dark:bg-blue-950/30">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs text-muted-foreground font-medium">Connected</span>
+            </div>
+            <div className="text-lg font-semibold text-blue-700 dark:text-blue-300">
+              {healthData.connected_count}/{healthData.total_count} Orgs
+            </div>
+          </Card>
+
+          {/* Needs Attention */}
+          <Card className={`p-4 ${
+            healthData.needs_attention_count > 0
+              ? "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30"
+              : "border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-950/30"
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className={`h-4 w-4 ${
+                healthData.needs_attention_count > 0
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-gray-400"
+              }`} />
+              <span className="text-xs text-muted-foreground font-medium">Needs Attention</span>
+            </div>
+            <div className={`text-lg font-semibold ${
+              healthData.needs_attention_count > 0
+                ? "text-red-700 dark:text-red-300"
+                : "text-gray-600 dark:text-gray-400"
+            }`}>
+              {healthData.needs_attention_count} credential{healthData.needs_attention_count !== 1 ? "s" : ""}
+            </div>
+          </Card>
+
+          {/* Self-Healing Status */}
+          <Card className={`p-4 ${
+            healthData.self_healing.active
+              ? "border-green-200 bg-green-50/50 dark:border-green-800 dark:bg-green-950/30"
+              : "border-red-200 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30"
+          }`}>
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className={`h-4 w-4 ${
+                healthData.self_healing.active
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+              }`} />
+              <span className="text-xs text-muted-foreground font-medium">Self-Healing</span>
+            </div>
+            <div className={`text-lg font-semibold ${
+              healthData.self_healing.active
+                ? "text-green-700 dark:text-green-300"
+                : "text-red-700 dark:text-red-300"
+            }`}>
+              {healthData.self_healing.active ? "Active" : "Inactive"}
+            </div>
+            {healthData.self_healing.last_refresh_at && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Last: {new Date(healthData.self_healing.last_refresh_at).toLocaleTimeString("en-AU", {
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
+
       {error && (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -249,13 +396,18 @@ export default function MicrosoftIntegrationPage() {
       {/* Organization Cards - Show each org as a separate card */}
       <div className="space-y-3">
         {/* Configured Organizations */}
-        {configuredOrgs.map((org) => (
-          <OrganizationCard
-            key={org.id}
-            org={org}
-            onRefresh={fetchStatus}
-          />
-        ))}
+        {configuredOrgs.map((org) => {
+          // Find matching health info from health dashboard
+          const healthInfo = healthData?.organizations?.find(h => h.name === org.name);
+          return (
+            <OrganizationCard
+              key={org.id}
+              org={org}
+              onRefresh={fetchStatus}
+              healthInfo={healthInfo}
+            />
+          );
+        })}
 
         {/* Unconfigured Organizations - Show as setup cards */}
         {unconfiguredOrgs.map((org) => {
@@ -315,9 +467,11 @@ export default function MicrosoftIntegrationPage() {
 function OrganizationCard({
   org,
   onRefresh,
+  healthInfo,
 }: {
   org: OrgCredential;
   onRefresh: () => void;
+  healthInfo?: OrgHealthInfo;
 }) {
   const [open, setOpen] = React.useState(org.status === "connected" || org.status === "pending");
   const [testing, setTesting] = React.useState(false);
@@ -476,6 +630,46 @@ function OrganizationCard({
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  {/* Health indicators from health dashboard */}
+                  {healthInfo && healthInfo.consecutive_failures > 0 && (
+                    <Badge variant="destructive" className="text-xs">
+                      {healthInfo.consecutive_failures} failures
+                    </Badge>
+                  )}
+                  {healthInfo?.token_expires_at && (() => {
+                    const expiresAt = new Date(healthInfo.token_expires_at);
+                    const now = new Date();
+                    const hoursUntilExpiry = (expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+                    if (hoursUntilExpiry < 1 && hoursUntilExpiry > 0) {
+                      return (
+                        <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300 text-xs">
+                          Expires in {Math.round(hoursUntilExpiry * 60)}m
+                        </Badge>
+                      );
+                    } else if (hoursUntilExpiry <= 0) {
+                      return (
+                        <Badge variant="destructive" className="text-xs">
+                          Token expired
+                        </Badge>
+                      );
+                    }
+                    return null;
+                  })()}
+                  {healthInfo?.self_healing_available && healthInfo.last_refresh_attempt_at && (() => {
+                    const lastRefresh = new Date(healthInfo.last_refresh_attempt_at);
+                    const now = new Date();
+                    const minutesSinceRefresh = (now.getTime() - lastRefresh.getTime()) / (1000 * 60);
+                    if (minutesSinceRefresh < 5) {
+                      return (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300 text-xs">
+                          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                          Self-healing
+                        </Badge>
+                      );
+                    }
+                    return null;
+                  })()}
+                  {/* Status badge */}
                   {org.status === "connected" ? (
                     <Badge className="bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-900 dark:text-green-300">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -509,7 +703,7 @@ function OrganizationCard({
             {org.status === "connected" && (
               <>
                 <div className="p-4 bg-white dark:bg-gray-900 rounded-lg border">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <p className="text-xs text-muted-foreground">Consent Granted By</p>
                       <p className="text-sm">{org.admin_consent_granted_by || "Unknown"}</p>
@@ -539,7 +733,57 @@ function OrganizationCard({
                           : "Never"}
                       </p>
                     </div>
+                    {/* Token Health Info */}
+                    {healthInfo && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Token Status</p>
+                        <p className={`text-sm font-medium ${healthInfo.token_valid ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                          {healthInfo.token_valid ? "Valid" : "Invalid"}
+                          {healthInfo.token_expires_at && (
+                            <span className="font-normal text-muted-foreground ml-1">
+                              (expires {new Date(healthInfo.token_expires_at).toLocaleDateString("en-AU", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })})
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    )}
                   </div>
+                  {/* Self-Healing Status Row */}
+                  {healthInfo && (
+                    <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-4">
+                        <span className="text-muted-foreground">
+                          Self-Healing: <span className={healthInfo.self_healing_available ? "text-green-600 dark:text-green-400" : "text-gray-400"}>
+                            {healthInfo.self_healing_available ? "Enabled" : "Disabled"}
+                          </span>
+                        </span>
+                        {healthInfo.last_refresh_attempt_at && (
+                          <span className="text-muted-foreground">
+                            Last refresh: {new Date(healthInfo.last_refresh_attempt_at).toLocaleTimeString("en-AU", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        )}
+                        {healthInfo.consecutive_failures > 0 && (
+                          <span className="text-red-600 dark:text-red-400">
+                            {healthInfo.consecutive_failures} consecutive failure{healthInfo.consecutive_failures !== 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
+                      {healthInfo.self_healing_available && (
+                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 text-xs">
+                          <Activity className="h-3 w-3 mr-1" />
+                          Auto-refresh active
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Tenant Users */}

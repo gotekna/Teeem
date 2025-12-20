@@ -28,8 +28,8 @@ class BankTransactionReportService
       text_on_primary: "FFFFFF"
     },
     boq: {
-      primary_color: "00529B",
-      secondary_color: "F7941D",
+      primary_color: "1B75BC",       # Official BOQ Denim Blue (from Brandfetch)
+      secondary_color: "FEBD36",     # Official BOQ Sunglow Gold (from Brandfetch)
       bank_title: "Bank of Queensland",
       account_type: "Business Statement",
       text_on_primary: "FFFFFF"
@@ -56,9 +56,9 @@ class BankTransactionReportService
       text_on_primary: "FFFFFF"
     },
     default: {
-      primary_color: "5D2E46",
-      secondary_color: "333333",
-      bank_title: "Bank",
+      primary_color: "000000",       # TEEEM brand primary = black
+      secondary_color: "0064D9",     # TEEEM brand accent blue
+      bank_title: "TEEEM",
       account_type: "Account",
       text_on_primary: "FFFFFF"
     }

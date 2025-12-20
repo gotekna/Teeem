@@ -65,6 +65,73 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
   end
 
+  # GET /api/v1/microsoft_app/health_dashboard
+  # Health dashboard for 4-square status display
+  # Shows overall health, connected count, needs attention, and self-healing status
+  def health_dashboard
+    # Available organizations (SSoT - defined in one place)
+    available_org_names = %w[Tekna 100xBestLife Homes\ of\ Hope Love\ Your\ World]
+    total_count = available_org_names.length
+
+    # Get all active credentials (both legacy and new SSoT)
+    legacy_creds = OrganizationMicrosoftAppCredential.active
+    new_creds = MicrosoftCredential.app_credentials.active
+
+    # Combine and dedupe by name (prefer new SSoT credentials)
+    all_creds = (new_creds.to_a + legacy_creds.to_a).uniq { |c| c.name }
+
+    connected_count = all_creds.count { |c| c.status == "connected" }
+    error_count = all_creds.count { |c| c.status.in?(%w[error dead]) }
+    warning_count = all_creds.count { |c| c.token_expired? && c.status == "connected" }
+
+    # Check self-healing status (last token refresh from RefreshIntegrationTokensJob)
+    last_refresh = [
+      MicrosoftCredential.maximum(:last_refresh_attempt_at),
+      OrganizationMicrosoftAppCredential.maximum(:updated_at)
+    ].compact.max
+
+    self_healing_active = last_refresh.present? && last_refresh > 20.minutes.ago
+
+    # Determine overall status
+    overall_status = if error_count > 0
+                       "critical"
+                     elsif warning_count > 0
+                       "warning"
+                     elsif connected_count == 0
+                       "disconnected"
+                     else
+                       "healthy"
+                     end
+
+    render json: {
+      success: true,
+      overall_status: overall_status,
+      connected_count: connected_count,
+      total_count: total_count,
+      needs_attention_count: error_count,
+      warning_count: warning_count,
+      self_healing: {
+        active: self_healing_active,
+        last_refresh_at: last_refresh,
+        status: self_healing_active ? "active" : "inactive"
+      },
+      # Per-org breakdown
+      organizations: all_creds.map do |cred|
+        {
+          id: cred.id,
+          name: cred.name,
+          status: cred.status,
+          token_valid: !cred.token_expired?,
+          token_expires_at: cred.token_expires_at,
+          consecutive_failures: cred.try(:consecutive_failures) || 0,
+          last_refresh_attempt_at: cred.try(:last_refresh_attempt_at),
+          last_error: cred.try(:last_error) || cred.try(:error_message),
+          self_healing_available: true # App credentials can auto-heal
+        }
+      end
+    }
+  end
+
   # POST /api/v1/microsoft_app/setup
   # Initial setup - uses existing OUTLOOK_* env vars OR manual input
   # Now supports multiple organizations via :name parameter

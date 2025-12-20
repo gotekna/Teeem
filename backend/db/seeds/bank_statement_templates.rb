@@ -43,8 +43,8 @@ templates = [
   {
     bank_code: "boq",
     bank_name: "Bank of Queensland",
-    primary_color: "00529B",      # Official BOQ Blue
-    secondary_color: "F7941D",    # BOQ Orange accent
+    primary_color: "1B75BC",      # Official BOQ Denim Blue (from Brandfetch)
+    secondary_color: "FEBD36",    # Official BOQ Sunglow Gold (from Brandfetch)
     text_on_primary: "FFFFFF",
     account_type: "Business Statement",
     date_format: "%d/%m/%Y",      # "05/06/2024" - BOQ style with full year
@@ -90,9 +90,9 @@ templates = [
   },
   {
     bank_code: "default",
-    bank_name: "Bank",
-    primary_color: "5D2E46",      # Maroon (generic)
-    secondary_color: "333333",
+    bank_name: "TEEEM",
+    primary_color: "000000",      # TEEEM brand primary = black
+    secondary_color: "0064D9",    # TEEEM brand accent blue
     text_on_primary: "FFFFFF",
     account_type: "Account",
     date_format: "%-d %b %Y",     # "5 Jun 2024"
