@@ -139,8 +139,15 @@ class EmailToContactExtractionService
             contact = Contact.find(selection[:add_to_existing_contact_id])
             new_email = normalize_email(selection[:email])
 
-            # Check if email already exists on any contact
-            if Contact.exists?(email: new_email)
+            # Check if email already exists on this contact (prevents duplicates)
+            if email_exists_for_contact?(contact, new_email)
+              errors << { email: selection[:email], error: "Email already exists on this contact" }
+              next
+            end
+
+            # Check if email already exists on any OTHER contact
+            if Contact.where.not(id: contact.id).exists?(email: new_email) ||
+               ContactEmail.where.not(contact_id: contact.id).exists?(email: new_email)
               errors << { email: selection[:email], error: "Email already exists on another contact" }
               next
             end
@@ -990,5 +997,12 @@ class EmailToContactExtractionService
     return false if phone_number.blank?
     normalized_phone = normalize_phone(phone_number)
     contact.contact_phones.exists?(phone_number: normalized_phone)
+  end
+
+  def email_exists_for_contact?(contact, email)
+    return false if email.blank?
+    normalized_email = normalize_email(email)
+    # Check both legacy email field and contact_emails table
+    contact.email == normalized_email || contact.contact_emails.exists?(email: normalized_email)
   end
 end

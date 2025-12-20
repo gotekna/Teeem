@@ -193,7 +193,7 @@ export function PdfFieldsTab() {
 
   // Dialog state for search and alignment
   const [dialogSearch, setDialogSearch] = React.useState("");
-  const [dialogHAlign, setDialogHAlign] = React.useState<"left" | "center" | "right">("center");
+  const [dialogHAlign, setDialogHAlign] = React.useState<"left" | "center" | "right">("left");
   const [dialogVAlign, setDialogVAlign] = React.useState<"top" | "middle" | "bottom">("middle");
 
   // Reset dialog alignment defaults ONLY when dialog opens (clickedDetectedField changes)
@@ -211,12 +211,12 @@ export function PdfFieldsTab() {
           Math.abs(p.y - clickedDetectedField.y) < 10
       );
       if (existingMapping) {
-        setDialogHAlign(existingMapping.text_align || "center");
+        setDialogHAlign(existingMapping.text_align || "left");
       } else {
         // Smart defaults based on field name
         const fieldName = clickedDetectedField.name.toLowerCase();
         const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment|value)/.test(fieldName);
-        setDialogHAlign(isCurrency ? "right" : "center");
+        setDialogHAlign(isCurrency ? "right" : "left");
       }
       setDialogVAlign("middle");
       setDialogSearch("");
@@ -378,6 +378,12 @@ export function PdfFieldsTab() {
     try {
       setLoadingPdf(true);
       setPdfError(null);
+
+      // Clear current PDF to force fresh render
+      setPdfUrl((oldUrl) => {
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        return null;
+      });
 
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -1211,8 +1217,9 @@ export function PdfFieldsTab() {
                       ? `Mapped: ${effectiveMappedField?.display_name}${isOverflowMapped ? " (overflow)" : ""} = ${mappedValue}`
                       : `Click to map: ${df.name}`}
                   >
-                    {/* Show mapped data value inside the box */}
-                    {isMapped && mappedValue && (
+                    {/* Show mapped data value inside the box - only when viewing blank template */}
+                    {/* When viewing filled PDF (With Data), the PDF already has the values */}
+                    {isMapped && mappedValue && showBlankTemplate && (
                       <div
                         className="absolute inset-0 flex items-center px-1 text-green-800 dark:text-green-200 font-medium overflow-hidden"
                         style={{ fontSize: `${Math.min(df.height * 0.7, 12)}px` }}
@@ -1314,7 +1321,7 @@ export function PdfFieldsTab() {
                 </div>
                 {/* PDF rendered with react-pdf for precise coordinate alignment */}
                 <div className="absolute inset-0 pointer-events-none">
-                  <Document file={pdfUrl} loading={null}>
+                  <Document file={pdfUrl} loading={null} key={pdfUrl || 'empty'}>
                     <Page
                       pageNumber={currentPage + 1}
                       width={PDF_WIDTH * (zoom / 100)}

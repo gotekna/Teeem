@@ -490,10 +490,19 @@ module Api
         end
 
         if @contact.update(contact_params.except(:contact_group_ids, :new_contact_group_names))
+          # Reload to ensure associations are fresh after nested attribute updates
+          @contact.reload
           render json: {
             success: true,
             contact: @contact.as_json(
-              methods: [ :is_employee?, :is_sales?, :is_land_agent? ]
+              include: {
+                contact_emails: {},
+                contact_phones: {},
+                contact_addresses: {},
+                contact_persons: {},
+                contact_groups: {}
+              },
+              methods: [ :is_employee?, :is_sales?, :is_land_agent?, :display_name ]
             )
           }
         else
@@ -1553,27 +1562,66 @@ module Api
             merged_roles = (target_contact.roles + source.roles).uniq
             target_contact.update(roles: merged_roles)
 
-            # Fill in missing contact information from source if target is missing it
+            # Fill in missing legacy contact information from source if target is missing it
             target_contact.update(email: source.email) if target_contact.email.blank? && source.email.present?
             target_contact.update(mobile_phone: source.mobile_phone) if target_contact.mobile_phone.blank? && source.mobile_phone.present?
             target_contact.update(office_phone: source.office_phone) if target_contact.office_phone.blank? && source.office_phone.present?
             target_contact.update(website: source.website) if target_contact.website.blank? && source.website.present?
-            # Merge addresses from contact_addresses (SSoT)
-            if target_contact.contact_addresses.empty? && source.contact_addresses.any?
-              source.contact_addresses.each do |addr|
-                target_contact.contact_addresses.create!(
-                  address_type: addr.address_type,
-                  line1: addr.line1,
-                  line2: addr.line2,
-                  line3: addr.line3,
-                  line4: addr.line4,
-                  city: addr.city,
-                  region: addr.region,
-                  postal_code: addr.postal_code,
-                  country: addr.country,
-                  is_primary: addr.is_primary
-                )
-              end
+
+            # Merge contact_emails (SSoT) - transfer unique emails, skip duplicates
+            source.contact_emails.each do |src_email|
+              # Skip if target already has this email
+              next if target_contact.contact_emails.exists?(email: src_email.email)
+              next if target_contact.email == src_email.email
+
+              # Transfer email to target (don't set as primary if target already has a primary)
+              has_primary = target_contact.contact_emails.exists?(is_primary: true)
+              target_contact.contact_emails.create!(
+                email: src_email.email,
+                is_primary: src_email.is_primary && !has_primary,
+                label: src_email.label,
+                position: target_contact.contact_emails.count
+              )
+            end
+
+            # Merge contact_phones (SSoT) - transfer unique phones, skip duplicates
+            source.contact_phones.each do |src_phone|
+              # Normalize phone for comparison
+              normalized = src_phone.phone_number.to_s.gsub(/\D/, '')
+              # Skip if target already has this phone (check normalized)
+              existing_phones = target_contact.contact_phones.pluck(:phone_number).map { |p| p.to_s.gsub(/\D/, '') }
+              next if existing_phones.include?(normalized)
+
+              # Transfer phone to target (don't set as primary if target already has a primary)
+              has_primary = target_contact.contact_phones.exists?(is_primary: true)
+              target_contact.contact_phones.create!(
+                phone_number: src_phone.phone_number,
+                phone_type: src_phone.phone_type,
+                is_primary: src_phone.is_primary && !has_primary,
+                label: src_phone.label,
+                position: target_contact.contact_phones.count
+              )
+            end
+
+            # Merge contact_addresses (SSoT) - transfer by address_type, skip duplicates
+            source.contact_addresses.each do |src_addr|
+              # Skip if target already has this address_type
+              next if target_contact.contact_addresses.exists?(address_type: src_addr.address_type)
+
+              # Transfer address to target (don't set as primary if target already has a primary)
+              has_primary = target_contact.contact_addresses.exists?(is_primary: true)
+              target_contact.contact_addresses.create!(
+                address_type: src_addr.address_type,
+                line1: src_addr.line1,
+                line2: src_addr.line2,
+                line3: src_addr.line3,
+                line4: src_addr.line4,
+                city: src_addr.city,
+                region: src_addr.region,
+                postal_code: src_addr.postal_code,
+                country: src_addr.country,
+                is_primary: src_addr.is_primary && !has_primary
+              )
             end
 
             # Merge supplier-specific fields (if both are suppliers)
@@ -3517,13 +3565,62 @@ module Api
 
         Rails.logger.info("Merging contact #{duplicate.id} (#{duplicate.display_name}) into #{primary.id} (#{primary.display_name})")
 
-        # Copy missing contact info from duplicate to primary
+        # Copy missing legacy contact info from duplicate to primary
         primary.email ||= duplicate.email
         primary.mobile_phone ||= duplicate.mobile_phone
         primary.office_phone ||= duplicate.office_phone
         primary.first_name ||= duplicate.first_name
         primary.last_name ||= duplicate.last_name
         primary.save! if primary.changed?
+
+        # Merge contact_emails (SSoT) - transfer unique emails, skip duplicates
+        duplicate.contact_emails.each do |dup_email|
+          next if primary.contact_emails.exists?(email: dup_email.email)
+          next if primary.email == dup_email.email
+
+          has_primary = primary.contact_emails.exists?(is_primary: true)
+          primary.contact_emails.create!(
+            email: dup_email.email,
+            is_primary: dup_email.is_primary && !has_primary,
+            label: dup_email.label,
+            position: primary.contact_emails.count
+          )
+        end
+
+        # Merge contact_phones (SSoT) - transfer unique phones, skip duplicates
+        duplicate.contact_phones.each do |dup_phone|
+          normalized = dup_phone.phone_number.to_s.gsub(/\D/, '')
+          existing_phones = primary.contact_phones.pluck(:phone_number).map { |p| p.to_s.gsub(/\D/, '') }
+          next if existing_phones.include?(normalized)
+
+          has_primary = primary.contact_phones.exists?(is_primary: true)
+          primary.contact_phones.create!(
+            phone_number: dup_phone.phone_number,
+            phone_type: dup_phone.phone_type,
+            is_primary: dup_phone.is_primary && !has_primary,
+            label: dup_phone.label,
+            position: primary.contact_phones.count
+          )
+        end
+
+        # Merge contact_addresses (SSoT) - transfer by address_type, skip duplicates
+        duplicate.contact_addresses.each do |dup_addr|
+          next if primary.contact_addresses.exists?(address_type: dup_addr.address_type)
+
+          has_primary = primary.contact_addresses.exists?(is_primary: true)
+          primary.contact_addresses.create!(
+            address_type: dup_addr.address_type,
+            line1: dup_addr.line1,
+            line2: dup_addr.line2,
+            line3: dup_addr.line3,
+            line4: dup_addr.line4,
+            city: dup_addr.city,
+            region: dup_addr.region,
+            postal_code: dup_addr.postal_code,
+            country: dup_addr.country,
+            is_primary: dup_addr.is_primary && !has_primary
+          )
+        end
 
         # Move outgoing relationships (where duplicate is source)
         duplicate.outgoing_relationships.each do |rel|

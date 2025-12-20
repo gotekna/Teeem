@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_20_035033) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_20_042744) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3628,7 +3628,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_035033) do
     t.boolean "is_active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "organization_id"
+    t.bigint "organization_id", null: false
     t.index ["connected_by_id"], name: "index_microsoft_credentials_on_connected_by_id"
     t.index ["credential_type", "is_active"], name: "idx_ms_creds_type_active"
     t.index ["name", "is_active"], name: "idx_ms_creds_name_unique_active", unique: true, where: "((is_active = true) AND (name IS NOT NULL))"
@@ -3768,7 +3768,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_035033) do
     t.string "sharepoint_drive_id"
     t.string "sharepoint_drive_name"
     t.jsonb "bulk_sync_progress", default: {}
-    t.bigint "organization_id"
+    t.bigint "organization_id", null: false
     t.index ["is_active"], name: "index_org_ms_app_creds_on_is_active"
     t.index ["name", "is_active"], name: "index_org_microsoft_app_creds_on_name_and_active", unique: true, where: "(is_active = true)"
     t.index ["name"], name: "index_org_ms_app_creds_on_name"

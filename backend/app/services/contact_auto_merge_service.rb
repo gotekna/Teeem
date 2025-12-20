@@ -142,27 +142,59 @@ class ContactAutoMergeService
         merged_roles = (target.roles.to_a + source.roles.to_a).uniq
         target.update!(roles: merged_roles)
 
-        # Fill in missing contact information from source
+        # Fill in missing legacy contact information from source
         target.update!(email: source.email) if target.email.blank? && source.email.present?
         target.update!(mobile_phone: source.mobile_phone) if target.mobile_phone.blank? && source.mobile_phone.present?
         target.update!(office_phone: source.office_phone) if target.office_phone.blank? && source.office_phone.present?
         target.update!(website: source.website) if target.website.blank? && source.website.present?
-        # Merge addresses from contact_addresses (SSoT)
-        if target.contact_addresses.empty? && source.contact_addresses.any?
-          source.contact_addresses.each do |addr|
-            target.contact_addresses.create!(
-              address_type: addr.address_type,
-              line1: addr.line1,
-              line2: addr.line2,
-              line3: addr.line3,
-              line4: addr.line4,
-              city: addr.city,
-              region: addr.region,
-              postal_code: addr.postal_code,
-              country: addr.country,
-              is_primary: addr.is_primary
-            )
-          end
+
+        # Merge contact_emails (SSoT) - transfer unique emails, skip duplicates
+        source.contact_emails.each do |src_email|
+          next if target.contact_emails.exists?(email: src_email.email)
+          next if target.email == src_email.email
+
+          has_primary = target.contact_emails.exists?(is_primary: true)
+          target.contact_emails.create!(
+            email: src_email.email,
+            is_primary: src_email.is_primary && !has_primary,
+            label: src_email.label,
+            position: target.contact_emails.count
+          )
+        end
+
+        # Merge contact_phones (SSoT) - transfer unique phones, skip duplicates
+        source.contact_phones.each do |src_phone|
+          normalized = src_phone.phone_number.to_s.gsub(/\D/, '')
+          existing_phones = target.contact_phones.pluck(:phone_number).map { |p| p.to_s.gsub(/\D/, '') }
+          next if existing_phones.include?(normalized)
+
+          has_primary = target.contact_phones.exists?(is_primary: true)
+          target.contact_phones.create!(
+            phone_number: src_phone.phone_number,
+            phone_type: src_phone.phone_type,
+            is_primary: src_phone.is_primary && !has_primary,
+            label: src_phone.label,
+            position: target.contact_phones.count
+          )
+        end
+
+        # Merge contact_addresses (SSoT) - transfer by address_type, skip duplicates
+        source.contact_addresses.each do |src_addr|
+          next if target.contact_addresses.exists?(address_type: src_addr.address_type)
+
+          has_primary = target.contact_addresses.exists?(is_primary: true)
+          target.contact_addresses.create!(
+            address_type: src_addr.address_type,
+            line1: src_addr.line1,
+            line2: src_addr.line2,
+            line3: src_addr.line3,
+            line4: src_addr.line4,
+            city: src_addr.city,
+            region: src_addr.region,
+            postal_code: src_addr.postal_code,
+            country: src_addr.country,
+            is_primary: src_addr.is_primary && !has_primary
+          )
         end
 
         # Keep Xero connection if target doesn't have one but source does

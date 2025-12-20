@@ -16,8 +16,8 @@
 #
 class MicrosoftCredential < ApplicationRecord
   # Organization ownership - SSoT for multi-org isolation
-  # NOTE: optional: true during migration. Will be made required after all data backfilled.
-  belongs_to :organization, optional: true
+  # Required for proper org isolation (backfill complete as of 2025-12-20)
+  belongs_to :organization
 
   # Polymorphic ownership - optional for org-level credentials
   belongs_to :owner, polymorphic: true, optional: true
