@@ -42,6 +42,7 @@ Rails.application.routes.draw do
       # PDF Field Positions (Admin: manage text overlay positions on PDF templates)
       resources :pdf_field_positions, only: [:index, :show, :create, :update, :destroy] do
         collection do
+          get :detect_fields  # GET /api/v1/pdf_field_positions/detect_fields - parse PDF for form fields
           post :preview       # POST /api/v1/pdf_field_positions/preview - generate preview PDF
           post :bulk_update   # POST /api/v1/pdf_field_positions/bulk_update - update multiple positions
         end

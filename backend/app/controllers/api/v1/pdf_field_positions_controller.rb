@@ -90,6 +90,30 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/pdf_field_positions/detect_fields
+      # Parse PDF to detect form fields (AcroForms) with positions and sizes
+      # Used by the masterpiece field editor to show clickable hotspots
+      def detect_fields
+        template_key = params[:template]
+
+        unless template_key.present?
+          return render json: { success: false, error: "Template key required" }, status: :bad_request
+        end
+
+        result = PdfFormParserService.parse(template_key)
+
+        if result[:success]
+          render json: {
+            success: true,
+            detected_fields: result[:detected_fields],
+            total_count: result[:total_count],
+            pages: result[:pages]
+          }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+        end
+      end
+
       # POST /api/v1/pdf_field_positions/bulk_update
       # Update multiple positions at once
       def bulk_update

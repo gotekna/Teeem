@@ -24,7 +24,18 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  Eye,
+  EyeOff,
+  MousePointer2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -51,6 +62,20 @@ interface Job {
   id: number;
   name: string;
   display_name?: string;
+}
+
+// Detected form field from PDF parsing (AcroForm)
+interface DetectedField {
+  name: string;
+  type: string;
+  page: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  is_text: boolean;
+  is_checkbox: boolean;
+  is_dropdown: boolean;
 }
 
 const TEMPLATE_OPTIONS = [
@@ -109,6 +134,12 @@ export function PdfFieldsTab() {
   const [draggingFromPalette, setDraggingFromPalette] = React.useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
+  // Detected form fields from PDF parsing (masterpiece UX)
+  const [detectedFields, setDetectedFields] = React.useState<DetectedField[]>([]);
+  const [loadingDetected, setLoadingDetected] = React.useState(false);
+  const [showDetectedFields, setShowDetectedFields] = React.useState(true);
+  const [clickedDetectedField, setClickedDetectedField] = React.useState<DetectedField | null>(null);
+
   // Debug logger
   const addDebugLog = React.useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -143,6 +174,31 @@ export function PdfFieldsTab() {
       setLoading(false);
     }
   }, [selectedTemplate, toast, addDebugLog]);
+
+  // Load detected form fields from PDF (masterpiece UX)
+  const loadDetectedFields = React.useCallback(async () => {
+    try {
+      setLoadingDetected(true);
+      addDebugLog(`Detecting form fields in PDF: ${selectedTemplate}`);
+      const response = await api.get<{
+        success: boolean;
+        detected_fields: DetectedField[];
+        total_count: number;
+        pages: number[];
+      }>(`/api/v1/pdf_field_positions/detect_fields?template=${selectedTemplate}`);
+
+      if (response.success && response.detected_fields) {
+        addDebugLog(`Detected ${response.detected_fields.length} form fields across pages: ${response.pages?.join(", ")}`);
+        setDetectedFields(response.detected_fields);
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      addDebugLog(`DETECTION ERROR: ${errorMsg}`);
+      // Don't show toast - detection is optional enhancement
+    } finally {
+      setLoadingDetected(false);
+    }
+  }, [selectedTemplate, addDebugLog]);
 
   // Load jobs
   const loadJobs = React.useCallback(async () => {
@@ -210,7 +266,8 @@ export function PdfFieldsTab() {
 
   React.useEffect(() => {
     loadPositions();
-  }, [loadPositions]);
+    loadDetectedFields();
+  }, [loadPositions, loadDetectedFields]);
 
   React.useEffect(() => {
     loadJobs();
@@ -529,6 +586,18 @@ export function PdfFieldsTab() {
         >
           {loadingPdf ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
           Reload PDF
+        </Button>
+
+        {/* Toggle detected fields visibility */}
+        <Button
+          variant={showDetectedFields ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowDetectedFields(!showDetectedFields)}
+          className="h-7 text-xs"
+          title={showDetectedFields ? "Hide detected form fields" : "Show detected form fields"}
+        >
+          {showDetectedFields ? <Eye className="h-3 w-3 mr-1" /> : <EyeOff className="h-3 w-3 mr-1" />}
+          {loadingDetected ? "Detecting..." : `${detectedFields.filter(df => df.page === currentPage && df.is_text).length} Fields`}
         </Button>
 
         {saving && <Badge variant="secondary" className="ml-2">Saving...</Badge>}
@@ -893,6 +962,42 @@ export function PdfFieldsTab() {
               );
             })()}
 
+            {/* DETECTED FORM FIELDS - Blue dashed overlays (masterpiece UX) */}
+            {showDetectedFields && detectedFields
+              .filter((df) => df.page === currentPage && df.is_text)
+              .map((df, idx) => {
+                // Check if this detected field is already mapped
+                const isMapped = positions.some(
+                  (p) => p.page === df.page &&
+                    Math.abs(p.x - df.x) < 20 &&
+                    Math.abs(p.y - df.y) < 20
+                );
+
+                if (isMapped) return null; // Don't show overlay for already-mapped fields
+
+                return (
+                  <div
+                    key={`detected-${idx}`}
+                    className="absolute cursor-pointer hover:bg-blue-500/20 transition-colors group"
+                    style={{
+                      left: `${(df.x / PDF_WIDTH) * 100}%`,
+                      bottom: `${(df.y / PDF_HEIGHT) * 100}%`,
+                      width: `${(df.width / PDF_WIDTH) * 100}%`,
+                      height: `${(df.height / PDF_HEIGHT) * 100}%`,
+                      border: "2px dashed #3b82f6",
+                      borderRadius: "2px",
+                      zIndex: 30,
+                    }}
+                    onClick={() => setClickedDetectedField(df)}
+                    title={`Click to map: ${df.name}`}
+                  >
+                    {/* Hover label */}
+                    <div className="absolute -top-5 left-0 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-600 text-white text-[9px] px-1 py-0.5 rounded whitespace-nowrap shadow-lg">
+                      Click to map
+                    </div>
+                  </div>
+                );
+              })}
 
             {/* Field markers */}
             {fieldsOnPage.map((field) => {
@@ -1269,6 +1374,87 @@ export function PdfFieldsTab() {
           <strong>PDF Error:</strong> {pdfError}
         </div>
       )}
+
+      {/* Click-to-Map Dialog (masterpiece UX) */}
+      <Dialog open={!!clickedDetectedField} onOpenChange={(open) => !open && setClickedDetectedField(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MousePointer2 className="h-5 w-5 text-blue-600" />
+              Map Field
+            </DialogTitle>
+            <DialogDescription>
+              Map this PDF form field to a data field from your job.
+            </DialogDescription>
+          </DialogHeader>
+
+          {clickedDetectedField && (
+            <div className="space-y-4">
+              {/* Detected field info */}
+              <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                  PDF Form Field
+                </div>
+                <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                  {clickedDetectedField.name}
+                </div>
+                <div className="text-[10px] text-blue-600 dark:text-blue-400 mt-1">
+                  Page {clickedDetectedField.page} • {Math.round(clickedDetectedField.width)}×{Math.round(clickedDetectedField.height)}px
+                </div>
+              </div>
+
+              {/* Data field selector */}
+              <div>
+                <Label className="text-sm font-medium">Map to Data Field</Label>
+                <Select
+                  onValueChange={(fieldId) => {
+                    const field = positions.find(p => p.id === parseInt(fieldId));
+                    if (field && clickedDetectedField) {
+                      // Update the field position to match detected field
+                      savePosition(field.id, {
+                        x: Math.round(clickedDetectedField.x),
+                        y: Math.round(clickedDetectedField.y),
+                        page: clickedDetectedField.page,
+                        box_width: Math.round(clickedDetectedField.width),
+                        box_height: Math.round(clickedDetectedField.height),
+                      });
+                      setClickedDetectedField(null);
+                      toast({
+                        title: "Field Mapped",
+                        description: `${field.display_name} mapped to PDF field`,
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select a data field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {positions
+                      .sort((a, b) => a.display_name.localeCompare(b.display_name))
+                      .map((field) => (
+                        <SelectItem key={field.id} value={field.id.toString()}>
+                          <div className="flex items-center gap-2">
+                            <span>{field.display_name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              ({field.test_value || "empty"})
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setClickedDetectedField(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
