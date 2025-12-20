@@ -65,7 +65,7 @@ module Api
             consolidation_parent: {},
             contact: {} # Include contact with ABN verification fields
           },
-          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url ]
+          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url, :has_consolidated_children? ]
           # Note: total_asset_value removed - depends on assets table
         )
 

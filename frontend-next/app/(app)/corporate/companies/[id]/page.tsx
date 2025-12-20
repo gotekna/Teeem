@@ -158,8 +158,17 @@ const TRUSTEE_COMPANY_SUB_TABS = [
 
 // SSoT: Xero tabs loaded from API (GET /api/v1/xero/tabs)
 // Minimal fallback only shows Connection tab if API fails
-const XERO_TABS_FALLBACK = [
-  { id: "connection", name: "Connection", type: "functional" as const },
+const XERO_TABS_FALLBACK: Array<{
+  id: string;
+  name: string;
+  type: 'functional' | 'document';
+  component?: string;
+  folderId?: number;
+  description?: string;
+  group?: string;
+  head_only?: boolean;
+}> = [
+  { id: "connection", name: "Connection", type: "functional" },
 ];
 
 interface Director {
@@ -231,6 +240,7 @@ interface Company {
   // Consolidation
   consolidation_parent_id?: number;
   consolidation_parent?: { id: number; name: string };
+  has_consolidated_children?: boolean;
   // Corporate details
   corporate_key?: string;
   asic_username?: string;
@@ -3309,6 +3319,7 @@ export default function CompanyDetailPage() {
     folderId?: number;
     description?: string;
     group?: string;
+    head_only?: boolean;
   }>>([]);
 
   // Map folder names to icons
@@ -3413,6 +3424,7 @@ export default function CompanyDetailPage() {
         folderId?: number;
         description?: string;
         group?: string;
+        head_only?: boolean;
       }> }>("/api/v1/xero/tabs");
       if (response.success && response.data) {
         setXeroFeatureTabs(response.data);
@@ -3488,10 +3500,13 @@ export default function CompanyDetailPage() {
 
   // SSoT: Xero tabs from API - includes functional tabs + document folders (no duplicates)
   // Backend filters out document folders that match functional tab names
+  // Head-only tabs (consolidated views) are filtered based on company.has_consolidated_children
   const mergedXeroSubTabs = React.useMemo(() => {
-    // Use API data if available, minimal fallback otherwise
-    return xeroFeatureTabs.length > 0 ? xeroFeatureTabs : XERO_TABS_FALLBACK;
-  }, [xeroFeatureTabs]);
+    const tabs = xeroFeatureTabs.length > 0 ? xeroFeatureTabs : XERO_TABS_FALLBACK;
+    // Filter out head_only tabs if company is not a consolidation parent
+    const isHeadCompany = company?.has_consolidated_children === true;
+    return tabs.filter(tab => !tab.head_only || isHeadCompany);
+  }, [xeroFeatureTabs, company?.has_consolidated_children]);
 
   // SSoT: Overview sub-tabs from CorporateEntityTab API
   // Returns entity-specific tabs (e.g., Company gets Directors/Shareholdings, Charity gets Directors/Members)

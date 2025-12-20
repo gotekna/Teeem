@@ -157,6 +157,12 @@ class CorporateCompany < ApplicationRecord
     corporate_company_xero_connection.present? && corporate_company_xero_connection.connected?
   end
 
+  # SSoT: Check if this company is a consolidation parent (has children)
+  # Used to show/hide head-only Xero tabs (e.g., consolidated P&L, balance sheet)
+  def has_consolidated_children?
+    consolidated_children.exists?
+  end
+
   # SharePoint folder URL for this company's root folder (SSoT: from CorporateCompanySetting)
   # Structure: [company_path] / [Group Name] / [Company Name]
   def sharepoint_folder_url

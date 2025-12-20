@@ -30,7 +30,8 @@ class XeroFeatureTab < ApplicationRecord
         type: "functional",
         component: tab.component_name,
         icon: tab.icon_name,
-        group: tab.tab_group
+        group: tab.tab_group,
+        head_only: tab.description == "head_only"
       }
     end
 
