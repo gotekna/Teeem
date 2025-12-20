@@ -1,6 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +43,11 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+
+// Initialize pdf.js worker
+if (typeof window !== "undefined") {
+  pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+}
 
 interface PdfFieldPosition {
   id: number;
@@ -139,6 +147,10 @@ export function PdfFieldsTab() {
   const [loadingDetected, setLoadingDetected] = React.useState(false);
   const [showDetectedFields, setShowDetectedFields] = React.useState(true);
   const [clickedDetectedField, setClickedDetectedField] = React.useState<DetectedField | null>(null);
+
+  // react-pdf dimensions for precise overlay alignment
+  const [pdfDimensions, setPdfDimensions] = React.useState<{ width: number; height: number } | null>(null);
+  const pageRef = React.useRef<HTMLDivElement>(null);
 
   // Debug logger
   const addDebugLog = React.useCallback((message: string) => {
@@ -465,12 +477,6 @@ export function PdfFieldsTab() {
 
   // Get fields for current page
   const fieldsOnPage = positions.filter((p) => p.page === currentPage);
-
-  // Convert PDF coords to screen position
-  const pdfToScreen = (x: number, y: number) => ({
-    left: `${(x / PDF_WIDTH) * 100}%`,
-    bottom: `${(y / PDF_HEIGHT) * 100}%`,
-  });
 
   const templateConfig = TEMPLATE_OPTIONS.find((t) => t.value === selectedTemplate);
   const totalPages = templateConfig?.pages || 5;
@@ -891,8 +897,40 @@ export function PdfFieldsTab() {
               onDrop={(e) => {
                 e.preventDefault();
                 if (draggingFromPalette && containerRef.current && dropPreview) {
-                  // Save the new position
-                  savePosition(draggingFromPalette, { x: dropPreview.x, y: dropPreview.y, page: currentPage });
+                  const field = positions.find(p => p.id === draggingFromPalette);
+
+                  // Check if drop position overlaps with a detected field
+                  const matchingDetectedField = detectedFields.find(df =>
+                    df.page === currentPage &&
+                    dropPreview.x >= df.x - 10 && dropPreview.x <= df.x + df.width + 10 &&
+                    dropPreview.y >= df.y - 10 && dropPreview.y <= df.y + df.height + 10
+                  );
+
+                  if (matchingDetectedField && field) {
+                    // Smart alignment: currency → right, date → left, others → center
+                    const fieldKey = field.field_key.toLowerCase();
+                    const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment)/.test(fieldKey);
+                    const isDate = /(date|day|month|year)/.test(fieldKey);
+                    const textAlign = isCurrency ? "right" : isDate ? "left" : "center";
+
+                    // Auto-size to match detected field
+                    savePosition(draggingFromPalette, {
+                      x: Math.round(matchingDetectedField.x),
+                      y: Math.round(matchingDetectedField.y),
+                      page: currentPage,
+                      box_width: Math.round(matchingDetectedField.width),
+                      box_height: Math.round(matchingDetectedField.height),
+                      text_align: textAlign,
+                    });
+                    toast({
+                      title: "Field Snapped",
+                      description: `${field.display_name} → auto-sized & ${textAlign} aligned`,
+                    });
+                  } else {
+                    // No detected field match, just save position
+                    savePosition(draggingFromPalette, { x: dropPreview.x, y: dropPreview.y, page: currentPage });
+                  }
+
                   setSelectedFieldId(draggingFromPalette);
                   setDraggingFromPalette(null);
                   setDraggingFieldId(null);
@@ -909,13 +947,24 @@ export function PdfFieldsTab() {
               <div className="absolute -top-5 left-0 text-xs text-muted-foreground font-medium">
                 Page {currentPage}
               </div>
-              {/* PDF iframe - toolbar=0 hides browser PDF viewer controls */}
-              <iframe
-                key={`pdf-page-${currentPage}`}
-                src={`${pdfUrl}#page=${currentPage}&toolbar=0&navpanes=0&scrollbar=0`}
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={{ border: "none" }}
-              />
+              {/* PDF rendered with react-pdf for precise coordinate alignment */}
+              <div ref={pageRef} className="absolute inset-0 pointer-events-none">
+                <Document
+                  file={pdfUrl}
+                  loading={null}
+                  error={<div className="text-red-500 text-sm p-4">Failed to load PDF</div>}
+                >
+                  <Page
+                    pageNumber={currentPage}
+                    width={PDF_WIDTH * (zoom / 100)}
+                    renderTextLayer={false}
+                    renderAnnotationLayer={false}
+                    onLoadSuccess={(page) => {
+                      setPdfDimensions({ width: page.width, height: page.height });
+                    }}
+                  />
+                </Document>
+              </div>
 
             {/* Drop preview indicator - follows cursor during drag */}
             {dropPreview && draggingFieldId && (() => {
@@ -925,15 +974,18 @@ export function PdfFieldsTab() {
               const fieldName = draggingField.display_name || draggingField.field_key;
               const fieldContent = draggingField.test_value || "(empty)";
               const fontSize = draggingField.font_size || 10;
+              const boxHeight = draggingField.box_height || 12;
+              // Convert PDF y (from bottom) to CSS top
+              const cssTop = ((PDF_HEIGHT - dropPreview.y - boxHeight) / PDF_HEIGHT) * 100;
 
               return (
                 <div
                   className="absolute pointer-events-none z-50"
                   style={{
                     left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                    bottom: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                    top: `${cssTop}%`,
                     transform: `scale(${100 / zoom})`,
-                    transformOrigin: "bottom left",
+                    transformOrigin: "top left",
                   }}
                 >
                   {/* Blue drag handle - same as placed fields */}
@@ -975,13 +1027,17 @@ export function PdfFieldsTab() {
 
                 if (isMapped) return null; // Don't show overlay for already-mapped fields
 
+                // Convert PDF coordinates (origin bottom-left) to CSS (origin top-left)
+                // PDF y is distance from bottom, CSS top is distance from top
+                const cssTop = ((PDF_HEIGHT - df.y - df.height) / PDF_HEIGHT) * 100;
+
                 return (
                   <div
                     key={`detected-${idx}`}
                     className="absolute cursor-pointer hover:bg-blue-500/20 transition-colors group"
                     style={{
                       left: `${(df.x / PDF_WIDTH) * 100}%`,
-                      bottom: `${(df.y / PDF_HEIGHT) * 100}%`,
+                      top: `${cssTop}%`,
                       width: `${(df.width / PDF_WIDTH) * 100}%`,
                       height: `${(df.height / PDF_HEIGHT) * 100}%`,
                       border: "2px dashed #3b82f6",
@@ -1007,8 +1063,10 @@ export function PdfFieldsTab() {
               const fontSize = field.font_size || 10;
 
               // SAVED position (always from database)
+              // Convert PDF coordinates (origin bottom-left) to CSS (origin top-left)
               const savedLeftPercent = (field.x / PDF_WIDTH) * 100;
-              const savedBottomPercent = (field.y / PDF_HEIGHT) * 100;
+              const boxHeight = field.box_height || 12;
+              const savedTopPercent = ((PDF_HEIGHT - field.y - boxHeight) / PDF_HEIGHT) * 100;
 
               return (
                 <React.Fragment key={field.id}>
@@ -1017,9 +1075,9 @@ export function PdfFieldsTab() {
                     className="absolute"
                     style={{
                       left: `${savedLeftPercent}%`,
-                      bottom: `${savedBottomPercent}%`,
+                      top: `${savedTopPercent}%`,
                       transform: `scale(${100 / zoom})`,
-                      transformOrigin: "bottom left",
+                      transformOrigin: "top left",
                       zIndex: selectedFieldId === field.id ? 100 : 50,
                       pointerEvents: "auto",
                     }}
@@ -1078,14 +1136,17 @@ export function PdfFieldsTab() {
                   </div>
 
                   {/* DROP PREVIEW - Shows green box at new position */}
-                  {isDragging && dropPreview && (
+                  {isDragging && dropPreview && (() => {
+                    const boxHeight = field.box_height || 12;
+                    const cssTop = ((PDF_HEIGHT - dropPreview.y - boxHeight) / PDF_HEIGHT) * 100;
+                    return (
                     <div
                       className="absolute z-40 pointer-events-none"
                       style={{
                         left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                        bottom: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                        top: `${cssTop}%`,
                         transform: `scale(${100 / zoom})`,
-                        transformOrigin: "bottom left",
+                        transformOrigin: "top left",
                       }}
                     >
                       <div
@@ -1101,7 +1162,8 @@ export function PdfFieldsTab() {
                         {fieldContent || "(empty)"}
                       </div>
                     </div>
-                  )}
+                    );
+                  })()}
                 </React.Fragment>
               );
             })}
@@ -1132,8 +1194,41 @@ export function PdfFieldsTab() {
                 onDrop={(e) => {
                   e.preventDefault();
                   if (draggingFromPalette && dropPreview) {
-                    // Save to NEXT page (currentPage + 1)
-                    savePosition(draggingFromPalette, { x: dropPreview.x, y: dropPreview.y, page: currentPage + 1 });
+                    const field = positions.find(p => p.id === draggingFromPalette);
+                    const nextPage = currentPage + 1;
+
+                    // Check if drop position overlaps with a detected field on next page
+                    const matchingDetectedField = detectedFields.find(df =>
+                      df.page === nextPage &&
+                      dropPreview.x >= df.x - 10 && dropPreview.x <= df.x + df.width + 10 &&
+                      dropPreview.y >= df.y - 10 && dropPreview.y <= df.y + df.height + 10
+                    );
+
+                    if (matchingDetectedField && field) {
+                      // Smart alignment: currency → right, date → left, others → center
+                      const fieldKey = field.field_key.toLowerCase();
+                      const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment)/.test(fieldKey);
+                      const isDate = /(date|day|month|year)/.test(fieldKey);
+                      const textAlign = isCurrency ? "right" : isDate ? "left" : "center";
+
+                      // Auto-size to match detected field
+                      savePosition(draggingFromPalette, {
+                        x: Math.round(matchingDetectedField.x),
+                        y: Math.round(matchingDetectedField.y),
+                        page: nextPage,
+                        box_width: Math.round(matchingDetectedField.width),
+                        box_height: Math.round(matchingDetectedField.height),
+                        text_align: textAlign,
+                      });
+                      toast({
+                        title: "Field Snapped",
+                        description: `${field.display_name} → auto-sized & ${textAlign} aligned`,
+                      });
+                    } else {
+                      // No detected field match, just save position
+                      savePosition(draggingFromPalette, { x: dropPreview.x, y: dropPreview.y, page: nextPage });
+                    }
+
                     setSelectedFieldId(draggingFromPalette);
                     setDraggingFromPalette(null);
                     setDraggingFieldId(null);
@@ -1150,12 +1245,17 @@ export function PdfFieldsTab() {
                 <div className="absolute -top-5 left-0 text-xs text-muted-foreground font-medium">
                   Page {currentPage + 1}
                 </div>
-                <iframe
-                  key={`pdf-page-${currentPage + 1}`}
-                  src={`${pdfUrl}#page=${currentPage + 1}&toolbar=0&navpanes=0&scrollbar=0`}
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                  style={{ border: "none" }}
-                />
+                {/* PDF rendered with react-pdf for precise coordinate alignment */}
+                <div className="absolute inset-0 pointer-events-none">
+                  <Document file={pdfUrl} loading={null}>
+                    <Page
+                      pageNumber={currentPage + 1}
+                      width={PDF_WIDTH * (zoom / 100)}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                  </Document>
+                </div>
 
                 {/* Drop preview on page 2 */}
                 {dropPreview && draggingFromPalette && (() => {
@@ -1164,14 +1264,16 @@ export function PdfFieldsTab() {
                   const fieldName = draggingField.display_name || draggingField.field_key;
                   const fieldContent = draggingField.test_value || "(empty)";
                   const fontSize = draggingField.font_size || 10;
+                  const boxHeight = draggingField.box_height || 12;
+                  const cssTop = ((PDF_HEIGHT - dropPreview.y - boxHeight) / PDF_HEIGHT) * 100;
                   return (
                     <div
                       className="absolute pointer-events-none z-50"
                       style={{
                         left: `${(dropPreview.x / PDF_WIDTH) * 100}%`,
-                        bottom: `${(dropPreview.y / PDF_HEIGHT) * 100}%`,
+                        top: `${cssTop}%`,
                         transform: `scale(${100 / zoom})`,
-                        transformOrigin: "bottom left",
+                        transformOrigin: "top left",
                       }}
                     >
                       {/* Blue drag handle */}
@@ -1204,8 +1306,10 @@ export function PdfFieldsTab() {
                   const fieldName = field.display_name || field.field_key;
                   const fieldContent = field.test_value || "";
                   const fontSize = field.font_size || 10;
+                  // Convert PDF coordinates (origin bottom-left) to CSS (origin top-left)
                   const savedLeftPercent = (field.x / PDF_WIDTH) * 100;
-                  const savedBottomPercent = (field.y / PDF_HEIGHT) * 100;
+                  const boxHeight = field.box_height || 12;
+                  const savedTopPercent = ((PDF_HEIGHT - field.y - boxHeight) / PDF_HEIGHT) * 100;
 
                   return (
                     <div
@@ -1213,9 +1317,9 @@ export function PdfFieldsTab() {
                       className="absolute"
                       style={{
                         left: `${savedLeftPercent}%`,
-                        bottom: `${savedBottomPercent}%`,
+                        top: `${savedTopPercent}%`,
                         transform: `scale(${100 / zoom})`,
-                        transformOrigin: "bottom left",
+                        transformOrigin: "top left",
                         zIndex: selectedFieldId === field.id ? 100 : 50,
                         pointerEvents: "auto",
                       }}
@@ -1403,47 +1507,51 @@ export function PdfFieldsTab() {
                 </div>
               </div>
 
-              {/* Data field selector */}
+              {/* Data field selector - searchable */}
               <div>
                 <Label className="text-sm font-medium">Map to Data Field</Label>
-                <Select
-                  onValueChange={(fieldId) => {
-                    const field = positions.find(p => p.id === parseInt(fieldId));
-                    if (field && clickedDetectedField) {
-                      // Update the field position to match detected field
-                      savePosition(field.id, {
-                        x: Math.round(clickedDetectedField.x),
-                        y: Math.round(clickedDetectedField.y),
-                        page: clickedDetectedField.page,
-                        box_width: Math.round(clickedDetectedField.width),
-                        box_height: Math.round(clickedDetectedField.height),
-                      });
-                      setClickedDetectedField(null);
-                      toast({
-                        title: "Field Mapped",
-                        description: `${field.display_name} mapped to PDF field`,
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select a data field..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {positions
+                <div className="mt-1">
+                  <ComboboxDropdown
+                    selectedItem={undefined}
+                    onSelect={(item) => {
+                      if (item) {
+                        const field = positions.find(p => p.id === parseInt(item.id));
+                        if (field && clickedDetectedField) {
+                          // Determine text alignment based on field type
+                          // Currency fields → right aligned, Date fields → left aligned, Others → center
+                          const fieldKey = field.field_key.toLowerCase();
+                          const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment)/.test(fieldKey);
+                          const isDate = /(date|day|month|year)/.test(fieldKey);
+                          const textAlign = isCurrency ? "right" : isDate ? "left" : "center";
+
+                          // Update the field position to match detected field with smart alignment
+                          savePosition(field.id, {
+                            x: Math.round(clickedDetectedField.x),
+                            y: Math.round(clickedDetectedField.y),
+                            page: clickedDetectedField.page,
+                            box_width: Math.round(clickedDetectedField.width),
+                            box_height: Math.round(clickedDetectedField.height),
+                            text_align: textAlign,
+                          });
+                          setClickedDetectedField(null);
+                          toast({
+                            title: "Field Mapped",
+                            description: `${field.display_name} → ${textAlign} aligned`,
+                          });
+                        }
+                      }
+                    }}
+                    items={positions
                       .sort((a, b) => a.display_name.localeCompare(b.display_name))
-                      .map((field) => (
-                        <SelectItem key={field.id} value={field.id.toString()}>
-                          <div className="flex items-center gap-2">
-                            <span>{field.display_name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              ({field.test_value || "empty"})
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                      .map((field) => ({
+                        id: String(field.id),
+                        label: `${field.display_name} (${field.test_value || "empty"})`,
+                      }))}
+                    placeholder="Search and select a data field..."
+                    searchPlaceholder="Type to search..."
+                    emptyResults="No matching fields"
+                  />
+                </div>
               </div>
             </div>
           )}
