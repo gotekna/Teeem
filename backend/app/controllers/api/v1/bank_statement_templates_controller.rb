@@ -3,7 +3,7 @@
 module Api
   module V1
     class BankStatementTemplatesController < ApplicationController
-      before_action :set_template, only: %i[show update destroy test_pdf]
+      before_action :set_template, only: %i[show update destroy test_pdf reference_image]
 
       # GET /api/v1/bank_statement_templates
       def index
@@ -132,6 +132,71 @@ module Api
         }, status: :internal_server_error
       end
 
+      # GET /api/v1/bank_statement_templates/:id/reference_image
+      # Serve the reference image from SharePoint for comparison
+      def reference_image
+        unless @template.reference_image_path.present?
+          return render json: {
+            success: false,
+            error: "No reference image available for this template"
+          }, status: :not_found
+        end
+
+        # Get SharePoint configuration
+        sharepoint_config = CorporateCompanySetting.sharepoint_config
+        unless sharepoint_config[:configured]
+          return render json: {
+            success: false,
+            error: "SharePoint not configured"
+          }, status: :service_unavailable
+        end
+
+        begin
+          # Initialize Graph client
+          client = MicrosoftAppGraphClient.new
+          drive_id = sharepoint_config[:drive_id]
+
+          # Get item by path (Templates/Bank Statements/NAB.pdf)
+          item = client.get_item_by_path(drive_id, @template.reference_image_path)
+
+          unless item
+            return render json: {
+              success: false,
+              error: "Reference file not found in SharePoint: #{@template.reference_image_path}"
+            }, status: :not_found
+          end
+
+          # Download the file content
+          content = client.get_drive_item_content(
+            drive_id: drive_id,
+            item_id: item[:id]
+          )
+
+          # Determine content type based on file extension
+          content_type = case File.extname(@template.reference_image_path).downcase
+                         when ".png" then "image/png"
+                         when ".jpg", ".jpeg" then "image/jpeg"
+                         when ".pdf" then "application/pdf"
+                         else "application/octet-stream"
+                         end
+
+          send_data content,
+                    filename: File.basename(@template.reference_image_path),
+                    type: content_type,
+                    disposition: "inline"
+        rescue MicrosoftAppGraphClient::NotConnectedError => e
+          render json: {
+            success: false,
+            error: "SharePoint not connected: #{e.message}"
+          }, status: :service_unavailable
+        rescue MicrosoftAppGraphClient::ApiError => e
+          render json: {
+            success: false,
+            error: "Failed to fetch reference image from SharePoint: #{e.message}"
+          }, status: :service_unavailable
+        end
+      end
+
       private
 
       def set_template
@@ -171,6 +236,8 @@ module Api
           date_format_preview: template.date_format_preview,
           detection_patterns: template.detection_patterns || [],
           layout_style: template.layout_style,
+          reference_image_path: template.reference_image_path,
+          has_reference_image: template.reference_image_path.present?,
           is_active: template.is_active,
           created_at: template.created_at,
           updated_at: template.updated_at

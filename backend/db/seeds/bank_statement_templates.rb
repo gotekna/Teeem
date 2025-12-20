@@ -5,6 +5,9 @@
 # These templates define the visual styling for bank statements generated from Xero data.
 # Colors and formats were researched from official bank sources (Dec 2024).
 #
+# Reference images are stored in SharePoint: Templates/Bank Statements/
+# Use the format "Templates/Bank Statements/filename.pdf" for reference_image_path
+#
 # Sources:
 # - NAB: https://bankstatementconverter.com/blog/posts/2021-09-24-nab-bank-statement-review/
 # - Westpac: https://gel.westpacgroup.com.au/design-system/wbc/foundation/colour
@@ -26,6 +29,7 @@ templates = [
     date_format: "%-d %b %Y",     # "5 Jun 2024" - NAB style
     detection_patterns: ["nab", "national australia"],
     layout_style: "nab",
+    reference_image_path: "Templates/Bank Statements/NAB.pdf",
     is_active: true
   },
   {
@@ -38,6 +42,7 @@ templates = [
     date_format: "%d/%m/%y",      # "05/06/24" - Westpac style
     detection_patterns: ["westpac"],
     layout_style: "westpac",
+    reference_image_path: "Templates/Bank Statements/Westpac.pdf",
     is_active: true
   },
   {
@@ -50,6 +55,7 @@ templates = [
     date_format: "%d/%m/%Y",      # "05/06/2024" - BOQ style with full year
     detection_patterns: ["boq", "bank of queensland", "queensland"],
     layout_style: "boq",
+    reference_image_path: "Templates/Bank Statements/BOQ.pdf",
     is_active: true
   },
   {
@@ -62,6 +68,7 @@ templates = [
     date_format: "%d %b %Y",      # "05 Jun 2024" - CBA style
     detection_patterns: ["comm", "cba", "commonwealth"],
     layout_style: "commbank",
+    reference_image_path: nil,    # Need CommBank reference
     is_active: true
   },
   {
@@ -74,6 +81,7 @@ templates = [
     date_format: "%d %b %Y",      # "05 Jun 2024" - ANZ style
     detection_patterns: ["anz"],
     layout_style: "anz",
+    reference_image_path: nil,    # Need ANZ reference
     is_active: true
   },
   {
@@ -85,7 +93,8 @@ templates = [
     account_type: "Payment Account",
     date_format: "%d %b %Y",      # "05 Jun 2024"
     detection_patterns: ["stripe"],
-    layout_style: "stripe",
+    layout_style: "default",      # Uses TEEEM layout with Stripe colors
+    reference_image_path: nil,    # Uses TEEEM layout - no external reference
     is_active: true
   },
   {
@@ -98,6 +107,7 @@ templates = [
     date_format: "%-d %b %Y",     # "5 Jun 2024"
     detection_patterns: [],        # Fallback - matches nothing
     layout_style: "default",
+    reference_image_path: nil,    # Internal TEEEM brand - no external reference
     is_active: true
   }
 ]

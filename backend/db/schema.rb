@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_20_053946) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_20_063532) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -341,6 +341,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_053946) do
     t.boolean "is_active"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "reference_image_path"
     t.index ["bank_code"], name: "index_bank_statement_templates_on_bank_code"
   end
 

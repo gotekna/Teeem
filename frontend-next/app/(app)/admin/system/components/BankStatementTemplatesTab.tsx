@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api, getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import {
   Loader2,
   Plus,
@@ -34,6 +34,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BankStatementComparisonModal } from "./BankStatementComparisonModal";
 
 // Bank Statement Template from API
 interface BankStatementTemplate {
@@ -48,6 +49,8 @@ interface BankStatementTemplate {
   date_format_preview: string;
   detection_patterns: string[];
   layout_style: string;
+  reference_image_path: string | null;
+  has_reference_image: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -94,9 +97,8 @@ export function BankStatementTemplatesTab() {
   const [editingTemplate, setEditingTemplate] = React.useState<BankStatementTemplate | null>(null);
   const [formData, setFormData] = React.useState<TemplateFormData>(DEFAULT_FORM_DATA);
   const [patternInput, setPatternInput] = React.useState("");
-  const [previewLoading, setPreviewLoading] = React.useState(false);
-
-  const apiUrl = getApiBaseUrl();
+  const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
+  const [comparisonTemplate, setComparisonTemplate] = React.useState<BankStatementTemplate | null>(null);
 
   React.useEffect(() => {
     loadTemplates();
@@ -206,37 +208,9 @@ export function BankStatementTemplatesTab() {
     }));
   };
 
-  const openTestPdf = async (template: BankStatementTemplate) => {
-    setPreviewLoading(true);
-    try {
-      // Use authenticated fetch to get PDF blob
-      const token = localStorage.getItem("token");
-      const response = await fetch(
-        `${apiUrl}/api/v1/bank_statement_templates/${template.id}/test_pdf`,
-        {
-          credentials: "include",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to generate PDF");
-      }
-
-      // Create blob URL and open in new tab
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, "_blank");
-
-      // Clean up blob URL after a delay
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (error) {
-      console.error("Failed to generate test PDF:", error);
-    } finally {
-      setPreviewLoading(false);
-    }
+  const openComparison = (template: BankStatementTemplate) => {
+    setComparisonTemplate(template);
+    setComparisonModalOpen(true);
   };
 
   // Format date preview based on current date
@@ -367,8 +341,8 @@ export function BankStatementTemplatesTab() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => openTestPdf(template)}
-                  disabled={previewLoading}
+                  onClick={() => openComparison(template)}
+                  title="Compare with reference"
                 >
                   <Eye className="h-3 w-3" />
                 </Button>
@@ -736,6 +710,13 @@ export function BankStatementTemplatesTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Comparison Modal */}
+      <BankStatementComparisonModal
+        open={comparisonModalOpen}
+        onOpenChange={setComparisonModalOpen}
+        template={comparisonTemplate}
+      />
     </div>
   );
 }

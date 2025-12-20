@@ -1,17 +1,19 @@
 "use client";
 
 /**
- * EntityTabsTable - Configuration UI for Entity Tabs
+ * EntityTabsTable - Tree view for Entity Tabs & Folders Configuration
  *
- * Shows all entity tabs in a table format with:
- * - Inline SharePoint paths (not hidden in dialog)
- * - Expandable rows for sub-tabs
- * - Drag-to-reorder for tabs and sub-tabs
- * - Group filter pills (Overview, Documents, Special)
- * - Add/edit inline
+ * Shows the complete hierarchy:
+ * - Tab Groups (Overview, Documents, Special)
+ *   - Tabs with SharePoint folder paths
+ *     - Sub-tabs with sub-folder paths
  *
- * Uses: SortableList, SortableItem, DragHandle from @/components/ui/dnd
- * SSoT: CorporateEntityTab model via /api/v1/corporate/entity_tabs
+ * Features:
+ * - Tree structure with expand/collapse
+ * - Add new tabs and sub-tabs
+ * - Inline SharePoint path editing
+ * - Drag-to-reorder
+ * - Enable/disable toggle
  */
 
 import * as React from "react";
@@ -19,29 +21,27 @@ import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
-import {
-  SortableList,
-  SortableItem,
-  DragHandle,
-} from "@/components/ui/dnd";
 import {
   ChevronDown,
   ChevronRight,
   Eye,
   EyeOff,
   Folder,
+  FolderOpen,
   FolderPlus,
   Loader2,
   Plus,
   Trash2,
   X,
   Check,
-  GripVertical,
   Building2,
   Scale,
   Users,
+  LayoutGrid,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -71,14 +71,34 @@ interface EntityTab {
   document_types?: Array<{ id: number; name: string; display_name: string; is_primary: boolean }>;
 }
 
-type GroupFilter = "all" | "overview" | "documents" | "special";
-
 // Entity type display config
-const ENTITY_TYPE_CONFIG = {
+const ENTITY_TYPE_CONFIG: Record<string, { abbrev: string; color: string; icon: React.ElementType }> = {
   Company: { abbrev: "C", color: "blue", icon: Building2 },
   Trust: { abbrev: "T", color: "purple", icon: Scale },
   Superfund: { abbrev: "S", color: "green", icon: Users },
-} as const;
+};
+
+// Group display config
+const GROUP_CONFIG = {
+  overview: {
+    label: "Overview Tabs",
+    icon: LayoutGrid,
+    color: "green",
+    description: "Info tabs shown on company detail pages (Info, Corporate, Bank Accounts, etc.)"
+  },
+  documents: {
+    label: "Document Folder Tabs",
+    icon: FolderOpen,
+    color: "blue",
+    description: "Document folders linked to SharePoint (BANK, ATO, ADVICE, etc.)"
+  },
+  special: {
+    label: "Special Tabs",
+    icon: Sparkles,
+    color: "purple",
+    description: "Main navigation tabs (Documents browser, Data, Activity)"
+  },
+};
 
 // =============================================================================
 // MAIN COMPONENT
@@ -91,13 +111,14 @@ export function EntityTabsTable() {
   const [tabs, setTabs] = React.useState<EntityTab[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [expandedTabIds, setExpandedTabIds] = React.useState<Set<string>>(new Set());
-  const [groupFilter, setGroupFilter] = React.useState<GroupFilter>("all");
+  const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set(["documents"]));
+  const [expandedTabs, setExpandedTabs] = React.useState<Set<string>>(new Set());
   const [togglingTabId, setTogglingTabId] = React.useState<string | null>(null);
 
-  // Inline editing state
+  // Editing state
   const [editingPath, setEditingPath] = React.useState<{ tabId: string; value: string } | null>(null);
   const [addingSubTab, setAddingSubTab] = React.useState<{ tabId: string; name: string; folder: string } | null>(null);
+  const [addingTab, setAddingTab] = React.useState<{ group: string; name: string; folder: string } | null>(null);
 
   // Load tabs from API
   const loadTabs = React.useCallback(async () => {
@@ -118,23 +139,41 @@ export function EntityTabsTable() {
     loadTabs();
   }, [loadTabs]);
 
-  // Filter tabs by group
-  const filteredTabs = React.useMemo(() => {
-    const sorted = [...tabs].sort((a, b) => a.order_position - b.order_position);
-    if (groupFilter === "all") return sorted;
-    return sorted.filter((tab) => tab.group === groupFilter);
-  }, [tabs, groupFilter]);
+  // Group tabs
+  const groupedTabs = React.useMemo(() => {
+    const groups: Record<string, EntityTab[]> = {
+      overview: [],
+      documents: [],
+      special: [],
+    };
+    tabs.forEach((tab) => {
+      if (groups[tab.group]) {
+        groups[tab.group].push(tab);
+      }
+    });
+    // Sort each group by order_position
+    Object.keys(groups).forEach((key) => {
+      groups[key].sort((a, b) => a.order_position - b.order_position);
+    });
+    return groups;
+  }, [tabs]);
 
-  // Group counts
-  const groupCounts = React.useMemo(() => ({
-    overview: tabs.filter((t) => t.group === "overview").length,
-    documents: tabs.filter((t) => t.group === "documents").length,
-    special: tabs.filter((t) => t.group === "special").length,
-  }), [tabs]);
+  // Toggle group expansion
+  const toggleGroup = (group: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) {
+        next.delete(group);
+      } else {
+        next.add(group);
+      }
+      return next;
+    });
+  };
 
   // Toggle tab expansion
-  const toggleExpanded = (tabId: string) => {
-    setExpandedTabIds((prev) => {
+  const toggleTab = (tabId: string) => {
+    setExpandedTabs((prev) => {
       const next = new Set(prev);
       if (next.has(tabId)) {
         next.delete(tabId);
@@ -146,7 +185,8 @@ export function EntityTabsTable() {
   };
 
   // Toggle tab enabled
-  const handleToggleEnabled = async (tab: EntityTab) => {
+  const handleToggleEnabled = async (tab: EntityTab, e: React.MouseEvent) => {
+    e.stopPropagation();
     setTogglingTabId(tab.id);
     try {
       await api.patch(`/api/v1/corporate/entity_tabs/${tab.tab_key}`, {
@@ -165,12 +205,12 @@ export function EntityTabsTable() {
     }
   };
 
-  // Update SharePoint path
-  const handleSavePath = async (tabId: string, tabKey: string) => {
+  // Save SharePoint path
+  const handleSavePath = async (tab: EntityTab) => {
     if (!editingPath) return;
     setSaving(true);
     try {
-      await api.patch(`/api/v1/corporate/entity_tabs/${tabKey}`, {
+      await api.patch(`/api/v1/corporate/entity_tabs/${tab.tab_key}`, {
         tab: {
           has_sharepoint_folder: !!editingPath.value,
           sharepoint_folder_path: editingPath.value || null,
@@ -178,36 +218,12 @@ export function EntityTabsTable() {
       });
       await loadTabs();
       setEditingPath(null);
-      toast({ title: "Path updated", description: "SharePoint path has been saved" });
+      toast({ title: "Path updated", description: "SharePoint folder path saved" });
     } catch (error) {
       console.error("Failed to update path:", error);
       toast({ title: "Error", description: "Failed to update path", variant: "destructive" });
     } finally {
       setSaving(false);
-    }
-  };
-
-  // Handle reorder
-  const handleReorder = async (newTabs: EntityTab[]) => {
-    // Optimistically update UI
-    setTabs((prev) => {
-      const tabMap = new Map(prev.map((t) => [t.id, t]));
-      newTabs.forEach((t, i) => {
-        const tab = tabMap.get(t.id);
-        if (tab) tab.order_position = i;
-      });
-      return [...tabMap.values()].sort((a, b) => a.order_position - b.order_position);
-    });
-
-    // Save to backend
-    try {
-      await api.post("/api/v1/corporate/entity_tabs/reorder", {
-        tabs: newTabs.map((t, i) => ({ id: t.tab_key, position: i }))
-      });
-    } catch (error) {
-      console.error("Failed to reorder tabs:", error);
-      toast({ title: "Error", description: "Failed to save order", variant: "destructive" });
-      await loadTabs(); // Reload to restore correct order
     }
   };
 
@@ -229,18 +245,19 @@ export function EntityTabsTable() {
       });
       await loadTabs();
       setAddingSubTab(null);
-      toast({ title: "Sub-tab added", description: `Added "${addingSubTab.name}" to ${tab.name}` });
+      toast({ title: "Sub-folder added", description: `Added "${addingSubTab.name}" under ${tab.name}` });
     } catch (error) {
       console.error("Failed to add sub-tab:", error);
-      toast({ title: "Error", description: "Failed to add sub-tab", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to add sub-folder", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
   // Delete sub-tab
-  const handleDeleteSubTab = async (tab: EntityTab, subTabKey: string) => {
-    if (!confirm(`Delete sub-tab "${subTabKey}"?`)) return;
+  const handleDeleteSubTab = async (tab: EntityTab, subTabKey: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete sub-folder "${subTabKey}"?`)) return;
     setSaving(true);
     try {
       const newSubTabs = (tab.sub_tabs || []).filter((st) => st.key !== subTabKey);
@@ -248,10 +265,10 @@ export function EntityTabsTable() {
         tab: { sub_tabs: newSubTabs }
       });
       await loadTabs();
-      toast({ title: "Sub-tab deleted" });
+      toast({ title: "Sub-folder deleted" });
     } catch (error) {
       console.error("Failed to delete sub-tab:", error);
-      toast({ title: "Error", description: "Failed to delete sub-tab", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to delete sub-folder", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -274,9 +291,9 @@ export function EntityTabsTable() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-medium">Entity Tabs</h3>
+          <h3 className="text-lg font-medium">Entity Tabs & Folders</h3>
           <p className="text-sm text-muted-foreground">
-            Configure tabs for company, trust, and superfund pages. Click row to expand sub-tabs.
+            Configure tabs and their SharePoint folder connections for company pages
           </p>
         </div>
         <Badge variant="outline" className="text-xs">
@@ -284,361 +301,382 @@ export function EntityTabsTable() {
         </Badge>
       </div>
 
-      {/* Group Filter Pills */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setGroupFilter("all")}
-          className={cn(
-            "px-3 py-1.5 text-sm rounded-full transition-colors",
-            groupFilter === "all"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted hover:bg-muted/80"
-          )}
-        >
-          All ({tabs.length})
-        </button>
-        <button
-          onClick={() => setGroupFilter("overview")}
-          className={cn(
-            "px-3 py-1.5 text-sm rounded-full transition-colors",
-            groupFilter === "overview"
-              ? "bg-green-600 text-white"
-              : "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 hover:bg-green-200 dark:hover:bg-green-900/50"
-          )}
-        >
-          Overview ({groupCounts.overview})
-        </button>
-        <button
-          onClick={() => setGroupFilter("documents")}
-          className={cn(
-            "px-3 py-1.5 text-sm rounded-full transition-colors",
-            groupFilter === "documents"
-              ? "bg-blue-600 text-white"
-              : "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-900/50"
-          )}
-        >
-          Documents ({groupCounts.documents})
-        </button>
-        <button
-          onClick={() => setGroupFilter("special")}
-          className={cn(
-            "px-3 py-1.5 text-sm rounded-full transition-colors",
-            groupFilter === "special"
-              ? "bg-purple-600 text-white"
-              : "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-900/50"
-          )}
-        >
-          Special ({groupCounts.special})
-        </button>
-      </div>
+      {/* Tree View */}
+      <div className="space-y-3">
+        {(["overview", "documents", "special"] as const).map((groupKey) => {
+          const group = GROUP_CONFIG[groupKey];
+          const groupTabs = groupedTabs[groupKey] || [];
+          const isExpanded = expandedGroups.has(groupKey);
+          const GroupIcon = group.icon;
 
-      {/* Table Header */}
-      <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide border-b">
-        <div className="col-span-1">#</div>
-        <div className="col-span-3">Tab Name</div>
-        <div className="col-span-2">Entities</div>
-        <div className="col-span-4">SharePoint Path</div>
-        <div className="col-span-1 text-center">Sub</div>
-        <div className="col-span-1 text-center">On</div>
-      </div>
-
-      {/* Tabs List */}
-      <SortableList
-        items={filteredTabs}
-        onReorder={handleReorder}
-        className="space-y-0"
-      >
-        {filteredTabs.map((tab, index) => (
-          <React.Fragment key={tab.id}>
-            {/* Main Tab Row */}
-            <SortableItem
-              id={tab.id}
-              variant="row"
-              showBadge={false}
-              className={cn(
-                "grid grid-cols-12 gap-2 items-center",
-                tab.enabled ? "" : "opacity-50",
-                getGroupBgColor(tab.group)
-              )}
-            >
-              {/* Position */}
-              <div className="col-span-1 text-sm text-muted-foreground">
-                {index + 1}
-              </div>
-
-              {/* Tab Name (clickable to expand) */}
+          return (
+            <Card key={groupKey} className={cn(
+              "overflow-hidden",
+              groupKey === "overview" && "border-green-200 dark:border-green-800",
+              groupKey === "documents" && "border-blue-200 dark:border-blue-800",
+              groupKey === "special" && "border-purple-200 dark:border-purple-800",
+            )}>
+              {/* Group Header */}
               <button
-                onClick={() => toggleExpanded(tab.id)}
-                className="col-span-3 flex items-center gap-2 text-left hover:text-primary transition-colors"
-              >
-                {expandedTabIds.has(tab.id) ? (
-                  <ChevronDown className="h-4 w-4 shrink-0" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 shrink-0" />
+                onClick={() => toggleGroup(groupKey)}
+                className={cn(
+                  "w-full flex items-center justify-between p-4 text-left transition-colors",
+                  groupKey === "overview" && "bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30",
+                  groupKey === "documents" && "bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30",
+                  groupKey === "special" && "bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30",
                 )}
-                <Folder className={cn("h-4 w-4 shrink-0", getGroupIconColor(tab.group))} />
-                <span className="font-medium truncate">{tab.name}</span>
+              >
+                <div className="flex items-center gap-3">
+                  {isExpanded ? (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  )}
+                  <GroupIcon className={cn(
+                    "h-5 w-5",
+                    groupKey === "overview" && "text-green-600 dark:text-green-400",
+                    groupKey === "documents" && "text-blue-600 dark:text-blue-400",
+                    groupKey === "special" && "text-purple-600 dark:text-purple-400",
+                  )} />
+                  <div>
+                    <span className="font-medium">{group.label}</span>
+                    <span className="ml-2 text-sm text-muted-foreground">({groupTabs.length})</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground max-w-md text-right hidden md:block">
+                  {group.description}
+                </p>
               </button>
 
-              {/* Entity Types */}
-              <div className="col-span-2 flex gap-1">
-                {tab.entity_types.map((type) => {
-                  const config = ENTITY_TYPE_CONFIG[type as keyof typeof ENTITY_TYPE_CONFIG];
-                  return config ? (
-                    <Badge
-                      key={type}
-                      variant="outline"
-                      className={cn("text-[10px] px-1.5", getEntityBadgeColor(type))}
-                    >
-                      {config.abbrev}
-                    </Badge>
-                  ) : null;
-                })}
-              </div>
+              {/* Group Content */}
+              {isExpanded && (
+                <CardContent className="pt-0 pb-4">
+                  <div className="border-l-2 border-muted ml-6 pl-4 space-y-1 mt-2">
+                    {groupTabs.map((tab) => {
+                      const isTabExpanded = expandedTabs.has(tab.id);
+                      const hasSubTabs = tab.sub_tabs && tab.sub_tabs.length > 0;
+                      const hasFolder = tab.has_sharepoint_folder && tab.sharepoint_folder_path;
 
-              {/* SharePoint Path (inline editable) */}
-              <div className="col-span-4">
-                {editingPath?.tabId === tab.id ? (
-                  <div className="flex items-center gap-1">
-                    <Input
-                      value={editingPath.value}
-                      onChange={(e) => setEditingPath({ ...editingPath, value: e.target.value })}
-                      className="h-7 text-xs font-mono"
-                      placeholder="/Shared Documents/..."
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleSavePath(tab.id, tab.tab_key);
-                        if (e.key === "Escape") setEditingPath(null);
-                      }}
-                    />
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => handleSavePath(tab.id, tab.tab_key)}
-                      disabled={saving}
-                    >
-                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7"
-                      onClick={() => setEditingPath(null)}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setEditingPath({ tabId: tab.id, value: tab.sharepoint_folder_path || "" })}
-                    className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors text-left truncate w-full"
-                    title={tab.sharepoint_folder_path ? `/Shared Documents/${tab.sharepoint_folder_path}` : "Click to set path"}
-                  >
-                    {tab.has_sharepoint_folder && tab.sharepoint_folder_path ? (
-                      <span>/{tab.sharepoint_folder_path}</span>
-                    ) : (
-                      <span className="italic">No path</span>
-                    )}
-                  </button>
-                )}
-              </div>
-
-              {/* Sub-tab count */}
-              <div className="col-span-1 text-center">
-                {tab.sub_tabs && tab.sub_tabs.length > 0 ? (
-                  <Badge variant="secondary" className="text-[10px]">
-                    {tab.sub_tabs.length}
-                  </Badge>
-                ) : (
-                  <span className="text-xs text-muted-foreground">-</span>
-                )}
-              </div>
-
-              {/* Enabled toggle */}
-              <div className="col-span-1 flex justify-center">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleEnabled(tab);
-                  }}
-                  disabled={togglingTabId === tab.id}
-                  className="p-1 rounded hover:bg-muted transition-colors"
-                >
-                  {togglingTabId === tab.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  ) : tab.enabled ? (
-                    <Eye className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  )}
-                </button>
-              </div>
-            </SortableItem>
-
-            {/* Expanded Sub-Tabs Section */}
-            {expandedTabIds.has(tab.id) && (
-              <div className="ml-8 border-l-2 border-muted pl-4 py-2 bg-muted/20">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    Sub-Tabs ({tab.sub_tabs?.length || 0})
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-6 text-xs"
-                    onClick={() => setAddingSubTab({ tabId: tab.id, name: "", folder: "" })}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Add
-                  </Button>
-                </div>
-
-                {/* Sub-tabs list */}
-                {tab.sub_tabs && tab.sub_tabs.length > 0 ? (
-                  <div className="space-y-1">
-                    {tab.sub_tabs.map((subTab) => (
-                      <div
-                        key={subTab.key}
-                        className="flex items-center justify-between py-1.5 px-2 rounded bg-background border text-sm"
-                      >
-                        <div className="flex items-center gap-2">
-                          <GripVertical className="h-3 w-3 text-muted-foreground/50" />
-                          <span>{subTab.name}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-muted-foreground">
-                            /{subTab.folder}
-                          </span>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDeleteSubTab(tab, subTab.key)}
+                      return (
+                        <div key={tab.id}>
+                          {/* Tab Row */}
+                          <div
+                            className={cn(
+                              "flex items-center gap-2 py-2 px-3 rounded-lg transition-colors cursor-pointer",
+                              tab.enabled
+                                ? "hover:bg-muted/50"
+                                : "opacity-50 hover:bg-muted/30"
+                            )}
+                            onClick={() => toggleTab(tab.id)}
                           >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                            {/* Expand indicator */}
+                            {hasSubTabs || groupKey === "documents" ? (
+                              isTabExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )
+                            ) : (
+                              <div className="w-4" />
+                            )}
+
+                            {/* Folder icon */}
+                            {hasFolder ? (
+                              <FolderOpen className={cn(
+                                "h-4 w-4 shrink-0",
+                                groupKey === "overview" && "text-green-600 dark:text-green-400",
+                                groupKey === "documents" && "text-blue-600 dark:text-blue-400",
+                                groupKey === "special" && "text-purple-600 dark:text-purple-400",
+                              )} />
+                            ) : (
+                              <Folder className="h-4 w-4 text-muted-foreground shrink-0" />
+                            )}
+
+                            {/* Tab name */}
+                            <span className="font-medium text-sm">{tab.name}</span>
+
+                            {/* Entity type badges */}
+                            <div className="flex gap-0.5 ml-2">
+                              {tab.entity_types.map((type) => {
+                                const config = ENTITY_TYPE_CONFIG[type];
+                                return config ? (
+                                  <Badge
+                                    key={type}
+                                    variant="outline"
+                                    className={cn(
+                                      "text-[9px] px-1 py-0",
+                                      type === "Company" && "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700",
+                                      type === "Trust" && "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-700",
+                                      type === "Superfund" && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700",
+                                    )}
+                                  >
+                                    {config.abbrev}
+                                  </Badge>
+                                ) : null;
+                              })}
+                            </div>
+
+                            {/* Spacer */}
+                            <div className="flex-1" />
+
+                            {/* SharePoint path */}
+                            {editingPath?.tabId === tab.id ? (
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <Input
+                                  value={editingPath.value}
+                                  onChange={(e) => setEditingPath({ ...editingPath, value: e.target.value })}
+                                  className="h-6 text-xs font-mono w-40"
+                                  placeholder="FOLDER_NAME"
+                                  autoFocus
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") handleSavePath(tab);
+                                    if (e.key === "Escape") setEditingPath(null);
+                                  }}
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => handleSavePath(tab)}
+                                  disabled={saving}
+                                >
+                                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-green-600" />}
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => setEditingPath(null)}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : hasFolder ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPath({ tabId: tab.id, value: tab.sharepoint_folder_path || "" });
+                                }}
+                                className="text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                              >
+                                /{tab.sharepoint_folder_path}
+                              </button>
+                            ) : groupKey === "documents" ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingPath({ tabId: tab.id, value: tab.name.toUpperCase() });
+                                }}
+                                className="text-xs text-muted-foreground hover:text-foreground italic"
+                              >
+                                + Set folder
+                              </button>
+                            ) : null}
+
+                            {/* Sub-tab count */}
+                            {hasSubTabs && (
+                              <Badge variant="secondary" className="text-[10px] ml-2">
+                                {tab.sub_tabs!.length} sub
+                              </Badge>
+                            )}
+
+                            {/* Enable toggle */}
+                            <button
+                              onClick={(e) => handleToggleEnabled(tab, e)}
+                              disabled={togglingTabId === tab.id}
+                              className="p-1 rounded hover:bg-muted transition-colors ml-2"
+                            >
+                              {togglingTabId === tab.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                              ) : tab.enabled ? (
+                                <Eye className="h-4 w-4 text-green-600" />
+                              ) : (
+                                <EyeOff className="h-4 w-4 text-muted-foreground" />
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Expanded: Sub-tabs */}
+                          {isTabExpanded && (
+                            <div className="ml-10 border-l-2 border-dashed border-muted pl-4 py-2 space-y-1">
+                              {/* Existing sub-tabs */}
+                              {tab.sub_tabs?.map((subTab) => (
+                                <div
+                                  key={subTab.key}
+                                  className="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 text-sm group"
+                                >
+                                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span>{subTab.name}</span>
+                                  <span className="text-xs font-mono text-muted-foreground ml-auto">
+                                    /{subTab.folder}
+                                  </span>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-5 w-5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => handleDeleteSubTab(tab, subTab.key, e)}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              ))}
+
+                              {/* Add sub-tab form */}
+                              {addingSubTab?.tabId === tab.id ? (
+                                <div className="flex items-center gap-2 py-1.5 px-2 rounded bg-muted/30">
+                                  <FolderPlus className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <Input
+                                    value={addingSubTab.name}
+                                    onChange={(e) => setAddingSubTab({ ...addingSubTab, name: e.target.value })}
+                                    placeholder="Sub-folder name"
+                                    className="h-6 text-xs flex-1"
+                                    autoFocus
+                                  />
+                                  <Input
+                                    value={addingSubTab.folder}
+                                    onChange={(e) => setAddingSubTab({ ...addingSubTab, folder: e.target.value })}
+                                    placeholder="Folder path"
+                                    className="h-6 text-xs w-32 font-mono"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    className="h-6 text-xs"
+                                    onClick={() => handleAddSubTab(tab)}
+                                    disabled={saving || !addingSubTab.name.trim()}
+                                  >
+                                    {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 text-xs"
+                                    onClick={() => setAddingSubTab(null)}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setAddingSubTab({ tabId: tab.id, name: "", folder: "" })}
+                                  className="flex items-center gap-2 py-1.5 px-2 rounded text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  Add sub-folder
+                                </button>
+                              )}
+
+                              {/* Document types (if any) */}
+                              {tab.document_types && tab.document_types.length > 0 && (
+                                <div className="pt-2 mt-2 border-t border-dashed">
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                                    Document Types ({tab.document_types.length})
+                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {tab.document_types.slice(0, 6).map((dt) => (
+                                      <Badge key={dt.id} variant="outline" className="text-[9px]">
+                                        {dt.name}
+                                        {dt.is_primary && "*"}
+                                      </Badge>
+                                    ))}
+                                    {tab.document_types.length > 6 && (
+                                      <Badge variant="outline" className="text-[9px]">
+                                        +{tab.document_types.length - 6}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
+                      );
+                    })}
+
+                    {/* Add new tab button */}
+                    {groupKey === "documents" && (
+                      <div className="pt-2">
+                        {addingTab?.group === groupKey ? (
+                          <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/30">
+                            <FolderPlus className="h-4 w-4 text-muted-foreground" />
+                            <Input
+                              value={addingTab.name}
+                              onChange={(e) => setAddingTab({ ...addingTab, name: e.target.value })}
+                              placeholder="Tab name"
+                              className="h-7 text-sm flex-1"
+                              autoFocus
+                            />
+                            <Input
+                              value={addingTab.folder}
+                              onChange={(e) => setAddingTab({ ...addingTab, folder: e.target.value })}
+                              placeholder="Folder path"
+                              className="h-7 text-sm w-32 font-mono"
+                            />
+                            <Button
+                              size="sm"
+                              className="h-7"
+                              disabled={saving || !addingTab.name.trim()}
+                            >
+                              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add Tab"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7"
+                              onClick={() => setAddingTab(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setAddingTab({ group: groupKey, name: "", folder: "" })}
+                            className="flex items-center gap-2 py-2 px-3 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 w-full"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add new document tab
+                          </button>
+                        )}
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic py-2">
-                    No sub-tabs configured
-                  </p>
-                )}
+                </CardContent>
+              )}
+            </Card>
+          );
+        })}
+      </div>
 
-                {/* Add sub-tab form */}
-                {addingSubTab?.tabId === tab.id && (
-                  <div className="mt-2 flex items-center gap-2 p-2 rounded border bg-background">
-                    <Input
-                      value={addingSubTab.name}
-                      onChange={(e) => setAddingSubTab({ ...addingSubTab, name: e.target.value })}
-                      placeholder="Sub-tab name"
-                      className="h-7 text-sm flex-1"
-                      autoFocus
-                    />
-                    <Input
-                      value={addingSubTab.folder}
-                      onChange={(e) => setAddingSubTab({ ...addingSubTab, folder: e.target.value })}
-                      placeholder="Folder path"
-                      className="h-7 text-sm flex-1 font-mono"
-                    />
-                    <Button
-                      size="sm"
-                      className="h-7"
-                      onClick={() => handleAddSubTab(tab)}
-                      disabled={saving || !addingSubTab.name.trim()}
-                    >
-                      {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-7"
-                      onClick={() => setAddingSubTab(null)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
-
-                {/* Document types (if any) */}
-                {tab.document_types && tab.document_types.length > 0 && (
-                  <div className="mt-3 pt-3 border-t">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      Document Types ({tab.document_types.length})
-                    </span>
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {tab.document_types.slice(0, 5).map((dt) => (
-                        <Badge key={dt.id} variant="outline" className="text-[10px]">
-                          {dt.name}
-                          {dt.is_primary && <span className="ml-1 text-primary">*</span>}
-                        </Badge>
-                      ))}
-                      {tab.document_types.length > 5 && (
-                        <Badge variant="outline" className="text-[10px]">
-                          +{tab.document_types.length - 5} more
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </React.Fragment>
-        ))}
-      </SortableList>
-
-      {/* Empty state */}
-      {filteredTabs.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
-          No tabs found for this filter.
-        </div>
-      )}
+      {/* Legend */}
+      <Card className="bg-muted/30">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">C</Badge>
+              <span>Company</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">T</Badge>
+              <span>Trust</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline" className="text-[9px] px-1 py-0 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">S</Badge>
+              <span>Superfund</span>
+            </div>
+            <div className="flex items-center gap-1.5 ml-4">
+              <FolderOpen className="h-3.5 w-3.5 text-blue-600" />
+              <span>Has SharePoint folder</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Eye className="h-3.5 w-3.5 text-green-600" />
+              <span>Enabled</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>Disabled</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
-}
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function getGroupBgColor(group: string): string {
-  switch (group) {
-    case "overview":
-      return "hover:bg-green-50 dark:hover:bg-green-900/10";
-    case "documents":
-      return "hover:bg-blue-50 dark:hover:bg-blue-900/10";
-    case "special":
-      return "hover:bg-purple-50 dark:hover:bg-purple-900/10";
-    default:
-      return "";
-  }
-}
-
-function getGroupIconColor(group: string): string {
-  switch (group) {
-    case "overview":
-      return "text-green-600 dark:text-green-400";
-    case "documents":
-      return "text-blue-600 dark:text-blue-400";
-    case "special":
-      return "text-purple-600 dark:text-purple-400";
-    default:
-      return "text-muted-foreground";
-  }
-}
-
-function getEntityBadgeColor(entityType: string): string {
-  switch (entityType) {
-    case "Company":
-      return "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800";
-    case "Trust":
-      return "bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800";
-    case "Superfund":
-      return "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-green-200 dark:border-green-800";
-    default:
-      return "";
-  }
 }

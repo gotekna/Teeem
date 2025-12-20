@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { EntityTabsTable } from "./EntityTabsTable";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -440,6 +441,27 @@ function CompaniesSubTab() {
   const [saving, setSaving] = React.useState(false);
   const [deleting, setDeleting] = React.useState<number | null>(null);
 
+  // Add Existing Contact state
+  const [showAddExistingDialog, setShowAddExistingDialog] = React.useState(false);
+  const [contactSearchResults, setContactSearchResults] = React.useState<Array<{
+    id: number;
+    display_name: string;
+    entity_type: string;
+    abn?: string;
+    acn?: string;
+  }>>([]);
+  const [selectedContactForAdd, setSelectedContactForAdd] = React.useState<{
+    id: number;
+    display_name: string;
+    entity_type: string;
+    abn?: string;
+    acn?: string;
+  } | null>(null);
+  const [contactSearchQuery, setContactSearchQuery] = React.useState("");
+  const [searchingContacts, setSearchingContacts] = React.useState(false);
+  const [selectedGroupForAdd, setSelectedGroupForAdd] = React.useState("");
+  const [addingToCorporate, setAddingToCorporate] = React.useState(false);
+
   const [formData, setFormData] = React.useState({
     name: "",
     abn: "",
@@ -501,6 +523,68 @@ function CompaniesSubTab() {
     });
     setEditingCompany(null);
     setShowAddDialog(true);
+  };
+
+  // Search for existing contacts not yet in corporate
+  const searchContacts = React.useCallback(async (query: string) => {
+    if (!query || query.length < 2) {
+      setContactSearchResults([]);
+      return;
+    }
+    setSearchingContacts(true);
+    try {
+      const params = new URLSearchParams({
+        search: query,
+        entity_type: "company,trust",
+        not_corporate: "true",
+      });
+      const response = await api.get<{ data: Array<{ id: number; display_name: string; entity_type: string; abn?: string; acn?: string }> }>(
+        `/api/v1/contacts?${params}`
+      );
+      setContactSearchResults(response.data || []);
+    } catch (error) {
+      console.error("Failed to search contacts:", error);
+      setContactSearchResults([]);
+    } finally {
+      setSearchingContacts(false);
+    }
+  }, []);
+
+  // Debounced search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (contactSearchQuery) {
+        searchContacts(contactSearchQuery);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactSearchQuery, searchContacts]);
+
+  // Add existing contact to corporate
+  const handleAddToCorporate = async () => {
+    if (!selectedContactForAdd || !selectedGroupForAdd) {
+      toast({ title: "Error", description: "Please select a contact and company group", variant: "destructive" });
+      return;
+    }
+
+    setAddingToCorporate(true);
+    try {
+      await api.patch(`/api/v1/contacts/${selectedContactForAdd.id}`, {
+        contact: { company_group_id: parseInt(selectedGroupForAdd) },
+      });
+      toast({ title: "Success", description: `${selectedContactForAdd.display_name} added to corporate` });
+      setShowAddExistingDialog(false);
+      setSelectedContactForAdd(null);
+      setContactSearchQuery("");
+      setContactSearchResults([]);
+      setSelectedGroupForAdd("");
+      loadCompanies();
+    } catch (error) {
+      console.error("Failed to add contact to corporate:", error);
+      toast({ title: "Error", description: "Failed to add contact to corporate", variant: "destructive" });
+    } finally {
+      setAddingToCorporate(false);
+    }
   };
 
   const handleOpenEditDialog = (company: Company) => {
@@ -648,10 +732,16 @@ function CompaniesSubTab() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleOpenAddDialog}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Company
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowAddExistingDialog(true)}>
+            <Search className="h-4 w-4 mr-2" />
+            Add Existing
+          </Button>
+          <Button onClick={handleOpenAddDialog}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Company
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -912,6 +1002,136 @@ function CompaniesSubTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Existing Contact Dialog */}
+      <Dialog open={showAddExistingDialog} onOpenChange={(open) => {
+        setShowAddExistingDialog(open);
+        if (!open) {
+          setSelectedContactForAdd(null);
+          setContactSearchQuery("");
+          setContactSearchResults([]);
+          setSelectedGroupForAdd("");
+        }
+      }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Add Existing Contact to Corporate</DialogTitle>
+            <DialogDescription>
+              Search for an existing company or trust contact and assign it to a company group.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            {/* Search Input */}
+            <div className="grid gap-2">
+              <Label>Search Contacts</Label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Type to search companies/trusts..."
+                  value={contactSearchQuery}
+                  onChange={(e) => setContactSearchQuery(e.target.value)}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            {/* Search Results */}
+            {searchingContacts ? (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : contactSearchResults.length > 0 ? (
+              <div className="max-h-48 overflow-y-auto border rounded-md">
+                {contactSearchResults.map((contact) => (
+                  <div
+                    key={contact.id}
+                    className={cn(
+                      "flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 border-b last:border-b-0",
+                      selectedContactForAdd?.id === contact.id && "bg-muted"
+                    )}
+                    onClick={() => setSelectedContactForAdd(contact)}
+                  >
+                    <div className="p-2 rounded-lg bg-muted">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{contact.display_name}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-xs">
+                          {contact.entity_type}
+                        </Badge>
+                        {contact.abn && <span>ABN: {contact.abn}</span>}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : contactSearchQuery.length >= 2 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No contacts found. Try a different search term.
+              </p>
+            ) : null}
+
+            {/* Selected Contact Preview */}
+            {selectedContactForAdd && (
+              <div className="p-3 border rounded-md bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="h-4 w-4 text-primary" />
+                  <span className="font-medium">{selectedContactForAdd.display_name}</span>
+                  <Badge variant="outline" className={cn(
+                    "text-xs",
+                    selectedContactForAdd.entity_type === "company" && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300",
+                    selectedContactForAdd.entity_type === "trust" && "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300"
+                  )}>
+                    {selectedContactForAdd.entity_type}
+                  </Badge>
+                </div>
+                {selectedContactForAdd.abn && (
+                  <p className="text-xs text-muted-foreground">ABN: {selectedContactForAdd.abn}</p>
+                )}
+              </div>
+            )}
+
+            {/* Company Group Selector */}
+            <div className="grid gap-2">
+              <Label>Company Group *</Label>
+              <Select
+                value={selectedGroupForAdd}
+                onValueChange={setSelectedGroupForAdd}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a company group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups.map((group) => (
+                    <SelectItem key={group.id} value={group.id.toString()}>
+                      {group.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddExistingDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddToCorporate}
+              disabled={addingToCorporate || !selectedContactForAdd || !selectedGroupForAdd}
+            >
+              {addingToCorporate ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                "Add to Corporate"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -945,481 +1165,9 @@ interface EntityTab {
 }
 
 function CompanyTabsSubTab() {
-  const { toast } = useToast();
-
-  // SSoT: Entity tabs from new API
-  const [entityTabs, setEntityTabs] = React.useState<EntityTab[]>([]);
-  const [loadingEntityTabs, setLoadingEntityTabs] = React.useState(true);
-
-  // SSoT: Xero tabs from API
-  const [xeroTabs, setXeroTabs] = React.useState<Array<{
-    id: string;
-    name: string;
-    type: string;
-    group?: string;
-    enabled?: boolean;
-  }>>([]);
-  const [loadingXeroTabs, setLoadingXeroTabs] = React.useState(true);
-
-  // Toggle state
-  const [togglingTab, setTogglingTab] = React.useState<string | null>(null);
-
-  // Tab detail dialog state
-  const [selectedTab, setSelectedTab] = React.useState<EntityTab | null>(null);
-  const [showTabDetail, setShowTabDetail] = React.useState(false);
-
-  // SSoT: Load entity tabs from new API
-  const loadEntityTabs = React.useCallback(async () => {
-    try {
-      const response = await api.get<{ success: boolean; data: EntityTab[] }>("/api/v1/corporate/entity_tabs");
-      if (response.success && response.data) {
-        setEntityTabs(response.data);
-      }
-    } catch (error) {
-      console.error("Failed to load entity tabs:", error);
-      setEntityTabs([]);
-    } finally {
-      setLoadingEntityTabs(false);
-    }
-  }, []);
-
-  React.useEffect(() => {
-    loadEntityTabs();
-  }, [loadEntityTabs]);
-
-  // SSoT: Load Xero tabs from API
-  React.useEffect(() => {
-    const loadXeroTabs = async () => {
-      try {
-        const response = await api.get<{ success: boolean; data: Array<{
-          id: string;
-          name: string;
-          type: string;
-          group?: string;
-          enabled?: boolean;
-        }> }>("/api/v1/xero/tabs");
-        if (response.success && response.data) {
-          setXeroTabs(response.data);
-        }
-      } catch (error) {
-        console.error("Failed to load Xero tabs from API:", error);
-        setXeroTabs(XERO_TABS_FALLBACK);
-      } finally {
-        setLoadingXeroTabs(false);
-      }
-    };
-    loadXeroTabs();
-  }, []);
-
-  // Toggle tab enabled state
-  const handleToggleTab = async (tabId: string, currentEnabled: boolean) => {
-    setTogglingTab(tabId);
-    try {
-      await api.patch(`/api/v1/corporate/entity_tabs/${tabId}`, {
-        tab: { enabled: !currentEnabled }
-      });
-      await loadEntityTabs();
-      toast({
-        title: currentEnabled ? "Tab disabled" : "Tab enabled",
-        description: `Tab "${tabId}" has been ${currentEnabled ? 'disabled' : 'enabled'}`,
-      });
-    } catch (error) {
-      console.error("Failed to toggle tab:", error);
-      toast({
-        title: "Error",
-        description: "Failed to toggle tab",
-        variant: "destructive",
-      });
-    } finally {
-      setTogglingTab(null);
-    }
-  };
-
-  // Open tab detail dialog
-  const handleOpenTabDetail = (tab: EntityTab) => {
-    setSelectedTab(tab);
-    setShowTabDetail(true);
-  };
-
-  // Group tabs by type
-  const overviewTabs = entityTabs.filter(t => t.group === 'overview');
-  const documentTabs = entityTabs.filter(t => t.group === 'documents');
-  const specialTabs = entityTabs.filter(t => t.group === 'special');
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium">Entity Tabs</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure which tabs appear on company, trust, and superfund detail pages (SSoT)
-          </p>
-        </div>
-        <Badge variant="outline" className="text-xs">
-          SSoT: Database
-        </Badge>
-      </div>
-
-      {loadingEntityTabs ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      ) : (
-        <>
-          {/* Overview Sub-Tabs - SSoT: From Database */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="font-medium">Overview Sub-Tabs</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Tabs within the Overview section. Click to toggle visibility.
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {overviewTabs.length} tabs
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {overviewTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
-                    disabled={togglingTab === tab.id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
-                      tab.enabled !== false
-                        ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30"
-                        : "bg-muted/30 border-muted hover:bg-muted/50 opacity-60"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      {togglingTab === tab.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span className="text-sm font-medium">{tab.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        {tab.entity_types.map((t) => (
-                          <Badge key={t} variant="outline" className="text-[10px] px-1">
-                            {t.charAt(0)}
-                          </Badge>
-                        ))}
-                      </div>
-                      {tab.enabled !== false ? (
-                        <Eye className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Document Tabs - SSoT: From Database */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="font-medium">Document Folder Tabs</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Document categories shown on entity pages. Click folder icon for details, eye icon to toggle.
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {documentTabs.length} tabs
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {documentTabs.map((tab) => (
-                  <div
-                    key={tab.id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors",
-                      tab.enabled !== false
-                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                        : "bg-muted/30 border-muted opacity-60"
-                    )}
-                  >
-                    <button
-                      onClick={() => handleOpenTabDetail(tab)}
-                      className="flex items-center gap-2 hover:opacity-80 transition-opacity"
-                      title="View tab details"
-                    >
-                      <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                      <div className="text-left">
-                        <span className="text-sm font-medium block">{tab.name}</span>
-                        {tab.has_sharepoint_folder && (
-                          <span className="text-[10px] text-muted-foreground">/{tab.sharepoint_folder_path}</span>
-                        )}
-                      </div>
-                    </button>
-                    <div className="flex items-center gap-1">
-                      {tab.sub_tabs && tab.sub_tabs.length > 0 && (
-                        <Badge variant="outline" className="text-[10px] px-1">
-                          {tab.sub_tabs.length}
-                        </Badge>
-                      )}
-                      <button
-                        onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
-                        disabled={togglingTab === tab.id}
-                        className="p-1 rounded hover:bg-white/50 dark:hover:bg-black/20 transition-colors"
-                        title={tab.enabled !== false ? "Disable tab" : "Enable tab"}
-                      >
-                        {togglingTab === tab.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                        ) : tab.enabled !== false ? (
-                          <Eye className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <EyeOff className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Special Tabs - SSoT: From Database */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h4 className="font-medium">Special Tabs</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Main navigation tabs (Documents browser, Data, Activity).
-                  </p>
-                </div>
-                <Badge variant="secondary" className="text-xs">
-                  {specialTabs.length} tabs
-                </Badge>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {specialTabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleToggleTab(tab.id, tab.enabled !== false)}
-                    disabled={togglingTab === tab.id}
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-lg border transition-colors text-left",
-                      tab.enabled !== false
-                        ? "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/30"
-                        : "bg-muted/30 border-muted hover:bg-muted/50 opacity-60"
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      {togglingTab === tab.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                      ) : (
-                        <LayoutGrid className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                      )}
-                      <span className="text-sm font-medium">{tab.name}</span>
-                    </div>
-                    {tab.enabled !== false ? (
-                      <Eye className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </>
-      )}
-
-      {/* Xero Sub-Tabs - SSoT: Loaded from API */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h4 className="font-medium">Xero Sub-Tabs</h4>
-              <p className="text-sm text-muted-foreground">
-                These tabs appear under the Xero section. Loaded from database (SSoT).
-              </p>
-            </div>
-            <Badge variant="outline" className="text-xs">
-              SSoT: API
-            </Badge>
-          </div>
-          {loadingXeroTabs ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              {/* Functional Tabs */}
-              <div className="mb-4">
-                <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-                  Functional Tabs ({xeroTabs.filter(t => t.type === 'functional').length})
-                </p>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {xeroTabs.filter(t => t.type === 'functional').map((tab) => (
-                    <div
-                      key={tab.id}
-                      className="flex items-center justify-between p-3 rounded-lg border bg-indigo-50 dark:bg-indigo-900/20"
-                    >
-                      <div className="flex items-center gap-2">
-                        <GripVertical className="h-4 w-4 text-muted-foreground/50" />
-                        <span className="text-sm font-medium">{tab.name}</span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {tab.group || 'setup'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Document Tabs */}
-              {xeroTabs.filter(t => t.type === 'document').length > 0 && (
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-                    Document Folders ({xeroTabs.filter(t => t.type === 'document').length})
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    {xeroTabs.filter(t => t.type === 'document').map((tab) => (
-                      <div
-                        key={tab.id}
-                        className="flex items-center justify-between p-3 rounded-lg border bg-blue-50 dark:bg-blue-900/20"
-                      >
-                        <div className="flex items-center gap-2">
-                          <FolderOpen className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                          <span className="text-sm font-medium">{tab.name}</span>
-                        </div>
-                        <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900/40">
-                          SharePoint
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* SSoT Info */}
-      <Card className="bg-muted/30">
-        <CardContent className="pt-6">
-          <h4 className="font-medium mb-3">SSoT Architecture</h4>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-              <p className="font-medium text-green-900 dark:text-green-100 mb-1">Entity Tabs (NEW SSoT)</p>
-              <p>
-                <code className="font-mono bg-green-100 dark:bg-green-900/40 px-1 rounded">GET /api/v1/corporate/entity_tabs</code>
-              </p>
-              <p className="mt-1 text-xs">
-                Backend: <code className="font-mono">CorporateEntityTab</code> - Centralized tab config for all entity types (Company, Trust, Superfund).
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
-              <p className="font-medium text-indigo-900 dark:text-indigo-100 mb-1">Xero Tabs</p>
-              <p>
-                <code className="font-mono bg-indigo-100 dark:bg-indigo-900/40 px-1 rounded">GET /api/v1/xero/tabs</code>
-              </p>
-              <p className="mt-1 text-xs">
-                Backend: <code className="font-mono">XeroFeatureTab</code> - Xero-specific sub-tabs (Connection, Transactions, etc.).
-              </p>
-            </div>
-            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-              <p className="font-medium text-gray-900 dark:text-gray-100 mb-1">Tab Groups</p>
-              <ul className="text-xs mt-1 space-y-1">
-                <li><span className="font-medium">overview:</span> Info, Corporate, Bank Accounts, Directors, etc.</li>
-                <li><span className="font-medium">documents:</span> Advice, ASIC, ATO, Bank, etc. (document folders)</li>
-                <li><span className="font-medium">special:</span> Documents browser, Data, Activity</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Tab Detail Dialog */}
-      <Dialog open={showTabDetail} onOpenChange={setShowTabDetail}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="h-5 w-5 text-blue-600" />
-              {selectedTab?.name} Tab
-            </DialogTitle>
-            <DialogDescription>
-              View tab configuration and linked document types
-            </DialogDescription>
-          </DialogHeader>
-          {selectedTab && (
-            <div className="space-y-4">
-              {/* SharePoint Folder */}
-              <div className="p-4 rounded-lg bg-muted/50 border">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-sm">SharePoint Folder</h4>
-                  <Badge variant={selectedTab.has_sharepoint_folder ? "default" : "secondary"}>
-                    {selectedTab.has_sharepoint_folder ? "Enabled" : "Disabled"}
-                  </Badge>
-                </div>
-                {selectedTab.has_sharepoint_folder && selectedTab.sharepoint_folder_path && (
-                  <p className="text-sm text-muted-foreground font-mono">
-                    /Shared Documents/{selectedTab.sharepoint_folder_path}
-                  </p>
-                )}
-              </div>
-
-              {/* Sub-Tabs */}
-              {selectedTab.sub_tabs && selectedTab.sub_tabs.length > 0 && (
-                <div className="p-4 rounded-lg bg-muted/50 border">
-                  <h4 className="font-medium text-sm mb-3">Sub-Tabs ({selectedTab.sub_tabs.length})</h4>
-                  <div className="space-y-2">
-                    {selectedTab.sub_tabs.map((subTab) => (
-                      <div key={subTab.key} className="flex items-center justify-between text-sm p-2 rounded bg-background">
-                        <span>{subTab.name}</span>
-                        <span className="text-muted-foreground font-mono text-xs">/{subTab.folder}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Document Types */}
-              {selectedTab.document_types && selectedTab.document_types.length > 0 && (
-                <div className="p-4 rounded-lg bg-muted/50 border">
-                  <h4 className="font-medium text-sm mb-3">Document Types ({selectedTab.document_types.length})</h4>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {selectedTab.document_types.map((docType) => (
-                      <div key={docType.id} className="flex items-center justify-between text-sm p-2 rounded bg-background">
-                        <span>{docType.name}</span>
-                        {docType.is_primary && (
-                          <Badge variant="outline" className="text-[10px]">Primary</Badge>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Entity Types */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Applies to:</span>
-                {selectedTab.entity_types.map((type) => (
-                  <Badge key={type} variant="outline">{type}</Badge>
-                ))}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTabDetail(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
+  // Use the new EntityTabsTable component for all entity tab configuration
+  // This provides inline SharePoint path editing, expandable sub-tabs, and drag-to-reorder
+  return <EntityTabsTable />;
 }
 
 // ===== MAIN CORPORATE TAB =====

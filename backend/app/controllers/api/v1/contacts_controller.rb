@@ -137,6 +137,11 @@ module Api
           @contacts = @contacts.where(entity_type: params[:entity_type])
         end
 
+        # Filter to exclude contacts already in corporate (have company_group_id)
+        if params[:not_corporate] == "true"
+          @contacts = @contacts.where(company_group_id: nil)
+        end
+
         @contacts = @contacts.order(:display_name)
 
         # Optionally include companies and jobs data

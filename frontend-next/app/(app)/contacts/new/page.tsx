@@ -76,8 +76,11 @@ export default function NewContactPage() {
   const [selectedCompanyName, setSelectedCompanyName] = React.useState<string | null>(null);
 
   // Employee list for company contacts (people to link after creation)
-  const [pendingEmployees, setPendingEmployees] = React.useState<Array<{ name: string; email?: string }>>([]);
-  const [newEmployeeName, setNewEmployeeName] = React.useState("");
+  const [pendingEmployees, setPendingEmployees] = React.useState<Array<{ id?: number; name: string; email?: string }>>([]);
+  const [employeeSearchOpen, setEmployeeSearchOpen] = React.useState(false);
+  const [employeeSearchQuery, setEmployeeSearchQuery] = React.useState("");
+  const [employeeSearchResults, setEmployeeSearchResults] = React.useState<ContactSearchResult[]>([]);
+  const [searchingEmployees, setSearchingEmployees] = React.useState(false);
 
   // Search companies when query changes
   React.useEffect(() => {
@@ -105,6 +108,38 @@ export default function NewContactPage() {
     const debounce = setTimeout(searchCompanies, 300);
     return () => clearTimeout(debounce);
   }, [companySearchQuery]);
+
+  // Search people when query changes (for employee selection - PEOPLE ONLY)
+  React.useEffect(() => {
+    const searchPeople = async () => {
+      if (employeeSearchQuery.length < 2) {
+        setEmployeeSearchResults([]);
+        return;
+      }
+      setSearchingEmployees(true);
+      try {
+        const response = await api.get<{ contacts: ContactSearchResult[] }>("/api/v1/contacts", {
+          params: {
+            search: employeeSearchQuery,
+            entity_type: "person",  // Only search people
+            per_page: 20
+          },
+        });
+        // Filter out already selected people
+        const selectedIds = pendingEmployees.filter(e => e.id).map(e => e.id);
+        const availablePeople = (response?.contacts || []).filter(
+          c => !selectedIds.includes(c.id)
+        );
+        setEmployeeSearchResults(availablePeople.slice(0, 10));
+      } catch (error) {
+        console.error("Failed to search people:", error);
+      } finally {
+        setSearchingEmployees(false);
+      }
+    };
+    const debounce = setTimeout(searchPeople, 300);
+    return () => clearTimeout(debounce);
+  }, [employeeSearchQuery, pendingEmployees]);
 
   const handleChange = (field: keyof ContactFormData, value: string | number | null) => {
     // Clear related fields when entity type changes
