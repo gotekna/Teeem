@@ -97,6 +97,14 @@ corporate_financial_reports_monthly:
   queue: low
   schedule: at 4am on the 1st of every month
 
+# Monthly bank statement PDF generation for all corporate bank accounts
+# Runs on the 2nd of each month at 5am (after bank transaction sync completes)
+# Uses BankStatementTemplate branding and uploads to SharePoint BANK folder
+corporate_bank_statements_monthly:
+  class: CorporateBankStatementsJob
+  queue: low
+  schedule: at 5am on the 2nd of every month
+
 # ============================================
 # DATA WAREHOUSE RECURRING JOBS
 # ============================================
