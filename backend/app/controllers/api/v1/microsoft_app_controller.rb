@@ -460,10 +460,21 @@ class Api::V1::MicrosoftAppController < ApplicationController
     end
 
     # Support disconnecting specific org by id or name
-    credential = if params[:organization_id].present?
-                   OrganizationMicrosoftAppCredential.find_by(id: params[:organization_id])
-    elsif params[:name].present?
-                   OrganizationMicrosoftAppCredential.find_by_name(params[:name])
+    # Check both query params and request body for flexibility
+    org_id = params[:organization_id] || params[:id]
+    org_name = params[:name]
+
+    Rails.logger.info "[MicrosoftApp] Disconnect called - org_id: #{org_id}, org_name: #{org_name}, all params: #{params.to_unsafe_h}"
+
+    # active_credentials returns MicrosoftCredential objects, so check there first
+    # Then fall back to legacy OrganizationMicrosoftAppCredential table
+    credential = if org_id.present?
+                   # Try MicrosoftCredential first (SSoT), then legacy table
+                   MicrosoftCredential.find_by(id: org_id) ||
+                   OrganizationMicrosoftAppCredential.find_by(id: org_id)
+    elsif org_name.present?
+                   MicrosoftCredential.find_by(name: org_name) ||
+                   OrganizationMicrosoftAppCredential.find_by_name(org_name)
     else
                    OrganizationMicrosoftAppCredential.active_credential
     end

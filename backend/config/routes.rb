@@ -44,6 +44,7 @@ Rails.application.routes.draw do
         collection do
           get :detect_fields   # GET /api/v1/pdf_field_positions/detect_fields - parse PDF for form fields
           get :preview_values  # GET /api/v1/pdf_field_positions/preview_values - get computed values for job
+          get :template        # GET /api/v1/pdf_field_positions/template - get blank PDF template
           post :preview        # POST /api/v1/pdf_field_positions/preview - generate preview PDF
           post :bulk_update    # POST /api/v1/pdf_field_positions/bulk_update - update multiple positions
         end

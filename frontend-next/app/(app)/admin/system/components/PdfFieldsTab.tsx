@@ -96,18 +96,54 @@ const TEMPLATE_OPTIONS = [
 const PDF_WIDTH = 595;
 const PDF_HEIGHT = 842;
 
+// Overflow groups: PDF form fields that represent the same logical data field
+// When one field in a group is mapped, all fields in the group should show as mapped
+const OVERFLOW_GROUPS: Record<string, { fields: string[]; dataKey: string; label: string }> = {
+  site_address: {
+    fields: ["Text Field 34", "Text Field 35"],
+    dataKey: "site_address", // Primary field key (line 1)
+    label: "Site Address (continues)",
+  },
+};
+
 export function PdfFieldsTab() {
   const { toast } = useToast();
   const [positions, setPositions] = React.useState<PdfFieldPosition[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [selectedTemplate, setSelectedTemplate] = React.useState("qbcc_contract");
+
+  // Persist selections in localStorage
+  const [selectedTemplate, setSelectedTemplate] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('pdfFieldsTab_template') || "qbcc_contract";
+    }
+    return "qbcc_contract";
+  });
+  const [selectedJobId, setSelectedJobId] = React.useState<number | null>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pdfFieldsTab_jobId');
+      return saved ? parseInt(saved) : null;
+    }
+    return null;
+  });
   const [selectedJob, setSelectedJob] = React.useState<Job | null>(null);
   const [jobs, setJobs] = React.useState<Job[]>([]);
-  const [currentPage, setCurrentPage] = React.useState(2);
+  const [currentPage, setCurrentPage] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pdfFieldsTab_page');
+      return saved ? parseInt(saved) : 2;
+    }
+    return 2;
+  });
   const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = React.useState(false);
-  const [zoom, setZoom] = React.useState(100);
+  const [zoom, setZoom] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pdfFieldsTab_zoom');
+      return saved ? parseInt(saved) : 100;
+    }
+    return 100;
+  });
   const [debugLogs, setDebugLogs] = React.useState<string[]>([]);
   const [pdfError, setPdfError] = React.useState<string | null>(null);
   const [draggingFieldId, setDraggingFieldId] = React.useState<number | null>(null);
@@ -155,6 +191,15 @@ export function PdfFieldsTab() {
   // Compact mode - hides blue info box and drag handles in mapping dialog
   const [compactMode, setCompactMode] = React.useState(false);
 
+  // Show blank template (no job data filled in)
+  const [showBlankTemplate, setShowBlankTemplate] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pdfFieldsTab_blankTemplate');
+      return saved !== 'false'; // Default to true
+    }
+    return true;
+  });
+
   // react-pdf dimensions for precise overlay alignment
   const [pdfDimensions, setPdfDimensions] = React.useState<{ width: number; height: number } | null>(null);
   const pageRef = React.useRef<HTMLDivElement>(null);
@@ -166,6 +211,29 @@ export function PdfFieldsTab() {
     console.log(`[PdfFieldsTab] ${message}`);
     setDebugLogs((prev) => [...prev.slice(-19), logEntry]);
   }, []);
+
+  // Persist selections to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('pdfFieldsTab_template', selectedTemplate);
+  }, [selectedTemplate]);
+
+  React.useEffect(() => {
+    localStorage.setItem('pdfFieldsTab_page', String(currentPage));
+  }, [currentPage]);
+
+  React.useEffect(() => {
+    if (selectedJob) {
+      localStorage.setItem('pdfFieldsTab_jobId', String(selectedJob.id));
+    }
+  }, [selectedJob]);
+
+  React.useEffect(() => {
+    localStorage.setItem('pdfFieldsTab_zoom', String(zoom));
+  }, [zoom]);
+
+  React.useEffect(() => {
+    localStorage.setItem('pdfFieldsTab_blankTemplate', String(showBlankTemplate));
+  }, [showBlankTemplate]);
 
   // Load positions
   const loadPositions = React.useCallback(async () => {
@@ -226,6 +294,15 @@ export function PdfFieldsTab() {
       if (response.jobs) {
         setJobs(response.jobs);
         if (response.jobs.length > 0) {
+          // Restore previously selected job from localStorage
+          if (selectedJobId) {
+            const savedJob = response.jobs.find((j) => j.id === selectedJobId);
+            if (savedJob) {
+              setSelectedJob(savedJob);
+              return;
+            }
+          }
+          // Fallback: find Wategos or use first job
           const wategos = response.jobs.find((j) =>
             j.name?.toLowerCase().includes("wategos")
           );
@@ -235,7 +312,7 @@ export function PdfFieldsTab() {
     } catch (err) {
       console.error("Failed to load jobs:", err);
     }
-  }, []);
+  }, [selectedJobId]);
 
   // Fetch preview values for the selected job (shows actual data in dropdowns)
   const fetchPreviewValues = React.useCallback(async () => {
@@ -262,10 +339,8 @@ export function PdfFieldsTab() {
     fetchPreviewValues();
   }, [fetchPreviewValues]);
 
-  // Load PDF preview
+  // Load PDF preview (blank template or filled with job data)
   const loadPdfPreview = React.useCallback(async () => {
-    if (!selectedJob) return;
-
     try {
       setLoadingPdf(true);
       setPdfError(null);
@@ -273,18 +348,26 @@ export function PdfFieldsTab() {
       const backendUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
       const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
-      addDebugLog(`Loading preview: ${selectedTemplate}, job=${selectedJob.id}`);
+      // Build URL - blank template or filled preview
+      let url: string;
+      if (showBlankTemplate) {
+        // Load blank template directly
+        url = `${backendUrl}/api/v1/pdf_field_positions/template?template=${selectedTemplate}`;
+        addDebugLog(`Loading blank template: ${selectedTemplate}`);
+      } else {
+        // Load preview with job data
+        if (!selectedJob) return;
+        url = `${backendUrl}/api/v1/pdf_field_positions/preview?template=${selectedTemplate}&job_id=${selectedJob.id}`;
+        addDebugLog(`Loading preview: ${selectedTemplate}, job=${selectedJob.id}`);
+      }
 
-      const response = await fetch(
-        `${backendUrl}/api/v1/pdf_field_positions/preview?template=${selectedTemplate}&job_id=${selectedJob.id}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        }
-      );
+      const response = await fetch(url, {
+        method: showBlankTemplate ? "GET" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
 
       if (response.ok) {
         const blob = await response.blob();
@@ -302,7 +385,7 @@ export function PdfFieldsTab() {
     } finally {
       setLoadingPdf(false);
     }
-  }, [selectedTemplate, selectedJob, addDebugLog]);
+  }, [selectedTemplate, selectedJob, showBlankTemplate, addDebugLog]);
 
   React.useEffect(() => {
     addDebugLog("Component mounted");
@@ -318,10 +401,11 @@ export function PdfFieldsTab() {
   }, [loadJobs]);
 
   React.useEffect(() => {
-    if (selectedJob) {
+    // Load blank template immediately, or wait for job selection for filled preview
+    if (showBlankTemplate || selectedJob) {
       loadPdfPreview();
     }
-  }, [selectedJob, loadPdfPreview]);
+  }, [selectedJob, showBlankTemplate, loadPdfPreview]);
 
   // Save box dimensions
   const saveBoxDimensions = async (id: number, width: number, height: number) => {
@@ -636,6 +720,17 @@ export function PdfFieldsTab() {
         >
           {showDetectedFields ? <Eye className="h-3 w-3 mr-1" /> : <EyeOff className="h-3 w-3 mr-1" />}
           {loadingDetected ? "Detecting..." : `${detectedFields.filter(df => df.page === currentPage && df.is_text).length} Fields`}
+        </Button>
+
+        {/* Toggle blank/filled template */}
+        <Button
+          variant={showBlankTemplate ? "outline" : "default"}
+          size="sm"
+          onClick={() => setShowBlankTemplate(!showBlankTemplate)}
+          className="h-7 text-xs"
+          title={showBlankTemplate ? "Show preview with job data" : "Show blank template"}
+        >
+          {showBlankTemplate ? "Blank" : "With Data"}
         </Button>
 
         {saving && <Badge variant="secondary" className="ml-2">Saving...</Badge>}
@@ -1005,17 +1100,55 @@ export function PdfFieldsTab() {
               .filter((df) => df.page === currentPage && df.is_text)
               .map((df, idx) => {
                 // Check if this detected field is already mapped and get the mapped field
+                // Match tolerance reduced to 10px to avoid overlapping matches
                 const mappedField = positions.find(
                   (p) => p.page === df.page &&
-                    Math.abs(p.x - df.x) < 20 &&
-                    Math.abs(p.y - df.y) < 20
+                    Math.abs(p.x - df.x) < 10 &&
+                    Math.abs(p.y - df.y) < 10
                 );
-                const isMapped = !!mappedField;
+
+                // Check if this field is part of an overflow group
+                const overflowGroup = Object.values(OVERFLOW_GROUPS).find(
+                  (group) => group.fields.includes(df.name)
+                );
+                const fieldIndexInGroup = overflowGroup
+                  ? overflowGroup.fields.indexOf(df.name)
+                  : -1;
+
+                // For overflow groups, check if the primary field (first in group) is mapped
+                let isOverflowMapped = false;
+                let overflowMappedField: PdfFieldPosition | undefined;
+                if (overflowGroup && !mappedField) {
+                  // Find the primary field (first in the group) and check if it's mapped
+                  const primaryFieldName = overflowGroup.fields[0];
+                  const primaryDetectedField = detectedFields.find(
+                    (f) => f.name === primaryFieldName && f.page === currentPage
+                  );
+                  if (primaryDetectedField) {
+                    overflowMappedField = positions.find(
+                      (p) => p.page === primaryDetectedField.page &&
+                        Math.abs(p.x - primaryDetectedField.x) < 10 &&
+                        Math.abs(p.y - primaryDetectedField.y) < 10
+                    );
+                    isOverflowMapped = !!overflowMappedField;
+                  }
+                }
+
+                const isMapped = !!mappedField || isOverflowMapped;
+                const effectiveMappedField = mappedField || overflowMappedField;
 
                 // Get the preview value for this field if mapped
-                const mappedValue = mappedField
-                  ? (previewValues[mappedField.field_key] || mappedField.test_value || "")
-                  : "";
+                // For overflow fields (line 2), use site_address_2 key
+                let mappedValue = "";
+                if (mappedField) {
+                  mappedValue = previewValues[mappedField.field_key] || mappedField.test_value || "";
+                } else if (isOverflowMapped && overflowMappedField) {
+                  // For secondary overflow fields, use the _2 suffix key
+                  const secondaryKey = `${overflowMappedField.field_key}_2`;
+                  mappedValue = fieldIndexInGroup > 0
+                    ? (previewValues[secondaryKey] || "")
+                    : (previewValues[overflowMappedField.field_key] || overflowMappedField.test_value || "");
+                }
 
                 // Convert PDF coordinates (origin bottom-left) to CSS (origin top-left)
                 // PDF y is distance from bottom, CSS top is distance from top
@@ -1040,7 +1173,9 @@ export function PdfFieldsTab() {
                       zIndex: 30,
                     }}
                     onClick={() => setClickedDetectedField(df)}
-                    title={isMapped ? `Mapped: ${mappedField?.display_name} = ${mappedValue}` : `Click to map: ${df.name}`}
+                    title={isMapped
+                      ? `Mapped: ${effectiveMappedField?.display_name}${isOverflowMapped ? " (overflow)" : ""} = ${mappedValue}`
+                      : `Click to map: ${df.name}`}
                   >
                     {/* Show mapped data value inside the box */}
                     {isMapped && mappedValue && (
@@ -1056,7 +1191,9 @@ export function PdfFieldsTab() {
                       "absolute -top-5 left-0 opacity-0 group-hover:opacity-100 transition-opacity text-white text-[9px] px-1 py-0.5 rounded whitespace-nowrap shadow-lg",
                       isMapped ? "bg-green-600" : "bg-blue-600"
                     )}>
-                      {isMapped ? `✓ ${mappedField?.display_name}` : "Click to map"}
+                      {isMapped
+                        ? `✓ ${effectiveMappedField?.display_name}${isOverflowMapped ? " (line 2)" : ""}`
+                        : "Click to map"}
                     </div>
                   </div>
                 );

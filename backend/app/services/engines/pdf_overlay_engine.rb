@@ -337,7 +337,12 @@ module Engines
         data[:builder_address] ||= settings.address.to_s.sub(/\s*#{settings.postcode}\s*$/, "").strip
 
         # Job/site info (Item 4: The Site)
-        data[:site_address] ||= job.address
+        # Split long addresses across two fields (Text Field 34 and 35)
+        if job.address.present? && data[:site_address].blank?
+          split = split_address_for_overflow(job.address, 40)  # ~40 chars per line
+          data[:site_address] = split[:line1]
+          data[:site_address_2] = split[:line2] if split[:line2].present?
+        end
         data[:lot_number] ||= job.try(:lot_number)
         data[:plan_number] ||= job.try(:plan_number)
         data[:local_authority] ||= job.try(:council)  # Council = Local Authority
@@ -357,10 +362,14 @@ module Engines
         data[:provisional_sums] ||= format_currency(provisional)
         data[:contract_price] ||= format_currency(total)
 
-        # Item 2: Deposit (calculate as 5% of contract price if not set)
-        if job.try(:deposit).present?
+        # Item 2: Deposit (SSoT: Claims tab → job_claim_stages)
+        deposit_stage = job.job_claim_stages.find_by("LOWER(name) LIKE ?", "%deposit%")
+        if deposit_stage&.expected_amount.present?
+          data[:deposit] ||= format_currency(deposit_stage.expected_amount)
+        elsif job.try(:deposit).present?
           data[:deposit] ||= format_currency(job.deposit)
         elsif job.try(:contract_price).present?
+          # Fallback: calculate 5% if no Claims tab data
           deposit_amount = (job.contract_price * 0.05).round(2)
           data[:deposit] ||= format_currency(deposit_amount)
         end
@@ -777,6 +786,36 @@ module Engines
       first_day = Date.new(year, month, 1)
       days_until_wednesday = (3 - first_day.wday) % 7
       first_day + days_until_wednesday + 7
+    end
+
+    # Split a long address into two lines for overflow fields
+    # Splits on word boundaries, prioritizing comma breaks
+    def split_address_for_overflow(address, max_chars_per_line)
+      return { line1: address, line2: nil } if address.blank? || address.length <= max_chars_per_line
+
+      # Try to split at a comma near the middle
+      comma_pos = address.rindex(",", max_chars_per_line)
+      if comma_pos && comma_pos > 15  # Don't split too early
+        return {
+          line1: address[0..comma_pos].strip,
+          line2: address[(comma_pos + 1)..-1].strip
+        }
+      end
+
+      # Otherwise split at last space before max_chars
+      space_pos = address.rindex(" ", max_chars_per_line)
+      if space_pos && space_pos > 10
+        return {
+          line1: address[0...space_pos].strip,
+          line2: address[space_pos..-1].strip
+        }
+      end
+
+      # Fallback: hard split at max_chars
+      {
+        line1: address[0...max_chars_per_line].strip,
+        line2: address[max_chars_per_line..-1].strip
+      }
     end
   end
 end

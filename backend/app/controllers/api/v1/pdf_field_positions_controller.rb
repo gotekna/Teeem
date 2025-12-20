@@ -169,6 +169,35 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/pdf_field_positions/template
+      # Returns the blank PDF template (no form fields filled)
+      # Params: template (required)
+      def template
+        template_key = params[:template]
+
+        unless template_key.present?
+          return render json: { success: false, error: "Template key required" }, status: :bad_request
+        end
+
+        # Map template key to file path
+        template_paths = {
+          "qbcc_contract" => Rails.root.join("app/views/tekna_documents/templates/qbcc/qbcc_contract.pdf"),
+          "qbcc_consumer_guide" => Rails.root.join("app/views/tekna_documents/templates/qbcc/qbcc_consumer_guide.pdf"),
+          "qbcc_general_conditions" => Rails.root.join("app/views/tekna_documents/templates/qbcc/qbcc_general_conditions.pdf")
+        }
+
+        pdf_path = template_paths[template_key]
+
+        unless pdf_path && File.exist?(pdf_path)
+          return render json: { success: false, error: "Template not found: #{template_key}" }, status: :not_found
+        end
+
+        send_file pdf_path,
+                  filename: "#{template_key}.pdf",
+                  type: "application/pdf",
+                  disposition: "inline"
+      end
+
       private
 
       def set_pdf_field_position
