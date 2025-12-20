@@ -274,7 +274,7 @@ export function XeroConnectionCard({
                       </span>
                     )}
                     {status?.days_since_sync !== undefined && status?.days_since_sync !== null && status?.days_since_sync > 7 && (
-                      <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                      <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
                         <AlertTriangle className="h-3 w-3 mr-1" />
                         {status.days_since_sync} days since last sync
                       </Badge>
@@ -394,7 +394,7 @@ export function XeroConnectionCard({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
               Confirm Xero Connection
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -410,7 +410,7 @@ export function XeroConnectionCard({
                     <span className="font-medium text-blue-600">{pendingConnection?.xero_tenant_name || "Unknown"}</span>
                   </div>
                 </div>
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                <p className="text-sm text-orange-600 dark:text-orange-400">
                   Make sure the Xero organisation matches this company. Connecting to the wrong Xero file will sync incorrect data.
                 </p>
               </div>

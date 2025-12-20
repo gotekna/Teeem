@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_19_221348) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_20_011705) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -243,20 +243,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_19_221348) do
     t.index ["content_hash"], name: "index_attachments_on_content_hash", unique: true
     t.index ["organization_microsoft_app_credential_id"], name: "index_attachments_on_org_cred_id"
     t.index ["sharepoint_file_id"], name: "index_attachments_on_sharepoint_file_id"
-  end
-
-  create_table "australian_councils", force: :cascade do |t|
-    t.string "postcode", limit: 4, null: false
-    t.string "suburb", null: false
-    t.string "state", limit: 3, null: false
-    t.string "council_name", null: false
-    t.string "council_type"
-    t.decimal "latitude", precision: 10, scale: 6
-    t.decimal "longitude", precision: 10, scale: 6
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["council_name"], name: "index_australian_councils_on_council_name"
-    t.index ["postcode", "suburb"], name: "idx_councils_postcode_suburb"
   end
 
   create_table "balance_sheet_reports", force: :cascade do |t|
