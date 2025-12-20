@@ -887,7 +887,7 @@ export default function JobDetailPage() {
       </div>
 
       {/* Tab content - scrollable */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 px-3 pb-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col min-h-0 px-3 pb-6">
         <TabsContent value="overview" className="mt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Job Details */}

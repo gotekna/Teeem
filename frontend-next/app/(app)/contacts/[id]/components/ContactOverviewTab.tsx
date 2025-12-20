@@ -398,8 +398,15 @@ export function ContactOverviewTab({
         const emailsToSave = emails
           .filter((e) => !(e._destroy && !e.id))
           .map((e) => {
-            const { _tempId, ...rest } = e as ContactEmail & { _tempId?: string };
-            return rest;
+            // Only include valid ContactEmail fields - filter out any extra/empty keys
+            return {
+              ...(e.id && { id: e.id }),
+              email: e.email,
+              is_primary: e.is_primary,
+              label: e.label,
+              position: e.position,
+              ...(e._destroy && { _destroy: e._destroy }),
+            };
           });
 
         // Also sync primary email to legacy field

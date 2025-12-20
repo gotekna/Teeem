@@ -169,7 +169,7 @@ class CorporateEntityTab < ApplicationRecord
 
     # Document tabs (for all entity types)
     document_tabs = %w[
-      Advice ASIC Assets ATO Bank Company Dividends Financials
+      Xero Advice ASIC Assets ATO Bank Company Dividends Financials
       General Insurance Loans Minutes Registry Trust
     ]
 

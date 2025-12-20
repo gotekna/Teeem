@@ -174,10 +174,40 @@ export function TeeemDocumentView<T extends DocumentItem>({
   // Start with thumbnail (instant), user clicks to load full PDF
   const [showFullPdf, setShowFullPdf] = useState(false);
 
-  // Reset to thumbnail view when document changes
+  // Fullscreen mode - hides everything except the PDF
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Track previous document to detect document changes (not initial selection)
+  const prevDocumentRef = useRef<T | null>(null);
+
+  // Reset to thumbnail view only when switching between documents (not on initial selection)
   useEffect(() => {
-    setShowFullPdf(false);
+    if (prevDocumentRef.current !== null && selectedDocument !== null) {
+      // Switching from one document to another - reset thumbnail but stay in fullscreen
+      setShowFullPdf(true); // Go straight to PDF when switching docs
+    }
+    prevDocumentRef.current = selectedDocument;
   }, [selectedDocument]);
+
+  // Handle escape key to exit fullscreen
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+
+    if (isFullscreen) {
+      document.addEventListener("keydown", handleKeyDown);
+      // Prevent body scroll when fullscreen
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isFullscreen]);
 
   // Notify parent when selection changes (skip initial null)
   const hasSelectedRef = useRef(false);
@@ -553,7 +583,10 @@ export function TeeemDocumentView<T extends DocumentItem>({
           // Show instant thumbnail preview
           <div
             className="h-full w-full flex items-center justify-center bg-gray-50 dark:bg-gray-900 cursor-pointer group"
-            onClick={() => setShowFullPdf(true)}
+            onClick={() => {
+              setShowFullPdf(true);
+              setIsFullscreen(true);
+            }}
           >
             <AuthenticatedImage
               src={thumbnailUrl}
@@ -564,17 +597,29 @@ export function TeeemDocumentView<T extends DocumentItem>({
             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
               <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white px-4 py-2 rounded-lg flex items-center gap-2">
                 <Maximize2 className="h-4 w-4" />
-                <span>View Full PDF</span>
+                <span>View Full Screen</span>
               </div>
             </div>
           </div>
         ) : shouldShowPdf ? (
-          // Show full PDF viewer
-          <PDFViewer
-            url={previewUrl}
-            fallbackUrl={externalUrl || undefined}
-            className="h-full"
-          />
+          // Show full PDF viewer with fullscreen button
+          <div className="h-full relative">
+            <PDFViewer
+              url={previewUrl}
+              fallbackUrl={externalUrl || undefined}
+              className="h-full"
+            />
+            {/* Fullscreen button */}
+            <Button
+              variant="secondary"
+              size="sm"
+              className="absolute top-2 right-2 z-10 shadow-md"
+              onClick={() => setIsFullscreen(true)}
+            >
+              <Maximize2 className="h-4 w-4 mr-1" />
+              Fullscreen
+            </Button>
+          </div>
         ) : (
           // No file attached
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -597,6 +642,64 @@ export function TeeemDocumentView<T extends DocumentItem>({
     );
   };
 
+  // Render fullscreen overlay
+  const renderFullscreenOverlay = () => {
+    if (!isFullscreen || !selectedDocument) return null;
+
+    const previewUrl = getPreviewUrl(selectedDocument);
+    const externalUrl = getExternalUrl?.(selectedDocument);
+    const name = getDocumentName(selectedDocument);
+
+    return (
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+          <div className="flex items-center gap-3">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            <span className="font-medium truncate max-w-[600px]">{name}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {externalUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => window.open(externalUrl, "_blank")}
+              >
+                <ExternalLink className="h-4 w-4 mr-1" />
+                Open in SharePoint
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFullscreen(false)}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Close
+              <span className="ml-2 text-xs text-muted-foreground">(Esc)</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* PDF Viewer - full remaining height */}
+        <div className="flex-1 min-h-0">
+          {previewUrl ? (
+            <PDFViewer
+              url={previewUrl}
+              fallbackUrl={externalUrl || undefined}
+              className="h-full"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+              <FileText className="h-16 w-16 mb-4 opacity-50" />
+              <p>No file attached</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className={cn("relative h-full", className)}>
       {/* Preview panel - right 70% */}
@@ -608,6 +711,9 @@ export function TeeemDocumentView<T extends DocumentItem>({
       <div className="absolute top-11 left-0 bottom-0 w-[30%] bg-card">
         {renderDocumentList()}
       </div>
+
+      {/* Fullscreen overlay - covers entire screen */}
+      {renderFullscreenOverlay()}
     </div>
   );
 }

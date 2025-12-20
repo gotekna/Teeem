@@ -126,6 +126,28 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   useSetLayoutMode("edge-to-edge");
 
   const { toast } = useToast();
+
+  // Plans tab always runs in fullscreen mode
+  const [isFullscreenTab, setIsFullscreenTab] = useState(true);
+
+  // Handle escape key to exit fullscreen tab mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isFullscreenTab) {
+        setIsFullscreenTab(false);
+      }
+    };
+
+    if (isFullscreenTab) {
+      document.addEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [isFullscreenTab]);
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -650,7 +672,8 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       })()
     : planTypes;
 
-  return (
+  // Main content (used in both fullscreen and normal mode)
+  const mainContent = (
     <div
       className="relative h-full"
       onDragEnter={handleDragEnter}
@@ -1060,4 +1083,39 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       </Dialog>
     </div>
   );
+
+  // Fullscreen mode - covers entire screen
+  if (isFullscreenTab) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+          <div className="flex items-center gap-3">
+            <FileText className="h-5 w-5 text-muted-foreground" />
+            <span className="font-medium">{jobTitle}</span>
+            <Badge variant="secondary">Plans</Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsFullscreenTab(false)}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Exit Fullscreen
+              <span className="ml-2 text-xs text-muted-foreground">(Esc)</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Main content - full remaining height */}
+        <div className="flex-1 min-h-0">
+          {mainContent}
+        </div>
+      </div>
+    );
+  }
+
+  // Normal mode (non-fullscreen)
+  return mainContent;
 }
