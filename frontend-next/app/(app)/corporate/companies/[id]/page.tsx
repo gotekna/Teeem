@@ -3967,12 +3967,25 @@ export default function CompanyDetailPage() {
                 <XeroProfitLossCard companyId={companyId} />
               )}
 
+              {/* Transactions sub-tabs - show detailed Xero data */}
+              {xeroSubTab === "profit-loss-transactions" && (
+                <XeroProfitLossCard companyId={companyId} />
+              )}
+
               {xeroSubTab === "balance-sheet-statement" && (
+                <XeroBalanceSheetCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "balance-sheet-transactions" && (
                 <XeroBalanceSheetCard companyId={companyId} />
               )}
 
               {xeroSubTab === "bank-statement" && (
                 <XeroStatementView companyId={companyId} />
+              )}
+
+              {xeroSubTab === "bank-accounts" && (
+                <XeroBankAccountsCard companyId={companyId} />
               )}
 
               {/* Contacts tab - shows Xero contacts for this company */}

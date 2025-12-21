@@ -29,6 +29,8 @@ interface CompanyDocument {
   source?: string;
   company?: { id: number; name: string; code: string };
   onedrive_file_id?: string;
+  ai_confidence_score?: number;
+  ai_verification_status?: string;
 }
 
 interface DocumentSidePanelProps {
@@ -116,7 +118,7 @@ export default function DocumentSidePanel({
           <div className="flex items-center justify-between p-4 border-b bg-background">
             <div className="flex-1 min-w-0 mr-4">
               <h3 className="font-semibold text-sm truncate">{fileName}</h3>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {document.folder && (
                   <Badge variant="outline" className="text-xs">
                     {document.folder}
@@ -125,6 +127,21 @@ export default function DocumentSidePanel({
                 {document.source && (
                   <Badge variant="secondary" className="text-xs">
                     {document.source}
+                  </Badge>
+                )}
+                {document.ai_confidence_score != null && (
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-medium ${
+                      document.ai_confidence_score >= 90
+                        ? "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                        : document.ai_confidence_score >= 70
+                        ? "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                        : "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                    }`}
+                    title="AI classification confidence score"
+                  >
+                    AI {Math.round(document.ai_confidence_score)}%
                   </Badge>
                 )}
               </div>
