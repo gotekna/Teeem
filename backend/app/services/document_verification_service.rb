@@ -25,8 +25,9 @@ class DocumentVerificationService
     # 2. Download PDF from SharePoint
     content = download_document
 
-    # 3. Extract text from PDF
+    # 3. Extract text from PDF and track OCR results
     text = extract_text(content)
+    ocr_result = calculate_ocr_confidence(text, content)
 
     # 4. Send to Claude for analysis (pass PDF content for vision fallback if text extraction failed)
     analysis = analyze_with_claude(text, text.nil? ? content : nil)
@@ -41,7 +42,7 @@ class DocumentVerificationService
     # Don't store suggested_fy for date-range documents
     suggested_fy = is_date_range_doc ? nil : analysis[:suggested_fy]
 
-    # 5. Update document with results
+    # 5. Update document with results (including OCR metrics)
     @document.update!(
       ai_verified_at: Time.current,
       ai_verification_status: analysis[:status],
@@ -56,7 +57,10 @@ class DocumentVerificationService
       ai_source_page: analysis[:source_page],
       ai_source_quote: analysis[:source_quote],
       ai_contains_multiple_documents: analysis[:contains_multiple_documents],
-      ai_split_recommendation: analysis[:split_recommendation]
+      ai_split_recommendation: analysis[:split_recommendation],
+      # OCR metrics
+      ocr_confidence: ocr_result[:confidence],
+      ocr_method: ocr_result[:method]
     )
 
     # 6. Auto-apply at 74%+ confidence (skip if multi-document PDF)
@@ -197,6 +201,42 @@ class DocumentVerificationService
 
     # Return in format expected by build_prompt
     { pages: result[:pages], total_pages: result[:page_count] }
+  end
+
+  # Calculate OCR confidence based on text extraction quality
+  # Returns { confidence: 0-100, method: 'text_extraction' | 'vision' | 'none' }
+  def calculate_ocr_confidence(text, content)
+    if text.nil?
+      # No text extracted - will use vision fallback
+      return { confidence: nil, method: "vision" }
+    end
+
+    # Calculate confidence based on extracted text quality
+    pages = text[:pages] || []
+    total_pages = text[:total_pages] || 0
+
+    if pages.empty? || total_pages == 0
+      return { confidence: 0, method: "text_extraction" }
+    end
+
+    # Calculate average characters per page
+    total_chars = pages.sum { |p| p[:text].to_s.length }
+    avg_chars_per_page = total_chars.to_f / total_pages
+
+    # Score based on text density:
+    # - 500+ chars/page = 100% (well-formatted text PDF)
+    # - 200-500 chars/page = 70-99% (decent extraction)
+    # - 50-200 chars/page = 40-69% (sparse text, possible scan)
+    # - <50 chars/page = 10-39% (mostly images/scanned)
+    confidence = case avg_chars_per_page
+    when 500.. then 100
+    when 200...500 then 70 + ((avg_chars_per_page - 200) / 300.0 * 29).round
+    when 50...200 then 40 + ((avg_chars_per_page - 50) / 150.0 * 29).round
+    else
+      [ 10 + (avg_chars_per_page / 50.0 * 29).round, 39 ].min
+    end
+
+    { confidence: confidence, method: "text_extraction" }
   end
 
   MAX_RETRIES = 3

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_21_010000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1580,6 +1580,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_010000) do
     t.boolean "is_pdf_eligible", default: true, null: false
     t.datetime "orphaned_at"
     t.string "orphan_reason"
+    t.decimal "ocr_confidence", precision: 5, scale: 2
+    t.string "ocr_method"
+    t.decimal "human_confidence", precision: 5, scale: 2
     t.index ["asset_id"], name: "index_corporate_company_documents_on_asset_id"
     t.index ["company_code"], name: "index_corporate_company_documents_on_company_code"
     t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_company_ai_status"

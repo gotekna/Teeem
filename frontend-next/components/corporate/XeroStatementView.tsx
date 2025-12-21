@@ -430,7 +430,7 @@ export function XeroStatementView({ companyId }: Props) {
         </div>
       </CardHeader>
       <CardContent>
-        {/* Filters */}
+        {/* Filters Row */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <Select value={selectedAccount} onValueChange={setSelectedAccount}>
             <SelectTrigger className="w-[200px]">
@@ -460,20 +460,6 @@ export function XeroStatementView({ companyId }: Props) {
             </SelectContent>
           </Select>
 
-          <Select value={selectedMonth} onValueChange={(v) => { setSelectedMonth(v); setPage(1); }}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Month" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Months</SelectItem>
-              {MONTHS.map((month) => (
-                <SelectItem key={month.value} value={month.value}>
-                  {month.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -483,6 +469,35 @@ export function XeroStatementView({ companyId }: Props) {
               className="pl-9"
             />
           </div>
+        </div>
+
+        {/* Month Tabs */}
+        <div className="flex gap-1 mb-4 border-b overflow-x-auto pb-px">
+          <button
+            onClick={() => { setSelectedMonth("all"); setPage(1); }}
+            className={cn(
+              "px-3 py-1.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+              selectedMonth === "all"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            All
+          </button>
+          {MONTHS.map((month) => (
+            <button
+              key={month.value}
+              onClick={() => { setSelectedMonth(month.value); setPage(1); }}
+              className={cn(
+                "px-3 py-1.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap",
+                selectedMonth === month.value
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {month.label.slice(0, 3)}
+            </button>
+          ))}
         </div>
 
         {/* Summary Cards */}
