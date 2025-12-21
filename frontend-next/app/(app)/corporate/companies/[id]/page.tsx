@@ -3612,14 +3612,19 @@ export default function CompanyDetailPage() {
   // Load contacts linked to this company's Xero tenant when contacts tab is selected
   React.useEffect(() => {
     const loadXeroContacts = async () => {
-      const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
+      const xeroConnection = company?.corporate_company_xero_connection;
+      const tenantId = xeroConnection?.xero_tenant_id;
+      console.log("[XeroContacts] xeroSubTab:", xeroSubTab, "xeroConnection:", xeroConnection, "tenantId:", tenantId);
       if (xeroSubTab !== "contacts" || !tenantId) return;
 
       setXeroContactsLoading(true);
       try {
         // SSoT: Use contacts foundation API with xero_tenant_id filter
-        const response = await fetch(`/api/v1/contacts?xero_tenant_id=${tenantId}`);
+        const url = `/api/v1/contacts?xero_tenant_id=${tenantId}`;
+        console.log("[XeroContacts] Fetching:", url);
+        const response = await fetch(url);
         const data = await response.json();
+        console.log("[XeroContacts] Response:", data.success, "contacts:", data.contacts?.length);
         if (data.success) {
           setXeroContacts(data.contacts || data.data || []);
         }
