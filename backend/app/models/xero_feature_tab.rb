@@ -24,7 +24,14 @@ class XeroFeatureTab < ApplicationRecord
   def self.all_tabs_ordered
     # Get functional tabs with parent/child relationships
     # SSoT: Use database columns (parent_key, group_member, visible) - not description parsing
-    functional_tabs = enabled.functional.ordered.map do |tab|
+
+    # Find which tab_keys are used as parent containers (they shouldn't be shown as tabs)
+    parent_keys = enabled.where.not(parent_key: [nil, '']).distinct.pluck(:parent_key)
+
+    functional_tabs = enabled.functional.ordered.reject { |tab|
+      # Skip tabs that are parent containers (their children will show them as groups)
+      parent_keys.include?(tab.tab_key)
+    }.map do |tab|
       {
         id: tab.tab_key,
         name: tab.display_name,
