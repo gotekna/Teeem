@@ -3179,7 +3179,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
         enableImport={false}
         enableExport={true}
         enableSchemaEditor={false}
-        showDataHealth={true}
+        showDataHealth={false}
         leftActions={leftActions}
         customCellRenderer={customCellRenderer}
         customBulkActions={(selectedIds, clearSelection) => (
@@ -3832,7 +3832,12 @@ export default function CompanyDetailPage() {
               </div>
 
               {/* Overview Sub-tab Content - Unified for all entity types */}
-              {overviewSubTab === "info" && <InformationTab company={company} />}
+              {overviewSubTab === "info" && (
+                <>
+                  <ATOSetupCard company={company} />
+                  <InformationTab company={company} />
+                </>
+              )}
               {overviewSubTab === "corporate" && <CorporateTab company={company} onUpdate={loadCompany} />}
               {overviewSubTab === "bank-accounts" && <BankAccountsTab company={company} companyId={companyId} />}
               {overviewSubTab === "directors" && <DirectorsTab companyId={companyId} />}
@@ -4047,10 +4052,6 @@ export default function CompanyDetailPage() {
           {/* Document Category Tabs */}
           {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && activeTab !== "xero" && (
             <>
-              {/* SSoT: Show ATO Setup Card on ATO tab */}
-              {activeTab === "ato" && (
-                <ATOSetupCard company={company} />
-              )}
               <CompanyDocumentsTab
                 companyId={companyId}
                 company={company}
