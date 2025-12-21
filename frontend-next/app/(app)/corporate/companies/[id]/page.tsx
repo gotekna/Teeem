@@ -4122,7 +4122,7 @@ export default function CompanyDetailPage() {
                     <TeeemTableView
                       entries={xeroInvoices}
                       foundationId="external_invoices"
-                      foundationIdNumeric={526}
+                      foundationIdNumeric={523}
                       tableName="Sales Invoices"
                       preloadedViews={[]}
                       onRefresh={async () => {
@@ -4167,7 +4167,7 @@ export default function CompanyDetailPage() {
                     <TeeemTableView
                       entries={xeroBills}
                       foundationId="external_invoices"
-                      foundationIdNumeric={526}
+                      foundationIdNumeric={523}
                       tableName="Bills"
                       preloadedViews={[]}
                       onRefresh={async () => {
