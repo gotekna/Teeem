@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +16,8 @@ import { Loader2, RefreshCw, Search, Download, ArrowUpRight, ArrowDownLeft } fro
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
 
 // Types
 interface BankTransaction {
@@ -367,6 +369,30 @@ export function XeroStatementView({ companyId }: Props) {
     { receives: 0, spends: 0, receivesCount: 0, spendsCount: 0 }
   );
 
+  // Define columns for TeeemTableView (no Foundation backing - explicit columns)
+  const columns: TableColumn[] = useMemo(() => [
+    { key: "transaction_date", label: "Date", width: 110, sortable: true, column_type: "date" },
+    { key: "description", label: "Description", width: 250, sortable: true },
+    { key: "contact_name", label: "Contact", width: 150, sortable: true },
+    { key: "bank_account_name", label: "Account", width: 150, sortable: true },
+    { key: "reference", label: "Reference", width: 100, sortable: true },
+    { key: "signed_total", label: "Amount", width: 120, sortable: true, column_type: "currency", showSum: true },
+    { key: "status_display", label: "Status", width: 100, column_type: "badge" },
+  ], []);
+
+  // Transform transactions to table rows
+  const tableRows: TableRow[] = useMemo(() => transactions.map((txn) => ({
+    id: txn.id,
+    transaction_date: txn.transaction_date,
+    description: txn.description || "-",
+    contact_name: txn.contact_name || "-",
+    bank_account_name: txn.bank_account_name || "-",
+    reference: txn.reference || "-",
+    signed_total: txn.transaction_type === "RECEIVE" ? txn.total : -txn.total,
+    status_display: txn.is_reconciled ? "RECONCILED" : "PENDING",
+    transaction_type: txn.transaction_type,
+  })), [transactions]);
+
   // Show message if company has no Xero-linked bank accounts
   if (companyId && companyXeroAccountIds.length === 0 && !loading) {
     return (
@@ -538,104 +564,48 @@ export function XeroStatementView({ companyId }: Props) {
           </div>
         </div>
 
-        {/* Transactions Table */}
+        {/* Loading state or TeeemTableView */}
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : transactions.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No transactions found.</p>
-            <p className="text-sm mt-1">
-              {syncStatus?.total_transactions === 0
-                ? 'Click "Sync from Xero" to import bank transactions.'
-                : "Try adjusting your filters."}
-            </p>
-          </div>
         ) : (
-          <>
-            <div className="overflow-x-auto border rounded-lg">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="text-left py-2 px-3 font-medium">Date</th>
-                    <th className="text-left py-2 px-3 font-medium">Description</th>
-                    <th className="text-left py-2 px-3 font-medium">Contact</th>
-                    <th className="text-left py-2 px-3 font-medium">Account</th>
-                    <th className="text-left py-2 px-3 font-medium">Reference</th>
-                    <th className="text-right py-2 px-3 font-medium">Amount</th>
-                    <th className="text-center py-2 px-3 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactions.map((txn) => (
-                    <tr key={txn.id} className="border-b hover:bg-muted/30">
-                      <td className="py-2 px-3 whitespace-nowrap">
-                        {formatDate(txn.transaction_date)}
-                      </td>
-                      <td className="py-2 px-3 max-w-[250px] truncate" title={txn.description}>
-                        {txn.description || "-"}
-                      </td>
-                      <td className="py-2 px-3 max-w-[150px] truncate" title={txn.contact_name || ""}>
-                        {txn.contact_name || "-"}
-                      </td>
-                      <td className="py-2 px-3 max-w-[150px] truncate" title={txn.bank_account_name}>
-                        {txn.bank_account_name || "-"}
-                      </td>
-                      <td className="py-2 px-3 max-w-[100px] truncate" title={txn.reference}>
-                        {txn.reference || "-"}
-                      </td>
-                      <td className={cn(
-                        "py-2 px-3 text-right font-mono whitespace-nowrap",
-                        txn.transaction_type === "RECEIVE" ? "text-green-600" : "text-red-600"
-                      )}>
-                        {txn.transaction_type === "RECEIVE" ? "+" : "-"}
-                        {formatCurrency(txn.total)}
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        {txn.is_reconciled ? (
-                          <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
-                            Reconciled
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" className="text-xs">
-                            Pending
-                          </Badge>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="-mx-4">
+            <TeeemTableView
+              entries={tableRows}
+              columns={columns}
+              tableName="Xero Statement"
+              viewOnly={true}
+              enableExport={true}
+            />
+          </div>
+        )}
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <div className="text-sm text-muted-foreground">
-                  Page {page} of {totalPages}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
-          </>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 px-4">
+            <div className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>

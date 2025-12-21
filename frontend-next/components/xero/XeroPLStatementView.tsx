@@ -19,6 +19,8 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
 
 interface PLReport {
   id: number;
@@ -220,6 +222,42 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
   const existingFYs = reports.map((r) => r.financial_year);
   const missingFYs = getAvailableFYs().filter((fy) => !existingFYs.includes(fy));
 
+  // Define columns for TeeemTableView (no Foundation backing - explicit columns)
+  const columns: TableColumn[] = [
+    { key: "financial_year", label: "Financial Year", width: 120, sortable: true },
+    { key: "period", label: "Period", width: 180 },
+    { key: "total_revenue", label: "Revenue", width: 120, sortable: true, column_type: "currency", showSum: true },
+    { key: "total_expenses", label: "Expenses", width: 120, sortable: true, column_type: "currency", showSum: true },
+    { key: "net_profit", label: "Net Profit", width: 130, sortable: true, column_type: "currency", showSum: true },
+    { key: "status", label: "Status", width: 110, column_type: "badge" },
+    { key: "generated_at", label: "Generated", width: 130, column_type: "date" },
+  ];
+
+  // Transform reports to table rows
+  const tableRows: TableRow[] = reports.map((report) => ({
+    id: report.id,
+    financial_year: report.financial_year,
+    period: report.period_start && report.period_end
+      ? `${formatDate(report.period_start)} - ${formatDate(report.period_end)}`
+      : "—",
+    total_revenue: report.total_revenue,
+    total_expenses: report.total_expenses,
+    net_profit: report.net_profit,
+    status: report.status?.toUpperCase(),
+    generated_at: report.generated_at,
+    file_size: report.file_size,
+    download_url: report.download_url,
+    _original: report,
+  }));
+
+  // Handle row actions
+  const handleRowClick = (row: TableRow) => {
+    const report = row._original as PLReport;
+    if (report.status === "completed") {
+      downloadReport(report);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -268,119 +306,22 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
           </div>
         )}
 
-        {loading && reports.length === 0 && (
+        {/* Loading state */}
+        {loading && reports.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        )}
-
-        {!loading && reports.length === 0 && !error && (
-          <div className="text-center py-12 text-muted-foreground">
-            <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>No P&L reports generated yet</p>
-            <p className="text-sm mt-2">
-              Click "Generate" to create a P&L statement for a financial year
-            </p>
-            {missingFYs.length > 0 && (
-              <Button onClick={() => generateReport(missingFYs[0])} className="mt-4">
-                <Plus className="h-4 w-4 mr-2" />
-                Generate {missingFYs[0]} Report
-              </Button>
-            )}
-          </div>
-        )}
-
-        {reports.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/50 font-semibold">
-                  <th className="py-3 px-4 text-left">Financial Year</th>
-                  <th className="py-3 px-4 text-left">Period</th>
-                  <th className="py-3 px-4 text-right">Revenue</th>
-                  <th className="py-3 px-4 text-right">Expenses</th>
-                  <th className="py-3 px-4 text-right">Net Profit</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-left">Generated</th>
-                  <th className="py-3 px-4 text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reports.map((report) => (
-                  <tr key={report.id} className="border-b hover:bg-muted/20">
-                    <td className="py-2.5 px-4 font-medium">{report.financial_year}</td>
-                    <td className="py-2.5 px-4 text-muted-foreground text-sm">
-                      {report.period_start && report.period_end
-                        ? `${formatDate(report.period_start)} - ${formatDate(report.period_end)}`
-                        : "—"}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono text-green-600 dark:text-green-400">
-                      {formatCurrency(report.total_revenue)}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono text-red-600 dark:text-red-400">
-                      {formatCurrency(report.total_expenses)}
-                    </td>
-                    <td className="py-2.5 px-4 text-right font-mono">
-                      {report.net_profit !== null ? (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 font-semibold",
-                            report.net_profit >= 0
-                              ? "text-green-600 dark:text-green-400"
-                              : "text-red-600 dark:text-red-400"
-                          )}
-                        >
-                          {report.net_profit >= 0 ? (
-                            <TrendingUp className="h-4 w-4" />
-                          ) : (
-                            <TrendingDown className="h-4 w-4" />
-                          )}
-                          {formatCurrency(report.net_profit)}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="py-2.5 px-4 text-center">{getStatusBadge(report.status)}</td>
-                    <td className="py-2.5 px-4 text-sm text-muted-foreground">
-                      {formatDate(report.generated_at)}
-                      {report.file_size && (
-                        <span className="text-xs ml-2">({formatFileSize(report.file_size)})</span>
-                      )}
-                    </td>
-                    <td className="py-2.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        {report.status === "completed" && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => downloadReport(report)}
-                            title="Download PDF"
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {(report.status === "failed" || report.status === "pending") && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => generateReport(report.financial_year)}
-                            disabled={generating === report.financial_year}
-                            title="Regenerate"
-                          >
-                            {generating === report.financial_year ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4" />
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        ) : (
+          /* TeeemTableView handles empty state and table rendering */
+          <div className="-mx-4">
+            <TeeemTableView
+              entries={tableRows}
+              columns={columns}
+              tableName="P&L Statements"
+              onRowClick={handleRowClick}
+              viewOnly={true}
+              enableExport={true}
+            />
           </div>
         )}
 
