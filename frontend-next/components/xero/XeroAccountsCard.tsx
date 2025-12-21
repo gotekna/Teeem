@@ -379,6 +379,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         {/* TeeemTableView for accounts */}
         <div className="-mx-6">
           <TeeemTableView
+            key={`xero-accounts-${groupCompanies.length}`}
             entries={entries}
             columns={columns}
             tableName="Xero Accounts"
