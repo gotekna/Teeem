@@ -26,7 +26,8 @@ class CorporateBankStatementsJob < ApplicationJob
     dry_run = options[:dry_run] || false
 
     # Calculate target month (default: previous month)
-    today = CompanySetting.in_company_timezone { Date.today }
+    # Use Brisbane timezone for TEEEM
+    today = Time.current.in_time_zone("Australia/Brisbane").to_date
     target_date = options[:year] && options[:month] ?
       Date.new(options[:year].to_i, options[:month].to_i, 1) :
       today.prev_month

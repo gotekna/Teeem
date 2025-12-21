@@ -1199,7 +1199,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="h-full">
       <TeeemTableView
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
@@ -3678,18 +3678,20 @@ export default function CompanyDetailPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Back Button */}
-      <button
-        onClick={() => router.push("/corporate")}
-        className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
-      >
-        <ArrowLeft className="h-4 w-4 mr-1" />
-        Back to Companies
-      </button>
+    <div className="flex flex-col h-full -mx-4">
+      {/* Back Button + Header - wrapped with px-4 for Gold Standard pattern */}
+      <div className="px-4 shrink-0">
+        <button
+          onClick={() => router.push("/corporate")}
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back to Companies
+        </button>
+      </div>
 
       {/* Header */}
-      <Card className="mb-4">
+      <Card className="mb-4 mx-4">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -3760,7 +3762,7 @@ export default function CompanyDetailPage() {
       </Card>
 
       {/* Main Tabs - flex wrap for two rows */}
-      <div className="border-b mb-4">
+      <div className="border-b mb-4 mx-4 shrink-0">
         <div className="flex flex-wrap gap-1 pb-2">
           <button
             onClick={() => handleTabChange("overview")}
@@ -3809,8 +3811,8 @@ export default function CompanyDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <Card className="flex-1">
-        <CardContent className="p-6">
+      <Card className="flex-1 mx-4 min-h-0 overflow-hidden">
+        <CardContent className="p-4 h-full overflow-auto">
           {activeTab === "overview" && (
             <div className="space-y-6">
               {/* Overview Sub-tabs - SSoT: From CorporateEntityTab API based on entity type */}
