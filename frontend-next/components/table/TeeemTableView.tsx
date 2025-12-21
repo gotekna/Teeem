@@ -895,6 +895,7 @@ export default function TeeemTableView({
   extraRowProps,
   viewOnly = false,
   preloadedViews = null,
+  disableSavedViews = false,
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
@@ -2588,6 +2589,7 @@ export default function TeeemTableView({
   useEffect(() => {
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
+      if (disableSavedViews) return; // Completely skip view loading when disabled
 
       // Prevent re-loading views after initial load (avoid loops from state changes)
       if (initialViewLoadedRef.current) {
@@ -2640,8 +2642,8 @@ export default function TeeemTableView({
     };
 
     loadSavedViews();
-     
-  }, [foundationIdNumeric, preloadedViews]);
+
+  }, [foundationIdNumeric, preloadedViews, disableSavedViews]);
 
   // Expose loadViewState to parent via callback
   useEffect(() => {
@@ -5087,7 +5089,7 @@ export default function TeeemTableView({
       </div>
 
       {/* Second row: Saved Views OR Selection Controls (for grouped tables) */}
-      {(savedViews.length > 0 || groupByColumn) && (
+      {((!disableSavedViews && savedViews.length > 0) || groupByColumn) && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1 px-4">
           {/* Expand/Collapse all button - always visible when grouped to prevent layout shift */}
           {groupByColumn && (

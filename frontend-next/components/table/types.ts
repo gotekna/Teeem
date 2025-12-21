@@ -142,6 +142,7 @@ export interface TeeemTableViewProps {
   // View configuration
   viewOnly?: boolean;
   preloadedViews?: SavedView[] | null;
+  disableSavedViews?: boolean; // Completely disable saved views feature (don't fetch or show views)
   hideUpdateViewButton?: boolean;
   initialGroupByColumn?: string | null;
   onLoadViewReady?: (loadView: (view: SavedView) => void) => void; // Callback when loadViewState is ready
