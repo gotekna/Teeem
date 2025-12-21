@@ -3518,6 +3518,8 @@ export default function CompanyDetailPage() {
     const isPartOfGroup = isHeadCompany || !!company?.consolidation_parent_id;
 
     return tabs.filter(tab => {
+      // Skip parent container tabs (they're just group headers, not actual tabs)
+      if ((tab as any).is_parent) return false;
       // head_only tabs: only for head companies
       if (tab.head_only && !isHeadCompany) return false;
       // group_member tabs: only for companies in a group

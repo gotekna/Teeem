@@ -25,13 +25,11 @@ class XeroFeatureTab < ApplicationRecord
     # Get functional tabs with parent/child relationships
     # SSoT: Use database columns (parent_key, group_member, visible) - not description parsing
 
-    # Find which tab_keys are used as parent containers (they shouldn't be shown as tabs)
+    # Find which tab_keys are used as parent containers
     parent_keys = enabled.where.not(parent_key: [nil, '']).distinct.pluck(:parent_key)
 
-    functional_tabs = enabled.functional.ordered.reject { |tab|
-      # Skip tabs that are parent containers (their children will show them as groups)
-      parent_keys.include?(tab.tab_key)
-    }.map do |tab|
+    functional_tabs = enabled.functional.ordered.map do |tab|
+      is_parent = parent_keys.include?(tab.tab_key)
       {
         id: tab.tab_key,
         name: tab.display_name,
@@ -42,7 +40,9 @@ class XeroFeatureTab < ApplicationRecord
         head_only: false,  # Deprecated - use group_member instead
         group_member: tab.try(:group_member) || false,  # Shows for any company in a group
         parent: tab.try(:parent_key),  # SSoT: Use parent_key column
-        visible: tab.try(:visible) != false  # Default to visible
+        visible: tab.try(:visible) != false,  # Default to visible
+        is_parent: is_parent,  # True if this tab is a parent container (has children)
+        order_position: tab.order_position
       }
     end
 
