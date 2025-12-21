@@ -4269,7 +4269,6 @@ export default function CompanyDetailPage() {
                       foundationId="external_invoices"
                       foundationIdNumeric={523}
                       tableName="Sales Invoices"
-                      disableSavedViews={true}
                       onRefresh={async () => {
                         const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
                         if (tenantId) {
@@ -4314,7 +4313,6 @@ export default function CompanyDetailPage() {
                       foundationId="external_invoices"
                       foundationIdNumeric={523}
                       tableName="Bills"
-                      disableSavedViews={true}
                       onRowClick={handleBillSingleClick}
                       onRowDoubleClick={handleBillDoubleClick}
                       onRefresh={async () => {
