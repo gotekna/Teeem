@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_20_103433) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_21_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6147,6 +6147,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_20_103433) do
     t.text "description"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "group_member", default: false, null: false
+    t.string "parent_key"
+    t.boolean "visible", default: true, null: false
     t.index ["document_folder_id"], name: "index_xero_feature_tabs_on_document_folder_id"
     t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
     t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
