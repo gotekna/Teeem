@@ -246,7 +246,7 @@ interface Company {
   bank_account_name?: string;
   bank_start_date?: string;
   bank_end_date?: string;
-  company_xero_connection?: {
+  corporate_company_xero_connection?: {
     id: number;
     connection_status: string;
     xero_tenant_name: string;
@@ -3612,7 +3612,7 @@ export default function CompanyDetailPage() {
   // Load contacts linked to this company's Xero tenant when contacts tab is selected
   React.useEffect(() => {
     const loadXeroContacts = async () => {
-      const tenantId = company?.company_xero_connection?.xero_tenant_id;
+      const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
       if (xeroSubTab !== "contacts" || !tenantId) return;
 
       setXeroContactsLoading(true);
@@ -3630,7 +3630,7 @@ export default function CompanyDetailPage() {
       }
     };
     loadXeroContacts();
-  }, [xeroSubTab, company?.company_xero_connection?.xero_tenant_id]);
+  }, [xeroSubTab, company?.corporate_company_xero_connection?.xero_tenant_id]);
 
   const handleTabChange = (tabId: string) => {
     // Redirect Data tab to data warehouse page with company filter
@@ -4026,7 +4026,7 @@ export default function CompanyDetailPage() {
                       foundationId="contacts"
                       tableName="Xero Linked Contacts"
                       onRefresh={() => {
-                        const tenantId = company?.company_xero_connection?.xero_tenant_id;
+                        const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
                         if (tenantId) {
                           setXeroContactsLoading(true);
                           fetch(`/api/v1/contacts?xero_tenant_id=${tenantId}`)
