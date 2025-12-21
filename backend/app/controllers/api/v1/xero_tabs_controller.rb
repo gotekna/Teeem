@@ -60,7 +60,7 @@ module Api
       private
 
       def tab_params
-        params.require(:tab).permit(:display_name, :enabled, :order_position, :icon_name, :description)
+        params.require(:tab).permit(:display_name, :enabled, :order_position, :icon_name, :description, :parent_key, :group_member, :visible)
       end
 
       def serialize_tab(tab)
@@ -73,7 +73,10 @@ module Api
           group: tab.tab_group,
           enabled: tab.enabled,
           order_position: tab.order_position,
-          description: tab.description
+          description: tab.description,
+          parent: tab.parent_key,
+          group_member: tab.group_member,
+          visible: tab.visible
         }
       end
     end

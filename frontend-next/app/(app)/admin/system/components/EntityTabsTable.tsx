@@ -52,6 +52,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { XeroTabsKanban } from "./XeroTabsKanban";
 
 // =============================================================================
 // TYPES
@@ -579,126 +580,12 @@ export function EntityTabsTable() {
                           {/* Expanded: Sub-tabs */}
                           {isTabExpanded && (
                             <div className="ml-10 border-l-2 border-dashed border-muted pl-4 py-2 space-y-1">
-                              {/* XERO tab: Show unified Xero feature tabs with parent/child hierarchy */}
+                              {/* XERO tab: Show Kanban for drag-and-drop management */}
                               {tab.name.toUpperCase() === "XERO" && xeroFeatureTabs.length > 0 ? (
-                                <>
-                                  <p className="text-[10px] text-muted-foreground mb-2">
-                                    These tabs appear on company pages when Xero is connected:
-                                  </p>
-                                  <div className="space-y-1">
-                                    {(() => {
-                                      // Group tabs by parent for hierarchical display
-                                      const parentDisplayNames: Record<string, string> = {
-                                        'accounts': 'Accounts',
-                                        'profit-loss': 'Profit & Loss',
-                                        'balance-sheet': 'Balance Sheet',
-                                        'bank': 'Bank',
-                                      };
-                                      const seenParents = new Set<string>();
-                                      const renderedTabs: React.ReactNode[] = [];
-
-                                      xeroFeatureTabs.forEach((xeroTab) => {
-                                        if (xeroTab.parent) {
-                                          // Child tab - render parent header first if not seen
-                                          if (!seenParents.has(xeroTab.parent)) {
-                                            seenParents.add(xeroTab.parent);
-                                            // Render parent header
-                                            renderedTabs.push(
-                                              <div
-                                                key={`parent-${xeroTab.parent}`}
-                                                className="flex items-center gap-2 py-1.5 px-2 rounded text-sm bg-purple-50 dark:bg-purple-900/20 font-semibold mt-2"
-                                              >
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[8px] px-1 py-0 border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400"
-                                                >
-                                                  parent
-                                                </Badge>
-                                                <span>{parentDisplayNames[xeroTab.parent] || xeroTab.parent}</span>
-                                              </div>
-                                            );
-                                          }
-                                          // Render child tab (indented)
-                                          renderedTabs.push(
-                                            <div
-                                              key={xeroTab.id}
-                                              className={cn(
-                                                "flex items-center gap-2 py-1.5 px-2 rounded text-sm ml-4 border-l-2 border-purple-200 dark:border-purple-800",
-                                                xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
-                                                xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
-                                              )}
-                                            >
-                                              <Badge
-                                                variant="outline"
-                                                className={cn(
-                                                  "text-[8px] px-1 py-0",
-                                                  xeroTab.group === "data" && "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
-                                                  xeroTab.group === "reports" && "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
-                                                )}
-                                              >
-                                                {xeroTab.group}
-                                              </Badge>
-                                              <span className="font-medium">{xeroTab.name}</span>
-                                              <span className="text-xs text-muted-foreground ml-auto font-mono text-[10px]">
-                                                {xeroTab.component}
-                                              </span>
-                                            </div>
-                                          );
-                                        } else {
-                                          // Standalone tab (or group-member tab)
-                                          const isGroupTab = xeroTab.group_member || xeroTab.head_only;
-                                          renderedTabs.push(
-                                            <div
-                                              key={xeroTab.id}
-                                              className={cn(
-                                                "flex items-center gap-2 py-1.5 px-2 rounded text-sm",
-                                                isGroupTab && "bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800",
-                                                !isGroupTab && xeroTab.group === "setup" && "bg-indigo-50 dark:bg-indigo-900/20",
-                                                !isGroupTab && xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
-                                                !isGroupTab && xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
-                                                !isGroupTab && xeroTab.group === "documents" && "bg-amber-50 dark:bg-amber-900/20",
-                                              )}
-                                            >
-                                              {isGroupTab && (
-                                                <Badge
-                                                  variant="outline"
-                                                  className="text-[8px] px-1 py-0 border-purple-400 text-purple-700 dark:border-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40"
-                                                >
-                                                  GROUP
-                                                </Badge>
-                                              )}
-                                              <Badge
-                                                variant="outline"
-                                                className={cn(
-                                                  "text-[8px] px-1 py-0",
-                                                  xeroTab.group === "setup" && "border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400",
-                                                  xeroTab.group === "data" && "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
-                                                  xeroTab.group === "reports" && "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
-                                                  xeroTab.group === "documents" && "border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400",
-                                                )}
-                                              >
-                                                {xeroTab.group}
-                                              </Badge>
-                                              <span className="font-medium">{xeroTab.name}</span>
-                                              <span className="text-xs text-muted-foreground ml-auto">
-                                                {xeroTab.type === "functional" ? (
-                                                  <span className="font-mono text-[10px]">{xeroTab.component}</span>
-                                                ) : (
-                                                  <span className="flex items-center gap-1">
-                                                    <FileText className="h-3 w-3" />
-                                                    doc folder
-                                                  </span>
-                                                )}
-                                              </span>
-                                            </div>
-                                          );
-                                        }
-                                      });
-
-                                      return renderedTabs;
-                                    })()}
-                                  </div>
-                                </>
+                                <XeroTabsKanban
+                                  tabs={xeroFeatureTabs}
+                                  onUpdate={loadXeroFeatureTabs}
+                                />
                               ) : (
                                 <>
                                   {/* Regular tabs: Show sub-folders */}
