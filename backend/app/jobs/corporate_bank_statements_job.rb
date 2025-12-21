@@ -90,7 +90,7 @@ class CorporateBankStatementsJob < ApplicationJob
   end
 
   def process_bank_account(company, bank_account, month_start, month_end, result, dry_run)
-    account_name = bank_account.name || bank_account.account_name || "Unknown"
+    account_name = bank_account.account_name || "Unknown"
 
     # Check if transactions exist for this period
     transaction_count = WarehouseBankTransaction.where(
@@ -173,7 +173,7 @@ class CorporateBankStatementsJob < ApplicationJob
   def upload_to_sharepoint(company, bank_account, pdf_result, month_date)
     # Build the filename with month/year
     month_year = month_date.strftime("%Y-%m")
-    account_name_safe = (bank_account.name || bank_account.account_name || "Account")
+    account_name_safe = (bank_account.account_name || "Account")
                         .gsub(/[^a-zA-Z0-9\-]/, "_")
                         .squeeze("_")
     filename = "Bank_Statement_#{account_name_safe}_#{month_year}.pdf"
@@ -221,7 +221,7 @@ class CorporateBankStatementsJob < ApplicationJob
   end
 
   def create_document_record(company:, bank_account:, filename:, folder_path:, month_date:, pdf_size:, sharepoint_url:, sharepoint_file_id:)
-    account_name = bank_account.name || bank_account.account_name || "Account"
+    account_name = bank_account.account_name || "Account"
     month_name = month_date.strftime("%B %Y")
 
     # Calculate financial year (Australian: July-June)
