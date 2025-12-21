@@ -4223,7 +4223,7 @@ export default function CompanyDetailPage() {
                       foundationId="contacts"
                       foundationIdNumeric={214}
                       tableName="Xero Linked Contacts"
-                      disableSavedViews={true}
+                      defaultViewId={237}
                       onRefresh={async () => {
                         const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
                         if (tenantId) {

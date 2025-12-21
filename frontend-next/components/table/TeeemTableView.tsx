@@ -896,6 +896,7 @@ export default function TeeemTableView({
   viewOnly = false,
   preloadedViews = null,
   disableSavedViews = false,
+  defaultViewId = null,
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
@@ -2628,7 +2629,7 @@ export default function TeeemTableView({
         const validViewId = urlViewId && !isNaN(urlViewId) ? urlViewId : null;
 
         const defaultView = selectDefaultView(filteredViews, {
-          urlViewId: validViewId,
+          urlViewId: validViewId || defaultViewId, // Use prop defaultViewId if no URL param
           preferGlobal: true,
         });
 
