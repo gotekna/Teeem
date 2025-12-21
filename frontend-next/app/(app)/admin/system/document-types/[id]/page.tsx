@@ -1482,21 +1482,20 @@ export default function DocumentTypeDetailPage() {
                     });
 
                     // If this is XERO, add Xero feature tabs as subtabs
+                    // Store tab_key (e.g., "bank-statement") for system matching
                     if (folder.name === "XERO" && xeroTabs.length > 0) {
                       xeroTabs.forEach(xeroTab => {
-                        // Add main Xero tab (e.g., "XERO > Balance Sheet")
-                        const mainValue = `XERO > ${xeroTab.name}`;
+                        // Add main Xero tab - value is tab_key, label shows display name
                         opts.push({
-                          value: mainValue,
-                          label: `  └ ${xeroTab.name}` + (documentType.primary_tab === mainValue ? " ★" : ""),
+                          value: xeroTab.key,  // e.g., "bank" or "profit-loss"
+                          label: `  └ ${xeroTab.name}` + (documentType.primary_tab === xeroTab.key ? " ★" : ""),
                         });
 
-                        // Add sub-tabs (e.g., "XERO > Balance Sheet > Statement")
+                        // Add sub-tabs - value is child tab_key
                         xeroTab.children.forEach(child => {
-                          const childValue = `XERO > ${xeroTab.name} > ${child.name}`;
                           opts.push({
-                            value: childValue,
-                            label: `      └ ${child.name}` + (documentType.primary_tab === childValue ? " ★" : ""),
+                            value: child.key,  // e.g., "bank-statement"
+                            label: `      └ ${child.name}` + (documentType.primary_tab === child.key ? " ★" : ""),
                           });
                         });
                       });
