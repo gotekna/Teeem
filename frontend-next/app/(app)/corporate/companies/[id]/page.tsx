@@ -3223,115 +3223,6 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
           companies={companies}
         />
       )}
-
-      {/* Bill/Invoice Drawer - Single click preview */}
-      <Sheet open={isBillDrawerOpen} onOpenChange={setIsBillDrawerOpen}>
-        <SheetContent className="w-[500px] sm:w-[600px]">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {selectedBill?.invoice_number || "Bill Details"}
-            </SheetTitle>
-            <SheetDescription>
-              {selectedBill?.contact_name || "Unknown Contact"}
-            </SheetDescription>
-          </SheetHeader>
-          {selectedBill && (
-            <div className="mt-6 space-y-6">
-              {/* Status Badge */}
-              <div className="flex items-center gap-2">
-                <Badge variant={selectedBill.status === "paid" ? "default" : "secondary"}>
-                  {selectedBill.status?.toUpperCase()}
-                </Badge>
-                {selectedBill.contact_id && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/contacts/${selectedBill.contact_id}`)}
-                  >
-                    View Contact
-                  </Button>
-                )}
-              </div>
-
-              {/* Amount Summary */}
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total</p>
-                      <p className="text-2xl font-bold">
-                        ${Number(selectedBill.total || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Amount Due</p>
-                      <p className="text-2xl font-bold text-red-600">
-                        ${Number(selectedBill.amount_due || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Details */}
-              <div className="space-y-3">
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-muted-foreground">Invoice Date</span>
-                  <span className="font-medium">
-                    {selectedBill.invoice_date ? safeFormatDate(selectedBill.invoice_date, "d MMM yyyy") : "—"}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-muted-foreground">Due Date</span>
-                  <span className="font-medium">
-                    {selectedBill.due_date ? safeFormatDate(selectedBill.due_date, "d MMM yyyy") : "—"}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-muted-foreground">Reference</span>
-                  <span className="font-medium">{selectedBill.reference || "—"}</span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">
-                    ${Number(selectedBill.subtotal || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between py-2 border-b">
-                  <span className="text-muted-foreground">Tax</span>
-                  <span className="font-medium">
-                    ${Number(selectedBill.total_tax || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                {selectedBill.fully_paid_date && (
-                  <div className="flex justify-between py-2 border-b">
-                    <span className="text-muted-foreground">Paid Date</span>
-                    <span className="font-medium text-green-600">
-                      {safeFormatDate(selectedBill.fully_paid_date, "d MMM yyyy")}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-2 pt-4">
-                {selectedBill.contact_id && (
-                  <Button
-                    className="flex-1"
-                    onClick={() => {
-                      setIsBillDrawerOpen(false);
-                      router.push(`/contacts/${selectedBill.contact_id}?tab=purchase-orders`);
-                    }}
-                  >
-                    View Purchase Orders
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-        </SheetContent>
-      </Sheet>
     </>
   );
 }
@@ -4380,6 +4271,115 @@ export default function CompanyDetailPage() {
           {activeTab === "activity" && <ActivityTab />}
         </CardContent>
       </Card>
+
+      {/* Bill/Invoice Drawer - Single click preview */}
+      <Sheet open={isBillDrawerOpen} onOpenChange={setIsBillDrawerOpen}>
+        <SheetContent className="w-[500px] sm:w-[600px]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              {selectedBill?.invoice_number || "Bill Details"}
+            </SheetTitle>
+            <SheetDescription>
+              {selectedBill?.contact_name || "Unknown Contact"}
+            </SheetDescription>
+          </SheetHeader>
+          {selectedBill && (
+            <div className="mt-6 space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center gap-2">
+                <Badge variant={selectedBill.status === "paid" ? "default" : "secondary"}>
+                  {selectedBill.status?.toUpperCase()}
+                </Badge>
+                {selectedBill.contact_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/contacts/${selectedBill.contact_id}`)}
+                  >
+                    View Contact
+                  </Button>
+                )}
+              </div>
+
+              {/* Amount Summary */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total</p>
+                      <p className="text-2xl font-bold">
+                        ${Number(selectedBill.total || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Amount Due</p>
+                      <p className="text-2xl font-bold text-red-600">
+                        ${Number(selectedBill.amount_due || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Details */}
+              <div className="space-y-3">
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-muted-foreground">Invoice Date</span>
+                  <span className="font-medium">
+                    {selectedBill.invoice_date ? safeFormatDate(selectedBill.invoice_date, "d MMM yyyy") : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-muted-foreground">Due Date</span>
+                  <span className="font-medium">
+                    {selectedBill.due_date ? safeFormatDate(selectedBill.due_date, "d MMM yyyy") : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-muted-foreground">Reference</span>
+                  <span className="font-medium">{selectedBill.reference || "—"}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium">
+                    ${Number(selectedBill.subtotal || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between py-2 border-b">
+                  <span className="text-muted-foreground">Tax</span>
+                  <span className="font-medium">
+                    ${Number(selectedBill.total_tax || 0).toLocaleString("en-AU", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {selectedBill.fully_paid_date && (
+                  <div className="flex justify-between py-2 border-b">
+                    <span className="text-muted-foreground">Paid Date</span>
+                    <span className="font-medium text-green-600">
+                      {safeFormatDate(selectedBill.fully_paid_date, "d MMM yyyy")}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4">
+                {selectedBill.contact_id && (
+                  <Button
+                    className="flex-1"
+                    onClick={() => {
+                      setIsBillDrawerOpen(false);
+                      router.push(`/contacts/${selectedBill.contact_id}?tab=purchase-orders`);
+                    }}
+                  >
+                    View Purchase Orders
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
