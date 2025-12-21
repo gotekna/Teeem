@@ -125,7 +125,8 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ name: string; children: string[] }>>([]); // Full hierarchy for Additional Tabs;
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ name: string; children: string[] }>>([]); // Full hierarchy for Additional Tabs
+  const [xeroTabs, setXeroTabs] = React.useState<Array<{ name: string; key: string; children: Array<{ name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
 
@@ -162,6 +163,30 @@ export default function DocumentTypeDetailPage() {
       }
     };
     fetchFolders();
+  }, []);
+
+  // Fetch Xero feature tabs (SSoT for Xero subtabs)
+  React.useEffect(() => {
+    const fetchXeroTabs = async () => {
+      try {
+        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/xero/tabs");
+        if (data.success) {
+          // Build hierarchy: root tabs with their children
+          const rootTabs = data.data.filter((t: any) => !t.parent_key);
+          const hierarchy = rootTabs.map((t: any) => ({
+            name: t.display_name,
+            key: t.tab_key,
+            children: data.data
+              .filter((c: any) => c.parent_key === t.tab_key)
+              .map((c: any) => ({ name: c.display_name, key: c.tab_key }))
+          }));
+          setXeroTabs(hierarchy);
+        }
+      } catch (error) {
+        console.error("Failed to fetch Xero tabs:", error);
+      }
+    };
+    fetchXeroTabs();
   }, []);
 
   // Fetch all document types for navigation
@@ -1442,26 +1467,51 @@ export default function DocumentTypeDetailPage() {
               </p>
               <MultipleSelector
                 placeholder="Select folders/tabs..."
-                options={folderHierarchy.length > 0
-                  ? folderHierarchy.flatMap(folder => {
-                      const opts = [{
-                        value: folder.name,
-                        label: folder.name + (documentType.primary_tab === folder.name ? " ★" : ""),
-                      }];
-                      // Add any subtabs
+                options={(() => {
+                  const opts: Array<{ value: string; label: string }> = [];
+
+                  // Add all folders from hierarchy
+                  const folders = folderHierarchy.length > 0 ? folderHierarchy : folderOptions.map(f => ({ name: f, children: [] }));
+
+                  folders.forEach(folder => {
+                    // Add the folder itself
+                    opts.push({
+                      value: folder.name,
+                      label: folder.name + (documentType.primary_tab === folder.name ? " ★" : ""),
+                    });
+
+                    // If this is XERO, add Xero feature tabs as subtabs
+                    if (folder.name === "XERO" && xeroTabs.length > 0) {
+                      xeroTabs.forEach(xeroTab => {
+                        // Add main Xero tab (e.g., "XERO > Balance Sheet")
+                        const mainValue = `XERO > ${xeroTab.name}`;
+                        opts.push({
+                          value: mainValue,
+                          label: `  └ ${xeroTab.name}` + (documentType.primary_tab === mainValue ? " ★" : ""),
+                        });
+
+                        // Add sub-tabs (e.g., "XERO > Balance Sheet > Statement")
+                        xeroTab.children.forEach(child => {
+                          const childValue = `XERO > ${xeroTab.name} > ${child.name}`;
+                          opts.push({
+                            value: childValue,
+                            label: `      └ ${child.name}` + (documentType.primary_tab === childValue ? " ★" : ""),
+                          });
+                        });
+                      });
+                    } else {
+                      // Add any DocumentFolder children
                       folder.children.forEach(child => {
                         opts.push({
                           value: `${folder.name} > ${child}`,
-                          label: `${folder.name} > ${child}` + (documentType.primary_tab === `${folder.name} > ${child}` ? " ★" : ""),
+                          label: `  └ ${child}` + (documentType.primary_tab === `${folder.name} > ${child}` ? " ★" : ""),
                         });
                       });
-                      return opts;
-                    })
-                  : folderOptions.map(folder => ({
-                      value: folder,
-                      label: folder + (documentType.primary_tab === folder ? " ★" : ""),
-                    }))
-                }
+                    }
+                  });
+
+                  return opts;
+                })()}
                 value={(documentType.tabs || []).map(tab => ({
                   value: tab,
                   label: tab + (documentType.primary_tab === tab ? " ★" : ""),
