@@ -2589,7 +2589,12 @@ export default function TeeemTableView({
   useEffect(() => {
     const loadSavedViews = async () => {
       if (!foundationIdNumeric) return;
-      if (disableSavedViews) return; // Completely skip view loading when disabled
+      if (disableSavedViews) {
+        // Clear any cached views when disabled (prevents stale views from other tables)
+        setSavedViews([]);
+        setActiveViewId(null);
+        return;
+      }
 
       // Prevent re-loading views after initial load (avoid loops from state changes)
       if (initialViewLoadedRef.current) {
