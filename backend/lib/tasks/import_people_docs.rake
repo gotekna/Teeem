@@ -69,9 +69,8 @@ namespace :corporate do
 
           CorporateCompanyDocument.create!(
             contact_id: contact&.id,
-            title: title,
+            display_name: title,
             file_name: file["name"],
-            display_title: title,
             document_type: "Personal Document",
             folder: "People",
             register_folder: "People",
