@@ -93,6 +93,7 @@ import {
   XeroProfitLossCard,
   XeroBalanceSheetCard,
   XeroPLStatementView,
+  XeroBalanceSheetStatementView,
   XeroBankAccountsCard,
   XeroReportsPanel,
   XeroConsolidatedCard,
@@ -3961,7 +3962,7 @@ export default function CompanyDetailPage() {
               )}
 
               {xeroSubTab === "balance-sheet-statement" && (
-                <XeroBalanceSheetCard companyId={companyId} />
+                <XeroBalanceSheetStatementView companyId={companyId} />
               )}
 
               {xeroSubTab === "balance-sheet-transactions" && (
