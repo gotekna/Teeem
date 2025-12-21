@@ -30,8 +30,8 @@ export function ContactEmailsTab({
   contactEmail,
 }: ContactEmailsTabProps) {
   return (
-    <>
-      <div className="flex items-center justify-between mb-4">
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div className="flex items-center gap-2">
           <Mail className="h-5 w-5" />
           <span className="font-medium">Emails</span>
@@ -50,21 +50,22 @@ export function ContactEmailsTab({
         </label>
       </div>
 
-      {loadingEmails ? (
-        <div className="flex items-center justify-center py-8">
-          <Spinner />
-        </div>
-      ) : emails.length === 0 ? (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-center py-8">
-              No emails found for {contactEmail}
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          <TeeemTableView
+      <div className="flex-1 min-h-0">
+        {loadingEmails ? (
+          <div className="flex items-center justify-center py-8">
+            <Spinner />
+          </div>
+        ) : emails.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-center py-8">
+                No emails found for {contactEmail}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <TeeemTableView
             tableName="Contact Emails"
             preloadedViews={[]}
             columns={[
@@ -153,6 +154,7 @@ export function ContactEmailsTab({
           )}
         </>
       )}
-    </>
+      </div>
+    </div>
   );
 }

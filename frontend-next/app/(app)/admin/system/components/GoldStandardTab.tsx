@@ -2055,8 +2055,8 @@ function GoldDocumentTypeEditor() {
                     <div>LONG</div>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5 max-h-[400px] overflow-y-auto">
-                    {getAvailablePlaceholders().map((p: any) => (
-                      <React.Fragment key={p.code}>
+                    {getAvailablePlaceholders().map((p: any, idx: number) => (
+                      <React.Fragment key={`${p.code}-${idx}`}>
                         <div
                           draggable
                           onDragStart={(e) => handleDragStartFromSource(e, p.code)}

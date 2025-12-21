@@ -1289,10 +1289,10 @@ export default function DocumentTypeDetailPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-                  {getAvailablePlaceholders().map((placeholder: any) => {
+                  {getAvailablePlaceholders().map((placeholder: any, idx: number) => {
                     const isBlue = placeholder.color === "blue";
                     return (
-                    <React.Fragment key={placeholder.code}>
+                    <React.Fragment key={`${placeholder.code}-${idx}`}>
                       {/* Short code */}
                       <div
                         draggable

@@ -261,7 +261,7 @@ export function XeroInvoicesListByTenant({
     const columns = getColumns(false);
 
     return (
-      <div className="space-y-4">
+      <div className="h-full space-y-4">
         <SyncHeader />
         {rows.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
@@ -301,7 +301,7 @@ export function XeroInvoicesListByTenant({
   }, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="h-full space-y-4">
       <SyncHeader />
 
       <Tabs value={activeTenant || "all"} onValueChange={setActiveTenant}>
