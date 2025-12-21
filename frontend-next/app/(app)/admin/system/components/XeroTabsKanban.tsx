@@ -23,7 +23,7 @@ import {
   type KanbanItem,
 } from "@/components/ui/kanban";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
-import { Loader2, RefreshCw, GripVertical } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -54,7 +54,9 @@ interface XeroTabsKanbanProps {
 // =============================================================================
 
 // All 8 parent tab columns - any tab can have sub-tabs
+// Plus "unassigned" for tabs that don't have a parent yet
 const BASE_COLUMNS: Array<{ id: string; baseTitle: string; color: "gray" | "blue" | "green" | "purple" | "orange" }> = [
+  { id: "unassigned", baseTitle: "Unassigned", color: "gray" },
   { id: "connection", baseTitle: "Connection", color: "gray" },
   { id: "contacts", baseTitle: "Contacts", color: "gray" },
   { id: "invoices", baseTitle: "Invoices", color: "gray" },
@@ -131,23 +133,25 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
     }).filter(Boolean) as KanbanColumnDef[];
   }, [columnOrder]);
 
-  // Tabs without a parent (not sub-tabs) - shown separately
-  const standaloneTabs = React.useMemo(() => {
-    const parentIds = BASE_COLUMNS.map((c) => c.id);
-    return localTabs
-      .filter((t) => !t.parent && !parentIds.includes(t.id))
-      .sort((a, b) => (a.order_position || 0) - (b.order_position || 0));
-  }, [localTabs]);
+  // Parent tab IDs (these are the columns, not draggable items)
+  const parentTabIds = React.useMemo(() => {
+    return BASE_COLUMNS.map((c) => c.id).filter(id => id !== "unassigned");
+  }, []);
 
-  // Only include tabs that are sub-tabs (have a parent) in the Kanban
+  // All tabs that can be dragged (exclude parent tabs themselves)
   const kanbanTabs = React.useMemo(() => {
-    return localTabs.filter((t) => t.parent);
-  }, [localTabs]);
+    return localTabs.filter((t) => !parentTabIds.includes(t.id));
+  }, [localTabs, parentTabIds]);
 
   // Determine which column a tab belongs to
   const getItemColumn = React.useCallback((tab: XeroTab): string => {
-    return tab.parent || "";
-  }, []);
+    // If it has a parent and that parent is a valid column, use it
+    if (tab.parent && parentTabIds.includes(tab.parent)) {
+      return tab.parent;
+    }
+    // Otherwise it goes in the unassigned column
+    return "unassigned";
+  }, [parentTabIds]);
 
   // Handle card move between columns (changes parent_key)
   const handleCardMove = React.useCallback(
@@ -160,7 +164,7 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
       toColumnId: string;
       toIndex: number;
     }) => {
-      const parentKey = toColumnId === "standalone" ? null : toColumnId;
+      const parentKey = toColumnId === "unassigned" ? null : toColumnId;
 
       // Optimistic update
       setLocalTabs((prev) =>
@@ -173,7 +177,7 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
           tab: { parent_key: parentKey },
         });
         toast({
-          title: parentKey ? `Moved under ${toColumnId}` : "Made standalone",
+          title: parentKey ? `Moved under ${toColumnId}` : "Moved to Unassigned",
           description: `"${item.name}" parent updated`,
         });
         onUpdate();
@@ -276,43 +280,13 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
     [onUpdate, toast]
   );
 
-  // Handle reordering standalone tabs (top-level tabs)
-  const handleStandaloneReorder = React.useCallback(
-    async (reorderedTabs: XeroTab[]) => {
-      // Prepare reorder payload
-      const reorderPayload = reorderedTabs.map((t, idx) => ({
-        id: t.id,
-        order_position: idx + 1,
-      }));
-
-      setSaving(true);
-      try {
-        await api.post("/api/v1/xero/tabs/reorder", { tabs: reorderPayload });
-        toast({
-          title: "Reordered",
-          description: "Tab order updated",
-        });
-        onUpdate();
-      } catch (error) {
-        console.error("Failed to reorder:", error);
-        toast({
-          title: "Error",
-          description: "Failed to reorder tabs",
-          variant: "destructive",
-        });
-      } finally {
-        setSaving(false);
-      }
-    },
-    [onUpdate, toast]
-  );
 
   // Get position within column for numbering
   const getPositionInColumn = React.useCallback(
     (tab: XeroTab): number => {
-      const columnId = tab.parent || "standalone";
+      const columnId = tab.parent || "unassigned";
       const columnTabs = localTabs
-        .filter((t) => (t.parent || "standalone") === columnId)
+        .filter((t) => (t.parent || "unassigned") === columnId)
         .sort((a, b) => (a.order_position || 0) - (b.order_position || 0));
       return columnTabs.findIndex((t) => t.id === tab.id) + 1;
     },
@@ -383,37 +357,6 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
           </Button>
         </div>
       </div>
-
-      {/* Standalone Tabs (no parent - drag to reorder) */}
-      {standaloneTabs.length > 0 && (
-        <div className="border rounded-lg p-4 bg-muted/20">
-          <h4 className="text-sm font-medium mb-3">Top-Level Tabs (drag to reorder)</h4>
-          <SortableList
-            items={standaloneTabs}
-            onReorder={handleStandaloneReorder}
-            strategy="horizontal"
-            className="flex flex-nowrap gap-2 overflow-x-auto pb-2"
-          >
-            {standaloneTabs.map((tab, index) => (
-              <SortableItem key={tab.id} id={tab.id} showHandle={false}>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-card text-sm cursor-grab active:cursor-grabbing whitespace-nowrap">
-                  <GripVertical className="h-4 w-4 text-muted-foreground" />
-                  <span className="inline-flex items-center justify-center w-5 h-5 rounded bg-muted text-[10px] font-bold text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  <span className="font-medium">{tab.name}</span>
-                  <Badge
-                    variant="outline"
-                    className={cn("text-[9px] px-1.5 py-0", GROUP_COLORS[tab.group] || "")}
-                  >
-                    {tab.group}
-                  </Badge>
-                </div>
-              </SortableItem>
-            ))}
-          </SortableList>
-        </div>
-      )}
 
       {/* Column Order - Drag to reorder tabs */}
       <div className="border rounded-lg p-3 bg-muted/20">
