@@ -495,7 +495,8 @@ class CorporateSharePointScannerService
       sharepoint_file_id: doc["id"]
     )
     # Update company_id to the correct company (may have been synced to wrong company before)
-    company_doc.company = company
+    # SSoT: Model uses belongs_to :corporate_company, foreign_key: "company_id"
+    company_doc.corporate_company = company
 
     # Map folder name to valid document_type enum value
     # The document_type field validates against a specific list of lowercase values
