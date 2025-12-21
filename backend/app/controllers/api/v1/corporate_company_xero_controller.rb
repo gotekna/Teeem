@@ -782,6 +782,100 @@ module Api
         end
       end
 
+      # GET /api/v1/companies/:company_id/xero/profit_loss_monthly
+      # Returns monthly P&L summaries from the start of the Xero file
+      # Used for the Transactions tab in TeeemTableView
+      def profit_loss_monthly
+        connection = @company.corporate_company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          # Get financial year end from connection settings, default to June 30
+          financial_year_end = connection.financial_year_end || 6
+
+          # Calculate start date - beginning of earliest complete financial year
+          # Default to 3 years back if not specified
+          years_back = (params[:years] || 3).to_i
+          today = Date.today
+
+          # Find the start of the financial year N years ago
+          if today.month > financial_year_end
+            start_year = today.year - years_back
+          else
+            start_year = today.year - years_back - 1
+          end
+          from_date = Date.new(start_year, financial_year_end + 1, 1).to_s
+
+          # End date is today
+          to_date = today.to_s
+
+          # Calculate number of months
+          from = Date.parse(from_date)
+          to = Date.parse(to_date)
+          months_count = ((to.year - from.year) * 12) + (to.month - from.month) + 1
+
+          client = XeroApiClient.new
+          result = client.get(
+            "Reports/ProfitAndLoss",
+            tenant_id: connection.xero_tenant_id,
+            fromDate: from_date,
+            toDate: to_date,
+            periods: months_count,
+            timeframe: "MONTH"
+          )
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: result[:error] || "Failed to fetch monthly P&L from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          reports = result[:data]["Reports"] || []
+          report = reports.first
+
+          if report.nil?
+            return render json: {
+              success: false,
+              error: "No Profit & Loss report returned from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          # Parse the monthly report into table format
+          monthly_data = parse_monthly_profit_loss(report)
+
+          render json: {
+            success: true,
+            data: monthly_data,
+            from_date: from_date,
+            to_date: to_date,
+            months_count: months_count
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to fetch monthly Xero P&L for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/companies/:company_id/xero/balance_sheet
       # Returns Balance Sheet report from Xero
       def balance_sheet
@@ -1172,6 +1266,90 @@ module Api
           end
         end
         result
+      end
+
+      # Parse multi-period P&L report into monthly table format
+      # Returns array of { month: "Jan 2024", revenue: 10000.00, expenses: 8000.00, net_profit: 2000.00 }
+      def parse_monthly_profit_loss(report)
+        rows = report["Rows"] || []
+        months = []
+        revenue_values = []
+        expenses_values = []
+        net_profit_values = []
+
+        # First, extract month headers from Header row
+        rows.each do |row|
+          if row["RowType"] == "Header"
+            cells = row["Cells"] || []
+            # First cell is label, rest are month columns
+            cells[1..].each do |cell|
+              month_str = cell["Value"]
+              months << month_str if month_str.present?
+            end
+          end
+        end
+
+        # Now extract values from sections
+        rows.each do |row|
+          case row["RowType"]
+          when "Section"
+            title = row["Title"]
+            section_rows = row["Rows"] || []
+
+            # Find the summary row for this section
+            section_rows.each do |section_row|
+              if section_row["RowType"] == "SummaryRow"
+                cells = section_row["Cells"] || []
+                label = cells.first&.dig("Value") || ""
+
+                # Extract values for each month (skip first cell which is label)
+                values = cells[1..].map { |c| parse_currency_value(c["Value"]) }
+
+                case title
+                when "Income"
+                  if label.include?("Total Income") || label.include?("Total Revenue")
+                    revenue_values = values
+                  end
+                when "Less Operating Expenses", "Expenses", "Operating Expenses"
+                  if label.include?("Total") && (label.include?("Expenses") || label.include?("Operating"))
+                    expenses_values = values
+                  end
+                end
+              end
+            end
+          when "SummaryRow"
+            # Top-level summary rows (e.g., "Net Profit")
+            cells = row["Cells"] || []
+            label = cells.first&.dig("Value") || ""
+
+            if label.include?("Net Profit") || label.include?("Net Income")
+              net_profit_values = cells[1..].map { |c| parse_currency_value(c["Value"]) }
+            end
+          end
+        end
+
+        # Build the monthly data array
+        monthly_data = []
+        months.each_with_index do |month, idx|
+          monthly_data << {
+            id: idx + 1,
+            month: month,
+            revenue: revenue_values[idx] || 0.0,
+            expenses: expenses_values[idx] || 0.0,
+            net_profit: net_profit_values[idx] || 0.0
+          }
+        end
+
+        # Return in reverse chronological order (most recent first)
+        monthly_data.reverse
+      end
+
+      # Parse currency string to float (handles "$1,234.56" format)
+      def parse_currency_value(value)
+        return 0.0 if value.blank?
+        # Remove currency symbols, commas, spaces and parse
+        cleaned = value.to_s.gsub(/[^0-9.\-]/, "")
+        cleaned.to_f
       end
 
       def set_company

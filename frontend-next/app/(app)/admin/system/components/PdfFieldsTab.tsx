@@ -1009,7 +1009,7 @@ export function PdfFieldsTab() {
           </div>
           <div className="flex flex-col gap-1 max-h-[300px] overflow-y-auto">
             {positions
-              .sort((a, b) => a.page - b.page || a.display_name.localeCompare(b.display_name))
+              .sort((a, b) => a.page - b.page || (a.display_name || a.field_key || '').localeCompare(b.display_name || b.field_key || ''))
               .map((field) => (
                 <button
                   key={field.id}
@@ -1449,15 +1449,15 @@ export function PdfFieldsTab() {
                   const filtered = positions
                     .filter((f) =>
                       !dialogSearch ||
-                      f.display_name.toLowerCase().includes(searchLower) ||
-                      f.field_key.toLowerCase().includes(searchLower)
+                      (f.display_name || '').toLowerCase().includes(searchLower) ||
+                      (f.field_key || '').toLowerCase().includes(searchLower)
                     )
                     .sort((a, b) => {
                       if (currentlyMappedField) {
                         if (a.id === currentlyMappedField.id) return -1;
                         if (b.id === currentlyMappedField.id) return 1;
                       }
-                      return a.display_name.localeCompare(b.display_name);
+                      return (a.display_name || a.field_key || '').localeCompare(b.display_name || b.field_key || '');
                     });
 
                   if (filtered.length === 0) {

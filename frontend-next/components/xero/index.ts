@@ -43,6 +43,7 @@ export { XeroOverviewCard } from './XeroOverviewCard';
 // Financial Data Components
 export { XeroAccountsCard } from './XeroAccountsCard';
 export { XeroProfitLossCard, XeroBalanceSheetCard } from './XeroFinancialReports';
+export { XeroProfitLossMonthly } from './XeroProfitLossMonthly';
 export { XeroBankAccountsCard } from './XeroBankAccountsCard';
 export { XeroConsolidatedCard } from './XeroConsolidatedCard';
 
