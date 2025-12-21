@@ -2813,7 +2813,6 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
 
   // Debounce ref to distinguish single vs double click
   const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-  const billClickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Single click - open side panel preview (debounced to avoid triggering on double-click)
   const handleSingleClick = (doc: CompanyDocument) => {
@@ -2842,31 +2841,6 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     // Open fullscreen modal
     setSelectedDocument(doc);
     setIsPreviewOpen(true);
-  };
-
-  // Bill click handlers (single = drawer, double = navigate to PO)
-  const handleBillSingleClick = (bill: any) => {
-    if (billClickTimeoutRef.current) {
-      clearTimeout(billClickTimeoutRef.current);
-    }
-    billClickTimeoutRef.current = setTimeout(() => {
-      setSelectedBill(bill);
-      setIsBillDrawerOpen(true);
-      billClickTimeoutRef.current = null;
-    }, 200);
-  };
-
-  const handleBillDoubleClick = (bill: any) => {
-    if (billClickTimeoutRef.current) {
-      clearTimeout(billClickTimeoutRef.current);
-      billClickTimeoutRef.current = null;
-    }
-    setIsBillDrawerOpen(false);
-    setSelectedBill(null);
-    // Navigate to contact's purchase orders if contact is linked
-    if (bill.contact_id) {
-      router.push(`/contacts/${bill.contact_id}?tab=purchase-orders`);
-    }
   };
 
   // Expand from side panel to fullscreen modal
@@ -3482,6 +3456,33 @@ export default function CompanyDetailPage() {
   // Bill drawer state
   const [selectedBill, setSelectedBill] = React.useState<any | null>(null);
   const [isBillDrawerOpen, setIsBillDrawerOpen] = React.useState(false);
+  const billClickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  // Bill click handlers (single = drawer, double = navigate to PO)
+  const handleBillSingleClick = (bill: any) => {
+    if (billClickTimeoutRef.current) {
+      clearTimeout(billClickTimeoutRef.current);
+    }
+    billClickTimeoutRef.current = setTimeout(() => {
+      setSelectedBill(bill);
+      setIsBillDrawerOpen(true);
+      billClickTimeoutRef.current = null;
+    }, 200);
+  };
+
+  const handleBillDoubleClick = (bill: any) => {
+    if (billClickTimeoutRef.current) {
+      clearTimeout(billClickTimeoutRef.current);
+      billClickTimeoutRef.current = null;
+    }
+    setIsBillDrawerOpen(false);
+    setSelectedBill(null);
+    // Navigate to contact's purchase orders if contact is linked
+    if (bill.contact_id) {
+      router.push(`/contacts/${bill.contact_id}?tab=purchase-orders`);
+    }
+  };
+
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
