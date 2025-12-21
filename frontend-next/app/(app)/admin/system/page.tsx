@@ -42,6 +42,7 @@ import {
   Menu,
   Brain,
   Activity,
+  Settings2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,7 @@ import { SharePointTab } from "./components/SharePointTab";
 import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
 import { NavigationTab } from "./components/NavigationTab";
 import { JobTabsConfigTab } from "./components/JobTabsConfigTab";
+import { EntityConfigurationTab } from "./components/EntityConfigurationTab";
 import { PdfFieldsTab } from "./components/PdfFieldsTab";
 import { AiProcessingTab } from "./components/AiProcessingTab";
 import { XeroHealthTab } from "./components/XeroHealthTab";
@@ -106,6 +108,7 @@ const MAIN_TABS = [
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "navigation", label: "Navigation", icon: Menu },
   { id: "job-tabs", label: "Job Tabs", icon: FileText },
+  { id: "entity-config", label: "Entity Configuration", icon: Settings2 },
   { id: "plans", label: "Plans", icon: Map },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
@@ -859,6 +862,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="job-tabs" className="flex-1 min-h-0 overflow-auto">
             <JobTabsConfigTab />
+          </TabsContent>
+          <TabsContent value="entity-config" className="flex-1 min-h-0 overflow-auto">
+            <EntityConfigurationTab />
           </TabsContent>
           <TabsContent value="user-manual" className="flex-1 min-h-0 overflow-auto">
             <UserManualTab />

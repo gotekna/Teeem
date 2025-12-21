@@ -198,7 +198,7 @@ class CorporateBankStatementsJob < ApplicationJob
       )
 
       if upload_result[:success]
-        # Create CompanyDocument record so it appears in the BANK tab
+        # Create CorporateCompanyDocument record so it appears in the BANK tab
         create_document_record(
           company: company,
           bank_account: bank_account,
@@ -226,16 +226,14 @@ class CorporateBankStatementsJob < ApplicationJob
 
     # Calculate financial year (Australian: July-June)
     fy_year = month_date.month >= 7 ? month_date.year + 1 : month_date.year
-    financial_year = "FY#{fy_year}"
 
-    CompanyDocument.create!(
+    CorporateCompanyDocument.create!(
       company_id: company.id,
       company_code: company.code,
-      title: "Bank Statement - #{account_name} - #{month_name}",
-      display_title: "Bank Statement - #{account_name} - #{month_name}",
+      file_name: filename,
+      display_name: "Bank Statement - #{account_name} - #{month_name}",
       document_type: "Bank Statement",
       document_date: month_date.end_of_month,
-      file_name: filename,
       file_url: sharepoint_url,
       file_size: pdf_size,
       mime_type: "application/pdf",
@@ -243,10 +241,11 @@ class CorporateBankStatementsJob < ApplicationJob
       register_folder: "BANK",
       storage_type: "sharepoint",
       source: "generated",
+      focus: "company",
       sharepoint_file_id: sharepoint_file_id,
       sharepoint_download_url: sharepoint_url,
       expected_sharepoint_path: "#{folder_path}/#{filename}",
-      financial_years: [financial_year],
+      financial_years: [fy_year],
       uploaded_at: Time.current,
       last_modified_at: Time.current,
       # Mark as already verified since we generated it
@@ -255,7 +254,7 @@ class CorporateBankStatementsJob < ApplicationJob
       ai_confidence_score: 100
     )
 
-    Rails.logger.info("[CorporateBankStatementsJob] Created CompanyDocument for #{filename}")
+    Rails.logger.info("[CorporateBankStatementsJob] Created CorporateCompanyDocument for #{filename}")
   rescue StandardError => e
     # Log but don't fail the job - the PDF is already uploaded to SharePoint
     Rails.logger.error("[CorporateBankStatementsJob] Failed to create document record: #{e.message}")

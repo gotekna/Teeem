@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_21_150000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_21_213228) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1006,80 +1006,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_150000) do
     t.index ["corporate_company_id", "rule_type", "is_active"], name: "idx_approval_rules_company_type_active"
     t.index ["corporate_company_id"], name: "index_company_approval_rules_on_corporate_company_id"
     t.index ["priority"], name: "index_company_approval_rules_on_priority"
-  end
-
-  create_table "company_documents", force: :cascade do |t|
-    t.bigint "company_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.string "file_url"
-    t.string "file_name"
-    t.integer "file_size"
-    t.string "mime_type"
-    t.datetime "uploaded_at"
-    t.string "folder"
-    t.string "storage_type"
-    t.string "filed_by"
-    t.date "filed_date"
-    t.string "company_code"
-    t.string "source", default: "manual"
-    t.bigint "document_type_id"
-    t.string "sharepoint_file_id"
-    t.string "sharepoint_download_url"
-    t.datetime "last_modified_at"
-    t.string "expected_sharepoint_path"
-    t.string "register_folder"
-    t.integer "financial_years", default: [], array: true
-    t.string "display_title"
-    t.datetime "ai_verified_at"
-    t.string "ai_verification_status"
-    t.string "ai_suggested_name"
-    t.string "ai_suggested_folder"
-    t.string "ai_suggested_type"
-    t.integer "ai_suggested_fy", default: [], array: true
-    t.decimal "ai_confidence_score"
-    t.string "ai_extracted_description"
-    t.date "ai_extracted_date"
-    t.integer "ai_source_page"
-    t.text "ai_source_quote"
-    t.text "ai_analysis_notes"
-    t.boolean "ai_contains_multiple_documents", default: false
-    t.jsonb "ai_split_recommendation"
-    t.datetime "user_validated_at"
-    t.bigint "user_validated_by_id"
-    t.boolean "validation_required", default: false
-    t.date "ref_date"
-    t.bigint "asset_id"
-    t.bigint "loan_id"
-    t.string "documentable_type"
-    t.bigint "documentable_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.datetime "synced_to_xero_at"
-    t.string "xero_attachment_id"
-    t.boolean "sync_to_xero", default: false, null: false
-    t.bigint "legacy_corporate_document_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["asset_id"], name: "index_company_documents_on_asset_id"
-    t.index ["company_code"], name: "index_company_documents_on_company_code"
-    t.index ["company_id", "ai_verification_status"], name: "idx_company_docs_new_ai_status"
-    t.index ["company_id", "document_type"], name: "idx_company_docs_new_company_type"
-    t.index ["company_id"], name: "index_company_documents_on_company_id"
-    t.index ["content_hash"], name: "index_company_documents_on_content_hash"
-    t.index ["document_date"], name: "index_company_documents_on_document_date"
-    t.index ["document_type"], name: "index_company_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_company_documents_on_document_type_id"
-    t.index ["documentable_type", "documentable_id"], name: "idx_company_docs_new_documentable"
-    t.index ["external_id"], name: "index_company_documents_on_external_id"
-    t.index ["financial_years"], name: "index_company_documents_on_financial_years", using: :gin
-    t.index ["folder"], name: "index_company_documents_on_folder"
-    t.index ["legacy_corporate_document_id"], name: "index_company_documents_on_legacy_corporate_document_id"
-    t.index ["loan_id"], name: "index_company_documents_on_loan_id"
-    t.index ["source"], name: "index_company_documents_on_source"
-    t.index ["storage_type"], name: "index_company_documents_on_storage_type"
   end
 
   create_table "contact_activities", force: :cascade do |t|
@@ -2378,6 +2304,46 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_150000) do
     t.text "raw_email"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "entity_tab_document_types", force: :cascade do |t|
+    t.bigint "entity_tab_id", null: false
+    t.bigint "document_type_id", null: false
+    t.boolean "is_primary", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_type_id", "is_primary"], name: "idx_entity_tab_doc_types_primary"
+    t.index ["document_type_id"], name: "index_entity_tab_document_types_on_document_type_id"
+    t.index ["entity_tab_id", "document_type_id"], name: "idx_entity_tab_doc_types_unique", unique: true
+    t.index ["entity_tab_id"], name: "index_entity_tab_document_types_on_entity_tab_id"
+  end
+
+  create_table "entity_tabs", force: :cascade do |t|
+    t.string "scope", null: false
+    t.string "tab_key", null: false
+    t.string "display_name", null: false
+    t.text "description"
+    t.string "tab_group"
+    t.bigint "parent_id"
+    t.bigint "job_id"
+    t.string "entity_filters", default: [], array: true
+    t.integer "order_position", default: 0
+    t.boolean "enabled", default: true
+    t.string "icon_name"
+    t.string "component_name"
+    t.boolean "is_system_tab", default: false
+    t.boolean "has_sharepoint_folder", default: false
+    t.string "sharepoint_folder_path"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["enabled"], name: "index_entity_tabs_on_enabled"
+    t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
+    t.index ["job_id"], name: "index_entity_tabs_on_job_id"
+    t.index ["parent_id"], name: "index_entity_tabs_on_parent_id"
+    t.index ["scope", "enabled"], name: "index_entity_tabs_on_scope_and_enabled"
+    t.index ["scope", "tab_group"], name: "index_entity_tabs_on_scope_and_tab_group"
+    t.index ["scope", "tab_key", "job_id"], name: "idx_entity_tabs_unique_key", unique: true
+    t.index ["scope"], name: "index_entity_tabs_on_scope"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -6323,6 +6289,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_150000) do
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
+  add_foreign_key "entity_tab_document_types", "document_types"
+  add_foreign_key "entity_tab_document_types", "entity_tabs"
+  add_foreign_key "entity_tabs", "entity_tabs", column: "parent_id"
+  add_foreign_key "entity_tabs", "jobs"
   add_foreign_key "estimate_line_items", "estimates"
   add_foreign_key "estimate_reviews", "estimates"
   add_foreign_key "estimates", "jobs"

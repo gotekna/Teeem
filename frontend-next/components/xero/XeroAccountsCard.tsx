@@ -15,30 +15,11 @@ import {
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
-import type { XeroAccount } from "./types";
 
-interface CompanyComparison {
-  company_id: number;
-  company_name: string;
+interface CompanyInfo {
+  id: number;
   name: string;
-  status: string;
-}
-
-interface GroupCompanyInfo {
-  company_id: number;
-  company_name: string;
-  xero_tenant: string;
-  accounts: Array<{ code: string; name: string; type: string; status: string }>;
-}
-
-interface AccountComparison {
-  code: string;
-  name: string;
-  type: string;
-  company_count: number;
-  all_companies: boolean;
-  names_match: boolean;
-  companies: CompanyComparison[];
+  short_name: string;
 }
 
 interface XeroAccountsCardProps {
@@ -47,42 +28,44 @@ interface XeroAccountsCardProps {
 }
 
 /**
- * XeroAccountsCard - Shows Chart of Accounts from Xero with group comparison
+ * XeroAccountsCard - Shows Chart of Accounts with TeeemTableView (Foundation-backed)
  *
  * Features:
- * - Load and display all accounts from Xero
- * - Filter by account type and search by code/name (via TeeemTableView)
- * - Compare accounts across consolidated group companies
- * - Highlight missing accounts with check/X icons per company
- * - Standardize bank account names across all group companies
+ * - Full TeeemTableView with saved views, filters, column visibility
+ * - Dynamic company columns showing which companies have each account
+ * - Standardize bank account names across group
+ * - Sync from Xero button
  */
 export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardProps) {
-  const [accounts, setAccounts] = React.useState<XeroAccount[]>([]);
-  const [loading, setLoading] = React.useState(false);
+  const [accounts, setAccounts] = React.useState<TableRow[]>([]);
+  const [companies, setCompanies] = React.useState<CompanyInfo[]>([]);
+  const [foundationId, setFoundationId] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [comparison, setComparison] = React.useState<AccountComparison[]>([]);
-  const [comparisonLoading, setComparisonLoading] = React.useState(false);
-  const [groupCompanies, setGroupCompanies] = React.useState<GroupCompanyInfo[]>([]);
   const [standardizing, setStandardizing] = React.useState(false);
   const [standardizeResult, setStandardizeResult] = React.useState<{
     renamed_count: number;
     skipped_count: number;
     error_count: number;
   } | null>(null);
+  const [syncing, setSyncing] = React.useState(false);
 
-  const loadAccounts = async () => {
+  const loadData = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
       const response = await api.get<{
         success: boolean;
-        accounts: XeroAccount[];
-        summary: { total: number; by_type: Record<string, number> };
+        data: TableRow[];
+        companies: CompanyInfo[];
+        meta: { foundation_id: number; company_group: string };
         error?: string;
-      }>(`/api/v1/companies/${companyId}/xero/accounts`);
+      }>(`/api/v1/xero_chart_of_accounts/with_company_presence?company_id=${companyId}`);
 
       if (response?.success) {
-        setAccounts(response.accounts);
+        setAccounts(response.data || []);
+        setCompanies(response.companies || []);
+        setFoundationId(response.meta?.foundation_id || null);
       } else {
         setError(response?.error || "Failed to load accounts");
       }
@@ -91,39 +74,45 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadComparison = async () => {
-    try {
-      setComparisonLoading(true);
-      const response = await api.get<{
-        success: boolean;
-        companies: GroupCompanyInfo[];
-        comparison: AccountComparison[];
-        summary: {
-          total_unique_accounts: number;
-          accounts_in_all: number;
-          accounts_with_differences: number;
-          missing_in_some: number;
-        };
-        error?: string;
-      }>(`/api/v1/companies/${companyId}/xero/accounts/compare`);
-
-      if (response?.success) {
-        setGroupCompanies(response.companies || []);
-        setComparison(response.comparison || []);
-      }
-    } catch (err) {
-      console.error("[XeroAccountsCard] Comparison error:", err);
-    } finally {
-      setComparisonLoading(false);
-    }
-  };
+  }, [companyId]);
 
   React.useEffect(() => {
-    loadAccounts();
-    loadComparison();
-  }, [companyId]);
+    loadData();
+  }, [loadData]);
+
+  // Sync accounts from Xero to Foundation table
+  const handleSyncFromXero = async () => {
+    if (companies.length === 0) return;
+
+    setSyncing(true);
+    setError(null);
+
+    try {
+      // Sync from the first company's Xero connection
+      // The sync will populate the XeroChartOfAccount table
+      for (const company of companies) {
+        // Get the tenant_id for this company
+        const companyResponse = await api.get<{
+          success: boolean;
+          connection?: { xero_tenant_id: string };
+        }>(`/api/v1/companies/${company.id}/xero/connection`);
+
+        if (companyResponse?.success && companyResponse.connection?.xero_tenant_id) {
+          await api.post(`/api/v1/xero_chart_of_accounts/sync_from_xero`, {
+            tenant_id: companyResponse.connection.xero_tenant_id,
+            company_group_id: null, // Use global for now
+          });
+        }
+      }
+
+      // Reload data after sync
+      await loadData();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Standardize bank account names across all companies in the group
   const handleStandardizeNames = async () => {
@@ -140,14 +129,14 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       let totalSkipped = 0;
       let totalErrors = 0;
 
-      for (const company of groupCompanies) {
+      for (const company of companies) {
         const response = await api.post<{
           success: boolean;
           renamed_count: number;
           skipped_count: number;
           error_count: number;
           error?: string;
-        }>(`/api/v1/companies/${company.company_id}/xero/accounts/standardize_names`, {});
+        }>(`/api/v1/companies/${company.id}/xero/accounts/standardize_names`, {});
 
         if (response?.success) {
           totalRenamed += response.renamed_count;
@@ -162,9 +151,8 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         error_count: totalErrors,
       });
 
-      // Reload accounts to show updated names
-      await loadAccounts();
-      await loadComparison();
+      // Reload data after standardization
+      await loadData();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -172,94 +160,24 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     }
   };
 
-  const handleRefresh = async () => {
-    await loadAccounts();
-    await loadComparison();
-  };
-
-  // Build columns dynamically - static columns + group company columns
-  const columns = React.useMemo<TableColumn[]>(() => {
-    const baseColumns: TableColumn[] = [
-      {
-        key: "code",
-        label: "Code",
-        column_type: "text",
-        width: 100,
-        editable: false,
-      },
-      {
-        key: "name",
-        label: "Name",
-        column_type: "text",
-        width: 250,
-        editable: false,
-      },
-      {
-        key: "type",
-        label: "Type",
-        column_type: "text",
-        width: 120,
-        editable: false,
-      },
-      {
-        key: "tax_type",
-        label: "Tax Type",
-        column_type: "text",
-        width: 100,
-        editable: false,
-      },
-      {
-        key: "status",
-        label: "Status",
-        column_type: "text",
-        width: 80,
-        editable: false,
-      },
-    ];
-
-    // Add dynamic columns for each group company
-    const companyColumns: TableColumn[] = groupCompanies.map((company) => ({
-      key: `company_${company.company_id}`,
-      label: company.company_name.split(" ")[0], // Short name
+  // Build dynamic columns for company presence
+  const extraColumns = React.useMemo<TableColumn[]>(() => {
+    return companies.map((company) => ({
+      key: `company_${company.id}`,
+      label: company.short_name,
       column_type: "boolean",
       width: 70,
       editable: false,
-      tooltip: `${company.company_name} (${company.xero_tenant})`,
+      tooltip: company.name,
+      sortable: true,
+      filterable: true,
     }));
+  }, [companies]);
 
-    return [...baseColumns, ...companyColumns];
-  }, [groupCompanies]);
-
-  // Transform accounts into table entries with company presence flags
-  const entries = React.useMemo<TableRow[]>(() => {
-    return accounts.map((acc) => {
-      // Find this account in comparison data to check which companies have it
-      const comparisonData = comparison.find((c) => c.code === acc.code);
-      const companiesWithAccount = comparisonData?.companies.map((c) => c.company_id) || [];
-
-      // Build base entry
-      const entry: TableRow = {
-        id: acc.account_id,
-        code: acc.code,
-        name: acc.name,
-        type: acc.type,
-        tax_type: acc.tax_type || "—",
-        status: acc.status,
-      };
-
-      // Add company presence flags
-      groupCompanies.forEach((company) => {
-        entry[`company_${company.company_id}`] = companiesWithAccount.includes(company.company_id);
-      });
-
-      return entry;
-    });
-  }, [accounts, comparison, groupCompanies]);
-
-  // Custom cell renderer for special formatting
+  // Custom cell renderer for company presence and status badges
   const customCellRenderer = React.useCallback(
     (entry: TableRow, columnKey: string): React.ReactNode | null => {
-      // Handle company columns - show check/X icons
+      // Company presence columns - show check/X icons
       if (columnKey.startsWith("company_")) {
         const hasAccount = entry[columnKey] as boolean;
         return hasAccount ? (
@@ -269,23 +187,25 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         );
       }
 
-      // Handle status column - show colored badge
-      if (columnKey === "status") {
-        const status = entry[columnKey] as string;
-        return status === "ACTIVE" ? (
+      // Active status as colored badge
+      if (columnKey === "active") {
+        const active = entry[columnKey] as boolean;
+        return active ? (
           <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
             Active
           </Badge>
         ) : (
           <Badge variant="outline" className="bg-gray-50 text-gray-500 dark:bg-gray-900/20 dark:text-gray-400">
-            Archived
+            Inactive
           </Badge>
         );
       }
 
-      // Handle type column - show badge
-      if (columnKey === "type") {
-        return <Badge variant="outline">{entry[columnKey] as string}</Badge>;
+      // Account type as badge
+      if (columnKey === "account_type") {
+        const type = entry[columnKey] as string;
+        if (!type) return null;
+        return <Badge variant="outline">{type}</Badge>;
       }
 
       return null; // Use default rendering
@@ -295,8 +215,8 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
 
   // Left actions for the table header
   const leftActions = React.useMemo(() => (
-    <>
-      {groupCompanies.length > 0 && (
+    <div className="flex items-center gap-2">
+      {companies.length > 0 && (
         <Button
           variant="outline"
           size="sm"
@@ -308,8 +228,18 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
           <span className="ml-2">Standardize Bank Names</span>
         </Button>
       )}
-    </>
-  ), [groupCompanies.length, loading, standardizing]);
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleSyncFromXero}
+        disabled={loading || syncing || companies.length === 0}
+        title="Sync accounts from Xero to local database"
+      >
+        {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+        <span className="ml-2">Sync from Xero</span>
+      </Button>
+    </div>
+  ), [companies.length, loading, standardizing, syncing]);
 
   if (loading && accounts.length === 0) {
     return (
@@ -331,7 +261,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
           <div className="text-center text-muted-foreground">
             <XCircle className="h-8 w-8 mx-auto mb-2 text-red-500" />
             <p>{error}</p>
-            <Button variant="outline" size="sm" className="mt-4" onClick={loadAccounts}>
+            <Button variant="outline" size="sm" className="mt-4" onClick={loadData}>
               Try Again
             </Button>
           </div>
@@ -348,13 +278,10 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
             <CardTitle className="text-lg font-medium">Xero Chart of Accounts</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {accounts.length} accounts from {companyName || "this company"}
-              {groupCompanies.length > 0 && (
+              {companies.length > 0 && (
                 <span className="ml-2 text-xs text-blue-600">
-                  ({groupCompanies.length} {groupCompanies.length === 1 ? "company" : "companies"} in group)
+                  ({companies.length} {companies.length === 1 ? "company" : "companies"} in group)
                 </span>
-              )}
-              {comparisonLoading && (
-                <span className="ml-2 text-xs text-muted-foreground">(loading group...)</span>
               )}
             </p>
           </div>
@@ -376,19 +303,18 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
           </div>
         )}
 
-        {/* TeeemTableView for accounts */}
+        {/* TeeemTableView with Foundation */}
         <div className="-mx-6">
           <TeeemTableView
-            key={`xero-accounts-${groupCompanies.length}`}
-            entries={entries}
-            columns={columns}
+            entries={accounts}
+            foundationIdNumeric={foundationId}
             tableName="Xero Accounts"
-            onRefresh={handleRefresh}
+            onRefresh={loadData}
             leftActions={leftActions}
+            extraColumns={extraColumns}
             customCellRenderer={customCellRenderer}
-            viewOnly={true}
-            disableSavedViews={true}
             enableExport={true}
+            viewOnly={true}
           />
         </div>
       </CardContent>

@@ -108,12 +108,16 @@ import {
   XeroGroupPLCard,
   XeroGroupBalanceSheetCard,
 } from "@/components/xero";
+// SSoT: Using unified EntityTabs API (Phase 4 migration)
+import { useCorporateEntityTabs } from "@/lib/hooks/useCorporateEntityTabs";
+import { useXeroEntityTabs } from "@/lib/hooks/useXeroEntityTabs";
 
 // =============================================================================
 // TAB CONFIGURATION
-// SSoT: GET /api/v1/corporate/entity_tabs (CorporateEntityTab model)
-// Manage via: Admin > System > Company > Entity Tabs
-// TODO: Migrate to API consumption (currently using fallback constants)
+// SSoT: GET /api/v1/entity_tabs?scope=corporate_entity (EntityTab model)
+// SSoT: GET /api/v1/entity_tabs?scope=xero (EntityTab model)
+// Manage via: Admin > System > Entity Configuration
+// Phase 4 Migration Complete: Using useCorporateEntityTabs & useXeroEntityTabs hooks
 // =============================================================================
 
 // Document category tabs (fallback - SSoT is database)
@@ -3375,25 +3379,33 @@ export default function CompanyDetailPage() {
 
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
-  const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
-  const [xeroDocumentFolders, setXeroDocumentFolders] = React.useState<Array<{ id: string; name: string; description: string; folderId: number }>>([]);
-  // SSoT: Entity tabs from CorporateEntityTab API (replaces hardcoded constants)
-  const [entityOverviewTabs, setEntityOverviewTabs] = React.useState<Array<{ id: string; name: string }>>([]);
-  // SSoT: Xero tabs loaded from API (GET /api/v1/xero/tabs)
-  const [xeroFeatureTabs, setXeroFeatureTabs] = React.useState<Array<{
-    id: string;
-    name: string;
-    type: 'functional' | 'document';
-    component?: string;
-    folderId?: number;
-    description?: string;
-    group?: string;
-    head_only?: boolean;
-    group_member?: boolean;  // Shows for any company in a group
-    parent?: string; // Parent tab key for hierarchical display
-    order_position?: number; // SSoT: Sort order from admin config
-    is_parent?: boolean; // SSoT: True if this is a parent container (group header)
-  }>>([]);
+
+  // SSoT: Entity type normalization for tab filtering
+  const normalizedEntityType = React.useMemo(() => {
+    if (!company) return undefined;
+    let entityType = company.entity_type || "Company";
+    // Normalize entity type (handle lowercase from legacy data)
+    if (entityType.toLowerCase() === "company") return "Company";
+    if (entityType.toLowerCase() === "trust") return "Trust";
+    if (entityType.toLowerCase() === "superfund") return "Superfund";
+    if (entityType.toLowerCase() === "charity") return "Charity";
+    return entityType;
+  }, [company]);
+
+  // SSoT: Using unified EntityTabs API (Phase 4 migration)
+  // Corporate tabs - replaces old /api/v1/corporate/entity_tabs
+  const {
+    overviewTabs: entityOverviewTabs,
+    documentTabs: documentFolderTabs,
+    xeroSubTabs: xeroDocumentFolders,
+    loading: corporateTabsLoading,
+  } = useCorporateEntityTabs(normalizedEntityType);
+
+  // Xero feature tabs - replaces old /api/v1/xero/tabs
+  const {
+    tabs: xeroFeatureTabs,
+    loading: xeroTabsLoading,
+  } = useXeroEntityTabs();
 
   // Map folder names to icons
   const getFolderIcon = (folderName: string) => {
@@ -3421,96 +3433,8 @@ export default function CompanyDetailPage() {
     return iconMap[folderName] || FileText;
   };
 
-  // Load entity tabs from CorporateEntityTab API (SSoT) based on company entity type
-  // This replaces the hardcoded OVERVIEW_SUB_TABS and loads document tabs dynamically
-  const loadEntityTabs = React.useCallback(async (company: Company) => {
-    try {
-      // Determine entity type for CorporateEntityTab filtering
-      // The API expects: Company, Trust, Superfund, Charity
-      let entityType = company.entity_type || "Company";
-      // Normalize entity type (handle lowercase from legacy data)
-      if (entityType.toLowerCase() === "company") entityType = "Company";
-      if (entityType.toLowerCase() === "trust") entityType = "Trust";
-      if (entityType.toLowerCase() === "superfund") entityType = "Superfund";
-      if (entityType.toLowerCase() === "charity") entityType = "Charity";
-
-      // SSoT: Load tabs from CorporateEntityTab API
-      const response = await api.get<{ success: boolean; data: Array<{
-        id: string;
-        name: string;
-        group: string;
-        icon?: string;
-        component?: string;
-        sub_tabs?: Array<{ name: string; folder?: string }>;
-      }> }>(`/api/v1/corporate/entity_tabs?entity_type=${entityType}`);
-
-      if (response.success && response.data) {
-        // Split tabs by group
-        const overviewTabs = response.data
-          .filter(t => t.group === "overview")
-          .map(t => ({ id: t.id, name: t.name }));
-
-        const documentTabs = response.data
-          .filter(t => t.group === "documents")
-          .map(t => {
-            // Some tabs need "-docs" suffix to avoid conflicts
-            const needsDocsSuffix = ['assets', 'dividends', 'loans', 'minutes'].includes(t.id);
-            return {
-              id: needsDocsSuffix ? `${t.id}-docs` : t.id,
-              name: t.name,
-              icon: getFolderIcon(t.name.toUpperCase())
-            };
-          });
-
-        // Extract XERO sub-tabs if present
-        const xeroTab = response.data.find(t => t.id === "xero");
-        if (xeroTab?.sub_tabs && xeroTab.sub_tabs.length > 0) {
-          const xeroChildren = xeroTab.sub_tabs.map(st => ({
-            id: `xero-doc-${st.name.toLowerCase().replace(/\s+/g, '-')}`,
-            name: st.name,
-            description: '',
-            folderId: 0
-          }));
-          setXeroDocumentFolders(xeroChildren);
-        }
-
-        setEntityOverviewTabs(overviewTabs);
-        setDocumentFolderTabs(documentTabs);
-      }
-    } catch (error) {
-      console.error("Failed to load entity tabs:", error);
-      // Fallback to empty - hardcoded constants will be used
-      setEntityOverviewTabs([]);
-      setDocumentFolderTabs([]);
-      setXeroDocumentFolders([]);
-    }
-  }, []);
-
-  // Load Xero feature tabs from API (SSoT)
-  const loadXeroTabs = React.useCallback(async () => {
-    try {
-      const response = await api.get<{ success: boolean; data: Array<{
-        id: string;
-        name: string;
-        type: 'functional' | 'document';
-        component?: string;
-        folderId?: number;
-        description?: string;
-        group?: string;
-        head_only?: boolean;
-        group_member?: boolean;
-        parent?: string;
-        order_position?: number;
-        is_parent?: boolean;
-      }> }>("/api/v1/xero/tabs");
-      if (response.success && response.data) {
-        setXeroFeatureTabs(response.data);
-      }
-    } catch (error) {
-      // SSoT: No fallback - if API fails, we need to fix it
-      console.error("Failed to load Xero tabs from API:", error);
-    }
-  }, []);
+  // REMOVED: loadEntityTabs - now using useCorporateEntityTabs hook (SSoT)
+  // REMOVED: loadXeroTabs - now using useXeroEntityTabs hook (SSoT)
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -3520,14 +3444,14 @@ export default function CompanyDetailPage() {
         `/api/v1/companies/${companyId}`
       );
       setCompany(response.company);
-      // Load document folders based on company entity type
-      await loadEntityTabs(response.company);
+      // SSoT: Entity tabs now loaded via useCorporateEntityTabs hook (Phase 4)
+      // The hook automatically refetches when company.entity_type changes
     } catch (error) {
       console.error("Failed to load company:", error);
     } finally {
       setLoading(false);
     }
-  }, [companyId, loadEntityTabs]);
+  }, [companyId]);
 
   // Load document counts for tabs
   const loadDocumentCounts = React.useCallback(async () => {
@@ -3571,7 +3495,13 @@ export default function CompanyDetailPage() {
       return DOCUMENT_TABS;
     }
 
-    return [...documentFolderTabs, ...specialTabs];
+    // Convert document folder tabs (string icons) to Lucide components
+    const folderTabsWithIcons = documentFolderTabs.map(tab => ({
+      ...tab,
+      icon: getFolderIcon(tab.name.toUpperCase()),
+    }));
+
+    return [...folderTabsWithIcons, ...specialTabs];
   }, [documentFolderTabs]);
 
   // SSoT: Xero tabs from API only - no fallback
@@ -3640,8 +3570,8 @@ export default function CompanyDetailPage() {
     loadCompany();
     loadDocumentCounts();
     loadHealthScore();
-    loadXeroTabs(); // SSoT: Load Xero tabs from API
-  }, [loadCompany, loadDocumentCounts, loadHealthScore, loadXeroTabs]);
+    // SSoT: Xero tabs now loaded via useXeroEntityTabs hook (Phase 4)
+  }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
   // Handle tab from URL
   React.useEffect(() => {

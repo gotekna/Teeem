@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
-import { useJobTabs } from "@/lib/hooks/useJobTabs";
+// SSoT: Using unified EntityTabs API (Phase 4 migration)
+import { useJobEntityTabs } from "@/lib/hooks/useJobEntityTabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   ArrowLeft,
@@ -604,8 +605,8 @@ export default function JobDetailPage() {
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
 
-  // Dynamic job tabs configuration
-  const { tabs: jobTabs, loading: tabsLoading } = useJobTabs();
+  // Dynamic job tabs configuration (SSoT: unified EntityTabs API)
+  const { tabs: jobTabs, loading: tabsLoading } = useJobEntityTabs();
 
   // Edit mode state
   const [isEditing, setIsEditing] = React.useState(false);

@@ -1,0 +1,107 @@
+// EntityTab types - SSoT for unified tab configuration
+// Matches backend EntityTab model exactly
+
+export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'document' | 'xero';
+
+export type TabGroup = 'overview' | 'documents' | 'data' | 'special';
+
+export interface EntityTab {
+  id: number;
+  scope: EntityTabScope;
+  tab_key: string;
+  display_name: string;
+  description: string | null;
+  tab_group: TabGroup | null;
+  parent_id: number | null;
+  job_id: number | null;
+  entity_filters: string[];
+  order_position: number;
+  enabled: boolean;
+  icon_name: string | null;
+  component_name: string | null;
+  is_system_tab: boolean;
+  has_sharepoint_folder: boolean;
+  sharepoint_folder_path: string | null;
+  full_sharepoint_path: string | null;
+  hierarchy_path: string;
+  document_count: number;
+  can_delete: boolean;
+  children: EntityTab[];
+  document_types: EntityTabDocumentType[];
+}
+
+export interface EntityTabDocumentType {
+  id: number;
+  name: string;
+  display_name: string;
+}
+
+export interface EntityTabsResponse {
+  success: boolean;
+  data: {
+    scope: EntityTabScope;
+    tabs: EntityTab[];
+    groups: TabGroup[];
+  };
+}
+
+export interface EntityTabResponse {
+  success: boolean;
+  data: EntityTab;
+}
+
+export interface EntityTabCreateParams {
+  scope: EntityTabScope;
+  tab_key: string;
+  display_name: string;
+  description?: string;
+  tab_group?: TabGroup;
+  parent_id?: number;
+  job_id?: number;
+  entity_filters?: string[];
+  order_position?: number;
+  enabled?: boolean;
+  icon_name?: string;
+  component_name?: string;
+  has_sharepoint_folder?: boolean;
+  sharepoint_folder_path?: string;
+}
+
+export interface EntityTabUpdateParams {
+  display_name?: string;
+  description?: string;
+  tab_group?: TabGroup;
+  parent_id?: number;
+  entity_filters?: string[];
+  order_position?: number;
+  enabled?: boolean;
+  icon_name?: string;
+  component_name?: string;
+  has_sharepoint_folder?: boolean;
+  sharepoint_folder_path?: string;
+}
+
+export interface ReorderTabParams {
+  id: number;
+  parent_id: number | null;
+}
+
+// Scope display names for UI
+export const SCOPE_LABELS: Record<EntityTabScope, string> = {
+  corporate_entity: 'Corporate Entity',
+  people: 'People',
+  job: 'Job',
+  document: 'Document Folders',
+  xero: 'Xero',
+};
+
+// Tab group display names for UI
+export const GROUP_LABELS: Record<TabGroup, string> = {
+  overview: 'Overview',
+  documents: 'Documents',
+  data: 'Data',
+  special: 'Special',
+};
+
+// Entity type options for corporate_entity scope
+export const CORPORATE_ENTITY_TYPES = ['Company', 'Trust', 'Superfund', 'Charity'] as const;

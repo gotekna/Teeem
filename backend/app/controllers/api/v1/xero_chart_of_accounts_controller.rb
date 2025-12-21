@@ -216,7 +216,102 @@ module Api
         }, status: :unprocessable_entity
       end
 
+      # GET /api/v1/xero_chart_of_accounts/with_company_presence
+      # Returns accounts enriched with company presence data for TeeemTableView
+      # Required: company_id param to determine the company group
+      def with_company_presence
+        company = CorporateCompany.find(params[:company_id])
+        group = company.corporate_group
+
+        # Get all accounts for this company's group (or global if no group)
+        @accounts = if group
+                      XeroChartOfAccount.for_group(group.id)
+                    else
+                      XeroChartOfAccount.global
+                    end
+
+        @accounts = @accounts.where(active: true) unless params[:include_inactive] == "true"
+        @accounts = @accounts.by_code
+
+        # Get all companies in the group that have Xero connected
+        companies_with_xero = if group
+          group.corporate_companies
+               .includes(:corporate_company_xero_connection)
+               .select { |c| c.corporate_company_xero_connection&.connected? }
+        else
+          [ company ].select { |c| c.corporate_company_xero_connection&.connected? }
+        end
+
+        # Build map of which accounts exist in each company's Xero
+        company_accounts_map = build_company_accounts_map(companies_with_xero)
+
+        # Get Foundation ID for TeeemTableView
+        foundation = Foundation.find_by(model_class: "XeroChartOfAccount")
+
+        # Enrich each account with company presence data
+        enriched_accounts = @accounts.map do |account|
+          base = serialize_account(account)
+
+          # Add company presence fields
+          companies_with_xero.each do |c|
+            company_codes = company_accounts_map[c.id] || []
+            base["company_#{c.id}"] = company_codes.include?(account.account_code)
+          end
+
+          base
+        end
+
+        render json: {
+          success: true,
+          data: enriched_accounts,
+          companies: companies_with_xero.map { |c|
+            {
+              id: c.id,
+              name: c.name,
+              short_name: c.name.split(" ").first
+            }
+          },
+          meta: {
+            total: enriched_accounts.count,
+            foundation_id: foundation&.id,
+            company_group: group&.name
+          }
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: e.message }, status: :not_found
+      rescue StandardError => e
+        Rails.logger.error("[XeroChartOfAccountsController] with_company_presence error: #{e.message}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       private
+
+      # Fetch account codes from each company's Xero
+      def build_company_accounts_map(companies)
+        client = XeroApiClient.new
+        companies.each_with_object({}) do |company, map|
+          connection = company.corporate_company_xero_connection
+          next unless connection&.connected?
+
+          begin
+            connection.refresh_tokens! if connection.needs_refresh?
+            result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
+
+            if result[:success]
+              codes = (result[:data]["Accounts"] || [])
+                      .reject { |a| a["SystemAccount"].present? }
+                      .map { |a| a["Code"] }
+              map[company.id] = codes
+            else
+              Rails.logger.warn("[XeroChartOfAccountsController] Failed to fetch accounts for company #{company.id}: #{result[:error]}")
+              map[company.id] = []
+            end
+          rescue StandardError => e
+            Rails.logger.error("[XeroChartOfAccountsController] Error fetching accounts for company #{company.id}: #{e.message}")
+            map[company.id] = []
+          end
+        end
+      end
 
       def set_account
         @account = XeroChartOfAccount.find(params[:id])

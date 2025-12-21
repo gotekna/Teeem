@@ -1951,6 +1951,7 @@ Rails.application.routes.draw do
       resources :xero_chart_of_accounts do
         collection do
           get "for_company/:company_id", action: :for_company
+          get :with_company_presence
           post :sync_from_xero
           post :copy_to_group
         end
@@ -2007,6 +2008,18 @@ Rails.application.routes.draw do
       resources :document_folders do
         collection do
           post :reorder
+        end
+      end
+
+      # Entity Tabs (SSoT: Unified tab configuration)
+      # Replaces: corporate_entity_tabs, job_tabs, document_folders config
+      resources :entity_tabs do
+        collection do
+          post :reorder
+          get 'for_scope/:scope', action: :for_scope, as: :for_scope
+        end
+        member do
+          post :toggle
         end
       end
 

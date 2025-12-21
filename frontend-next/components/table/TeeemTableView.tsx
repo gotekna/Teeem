@@ -893,6 +893,7 @@ export default function TeeemTableView({
   customBulkActions,
   customCellRenderer,
   extraRowProps,
+  extraColumns,
   viewOnly = false,
   preloadedViews = null,
   disableSavedViews = false,
@@ -1159,7 +1160,18 @@ export default function TeeemTableView({
   }, [useAutoFetch, foundationIdNumeric]);
 
   // Use Foundation columns when available (SSoT), otherwise fall back to props
-  const effectiveColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+  // Merge with extraColumns if provided (for dynamic/computed columns like company presence)
+  const baseColumns = foundationIdNumeric && foundationColumns ? foundationColumns : columns;
+  const effectiveColumns = useMemo(() => {
+    if (!baseColumns) return extraColumns || null;
+    if (!extraColumns || extraColumns.length === 0) return baseColumns;
+    // Insert extraColumns before the 'actions' column if it exists
+    const actionsIndex = baseColumns.findIndex(c => c.key === 'actions');
+    if (actionsIndex >= 0) {
+      return [...baseColumns.slice(0, actionsIndex), ...extraColumns, ...baseColumns.slice(actionsIndex)];
+    }
+    return [...baseColumns, ...extraColumns];
+  }, [baseColumns, extraColumns]);
 
   // Use auto-fetched records when in auto-fetch mode, otherwise use entries prop
   const effectiveEntries = useAutoFetch ? autoFetchedRecords : entries;

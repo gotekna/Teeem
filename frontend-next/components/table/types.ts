@@ -138,6 +138,7 @@ export interface TeeemTableViewProps {
   customBulkActions?: (selectedIds: (number | string)[], clearSelection: () => void) => React.ReactNode; // Custom bulk action buttons
   customCellRenderer?: (entry: TableRow, columnKey: string) => React.ReactNode | null;
   extraRowProps?: Record<string, unknown>;
+  extraColumns?: TableColumn[]; // Additional columns appended after Foundation columns (for dynamic/computed columns)
 
   // View configuration
   viewOnly?: boolean;
