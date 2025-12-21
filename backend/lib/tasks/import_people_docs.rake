@@ -54,6 +54,12 @@ namespace :corporate do
       files.each do |file|
         next if file["folder"]
 
+        # Skip if no contact match - People documents must link to a person
+        unless contact
+          puts "    Skip (no contact): #{file['name']}"
+          next
+        end
+
         existing = CorporateCompanyDocument.find_by(sharepoint_file_id: file["id"])
         if existing
           puts "    Skip (exists): #{file['name']}"
@@ -71,11 +77,11 @@ namespace :corporate do
             contact_id: contact&.id,
             display_name: title,
             file_name: file["name"],
-            document_type: "Personal Document",
+            document_type: "other",
             folder: "People",
             register_folder: "People",
-            storage_type: "sharepoint",
-            source: "imported",
+            storage_type: "electronic",
+            source: "sharepoint",
             sharepoint_file_id: file["id"],
             sharepoint_download_url: download_url,
             file_size: file["size"],
