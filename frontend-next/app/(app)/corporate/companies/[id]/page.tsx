@@ -159,22 +159,8 @@ const TRUSTEE_COMPANY_SUB_TABS = [
   { id: "trusts", name: "Trusts Managed" },
 ];
 
-// SSoT: Xero tabs loaded from API (GET /api/v1/xero/tabs)
-// Minimal fallback only shows Connection tab if API fails
-const XERO_TABS_FALLBACK: Array<{
-  id: string;
-  name: string;
-  type: 'functional' | 'document';
-  component?: string;
-  folderId?: number;
-  description?: string;
-  group?: string;
-  head_only?: boolean;
-  group_member?: boolean;  // Shows for any company in a group
-  parent?: string;
-}> = [
-  { id: "connection", name: "Connection", type: "functional" },
-];
+// SSoT: Xero tabs come from API only (GET /api/v1/xero/tabs)
+// No fallback - if API fails, show error so we can fix it
 
 interface Director {
   id: number;
@@ -3327,6 +3313,8 @@ export default function CompanyDetailPage() {
     head_only?: boolean;
     group_member?: boolean;  // Shows for any company in a group
     parent?: string; // Parent tab key for hierarchical display
+    order_position?: number; // SSoT: Sort order from admin config
+    is_parent?: boolean; // SSoT: True if this is a parent container (group header)
   }>>([]);
 
   // Map folder names to icons
@@ -3434,14 +3422,15 @@ export default function CompanyDetailPage() {
         head_only?: boolean;
         group_member?: boolean;
         parent?: string;
+        order_position?: number;
+        is_parent?: boolean;
       }> }>("/api/v1/xero/tabs");
       if (response.success && response.data) {
         setXeroFeatureTabs(response.data);
       }
     } catch (error) {
-      console.error("Failed to load Xero tabs from API, using minimal fallback:", error);
-      // SSoT: Minimal fallback - just Connection tab so user can still connect
-      setXeroFeatureTabs(XERO_TABS_FALLBACK);
+      // SSoT: No fallback - if API fails, we need to fix it
+      console.error("Failed to load Xero tabs from API:", error);
     }
   }, []);
 
@@ -3507,25 +3496,27 @@ export default function CompanyDetailPage() {
     return [...documentFolderTabs, ...specialTabs];
   }, [documentFolderTabs]);
 
-  // SSoT: Xero tabs from API - includes functional tabs + document folders (no duplicates)
+  // SSoT: Xero tabs from API only - no fallback
   // Backend filters out document folders that match functional tab names
   // Visibility rules:
   // - head_only: Only show if company is a head (has_consolidated_children)
   // - group_member: Show if company is part of a group (is head OR has a parent)
   const mergedXeroSubTabs = React.useMemo(() => {
-    const tabs = xeroFeatureTabs.length > 0 ? xeroFeatureTabs : XERO_TABS_FALLBACK;
     const isHeadCompany = company?.has_consolidated_children === true;
     const isPartOfGroup = isHeadCompany || !!company?.consolidation_parent_id;
 
-    return tabs.filter(tab => {
-      // Skip parent container tabs (they're just group headers, not actual tabs)
-      if ((tab as any).is_parent) return false;
-      // head_only tabs: only for head companies
-      if (tab.head_only && !isHeadCompany) return false;
-      // group_member tabs: only for companies in a group
-      if (tab.group_member && !isPartOfGroup) return false;
-      return true;
-    });
+    return xeroFeatureTabs
+      .filter(tab => {
+        // Skip parent container tabs (they're just group headers, not actual tabs)
+        if (tab.is_parent) return false;
+        // head_only tabs: only for head companies
+        if (tab.head_only && !isHeadCompany) return false;
+        // group_member tabs: only for companies in a group
+        if (tab.group_member && !isPartOfGroup) return false;
+        return true;
+      })
+      // SSoT: Sort by order_position from admin config
+      .sort((a, b) => (a.order_position ?? 999) - (b.order_position ?? 999));
   }, [xeroFeatureTabs, company?.has_consolidated_children, company?.consolidation_parent_id]);
 
   // SSoT: Compute parent tabs dynamically from API order
