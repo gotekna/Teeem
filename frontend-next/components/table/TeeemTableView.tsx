@@ -896,7 +896,7 @@ export default function TeeemTableView({
   viewOnly = false,
   preloadedViews = null,
   disableSavedViews = false,
-  defaultViewId = null,
+  defaultViewId,
   hideUpdateViewButton = false,
   initialGroupByColumn = null,
   onLoadViewReady,
