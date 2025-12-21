@@ -1,7 +1,11 @@
 class CorporateCompanyDocument < ApplicationRecord
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id", optional: true
-  alias_attribute :company, :corporate_company  # Alias for as_json compatibility
+
+  # Alias for as_json compatibility (alias_method works for associations, alias_attribute doesn't)
+  def company
+    corporate_company
+  end
   belongs_to :contact, optional: true  # For documents linked to people (family members, directors)
   belongs_to :user, optional: true
   belongs_to :asset, optional: true
