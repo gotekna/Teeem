@@ -167,6 +167,7 @@ const XERO_TABS_FALLBACK: Array<{
   description?: string;
   group?: string;
   head_only?: boolean;
+  parent?: string;
 }> = [
   { id: "connection", name: "Connection", type: "functional" },
 ];
@@ -3320,6 +3321,7 @@ export default function CompanyDetailPage() {
     description?: string;
     group?: string;
     head_only?: boolean;
+    parent?: string; // Parent tab key for hierarchical display
   }>>([]);
 
   // Map folder names to icons
@@ -3425,6 +3427,7 @@ export default function CompanyDetailPage() {
         description?: string;
         group?: string;
         head_only?: boolean;
+        parent?: string;
       }> }>("/api/v1/xero/tabs");
       if (response.success && response.data) {
         setXeroFeatureTabs(response.data);
@@ -3507,6 +3510,53 @@ export default function CompanyDetailPage() {
     const isHeadCompany = company?.has_consolidated_children === true;
     return tabs.filter(tab => !tab.head_only || isHeadCompany);
   }, [xeroFeatureTabs, company?.has_consolidated_children]);
+
+  // SSoT: Compute parent tabs dynamically from API order
+  // Parent groups are inserted at the position of their first child
+  const xeroParentTabs = React.useMemo(() => {
+    const mainTabs: Array<{ id: string; name: string; isParent: boolean }> = [];
+    const seenParents = new Set<string>();
+
+    // Parent display names - SSoT: could move to database if needed
+    const parentDisplayNames: Record<string, string> = {
+      'accounts': 'Accounts',
+      'profit-loss': 'Profit & Loss',
+      'balance-sheet': 'Balance Sheet',
+      'bank': 'Bank',
+    };
+
+    // Iterate through tabs in order (API returns them sorted by order_position)
+    mergedXeroSubTabs.forEach(tab => {
+      if (tab.parent) {
+        // This is a child tab - insert parent group if not already done
+        if (!seenParents.has(tab.parent)) {
+          seenParents.add(tab.parent);
+          mainTabs.push({
+            id: tab.parent,
+            name: parentDisplayNames[tab.parent] || tab.parent,
+            isParent: true
+          });
+        }
+        // Skip adding child tab to Level 1 (it appears in Level 2)
+      } else {
+        // Standalone tab - add directly
+        mainTabs.push({ id: tab.id, name: tab.name, isParent: false });
+      }
+    });
+
+    return mainTabs;
+  }, [mergedXeroSubTabs]);
+
+  // Get child tabs for a given parent
+  const getXeroChildTabs = React.useCallback((parentKey: string) => {
+    return mergedXeroSubTabs.filter(tab => tab.parent === parentKey);
+  }, [mergedXeroSubTabs]);
+
+  // Check if current xeroSubTab belongs to a parent group
+  const currentXeroParent = React.useMemo(() => {
+    const currentTab = mergedXeroSubTabs.find(t => t.id === xeroSubTab);
+    return currentTab?.parent || (xeroParentTabs.find(t => t.id === xeroSubTab && t.isParent) ? xeroSubTab : null);
+  }, [xeroSubTab, mergedXeroSubTabs, xeroParentTabs]);
 
   // SSoT: Overview sub-tabs from CorporateEntityTab API
   // Returns entity-specific tabs (e.g., Company gets Directors/Shareholdings, Charity gets Directors/Members)
@@ -3771,28 +3821,28 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
-          {/* XERO Tab with two-level navigation */}
+          {/* XERO Tab with two-level navigation - SSoT: Built dynamically from API */}
           {activeTab === "xero" && (
             <>
-              {/* Level 1: Main Xero tabs */}
+              {/* Level 1: Main Xero tabs (from xeroParentTabs computed value) */}
               <div className="flex gap-2 mb-2 border-b flex-wrap">
-                {/* Main tabs: Connection, Accounts, P&L (parent), Contacts, Balance Sheet (parent), Bank (parent), Invoices, Bills */}
-                {[
-                  { id: 'connection', name: 'Connection' },
-                  { id: 'accounts', name: 'Accounts' },
-                  { id: 'profit-loss', name: 'Profit & Loss', isParent: true },
-                  { id: 'contacts', name: 'Contacts' },
-                  { id: 'balance-sheet', name: 'Balance Sheet', isParent: true },
-                  { id: 'bank-accounts', name: 'Bank', isParent: true },
-                  { id: 'invoices', name: 'Invoices & Credit Notes' },
-                  { id: 'bills', name: 'Bills & POs' },
-                ].map((tab) => (
+                {xeroParentTabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setXeroSubTab(tab.id)}
+                    onClick={() => {
+                      if (tab.isParent) {
+                        // For parent tabs, select the first child
+                        const children = getXeroChildTabs(tab.id);
+                        if (children.length > 0) {
+                          setXeroSubTab(children[0].id);
+                        }
+                      } else {
+                        setXeroSubTab(tab.id);
+                      }
+                    }}
                     className={cn(
                       "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                      (xeroSubTab === tab.id || (tab.isParent && xeroSubTab.startsWith(tab.id)))
+                      (xeroSubTab === tab.id || (tab.isParent && currentXeroParent === tab.id))
                         ? "border-primary text-primary"
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
@@ -3802,87 +3852,25 @@ export default function CompanyDetailPage() {
                 ))}
               </div>
 
-              {/* Level 2: Sub-tabs for P&L, Balance Sheet, Bank */}
-              {(xeroSubTab.startsWith('profit-loss') || xeroSubTab.startsWith('balance-sheet') || xeroSubTab.startsWith('bank')) && (
+              {/* Level 2: Sub-tabs for parent groups (dynamically rendered from getXeroChildTabs) */}
+              {currentXeroParent && (
                 <div className="flex gap-2 mb-4 bg-muted/50 rounded-lg p-1 w-fit">
-                  {xeroSubTab.startsWith('profit-loss') && (
-                    <>
-                      <button
-                        onClick={() => setXeroSubTab('profit-loss')}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === 'profit-loss'
-                            ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Transactions
-                      </button>
-                      <button
-                        onClick={() => setXeroSubTab('profit-loss-statement')}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === 'profit-loss-statement'
-                            ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Statement
-                      </button>
-                    </>
-                  )}
-                  {xeroSubTab.startsWith('balance-sheet') && (
-                    <>
-                      <button
-                        onClick={() => setXeroSubTab('balance-sheet')}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === 'balance-sheet'
-                            ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Transactions
-                      </button>
-                      <button
-                        onClick={() => setXeroSubTab('balance-sheet-statement')}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === 'balance-sheet-statement'
-                            ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Statement
-                      </button>
-                    </>
-                  )}
-                  {xeroSubTab.startsWith('bank') && (
-                    <>
-                      <button
-                        onClick={() => setXeroSubTab('bank-accounts')}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === 'bank-accounts'
-                            ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Transactions
-                      </button>
-                      <button
-                        onClick={() => setXeroSubTab('bank-statement')}
-                        className={cn(
-                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === 'bank-statement'
-                            ? "bg-background shadow text-foreground"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        Statement
-                      </button>
-                    </>
-                  )}
+                  {getXeroChildTabs(currentXeroParent).map((child) => (
+                    <button
+                      key={child.id}
+                      onClick={() => setXeroSubTab(child.id)}
+                      className={cn(
+                        "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                        xeroSubTab === child.id
+                          ? "bg-background shadow text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {/* Show short name (strip parent prefix if present) */}
+                      {child.name.includes('Transactions') ? 'Transactions' :
+                       child.name.includes('Statement') ? 'Statement' : child.name}
+                    </button>
+                  ))}
                 </div>
               )}
 
@@ -3919,6 +3907,25 @@ export default function CompanyDetailPage() {
                 <XeroAccountsCard companyId={companyId} companyName={company?.name} />
               )}
 
+              {/* Consolidated Accounts - HEAD ONLY (side-by-side view of all subsidiaries' accounts) */}
+              {xeroSubTab === "consolidated-accounts" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Consolidated Chart of Accounts</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Side-by-side comparison of accounts across all subsidiaries
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center text-muted-foreground py-8">
+                      <p className="font-medium mb-2">Accounts from all {company?.has_consolidated_children ? 'subsidiaries' : 'entities'}</p>
+                      <p className="text-sm">Shows each account with balances from each connected Xero organisation in separate columns.</p>
+                      <p className="text-xs mt-4 text-amber-600">Coming soon - will display accounts side-by-side for comparison</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {xeroSubTab === "profit-loss" && (
                 <XeroProfitLossCard companyId={companyId} />
               )}
@@ -3935,8 +3942,82 @@ export default function CompanyDetailPage() {
                 <XeroBankAccountsCard companyId={companyId} />
               )}
 
+              {/* Statement sub-tabs - show Xero reports */}
+              {xeroSubTab === "profit-loss-statement" && (
+                <XeroProfitLossCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "balance-sheet-statement" && (
+                <XeroBalanceSheetCard companyId={companyId} />
+              )}
+
+              {xeroSubTab === "bank-statement" && (
+                <XeroStatementView companyId={companyId} />
+              )}
+
+              {/* Contacts tab - shows Xero contacts for this company */}
+              {xeroSubTab === "contacts" && (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <p className="font-medium mb-2">Xero Contacts</p>
+                      <p className="text-sm">View Xero contacts linked to this company in the Contacts module.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Invoices tab - shows invoices for this company */}
+              {xeroSubTab === "invoices" && (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <p className="font-medium mb-2">Invoices & Credit Notes</p>
+                      <p className="text-sm">View invoices in the Data Warehouse or Reports tab.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Bills tab - shows bills for this company */}
+              {xeroSubTab === "bills" && (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <p className="font-medium mb-2">Bills & Purchase Orders</p>
+                      <p className="text-sm">View bills in the Data Warehouse or Reports tab.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {xeroSubTab === "consolidated" && (
                 <XeroConsolidatedCard companyId={companyId} companyName={company?.name} />
+              )}
+
+              {/* Consolidated reports - HEAD ONLY (for companies with subsidiaries) */}
+              {xeroSubTab === "consolidated-pl" && (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <p className="font-medium mb-2">Consolidated Profit & Loss</p>
+                      <p className="text-sm">Combined P&L statement for all subsidiaries.</p>
+                      <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate P&L from all connected Xero orgs</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {xeroSubTab === "consolidated-bs" && (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <p className="font-medium mb-2">Consolidated Balance Sheet</p>
+                      <p className="text-sm">Combined Balance Sheet for all subsidiaries.</p>
+                      <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate Balance Sheet from all connected Xero orgs</p>
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Document folder sub-tabs from API (SSoT) */}

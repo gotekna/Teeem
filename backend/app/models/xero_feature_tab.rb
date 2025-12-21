@@ -22,8 +22,15 @@ class XeroFeatureTab < ApplicationRecord
 
   # Class methods
   def self.all_tabs_ordered
-    # Get functional tabs
+    # Get functional tabs with parent/child relationships
     functional_tabs = enabled.functional.ordered.map do |tab|
+      # Parse description flags (comma-separated, e.g., "parent:profit-loss,group_member")
+      desc_parts = tab.description&.split(",")&.map(&:strip) || []
+      parent_part = desc_parts.find { |p| p.start_with?("parent:") }
+      parent_key = parent_part&.sub("parent:", "")
+      is_head_only = desc_parts.include?("head_only")
+      is_group_member = desc_parts.include?("group_member")
+
       {
         id: tab.tab_key,
         name: tab.display_name,
@@ -31,7 +38,9 @@ class XeroFeatureTab < ApplicationRecord
         component: tab.component_name,
         icon: tab.icon_name,
         group: tab.tab_group,
-        head_only: tab.description == "head_only"
+        head_only: is_head_only,
+        group_member: is_group_member,  # Shows for any company in a group
+        parent: parent_key
       }
     end
 

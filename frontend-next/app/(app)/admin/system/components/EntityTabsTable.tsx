@@ -46,6 +46,7 @@ import {
   Building2,
   Scale,
   Users,
+  Heart,
   LayoutGrid,
   FileText,
   Sparkles,
@@ -83,6 +84,7 @@ const ENTITY_TYPE_CONFIG: Record<string, { abbrev: string; color: string; icon: 
   Company: { abbrev: "C", color: "blue", icon: Building2 },
   Trust: { abbrev: "T", color: "purple", icon: Scale },
   Superfund: { abbrev: "S", color: "green", icon: Users },
+  Charity: { abbrev: "CH", color: "pink", icon: Heart },
   "Corporate Trustee": { abbrev: "CT", color: "orange", icon: Building2 },
 };
 
@@ -140,6 +142,8 @@ export function EntityTabsTable() {
     component?: string;
     group: string;
     icon?: string;
+    parent?: string;
+    head_only?: boolean;
   }>>([]);
 
   // Load tabs from API
@@ -173,6 +177,8 @@ export function EntityTabsTable() {
           component?: string;
           group: string;
           icon?: string;
+          parent?: string;
+          head_only?: boolean;
         }>;
       }>("/api/v1/xero/tabs");
       if (response.success && response.data) {
@@ -571,49 +577,123 @@ export function EntityTabsTable() {
                           {/* Expanded: Sub-tabs */}
                           {isTabExpanded && (
                             <div className="ml-10 border-l-2 border-dashed border-muted pl-4 py-2 space-y-1">
-                              {/* XERO tab: Show unified Xero feature tabs (functional + document folders) */}
+                              {/* XERO tab: Show unified Xero feature tabs with parent/child hierarchy */}
                               {tab.name.toUpperCase() === "XERO" && xeroFeatureTabs.length > 0 ? (
                                 <>
                                   <p className="text-[10px] text-muted-foreground mb-2">
                                     These tabs appear on company pages when Xero is connected:
                                   </p>
                                   <div className="space-y-1">
-                                    {xeroFeatureTabs.map((xeroTab) => (
-                                      <div
-                                        key={xeroTab.id}
-                                        className={cn(
-                                          "flex items-center gap-2 py-1.5 px-2 rounded text-sm",
-                                          xeroTab.group === "setup" && "bg-indigo-50 dark:bg-indigo-900/20",
-                                          xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
-                                          xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
-                                          xeroTab.group === "documents" && "bg-amber-50 dark:bg-amber-900/20",
-                                        )}
-                                      >
-                                        <Badge
-                                          variant="outline"
-                                          className={cn(
-                                            "text-[8px] px-1 py-0",
-                                            xeroTab.group === "setup" && "border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400",
-                                            xeroTab.group === "data" && "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
-                                            xeroTab.group === "reports" && "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
-                                            xeroTab.group === "documents" && "border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400",
-                                          )}
-                                        >
-                                          {xeroTab.group}
-                                        </Badge>
-                                        <span className="font-medium">{xeroTab.name}</span>
-                                        <span className="text-xs text-muted-foreground ml-auto">
-                                          {xeroTab.type === "functional" ? (
-                                            <span className="font-mono text-[10px]">{xeroTab.component}</span>
-                                          ) : (
-                                            <span className="flex items-center gap-1">
-                                              <FileText className="h-3 w-3" />
-                                              doc folder
-                                            </span>
-                                          )}
-                                        </span>
-                                      </div>
-                                    ))}
+                                    {(() => {
+                                      // Group tabs by parent for hierarchical display
+                                      const parentDisplayNames: Record<string, string> = {
+                                        'accounts': 'Accounts',
+                                        'profit-loss': 'Profit & Loss',
+                                        'balance-sheet': 'Balance Sheet',
+                                        'bank': 'Bank',
+                                      };
+                                      const seenParents = new Set<string>();
+                                      const renderedTabs: React.ReactNode[] = [];
+
+                                      xeroFeatureTabs.forEach((xeroTab) => {
+                                        if (xeroTab.parent) {
+                                          // Child tab - render parent header first if not seen
+                                          if (!seenParents.has(xeroTab.parent)) {
+                                            seenParents.add(xeroTab.parent);
+                                            // Render parent header
+                                            renderedTabs.push(
+                                              <div
+                                                key={`parent-${xeroTab.parent}`}
+                                                className="flex items-center gap-2 py-1.5 px-2 rounded text-sm bg-purple-50 dark:bg-purple-900/20 font-semibold mt-2"
+                                              >
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[8px] px-1 py-0 border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400"
+                                                >
+                                                  parent
+                                                </Badge>
+                                                <span>{parentDisplayNames[xeroTab.parent] || xeroTab.parent}</span>
+                                              </div>
+                                            );
+                                          }
+                                          // Render child tab (indented)
+                                          renderedTabs.push(
+                                            <div
+                                              key={xeroTab.id}
+                                              className={cn(
+                                                "flex items-center gap-2 py-1.5 px-2 rounded text-sm ml-4 border-l-2 border-purple-200 dark:border-purple-800",
+                                                xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
+                                                xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
+                                              )}
+                                            >
+                                              <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                  "text-[8px] px-1 py-0",
+                                                  xeroTab.group === "data" && "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
+                                                  xeroTab.group === "reports" && "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
+                                                )}
+                                              >
+                                                {xeroTab.group}
+                                              </Badge>
+                                              <span className="font-medium">{xeroTab.name}</span>
+                                              <span className="text-xs text-muted-foreground ml-auto font-mono text-[10px]">
+                                                {xeroTab.component}
+                                              </span>
+                                            </div>
+                                          );
+                                        } else {
+                                          // Standalone tab (or head-only tab)
+                                          renderedTabs.push(
+                                            <div
+                                              key={xeroTab.id}
+                                              className={cn(
+                                                "flex items-center gap-2 py-1.5 px-2 rounded text-sm",
+                                                xeroTab.head_only && "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800",
+                                                !xeroTab.head_only && xeroTab.group === "setup" && "bg-indigo-50 dark:bg-indigo-900/20",
+                                                !xeroTab.head_only && xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
+                                                !xeroTab.head_only && xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
+                                                !xeroTab.head_only && xeroTab.group === "documents" && "bg-amber-50 dark:bg-amber-900/20",
+                                              )}
+                                            >
+                                              {xeroTab.head_only && (
+                                                <Badge
+                                                  variant="outline"
+                                                  className="text-[8px] px-1 py-0 border-amber-400 text-amber-700 dark:border-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
+                                                >
+                                                  HEAD
+                                                </Badge>
+                                              )}
+                                              <Badge
+                                                variant="outline"
+                                                className={cn(
+                                                  "text-[8px] px-1 py-0",
+                                                  xeroTab.group === "setup" && "border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400",
+                                                  xeroTab.group === "data" && "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
+                                                  xeroTab.group === "reports" && "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
+                                                  xeroTab.group === "documents" && "border-amber-300 text-amber-600 dark:border-amber-700 dark:text-amber-400",
+                                                )}
+                                              >
+                                                {xeroTab.group}
+                                              </Badge>
+                                              <span className="font-medium">{xeroTab.name}</span>
+                                              <span className="text-xs text-muted-foreground ml-auto">
+                                                {xeroTab.type === "functional" ? (
+                                                  <span className="font-mono text-[10px]">{xeroTab.component}</span>
+                                                ) : (
+                                                  <span className="flex items-center gap-1">
+                                                    <FileText className="h-3 w-3" />
+                                                    doc folder
+                                                  </span>
+                                                )}
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+                                      });
+
+                                      return renderedTabs;
+                                    })()}
                                   </div>
                                 </>
                               ) : (
