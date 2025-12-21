@@ -82,7 +82,7 @@ class XeroAttachmentSyncService
     # Attach the PDF content
     # Link to contact (for contact document tabs) AND to external_invoice (for warehouse queries)
     document.assign_attributes(
-      title: filename,
+      display_name: filename,
       document_type: document_type_for_invoice,
       folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
       contact_id: external_invoice.contact_id,      # Link to contact for document management
@@ -192,7 +192,7 @@ class XeroAttachmentSyncService
     document = CorporateCompanyDocument.new(
       source: "xero",
       external_id: external_doc_id,
-      title: filename,
+      display_name: filename,
       document_type: guess_document_type(filename),
       folder: folder_for_invoice_type,              # BILLS, INVOICES, etc. for contact tabs
       contact_id: external_invoice.contact_id,      # Link to contact for document management
