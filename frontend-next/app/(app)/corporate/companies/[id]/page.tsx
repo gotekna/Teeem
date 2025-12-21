@@ -2813,6 +2813,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
 
   // Debounce ref to distinguish single vs double click
   const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const billClickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Single click - open side panel preview (debounced to avoid triggering on double-click)
   const handleSingleClick = (doc: CompanyDocument) => {
@@ -3481,7 +3482,6 @@ export default function CompanyDetailPage() {
   // Bill drawer state
   const [selectedBill, setSelectedBill] = React.useState<any | null>(null);
   const [isBillDrawerOpen, setIsBillDrawerOpen] = React.useState(false);
-  const billClickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
