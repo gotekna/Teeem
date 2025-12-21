@@ -1442,49 +1442,29 @@ export default function DocumentTypeDetailPage() {
               </p>
               <MultipleSelector
                 placeholder="Select folders/tabs..."
-                options={(() => {
-                  // Build hierarchical options: parent folders and their subtabs
-                  const options: Array<{ value: string; label: string; category: string }> = [];
-
-                  // If we have hierarchy data, show folders with their subtabs
-                  if (folderHierarchy.length > 0) {
-                    folderHierarchy.forEach(folder => {
-                      // Add parent folder (category: "Folders")
-                      options.push({
+                options={folderHierarchy.length > 0
+                  ? folderHierarchy.flatMap(folder => {
+                      const opts = [{
                         value: folder.name,
                         label: folder.name + (documentType.primary_tab === folder.name ? " ★" : ""),
-                        category: "Folders",
-                      });
-                      // Add subtabs (category: parent folder name)
+                      }];
+                      // Add any subtabs
                       folder.children.forEach(child => {
-                        const subtabValue = `${folder.name} > ${child}`;
-                        options.push({
-                          value: subtabValue,
-                          label: child + (documentType.primary_tab === subtabValue ? " ★" : ""),
-                          category: `${folder.name} Subtabs`,
+                        opts.push({
+                          value: `${folder.name} > ${child}`,
+                          label: `${folder.name} > ${child}` + (documentType.primary_tab === `${folder.name} > ${child}` ? " ★" : ""),
                         });
                       });
-                    });
-                  } else {
-                    // Fallback to flat folder options
-                    folderOptions.forEach(folder => {
-                      options.push({
-                        value: folder,
-                        label: folder + (documentType.primary_tab === folder ? " ★" : ""),
-                        category: "Folders",
-                      });
-                    });
-                  }
-
-                  return options;
-                })()}
-                groupBy="category"
+                      return opts;
+                    })
+                  : folderOptions.map(folder => ({
+                      value: folder,
+                      label: folder + (documentType.primary_tab === folder ? " ★" : ""),
+                    }))
+                }
                 value={(documentType.tabs || []).map(tab => ({
                   value: tab,
-                  label: tab.includes(" > ")
-                    ? tab.split(" > ")[1] + (documentType.primary_tab === tab ? " ★" : "")
-                    : tab + (documentType.primary_tab === tab ? " ★" : ""),
-                  category: tab.includes(" > ") ? `${tab.split(" > ")[0]} Subtabs` : "Folders",
+                  label: tab + (documentType.primary_tab === tab ? " ★" : ""),
                 }))}
                 onChange={(options) => updateField("tabs", options.map(o => o.value))}
               />
