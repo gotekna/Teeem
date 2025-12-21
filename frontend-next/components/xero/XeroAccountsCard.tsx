@@ -4,32 +4,17 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Loader2,
   RefreshCw,
   XCircle,
-  CheckCircle,
-  GitMerge,
   Check,
   X,
   Wand2,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableColumn, TableRow } from "@/components/table/types";
 import type { XeroAccount } from "./types";
 
 interface CompanyComparison {
@@ -62,30 +47,22 @@ interface XeroAccountsCardProps {
 }
 
 /**
- * XeroAccountsCard - Shows Chart of Accounts from Xero with comparison
+ * XeroAccountsCard - Shows Chart of Accounts from Xero with group comparison
  *
  * Features:
  * - Load and display all accounts from Xero
- * - Filter by account type and search by code/name
+ * - Filter by account type and search by code/name (via TeeemTableView)
  * - Compare accounts across consolidated group companies
- * - Highlight missing accounts and name mismatches
+ * - Highlight missing accounts with check/X icons per company
+ * - Standardize bank account names across all group companies
  */
 export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardProps) {
   const [accounts, setAccounts] = React.useState<XeroAccount[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const [showComparison, setShowComparison] = React.useState(false);
   const [comparison, setComparison] = React.useState<AccountComparison[]>([]);
   const [comparisonLoading, setComparisonLoading] = React.useState(false);
-  const [comparisonSummary, setComparisonSummary] = React.useState<{
-    total_unique_accounts: number;
-    accounts_in_all: number;
-    accounts_with_differences: number;
-    missing_in_some: number;
-  } | null>(null);
   const [groupCompanies, setGroupCompanies] = React.useState<GroupCompanyInfo[]>([]);
-  const [filterType, setFilterType] = React.useState<string>("all");
-  const [searchTerm, setSearchTerm] = React.useState("");
   const [standardizing, setStandardizing] = React.useState(false);
   const [standardizeResult, setStandardizeResult] = React.useState<{
     renamed_count: number;
@@ -116,10 +93,9 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     }
   };
 
-  const loadComparison = async (switchToComparisonView = false) => {
+  const loadComparison = async () => {
     try {
       setComparisonLoading(true);
-      console.log("[XeroAccountsCard] Loading comparison for company:", companyId);
       const response = await api.get<{
         success: boolean;
         companies: GroupCompanyInfo[];
@@ -133,33 +109,12 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         error?: string;
       }>(`/api/v1/companies/${companyId}/xero/accounts/compare`);
 
-      console.log("[XeroAccountsCard] Comparison response:", {
-        success: response?.success,
-        companiesCount: response?.companies?.length,
-        comparisonCount: response?.comparison?.length,
-      });
-
       if (response?.success) {
         setGroupCompanies(response.companies || []);
         setComparison(response.comparison || []);
-        setComparisonSummary(response.summary);
-        // Only switch to comparison view if explicitly requested
-        if (switchToComparisonView) {
-          setShowComparison(true);
-        }
-      } else {
-        console.warn("[XeroAccountsCard] Comparison failed:", response?.error);
-        // Don't show error for background loading - only if comparison was explicitly requested
-        if (switchToComparisonView) {
-          setError(response?.error || "Failed to load comparison");
-        }
       }
     } catch (err) {
       console.error("[XeroAccountsCard] Comparison error:", err);
-      // Don't show error for background loading
-      if (switchToComparisonView) {
-        setError((err as Error).message);
-      }
     } finally {
       setComparisonLoading(false);
     }
@@ -167,7 +122,6 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
 
   React.useEffect(() => {
     loadAccounts();
-    // Also load comparison data to show group company columns
     loadComparison();
   }, [companyId]);
 
@@ -182,7 +136,6 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     setError(null);
 
     try {
-      // Call standardize for each company in the group
       let totalRenamed = 0;
       let totalSkipped = 0;
       let totalErrors = 0;
@@ -219,33 +172,144 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     }
   };
 
-  // Get unique types for filter
-  const accountTypes = React.useMemo(() => {
-    const types = new Set(accounts.map(a => a.type));
-    return Array.from(types).sort();
-  }, [accounts]);
+  const handleRefresh = async () => {
+    await loadAccounts();
+    await loadComparison();
+  };
 
-  // Filter accounts
-  const filteredAccounts = React.useMemo(() => {
-    return accounts.filter(acc => {
-      const matchesType = filterType === "all" || acc.type === filterType;
-      const matchesSearch = !searchTerm ||
-        acc.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        acc.name.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesType && matchesSearch;
-    });
-  }, [accounts, filterType, searchTerm]);
+  // Build columns dynamically - static columns + group company columns
+  const columns = React.useMemo<TableColumn[]>(() => {
+    const baseColumns: TableColumn[] = [
+      {
+        key: "code",
+        label: "Code",
+        column_type: "text",
+        width: 100,
+        editable: false,
+      },
+      {
+        key: "name",
+        label: "Name",
+        column_type: "text",
+        width: 250,
+        editable: false,
+      },
+      {
+        key: "type",
+        label: "Type",
+        column_type: "text",
+        width: 120,
+        editable: false,
+      },
+      {
+        key: "tax_type",
+        label: "Tax Type",
+        column_type: "text",
+        width: 100,
+        editable: false,
+      },
+      {
+        key: "status",
+        label: "Status",
+        column_type: "text",
+        width: 80,
+        editable: false,
+      },
+    ];
 
-  // Filter comparison
-  const filteredComparison = React.useMemo(() => {
-    return comparison.filter(acc => {
-      const matchesType = filterType === "all" || acc.type === filterType;
-      const matchesSearch = !searchTerm ||
-        acc.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        acc.name.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesType && matchesSearch;
+    // Add dynamic columns for each group company
+    const companyColumns: TableColumn[] = groupCompanies.map((company) => ({
+      key: `company_${company.company_id}`,
+      label: company.company_name.split(" ")[0], // Short name
+      column_type: "boolean",
+      width: 70,
+      editable: false,
+      tooltip: `${company.company_name} (${company.xero_tenant})`,
+    }));
+
+    return [...baseColumns, ...companyColumns];
+  }, [groupCompanies]);
+
+  // Transform accounts into table entries with company presence flags
+  const entries = React.useMemo<TableRow[]>(() => {
+    return accounts.map((acc) => {
+      // Find this account in comparison data to check which companies have it
+      const comparisonData = comparison.find((c) => c.code === acc.code);
+      const companiesWithAccount = comparisonData?.companies.map((c) => c.company_id) || [];
+
+      // Build base entry
+      const entry: TableRow = {
+        id: acc.account_id,
+        code: acc.code,
+        name: acc.name,
+        type: acc.type,
+        tax_type: acc.tax_type || "—",
+        status: acc.status,
+      };
+
+      // Add company presence flags
+      groupCompanies.forEach((company) => {
+        entry[`company_${company.company_id}`] = companiesWithAccount.includes(company.company_id);
+      });
+
+      return entry;
     });
-  }, [comparison, filterType, searchTerm]);
+  }, [accounts, comparison, groupCompanies]);
+
+  // Custom cell renderer for special formatting
+  const customCellRenderer = React.useCallback(
+    (entry: TableRow, columnKey: string): React.ReactNode | null => {
+      // Handle company columns - show check/X icons
+      if (columnKey.startsWith("company_")) {
+        const hasAccount = entry[columnKey] as boolean;
+        return hasAccount ? (
+          <Check className="h-4 w-4 text-green-600 mx-auto" />
+        ) : (
+          <X className="h-4 w-4 text-red-400 mx-auto" />
+        );
+      }
+
+      // Handle status column - show colored badge
+      if (columnKey === "status") {
+        const status = entry[columnKey] as string;
+        return status === "ACTIVE" ? (
+          <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+            Active
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="bg-gray-50 text-gray-500 dark:bg-gray-900/20 dark:text-gray-400">
+            Archived
+          </Badge>
+        );
+      }
+
+      // Handle type column - show badge
+      if (columnKey === "type") {
+        return <Badge variant="outline">{entry[columnKey] as string}</Badge>;
+      }
+
+      return null; // Use default rendering
+    },
+    []
+  );
+
+  // Left actions for the table header
+  const leftActions = React.useMemo(() => (
+    <>
+      {groupCompanies.length > 0 && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleStandardizeNames}
+          disabled={loading || standardizing}
+          title="Rename bank accounts in Xero to use standardized format: BANK BSB ACCOUNT_NUMBER"
+        >
+          {standardizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+          <span className="ml-2">Standardize Bank Names</span>
+        </Button>
+      )}
+    </>
+  ), [groupCompanies.length, loading, standardizing]);
 
   if (loading && accounts.length === 0) {
     return (
@@ -294,67 +358,10 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
               )}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {groupCompanies.length > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleStandardizeNames}
-                disabled={loading || standardizing}
-                title="Rename bank accounts in Xero to use standardized format: BANK BSB ACCOUNT_NUMBER"
-              >
-                {standardizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                <span className="ml-2">Standardize Bank Names</span>
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadAccounts}
-              disabled={loading}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              <span className="ml-2">Refresh</span>
-            </Button>
-            <Button
-              variant={showComparison ? "secondary" : "default"}
-              size="sm"
-              onClick={() => showComparison ? setShowComparison(false) : loadComparison(true)}
-              disabled={comparisonLoading}
-            >
-              {comparisonLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <GitMerge className="h-4 w-4" />
-              )}
-              <span className="ml-2">{showComparison ? "Hide Comparison" : "Compare Group"}</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="flex gap-2 mt-4">
-          <Input
-            placeholder="Search by code or name..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-xs"
-          />
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              {accountTypes.map(type => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="pt-0">
         {/* Standardize Result */}
         {standardizeResult && (
           <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
@@ -369,173 +376,20 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
           </div>
         )}
 
-        {/* Comparison Summary */}
-        {showComparison && comparisonSummary && (
-          <div className="mb-4 p-4 rounded-lg bg-muted/50 border">
-            <h4 className="font-medium mb-2">Comparison Summary</h4>
-            <div className="grid grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-muted-foreground">Unique Accounts:</span>
-                <span className="ml-2 font-medium">{comparisonSummary.total_unique_accounts}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">In All Companies:</span>
-                <span className="ml-2 font-medium text-green-600">{comparisonSummary.accounts_in_all}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Missing in Some:</span>
-                <span className="ml-2 font-medium text-yellow-600">{comparisonSummary.missing_in_some}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Name Differences:</span>
-                <span className="ml-2 font-medium text-red-600">{comparisonSummary.accounts_with_differences}</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Comparison View */}
-        {showComparison ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-3 font-medium">Code</th>
-                  <th className="text-left py-2 px-3 font-medium">Name</th>
-                  <th className="text-left py-2 px-3 font-medium">Type</th>
-                  <th className="text-center py-2 px-3 font-medium">Status</th>
-                  <th className="text-left py-2 px-3 font-medium">Companies</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredComparison.map((acc) => (
-                  <tr
-                    key={acc.code}
-                    className={cn(
-                      "border-b hover:bg-muted/50",
-                      !acc.all_companies && "bg-yellow-50 dark:bg-yellow-900/10",
-                      !acc.names_match && "bg-red-50 dark:bg-red-900/10"
-                    )}
-                  >
-                    <td className="py-2 px-3 font-mono">{acc.code}</td>
-                    <td className="py-2 px-3">
-                      {acc.names_match ? (
-                        acc.name
-                      ) : (
-                        <div className="space-y-1">
-                          {acc.companies.map((c, i) => (
-                            <div key={i} className="text-xs">
-                              <span className="text-muted-foreground">{c.company_name}:</span>{" "}
-                              <span className="font-medium">{c.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-2 px-3">{acc.type}</td>
-                    <td className="py-2 px-3 text-center">
-                      {acc.all_companies ? (
-                        <Badge variant="outline" className="bg-green-50 text-green-700">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          All
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="bg-yellow-50 text-yellow-700">
-                          {acc.company_count} of {comparison.length > 0 ? Math.max(...comparison.map(c => c.companies.length)) : 0}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="py-2 px-3">
-                      <div className="flex flex-wrap gap-1">
-                        {acc.companies.map((c, i) => (
-                          <Badge key={i} variant="secondary" className="text-xs">
-                            {c.company_name}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          /* Standard Account List with Group Company Columns */
-          <TooltipProvider>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2 px-3 font-medium">Code</th>
-                    <th className="text-left py-2 px-3 font-medium">Name</th>
-                    <th className="text-left py-2 px-3 font-medium">Type</th>
-                    <th className="text-left py-2 px-3 font-medium">Tax Type</th>
-                    <th className="text-center py-2 px-3 font-medium">Status</th>
-                    {/* Group company columns - show if comparison data loaded */}
-                    {groupCompanies.length >= 1 && groupCompanies.map((company) => (
-                      <th key={company.company_id} className="text-center py-2 px-2 font-medium min-w-[60px]">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="cursor-help text-xs truncate block max-w-[80px]">
-                              {company.company_name.split(" ")[0]}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{company.company_name}</p>
-                            <p className="text-xs text-muted-foreground">{company.xero_tenant}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredAccounts.map((acc) => {
-                    // Find this account in comparison data to check which companies have it
-                    const comparisonData = comparison.find(c => c.code === acc.code);
-                    const companiesWithAccount = comparisonData?.companies.map(c => c.company_id) || [];
-
-                    return (
-                      <tr key={acc.account_id} className="border-b hover:bg-muted/50">
-                        <td className="py-2 px-3 font-mono">{acc.code}</td>
-                        <td className="py-2 px-3">{acc.name}</td>
-                        <td className="py-2 px-3">
-                          <Badge variant="outline">{acc.type}</Badge>
-                        </td>
-                        <td className="py-2 px-3 text-muted-foreground">{acc.tax_type || "—"}</td>
-                        <td className="py-2 px-3 text-center">
-                          {acc.status === "ACTIVE" ? (
-                            <Badge variant="outline" className="bg-green-50 text-green-700">Active</Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-gray-50 text-gray-500">Archived</Badge>
-                          )}
-                        </td>
-                        {/* Group company check/x columns */}
-                        {groupCompanies.length >= 1 && groupCompanies.map((company) => {
-                          const hasAccount = companiesWithAccount.includes(company.company_id);
-                          return (
-                            <td key={company.company_id} className="py-2 px-2 text-center">
-                              {hasAccount ? (
-                                <Check className="h-4 w-4 text-green-600 mx-auto" />
-                              ) : (
-                                <X className="h-4 w-4 text-red-400 mx-auto" />
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              {filteredAccounts.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  No accounts found matching your filters
-                </div>
-              )}
-            </div>
-          </TooltipProvider>
-        )}
+        {/* TeeemTableView for accounts */}
+        <div className="-mx-6">
+          <TeeemTableView
+            entries={entries}
+            columns={columns}
+            tableName="Xero Accounts"
+            onRefresh={handleRefresh}
+            leftActions={leftActions}
+            customCellRenderer={customCellRenderer}
+            viewOnly={true}
+            disableSavedViews={true}
+            enableExport={true}
+          />
+        </div>
       </CardContent>
     </Card>
   );

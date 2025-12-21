@@ -105,7 +105,6 @@ import {
   XeroReportsPanel,
   XeroConsolidatedCard,
   XeroCompanyDocSyncCard,
-  XeroGroupAccountsCard,
   XeroGroupPLCard,
   XeroGroupBalanceSheetCard,
 } from "@/components/xero";
@@ -4047,11 +4046,6 @@ export default function CompanyDetailPage() {
 
               {xeroSubTab === "accounts" && (
                 <XeroAccountsCard companyId={companyId} companyName={company?.name} />
-              )}
-
-              {/* Group Accounts - for any company in a group (side-by-side view) */}
-              {xeroSubTab === "consolidated-accounts" && (
-                <XeroGroupAccountsCard companyId={companyId} />
               )}
 
               {xeroSubTab === "profit-loss" && (
