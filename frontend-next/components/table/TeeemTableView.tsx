@@ -2628,14 +2628,19 @@ export default function TeeemTableView({
         const urlViewId = urlViewParam ? parseInt(urlViewParam, 10) : null;
         const validViewId = urlViewId && !isNaN(urlViewId) ? urlViewId : null;
 
+        // Only use URL view ID if it exists in THIS foundation's views
+        // Otherwise URL params from other tables would override defaultViewId
+        const urlViewExistsForFoundation = validViewId && filteredViews.some(v => v.id === validViewId);
+        const effectiveViewId = urlViewExistsForFoundation ? validViewId : defaultViewId;
+
         const defaultView = selectDefaultView(filteredViews, {
-          urlViewId: validViewId || defaultViewId, // Use prop defaultViewId if no URL param
+          urlViewId: effectiveViewId,
           preferGlobal: true,
         });
 
         if (defaultView) {
-          // Skip URL update if loading from URL (avoid redundant updates)
-          const skipUrlUpdate = !!validViewId;
+          // Skip URL update if loading from URL view that exists for this foundation
+          const skipUrlUpdate = !!urlViewExistsForFoundation;
           loadViewState(defaultView, skipUrlUpdate);
           initialViewLoadedRef.current = true;
         }
