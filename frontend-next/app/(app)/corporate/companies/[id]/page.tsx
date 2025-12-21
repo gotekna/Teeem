@@ -3148,24 +3148,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
     );
   }
 
-  if (documents.length === 0 && !loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-medium mb-1">No documents</h3>
-        <p className="text-muted-foreground text-sm max-w-md">
-          {category && category !== "all"
-            ? `No ${category.toUpperCase()} documents found for this company.`
-            : "No documents found. Upload a document or sync from SharePoint."}
-        </p>
-        <div className="flex gap-2 mt-4">
-          {leftActions}
-        </div>
-      </div>
-    );
-  }
-
-  // Now a real foundation table (ID 357) with company scoping via filter
+  // Always show TeeemTableView - let it handle empty state for consistent UI
   return (
     <>
       <TeeemTableView
