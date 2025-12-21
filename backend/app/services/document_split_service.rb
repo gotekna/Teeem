@@ -46,7 +46,7 @@ class DocumentSplitService
     # Mark original document as split (or delete it)
     @document.update!(
       ai_verification_status: "split",
-      ai_analysis_notes: "Split into #{created_documents.length} documents: #{created_documents.map(&:title).join(', ')}"
+      ai_analysis_notes: "Split into #{created_documents.length} documents: #{created_documents.map(&:file_name).join(', ')}"
     )
 
     { success: true, documents: created_documents }
@@ -159,7 +159,7 @@ class DocumentSplitService
   def create_document_record(split_config, sharepoint_file_id, file_size)
     CorporateCompanyDocument.create!(
       company_id: @document.company_id,
-      title: split_config[:title],
+      file_name: split_config[:title],  # Input still called :title, maps to file_name
       folder: split_config[:folder] || @document.folder,
       document_type: split_config[:document_type],
       source: "split",
@@ -168,7 +168,7 @@ class DocumentSplitService
       financial_years: split_config[:financial_years] || @document.financial_years,
       ref_date: split_config[:ref_date],
       ai_verification_status: "verified", # Auto-verified since user defined the split
-      ai_analysis_notes: "Split from #{@document.title}"
+      ai_analysis_notes: "Split from #{@document.file_name}"
     )
   end
 end

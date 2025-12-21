@@ -212,7 +212,7 @@ class DocumentDuplicateService
   def self.document_summary(doc)
     {
       id: doc.id,
-      title: doc.title,
+      file_name: doc.file_name,
       folder: doc.folder,
       created_at: doc.created_at,
       file_size: doc.file_size,
@@ -232,7 +232,7 @@ class DocumentDuplicateService
       content = client.download_file(doc.sharepoint_file_id)
 
       # Extract text preview based on file type
-      if doc.title&.end_with?(".pdf")
+      if doc.file_name&.end_with?(".pdf")
         extract_pdf_preview(content)
       else
         # For other files, just get first 500 chars
@@ -282,7 +282,7 @@ class DocumentDuplicateService
     docs_json = doc_contents.map do |d|
       <<~DOC
         Document ID: #{d[:id]}
-        Title: #{d[:title]}
+        File Name: #{d[:file_name]}
         Company: #{d[:company]} (#{d[:company_code]})
         Folder: #{d[:folder]}
         Created: #{d[:created_at]}
@@ -415,8 +415,8 @@ class DocumentDuplicateService
     end
 
     # Update database
-    old_name = doc.title
-    doc.update!(title: new_name)
+    old_name = doc.file_name
+    doc.update!(file_name: new_name)
 
     {
       success: true,
@@ -442,7 +442,7 @@ class DocumentDuplicateService
     return { error: "Need at least 2 documents to merge" } if other_docs.empty?
 
     # Only merge PDFs
-    unless docs.all? { |d| d.title&.downcase&.end_with?(".pdf") }
+    unless docs.all? { |d| d.file_name&.downcase&.end_with?(".pdf") }
       return { error: "Can only merge PDF documents" }
     end
 
@@ -456,7 +456,7 @@ class DocumentDuplicateService
       pdf_contents = docs.order(:created_at).map do |doc|
         {
           id: doc.id,
-          title: doc.title,
+          file_name: doc.file_name,
           content: client.download_file(doc.sharepoint_file_id)
         }
       end
@@ -484,7 +484,7 @@ class DocumentDuplicateService
       client.delete_file(keep_doc.sharepoint_file_id) rescue nil
 
       # Upload merged file with same name
-      result = client.upload_file_content(parent_folder_id, keep_doc.title, merged_content)
+      result = client.upload_file_content(parent_folder_id, keep_doc.file_name, merged_content)
 
       # Update keep document record
       keep_doc.update!(
@@ -510,7 +510,7 @@ class DocumentDuplicateService
         deleted: other_docs.pluck(:id),
         merged_page_count: merged_pdf.pages.count,
         new_file_size: merged_content.bytesize,
-        message: "Merged #{docs.count} documents into #{keep_doc.title} (#{merged_pdf.pages.count} pages)"
+        message: "Merged #{docs.count} documents into #{keep_doc.file_name} (#{merged_pdf.pages.count} pages)"
       }
 
     rescue StandardError => e
@@ -538,12 +538,12 @@ class DocumentDuplicateService
 
     CorporateCompanyDocument.where(id: document_ids).find_each do |doc|
       # Skip if already marked for deletion
-      if doc.title.start_with?(DELETE_PREFIX)
-        results << { id: doc.id, title: doc.title, status: :already_marked }
+      if doc.file_name.start_with?(DELETE_PREFIX)
+        results << { id: doc.id, file_name: doc.file_name, status: :already_marked }
         next
       end
 
-      new_name = "#{DELETE_PREFIX}#{doc.title}"
+      new_name = "#{DELETE_PREFIX}#{doc.file_name}"
 
       begin
         # Rename in SharePoint
@@ -556,14 +556,14 @@ class DocumentDuplicateService
         end
 
         # Update database
-        old_name = doc.title
-        doc.update!(title: new_name)
+        old_name = doc.file_name
+        doc.update!(file_name: new_name)
         Rails.logger.info("Marked for deletion: #{old_name} -> #{new_name}")
 
         results << { id: doc.id, old_name: old_name, new_name: new_name, status: :marked }
       rescue StandardError => e
         Rails.logger.warn("Could not mark document #{doc.id} for deletion: #{e.message}")
-        results << { id: doc.id, title: doc.title, status: :error, error: e.message }
+        results << { id: doc.id, file_name: doc.file_name, status: :error, error: e.message }
       end
     end
 
@@ -601,7 +601,7 @@ class DocumentDuplicateService
 
   # Find all documents marked for deletion
   def self.find_marked_for_deletion(company_id: nil)
-    scope = CorporateCompanyDocument.where("title LIKE ?", "#{DELETE_PREFIX}%")
+    scope = CorporateCompanyDocument.where("file_name LIKE ?", "#{DELETE_PREFIX}%")
     scope = scope.where(company_id: company_id) if company_id.present?
     scope.includes(:corporate_company).map { |d| document_summary(d) }
   end
@@ -610,11 +610,11 @@ class DocumentDuplicateService
   def self.restore_document(document_id)
     doc = CorporateCompanyDocument.find(document_id)
 
-    unless doc.title.start_with?(DELETE_PREFIX)
+    unless doc.file_name.start_with?(DELETE_PREFIX)
       return { error: "Document is not marked for deletion" }
     end
 
-    new_name = doc.title.sub(DELETE_PREFIX, "")
+    new_name = doc.file_name.sub(DELETE_PREFIX, "")
 
     # Rename in SharePoint
     if doc.sharepoint_file_id.present?
@@ -626,8 +626,8 @@ class DocumentDuplicateService
     end
 
     # Update database
-    old_name = doc.title
-    doc.update!(title: new_name)
+    old_name = doc.file_name
+    doc.update!(file_name: new_name)
 
     {
       success: true,

@@ -783,8 +783,12 @@ module Api
       end
 
       # GET /api/v1/companies/:company_id/xero/profit_loss_monthly
-      # Returns monthly P&L summaries from the start of the Xero file
-      # Used for the Transactions tab in TeeemTableView
+      # Returns monthly P&L summaries from local database (SSoT)
+      # Data is synced from Xero via CorporateCompanyXeroSyncService
+      #
+      # Params:
+      #   - refresh: "true" to force sync from Xero
+      #   - years: number of years to fetch (default 3)
       def profit_loss_monthly
         connection = @company.corporate_company_xero_connection
 
@@ -795,80 +799,61 @@ module Api
           }, status: :bad_request
         end
 
-        # Refresh tokens if needed
-        if connection.needs_refresh?
-          unless connection.refresh_tokens!
-            return render json: {
-              success: false,
-              error: "Failed to refresh Xero tokens. Please reconnect."
-            }, status: :unauthorized
-          end
-        end
-
         begin
-          # Get financial year end from connection settings, default to June 30
-          financial_year_end = connection.financial_year_end || 6
+          # Check if we need to sync (no data or force refresh requested)
+          needs_sync = params[:refresh] == "true" ||
+                       @company.corporate_company_monthly_pls.empty? ||
+                       connection.monthly_pl_synced_at.nil? ||
+                       connection.monthly_pl_synced_at < 1.day.ago
 
-          # Calculate start date - beginning of earliest complete financial year
-          # Default to 3 years back if not specified
-          years_back = (params[:years] || 3).to_i
-          today = Date.today
+          if needs_sync
+            # Sync from Xero in background-friendly way
+            years_back = (params[:years] || 3).to_i
+            sync_service = CorporateCompanyXeroSyncService.new(@company)
+            sync_result = sync_service.sync_monthly_pl(force: params[:refresh] == "true", years: years_back)
 
-          # Find the start of the financial year N years ago
-          if today.month > financial_year_end
-            start_year = today.year - years_back
-          else
-            start_year = today.year - years_back - 1
-          end
-          from_date = Date.new(start_year, financial_year_end + 1, 1).to_s
-
-          # End date is today
-          to_date = today.to_s
-
-          # Calculate number of months
-          from = Date.parse(from_date)
-          to = Date.parse(to_date)
-          months_count = ((to.year - from.year) * 12) + (to.month - from.month) + 1
-
-          client = XeroApiClient.new
-          result = client.get(
-            "Reports/ProfitAndLoss",
-            tenant_id: connection.xero_tenant_id,
-            fromDate: from_date,
-            toDate: to_date,
-            periods: months_count,
-            timeframe: "MONTH"
-          )
-
-          unless result[:success]
-            return render json: {
-              success: false,
-              error: result[:error] || "Failed to fetch monthly P&L from Xero"
-            }, status: :unprocessable_entity
+            unless sync_result[:success]
+              # If sync fails but we have cached data, use it
+              if @company.corporate_company_monthly_pls.any?
+                Rails.logger.warn("Xero sync failed, using cached data: #{sync_result[:error]}")
+              else
+                return render json: {
+                  success: false,
+                  error: sync_result[:error] || "Failed to sync monthly P&L from Xero"
+                }, status: :unprocessable_entity
+              end
+            end
           end
 
-          reports = result[:data]["Reports"] || []
-          report = reports.first
+          # Read from database (SSoT)
+          monthly_records = @company.corporate_company_monthly_pls.ordered
 
-          if report.nil?
-            return render json: {
-              success: false,
-              error: "No Profit & Loss report returned from Xero"
-            }, status: :unprocessable_entity
+          # Format for frontend
+          data = monthly_records.each_with_index.map do |record, idx|
+            {
+              id: idx + 1,
+              month: record.month_label,
+              revenue: record.revenue.to_f,
+              expenses: record.expenses.to_f,
+              net_profit: record.net_profit.to_f
+            }
           end
 
-          # Parse the monthly report into table format
-          monthly_data = parse_monthly_profit_loss(report)
+          # Get date range from actual data
+          earliest = monthly_records.last&.month_label
+          latest = monthly_records.first&.month_label
 
           render json: {
             success: true,
-            data: monthly_data,
-            from_date: from_date,
-            to_date: to_date,
-            months_count: months_count
+            data: data,
+            from_date: earliest,
+            to_date: latest,
+            months_count: data.count,
+            last_synced_at: connection.monthly_pl_synced_at&.iso8601,
+            cached: !needs_sync
           }
         rescue StandardError => e
-          Rails.logger.error("Failed to fetch monthly Xero P&L for company #{@company.id}: #{e.message}")
+          Rails.logger.error("Failed to fetch monthly P&L for company #{@company.id}: #{e.message}")
           render json: {
             success: false,
             error: e.message

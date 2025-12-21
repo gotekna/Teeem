@@ -152,11 +152,6 @@ class CorporateCompanyDocument < ApplicationRecord
     (file_size.to_f / 1024 / 1024).round(2)
   end
 
-  # SSoT: Alias for backwards compatibility during transition
-  def title
-    file_name
-  end
-
   # Find an existing document by content hash
   def self.find_by_content_hash(hash)
     return nil if hash.blank?

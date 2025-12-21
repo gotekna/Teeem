@@ -439,7 +439,7 @@ module Api
       # POST /api/v1/company_documents/:id/relocate
       # Moves/renames document in OneDrive and updates metadata
       def relocate
-        relocate_params = params.require(:relocate).permit(:file_name, :title, :company_id, :folder, :document_type, :ref_date, :filed_date, :notes, financial_years: [])
+        relocate_params = params.require(:relocate).permit(:file_name, :company_id, :folder, :document_type, :ref_date, :filed_date, :notes, financial_years: [])
 
         # Capture old values for activity log
         old_values = {
@@ -450,14 +450,11 @@ module Api
           financial_years: @document.financial_years
         }
 
-        # SSoT: Use file_name, fall back to title for backwards compatibility
-        new_file_name = relocate_params[:file_name] || relocate_params[:title]
-
         service = DocumentRelocateService.new(@document)
         result = service.relocate!(
           new_company_id: relocate_params[:company_id],
           new_folder: relocate_params[:folder],
-          new_file_name: new_file_name
+          new_file_name: relocate_params[:file_name]
         )
 
         if result[:success]
@@ -758,9 +755,9 @@ module Api
       end
 
       def document_params
-        # SSoT: file_name is THE filename field. :title kept for backwards compatibility.
+        # SSoT: file_name is THE filename field
         params.require(:company_document).permit(
-          :company_id, :contact_id, :asset_id, :document_type_id, :file_name, :title, :document_name,
+          :company_id, :contact_id, :asset_id, :document_type_id, :file_name, :document_name,
           :document_type, :description, :file_url, :year, :period, :folder,
           :storage_type, :source, :file_size, :mime_type,
           :ref_date, :filed_date,

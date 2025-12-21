@@ -84,6 +84,13 @@ cleanup_stale_xero_links:
   queue: low
   schedule: at 3am every day
 
+# Corporate company Xero data sync (monthly P&L, accounts, invoices)
+# Syncs to local database for fast access - runs daily at 6am
+corporate_xero_data_sync:
+  class: CorporateXeroSyncJob
+  queue: low
+  schedule: at 6am every day
+
 # ============================================
 # CORPORATE FINANCIAL REPORTS
 # ============================================

@@ -34,6 +34,7 @@ class CorporateCompany < ApplicationRecord
   has_many :corporate_company_documents, foreign_key: "company_id", dependent: :destroy
   has_many :corporate_company_activities, foreign_key: "company_id", dependent: :destroy
   has_one :corporate_company_xero_connection, foreign_key: "company_id", dependent: :destroy
+  has_many :corporate_company_monthly_pls, dependent: :destroy  # Cached Xero P&L data
 
   # SSoT Aliases - Backwards compatibility (shorter names)
   alias_method :company_activities, :corporate_company_activities

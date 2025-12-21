@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1522,7 +1522,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
 
   create_table "corporate_company_documents", force: :cascade do |t|
     t.bigint "company_id"
-    t.string "title", null: false
     t.text "description"
     t.string "document_type", null: false
     t.date "document_date"
@@ -1554,7 +1553,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
     t.decimal "ai_confidence_score"
     t.datetime "user_validated_at"
     t.bigint "user_validated_by_id"
-    t.string "display_title"
+    t.string "display_name"
     t.string "ai_suggested_type"
     t.integer "ai_suggested_fy", default: [], array: true
     t.text "ai_analysis_notes"
@@ -1650,6 +1649,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
     t.index ["status"], name: "index_corporate_company_minutes_on_status"
   end
 
+  create_table "corporate_company_monthly_pls", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.date "month", null: false
+    t.string "month_label"
+    t.decimal "revenue", precision: 15, scale: 2, default: "0.0"
+    t.decimal "expenses", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_profit", precision: 15, scale: 2, default: "0.0"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "month"], name: "idx_company_monthly_pl_unique", unique: true
+    t.index ["corporate_company_id"], name: "index_corporate_company_monthly_pls_on_corporate_company_id"
+  end
+
   create_table "corporate_company_settings", force: :cascade do |t|
     t.string "company_name"
     t.string "abn"
@@ -1728,6 +1741,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
     t.boolean "is_active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "account_class"
+    t.string "status"
+    t.string "bank_account_number"
+    t.string "currency_code"
+    t.string "reporting_code"
+    t.string "reporting_code_name"
+    t.boolean "enable_payments", default: false
+    t.boolean "show_in_expense_claims", default: false
+    t.datetime "synced_at"
     t.index ["account_code"], name: "index_corporate_company_xero_accounts_on_account_code"
     t.index ["company_xero_connection_id"], name: "idx_on_company_xero_connection_id_dd7b188bc9"
     t.index ["company_xero_connection_id"], name: "index_xero_accounts_on_connection_id"
@@ -1745,6 +1767,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
     t.bigint "xero_credential_id"
     t.string "accounting_method"
     t.date "financial_year_end"
+    t.datetime "monthly_pl_synced_at"
+    t.datetime "accounts_synced_at"
+    t.datetime "invoices_synced_at"
+    t.datetime "balance_sheet_synced_at"
     t.index ["company_id"], name: "index_corporate_company_xero_connections_on_company_id", unique: true
     t.index ["xero_credential_id"], name: "index_corporate_company_xero_connections_on_xero_credential_id"
     t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"
@@ -6345,6 +6371,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_030355) do
   add_foreign_key "corporate_company_loans", "corporate_companies", column: "lender_company_id"
   add_foreign_key "corporate_company_minutes", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_minutes", "minute_templates"
+  add_foreign_key "corporate_company_monthly_pls", "corporate_companies"
   add_foreign_key "corporate_company_shareholdings", "corporate_companies", column: "company_id"
   add_foreign_key "corporate_company_xero_accounts", "corporate_company_xero_connections", column: "company_xero_connection_id"
   add_foreign_key "corporate_company_xero_connections", "corporate_companies", column: "company_id"
