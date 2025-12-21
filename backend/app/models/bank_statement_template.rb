@@ -36,12 +36,20 @@ class BankStatementTemplate < ApplicationRecord
 
   # == Class Methods ==
 
-  # Find the appropriate template for a given bank account name
-  # Uses detection_patterns (array of regex patterns) to match
+  # Find the appropriate template for a given bank account name or BSB
+  # Uses detection_patterns (array of regex patterns) to match name,
+  # or detects bank from BSB number (Australian bank codes)
   #
   # @param bank_name [String] The bank account name to match
+  # @param bsb [String] Optional BSB number (6 digits, e.g., "084435")
   # @return [BankStatementTemplate, nil] The matching template or default
-  def self.for_bank(bank_name)
+  def self.for_bank(bank_name, bsb: nil)
+    # Try BSB detection first (most reliable)
+    if bsb.present?
+      template = for_bsb(bsb)
+      return template if template.present?
+    end
+
     return find_by(bank_code: "default") if bank_name.blank?
 
     name = bank_name.to_s.downcase
@@ -57,6 +65,34 @@ class BankStatementTemplate < ApplicationRecord
         false
       end
     end || find_by(bank_code: "default")
+  end
+
+  # Detect bank from BSB number (Australian bank identifier)
+  # BSB format: XXX-XXX where first 2-3 digits identify the bank
+  #
+  # @param bsb [String] BSB number (with or without hyphen)
+  # @return [BankStatementTemplate, nil] The matching template or nil
+  def self.for_bsb(bsb)
+    return nil if bsb.blank?
+
+    # Normalize BSB - remove hyphens and spaces
+    clean_bsb = bsb.to_s.gsub(/[-\s]/, "")
+    return nil if clean_bsb.length < 2
+
+    # BSB bank detection based on first 2 digits
+    # Reference: https://en.wikipedia.org/wiki/Bank_state_branch
+    bank_code = case clean_bsb[0..1]
+    when "08"                    then "nab"       # NAB: 08xxxx
+    when "03", "73"              then "westpac"   # Westpac: 03xxxx, 73xxxx
+    when "06"                    then "commbank"  # CommBank: 06xxxx
+    when "01"                    then "anz"       # ANZ: 01xxxx
+    when "12"                    then "boq"       # BOQ: 12xxxx (specifically 124xxx)
+    else nil
+    end
+
+    return nil unless bank_code
+
+    find_by(bank_code: bank_code)
   end
 
   # List of available layout styles for dropdown

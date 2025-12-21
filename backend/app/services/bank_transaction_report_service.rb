@@ -234,10 +234,14 @@ class BankTransactionReportService
   end
 
   # Load template from BankStatementTemplate model
+  # Uses BSB detection (most reliable) then falls back to account name patterns
   def load_template_from_db(account_name)
     return nil unless defined?(BankStatementTemplate) && BankStatementTemplate.table_exists?
 
-    BankStatementTemplate.for_bank(account_name)
+    # Get BSB from bank account record if available
+    bsb = @bank_account_record&.bsb
+
+    BankStatementTemplate.for_bank(account_name, bsb: bsb)
   rescue StandardError => e
     Rails.logger.warn("BankStatementTemplate lookup failed: #{e.message}")
     nil
