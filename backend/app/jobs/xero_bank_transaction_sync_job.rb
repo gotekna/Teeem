@@ -9,27 +9,50 @@ class XeroBankTransactionSyncJob < ApplicationJob
       updated: 0,
       errors: [],
       pages_fetched: 0,
-      total_transactions: 0
+      total_transactions: 0,
+      tenants_synced: 0
     }
 
+    client = XeroApiClient.new
+
+    # 1. Sync from main XeroCredential (existing behavior)
+    main_credential = XeroCredential.current
+    if main_credential.present?
+      tenant_result = sync_tenant(client, main_credential.tenant_id, result)
+      result[:tenants_synced] += 1 if tenant_result[:success]
+    else
+      Rails.logger.warn("[BankTransactionSync] No main Xero credential found")
+    end
+
+    # 2. Sync from ALL connected corporate company Xero connections
+    CorporateCompanyXeroConnection.with_credential.includes(:xero_credential, :corporate_company).each do |connection|
+      next unless connection.connected?
+      next if connection.xero_tenant_id == main_credential&.tenant_id  # Skip if same as main
+
+      Rails.logger.info("[BankTransactionSync] Syncing corporate company: #{connection.corporate_company&.name} (tenant: #{connection.xero_tenant_id})")
+      tenant_result = sync_tenant(client, connection.xero_tenant_id, result)
+      result[:tenants_synced] += 1 if tenant_result[:success]
+    end
+
+    Rails.logger.info("XeroBankTransactionSyncJob completed: #{result.inspect}")
+    result
+  end
+
+  private
+
+  # Sync bank transactions for a specific Xero tenant
+  def sync_tenant(client, tenant_id, result)
+    Rails.logger.info("[BankTransactionSync] Starting sync for tenant: #{tenant_id}")
+    tenant_result = { success: false, created: 0, updated: 0 }
+
     begin
-      client = XeroApiClient.new
-      credential = XeroCredential.current
-
-      unless credential.present?
-        Rails.logger.warn("No valid Xero connection")
-        return result
-      end
-
-      tenant_id = credential.tenant_id
-
       # Fetch all pages of bank transactions
       page = 1
       loop do
-        response = client.get("BankTransactions", { page: page })
+        response = client.get("BankTransactions", { page: page, tenant_id: tenant_id })
 
         unless response[:success]
-          result[:errors] << "API error on page #{page}: #{response[:error]}"
+          result[:errors] << "API error for tenant #{tenant_id} on page #{page}: #{response[:error]}"
           break
         end
 
@@ -44,8 +67,10 @@ class XeroBankTransactionSyncJob < ApplicationJob
           process_result = process_transaction(txn, tenant_id)
           if process_result[:created]
             result[:created] += 1
+            tenant_result[:created] += 1
           elsif process_result[:updated]
             result[:updated] += 1
+            tenant_result[:updated] += 1
           elsif process_result[:error]
             result[:errors] << process_result[:error]
           end
@@ -61,20 +86,17 @@ class XeroBankTransactionSyncJob < ApplicationJob
         sleep(0.5)
       end
 
-      # Update sync status (global and per-tenant)
-      update_sync_status(result, tenant_id)
+      tenant_result[:success] = true
+      update_sync_status(tenant_result, tenant_id)
 
     rescue StandardError => e
-      Rails.logger.error("XeroBankTransactionSyncJob failed: #{e.message}")
-      Rails.logger.error(e.backtrace.first(10).join("\n"))
-      result[:errors] << e.message
+      Rails.logger.error("[BankTransactionSync] Failed for tenant #{tenant_id}: #{e.message}")
+      Rails.logger.error(e.backtrace.first(5).join("\n"))
+      result[:errors] << "Tenant #{tenant_id}: #{e.message}"
     end
 
-    Rails.logger.info("XeroBankTransactionSyncJob completed: #{result.inspect}")
-    result
+    tenant_result
   end
-
-  private
 
   def process_transaction(txn, tenant_id)
     xero_id = txn["BankTransactionID"]
@@ -157,43 +179,25 @@ class XeroBankTransactionSyncJob < ApplicationJob
     nil
   end
 
-  def update_sync_status(result, tenant_id = nil)
-    records_synced = result[:created] + result[:updated]
+  # Update sync status for a specific tenant
+  def update_sync_status(tenant_result, tenant_id)
+    return unless tenant_id.present?
 
-    if result[:errors].empty?
-      # Update global status
+    records_synced = (tenant_result[:created] || 0) + (tenant_result[:updated] || 0)
+
+    if tenant_result[:success]
       XeroSyncStatus.complete_sync!(
         "bank_transactions",
-        tenant_id: nil,
+        tenant_id: tenant_id,
         records_synced: records_synced,
         next_sync_at: 6.hours.from_now
       )
-
-      # Also update per-tenant status (for self-healing to work)
-      if tenant_id.present?
-        XeroSyncStatus.complete_sync!(
-          "bank_transactions",
-          tenant_id: tenant_id,
-          records_synced: records_synced,
-          next_sync_at: 6.hours.from_now
-        )
-      end
     else
-      # Update global status with error
       XeroSyncStatus.fail_sync!(
         "bank_transactions",
-        tenant_id: nil,
-        error: result[:errors].first
+        tenant_id: tenant_id,
+        error: tenant_result[:error] || "Unknown error"
       )
-
-      # Also update per-tenant status
-      if tenant_id.present?
-        XeroSyncStatus.fail_sync!(
-          "bank_transactions",
-          tenant_id: tenant_id,
-          error: result[:errors].first
-        )
-      end
     end
   end
 end

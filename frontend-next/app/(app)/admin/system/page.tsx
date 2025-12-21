@@ -848,7 +848,7 @@ function SystemAdminPageContent() {
           <TabsContent value="supervisor-checklist" className="flex-1 min-h-0 overflow-auto">
             <SupervisorChecklistTab />
           </TabsContent>
-          <TabsContent value="components" className="flex flex-col overflow-hidden">
+          <TabsContent value="components" className="flex flex-col overflow-hidden -mx-4">
             <GoldStandardTab />
           </TabsContent>
           <TabsContent value="developer-tools" className="flex-1 min-h-0 overflow-auto">
