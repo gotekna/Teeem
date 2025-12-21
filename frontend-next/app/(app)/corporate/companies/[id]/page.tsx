@@ -3368,9 +3368,9 @@ export default function CompanyDetailPage() {
     }
     setIsBillDrawerOpen(false);
     setSelectedBill(null);
-    // Navigate to contact's purchase orders if contact is linked
-    if (bill.contact_id) {
-      router.push(`/contacts/${bill.contact_id}?tab=purchase-orders`);
+    // Navigate to invoice detail page (SSoT: /finance/invoices/[id])
+    if (bill.id) {
+      router.push(`/finance/invoices/${bill.id}`);
     }
   };
 
