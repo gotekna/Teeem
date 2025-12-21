@@ -2304,7 +2304,7 @@ function SyncCheckTab() {
 
 export function GoldStandardTab() {
   return (
-    <Tabs defaultValue="table" className="space-y-4">
+    <Tabs defaultValue="table" className="h-full flex flex-col">
       <TabsList className="flex-wrap h-auto gap-1">
         <TabsTrigger value="table" className="flex items-center gap-2">
           <Database className="h-4 w-4" />
@@ -2336,7 +2336,7 @@ export function GoldStandardTab() {
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="table" className="mt-0">
+      <TabsContent value="table" className="mt-0 flex-1 min-h-0 flex flex-col">
         <GoldStandardDataTab />
       </TabsContent>
 

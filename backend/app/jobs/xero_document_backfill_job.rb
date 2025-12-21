@@ -21,7 +21,7 @@ class XeroDocumentBackfillJob < ApplicationJob
     scope = CorporateCompanyDocument
       .where(source: "xero")
       .where(sharepoint_file_id: nil)
-      .where.not(expected_onedrive_path: nil)
+      .where.not(expected_sharepoint_path: nil)
       .order(created_at: :desc)
 
     scope = scope.limit(limit) if limit.present?
@@ -34,7 +34,7 @@ class XeroDocumentBackfillJob < ApplicationJob
     # Get SharePoint client
     credential = OrganizationSharePointCredential.active_credential
     unless credential
-      Rails.logger.error("[XeroDocumentBackfill] No active OneDrive credential found")
+      Rails.logger.error("[XeroDocumentBackfill] No active SharePoint credential found")
       return
     end
 
@@ -51,14 +51,14 @@ class XeroDocumentBackfillJob < ApplicationJob
           stats[:found_on_sharepoint] += 1
 
           if dry_run
-            Rails.logger.info("[XeroDocumentBackfill] [DRY RUN] Would update document #{doc.id} (#{doc.title}) with OneDrive ID: #{file_info[:id]}")
+            Rails.logger.info("[XeroDocumentBackfill] [DRY RUN] Would update document #{doc.id} (#{doc.title}) with SharePoint ID: #{file_info[:id]}")
           else
             doc.update!(sharepoint_file_id: file_info[:id])
-            Rails.logger.info("[XeroDocumentBackfill] Updated document #{doc.id} (#{doc.title}) with OneDrive ID: #{file_info[:id]}")
+            Rails.logger.info("[XeroDocumentBackfill] Updated document #{doc.id} (#{doc.title}) with SharePoint ID: #{file_info[:id]}")
           end
         else
           stats[:not_found] += 1
-          Rails.logger.warn("[XeroDocumentBackfill] File not found on SharePoint: #{doc.expected_onedrive_path}")
+          Rails.logger.warn("[XeroDocumentBackfill] File not found on SharePoint: #{doc.expected_sharepoint_path}")
         end
 
         # Progress logging every 10 documents
@@ -84,12 +84,12 @@ class XeroDocumentBackfillJob < ApplicationJob
   private
 
   def find_file_on_sharepoint(graph_client, document)
-    # The expected_onedrive_path is like: "Contacts/1497 - Southern Star Windows/BILLS/1497-PO-000100.pdf"
+    # The expected_sharepoint_path is like: "Contacts/1497 - Southern Star Windows/BILLS/1497-PO-000100.pdf"
     # We need to search for this file in SharePoint
 
     # Strategy: Use the expected path to find the file
     # Split path into folder path + filename
-    path_parts = document.expected_onedrive_path.split("/")
+    path_parts = document.expected_sharepoint_path.split("/")
     filename = path_parts.last
     folder_path = path_parts[0..-2].join("/")
 
@@ -116,7 +116,7 @@ class XeroDocumentBackfillJob < ApplicationJob
 
       file
     rescue MicrosoftGraphClient::APIError => e
-      Rails.logger.warn("[XeroDocumentBackfill] SharePoint API error for #{document.expected_onedrive_path}: #{e.message}")
+      Rails.logger.warn("[XeroDocumentBackfill] SharePoint API error for #{document.expected_sharepoint_path}: #{e.message}")
       nil
     rescue StandardError => e
       Rails.logger.error("[XeroDocumentBackfill] Unexpected error finding file: #{e.message}")

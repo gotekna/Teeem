@@ -334,7 +334,7 @@ interface DuplicateReview {
   existing_document_id: number;
   existing_title: string | null;
   existing_filename: string | null;
-  existing_onedrive_path: string | null;
+  existing_sharepoint_path: string | null;
   existing_file_size: number | null;
   existing_document_date: string | null;
   new_file_path: string | null;
@@ -2840,7 +2840,7 @@ export default function CaseDetailPage() {
                               <div>
                                 <p className="text-sm font-medium text-muted-foreground mb-1">Existing Document</p>
                                 <p className="font-medium">{dup.existing_title || dup.existing_filename}</p>
-                                <p className="text-xs text-muted-foreground">{dup.existing_onedrive_path}</p>
+                                <p className="text-xs text-muted-foreground">{dup.existing_sharepoint_path}</p>
                                 <p className="text-xs text-muted-foreground">Size: {dup.existing_file_size ? formatFileSize(dup.existing_file_size) : "-"}</p>
                               </div>
                               <div>

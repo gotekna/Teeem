@@ -1529,11 +1529,11 @@ module Api
           pdfs_last_24h = pdfs_last_24h_query.count
 
           # ============================================
-          # STAGE 3: SharePoint Upload (Active Storage -> OneDrive)
+          # STAGE 3: SharePoint Upload (Active Storage -> SharePoint)
           # ============================================
           # SSoT: Count PDFs ACTUALLY uploaded to SharePoint (have sharepoint_file_id set)
-          # sharepoint_file_id is set by OneDrive after successful upload - this is the SSoT
-          # expected_onedrive_path is just the PLAN, not the reality
+          # sharepoint_file_id is set by SharePoint after successful upload - this is the SSoT
+          # expected_sharepoint_path is just the PLAN, not the reality
           # Only count PDFs (not attachments) to match Stage 2's count
           # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
           sharepoint_query = CorporateCompanyDocument.where(source: "xero")
@@ -1705,12 +1705,12 @@ module Api
                                                        .where.not("external_id LIKE ?", "xero:attachment:%")
                                                        .count
 
-          # Check for PDF documents missing expected_onedrive_path (should all have it after upload)
-          pdfs_missing_onedrive_path = CorporateCompanyDocument.where(source: "xero")
-                                                               .where("external_id LIKE ?", "xero:%:pdf")
-                                                               .where(documentable_type: "ExternalInvoice")
-                                                               .where(expected_onedrive_path: nil)
-                                                               .count
+          # Check for PDF documents missing expected_sharepoint_path (should all have it after upload)
+          pdfs_missing_sharepoint_path = CorporateCompanyDocument.where(source: "xero")
+                                                                 .where("external_id LIKE ?", "xero:%:pdf")
+                                                                 .where(documentable_type: "ExternalInvoice")
+                                                                 .where(expected_sharepoint_path: nil)
+                                                                 .count
 
           # Build violations array for Stage 3 display
           stage3_violations = []
@@ -1724,13 +1724,13 @@ module Api
             }
           end
 
-          if pdfs_missing_onedrive_path > 0 && sharepoint_pdfs_uploaded > 0
+          if pdfs_missing_sharepoint_path > 0 && sharepoint_pdfs_uploaded > 0
             # Only flag as violation if we have uploads (meaning system is working)
             stage3_violations << {
-              type: "missing_onedrive_path",
-              count: pdfs_missing_onedrive_path,
+              type: "missing_sharepoint_path",
+              count: pdfs_missing_sharepoint_path,
               severity: "info",
-              description: "PDFs without OneDrive path (may be in progress)",
+              description: "PDFs without SharePoint path (may be in progress)",
               action_required: nil
             }
           end

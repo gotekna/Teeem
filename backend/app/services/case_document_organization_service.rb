@@ -327,7 +327,7 @@ class CaseDocumentOrganizationService
       file_size: file_info[:size],
       content_hash: file_info[:content_hash],
       sharepoint_file_id: graph_result.is_a?(Hash) ? graph_result["id"] : nil,
-      onedrive_download_url: graph_result.is_a?(Hash) ? graph_result["webUrl"] : nil,
+      sharepoint_download_url: graph_result.is_a?(Hash) ? graph_result["webUrl"] : nil,
       source: "case_import",
       last_modified_at: parse_date(file_info[:modified_at])
     )

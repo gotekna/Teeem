@@ -98,7 +98,7 @@ module Api
             document_date: doc[:document_date],
             storage_type: doc[:storage_type],
             description: doc[:description],
-            expected_onedrive_path: doc[:expected_onedrive_path],
+            expected_sharepoint_path: doc[:expected_sharepoint_path],
             register_folder: doc[:register_folder]
           )
 

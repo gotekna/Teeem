@@ -174,7 +174,7 @@ class CaseEmailAttachmentService
       file_size: file.byte_size,
       content_hash: content_hash,
       sharepoint_file_id: graph_result[:id],
-      onedrive_download_url: graph_result[:web_url],
+      sharepoint_download_url: graph_result[:web_url],
       source: "email_attachment",
       last_modified_at: email.received_at
     )

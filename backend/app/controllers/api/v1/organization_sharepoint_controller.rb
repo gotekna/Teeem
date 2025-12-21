@@ -1397,7 +1397,7 @@ module Api
           # Data Warehouse approach: instant results from database
           files_with_suggestions = cached_docs.map do |doc|
             {
-              id: doc.onedrive_item_id,
+              id: doc.sharepoint_item_id,
               document_id: doc.id,
               name: doc.file_name,
               original_name: doc.original_file_name,
@@ -1549,12 +1549,12 @@ module Api
             job_id: job.id
           }
         else
-          # Sync all jobs with OneDrive folders
+          # Sync all jobs with SharePoint folders
           JobDocumentSyncJob.perform_later
-          jobs_count = Job.where(onedrive_folder_creation_status: "completed").count
+          jobs_count = Job.where(sharepoint_folder_status: "completed").count
           render json: {
             success: true,
-            message: "Sync triggered for #{jobs_count} jobs with OneDrive folders",
+            message: "Sync triggered for #{jobs_count} jobs with SharePoint folders",
             jobs_count: jobs_count
           }
         end
@@ -1770,9 +1770,9 @@ module Api
         begin
           client = MicrosoftGraphClient.new(credential)
 
-          # Rename the file in OneDrive
+          # Rename the file in SharePoint
           result = client.patch(
-            "/drives/#{credential.drive_id}/items/#{document.onedrive_item_id}",
+            "/drives/#{credential.drive_id}/items/#{document.sharepoint_item_id}",
             { name: new_name }
           )
 
@@ -1833,9 +1833,9 @@ module Api
 
         documents.each do |doc|
           begin
-            # Rename in OneDrive
+            # Rename in SharePoint
             result = client.patch(
-              "/drives/#{credential.drive_id}/items/#{doc.onedrive_item_id}",
+              "/drives/#{credential.drive_id}/items/#{doc.sharepoint_item_id}",
               { name: doc.ai_proposed_name }
             )
 
@@ -2173,7 +2173,7 @@ module Api
           id: doc.id,
           job_id: doc.job_id,
           job_title: doc.job&.title,
-          onedrive_item_id: doc.onedrive_item_id,
+          sharepoint_item_id: doc.sharepoint_item_id,
           current_name: doc.file_name,
           original_name: doc.original_file_name,
           proposed_name: doc.ai_proposed_name,

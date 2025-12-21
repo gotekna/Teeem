@@ -11,13 +11,13 @@ class CreateJobSharepointFoldersJob < ApplicationJob
     Rails.logger.info "[SharePoint] Creating folders for job #{job_id}: #{job.title}"
 
     # Update status to processing
-    job.update_column(:onedrive_folder_creation_status, "processing")
+    job.update_column(:sharepoint_folder_status, "processing")
 
     credential = OrganizationSharePointCredential.active_credential
 
     unless credential&.valid_credential?
       Rails.logger.warn "[SharePoint] No valid credential found, skipping folder creation for job #{job_id}"
-      job.update_column(:onedrive_folder_creation_status, "failed")
+      job.update_column(:sharepoint_folder_status, "failed")
       return
     end
 
@@ -32,15 +32,15 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
         # If folder not found, this is a critical configuration issue
         if folder_validation[:error_type] == "not_found"
-          job.update_column(:onedrive_folder_creation_status, "folder_not_found")
+          job.update_column(:sharepoint_folder_status, "folder_not_found")
           Rails.logger.error "[SharePoint] Root folder has been deleted or moved. Please reconfigure the root folder in Settings."
           return # Don't retry - this needs admin intervention
         elsif folder_validation[:error_type] == "not_configured"
-          job.update_column(:onedrive_folder_creation_status, "not_configured")
+          job.update_column(:sharepoint_folder_status, "not_configured")
           Rails.logger.warn "[SharePoint] No root folder configured. Please configure in Settings."
           return # Don't retry - needs configuration
         else
-          job.update_column(:onedrive_folder_creation_status, "failed")
+          job.update_column(:sharepoint_folder_status, "failed")
           raise StandardError, folder_validation[:error] # Retry for transient errors
         end
       end
@@ -50,7 +50,7 @@ class CreateJobSharepointFoldersJob < ApplicationJob
 
       if existing_folder
         Rails.logger.info "[SharePoint] Folder already exists for job #{job_id}"
-        job.update_column(:onedrive_folder_creation_status, "completed")
+        job.update_column(:sharepoint_folder_status, "completed")
         return
       end
 
@@ -68,23 +68,23 @@ class CreateJobSharepointFoldersJob < ApplicationJob
       end
 
       Rails.logger.info "[SharePoint] Successfully created folders for job #{job_id}: #{job_folder['webUrl']}"
-      job.update_column(:onedrive_folder_creation_status, "completed")
+      job.update_column(:sharepoint_folder_status, "completed")
 
       # Mark credential as synced
       credential.mark_synced!
 
     rescue MicrosoftGraphClient::AuthenticationError => e
       Rails.logger.error "[SharePoint] Authentication failed for job #{job_id}: #{e.message}"
-      job.update_column(:onedrive_folder_creation_status, "failed")
+      job.update_column(:sharepoint_folder_status, "failed")
       raise # Re-raise to trigger retry
     rescue MicrosoftGraphClient::APIError => e
       Rails.logger.error "[SharePoint] API error for job #{job_id}: #{e.message}"
-      job.update_column(:onedrive_folder_creation_status, "failed")
+      job.update_column(:sharepoint_folder_status, "failed")
       raise # Re-raise to trigger retry
     rescue StandardError => e
       Rails.logger.error "[SharePoint] Failed to create folders for job #{job_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
-      job.update_column(:onedrive_folder_creation_status, "failed")
+      job.update_column(:sharepoint_folder_status, "failed")
       raise # Re-raise to trigger retry
     end
   end

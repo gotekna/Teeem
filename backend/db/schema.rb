@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_21_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -837,8 +837,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "file_action", default: "copy"
     t.string "document_processing_status", default: "pending"
     t.integer "unanswered_questions_count", default: 0
-    t.string "onedrive_folder_id"
-    t.string "onedrive_folder_path"
+    t.string "sharepoint_folder_id"
+    t.string "sharepoint_folder_path"
     t.index ["assigned_to_id"], name: "index_cases_on_assigned_to_id"
     t.index ["case_number"], name: "index_cases_on_case_number", unique: true
     t.index ["case_type"], name: "index_cases_on_case_type"
@@ -847,10 +847,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.index ["contact_id"], name: "index_cases_on_contact_id"
     t.index ["created_by_id"], name: "index_cases_on_created_by_id"
     t.index ["deadline"], name: "index_cases_on_deadline"
-    t.index ["onedrive_folder_id"], name: "index_cases_on_onedrive_folder_id"
     t.index ["parent_case_id", "status"], name: "index_cases_on_parent_and_status"
     t.index ["parent_case_id"], name: "index_cases_on_parent_case_id"
     t.index ["priority"], name: "index_cases_on_priority"
+    t.index ["sharepoint_folder_id"], name: "index_cases_on_sharepoint_folder_id"
     t.index ["status"], name: "index_cases_on_status"
   end
 
@@ -1027,9 +1027,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "source", default: "manual"
     t.bigint "document_type_id"
     t.string "sharepoint_file_id"
-    t.string "onedrive_download_url"
+    t.string "sharepoint_download_url"
     t.datetime "last_modified_at"
-    t.string "expected_onedrive_path"
+    t.string "expected_sharepoint_path"
     t.string "register_folder"
     t.integer "financial_years", default: [], array: true
     t.string "display_title"
@@ -1410,8 +1410,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "health_status"
     t.boolean "has_loans", default: false
     t.boolean "loan_documents_in_place", default: false
-    t.string "onedrive_folder_id"
-    t.string "onedrive_folder_path"
+    t.string "sharepoint_folder_id"
+    t.string "sharepoint_folder_path"
     t.string "code"
     t.string "sharepoint_folder_url"
     t.string "sharepoint_folder_name"
@@ -1440,9 +1440,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.index ["consolidation_parent_id"], name: "index_corporate_companies_on_consolidation_parent_id"
     t.index ["contact_id"], name: "index_corporate_companies_on_contact_id"
     t.index ["name"], name: "index_corporate_companies_on_name"
-    t.index ["onedrive_folder_id"], name: "index_corporate_companies_on_onedrive_folder_id"
     t.index ["parent_company_id"], name: "index_corporate_companies_on_parent_company_id"
     t.index ["review_date"], name: "index_corporate_companies_on_review_date"
+    t.index ["sharepoint_folder_id"], name: "index_corporate_companies_on_sharepoint_folder_id"
     t.index ["slug"], name: "index_corporate_companies_on_slug", unique: true
     t.index ["status"], name: "index_corporate_companies_on_status"
   end
@@ -1522,9 +1522,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "filed_by"
     t.bigint "document_type_id"
     t.string "sharepoint_file_id"
-    t.string "onedrive_download_url"
+    t.string "sharepoint_download_url"
     t.datetime "last_modified_at"
-    t.string "expected_onedrive_path"
+    t.string "expected_sharepoint_path"
     t.string "register_folder"
     t.string "company_code"
     t.string "source", default: "manual"
@@ -3056,8 +3056,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
   create_table "job_documents", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "document_type_id"
-    t.string "onedrive_item_id", null: false
-    t.string "onedrive_drive_id"
+    t.string "sharepoint_item_id", null: false
+    t.string "sharepoint_drive_id"
     t.string "file_name", null: false
     t.string "file_extension"
     t.string "file_type"
@@ -3113,10 +3113,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.index ["job_id", "folder_path"], name: "index_job_documents_on_job_id_and_folder_path"
     t.index ["job_id"], name: "index_job_documents_on_job_id"
     t.index ["legacy_corporate_document_id"], name: "index_job_documents_on_legacy_corporate_document_id"
-    t.index ["onedrive_drive_id"], name: "index_job_documents_on_onedrive_drive_id"
-    t.index ["onedrive_item_id"], name: "index_job_documents_on_onedrive_item_id", unique: true
     t.index ["rename_approved_by_id"], name: "index_job_documents_on_rename_approved_by_id"
     t.index ["rename_status"], name: "index_job_documents_on_rename_status"
+    t.index ["sharepoint_drive_id"], name: "index_job_documents_on_sharepoint_drive_id"
+    t.index ["sharepoint_item_id"], name: "index_job_documents_on_sharepoint_item_id", unique: true
     t.index ["sync_status"], name: "index_job_documents_on_sync_status"
     t.index ["version_id"], name: "index_job_documents_on_version_id"
   end
@@ -3297,7 +3297,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.integer "purchase_orders_count", default: 0, null: false
     t.string "site_supervisor_name", default: "Andrew Clement"
     t.string "site_supervisor_phone", default: "0407 150 081"
-    t.string "onedrive_folder_creation_status", default: "not_requested"
+    t.string "sharepoint_folder_status", default: "not_requested"
     t.decimal "latitude", precision: 10, scale: 6
     t.decimal "longitude", precision: 10, scale: 6
     t.string "location"
@@ -3353,8 +3353,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
-    t.index ["onedrive_folder_creation_status"], name: "index_jobs_on_onedrive_folder_creation_status"
     t.index ["postcode"], name: "index_jobs_on_postcode"
+    t.index ["sharepoint_folder_status"], name: "index_jobs_on_sharepoint_folder_status"
     t.index ["suburb"], name: "index_jobs_on_suburb"
     t.index ["xero_tracking_option_id"], name: "index_jobs_on_xero_tracking_option_id"
   end

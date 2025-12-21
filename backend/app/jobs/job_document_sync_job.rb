@@ -58,9 +58,9 @@ class JobDocumentSyncJob < ApplicationJob
   private
 
   def sync_all_jobs
-    # Only sync jobs that have OneDrive folders
-    jobs_with_folders = Job.where(onedrive_folder_creation_status: "completed")
-    Rails.logger.info("[JobDocumentSync] Syncing #{jobs_with_folders.count} jobs with OneDrive folders")
+    # Only sync jobs that have SharePoint folders
+    jobs_with_folders = Job.where(sharepoint_folder_status: "completed")
+    Rails.logger.info("[JobDocumentSync] Syncing #{jobs_with_folders.count} jobs with SharePoint folders")
 
     jobs_with_folders.find_each do |job|
       sync_single_job(job)
@@ -70,10 +70,10 @@ class JobDocumentSyncJob < ApplicationJob
   def sync_single_job(job)
     Rails.logger.info("[JobDocumentSync] Syncing job #{job.id}: #{job.title}")
 
-    # Find the job's OneDrive folder
+    # Find the job's SharePoint folder
     job_folder = @client.find_job_folder(job)
     unless job_folder
-      Rails.logger.warn("[JobDocumentSync] No OneDrive folder found for job #{job.id}")
+      Rails.logger.warn("[JobDocumentSync] No SharePoint folder found for job #{job.id}")
       return
     end
 
@@ -81,7 +81,7 @@ class JobDocumentSyncJob < ApplicationJob
     files = list_all_files(job_folder["id"])
     Rails.logger.info("[JobDocumentSync] Found #{files.length} files in job #{job.id}")
 
-    # Track which onedrive_item_ids we've seen (to detect deleted files)
+    # Track which sharepoint_item_ids we've seen (to detect deleted files)
     seen_item_ids = []
 
     files.each do |file|
@@ -89,9 +89,9 @@ class JobDocumentSyncJob < ApplicationJob
       sync_file_to_database(job, file)
     end
 
-    # Mark missing files (deleted from OneDrive)
+    # Mark missing files (deleted from SharePoint)
     removed_count = job.job_documents
-      .where.not(onedrive_item_id: seen_item_ids)
+      .where.not(sharepoint_item_id: seen_item_ids)
       .update_all(sync_status: "missing")
     @stats[:removed] += removed_count
   rescue MicrosoftGraphClient::APIError => e
@@ -100,12 +100,12 @@ class JobDocumentSyncJob < ApplicationJob
   end
 
   def sync_file_to_database(job, file)
-    job_doc = JobDocument.find_or_initialize_by(onedrive_item_id: file[:id])
+    job_doc = JobDocument.find_or_initialize_by(sharepoint_item_id: file[:id])
     is_new = job_doc.new_record?
 
     job_doc.assign_attributes(
       job: job,
-      onedrive_drive_id: @drive_id,
+      sharepoint_drive_id: @drive_id,
       file_name: file[:name],
       file_size: file[:size],
       folder_path: file[:folder_path],

@@ -761,8 +761,8 @@ function SystemAdminPageContent() {
           })}
         </TabsList>
 
-        <div className="mt-4 flex-1 min-h-0 overflow-auto">
-          <TabsContent value="company" className="min-h-0">
+        <div className="mt-4 flex-1 min-h-0 [&>*]:h-full [&>*[data-state=inactive]]:hidden">
+          <TabsContent value="company" className="overflow-auto">
             <CompanySettingsTab />
           </TabsContent>
           <TabsContent value="warehouse" className="flex-1 min-h-0 overflow-auto">
@@ -848,7 +848,7 @@ function SystemAdminPageContent() {
           <TabsContent value="supervisor-checklist" className="flex-1 min-h-0 overflow-auto">
             <SupervisorChecklistTab />
           </TabsContent>
-          <TabsContent value="components" className="flex-1 min-h-0 overflow-auto">
+          <TabsContent value="components" className="flex flex-col overflow-hidden">
             <GoldStandardTab />
           </TabsContent>
           <TabsContent value="developer-tools" className="flex-1 min-h-0 overflow-auto">

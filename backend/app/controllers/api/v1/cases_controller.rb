@@ -661,7 +661,7 @@ module Api
             data: {
               folder_id: folder["id"],
               folder_name: folder["name"],
-              folder_path: @case.onedrive_folder_path,
+              folder_path: @case.sharepoint_folder_path,
               web_url: folder["webUrl"]
             },
             message: "Case folder created successfully"
@@ -669,15 +669,15 @@ module Api
         else
           render json: {
             success: false,
-            error: "Failed to create folder. Make sure OneDrive is connected."
+            error: "Failed to create folder. Make sure SharePoint is connected."
           }, status: :unprocessable_entity
         end
       end
 
       # GET /api/v1/cases/:id/folder_info
-      # Get information about the case's OneDrive folder
+      # Get information about the case's SharePoint folder
       def folder_info
-        if @case.onedrive_folder_id.blank?
+        if @case.sharepoint_folder_id.blank?
           render json: {
             success: true,
             data: { has_folder: false }
@@ -695,7 +695,7 @@ module Api
               has_folder: true,
               folder_id: folder["id"],
               folder_name: folder["name"],
-              folder_path: @case.onedrive_folder_path,
+              folder_path: @case.sharepoint_folder_path,
               web_url: folder["webUrl"]
             }
           }
@@ -706,7 +706,7 @@ module Api
             data: {
               has_folder: false,
               folder_missing: true,
-              message: "Folder was deleted from OneDrive"
+              message: "Folder was deleted from SharePoint"
             }
           }
         end
@@ -1320,7 +1320,7 @@ module Api
           existing_document_id: r.existing_document_id,
           existing_title: existing&.title,
           existing_filename: existing&.filename,
-          existing_onedrive_path: existing&.onedrive_path,
+          existing_sharepoint_path: existing&.sharepoint_path,
           existing_file_size: existing&.file_size,
           existing_document_date: existing&.document_date,
           new_file_path: r.new_file_path,

@@ -98,7 +98,7 @@ class DocumentRelocateService
     SharePoint::FilenameSanitizer.sanitize(filename)
   end
 
-  # Find the OneDrive folder ID for the target company/folder
+  # Find the SharePoint folder ID for the target company/folder
   def find_target_folder_id(company_id:, folder:)
     company = CorporateCompany.find_by(id: company_id)
     return nil unless company
@@ -106,7 +106,7 @@ class DocumentRelocateService
     drive_id = @credential.drive_id
 
     # First, find or verify company folder
-    company_folder_id = company.onedrive_folder_id
+    company_folder_id = company.sharepoint_folder_id
 
     unless company_folder_id
       # Try to find company folder by name in the root
@@ -116,7 +116,7 @@ class DocumentRelocateService
       company_folder_id = company_folder&.dig("id")
 
       # Update company record if found
-      company.update(onedrive_folder_id: company_folder_id) if company_folder_id
+      company.update(sharepoint_folder_id: company_folder_id) if company_folder_id
     end
 
     return nil unless company_folder_id

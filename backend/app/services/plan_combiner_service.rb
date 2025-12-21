@@ -143,7 +143,7 @@ class PlanCombinerService
 
   def get_plans_folder_id(client)
     # Get job's SharePoint folder
-    job_folder = client.get_folder_by_path(@job.onedrive_folder_id)
+    job_folder = client.get_folder_by_path(@job.sharepoint_folder_id)
     raise CombineError, "Job folder not found" unless job_folder
 
     # Look for "04 Plans" subfolder

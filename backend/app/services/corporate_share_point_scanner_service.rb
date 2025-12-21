@@ -506,7 +506,7 @@ class CorporateSharePointScannerService
       document_type: document_type_enum,
       document_type_id: document_type&.id,
       file_url: doc["webUrl"],
-      onedrive_download_url: download_url,
+      sharepoint_download_url: download_url,
       file_size: doc.dig("size"),
       last_modified_at: doc.dig("lastModifiedDateTime")&.to_datetime,
       storage_type: "electronic",

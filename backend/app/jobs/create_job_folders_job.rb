@@ -1,13 +1,13 @@
-# Background job to create OneDrive folder structure for a construction/job
+# Background job to create SharePoint folder structure for a construction/job
 #
 # This job is automatically enqueued when a new construction is created with
-# `create_onedrive_folders: true` parameter.
+# `create_sharepoint_folders: true` parameter.
 #
 # The job:
-# - Uses the organization-wide OneDrive credential
+# - Uses the organization-wide SharePoint credential
 # - Creates a job-specific folder (e.g., "001 - Project Name")
 # - Creates subfolders based on the folder template
-# - Updates the construction's onedrive_folder_creation_status
+# - Updates the construction's sharepoint_folder_status
 # - Is idempotent (won't recreate folders if they already exist)
 #
 # @param construction_id [Integer] The ID of the construction to create folders for
@@ -23,16 +23,13 @@ class CreateJobFoldersJob < ApplicationJob
     construction = Job.find(construction_id)
 
     # Mark as processing
-    construction.update!(onedrive_folder_creation_status: "processing")
+    construction.update!(sharepoint_folder_status: "processing")
 
-    # Get organization OneDrive credential
+    # Get organization SharePoint credential
     credential = OrganizationSharePointCredential.active_credential
 
     unless credential&.valid_credential?
-      construction.update!(
-        onedrive_folder_creation_status: "failed",
-        onedrive_folders_created_at: nil
-      )
+      construction.update!(sharepoint_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob failed: SharePoint not connected"
       return
     end
@@ -45,10 +42,7 @@ class CreateJobFoldersJob < ApplicationJob
     end
 
     unless template
-      construction.update!(
-        onedrive_folder_creation_status: "failed",
-        onedrive_folders_created_at: nil
-      )
+      construction.update!(sharepoint_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob failed: No folder template found"
       return
     end
@@ -61,10 +55,7 @@ class CreateJobFoldersJob < ApplicationJob
 
       if existing_folder
         # Folders already exist, mark as completed
-        construction.update!(
-          onedrive_folder_creation_status: "completed",
-          onedrive_folders_created_at: Time.current
-        )
+        construction.update!(sharepoint_folder_status: "completed")
         Rails.logger.info "CreateJobFoldersJob: Folders already exist for Construction ##{construction_id}"
         return
       end
@@ -76,34 +67,22 @@ class CreateJobFoldersJob < ApplicationJob
       credential.mark_synced!
 
       # Mark construction as completed
-      construction.update!(
-        onedrive_folder_creation_status: "completed",
-        onedrive_folders_created_at: Time.current
-      )
+      construction.update!(sharepoint_folder_status: "completed")
 
       Rails.logger.info "CreateJobFoldersJob succeeded: Created folders for Construction ##{construction_id}"
 
     rescue MicrosoftGraphClient::AuthenticationError => e
-      construction.update!(
-        onedrive_folder_creation_status: "failed",
-        onedrive_folders_created_at: nil
-      )
+      construction.update!(sharepoint_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob authentication failed for Construction ##{construction_id}: #{e.message}"
       raise # Re-raise to trigger retry
 
     rescue MicrosoftGraphClient::APIError => e
-      construction.update!(
-        onedrive_folder_creation_status: "failed",
-        onedrive_folders_created_at: nil
-      )
+      construction.update!(sharepoint_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob API error for Construction ##{construction_id}: #{e.message}"
       raise # Re-raise to trigger retry
 
     rescue StandardError => e
-      construction.update!(
-        onedrive_folder_creation_status: "failed",
-        onedrive_folders_created_at: nil
-      )
+      construction.update!(sharepoint_folder_status: "failed")
       Rails.logger.error "CreateJobFoldersJob failed for Construction ##{construction_id}: #{e.message}"
       Rails.logger.error e.backtrace.join("\n")
       # Don't re-raise for unexpected errors - just mark as failed

@@ -88,7 +88,7 @@ class XeroAttachmentSyncService
       contact_id: external_invoice.contact_id,      # Link to contact for document management
       documentable: external_invoice,               # Also link to warehouse record
       job_id: external_invoice.job_id,
-      expected_onedrive_path: expected_document_path(filename), # Full OneDrive path
+      expected_sharepoint_path: expected_document_path(filename), # Full SharePoint path
       file_size: pdf_result[:content_length] || pdf_result[:content].bytesize,
       file_name: filename,
       mime_type: "application/pdf",
@@ -198,7 +198,7 @@ class XeroAttachmentSyncService
       contact_id: external_invoice.contact_id,      # Link to contact for document management
       documentable: external_invoice,               # Also link to warehouse record
       job_id: external_invoice.job_id,
-      expected_onedrive_path: expected_document_path(filename), # Full OneDrive path
+      expected_sharepoint_path: expected_document_path(filename), # Full SharePoint path
       file_size: download_result[:content_length] || download_result[:content].bytesize,
       file_name: filename,
       mime_type: download_result[:mime_type] || attachment_info[:mime_type],
