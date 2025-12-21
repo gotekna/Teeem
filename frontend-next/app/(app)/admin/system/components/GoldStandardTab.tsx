@@ -832,7 +832,7 @@ function GoldStandardDataTab() {
   }
 
   return (
-    <div className="h-full flex flex-col -mx-4">
+    <div className="h-full flex flex-col">
       <TeeemTableView
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

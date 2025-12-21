@@ -138,7 +138,7 @@ export function TableHeaderSection({
                 }),
               }}
               className={cn(
-                "sticky top-0 relative",
+                "sticky top-0",
                 isSticky ? "z-30" : "z-20",
                 column.key === "select" && "!border-r-0 !p-0 !h-full",
                 column.key === "actions" && "!border-l-0"
