@@ -3622,12 +3622,12 @@ export default function CompanyDetailPage() {
 
       setXeroContactsLoading(true);
       try {
-        // SSoT: Use Foundation records API for proper TeeemTableView integration
-        const response = await api.get<{ success: boolean; entries: any[] }>(
-          `/api/v1/foundations/contacts/records?xero_tenant_id=${tenantId}`
+        // Use contacts API with xero_tenant_id filter
+        const response = await api.get<{ success: boolean; contacts: any[] }>(
+          `/api/v1/contacts?xero_tenant_id=${tenantId}`
         );
         if (response.success) {
-          setXeroContacts(response.entries || []);
+          setXeroContacts(response.contacts || []);
         }
       } catch (error) {
         console.error("Failed to load Xero contacts:", error);
@@ -4076,17 +4076,18 @@ export default function CompanyDetailPage() {
                     <TeeemTableView
                       entries={xeroContacts}
                       foundationId="contacts"
+                      foundationIdNumeric={214}
                       tableName="Xero Linked Contacts"
                       onRefresh={async () => {
                         const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
                         if (tenantId) {
                           setXeroContactsLoading(true);
                           try {
-                            const response = await api.get<{ success: boolean; entries: any[] }>(
-                              `/api/v1/foundations/contacts/records?xero_tenant_id=${tenantId}`
+                            const response = await api.get<{ success: boolean; contacts: any[] }>(
+                              `/api/v1/contacts?xero_tenant_id=${tenantId}`
                             );
                             if (response.success) {
-                              setXeroContacts(response.entries || []);
+                              setXeroContacts(response.contacts || []);
                             }
                           } finally {
                             setXeroContactsLoading(false);
