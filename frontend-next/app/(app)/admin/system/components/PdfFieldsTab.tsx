@@ -1026,7 +1026,7 @@ export function PdfFieldsTab() {
                 >
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] text-muted-foreground w-4">p{field.page}</span>
-                    <span className="font-medium truncate">{field.display_name}</span>
+                    <span className="font-medium truncate">{field.display_name || field.field_key}</span>
                   </div>
                   <div className="text-[10px] text-muted-foreground pl-5">
                     x:{field.x} y:{field.y}
