@@ -52,7 +52,13 @@ interface ComparisonSummary {
   accounts_in_all: number;
   accounts_with_differences: number;
   missing_in_some: number;
-  companies: Array<{ id: number; name: string }>;
+}
+
+interface GroupCompanyInfo {
+  company_id: number;
+  company_name: string;
+  xero_tenant: string;
+  accounts: Array<{ code: string; name: string; type: string; status: string }>;
 }
 
 interface XeroGroupAccountsCardProps {
@@ -68,6 +74,7 @@ interface XeroGroupAccountsCardProps {
 export function XeroGroupAccountsCard({ companyId }: XeroGroupAccountsCardProps) {
   const [comparison, setComparison] = React.useState<AccountComparison[]>([]);
   const [summary, setSummary] = React.useState<ComparisonSummary | null>(null);
+  const [groupCompanies, setGroupCompanies] = React.useState<GroupCompanyInfo[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [filterType, setFilterType] = React.useState<string>("all");
@@ -80,13 +87,15 @@ export function XeroGroupAccountsCard({ companyId }: XeroGroupAccountsCardProps)
       setError(null);
       const response = await api.get<{
         success: boolean;
+        companies: GroupCompanyInfo[];
         comparison: AccountComparison[];
         summary: ComparisonSummary;
         error?: string;
       }>(`/api/v1/companies/${companyId}/xero/accounts/compare`);
 
       if (response?.success) {
-        setComparison(response.comparison);
+        setGroupCompanies(response.companies || []);
+        setComparison(response.comparison || []);
         setSummary(response.summary);
       } else {
         setError(response?.error || "Failed to load comparison");
@@ -108,10 +117,10 @@ export function XeroGroupAccountsCard({ companyId }: XeroGroupAccountsCardProps)
     return Array.from(types).sort();
   }, [comparison]);
 
-  // Get company names from summary
+  // Get company names from groupCompanies
   const companyNames = React.useMemo(() => {
-    return summary?.companies || [];
-  }, [summary]);
+    return groupCompanies.map(c => ({ id: c.company_id, name: c.company_name }));
+  }, [groupCompanies]);
 
   // Filter accounts
   const filteredAccounts = React.useMemo(() => {
@@ -235,60 +244,81 @@ export function XeroGroupAccountsCard({ companyId }: XeroGroupAccountsCardProps)
                 {filteredAccounts.map((account) => {
                   const hasIssue = !account.all_companies || !account.names_match;
                   return (
-                    <TableRow
-                      key={account.code}
-                      className={cn(
-                        hasIssue && "bg-amber-50/50 dark:bg-amber-900/10"
-                      )}
-                    >
-                      <TableCell className="font-mono text-sm">{account.code}</TableCell>
-                      <TableCell className="font-medium">{account.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {account.type}
-                        </Badge>
-                      </TableCell>
-                      {companyNames.map(company => {
-                        const companyData = account.companies.find(c => c.company_id === company.id);
-                        if (!companyData) {
+                    <React.Fragment key={account.code}>
+                      <TableRow
+                        className={cn(
+                          hasIssue && "bg-amber-50/50 dark:bg-amber-900/10"
+                        )}
+                      >
+                        <TableCell className="font-mono text-sm">{account.code}</TableCell>
+                        <TableCell className="font-medium">{account.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {account.type}
+                          </Badge>
+                        </TableCell>
+                        {companyNames.map(company => {
+                          const companyData = account.companies.find(c => c.company_id === company.id);
+                          if (!companyData) {
+                            return (
+                              <TableCell key={company.id} className="text-center">
+                                <XCircle className="h-4 w-4 text-red-500 mx-auto" />
+                              </TableCell>
+                            );
+                          }
+                          const namesDiffer = companyData.name !== account.name;
                           return (
                             <TableCell key={company.id} className="text-center">
-                              <XCircle className="h-4 w-4 text-red-500 mx-auto" />
+                              {namesDiffer ? (
+                                <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
+                              )}
                             </TableCell>
                           );
-                        }
-                        const namesDiffer = companyData.name !== account.name;
-                        return (
-                          <TableCell key={company.id} className="text-center">
-                            {namesDiffer ? (
-                              <div className="flex flex-col items-center gap-1">
-                                <AlertTriangle className="h-4 w-4 text-amber-500" />
-                                <span className="text-xs text-muted-foreground truncate max-w-[140px]" title={companyData.name}>
-                                  {companyData.name}
-                                </span>
-                              </div>
-                            ) : (
-                              <CheckCircle className="h-4 w-4 text-green-500 mx-auto" />
-                            )}
+                        })}
+                        <TableCell className="text-center">
+                          {account.all_companies && account.names_match ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400">
+                              OK
+                            </Badge>
+                          ) : !account.all_companies ? (
+                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400">
+                              Missing
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400">
+                              Diff
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {/* Sub-row showing different names when there are name mismatches */}
+                      {!account.names_match && (
+                        <TableRow className="bg-amber-50/30 dark:bg-amber-900/5 border-b-2 border-amber-200 dark:border-amber-800">
+                          <TableCell className="text-xs text-muted-foreground italic py-1"></TableCell>
+                          <TableCell className="text-xs text-amber-700 dark:text-amber-400 py-1" colSpan={1}>
+                            Names differ:
                           </TableCell>
-                        );
-                      })}
-                      <TableCell className="text-center">
-                        {account.all_companies && account.names_match ? (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400">
-                            OK
-                          </Badge>
-                        ) : !account.all_companies ? (
-                          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400">
-                            Missing
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400">
-                            Diff
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                          <TableCell className="py-1"></TableCell>
+                          {companyNames.map(company => {
+                            const companyData = account.companies.find(c => c.company_id === company.id);
+                            return (
+                              <TableCell key={company.id} className="text-center py-1">
+                                {companyData ? (
+                                  <span className="text-xs text-muted-foreground" title={companyData.name}>
+                                    {companyData.name}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-red-400">-</span>
+                                )}
+                              </TableCell>
+                            );
+                          })}
+                          <TableCell className="py-1"></TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </TableBody>
