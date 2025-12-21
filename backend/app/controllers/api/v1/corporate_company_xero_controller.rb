@@ -62,8 +62,8 @@ module Api
 
         # Count Xero-linked contacts (from contact_external_links)
         contacts_count = ContactExternalLink.joins(:contact)
-          .where(provider: "xero", sync_enabled: true)
-          .where(external_tenant_id: connection&.xero_tenant_id)
+          .where(source: "xero", sync_enabled: true)
+          .where(tenant_id: connection&.xero_tenant_id)
           .count
         contacts_synced = contacts_count > 0
 
