@@ -26,6 +26,7 @@ import {
   GitMerge,
   Check,
   X,
+  Wand2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,12 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
   const [groupCompanies, setGroupCompanies] = React.useState<GroupCompanyInfo[]>([]);
   const [filterType, setFilterType] = React.useState<string>("all");
   const [searchTerm, setSearchTerm] = React.useState("");
+  const [standardizing, setStandardizing] = React.useState(false);
+  const [standardizeResult, setStandardizeResult] = React.useState<{
+    renamed_count: number;
+    skipped_count: number;
+    error_count: number;
+  } | null>(null);
 
   const loadAccounts = async () => {
     try {
@@ -164,6 +171,54 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     loadComparison();
   }, [companyId]);
 
+  // Standardize bank account names across all companies in the group
+  const handleStandardizeNames = async () => {
+    if (!confirm("This will rename all bank accounts in Xero to use the format: BANK BSB ACCOUNT_NUMBER (e.g., NAB 123-456 12345678). Continue?")) {
+      return;
+    }
+
+    setStandardizing(true);
+    setStandardizeResult(null);
+    setError(null);
+
+    try {
+      // Call standardize for each company in the group
+      let totalRenamed = 0;
+      let totalSkipped = 0;
+      let totalErrors = 0;
+
+      for (const company of groupCompanies) {
+        const response = await api.post<{
+          success: boolean;
+          renamed_count: number;
+          skipped_count: number;
+          error_count: number;
+          error?: string;
+        }>(`/api/v1/companies/${company.company_id}/xero/accounts/standardize_names`, {});
+
+        if (response?.success) {
+          totalRenamed += response.renamed_count;
+          totalSkipped += response.skipped_count;
+          totalErrors += response.error_count;
+        }
+      }
+
+      setStandardizeResult({
+        renamed_count: totalRenamed,
+        skipped_count: totalSkipped,
+        error_count: totalErrors,
+      });
+
+      // Reload accounts to show updated names
+      await loadAccounts();
+      await loadComparison();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setStandardizing(false);
+    }
+  };
+
   // Get unique types for filter
   const accountTypes = React.useMemo(() => {
     const types = new Set(accounts.map(a => a.type));
@@ -240,6 +295,18 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {groupCompanies.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleStandardizeNames}
+                disabled={loading || standardizing}
+                title="Rename bank accounts in Xero to use standardized format: BANK BSB ACCOUNT_NUMBER"
+              >
+                {standardizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                <span className="ml-2">Standardize Bank Names</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -288,6 +355,20 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       </CardHeader>
 
       <CardContent>
+        {/* Standardize Result */}
+        {standardizeResult && (
+          <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+            <div className="font-medium text-green-700 dark:text-green-400">
+              Bank Account Names Standardized
+            </div>
+            <div className="text-sm text-green-600 dark:text-green-500">
+              {standardizeResult.renamed_count} accounts renamed
+              {standardizeResult.skipped_count > 0 && `, ${standardizeResult.skipped_count} skipped`}
+              {standardizeResult.error_count > 0 && `, ${standardizeResult.error_count} errors`}
+            </div>
+          </div>
+        )}
+
         {/* Comparison Summary */}
         {showComparison && comparisonSummary && (
           <div className="mb-4 p-4 rounded-lg bg-muted/50 border">
