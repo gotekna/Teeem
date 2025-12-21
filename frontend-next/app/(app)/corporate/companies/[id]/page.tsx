@@ -4122,7 +4122,9 @@ export default function CompanyDetailPage() {
                     <TeeemTableView
                       entries={xeroInvoices}
                       foundationId="external_invoices"
+                      foundationIdNumeric={526}
                       tableName="Sales Invoices"
+                      preloadedViews={[]}
                       onRefresh={async () => {
                         const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
                         if (tenantId) {
@@ -4165,7 +4167,9 @@ export default function CompanyDetailPage() {
                     <TeeemTableView
                       entries={xeroBills}
                       foundationId="external_invoices"
+                      foundationIdNumeric={526}
                       tableName="Bills"
+                      preloadedViews={[]}
                       onRefresh={async () => {
                         const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
                         if (tenantId) {
