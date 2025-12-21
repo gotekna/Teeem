@@ -144,6 +144,7 @@ export function EntityTabsTable() {
     icon?: string;
     parent?: string;
     head_only?: boolean;
+    group_member?: boolean;
   }>>([]);
 
   // Load tabs from API
@@ -179,6 +180,7 @@ export function EntityTabsTable() {
           icon?: string;
           parent?: string;
           head_only?: boolean;
+          group_member?: boolean;
         }>;
       }>("/api/v1/xero/tabs");
       if (response.success && response.data) {
@@ -643,25 +645,26 @@ export function EntityTabsTable() {
                                             </div>
                                           );
                                         } else {
-                                          // Standalone tab (or head-only tab)
+                                          // Standalone tab (or group-member tab)
+                                          const isGroupTab = xeroTab.group_member || xeroTab.head_only;
                                           renderedTabs.push(
                                             <div
                                               key={xeroTab.id}
                                               className={cn(
                                                 "flex items-center gap-2 py-1.5 px-2 rounded text-sm",
-                                                xeroTab.head_only && "bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800",
-                                                !xeroTab.head_only && xeroTab.group === "setup" && "bg-indigo-50 dark:bg-indigo-900/20",
-                                                !xeroTab.head_only && xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
-                                                !xeroTab.head_only && xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
-                                                !xeroTab.head_only && xeroTab.group === "documents" && "bg-amber-50 dark:bg-amber-900/20",
+                                                isGroupTab && "bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800",
+                                                !isGroupTab && xeroTab.group === "setup" && "bg-indigo-50 dark:bg-indigo-900/20",
+                                                !isGroupTab && xeroTab.group === "data" && "bg-blue-50 dark:bg-blue-900/20",
+                                                !isGroupTab && xeroTab.group === "reports" && "bg-green-50 dark:bg-green-900/20",
+                                                !isGroupTab && xeroTab.group === "documents" && "bg-amber-50 dark:bg-amber-900/20",
                                               )}
                                             >
-                                              {xeroTab.head_only && (
+                                              {isGroupTab && (
                                                 <Badge
                                                   variant="outline"
-                                                  className="text-[8px] px-1 py-0 border-amber-400 text-amber-700 dark:border-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40"
+                                                  className="text-[8px] px-1 py-0 border-purple-400 text-purple-700 dark:border-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/40"
                                                 >
-                                                  HEAD
+                                                  GROUP
                                                 </Badge>
                                               )}
                                               <Badge

@@ -167,6 +167,7 @@ const XERO_TABS_FALLBACK: Array<{
   description?: string;
   group?: string;
   head_only?: boolean;
+  group_member?: boolean;  // Shows for any company in a group
   parent?: string;
 }> = [
   { id: "connection", name: "Connection", type: "functional" },
@@ -3321,6 +3322,7 @@ export default function CompanyDetailPage() {
     description?: string;
     group?: string;
     head_only?: boolean;
+    group_member?: boolean;  // Shows for any company in a group
     parent?: string; // Parent tab key for hierarchical display
   }>>([]);
 
@@ -3427,6 +3429,7 @@ export default function CompanyDetailPage() {
         description?: string;
         group?: string;
         head_only?: boolean;
+        group_member?: boolean;
         parent?: string;
       }> }>("/api/v1/xero/tabs");
       if (response.success && response.data) {
@@ -3503,13 +3506,22 @@ export default function CompanyDetailPage() {
 
   // SSoT: Xero tabs from API - includes functional tabs + document folders (no duplicates)
   // Backend filters out document folders that match functional tab names
-  // Head-only tabs (consolidated views) are filtered based on company.has_consolidated_children
+  // Visibility rules:
+  // - head_only: Only show if company is a head (has_consolidated_children)
+  // - group_member: Show if company is part of a group (is head OR has a parent)
   const mergedXeroSubTabs = React.useMemo(() => {
     const tabs = xeroFeatureTabs.length > 0 ? xeroFeatureTabs : XERO_TABS_FALLBACK;
-    // Filter out head_only tabs if company is not a consolidation parent
     const isHeadCompany = company?.has_consolidated_children === true;
-    return tabs.filter(tab => !tab.head_only || isHeadCompany);
-  }, [xeroFeatureTabs, company?.has_consolidated_children]);
+    const isPartOfGroup = isHeadCompany || !!company?.consolidation_parent_id;
+
+    return tabs.filter(tab => {
+      // head_only tabs: only for head companies
+      if (tab.head_only && !isHeadCompany) return false;
+      // group_member tabs: only for companies in a group
+      if (tab.group_member && !isPartOfGroup) return false;
+      return true;
+    });
+  }, [xeroFeatureTabs, company?.has_consolidated_children, company?.consolidation_parent_id]);
 
   // SSoT: Compute parent tabs dynamically from API order
   // Parent groups are inserted at the position of their first child
@@ -3907,18 +3919,18 @@ export default function CompanyDetailPage() {
                 <XeroAccountsCard companyId={companyId} companyName={company?.name} />
               )}
 
-              {/* Consolidated Accounts - HEAD ONLY (side-by-side view of all subsidiaries' accounts) */}
+              {/* Group Accounts - for any company in a group (side-by-side view) */}
               {xeroSubTab === "consolidated-accounts" && (
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Consolidated Chart of Accounts</CardTitle>
+                    <CardTitle className="text-lg">Group Chart of Accounts</CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      Side-by-side comparison of accounts across all subsidiaries
+                      Side-by-side comparison of accounts across all group entities
                     </p>
                   </CardHeader>
                   <CardContent>
                     <div className="text-center text-muted-foreground py-8">
-                      <p className="font-medium mb-2">Accounts from all {company?.has_consolidated_children ? 'subsidiaries' : 'entities'}</p>
+                      <p className="font-medium mb-2">Accounts from all group entities</p>
                       <p className="text-sm">Shows each account with balances from each connected Xero organisation in separate columns.</p>
                       <p className="text-xs mt-4 text-amber-600">Coming soon - will display accounts side-by-side for comparison</p>
                     </div>
@@ -3995,13 +4007,13 @@ export default function CompanyDetailPage() {
                 <XeroConsolidatedCard companyId={companyId} companyName={company?.name} />
               )}
 
-              {/* Consolidated reports - HEAD ONLY (for companies with subsidiaries) */}
+              {/* Group reports - for any company in a group */}
               {xeroSubTab === "consolidated-pl" && (
                 <Card>
                   <CardContent className="p-6">
                     <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Consolidated Profit & Loss</p>
-                      <p className="text-sm">Combined P&L statement for all subsidiaries.</p>
+                      <p className="font-medium mb-2">Group Profit & Loss</p>
+                      <p className="text-sm">Combined P&L statement for all group entities.</p>
                       <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate P&L from all connected Xero orgs</p>
                     </div>
                   </CardContent>
@@ -4012,9 +4024,21 @@ export default function CompanyDetailPage() {
                 <Card>
                   <CardContent className="p-6">
                     <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Consolidated Balance Sheet</p>
-                      <p className="text-sm">Combined Balance Sheet for all subsidiaries.</p>
+                      <p className="font-medium mb-2">Group Balance Sheet</p>
+                      <p className="text-sm">Combined Balance Sheet for all group entities.</p>
                       <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate Balance Sheet from all connected Xero orgs</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {xeroSubTab === "consolidated-bank" && (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="text-center text-muted-foreground">
+                      <p className="font-medium mb-2">Group Bank Accounts</p>
+                      <p className="text-sm">Combined Bank transactions for all group entities.</p>
+                      <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate Bank data from all connected Xero orgs</p>
                     </div>
                   </CardContent>
                 </Card>
