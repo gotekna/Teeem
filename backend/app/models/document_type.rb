@@ -40,7 +40,7 @@ class DocumentType < ApplicationRecord
 
   # Validations
   validates :name, presence: true, uniqueness: true
-  validates :category, inclusion: { in: %w[corporate tax compliance general financial company trust advice registry insurance asic ato bank assets dividends loans minutes], allow_blank: true }
+  validates :category, inclusion: { in: %w[corporate tax compliance general financial company trust advice registry insurance asic ato bank assets dividends loans minutes people], allow_blank: true }
 
   # Scopes
   scope :active, -> { where(active: true) }
