@@ -689,7 +689,7 @@ module Api
 
       # POST /api/v1/companies/:company_id/xero/accounts/standardize_names
       # Renames all bank-type Xero accounts to use standardized format: "{BANK_CODE} {BSB} {ACCOUNT_NUMBER}"
-      # Only renames accounts that have a matching BankAccount record with BSB and account number
+      # SSoT: Uses Xero's BankAccountNumber field directly (no local records needed)
       def standardize_account_names
         connection = @company.corporate_company_xero_connection
 
@@ -728,9 +728,6 @@ module Api
           # Filter to BANK type accounts only
           bank_accounts_xero = xero_accounts.select { |a| a["Type"] == "BANK" && a["Status"] == "ACTIVE" }
 
-          # Get local bank accounts with Xero links
-          local_bank_accounts = @company.bank_accounts.linked_to_xero.where.not(bsb: nil)
-
           renamed = []
           skipped = []
           errors = []
@@ -738,24 +735,32 @@ module Api
           bank_accounts_xero.each do |xero_acc|
             xero_account_id = xero_acc["AccountID"]
             current_name = xero_acc["Name"]
+            bank_account_number = xero_acc["BankAccountNumber"]
 
-            # Find matching local bank account
-            local_account = local_bank_accounts.find { |ba| ba.xero_account_id == xero_account_id }
-
-            unless local_account
-              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "No linked local bank account" }
+            # SSoT: Parse BSB and account number directly from Xero's BankAccountNumber
+            # Format is typically: BSBACCOUNTNUMBER (e.g., "084435259449309")
+            unless bank_account_number.present? && bank_account_number.length >= 9
+              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "No bank account number in Xero" }
               next
             end
 
-            unless local_account.bsb.present? && local_account.account_number.present?
-              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "Missing BSB or account number" }
+            # Extract BSB (first 6 digits) and account number (rest)
+            bsb = bank_account_number[0..5]
+            account_number = bank_account_number[6..]
+
+            # Skip if BSB doesn't look valid (should be 6 digits)
+            unless bsb.match?(/^\d{6}$/)
+              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "Invalid BSB format" }
               next
             end
+
+            # Format BSB as XXX-XXX
+            formatted_bsb = "#{bsb[0..2]}-#{bsb[3..5]}"
+
+            # Detect bank code from BSB or current name
+            bank_code = detect_bank_code_from_bsb_or_name(bsb, current_name)
 
             # Generate standardized name: "{BANK_CODE} {BSB} {ACCOUNT_NUMBER}"
-            bank_code = local_account.bank_code.presence || "BANK"
-            formatted_bsb = local_account.formatted_bsb
-            account_number = local_account.account_number
             new_name = "#{bank_code} #{formatted_bsb} #{account_number}"
 
             # Skip if already has the correct name
@@ -802,6 +807,46 @@ module Api
             success: false,
             error: e.message
           }, status: :internal_server_error
+        end
+      end
+
+      # Detect bank code from BSB prefix or account name
+      def detect_bank_code_from_bsb_or_name(bsb, name)
+        # BSB prefix mappings (first 2-3 digits indicate bank)
+        bsb_prefix = bsb[0..2]
+        case bsb_prefix
+        when "082", "083", "084", "085", "086", "087"
+          "NAB"
+        when "062", "063", "064", "065", "066", "067"
+          "CBA"
+        when "012", "013", "014", "015", "016", "017"
+          "ANZ"
+        when "032", "033", "034", "035", "036", "037"
+          "WBC"
+        when "124"
+          "BOQ"
+        when "484"
+          "SUNCORP"
+        else
+          # Fallback: detect from account name
+          name_lower = name.to_s.downcase
+          if name_lower.include?("nab") || name_lower.include?("national australia")
+            "NAB"
+          elsif name_lower.include?("cba") || name_lower.include?("commonwealth") || name_lower.include?("commbank")
+            "CBA"
+          elsif name_lower.include?("anz")
+            "ANZ"
+          elsif name_lower.include?("westpac") || name_lower.include?("wbc")
+            "WBC"
+          elsif name_lower.include?("boq") || name_lower.include?("bank of queensland")
+            "BOQ"
+          elsif name_lower.include?("suncorp")
+            "SUNCORP"
+          elsif name_lower.include?("lawyer") || name_lower.include?("trust")
+            "TRUST"
+          else
+            "BANK"
+          end
         end
       end
 
