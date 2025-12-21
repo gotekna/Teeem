@@ -120,19 +120,6 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
     }
   }, [tabs]);
 
-  // Build columns with position numbers based on current order
-  const columns = React.useMemo((): KanbanColumnDef[] => {
-    return columnOrder.map((colId, index) => {
-      const col = BASE_COLUMNS.find(c => c.id === colId);
-      if (!col) return null;
-      return {
-        id: col.id,
-        title: `${index + 1}. ${col.baseTitle}`,
-        color: col.color,
-      };
-    }).filter(Boolean) as KanbanColumnDef[];
-  }, [columnOrder]);
-
   // Parent tab IDs (these are the columns, not draggable items)
   const parentTabIds = React.useMemo(() => {
     return BASE_COLUMNS.map((c) => c.id).filter(id => id !== "unassigned");
@@ -142,6 +129,30 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
   const kanbanTabs = React.useMemo(() => {
     return localTabs.filter((t) => !parentTabIds.includes(t.id));
   }, [localTabs, parentTabIds]);
+
+  // Check if there are any unassigned tabs
+  const hasUnassignedTabs = React.useMemo(() => {
+    return kanbanTabs.some((t) => !t.parent || !parentTabIds.includes(t.parent));
+  }, [kanbanTabs, parentTabIds]);
+
+  // Filter column order to hide empty unassigned
+  const visibleColumnOrder = React.useMemo(() => {
+    if (hasUnassignedTabs) return columnOrder;
+    return columnOrder.filter(id => id !== "unassigned");
+  }, [columnOrder, hasUnassignedTabs]);
+
+  // Build columns with position numbers based on current order
+  const columns = React.useMemo((): KanbanColumnDef[] => {
+    return visibleColumnOrder.map((colId, index) => {
+      const col = BASE_COLUMNS.find(c => c.id === colId);
+      if (!col) return null;
+      return {
+        id: col.id,
+        title: `${index + 1}. ${col.baseTitle}`,
+        color: col.color,
+      };
+    }).filter(Boolean) as KanbanColumnDef[];
+  }, [visibleColumnOrder]);
 
   // Determine which column a tab belongs to
   const getItemColumn = React.useCallback((tab: XeroTab): string => {
@@ -253,8 +264,13 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
     async (newOrder: string[]) => {
       const previousOrder = columnOrder;
 
+      // Preserve "unassigned" in full order even if not in visible order
+      const fullOrder = newOrder.includes("unassigned")
+        ? newOrder
+        : [...newOrder, "unassigned"];
+
       // Optimistic update - update state immediately
-      setColumnOrder(newOrder);
+      setColumnOrder(fullOrder);
 
       // Filter out "unassigned" - it's not a real tab in the database
       const realTabs = newOrder.filter(id => id !== "unassigned");
@@ -290,21 +306,21 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
   // Handle position change when user types a new position number
   const handlePositionChange = React.useCallback(
     (colId: string, newPosition: number) => {
-      const currentIndex = columnOrder.indexOf(colId);
+      const currentIndex = visibleColumnOrder.indexOf(colId);
       if (currentIndex === -1) return;
 
       // Clamp to valid range
-      const targetIndex = Math.max(0, Math.min(newPosition - 1, columnOrder.length - 1));
+      const targetIndex = Math.max(0, Math.min(newPosition - 1, visibleColumnOrder.length - 1));
       if (targetIndex === currentIndex) return;
 
       // Create new order by moving the item
-      const newOrder = [...columnOrder];
+      const newOrder = [...visibleColumnOrder];
       newOrder.splice(currentIndex, 1);
       newOrder.splice(targetIndex, 0, colId);
 
       handleColumnReorder(newOrder);
     },
-    [columnOrder, handleColumnReorder]
+    [visibleColumnOrder, handleColumnReorder]
   );
 
 
@@ -389,14 +405,14 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
       <div className="border rounded-lg p-3 bg-muted/20">
         <h4 className="text-xs font-medium mb-2 text-muted-foreground">Tab Order (drag to reorder)</h4>
         <SortableList
-          items={columnOrder.map((id, idx) => ({ id, idx }))}
+          items={visibleColumnOrder.map((id, idx) => ({ id, idx }))}
           onReorder={(newItems) => {
             handleColumnReorder(newItems.map(item => item.id));
           }}
           strategy="horizontal"
           className="flex flex-nowrap gap-2 overflow-x-auto pb-1"
         >
-          {columnOrder.map((colId, index) => {
+          {visibleColumnOrder.map((colId, index) => {
             const col = BASE_COLUMNS.find(c => c.id === colId);
             return (
               <SortableItem
@@ -405,7 +421,7 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
                 position={index + 1}
                 editableBadge
                 onPositionChange={(newPos) => handlePositionChange(colId, newPos)}
-                maxPosition={columnOrder.length}
+                maxPosition={visibleColumnOrder.length}
                 variant="card"
                 className="whitespace-nowrap"
               >
