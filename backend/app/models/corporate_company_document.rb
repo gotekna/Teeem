@@ -217,49 +217,83 @@ class CorporateCompanyDocument < ApplicationRecord
 
   # Generate a user-friendly display title from the abbreviated filename
   # Examples:
-  #   "TD FY21 CTR.pdf" -> "Company Tax Return 2021"
-  #   "TD BAS Jul-Sep 2024.pdf" -> "BAS Jul-Sep 2024"
+  # ULTRA SSoT: DocumentType.display_name IS the template
+  # If document has a type, use its template. Otherwise, clean the filename.
   def generate_display_title
     return if title.blank?
-    # Only regenerate if title changed or display_title is blank
-    return if !title_changed? && display_title.present?
+    # Only regenerate if relevant fields changed or display_title is blank
+    return if display_title.present? && !title_changed? && !document_type_id_changed?
 
-    display = title.dup
+    if document_type_record&.display_name.present?
+      self.display_title = expand_display_template(document_type_record.display_name)
+    else
+      self.display_title = clean_title_for_display
+    end
+  end
 
-    # Remove company code prefix (e.g., "TD ", "THFT ")
-    # Company codes are typically 1-5 uppercase letters at the start
-    if corporate_company&.code.present?
-      # Match exact company code at start (case insensitive)
-      display = display.sub(/\A#{Regexp.escape(corporate_company.code)}\s+/i, "")
+  # Expand DocumentType.display_name template with actual document values
+  def expand_display_template(template)
+    result = template.dup
+
+    # Financial year tokens
+    fy = financial_years&.first || extract_fy_from_title
+    if fy
+      fy_short = fy.to_s[-2..-1] # "2025" -> "25"
+      result.gsub!('{YY}', fy_short)
+      result.gsub!('{FY}', "FY#{fy_short}")
     end
 
-    # Expand FY to full year (FY21 → 2021, FY2021 → 2021)
-    display = display.gsub(/\bFY(\d{2})\b/) { "20#{$1}" }
-    display = display.gsub(/\bFY(\d{4})\b/) { $1 }
+    # Company tokens
+    result.gsub!('{CompanyCode}', corporate_company&.code.to_s)
+    result.gsub!('{CompanyName}', corporate_company&.name.to_s)
 
-    # Expand S/US to Signed/Unsigned BEFORE expanding CTR/TTR
-    # "US CTR FY24" -> "Unsigned CTR FY24" -> "Unsigned Company Tax Return 2024"
-    display = display.gsub(/\bUS\s+CTR\b/i, "Unsigned CTR")
-    display = display.gsub(/\bS\s+CTR\b/i, "Signed CTR")
-    display = display.gsub(/\bUS\s+TTR\b/i, "Unsigned TTR")
-    display = display.gsub(/\bS\s+TTR\b/i, "Signed TTR")
-
-    # Expand document type abbreviations from database
-    self.class.document_type_abbreviations.each do |abbr, full|
-      display = display.gsub(/\b#{Regexp.escape(abbr)}\b/, full)
+    # Date tokens
+    if document_date.present?
+      result.gsub!('{Date}', document_date.strftime('%d-%m-%Y'))
     end
 
-    # Titleize DRAFT/AMENDED
-    display = display.gsub(/\bDRAFT\b/i, "Draft")
-    display = display.gsub(/\bAMENDED\b/i, "Amended")
+    # Document type name (for generic templates)
+    result.gsub!('{DocTypeName}', document_type_record&.name.to_s)
 
-    # Remove file extension
-    display = display.sub(/\.(pdf|docx?|xlsx?|png|jpg|jpeg)$/i, "")
+    # Signed status from title
+    if title&.match?(/\bUS\b|Unsigned/i)
+      result.gsub!('{Signed}', 'Unsigned')
+    elsif title&.match?(/\bS\b.*\b(CTR|TTR)\b|Signed/i)
+      result.gsub!('{Signed}', 'Signed')
+    end
+
+    # Clean up unreplaced tokens (remove them)
+    result.gsub!(/\s*\{[^}]+\}\s*/, ' ')
 
     # Clean up extra spaces
-    display = display.gsub(/\s+/, " ").strip
+    result.gsub!(/\s+/, ' ').strip
+  end
 
-    self.display_title = display
+  # Extract FY from title if not in financial_years
+  def extract_fy_from_title
+    return nil unless title.present?
+    if title.match?(/FY(\d{2})\b/)
+      "20#{title.match(/FY(\d{2})\b/)[1]}".to_i
+    elsif title.match?(/FY(\d{4})\b/)
+      title.match(/FY(\d{4})\b/)[1].to_i
+    end
+  end
+
+  # Fallback: clean filename for display when no DocumentType
+  def clean_title_for_display
+    display = title.dup
+
+    # Remove company code prefix if present
+    if corporate_company&.code.present?
+      display.sub!(/\A#{Regexp.escape(corporate_company.code)}\s+/i, '')
+    end
+
+    # Remove file extension
+    display.sub!(/\.(pdf|docx?|xlsx?|png|jpg|jpeg)$/i, '')
+
+    # Clean up extra spaces
+    display.gsub!(/\s+/, ' ')
+    display.strip
   end
 
   # Extract financial years from title
