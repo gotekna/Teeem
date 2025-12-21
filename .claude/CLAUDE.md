@@ -54,6 +54,24 @@ To get version numbers:
 - Making any code change (wait for user approval)
 - Even if deployment is failing (ask user first)
 
+## 🔴 CRITICAL: Take Your Time - No Rushing
+
+**We have plenty of time to code. There is no rush.**
+
+- ❌ DON'T rush through implementation to "get it done quickly"
+- ❌ DON'T skip exploration/planning to save time
+- ❌ DON'T make assumptions to avoid asking questions
+- ❌ DON'T take shortcuts that create technical debt
+- ✅ DO take time to understand the problem fully
+- ✅ DO explore the codebase thoroughly before coding
+- ✅ DO ask clarifying questions when uncertain
+- ✅ DO implement the RIGHT solution, not the FAST solution
+- ✅ DO test thoroughly before declaring done
+
+**Quality over speed. Always.**
+
+A well-planned, properly implemented feature takes less total time than a rushed feature that needs multiple fix iterations. The user would rather wait for correct code than receive broken code quickly.
+
 ## 🔴 CRITICAL: Quality Triggers (Correction Keywords)
 
 **These are things Claude MUST do by default. If Claude forgets, user types the keyword to correct.**
