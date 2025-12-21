@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { FileText } from "lucide-react";
 
 // Types
 interface BankTransaction {
@@ -72,6 +74,17 @@ interface SyncStatus {
 
 interface Props {
   companyId?: string;
+  tabKey?: string; // Optional tab key for filtering related documents (e.g., "bank-statement")
+}
+
+interface RelatedDocument {
+  id: number;
+  file_name: string;
+  display_name?: string;
+  document_type?: string;
+  folder?: string;
+  created_at: string;
+  file_size?: number;
 }
 
 const MONTHS = [
@@ -89,7 +102,7 @@ const MONTHS = [
   { value: "12", label: "December" },
 ];
 
-export function XeroStatementView({ companyId }: Props) {
+export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Props) {
   // State
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -97,6 +110,11 @@ export function XeroStatementView({ companyId }: Props) {
   const [financialYears, setFinancialYears] = useState<string[]>([]);
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [monthlySummary, setMonthlySummary] = useState<MonthlySummaryItem[]>([]);
+
+  // Related documents state
+  const [relatedDocs, setRelatedDocs] = useState<RelatedDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [docsExpanded, setDocsExpanded] = useState<string | undefined>(undefined);
 
   // Filters
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
@@ -124,6 +142,31 @@ export function XeroStatementView({ companyId }: Props) {
   useEffect(() => {
     loadTransactions();
   }, [selectedAccount, selectedFY, selectedMonth, searchQuery, page]);
+
+  // Load related documents when section is expanded
+  useEffect(() => {
+    if (docsExpanded === "related-docs" && companyId && relatedDocs.length === 0 && !docsLoading) {
+      loadRelatedDocuments();
+    }
+  }, [docsExpanded, companyId]);
+
+  const loadRelatedDocuments = async () => {
+    if (!companyId || !tabKey) return;
+    try {
+      setDocsLoading(true);
+      const response = await api.get<{ success: boolean; documents: RelatedDocument[] }>(
+        `/api/v1/company_documents`,
+        { params: { company_id: companyId, tab: tabKey } }
+      );
+      if (response.success) {
+        setRelatedDocs(response.documents || []);
+      }
+    } catch (error) {
+      console.error("Failed to load related documents:", error);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
 
   const loadInitialData = async () => {
     try {
@@ -606,6 +649,62 @@ export function XeroStatementView({ companyId }: Props) {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Related Documents Section */}
+        {companyId && (
+          <Accordion
+            type="single"
+            collapsible
+            value={docsExpanded}
+            onValueChange={setDocsExpanded}
+            className="mt-6 border-t"
+          >
+            <AccordionItem value="related-docs" className="border-0">
+              <AccordionTrigger className="py-3 hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium text-sm">
+                    Related Documents
+                    {relatedDocs.length > 0 && (
+                      <Badge variant="secondary" className="ml-2">{relatedDocs.length}</Badge>
+                    )}
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent>
+                {docsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : relatedDocs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">
+                    No documents tagged with this tab. Tag a document type with &quot;{tabKey}&quot; to see documents here.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {relatedDocs.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+                        onClick={() => window.open(`/corporate/documents/${doc.id}`, "_blank")}
+                      >
+                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {doc.display_name || doc.file_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.document_type} • {doc.folder}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         )}
       </CardContent>
     </Card>
