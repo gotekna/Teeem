@@ -124,30 +124,41 @@ export default function DocumentTypeDetailPage() {
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
-  const [folderOptions, setFolderOptions] = React.useState<string[]>([]);
+  const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ name: string; children: string[] }>>([]); // Full hierarchy for Additional Tabs;
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Fetch available folders from API (SSoT)
+  // Fetch available folders from API (SSoT) - includes hierarchy for subtabs
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_folders?active=true");
+        // Fetch with hierarchy=true to get parent folders with their children (subtabs)
+        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_folders?active=true&hierarchy=true");
         if (data.success) {
-          // Extract folder names and sort alphabetically
-          const names = data.data.map((f: any) => f.name).sort();
-          setFolderOptions(names);
+          // Build folder hierarchy for the additional tabs selector
+          const hierarchy = data.data.map((f: any) => ({
+            name: f.name,
+            children: (f.children || []).map((c: any) => c.name)
+          }));
+          setFolderHierarchy(hierarchy);
+
+          // Extract root folder names only for Folder/Primary Tab dropdowns
+          const rootNames = data.data.map((f: any) => f.name).sort();
+          setFolderOptions(rootNames);
         } else {
           // Fallback to hard-coded list if API fails
           setFolderOptions(FOLDER_OPTIONS);
+          setFolderHierarchy([]);
         }
       } catch (error) {
         console.error("Failed to fetch folders:", error);
         // Fallback to hard-coded list if API fails
         setFolderOptions(FOLDER_OPTIONS);
+        setFolderHierarchy([]);
       }
     };
     fetchFolders();
@@ -1431,18 +1442,54 @@ export default function DocumentTypeDetailPage() {
               </p>
               <MultipleSelector
                 placeholder="Select folders/tabs..."
-                options={folderOptions.map(folder => ({
-                  value: folder,
-                  label: folder + (documentType.primary_tab === folder ? " ★" : ""),
-                }))}
+                options={(() => {
+                  // Build hierarchical options: parent folders and their subtabs
+                  const options: Array<{ value: string; label: string; category: string }> = [];
+
+                  // If we have hierarchy data, show folders with their subtabs
+                  if (folderHierarchy.length > 0) {
+                    folderHierarchy.forEach(folder => {
+                      // Add parent folder (category: "Folders")
+                      options.push({
+                        value: folder.name,
+                        label: folder.name + (documentType.primary_tab === folder.name ? " ★" : ""),
+                        category: "Folders",
+                      });
+                      // Add subtabs (category: parent folder name)
+                      folder.children.forEach(child => {
+                        const subtabValue = `${folder.name} > ${child}`;
+                        options.push({
+                          value: subtabValue,
+                          label: child + (documentType.primary_tab === subtabValue ? " ★" : ""),
+                          category: `${folder.name} Subtabs`,
+                        });
+                      });
+                    });
+                  } else {
+                    // Fallback to flat folder options
+                    folderOptions.forEach(folder => {
+                      options.push({
+                        value: folder,
+                        label: folder + (documentType.primary_tab === folder ? " ★" : ""),
+                        category: "Folders",
+                      });
+                    });
+                  }
+
+                  return options;
+                })()}
+                groupBy="category"
                 value={(documentType.tabs || []).map(tab => ({
                   value: tab,
-                  label: tab + (documentType.primary_tab === tab ? " ★" : ""),
+                  label: tab.includes(" > ")
+                    ? tab.split(" > ")[1] + (documentType.primary_tab === tab ? " ★" : "")
+                    : tab + (documentType.primary_tab === tab ? " ★" : ""),
+                  category: tab.includes(" > ") ? `${tab.split(" > ")[0]} Subtabs` : "Folders",
                 }))}
                 onChange={(options) => updateField("tabs", options.map(o => o.value))}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                ★ indicates primary tab
+                ★ indicates primary tab. Use "Folder &gt; Subtab" format for subtabs.
               </p>
             </div>
           </CardContent>
