@@ -2412,7 +2412,7 @@ export default function CaseDetailPage() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{doc.title || doc.filename}</span>
+                            <span className="font-medium">{doc.filename}</span>
                             <Badge className={getRelevanceColor(doc.relevance)}>
                               {doc.relevance?.replace("_", " ") || "linked"}
                             </Badge>

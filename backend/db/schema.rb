@@ -734,7 +734,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.index ["short_code"], name: "index_case_documents_on_short_code"
   end
 
-  create_table "case_email_qas", force: :cascade do |t|
+  create_table "case_email_qas", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "case_id", null: false
     t.bigint "case_email_id"
     t.bigint "email_warehouse_id"
@@ -749,13 +749,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "category"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["case_email_id"], name: "index_case_email_qas_on_case_email_id"
-    t.index ["case_id", "is_answered"], name: "index_case_email_qas_on_case_id_and_is_answered"
-    t.index ["case_id"], name: "index_case_email_qas_on_case_id"
-    t.index ["email_warehouse_id"], name: "index_case_email_qas_on_email_warehouse_id"
   end
 
-  create_table "case_emails", force: :cascade do |t|
+  create_table "case_emails", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "case_id", null: false
     t.bigint "email_warehouse_id", null: false
     t.string "relevance"
@@ -772,13 +768,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.boolean "has_unanswered_questions", default: false
     t.boolean "auto_linked", default: false, null: false
     t.bigint "auto_linked_via_contact_id"
-    t.index ["added_by_id"], name: "index_case_emails_on_added_by_id"
-    t.index ["auto_linked_via_contact_id"], name: "index_case_emails_on_auto_linked_via_contact_id"
-    t.index ["case_id", "auto_linked"], name: "index_case_emails_on_case_id_and_auto_linked"
-    t.index ["case_id", "email_warehouse_id"], name: "index_case_emails_on_case_id_and_email_warehouse_id", unique: true
-    t.index ["case_id"], name: "index_case_emails_on_case_id"
-    t.index ["email_warehouse_id"], name: "index_case_emails_on_email_warehouse_id"
-    t.index ["relevance"], name: "index_case_emails_on_relevance"
   end
 
   create_table "case_jobs", force: :cascade do |t|
@@ -1154,9 +1143,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["contact_id", "is_primary"], name: "index_contact_emails_on_primary", where: "(is_primary = true)"
-    t.index ["contact_id", "position"], name: "index_contact_emails_on_contact_id_and_position"
-    t.index ["contact_id"], name: "index_contact_emails_on_contact_id"
   end
 
   create_table "contact_external_links", force: :cascade do |t|
@@ -2235,7 +2221,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.index ["status"], name: "index_e_signature_signers_on_status"
   end
 
-  create_table "email_attachments", force: :cascade do |t|
+  create_table "email_attachments", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.string "outlook_attachment_id"
     t.datetime "created_at", null: false
@@ -2244,13 +2230,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "filename"
     t.string "sharepoint_path"
     t.string "content_hash"
-    t.index ["attachment_id"], name: "index_email_attachments_on_attachment_id"
-    t.index ["email_warehouse_id", "attachment_id"], name: "index_email_attachments_unique", unique: true
-    t.index ["email_warehouse_id"], name: "index_email_attachments_on_email_warehouse_id"
-    t.index ["outlook_attachment_id"], name: "index_email_attachments_on_outlook_attachment_id"
   end
 
-  create_table "email_blacklist_items", force: :cascade do |t|
+  create_table "email_blacklist_items", id: :bigint, default: nil, force: :cascade do |t|
     t.string "pattern", null: false
     t.string "pattern_type", null: false
     t.text "description"
@@ -2258,11 +2240,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.integer "match_count", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["active"], name: "index_email_blacklist_items_on_active"
-    t.index ["pattern", "pattern_type"], name: "index_email_blacklist_items_on_pattern_and_pattern_type", unique: true
   end
 
-  create_table "email_case_proposals", force: :cascade do |t|
+  create_table "email_case_proposals", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "email_warehouse_id"
     t.bigint "case_record_id"
     t.bigint "created_by_id"
@@ -2280,15 +2260,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.jsonb "folder_paths", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["approved_by_id"], name: "index_email_case_proposals_on_approved_by_id"
-    t.index ["case_record_id"], name: "index_email_case_proposals_on_case_record_id"
-    t.index ["created_by_id"], name: "index_email_case_proposals_on_created_by_id"
-    t.index ["email_warehouse_id", "status"], name: "index_email_case_proposals_on_email_warehouse_id_and_status"
-    t.index ["email_warehouse_id"], name: "index_email_case_proposals_on_email_warehouse_id"
-    t.index ["status"], name: "index_email_case_proposals_on_status"
   end
 
-  create_table "email_job_proposals", force: :cascade do |t|
+  create_table "email_job_proposals", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "created_by_user_id", null: false
     t.bigint "job_id"
@@ -2304,16 +2278,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.datetime "approved_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["approved_by_user_id"], name: "index_email_job_proposals_on_approved_by_user_id"
-    t.index ["created_at"], name: "index_email_job_proposals_on_created_at"
-    t.index ["created_by_user_id"], name: "index_email_job_proposals_on_created_by_user_id"
-    t.index ["email_warehouse_id", "status"], name: "index_email_job_proposals_on_email_warehouse_id_and_status"
-    t.index ["email_warehouse_id"], name: "index_email_job_proposals_on_email_warehouse_id"
-    t.index ["job_id"], name: "index_email_job_proposals_on_job_id"
-    t.index ["status"], name: "index_email_job_proposals_on_status"
   end
 
-  create_table "email_recipients", force: :cascade do |t|
+  create_table "email_recipients", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "email_warehouse_id", null: false
     t.bigint "user_id"
     t.bigint "contact_id"
@@ -2322,15 +2289,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.boolean "is_internal", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["contact_id"], name: "index_email_recipients_on_contact_id"
-    t.index ["email_warehouse_id", "email_address"], name: "idx_email_recipients_unique", unique: true
-    t.index ["email_warehouse_id"], name: "index_email_recipients_on_email_warehouse_id"
-    t.index ["is_internal"], name: "index_email_recipients_on_is_internal"
-    t.index ["recipient_type"], name: "index_email_recipients_on_recipient_type"
-    t.index ["user_id"], name: "index_email_recipients_on_user_id"
   end
 
-  create_table "email_sync_statuses", force: :cascade do |t|
+  create_table "email_sync_statuses", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "status", default: "pending"
     t.datetime "last_sync_at"
@@ -2342,7 +2303,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.string "sync_cursor"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["user_id"], name: "index_email_sync_statuses_on_user_id", unique: true
   end
 
   create_table "email_warehouse", force: :cascade do |t|
@@ -2397,35 +2357,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.datetime "contacts_matched_at"
     t.string "source_type", default: "outlook"
     t.bigint "imap_credential_id"
-    t.index ["cc_emails"], name: "index_email_warehouse_on_cc_emails", using: :gin
-    t.index ["contact_ids"], name: "index_email_warehouse_on_contact_ids", using: :gin
-    t.index ["conversation_id"], name: "index_email_warehouse_on_conversation_id"
-    t.index ["email_classification"], name: "index_email_warehouse_on_email_classification", using: :gin
-    t.index ["from_email"], name: "index_email_warehouse_on_from_email"
-    t.index ["imap_credential_id"], name: "index_email_warehouse_on_imap_credential_id"
-    t.index ["internet_headers"], name: "index_email_warehouse_on_internet_headers", using: :gin
-    t.index ["internet_message_id", "mailbox_owner_email"], name: "index_email_warehouse_on_message_id_and_mailbox", unique: true
-    t.index ["internet_message_id"], name: "index_email_warehouse_on_internet_message_id"
-    t.index ["is_latest_in_thread"], name: "index_email_warehouse_on_is_latest_in_thread"
-    t.index ["job_id", "is_latest_in_thread", "received_at"], name: "idx_email_warehouse_job_latest_received"
-    t.index ["job_id", "is_latest_in_thread"], name: "index_email_warehouse_on_job_id_and_is_latest_in_thread"
-    t.index ["job_id", "received_at"], name: "index_email_warehouse_on_job_id_and_received_at"
-    t.index ["job_id"], name: "index_email_warehouse_on_job_id"
-    t.index ["mailbox_owner_email"], name: "index_email_warehouse_on_mailbox_owner_email"
-    t.index ["microsoft_credential_id"], name: "index_email_warehouse_on_microsoft_credential_id"
-    t.index ["primary_contact_id"], name: "index_email_warehouse_on_primary_contact_id"
-    t.index ["received_at"], name: "index_email_warehouse_on_received_at"
-    t.index ["searchable"], name: "index_email_warehouse_on_searchable", using: :gin
-    t.index ["sharepoint_email_file_id"], name: "index_email_warehouse_on_sharepoint_email_file_id"
-    t.index ["source_type"], name: "index_email_warehouse_on_source_type"
-    t.index ["ssot_owner_id"], name: "index_email_warehouse_on_ssot_owner_id"
-    t.index ["synced_by_user_id"], name: "index_email_warehouse_on_synced_by_user_id"
-    t.index ["to_emails"], name: "index_email_warehouse_on_to_emails", using: :gin
-    t.index ["user_classification"], name: "index_email_warehouse_on_user_classification"
-    t.index ["user_classification_by_id"], name: "index_email_warehouse_on_user_classification_by_id"
   end
 
-  create_table "emails", force: :cascade do |t|
+  create_table "emails", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "job_id"
     t.bigint "user_id"
     t.string "from_email", null: false
@@ -2444,12 +2378,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
     t.text "raw_email"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["from_email"], name: "index_emails_on_from_email"
-    t.index ["job_id", "received_at"], name: "index_emails_on_job_id_and_received_at"
-    t.index ["job_id"], name: "index_emails_on_job_id"
-    t.index ["message_id"], name: "index_emails_on_message_id", unique: true
-    t.index ["received_at"], name: "index_emails_on_received_at"
-    t.index ["user_id"], name: "index_emails_on_user_id"
   end
 
   create_table "estimate_line_items", force: :cascade do |t|
@@ -6272,7 +6200,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
   add_foreign_key "bill_inboxes", "contacts", column: "supplier_id"
   add_foreign_key "bill_inboxes", "corporate_companies"
   add_foreign_key "bill_inboxes", "corporate_companies", column: "detected_company_id"
-  add_foreign_key "bill_inboxes", "email_warehouse"
   add_foreign_key "bill_inboxes", "external_invoices"
   add_foreign_key "bill_inboxes", "purchase_orders", column: "matched_purchase_order_id"
   add_foreign_key "bill_inboxes", "users", column: "approved_by_id"
@@ -6305,13 +6232,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
   add_foreign_key "case_documents", "cases"
   add_foreign_key "case_documents", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "case_documents", "users", column: "added_by_id"
-  add_foreign_key "case_email_qas", "case_emails"
-  add_foreign_key "case_email_qas", "cases"
-  add_foreign_key "case_email_qas", "email_warehouse"
-  add_foreign_key "case_emails", "cases"
-  add_foreign_key "case_emails", "contacts", column: "auto_linked_via_contact_id"
-  add_foreign_key "case_emails", "email_warehouse"
-  add_foreign_key "case_emails", "users", column: "added_by_id"
   add_foreign_key "case_jobs", "cases"
   add_foreign_key "case_jobs", "jobs"
   add_foreign_key "case_timeline_events", "cases"
@@ -6340,7 +6260,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
   add_foreign_key "contact_corporate_group_memberships", "contacts"
   add_foreign_key "contact_corporate_group_memberships", "corporate_companies", column: "company_id"
   add_foreign_key "contact_corporate_group_memberships", "corporate_groups", column: "company_group_id"
-  add_foreign_key "contact_emails", "contacts"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -6404,29 +6323,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_21_140003) do
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
-  add_foreign_key "email_attachments", "attachments"
-  add_foreign_key "email_attachments", "email_warehouse"
-  add_foreign_key "email_case_proposals", "cases", column: "case_record_id"
-  add_foreign_key "email_case_proposals", "email_warehouse"
-  add_foreign_key "email_case_proposals", "users", column: "approved_by_id"
-  add_foreign_key "email_case_proposals", "users", column: "created_by_id"
-  add_foreign_key "email_job_proposals", "email_warehouse"
-  add_foreign_key "email_job_proposals", "jobs"
-  add_foreign_key "email_job_proposals", "users", column: "approved_by_user_id"
-  add_foreign_key "email_job_proposals", "users", column: "created_by_user_id"
-  add_foreign_key "email_recipients", "contacts"
-  add_foreign_key "email_recipients", "email_warehouse"
-  add_foreign_key "email_recipients", "users"
-  add_foreign_key "email_sync_statuses", "users"
-  add_foreign_key "email_warehouse", "contacts", column: "primary_contact_id"
-  add_foreign_key "email_warehouse", "imap_credentials"
-  add_foreign_key "email_warehouse", "jobs"
-  add_foreign_key "email_warehouse", "organization_microsoft_app_credentials", column: "microsoft_credential_id"
-  add_foreign_key "email_warehouse", "users", column: "ssot_owner_id"
-  add_foreign_key "email_warehouse", "users", column: "synced_by_user_id"
-  add_foreign_key "email_warehouse", "users", column: "user_classification_by_id"
-  add_foreign_key "emails", "jobs"
-  add_foreign_key "emails", "users"
   add_foreign_key "estimate_line_items", "estimates"
   add_foreign_key "estimate_reviews", "estimates"
   add_foreign_key "estimates", "jobs"

@@ -226,9 +226,8 @@ interface Asset {
 
 interface CompanyDocument {
   id: number | string;
-  title?: string;
-  display_title?: string;
   file_name?: string;
+  display_name?: string;
   file_url?: string;
   file_size?: number;
   folder?: string;
@@ -241,7 +240,7 @@ interface CompanyDocument {
   company?: Company;
   asset_id?: number;
   asset?: Asset;
-  onedrive_file_id?: string;
+  sharepoint_file_id?: string;
   user_validated_at?: string;
   user_validated_by_id?: number;
   ai_verification_status?: "pending" | "processing" | "verified" | "mismatch" | "error" | string;
@@ -286,7 +285,7 @@ export default function DocumentPreviewModal({
 
   // Editing states
   const [isEditing, setIsEditing] = React.useState(false);
-  const [editedTitle, setEditedTitle] = React.useState(initialDocument?.title || "");
+  const [editedTitle, setEditedTitle] = React.useState(initialDocument?.file_name || "");
   const [editedCompanyId, setEditedCompanyId] = React.useState<string>(
     String(initialDocument?.company_id || initialDocument?.company?.id || "")
   );
@@ -365,7 +364,6 @@ export default function DocumentPreviewModal({
         if (response?.success && response.documents) {
           // Filter for amended documents (case-insensitive)
           const amendedDocs = response.documents.filter(doc =>
-            doc.title?.toLowerCase().includes("amended") ||
             doc.file_name?.toLowerCase().includes("amended")
           );
 
@@ -385,7 +383,7 @@ export default function DocumentPreviewModal({
             // Find highest existing amended number
             let maxNumber = 0;
             for (const doc of sortedDocs) {
-              const match = (doc.title || doc.file_name || "").match(/Amended\s*(\d+)/i);
+              const match = (doc.file_name || "").match(/Amended\s*(\d+)/i);
               if (match) {
                 maxNumber = Math.max(maxNumber, parseInt(match[1], 10));
               } else {
@@ -409,7 +407,7 @@ export default function DocumentPreviewModal({
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
       // Only fetch preview for OneDrive files
-      if (!document?.onedrive_file_id || !open) {
+      if (!document?.sharepoint_file_id || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -446,7 +444,7 @@ export default function DocumentPreviewModal({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.onedrive_file_id, open]);
+  }, [document?.id, document?.sharepoint_file_id, open]);
 
   // Get the full document type record from database (includes naming_format)
   const getDocumentTypeRecord = React.useCallback((docTypeName: string) => {
@@ -754,13 +752,13 @@ export default function DocumentPreviewModal({
   React.useEffect(() => {
     setDocument(initialDocument);
     setValidated(initialDocument?.user_validated_at != null);
-    setEditedTitle(initialDocument?.title || "");
+    setEditedTitle(initialDocument?.file_name || "");
     setEditedCompanyId(String(initialDocument?.company_id || initialDocument?.company?.id || ""));
     setEditedFolder(initialDocument?.folder || "");
 
     // Auto-detect document type from filename if not already set or if current type is unknown
     const currentDocType = initialDocument?.document_type || "";
-    const filename = initialDocument?.file_name || initialDocument?.title || "";
+    const filename = initialDocument?.file_name || "";
     const folder = initialDocument?.folder || "";
 
     // Check if current doc type exists in available options
@@ -804,7 +802,7 @@ export default function DocumentPreviewModal({
     return "unknown";
   };
 
-  const fileType = getFileType(document?.file_name || document?.title);
+  const fileType = getFileType(document?.file_name);
 
   // Poll for AI verification results
   React.useEffect(() => {
@@ -1134,7 +1132,7 @@ export default function DocumentPreviewModal({
           await api.post(`/api/v1/company_documents/${document.id}/feedback`, {
             feedback: {
               action: "accepted",
-              final_name: response.document.title,
+              final_name: response.document.file_name,
               final_folder: response.document.folder,
             },
           });
@@ -1177,7 +1175,7 @@ export default function DocumentPreviewModal({
   };
 
   // Check if document has OneDrive file for AI verification
-  const canAiVerify = document?.onedrive_file_id && !validated;
+  const canAiVerify = document?.sharepoint_file_id && !validated;
 
   // AI verification status
   const aiStatus = document?.ai_verification_status;
@@ -1201,7 +1199,7 @@ export default function DocumentPreviewModal({
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <DialogTitle className="truncate text-sm font-medium mb-0 flex-1">
-              {document.display_title || document.title}
+              {document.display_name || document.file_name}
               {isEditingPdf && <span className="ml-2 text-xs text-orange-500">(Editing)</span>}
             </DialogTitle>
             {/* Edit PDF button - only for PDFs */}
@@ -1591,7 +1589,7 @@ export default function DocumentPreviewModal({
                 </div>
 
                 {/* Save button and action notes */}
-                {((editedTitle && editedTitle !== document.title) ||
+                {((editedTitle && editedTitle !== document.file_name) ||
                   (editedFolder && editedFolder !== document.folder) ||
                   (editedDocumentType && editedDocumentType !== document.document_type) ||
                   (editedCompanyId && editedCompanyId !== String(document.company_id || document.company?.id || "")) ||
@@ -1606,7 +1604,7 @@ export default function DocumentPreviewModal({
                         size="sm"
                         className="h-7 text-xs"
                         onClick={() => {
-                          setEditedTitle(document.title || "");
+                          setEditedTitle(document.file_name || "");
                           setEditedFolder(document.folder || "");
                           setEditedDocumentType(document.document_type || "");
                           setEditedCompanyId(String(document.company_id || document.company?.id || ""));
@@ -2052,7 +2050,7 @@ export default function DocumentPreviewModal({
                 // PDF Editor Mode - use /content endpoint to bypass CORS
                 <PDFEditor
                   url={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/v1/company_documents/${document.id}/content`}
-                  fileName={document.file_name || document.title || "document.pdf"}
+                  fileName={document.file_name || "document.pdf"}
                   onSave={async (pdfBytes, fileName) => {
                     try {
                       // Convert bytes to base64 for JSON transport
@@ -2113,7 +2111,7 @@ export default function DocumentPreviewModal({
                 <div className="flex items-center justify-center flex-1 p-4 overflow-auto">
                   <img
                     src={document.file_url}
-                    alt={document.title}
+                    alt={document.file_name}
                     className="max-w-full max-h-full object-contain"
                   />
                 </div>
@@ -2132,7 +2130,7 @@ export default function DocumentPreviewModal({
                     {previewError || "Preview not available"}
                   </p>
                   <p className="text-sm mb-4 text-center">
-                    {document.onedrive_file_id
+                    {document.sharepoint_file_id
                       ? "Could not load SharePoint preview."
                       : "This file type cannot be previewed inline."}
                   </p>

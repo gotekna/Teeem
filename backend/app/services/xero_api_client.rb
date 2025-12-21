@@ -484,6 +484,89 @@ class XeroApiClient
   end
 
   # ============================================
+  # REPORT METHODS (P&L, Balance Sheet)
+  # ============================================
+
+  # Fetch Profit & Loss report from Xero
+  # @param connection [CorporateCompanyXeroConnection] - The company's Xero connection
+  # @param from_date [Date] - Start date of the report period
+  # @param to_date [Date] - End date of the report period
+  # @return [Hash] - { success: true, report: {...} } or { success: false, error: ... }
+  def get_profit_and_loss(connection, from_date:, to_date:)
+    raise ArgumentError, "Connection required" unless connection
+    raise ArgumentError, "from_date required" unless from_date
+    raise ArgumentError, "to_date required" unless to_date
+
+    # Refresh tokens if needed
+    if connection.needs_refresh?
+      unless connection.refresh_tokens!
+        return { success: false, error: "Failed to refresh Xero tokens. Please reconnect." }
+      end
+    end
+
+    response = get(
+      "Reports/ProfitAndLoss",
+      tenant_id: connection.xero_tenant_id,
+      fromDate: from_date.to_s,
+      toDate: to_date.to_s
+    )
+
+    if response[:success]
+      reports = response[:data]["Reports"] || []
+      report = reports.first
+
+      if report.nil?
+        { success: false, error: "No P&L report returned from Xero" }
+      else
+        { success: true, report: report }
+      end
+    else
+      { success: false, error: response[:error] || "Failed to fetch P&L from Xero" }
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error fetching Xero P&L: #{e.message}")
+    { success: false, error: e.message }
+  end
+
+  # Fetch Balance Sheet report from Xero
+  # @param connection [CorporateCompanyXeroConnection] - The company's Xero connection
+  # @param as_at_date [Date] - The date for the balance sheet
+  # @return [Hash] - { success: true, report: {...} } or { success: false, error: ... }
+  def get_balance_sheet(connection, as_at_date:)
+    raise ArgumentError, "Connection required" unless connection
+    raise ArgumentError, "as_at_date required" unless as_at_date
+
+    # Refresh tokens if needed
+    if connection.needs_refresh?
+      unless connection.refresh_tokens!
+        return { success: false, error: "Failed to refresh Xero tokens. Please reconnect." }
+      end
+    end
+
+    response = get(
+      "Reports/BalanceSheet",
+      tenant_id: connection.xero_tenant_id,
+      date: as_at_date.to_s
+    )
+
+    if response[:success]
+      reports = response[:data]["Reports"] || []
+      report = reports.first
+
+      if report.nil?
+        { success: false, error: "No Balance Sheet report returned from Xero" }
+      else
+        { success: true, report: report }
+      end
+    else
+      { success: false, error: response[:error] || "Failed to fetch Balance Sheet from Xero" }
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error fetching Xero Balance Sheet: #{e.message}")
+    { success: false, error: e.message }
+  end
+
+  # ============================================
   # ATTACHMENT METHODS (for Data Warehouse sync)
   # ============================================
 

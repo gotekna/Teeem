@@ -18,9 +18,8 @@ import {
 
 interface CompanyDocument {
   id: number | string;
-  title?: string;
-  display_title?: string;
   file_name?: string;
+  display_name?: string;
   file_url?: string;
   file_size?: number;
   folder?: string;
@@ -28,7 +27,7 @@ interface CompanyDocument {
   financial_years?: number[] | string;
   source?: string;
   company?: { id: number; name: string; code: string };
-  onedrive_file_id?: string;
+  sharepoint_file_id?: string;
   // Confidence scores (0-100)
   ocr_confidence?: number;
   ocr_method?: string; // 'text_extraction' | 'vision'
@@ -59,7 +58,7 @@ export default function DocumentSidePanel({
   // Fetch embeddable preview URL for OneDrive files
   React.useEffect(() => {
     const fetchPreviewUrl = async () => {
-      if (!document?.onedrive_file_id || !open) {
+      if (!document?.sharepoint_file_id || !open) {
         setPreviewUrl(null);
         return;
       }
@@ -94,11 +93,11 @@ export default function DocumentSidePanel({
     };
 
     fetchPreviewUrl();
-  }, [document?.id, document?.onedrive_file_id, open]);
+  }, [document?.id, document?.sharepoint_file_id, open]);
 
   if (!document) return null;
 
-  const fileName = document.file_name || document.title || "Document";
+  const fileName = document.file_name || "Document";
   const fileExtension = fileName.split(".").pop()?.toLowerCase() || "";
   const fileType = ["pdf"].includes(fileExtension)
     ? "pdf"
@@ -247,7 +246,7 @@ export default function DocumentSidePanel({
                 title="Document Preview"
                 allow="fullscreen"
               />
-            ) : fileType === "pdf" && document.file_url && !document.onedrive_file_id ? (
+            ) : fileType === "pdf" && document.file_url && !document.sharepoint_file_id ? (
               <iframe
                 src={document.file_url}
                 className="w-full h-full border-0"
@@ -268,7 +267,7 @@ export default function DocumentSidePanel({
                   {previewError || "Preview not available"}
                 </p>
                 <p className="text-sm text-center mb-4">
-                  {document.onedrive_file_id
+                  {document.sharepoint_file_id
                     ? "Could not load SharePoint preview"
                     : "This file type cannot be previewed inline"}
                 </p>

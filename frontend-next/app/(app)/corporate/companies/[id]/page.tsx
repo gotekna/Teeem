@@ -2661,7 +2661,8 @@ function ConsolidationTab({ company, onUpdate }: { company: Company; onUpdate: (
 // Document interface for table
 interface CompanyDocument extends TableRow {
   display_title?: string;
-  title?: string;
+  display_name?: string;
+  file_name?: string;
   validated?: boolean;
   validation_source?: string;
   financial_years?: string;
@@ -2773,7 +2774,7 @@ function CompanyDocumentsTab({ companyId, company, category }: { companyId: stri
       // Transform documents for table display
       const transformed = docs.map((doc) => ({
         ...doc,
-        display_title: doc.display_title || doc.title,
+        display_title: doc.display_name || doc.file_name,
         file_size_display: formatFileSize(doc.file_size),
         source_display: doc.source === "sharepoint" ? "SharePoint" : "Upload",
         financial_years: Array.isArray(doc.financial_years)
