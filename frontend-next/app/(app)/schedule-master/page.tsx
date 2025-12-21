@@ -25,7 +25,6 @@ import {
   AlertTriangle,
   CheckCircle,
   PlayCircle,
-  BarChart3,
   TrendingUp,
   Briefcase,
   Plus,
@@ -201,12 +200,6 @@ export default function ScheduleMasterPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" asChild>
-            <Link href="/gantt">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Gantt View
-            </Link>
-          </Button>
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             Add Task

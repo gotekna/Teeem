@@ -44,6 +44,10 @@ export {
 export { defaultStatuses, holdReasons } from "./types";
 export type { GanttRange, GanttStatus, GanttFeature, GanttMarker as GanttMarkerType, GanttGroup, GanttDependency, DependencyType, LockType, HoldReason, HoldState } from "./types";
 
+// Dashboard & Analytics components (migrated from sm-gantt)
+export * from "./SmDashboardCharts";
+export * from "./SmAnalyticsComponents";
+
 // Filter, View, and Column components
 export { GanttFilterPanel, type GanttFilters } from "./gantt-filter-panel";
 export { GanttViewSelector, type GanttGroupMode } from "./gantt-view-selector";

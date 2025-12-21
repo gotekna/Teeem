@@ -36,7 +36,9 @@ import {
   ClipboardList,
   Flag,
   Camera,
+  Settings,
 } from "lucide-react";
+import { SMGanttTab } from "./SMGanttTab";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -397,6 +399,10 @@ export function ScheduleMasterTab() {
             <ClipboardList className="h-4 w-4 mr-2" />
             Task Templates
           </TabsTrigger>
+          <TabsTrigger value="display-settings">
+            <Settings className="h-4 w-4 mr-2" />
+            Display Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="schedule-templates" className="space-y-6 mt-6">
@@ -640,6 +646,10 @@ export function ScheduleMasterTab() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="display-settings" className="mt-6">
+          <SMGanttTab />
         </TabsContent>
       </Tabs>
 

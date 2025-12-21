@@ -13,8 +13,8 @@ class EntityTab < ApplicationRecord
   # Valid scopes
   SCOPES = %w[corporate_entity people job document xero].freeze
 
-  # Valid tab groups
-  TAB_GROUPS = %w[overview documents data special].freeze
+  # Valid tab groups (simplified: overview = features/data, documents = file folders)
+  TAB_GROUPS = %w[overview documents].freeze
 
   # Associations
   belongs_to :parent, class_name: 'EntityTab', optional: true
@@ -101,7 +101,7 @@ class EntityTab < ApplicationRecord
     "#{base_path}/#{sharepoint_folder_path}"
   end
 
-  # Build hierarchy path (e.g., "ATO/Tax Returns")
+  # Build hierarchy path (e.g., "Xero/Profit & Loss/Transactions")
   def hierarchy_path
     parts = []
     current = self
@@ -109,7 +109,7 @@ class EntityTab < ApplicationRecord
       parts.unshift(current.display_name)
       current = current.parent
     end
-    parts.join(' > ')
+    parts.join('/')
   end
 
   # Convert to nested JSON for API
@@ -144,7 +144,7 @@ class EntityTab < ApplicationRecord
   def self.nested_tabs_for_scope(scope_name, entity_type: nil)
     tabs = tabs_for_scope(scope_name, entity_type: entity_type)
                 .root_tabs
-                .includes(:children, :document_types)
+                .includes(children: { children: :children }, document_types: [])
 
     tabs.map(&:as_nested_json)
   end
@@ -208,17 +208,17 @@ class EntityTab < ApplicationRecord
       end
     end
 
-    # Special tabs
-    special_tabs = [
+    # Feature tabs (Documents browser, Data view, Activity log)
+    feature_tabs = [
       { tab_key: 'documents', display_name: 'Documents', component_name: 'DocumentsTab' },
       { tab_key: 'data', display_name: 'Data', component_name: 'DataTab' },
       { tab_key: 'activity', display_name: 'Activity', component_name: 'ActivityTab' }
     ]
 
-    special_tabs.each_with_index do |attrs, idx|
+    feature_tabs.each_with_index do |attrs, idx|
       find_or_create_by!(scope: 'corporate_entity', tab_key: attrs[:tab_key]) do |tab|
         tab.display_name = attrs[:display_name]
-        tab.tab_group = 'special'
+        tab.tab_group = 'overview'
         tab.entity_filters = %w[Company Trust Superfund Charity]
         tab.order_position = idx + 200
         tab.enabled = true
@@ -232,12 +232,12 @@ class EntityTab < ApplicationRecord
     people_tabs = [
       { tab_key: 'overview', display_name: 'Overview', tab_group: 'overview' },
       { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents' },
-      { tab_key: 'financial', display_name: 'Financial', tab_group: 'data' },
-      { tab_key: 'communications', display_name: 'Communications', tab_group: 'data' },
-      { tab_key: 'cases', display_name: 'Cases', tab_group: 'data' },
-      { tab_key: 'emails', display_name: 'Emails', tab_group: 'data' },
-      { tab_key: 'portal-access', display_name: 'Portal Access', tab_group: 'special' },
-      { tab_key: 'directorships', display_name: 'Directorships', tab_group: 'special' }
+      { tab_key: 'financial', display_name: 'Financial', tab_group: 'overview' },
+      { tab_key: 'communications', display_name: 'Communications', tab_group: 'overview' },
+      { tab_key: 'cases', display_name: 'Cases', tab_group: 'overview' },
+      { tab_key: 'emails', display_name: 'Emails', tab_group: 'overview' },
+      { tab_key: 'portal-access', display_name: 'Portal Access', tab_group: 'overview' },
+      { tab_key: 'directorships', display_name: 'Directorships', tab_group: 'overview' }
     ]
 
     people_tabs.each_with_index do |attrs, idx|
@@ -258,8 +258,8 @@ class EntityTab < ApplicationRecord
       { tab_key: 'tasks', display_name: 'Tasks', tab_group: 'overview' },
       { tab_key: 'documents', display_name: 'Documents', tab_group: 'documents' },
       { tab_key: 'photos', display_name: 'Photos', tab_group: 'documents' },
-      { tab_key: 'financials', display_name: 'Financials', tab_group: 'data' },
-      { tab_key: 'activity', display_name: 'Activity', tab_group: 'special' }
+      { tab_key: 'financials', display_name: 'Financials', tab_group: 'overview' },
+      { tab_key: 'activity', display_name: 'Activity', tab_group: 'overview' }
     ]
 
     job_tabs.each_with_index do |attrs, idx|

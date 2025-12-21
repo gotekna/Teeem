@@ -69,6 +69,7 @@ export { SortableItem, type SortableItemProps } from "./SortableItem";
 export {
   SortableList,
   type SortableListProps,
+  type NestedSortableItem,
   reorderItems,
   reorderByPosition,
 } from "./SortableList";

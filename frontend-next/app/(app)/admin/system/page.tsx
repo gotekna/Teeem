@@ -58,7 +58,6 @@ import { JobSetupTab } from "./components/JobSetupTab";
 import { WorkflowConfigTab } from "./components/WorkflowConfigTab";
 import { DocSetupTab } from "./components/DocSetupTab";
 import { ScheduleMasterTab } from "./components/ScheduleMasterTab";
-import { SMGanttTab } from "./components/SMGanttTab";
 import { MeetingTypesTab } from "./components/MeetingTypesTab";
 import { SupervisorChecklistTab } from "./components/SupervisorChecklistTab";
 import { GoldStandardTab } from "./components/GoldStandardTab";
@@ -111,7 +110,6 @@ const MAIN_TABS = [
   { id: "entity-config", label: "Entity Configuration", icon: Settings2 },
   { id: "plans", label: "Plans", icon: Map },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
-  { id: "sm-gantt-v2", label: "SM Gantt v2", icon: Users },
   { id: "meeting-types", label: "Meeting Types", icon: Calendar },
   { id: "whs", label: "WHS", icon: ShieldCheck },
   { id: "financial", label: "Financial", icon: Banknote },
@@ -783,9 +781,6 @@ function SystemAdminPageContent() {
           <TabsContent value="schedule-master" className="flex-1 min-h-0 overflow-auto">
             <ScheduleMasterTab />
           </TabsContent>
-          <TabsContent value="sm-gantt-v2" className="flex-1 min-h-0 overflow-auto">
-            <SMGanttTab />
-          </TabsContent>
           <TabsContent value="meeting-types" className="flex-1 min-h-0 overflow-auto">
             <MeetingTypesTab />
           </TabsContent>
@@ -864,7 +859,7 @@ function SystemAdminPageContent() {
             <JobTabsConfigTab />
           </TabsContent>
           <TabsContent value="entity-config" className="flex-1 min-h-0 overflow-auto">
-            <EntityConfigurationTab />
+            <EntityConfigurationTab onClose={() => handleTabChange("company")} />
           </TabsContent>
           <TabsContent value="user-manual" className="flex-1 min-h-0 overflow-auto">
             <UserManualTab />

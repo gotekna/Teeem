@@ -55,6 +55,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import type {
   EntityTab,
@@ -64,13 +65,54 @@ import type {
   EntityTabUpdateParams,
   ReorderTabParams,
 } from "@/lib/types/entity-tabs";
-import { SCOPE_LABELS, GROUP_LABELS, CORPORATE_ENTITY_TYPES } from "@/lib/types/entity-tabs";
+import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
 
-// Entity type options for MultipleSelector
-const ENTITY_TYPE_OPTIONS: Option[] = CORPORATE_ENTITY_TYPES.map((type) => ({
-  value: type,
-  label: type,
-}));
+// Hook to fetch and manage entity types from API
+function useEntityTypes() {
+  const [entityTypes, setEntityTypes] = React.useState<string[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  const fetchEntityTypes = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: string[] }>('/api/v1/entity_tabs/entity_types');
+      if (response?.success) {
+        setEntityTypes(response.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch entity types:', err);
+      // Fallback to defaults
+      setEntityTypes(['Company', 'Trust', 'Superfund', 'Charity', 'Corporate Trustee', 'Sole Trader']);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchEntityTypes();
+  }, [fetchEntityTypes]);
+
+  const updateEntityTypes = async (types: string[]) => {
+    setSaving(true);
+    try {
+      const response = await api.put<{ success: boolean; data: string[] }>('/api/v1/entity_tabs/entity_types', {
+        entity_types: types,
+      });
+      if (response?.success) {
+        setEntityTypes(response.data);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error('Failed to update entity types:', err);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return { entityTypes, loading, saving, updateEntityTypes, refetch: fetchEntityTypes };
+}
 
 interface EntityTabsConfigProps {
   scope: EntityTabScope;
@@ -80,6 +122,7 @@ interface EntityTabsConfigProps {
   showTabGroups?: boolean;          // Show grouped by tab_group
   title?: string;                   // Override default title
   description?: string;             // Override default description
+  compact?: boolean;                // Hide title/description for embedded use
 }
 
 export function EntityTabsConfig({
@@ -90,6 +133,7 @@ export function EntityTabsConfig({
   showTabGroups = true,
   title,
   description,
+  compact = false,
 }: EntityTabsConfigProps) {
   const {
     tabs,
@@ -104,15 +148,31 @@ export function EntityTabsConfig({
     refetch,
   } = useEntityTabs({ scope });
 
+  // Fetch entity types from API (SSoT)
+  const {
+    entityTypes,
+    loading: entityTypesLoading,
+    saving: entityTypesSaving,
+    updateEntityTypes,
+  } = useEntityTypes();
+
   const [saving, setSaving] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
   const [editingTab, setEditingTab] = React.useState<EntityTab | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
   const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<EntityTab | null>(null);
   const [activeGroup, setActiveGroup] = React.useState<string>("overview");
+  const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
+  const [newEntityType, setNewEntityType] = React.useState("");
 
   // Form state for create/edit
   const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams>>({});
+
+  // Convert entity types to MultipleSelector options
+  const entityTypeOptions: Option[] = React.useMemo(() =>
+    entityTypes.map((type) => ({ value: type, label: type })),
+    [entityTypes]
+  );
 
   // Get display title
   const displayTitle = title || `${SCOPE_LABELS[scope]} Tabs`;
@@ -152,6 +212,24 @@ export function EntityTabsConfig({
     return tabs
       .filter((tab) => !tab.parent_id)
       .sort((a, b) => a.order_position - b.order_position);
+  }, [tabs]);
+
+  // Auto-expand all items with children on load (recursive)
+  React.useEffect(() => {
+    const collectItemsWithChildren = (items: EntityTab[]): number[] => {
+      const result: number[] = [];
+      for (const item of items) {
+        if (item.children && item.children.length > 0) {
+          result.push(item.id);
+          result.push(...collectItemsWithChildren(item.children));
+        }
+      }
+      return result;
+    };
+    const itemsWithChildren = collectItemsWithChildren(tabs);
+    if (itemsWithChildren.length > 0) {
+      setExpandedItems(new Set(itemsWithChildren));
+    }
   }, [tabs]);
 
   // Toggle item expansion
@@ -220,7 +298,7 @@ export function EntityTabsConfig({
       tab_key: "",
       display_name: "",
       description: "",
-      tab_group: group || "special",
+      tab_group: group,
       entity_filters: [],
       enabled: true,
       has_sharepoint_folder: false,
@@ -288,8 +366,84 @@ export function EntityTabsConfig({
     }
   };
 
+  // Toggle entity filter inline (click badge to toggle)
+  // Children inherit from parent - updating parent updates all children
+  const toggleEntityFilter = async (tab: EntityTab, entityType: string) => {
+    const currentFilters = tab.entity_filters || [];
+    const newFilters = currentFilters.includes(entityType)
+      ? currentFilters.filter((t) => t !== entityType)
+      : [...currentFilters, entityType];
+
+    try {
+      // Update this tab
+      await updateTab(tab.id, { entity_filters: newFilters });
+
+      // Update all children recursively
+      const updateChildren = async (children: EntityTab[]) => {
+        for (const child of children) {
+          await updateTab(child.id, { entity_filters: newFilters });
+          if (child.children && child.children.length > 0) {
+            await updateChildren(child.children);
+          }
+        }
+      };
+
+      if (tab.children && tab.children.length > 0) {
+        await updateChildren(tab.children);
+      }
+    } catch (err) {
+      console.error("Failed to update entity filters:", err);
+    }
+  };
+
+  // Handle position change via typing a number
+  const handlePositionChange = async (tab: EntityTab, newPosition: number, depth: number) => {
+    try {
+      // Get siblings (tabs at same level with same parent)
+      const siblings = depth === 0
+        ? tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group)
+        : tabs.flatMap(t => t.children || []).filter(c => c.parent_id === tab.parent_id);
+
+      const currentIndex = siblings.findIndex(t => t.id === tab.id);
+      const targetIndex = Math.max(0, Math.min(newPosition - 1, siblings.length - 1));
+
+      if (currentIndex === targetIndex) return;
+
+      // Reorder siblings
+      const reordered = [...siblings];
+      const [moved] = reordered.splice(currentIndex, 1);
+      reordered.splice(targetIndex, 0, moved);
+
+      // Update positions via API
+      const reorderData = reordered.map((t, idx) => ({
+        id: t.id,
+        parent_id: t.parent_id
+      }));
+
+      await reorderTabs(reorderData);
+    } catch (err) {
+      console.error("Failed to change position:", err);
+    }
+  };
+
+  // Render tab with all its children recursively
+  const renderTabWithChildren = (tab: EntityTab, index: number, depth = 0): React.ReactNode => {
+    return (
+      <React.Fragment key={tab.id}>
+        {renderTabItem(tab, index, depth > 0, depth)}
+        {expandedItems.has(tab.id) && tab.children && tab.children.length > 0 && (
+          <div className="space-y-2 mt-2">
+            {tab.children.map((child, childIndex) =>
+              renderTabWithChildren(child, childIndex, depth + 1)
+            )}
+          </div>
+        )}
+      </React.Fragment>
+    );
+  };
+
   // Render a single tab item
-  const renderTabItem = (tab: EntityTab, index: number, isChild = false) => {
+  const renderTabItem = (tab: EntityTab, index: number, isChild = false, depth = 0) => {
     const IconComponent = getIcon(tab.icon_name || "file");
     const hasChildren = tab.children && tab.children.length > 0;
     const isExpanded = expandedItems.has(tab.id);
@@ -299,11 +453,14 @@ export function EntityTabsConfig({
         key={tab.id}
         id={tab.id}
         position={index + 1}
-        editablePosition={false}
+        editablePosition={true}
+        onPositionChange={(newPosition) => handlePositionChange(tab, newPosition, depth)}
         className={cn(
           "border rounded-lg bg-background",
           !tab.enabled && "opacity-50",
-          isChild && "ml-8"
+          depth === 1 && "ml-10 border-l-4 border-l-muted-foreground/30",
+          depth === 2 && "ml-20 border-l-4 border-l-primary/30",
+          depth >= 3 && "ml-28 border-l-4 border-l-primary/50"
         )}
       >
         <div className="flex items-center gap-3 flex-1 py-2 px-3">
@@ -311,7 +468,7 @@ export function EntityTabsConfig({
           <DragHandle />
 
           {/* Expand/collapse button for items with children */}
-          {hasChildren && !isChild ? (
+          {hasChildren ? (
             <Button
               variant="ghost"
               size="icon"
@@ -361,19 +518,10 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
               {tab.has_sharepoint_folder && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="text-xs gap-1">
-                        <FolderOpen className="h-3 w-3" />
-                        SharePoint
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{tab.sharepoint_folder_path || "Has SharePoint folder"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Badge variant="outline" className="text-xs gap-1 text-muted-foreground font-normal max-w-[300px] truncate">
+                  <FolderOpen className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{tab.hierarchy_path || tab.display_name}</span>
+                </Badge>
               )}
               {hasChildren && (
                 <Badge variant="secondary" className="text-xs">
@@ -396,14 +544,28 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
             </div>
-            {/* Entity filters (for corporate_entity) */}
-            {showEntityFilters && tab.entity_filters && tab.entity_filters.length > 0 && (
-              <div className="flex gap-1 mt-1">
-                {tab.entity_filters.map((type) => (
-                  <Badge key={type} variant="outline" className="text-xs bg-muted">
-                    {type}
-                  </Badge>
-                ))}
+            {/* Entity filters (for corporate_entity) - clickable toggles, only on root items */}
+            {showEntityFilters && depth === 0 && (
+              <div className="flex gap-1 mt-1 flex-wrap">
+                {entityTypes.map((type) => {
+                  const isSelected = tab.entity_filters?.includes(type);
+                  return (
+                    <Badge
+                      key={type}
+                      variant={isSelected ? "default" : "outline"}
+                      className={cn(
+                        "text-xs cursor-pointer transition-colors",
+                        isSelected ? "bg-primary" : "bg-transparent opacity-40 hover:opacity-70"
+                      )}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleEntityFilter(tab, type);
+                      }}
+                    >
+                      {type}
+                    </Badge>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -513,19 +675,7 @@ export function EntityTabsConfig({
           {tabsInGroup.length > 0 ? (
             <SortableList items={tabsInGroup} onReorder={(items) => handleReorder(items, group)}>
               <div className="space-y-2">
-                {tabsInGroup.map((tab, index) => (
-                  <React.Fragment key={tab.id}>
-                    {renderTabItem(tab, index)}
-                    {/* Render children if expanded */}
-                    {expandedItems.has(tab.id) && tab.children && tab.children.length > 0 && (
-                      <div className="space-y-2 mt-2">
-                        {tab.children.map((child, childIndex) =>
-                          renderTabItem(child, childIndex, true)
-                        )}
-                      </div>
-                    )}
-                  </React.Fragment>
-                ))}
+                {tabsInGroup.map((tab, index) => renderTabWithChildren(tab, index))}
               </div>
             </SortableList>
           ) : (
@@ -561,20 +711,104 @@ export function EntityTabsConfig({
   }
 
   return (
-    <div className="space-y-6">
+    <div className={compact ? "space-y-4" : "space-y-6"}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-medium">{displayTitle}</h3>
-          <p className="text-sm text-muted-foreground">{displayDescription}</p>
-        </div>
-        <div className="flex items-center gap-2">
+        {!compact && (
+          <div>
+            <h3 className="text-lg font-medium">{displayTitle}</h3>
+            <p className="text-sm text-muted-foreground">{displayDescription}</p>
+          </div>
+        )}
+        <div className={`flex items-center gap-2 ${compact ? "w-full justify-end" : ""}`}>
+          {scope === "corporate_entity" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowEntityTypesEditor(!showEntityTypesEditor)}
+              className="text-muted-foreground"
+            >
+              <Settings2 className="h-4 w-4 mr-2" />
+              Entity Types
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => openCreateDialog()}>
             <Plus className="h-4 w-4 mr-2" />
             Add Custom Tab
           </Button>
         </div>
       </div>
+
+      {/* Entity Types Editor (SSoT) - Only for corporate_entity scope */}
+      {scope === "corporate_entity" && showEntityTypesEditor && (
+        <Card className="border-dashed">
+          <CardContent className="py-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <Label className="text-sm font-medium">Entity Types</Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Configure which entity types are available. Drag to reorder.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {entityTypes.map((type, index) => (
+                    <Badge
+                      key={type}
+                      variant="secondary"
+                      className="gap-1 px-2 py-1 cursor-pointer hover:bg-destructive/20 group"
+                      onClick={() => {
+                        const newTypes = entityTypes.filter((_, i) => i !== index);
+                        updateEntityTypes(newTypes);
+                      }}
+                    >
+                      {type}
+                      <Trash2 className="h-3 w-3 opacity-0 group-hover:opacity-100 text-destructive" />
+                    </Badge>
+                  ))}
+                  {entityTypesSaving && (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="New entity type..."
+                    value={newEntityType}
+                    onChange={(e) => setNewEntityType(e.target.value)}
+                    className="h-8 w-48"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && newEntityType.trim()) {
+                        updateEntityTypes([...entityTypes, newEntityType.trim()]);
+                        setNewEntityType("");
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={!newEntityType.trim() || entityTypesSaving}
+                    onClick={() => {
+                      if (newEntityType.trim()) {
+                        updateEntityTypes([...entityTypes, newEntityType.trim()]);
+                        setNewEntityType("");
+                      }
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
+                onClick={() => setShowEntityTypesEditor(false)}
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs by group */}
       {showTabGroups ? (
@@ -608,18 +842,7 @@ export function EntityTabsConfig({
             {flatTabs.length > 0 ? (
               <SortableList items={flatTabs} onReorder={handleReorder}>
                 <div className="space-y-2">
-                  {flatTabs.map((tab, index) => (
-                    <React.Fragment key={tab.id}>
-                      {renderTabItem(tab, index)}
-                      {expandedItems.has(tab.id) && tab.children && tab.children.length > 0 && (
-                        <div className="space-y-2 mt-2">
-                          {tab.children.map((child, childIndex) =>
-                            renderTabItem(child, childIndex, true)
-                          )}
-                        </div>
-                      )}
-                    </React.Fragment>
-                  ))}
+                  {flatTabs.map((tab, index) => renderTabWithChildren(tab, index))}
                 </div>
               </SortableList>
             ) : (
@@ -633,7 +856,7 @@ export function EntityTabsConfig({
 
       {/* Create/Edit Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingTab ? "Edit Tab" : "Create New Tab"}
@@ -704,7 +927,7 @@ export function EntityTabsConfig({
                       entity_filters: options.map((o: Option) => o.value),
                     }))
                   }
-                  defaultOptions={ENTITY_TYPE_OPTIONS}
+                  defaultOptions={entityTypeOptions}
                   placeholder="Select entity types..."
                   emptyIndicator={
                     <p className="text-center text-sm text-muted-foreground">

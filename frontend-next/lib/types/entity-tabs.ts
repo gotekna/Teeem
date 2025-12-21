@@ -3,7 +3,7 @@
 
 export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'document' | 'xero';
 
-export type TabGroup = 'overview' | 'documents' | 'data' | 'special';
+export type TabGroup = 'overview' | 'documents';
 
 export interface EntityTab {
   id: number;
@@ -99,9 +99,7 @@ export const SCOPE_LABELS: Record<EntityTabScope, string> = {
 export const GROUP_LABELS: Record<TabGroup, string> = {
   overview: 'Overview',
   documents: 'Documents',
-  data: 'Data',
-  special: 'Special',
 };
 
-// Entity type options for corporate_entity scope
-export const CORPORATE_ENTITY_TYPES = ['Company', 'Trust', 'Superfund', 'Charity'] as const;
+// Entity type options are now fetched from API (SSoT: CorporateCompanySetting)
+// See: GET /api/v1/entity_tabs/entity_types

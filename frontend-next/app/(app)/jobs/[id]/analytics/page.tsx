@@ -20,7 +20,7 @@ import {
   AiSuggestionsPanel,
   BaselineComparisonComponent,
   ImportExportPanel,
-} from "@/components/sm-gantt/SmAnalyticsComponents";
+} from "@/components/ui/gantt";
 
 // ============================================
 // Types

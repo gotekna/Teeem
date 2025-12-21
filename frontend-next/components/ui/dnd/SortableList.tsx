@@ -7,7 +7,7 @@
  * Provides standard sensors, collision detection, and sorting strategy.
  * See: frontend-next/lib/component-registry.ts
  *
- * Usage:
+ * Usage (flat list):
  * ```tsx
  * import { SortableList, SortableItem } from "@/components/ui/dnd";
  *
@@ -21,6 +21,25 @@
  *     </SortableItem>
  *   ))}
  * </SortableList>
+ * ```
+ *
+ * Usage (nested hierarchy):
+ * ```tsx
+ * <SortableList
+ *   items={tabs}
+ *   nested={true}
+ *   defaultExpanded={true}
+ *   indentSize={2.5}
+ *   onReorder={handleReorder}
+ *   renderItem={(tab, depth, isExpanded, toggleExpand) => (
+ *     <div className="flex items-center gap-2">
+ *       <span>{tab.display_name}</span>
+ *       {tab.children?.length > 0 && (
+ *         <Badge>{tab.children.length} sub-tabs</Badge>
+ *       )}
+ *     </div>
+ *   )}
+ * />
  * ```
  */
 
@@ -40,6 +59,13 @@ import {
 } from "@dnd-kit/sortable";
 import { cn } from "@/lib/utils";
 import { createDndSensors, defaultCollisionDetection } from "./dnd-config";
+import { SortableItem } from "./SortableItem";
+
+/** Interface for items that can have nested children */
+export interface NestedSortableItem {
+  id: string | number;
+  children?: NestedSortableItem[];
+}
 
 export interface SortableListProps<T extends { id: string | number }> {
   /** Array of items with id property */
@@ -48,8 +74,8 @@ export interface SortableListProps<T extends { id: string | number }> {
   onReorder: (newItems: T[]) => void;
   /** Sorting strategy: vertical (default), horizontal, or grid */
   strategy?: "vertical" | "horizontal" | "grid";
-  /** Children (should be SortableItem components) */
-  children: React.ReactNode;
+  /** Children (should be SortableItem components) - used in flat mode */
+  children?: React.ReactNode;
   /** Optional drag overlay content renderer */
   renderDragOverlay?: (activeItem: T | null) => React.ReactNode;
   /** Additional class names for the container */
@@ -58,6 +84,25 @@ export interface SortableListProps<T extends { id: string | number }> {
   onDragStart?: (item: T) => void;
   /** Callback when drag ends (before reorder) */
   onDragEnd?: (item: T) => void;
+
+  // === NESTED MODE PROPS ===
+  /** Enable nested/hierarchical mode (default: false) */
+  nested?: boolean;
+  /** Render function for item content in nested mode */
+  renderItem?: (
+    item: T,
+    depth: number,
+    isExpanded: boolean,
+    toggleExpand: () => void
+  ) => React.ReactNode;
+  /** Auto-expand all items with children on load (default: true) */
+  defaultExpanded?: boolean;
+  /** Indent size per nesting level in rem (default: 2.5) */
+  indentSize?: number;
+  /** Maximum nesting depth allowed (default: 10) */
+  maxDepth?: number;
+  /** Optional custom SortableItem props to pass through */
+  itemProps?: Partial<React.ComponentProps<typeof SortableItem>>;
 }
 
 const strategyMap = {
@@ -66,7 +111,7 @@ const strategyMap = {
   grid: rectSortingStrategy,
 };
 
-export function SortableList<T extends { id: string | number }>({
+export function SortableList<T extends { id: string | number; children?: T[] }>({
   items,
   onReorder,
   strategy = "vertical",
@@ -75,9 +120,50 @@ export function SortableList<T extends { id: string | number }>({
   className,
   onDragStart,
   onDragEnd,
+  // Nested mode props
+  nested = false,
+  renderItem,
+  defaultExpanded = true,
+  indentSize = 2.5,
+  maxDepth = 10,
+  itemProps,
 }: SortableListProps<T>) {
   const sensors = createDndSensors();
   const [activeId, setActiveId] = React.useState<string | number | null>(null);
+  const [expandedItems, setExpandedItems] = React.useState<Set<string | number>>(new Set());
+
+  // Auto-expand all items with children on mount
+  React.useEffect(() => {
+    if (nested && defaultExpanded) {
+      const collectItemsWithChildren = (itemList: T[]): (string | number)[] => {
+        return itemList.flatMap((item) => {
+          const ids: (string | number)[] = [];
+          if (item.children && item.children.length > 0) {
+            ids.push(item.id);
+            ids.push(...collectItemsWithChildren(item.children as T[]));
+          }
+          return ids;
+        });
+      };
+      const idsWithChildren = collectItemsWithChildren(items);
+      if (idsWithChildren.length > 0) {
+        setExpandedItems(new Set(idsWithChildren));
+      }
+    }
+  }, [items, nested, defaultExpanded]);
+
+  // Toggle item expansion
+  const toggleExpand = React.useCallback((itemId: string | number) => {
+    setExpandedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  }, []);
 
   const activeItem = React.useMemo(
     () => items.find((item) => item.id === activeId) || null,
@@ -110,7 +196,53 @@ export function SortableList<T extends { id: string | number }>({
     }
   };
 
-  const itemIds = items.map((item) => item.id);
+  // Collect all item IDs including nested children (for DnD context)
+  const collectAllIds = React.useCallback((itemList: T[]): (string | number)[] => {
+    return itemList.flatMap((item) => [
+      item.id,
+      ...(item.children ? collectAllIds(item.children as T[]) : []),
+    ]);
+  }, []);
+
+  const itemIds = nested ? collectAllIds(items) : items.map((item) => item.id);
+
+  // Recursive render function for nested items
+  const renderItemWithChildren = React.useCallback(
+    (item: T, index: number, depth: number): React.ReactNode => {
+      if (depth > maxDepth) return null;
+
+      const isExpanded = expandedItems.has(item.id);
+      const hasChildren = item.children && item.children.length > 0;
+
+      const handleToggleExpand = () => toggleExpand(item.id);
+
+      return (
+        <React.Fragment key={item.id}>
+          <SortableItem
+            id={item.id}
+            position={index + 1}
+            depth={depth}
+            indentSize={indentSize}
+            hasChildren={hasChildren}
+            isExpanded={isExpanded}
+            onToggleExpand={handleToggleExpand}
+            {...itemProps}
+          >
+            {renderItem?.(item, depth, isExpanded, handleToggleExpand)}
+          </SortableItem>
+
+          {isExpanded && hasChildren && (
+            <div className="space-y-1">
+              {(item.children as T[]).map((child, childIndex) =>
+                renderItemWithChildren(child, childIndex, depth + 1)
+              )}
+            </div>
+          )}
+        </React.Fragment>
+      );
+    },
+    [expandedItems, maxDepth, indentSize, renderItem, itemProps, toggleExpand]
+  );
 
   return (
     <DndContext
@@ -121,7 +253,9 @@ export function SortableList<T extends { id: string | number }>({
     >
       <SortableContext items={itemIds} strategy={strategyMap[strategy]}>
         <div className={cn("space-y-1", className)}>
-          {children}
+          {nested && renderItem
+            ? items.map((item, index) => renderItemWithChildren(item, index, 0))
+            : children}
         </div>
       </SortableContext>
 

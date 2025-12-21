@@ -42,7 +42,7 @@ import {
   DonutChart,
   HorizontalBarChart,
   CostBreakdownTable,
-} from "@/components/sm-gantt/SmDashboardCharts";
+} from "@/components/ui/gantt";
 
 // ============================================
 // Types

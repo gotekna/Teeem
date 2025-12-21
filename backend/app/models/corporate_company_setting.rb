@@ -229,6 +229,29 @@ class CorporateCompanySetting < ApplicationRecord
     path.gsub(/\/+/, "/").chomp("/")
   end
 
+  # ========================================
+  # Corporate Entity Types (SSoT)
+  # ========================================
+
+  DEFAULT_ENTITY_TYPES = [
+    "Company",
+    "Trust",
+    "Superfund",
+    "Charity",
+    "Corporate Trustee",
+    "Sole Trader"
+  ].freeze
+
+  # Get all configured entity types
+  def self.corporate_entity_types
+    instance.corporate_entity_types.presence || DEFAULT_ENTITY_TYPES
+  end
+
+  # Update entity types
+  def self.update_corporate_entity_types(types)
+    instance.update!(corporate_entity_types: types)
+  end
+
   private
 
   def self.default_working_days

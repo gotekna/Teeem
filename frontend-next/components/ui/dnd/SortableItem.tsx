@@ -86,6 +86,20 @@ export interface SortableItemProps {
   /** @deprecated Use showBadge instead */
   showPosition?: boolean;
 
+  // === NESTED MODE PROPS ===
+  /** Nesting depth (0 = root, 1 = first child level, etc.) */
+  depth?: number;
+  /** Indent size per level in rem (default: 2.5) */
+  indentSize?: number;
+  /** Whether this item has children */
+  hasChildren?: boolean;
+  /** Whether children are currently expanded/visible */
+  isExpanded?: boolean;
+  /** Callback to toggle expand/collapse */
+  onToggleExpand?: () => void;
+  /** Whether to show expand/collapse chevron automatically */
+  showExpandButton?: boolean;
+
   // Content
   /** Content to render in the main area */
   children: React.ReactNode;
@@ -139,6 +153,14 @@ export function SortableItem({
   showHandle = true,
   showBadge = true,
   showPosition = true, // deprecated, maps to showBadge
+  // Nested mode props
+  depth = 0,
+  indentSize = 2.5,
+  hasChildren = false,
+  isExpanded = false,
+  onToggleExpand,
+  showExpandButton = true,
+  // Content
   children,
   actions,
   onClick,
@@ -156,9 +178,15 @@ export function SortableItem({
     isOver,
   } = useSortable({ id });
 
-  const style = {
+  // Calculate indentation style based on depth
+  const indentStyle: React.CSSProperties = depth > 0
+    ? { marginLeft: `${depth * indentSize}rem` }
+    : {};
+
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
+    ...indentStyle,
   };
 
   // Backwards compatibility: map deprecated props
@@ -172,6 +200,13 @@ export function SortableItem({
     badgeLabel !== undefined ||
     position !== undefined;
 
+  // Depth-based border styling for visual hierarchy
+  const depthClasses = cn(
+    depth === 1 && "border-l-4 border-l-muted-foreground/30",
+    depth === 2 && "border-l-4 border-l-primary/30",
+    depth >= 3 && "border-l-4 border-l-primary/50"
+  );
+
   return (
     <div
       ref={setNodeRef}
@@ -180,6 +215,7 @@ export function SortableItem({
       className={cn(
         "flex items-center gap-1.5 transition-all relative",
         variantClasses[variant],
+        depthClasses,
         isActive
           ? customStyles?.active || variantActiveClasses[variant]
           : variantHoverClasses[variant],
@@ -196,6 +232,32 @@ export function SortableItem({
           {...listeners}
           size="md"
         />
+      )}
+
+      {/* Expand/Collapse button for items with children */}
+      {showExpandButton && hasChildren && onToggleExpand && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand();
+          }}
+          className="h-6 w-6 flex items-center justify-center shrink-0 rounded hover:bg-accent transition-colors"
+          aria-label={isExpanded ? "Collapse" : "Expand"}
+        >
+          <svg
+            className={cn(
+              "h-4 w-4 transition-transform duration-200",
+              isExpanded && "rotate-90"
+            )}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       )}
 
       {/* Badge - flexible content */}

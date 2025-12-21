@@ -2017,6 +2017,8 @@ Rails.application.routes.draw do
         collection do
           post :reorder
           get 'for_scope/:scope', action: :for_scope, as: :for_scope
+          get :entity_types
+          put :entity_types, action: :update_entity_types
         end
         member do
           post :toggle

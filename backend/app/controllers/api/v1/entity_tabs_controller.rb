@@ -12,7 +12,7 @@ module Api
                         .enabled
                         .root_tabs
                         .ordered
-                        .includes(:children, :document_types)
+                        .includes(children: { children: :children }, document_types: [])
 
         # Filter by entity type if provided
         if params[:entity_type].present?
@@ -126,6 +126,33 @@ module Api
               }
             end
           }
+        }
+      end
+
+      # GET /api/v1/entity_tabs/entity_types
+      # Returns configured entity types for the entity filter dropdown
+      def entity_types
+        render json: {
+          success: true,
+          data: CorporateCompanySetting.corporate_entity_types
+        }
+      end
+
+      # PUT /api/v1/entity_tabs/entity_types
+      # Update the list of entity types
+      def update_entity_types
+        types = params[:entity_types]
+
+        unless types.is_a?(Array) && types.all? { |t| t.is_a?(String) && t.present? }
+          return render json: { success: false, error: "entity_types must be an array of strings" }, status: :unprocessable_entity
+        end
+
+        CorporateCompanySetting.update_corporate_entity_types(types)
+
+        render json: {
+          success: true,
+          data: CorporateCompanySetting.corporate_entity_types,
+          message: "Entity types updated"
         }
       end
 
