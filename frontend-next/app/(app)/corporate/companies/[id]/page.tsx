@@ -3550,14 +3550,14 @@ export default function CompanyDetailPage() {
   // Visibility rules:
   // - head_only: Only show if company is a head (has_consolidated_children)
   // - group_member: Show if company is part of a group (is head OR has a parent)
+  // SSoT: All tabs sorted by order_position from admin config
+  // Used for both Level 1 display and finding children of parent tabs
   const mergedXeroSubTabs = React.useMemo(() => {
     const isHeadCompany = company?.has_consolidated_children === true;
     const isPartOfGroup = isHeadCompany || !!company?.consolidation_parent_id;
 
     return xeroFeatureTabs
       .filter(tab => {
-        // Skip parent container tabs (they're just group headers, not actual tabs)
-        if (tab.is_parent) return false;
         // head_only tabs: only for head companies
         if (tab.head_only && !isHeadCompany) return false;
         // group_member tabs: only for companies in a group
@@ -3568,40 +3568,9 @@ export default function CompanyDetailPage() {
       .sort((a, b) => (a.order_position ?? 999) - (b.order_position ?? 999));
   }, [xeroFeatureTabs, company?.has_consolidated_children, company?.consolidation_parent_id]);
 
-  // SSoT: Compute parent tabs dynamically from API order
-  // Parent groups are inserted at the position of their first child
-  const xeroParentTabs = React.useMemo(() => {
-    const mainTabs: Array<{ id: string; name: string; isParent: boolean }> = [];
-    const seenParents = new Set<string>();
-
-    // Parent display names - SSoT: could move to database if needed
-    const parentDisplayNames: Record<string, string> = {
-      'accounts': 'Accounts',
-      'profit-loss': 'Profit & Loss',
-      'balance-sheet': 'Balance Sheet',
-      'bank': 'Bank',
-    };
-
-    // Iterate through tabs in order (API returns them sorted by order_position)
-    mergedXeroSubTabs.forEach(tab => {
-      if (tab.parent) {
-        // This is a child tab - insert parent group if not already done
-        if (!seenParents.has(tab.parent)) {
-          seenParents.add(tab.parent);
-          mainTabs.push({
-            id: tab.parent,
-            name: parentDisplayNames[tab.parent] || tab.parent,
-            isParent: true
-          });
-        }
-        // Skip adding child tab to Level 1 (it appears in Level 2)
-      } else {
-        // Standalone tab - add directly
-        mainTabs.push({ id: tab.id, name: tab.name, isParent: false });
-      }
-    });
-
-    return mainTabs;
+  // Level 1 tabs: tabs without a parent (top-level tabs shown in the tab bar)
+  const xeroLevel1Tabs = React.useMemo(() => {
+    return mergedXeroSubTabs.filter(tab => !tab.parent);
   }, [mergedXeroSubTabs]);
 
   // Get child tabs for a given parent
@@ -3612,8 +3581,13 @@ export default function CompanyDetailPage() {
   // Check if current xeroSubTab belongs to a parent group
   const currentXeroParent = React.useMemo(() => {
     const currentTab = mergedXeroSubTabs.find(t => t.id === xeroSubTab);
-    return currentTab?.parent || (xeroParentTabs.find(t => t.id === xeroSubTab && t.isParent) ? xeroSubTab : null);
-  }, [xeroSubTab, mergedXeroSubTabs, xeroParentTabs]);
+    // If tab has a parent, return that parent
+    if (currentTab?.parent) return currentTab.parent;
+    // If tab IS a parent (is_parent=true), return itself
+    const level1Tab = xeroLevel1Tabs.find(t => t.id === xeroSubTab);
+    if (level1Tab?.is_parent) return xeroSubTab;
+    return null;
+  }, [xeroSubTab, mergedXeroSubTabs, xeroLevel1Tabs]);
 
   // SSoT: Overview sub-tabs from CorporateEntityTab API
   // Returns entity-specific tabs (e.g., Company gets Directors/Shareholdings, Charity gets Directors/Members)
@@ -3881,17 +3855,20 @@ export default function CompanyDetailPage() {
           {/* XERO Tab with two-level navigation - SSoT: Built dynamically from API */}
           {activeTab === "xero" && (
             <>
-              {/* Level 1: Main Xero tabs (from xeroParentTabs computed value) */}
+              {/* Level 1: Main Xero tabs (tabs without a parent) - SSoT: ordered by order_position */}
               <div className="flex gap-2 mb-2 border-b flex-wrap">
-                {xeroParentTabs.map((tab) => (
+                {xeroLevel1Tabs.map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => {
-                      if (tab.isParent) {
+                      if (tab.is_parent) {
                         // For parent tabs, select the first child
                         const children = getXeroChildTabs(tab.id);
                         if (children.length > 0) {
                           setXeroSubTab(children[0].id);
+                        } else {
+                          // Fallback: set the tab itself if no children
+                          setXeroSubTab(tab.id);
                         }
                       } else {
                         setXeroSubTab(tab.id);
@@ -3899,7 +3876,7 @@ export default function CompanyDetailPage() {
                     }}
                     className={cn(
                       "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                      (xeroSubTab === tab.id || (tab.isParent && currentXeroParent === tab.id))
+                      (xeroSubTab === tab.id || (tab.is_parent && currentXeroParent === tab.id))
                         ? "border-primary text-primary"
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
