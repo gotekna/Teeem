@@ -250,6 +250,7 @@ interface Company {
     id: number;
     connection_status: string;
     xero_tenant_name: string;
+    xero_tenant_id?: string;
     last_sync_at?: string;
   };
 }
@@ -3330,6 +3331,8 @@ export default function CompanyDetailPage() {
   const [bankSubTab, setBankSubTab] = React.useState("transactions");
   const [xeroSubTab, setXeroSubTab] = React.useState("connection");
   const [xeroConnected, setXeroConnected] = React.useState(false);
+  const [xeroContacts, setXeroContacts] = React.useState<any[]>([]);
+  const [xeroContactsLoading, setXeroContactsLoading] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
@@ -3605,6 +3608,29 @@ export default function CompanyDetailPage() {
     const tab = searchParams.get("tab");
     if (tab) setActiveTab(tab);
   }, [searchParams]);
+
+  // Load contacts linked to this company's Xero tenant when contacts tab is selected
+  React.useEffect(() => {
+    const loadXeroContacts = async () => {
+      const tenantId = company?.company_xero_connection?.xero_tenant_id;
+      if (xeroSubTab !== "contacts" || !tenantId) return;
+
+      setXeroContactsLoading(true);
+      try {
+        // SSoT: Use contacts foundation API with xero_tenant_id filter
+        const response = await fetch(`/api/v1/contacts?xero_tenant_id=${tenantId}`);
+        const data = await response.json();
+        if (data.success) {
+          setXeroContacts(data.contacts || data.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to load Xero contacts:", error);
+      } finally {
+        setXeroContactsLoading(false);
+      }
+    };
+    loadXeroContacts();
+  }, [xeroSubTab, company?.company_xero_connection?.xero_tenant_id]);
 
   const handleTabChange = (tabId: string) => {
     // Redirect Data tab to data warehouse page with company filter
@@ -3977,16 +4003,43 @@ export default function CompanyDetailPage() {
                 <XeroBankAccountsCard companyId={companyId} />
               )}
 
-              {/* Contacts tab - shows Xero contacts for this company */}
+              {/* Contacts tab - shows contacts linked to this company's Xero tenant */}
               {xeroSubTab === "contacts" && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Xero Contacts</p>
-                      <p className="text-sm">View Xero contacts linked to this company in the Contacts module.</p>
+                <div className="flex flex-col h-full -mx-4">
+                  {xeroContactsLoading ? (
+                    <div className="flex items-center justify-center h-48">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  </CardContent>
-                </Card>
+                  ) : xeroContacts.length === 0 ? (
+                    <Card className="mx-4">
+                      <CardContent className="p-6">
+                        <div className="text-center text-muted-foreground">
+                          <p className="font-medium mb-2">No Contacts Linked</p>
+                          <p className="text-sm">No contacts are linked to this Xero account yet.</p>
+                          <p className="text-sm mt-2">Link contacts to Xero in the Contacts module.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <TeeemTableView
+                      entries={xeroContacts}
+                      foundationId="contacts"
+                      tableName="Xero Linked Contacts"
+                      onRefresh={() => {
+                        const tenantId = company?.company_xero_connection?.xero_tenant_id;
+                        if (tenantId) {
+                          setXeroContactsLoading(true);
+                          fetch(`/api/v1/contacts?xero_tenant_id=${tenantId}`)
+                            .then(res => res.json())
+                            .then(data => setXeroContacts(data.contacts || data.data || []))
+                            .finally(() => setXeroContactsLoading(false));
+                        }
+                      }}
+                      onRowClick={(row) => router.push(`/contacts/${row.id}`)}
+                      enableExport={true}
+                    />
+                  )}
+                </div>
               )}
 
               {/* Invoices tab - shows invoices for this company */}

@@ -1488,14 +1488,18 @@ module Api
           total_pdf_eligible = pdf_eligible_invoices.count
 
           # Count invoices that have PDFs downloaded (filter by tenant if provided)
-          # SSoT FIX: Must use same filters as total_pdf_eligible (contacts + non-draft)
-          # Otherwise downloaded count can exceed total when invoices lose contacts or become drafts
+          # SSoT FIX: Must use EXACT same filters as total_pdf_eligible:
+          #   1. contact_id not nil (contacts)
+          #   2. status not 'draft' (non-draft)
+          #   3. status not in ['voided', 'deleted'] (ExternalInvoice.active scope)
+          # Otherwise downloaded count can exceed total when invoices are voided/deleted
           pdf_query = CorporateCompanyDocument.where(source: "xero")
                                               .where("corporate_company_documents.external_id LIKE ?", "xero:%:pdf")
                                               .where(documentable_type: "ExternalInvoice")
                                               .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                               .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
                                               .where.not(external_invoices: { status: "draft" })  # SSoT: Match pdf_eligible_invoices
+                                              .where.not(external_invoices: { status: %w[voided deleted] })  # SSoT: Match ExternalInvoice.active scope
 
           if tenant_id.present?
             pdf_query = pdf_query.where(external_invoices: { tenant_id: tenant_id })
@@ -1543,6 +1547,7 @@ module Api
                                                     .joins("INNER JOIN external_invoices ON external_invoices.id = corporate_company_documents.documentable_id")
                                                     .where.not(external_invoices: { contact_id: nil })  # SSoT: Match pdf_eligible_invoices
                                                     .where.not(external_invoices: { status: "draft" })  # SSoT: Match pdf_eligible_invoices
+                                                    .where.not(external_invoices: { status: %w[voided deleted] })  # SSoT: Match ExternalInvoice.active scope
           if tenant_id.present?
             sharepoint_query = sharepoint_query.where(external_invoices: { tenant_id: tenant_id })
           end

@@ -121,6 +121,13 @@ module Api
           end
         end
 
+        # Filter contacts linked to a specific Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        if params[:xero_tenant_id].present?
+          @contacts = @contacts.joins(:external_links)
+                               .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+                               .distinct
+        end
+
         # Filter to only show possible duplicate contacts
         if params[:duplicates_only] == "true"
           # Find contacts that share a normalized display_name with at least one other contact

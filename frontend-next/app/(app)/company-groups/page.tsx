@@ -14,6 +14,7 @@ import {
   Users,
   DollarSign,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -88,6 +89,7 @@ interface Company {
   shareholders?: unknown[];
   investments?: unknown[];
   children?: Company[];
+  document_count?: number;
 }
 
 interface CompanyGroup {
@@ -291,6 +293,12 @@ function CompanyTreeNode({
 
         {/* Quick stats */}
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {company.document_count !== undefined && company.document_count > 0 && (
+            <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+              <FileText className="h-3.5 w-3.5" />
+              {company.document_count}
+            </span>
+          )}
           {company.shareholders && company.shareholders.length > 0 && (
             <span className="flex items-center gap-1">
               <Users className="h-3.5 w-3.5" />
@@ -700,6 +708,10 @@ export default function CompanyGroupsPage() {
               <div className="flex items-center gap-1.5">
                 <Badge className="text-[10px] bg-purple-100 text-purple-700">Trustee</Badge>
                 <span>Acts as trustee</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <FileText className="h-4 w-4 text-emerald-600" />
+                <span>Documents</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <Users className="h-4 w-4" />
