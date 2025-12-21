@@ -139,6 +139,7 @@ class CorporateCompanyDocument < ApplicationRecord
   # Callbacks
   after_create :create_activity
   before_validation :set_focus
+  before_save :sync_file_name_from_title  # SSoT: file_name is THE filename
   before_save :extract_financial_years_from_title
   before_save :generate_display_title
 
@@ -294,6 +295,12 @@ class CorporateCompanyDocument < ApplicationRecord
     # Clean up extra spaces
     display.gsub!(/\s+/, ' ')
     display.strip
+  end
+
+  # SSoT: file_name is THE filename field, title is deprecated
+  # This keeps them in sync during the transition period
+  def sync_file_name_from_title
+    self.file_name = title if title.present? && title_changed?
   end
 
   # Extract financial years from title
