@@ -3771,97 +3771,120 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
-          {/* XERO Tab with grouped sub-tabs */}
+          {/* XERO Tab with two-level navigation */}
           {activeTab === "xero" && (
             <>
-              {/* Xero Sub-tabs - Grouped by category */}
-              <div className="mb-4 border-b pb-2">
-                {/* Top row: Connection, Accounts, Contacts, Invoices, Bills */}
-                <div className="flex gap-1 flex-wrap mb-2">
-                  {mergedXeroSubTabs
-                    .filter(t => ['connection', 'accounts', 'contacts', 'invoices', 'bills'].includes(t.id))
-                    .map((subTab) => (
+              {/* Level 1: Main Xero tabs */}
+              <div className="flex gap-2 mb-2 border-b flex-wrap">
+                {/* Main tabs: Connection, Accounts, P&L (parent), Contacts, Balance Sheet (parent), Bank (parent), Invoices, Bills */}
+                {[
+                  { id: 'connection', name: 'Connection' },
+                  { id: 'accounts', name: 'Accounts' },
+                  { id: 'profit-loss', name: 'Profit & Loss', isParent: true },
+                  { id: 'contacts', name: 'Contacts' },
+                  { id: 'balance-sheet', name: 'Balance Sheet', isParent: true },
+                  { id: 'bank-accounts', name: 'Bank', isParent: true },
+                  { id: 'invoices', name: 'Invoices & Credit Notes' },
+                  { id: 'bills', name: 'Bills & POs' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setXeroSubTab(tab.id)}
+                    className={cn(
+                      "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                      (xeroSubTab === tab.id || (tab.isParent && xeroSubTab.startsWith(tab.id)))
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Level 2: Sub-tabs for P&L, Balance Sheet, Bank */}
+              {(xeroSubTab.startsWith('profit-loss') || xeroSubTab.startsWith('balance-sheet') || xeroSubTab.startsWith('bank')) && (
+                <div className="flex gap-2 mb-4 bg-muted/50 rounded-lg p-1 w-fit">
+                  {xeroSubTab.startsWith('profit-loss') && (
+                    <>
                       <button
-                        key={subTab.id}
-                        onClick={() => setXeroSubTab(subTab.id)}
+                        onClick={() => setXeroSubTab('profit-loss')}
                         className={cn(
                           "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
-                          xeroSubTab === subTab.id
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                          xeroSubTab === 'profit-loss'
+                            ? "bg-background shadow text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
                         )}
                       >
-                        {subTab.name}
+                        Transactions
                       </button>
-                    ))}
+                      <button
+                        onClick={() => setXeroSubTab('profit-loss-statement')}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                          xeroSubTab === 'profit-loss-statement'
+                            ? "bg-background shadow text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Statement
+                      </button>
+                    </>
+                  )}
+                  {xeroSubTab.startsWith('balance-sheet') && (
+                    <>
+                      <button
+                        onClick={() => setXeroSubTab('balance-sheet')}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                          xeroSubTab === 'balance-sheet'
+                            ? "bg-background shadow text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Transactions
+                      </button>
+                      <button
+                        onClick={() => setXeroSubTab('balance-sheet-statement')}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                          xeroSubTab === 'balance-sheet-statement'
+                            ? "bg-background shadow text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Statement
+                      </button>
+                    </>
+                  )}
+                  {xeroSubTab.startsWith('bank') && (
+                    <>
+                      <button
+                        onClick={() => setXeroSubTab('bank-accounts')}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                          xeroSubTab === 'bank-accounts'
+                            ? "bg-background shadow text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Transactions
+                      </button>
+                      <button
+                        onClick={() => setXeroSubTab('bank-statement')}
+                        className={cn(
+                          "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+                          xeroSubTab === 'bank-statement'
+                            ? "bg-background shadow text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        Statement
+                      </button>
+                    </>
+                  )}
                 </div>
-
-                {/* Grouped tabs: P&L, Balance Sheet, Bank */}
-                <div className="flex gap-6 flex-wrap">
-                  {/* Profit & Loss Group */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mr-1">P&L:</span>
-                    {mergedXeroSubTabs
-                      .filter(t => t.id.startsWith('profit-loss'))
-                      .map((subTab) => (
-                        <button
-                          key={subTab.id}
-                          onClick={() => setXeroSubTab(subTab.id)}
-                          className={cn(
-                            "px-2 py-1 text-xs font-medium rounded transition-colors",
-                            xeroSubTab === subTab.id
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                        >
-                          {subTab.name.replace('P&L ', '')}
-                        </button>
-                      ))}
-                  </div>
-
-                  {/* Balance Sheet Group */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mr-1">Balance Sheet:</span>
-                    {mergedXeroSubTabs
-                      .filter(t => t.id.startsWith('balance-sheet'))
-                      .map((subTab) => (
-                        <button
-                          key={subTab.id}
-                          onClick={() => setXeroSubTab(subTab.id)}
-                          className={cn(
-                            "px-2 py-1 text-xs font-medium rounded transition-colors",
-                            xeroSubTab === subTab.id
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                        >
-                          {subTab.name.replace('Balance Sheet ', '')}
-                        </button>
-                      ))}
-                  </div>
-
-                  {/* Bank Group */}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mr-1">Bank:</span>
-                    {mergedXeroSubTabs
-                      .filter(t => t.id.startsWith('bank'))
-                      .map((subTab) => (
-                        <button
-                          key={subTab.id}
-                          onClick={() => setXeroSubTab(subTab.id)}
-                          className={cn(
-                            "px-2 py-1 text-xs font-medium rounded transition-colors",
-                            xeroSubTab === subTab.id
-                              ? "bg-primary text-primary-foreground"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                        >
-                          {subTab.name.replace('Bank ', '')}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              </div>
+              )}
 
               {xeroSubTab === "connection" && (
                 <div className="space-y-4">
