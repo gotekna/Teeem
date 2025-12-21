@@ -1074,6 +1074,7 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
   const [columns, setColumns] = React.useState<any[]>([]);
   const [foundation, setFoundation] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -1111,6 +1112,34 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
       setLoading(false);
     }
   }, [companyId]);
+
+  // Sync bank accounts from Xero
+  const syncFromXero = React.useCallback(async () => {
+    try {
+      setSyncing(true);
+      // This endpoint syncs from Xero AND auto-creates local bank accounts
+      const response = await api.get<{
+        success: boolean;
+        auto_created_count?: number;
+        auto_linked_count?: number;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/xero/bank_accounts`);
+
+      if (response.success) {
+        // Reload local bank accounts to show synced data
+        await loadData();
+        const created = response.auto_created_count || 0;
+        const linked = response.auto_linked_count || 0;
+        if (created > 0 || linked > 0) {
+          console.log(`[BankAccountsTab] Synced from Xero: ${created} created, ${linked} linked`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to sync from Xero:", error);
+    } finally {
+      setSyncing(false);
+    }
+  }, [companyId, loadData]);
 
   React.useEffect(() => {
     loadData();
@@ -1182,6 +1211,26 @@ function BankAccountsTab({ company, companyId }: { company: Company; companyId: 
         onRowUpdate={handleRowUpdate}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
+        leftActions={
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={syncFromXero}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Syncing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Sync from Xero
+              </>
+            )}
+          </Button>
+        }
       />
     </div>
   );
