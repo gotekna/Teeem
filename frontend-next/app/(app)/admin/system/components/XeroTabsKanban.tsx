@@ -251,8 +251,10 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
   // Handle reordering column/parent tabs (the 8 main tabs)
   const handleColumnReorder = React.useCallback(
     async (newOrder: string[]) => {
-      // Prepare reorder payload - column IDs are the tab_keys
-      const reorderPayload = newOrder.map((tabKey, idx) => ({
+      // Filter out "unassigned" - it's not a real tab in the database
+      // Only include real parent tabs
+      const realTabs = newOrder.filter(id => id !== "unassigned");
+      const reorderPayload = realTabs.map((tabKey, idx) => ({
         id: tabKey,
         order_position: idx + 1,
       }));
