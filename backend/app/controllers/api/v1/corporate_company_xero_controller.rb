@@ -634,7 +634,7 @@ module Api
         consolidated_company_ids.uniq!
 
         companies_with_xero = CorporateCompany.where(id: consolidated_company_ids)
-          .includes(:company_xero_connection)
+          .includes(:corporate_company_xero_connection)
           .select { |c| c.corporate_company_xero_connection&.connected? }
 
         if companies_with_xero.empty?
