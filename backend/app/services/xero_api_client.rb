@@ -483,6 +483,34 @@ class XeroApiClient
     { success: false, error: e.message }
   end
 
+  # Update a Xero account name
+  # @param account_id [String] - The Xero Account UUID
+  # @param new_name [String] - The new name for the account
+  # @param options [Hash] - Options including :tenant_id for multi-tenant support
+  # @return [Hash] - { success: true, account: {...} } or { success: false, error: ... }
+  def update_account_name(account_id, new_name, options = {})
+    raise ArgumentError, "account_id required" unless account_id.present?
+    raise ArgumentError, "new_name required" unless new_name.present?
+
+    payload = {
+      "AccountID" => account_id,
+      "Name" => new_name
+    }
+
+    response = make_request(:post, "Accounts/#{account_id}", payload, options)
+
+    if response[:success]
+      account = response[:data]["Accounts"]&.first
+      Rails.logger.info("Updated Xero account #{account_id} name to: #{new_name}")
+      { success: true, account: account }
+    else
+      { success: false, error: response[:error] || "Failed to update account" }
+    end
+  rescue StandardError => e
+    Rails.logger.error("Error updating Xero account: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   # ============================================
   # REPORT METHODS (P&L, Balance Sheet)
   # ============================================

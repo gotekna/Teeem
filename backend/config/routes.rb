@@ -1819,6 +1819,8 @@ Rails.application.routes.draw do
         # Chart of Accounts from Xero
         get "xero/accounts", to: "corporate_company_xero#accounts"
         get "xero/accounts/compare", to: "corporate_company_xero#compare_accounts"
+        post "xero/accounts/:account_id/rename", to: "corporate_company_xero#rename_account"
+        post "xero/accounts/standardize_names", to: "corporate_company_xero#standardize_account_names"
         # Financial Reports from Xero
         get "xero/profit_loss", to: "corporate_company_xero#profit_loss"
         get "xero/profit_loss_monthly", to: "corporate_company_xero#profit_loss_monthly"

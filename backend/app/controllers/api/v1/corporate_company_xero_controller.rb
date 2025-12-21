@@ -625,6 +625,186 @@ module Api
         end
       end
 
+      # POST /api/v1/companies/:company_id/xero/accounts/:account_id/rename
+      # Renames a single Xero account
+      def rename_account
+        connection = @company.corporate_company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        account_id = params[:account_id]
+        new_name = params[:name]
+
+        if account_id.blank? || new_name.blank?
+          return render json: {
+            success: false,
+            error: "account_id and name are required"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          client = XeroApiClient.new
+          result = client.update_account_name(
+            account_id,
+            new_name,
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token
+          )
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: "Account renamed successfully",
+              account: result[:account]
+            }
+          else
+            render json: {
+              success: false,
+              error: result[:error] || "Failed to rename account"
+            }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("Failed to rename Xero account for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
+      # POST /api/v1/companies/:company_id/xero/accounts/standardize_names
+      # Renames all bank-type Xero accounts to use standardized format: "{BANK_CODE} {BSB} {ACCOUNT_NUMBER}"
+      # Only renames accounts that have a matching BankAccount record with BSB and account number
+      def standardize_account_names
+        connection = @company.corporate_company_xero_connection
+
+        if connection.nil? || !connection.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render json: {
+              success: false,
+              error: "Failed to refresh Xero tokens. Please reconnect."
+            }, status: :unauthorized
+          end
+        end
+
+        begin
+          client = XeroApiClient.new
+
+          # Get Xero accounts
+          result = client.get("Accounts", tenant_id: connection.xero_tenant_id, access_token: connection.access_token)
+
+          unless result[:success]
+            return render json: {
+              success: false,
+              error: result[:error] || "Failed to fetch accounts from Xero"
+            }, status: :unprocessable_entity
+          end
+
+          xero_accounts = result[:data]["Accounts"] || []
+
+          # Filter to BANK type accounts only
+          bank_accounts_xero = xero_accounts.select { |a| a["Type"] == "BANK" && a["Status"] == "ACTIVE" }
+
+          # Get local bank accounts with Xero links
+          local_bank_accounts = @company.bank_accounts.linked_to_xero.where.not(bsb: nil)
+
+          renamed = []
+          skipped = []
+          errors = []
+
+          bank_accounts_xero.each do |xero_acc|
+            xero_account_id = xero_acc["AccountID"]
+            current_name = xero_acc["Name"]
+
+            # Find matching local bank account
+            local_account = local_bank_accounts.find { |ba| ba.xero_account_id == xero_account_id }
+
+            unless local_account
+              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "No linked local bank account" }
+              next
+            end
+
+            unless local_account.bsb.present? && local_account.account_number.present?
+              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "Missing BSB or account number" }
+              next
+            end
+
+            # Generate standardized name: "{BANK_CODE} {BSB} {ACCOUNT_NUMBER}"
+            bank_code = local_account.bank_code.presence || "BANK"
+            formatted_bsb = local_account.formatted_bsb
+            account_number = local_account.account_number
+            new_name = "#{bank_code} #{formatted_bsb} #{account_number}"
+
+            # Skip if already has the correct name
+            if current_name == new_name
+              skipped << { xero_account_id: xero_account_id, name: current_name, reason: "Already standardized" }
+              next
+            end
+
+            # Rename in Xero
+            rename_result = client.update_account_name(
+              xero_account_id,
+              new_name,
+              tenant_id: connection.xero_tenant_id,
+              access_token: connection.access_token
+            )
+
+            if rename_result[:success]
+              renamed << {
+                xero_account_id: xero_account_id,
+                old_name: current_name,
+                new_name: new_name
+              }
+            else
+              errors << {
+                xero_account_id: xero_account_id,
+                name: current_name,
+                error: rename_result[:error]
+              }
+            end
+          end
+
+          render json: {
+            success: true,
+            renamed_count: renamed.count,
+            skipped_count: skipped.count,
+            error_count: errors.count,
+            renamed: renamed,
+            skipped: skipped,
+            errors: errors
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to standardize Xero account names for company #{@company.id}: #{e.message}")
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :internal_server_error
+        end
+      end
+
       # GET /api/v1/companies/:company_id/xero/accounts/compare
       # Compare Chart of Accounts across companies in the same consolidated group
       def compare_accounts
