@@ -3958,10 +3958,6 @@ export default function CompanyDetailPage() {
                 <XeroReportsPanel companyId={companyId} />
               )}
 
-              {xeroSubTab === "bank-accounts" && (
-                <XeroBankAccountsCard companyId={companyId} />
-              )}
-
               {/* Statement sub-tabs - show Xero reports */}
               {xeroSubTab === "profit-loss-statement" && (
                 <XeroProfitLossCard companyId={companyId} />
