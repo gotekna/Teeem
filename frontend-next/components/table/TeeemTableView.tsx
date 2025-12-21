@@ -920,6 +920,9 @@ export default function TeeemTableView({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+
+  // Debug mode - add ?debug=grid to URL to show layout visualization
+  const debugGrid = searchParams.get("debug") === "grid";
   const { toast } = useToast();
 
   // ============================================================================
@@ -4711,10 +4714,25 @@ export default function TeeemTableView({
 
 
   return (
-    <div className="flex flex-col h-full gap-2">
+    <div className={cn(
+      "flex flex-col h-full gap-2",
+      debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative"
+    )}>
+      {/* DEBUG: Main Container Label */}
+      {debugGrid && (
+        <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
+          [1] MAIN CONTAINER (BLUE) - flex flex-col h-full gap-2
+        </div>
+      )}
+
       {/* Data Health Widget - shown when button clicked or showDataHealth prop is true */}
       {(healthPanelOpen || showDataHealth) && foundationIdNumeric && (
-        <div className="px-4">
+        <div className={cn("px-4", debugGrid && "border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20 relative")}>
+          {debugGrid && (
+            <div className="absolute top-0 left-0 bg-cyan-600 text-white px-2 py-1 text-xs font-bold z-50">
+              [1a] DATA HEALTH (CYAN)
+            </div>
+          )}
           <DataHealthWidget
             foundationId={foundationIdNumeric}
             compact={!healthPanelOpen}
@@ -4727,8 +4745,19 @@ export default function TeeemTableView({
 
       {/* Page Header - Title + count on LEFT, totals on RIGHT (SSoT) */}
       {showHeader && (
-        <div className="flex items-center justify-between px-4 shrink-0">
-          <div className="flex items-center gap-3">
+        <div className={cn(
+          "flex items-center justify-between px-4 shrink-0",
+          debugGrid && "border-2 border-green-500 bg-green-50 dark:bg-green-950/20 relative"
+        )}>
+          {debugGrid && (
+            <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-50">
+              [2] HEADER (GREEN) - flex justify-between px-4 shrink-0
+            </div>
+          )}
+          <div className={cn(
+            "flex items-center gap-3",
+            debugGrid && "border border-green-300 bg-green-100/50 dark:bg-green-900/30 mt-6"
+          )}>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{tableName}</h1>
             <span className="text-sm text-muted-foreground">
               {totalCount !== null
@@ -4773,9 +4802,20 @@ export default function TeeemTableView({
       )}
 
       {/* Toolbar - First row: Search and main actions */}
-      <div className="flex items-center justify-between gap-4 px-4">
+      <div className={cn(
+        "flex items-center justify-between gap-4 px-4",
+        debugGrid && "border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/20 relative"
+      )}>
+          {debugGrid && (
+            <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold z-50">
+              [3] TOOLBAR (PURPLE) - flex justify-between gap-4 px-4
+            </div>
+          )}
           {/* Left section: Add button + leftActions + Search */}
-          <div className="toolbar-left flex items-center gap-2 flex-shrink-0">
+          <div className={cn(
+            "toolbar-left flex items-center gap-2 flex-shrink-0",
+            debugGrid && "border border-purple-300 bg-purple-100/50 dark:bg-purple-900/30 mt-6"
+          )}>
             {/* Add Row button - auto-shown when onAddRow is provided */}
             {onAddRow && (
               <Button
@@ -5343,13 +5383,19 @@ export default function TeeemTableView({
         ref={tableContainerRef}
         className={cn(
           "flex-1 min-h-0 w-full overflow-auto relative border-t border-b",
-          tableHasFocus && "ring-2 ring-primary/20 ring-inset"
+          tableHasFocus && "ring-2 ring-primary/20 ring-inset",
+          debugGrid && "border-4 border-orange-500 bg-orange-50 dark:bg-orange-950/20"
         )}
         role="region"
         aria-label={`${tableName} table with ${filteredAndSortedEntries.length} rows`}
         aria-busy={columnsLoading || serverSearchLoading || loadingMore}
         {...keyboardProps}
       >
+        {debugGrid && (
+          <div className="sticky top-0 left-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-50 inline-block">
+            [4] TABLE CONTAINER (ORANGE) - flex-1 min-h-0 overflow-auto
+          </div>
+        )}
         {/* Show skeleton while columns are loading */}
         {columnsLoading ? (
           <TableSkeleton
@@ -5378,7 +5424,15 @@ export default function TeeemTableView({
 
       {/* Footer - only shows selected count (totals moved to header) */}
       {!hideFooter && selectedRows.size > 0 && (
-        <div className="flex items-center justify-end text-xs text-muted-foreground shrink-0 py-1 px-4">
+        <div className={cn(
+          "flex items-center justify-end text-xs text-muted-foreground shrink-0 py-1 px-4",
+          debugGrid && "border-2 border-red-500 bg-yellow-50 dark:bg-yellow-950/20 relative"
+        )}>
+          {debugGrid && (
+            <div className="absolute top-0 left-0 bg-red-600 text-white px-2 py-1 text-xs font-bold z-50">
+              [5] FOOTER (YELLOW/RED) - shrink-0
+            </div>
+          )}
           <span>{selectedRows.size} selected</span>
         </div>
       )}

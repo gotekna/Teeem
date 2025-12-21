@@ -52,7 +52,7 @@ class Job < ApplicationRecord
   has_one :email_job_proposal, dependent: :nullify
 
   # Enums
-  enum :onedrive_folder_creation_status, {
+  enum :sharepoint_folder_status, {
     not_requested: "not_requested",
     pending: "pending",
     processing: "processing",
@@ -187,16 +187,16 @@ class Job < ApplicationRecord
     }
   end
 
-  # Check if OneDrive folders have not been requested yet
+  # Check if SharePoint folders have not been requested yet
   def folders_not_requested?
-    onedrive_folder_creation_status == "not_requested"
+    sharepoint_folder_status == "not_requested"
   end
 
-  # Trigger OneDrive folder creation if not already created
+  # Trigger SharePoint folder creation if not already created
   def create_folders_if_needed!(template_id = nil)
     return unless folders_not_requested?
 
-    update!(onedrive_folder_creation_status: "pending")
+    update!(sharepoint_folder_status: "pending")
     CreateJobFoldersJob.perform_later(id, template_id)
   end
 
@@ -481,17 +481,17 @@ class Job < ApplicationRecord
     end
   end
 
-  # Queue OneDrive folder creation after job is created
-  def queue_onedrive_folder_creation
-    # Only create folders if OneDrive is connected
+  # Queue SharePoint folder creation after job is created
+  def queue_sharepoint_folder_creation
+    # Only create folders if SharePoint is connected
     credential = OrganizationSharePointCredential.active_credential
     return unless credential&.valid_credential?
 
     # Queue the folder creation job (runs in background)
-    CreateJobOnedriveFoldersJob.perform_later(id)
-    update_column(:onedrive_folder_creation_status, "pending")
+    CreateJobSharepointFoldersJob.perform_later(id)
+    update_column(:sharepoint_folder_status, "pending")
   rescue StandardError => e
-    Rails.logger.error "Failed to queue OneDrive folder creation for job #{id}: #{e.message}"
+    Rails.logger.error "Failed to queue SharePoint folder creation for job #{id}: #{e.message}"
   end
 
   # Activity logging callbacks

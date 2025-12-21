@@ -53,7 +53,7 @@ class JobDocument < ApplicationRecord
   # AI verification statuses
   AI_VERIFICATION_STATUSES = %w[pending verified mismatch needs_review].freeze
 
-  validates :onedrive_item_id, presence: true, uniqueness: true
+  validates :sharepoint_item_id, presence: true, uniqueness: true
   validates :file_name, presence: true
   validates :sync_status, inclusion: { in: SYNC_STATUSES }
   validates :ai_verification_status, inclusion: { in: AI_VERIFICATION_STATUSES }, allow_blank: true
@@ -72,7 +72,7 @@ class JobDocument < ApplicationRecord
   scope :by_financial_year, ->(year) { where("financial_years @> ARRAY[?]::integer[]", year.to_i) }
   scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
   scope :migrated_from_corporate, -> { where.not(legacy_corporate_document_id: nil) }
-  scope :onedrive_sourced, -> { where(source: "onedrive").or(where(source: nil)) }
+  scope :sharepoint_sourced, -> { where(source: "sharepoint").or(where(source: "onedrive")).or(where(source: nil)) }
   scope :manually_uploaded, -> { where(source: "manual") }
 
   # Callbacks
@@ -138,14 +138,14 @@ class JobDocument < ApplicationRecord
     find_duplicates.exists?
   end
 
-  # Check if this is a migrated document (vs OneDrive synced)
+  # Check if this is a migrated document (vs SharePoint synced)
   def migrated?
     legacy_corporate_document_id.present?
   end
 
-  # Check if this is OneDrive sourced
-  def onedrive_sourced?
-    !migrated? && onedrive_item_id.present?
+  # Check if this is SharePoint sourced
+  def sharepoint_sourced?
+    !migrated? && sharepoint_item_id.present?
   end
 
   private
