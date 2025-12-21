@@ -112,6 +112,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
   const loadComparison = async (switchToComparisonView = false) => {
     try {
       setComparisonLoading(true);
+      console.log("[XeroAccountsCard] Loading comparison for company:", companyId);
       const response = await api.get<{
         success: boolean;
         companies: GroupCompanyInfo[];
@@ -125,21 +126,29 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         error?: string;
       }>(`/api/v1/companies/${companyId}/xero/accounts/compare`);
 
+      console.log("[XeroAccountsCard] Comparison response:", {
+        success: response?.success,
+        companiesCount: response?.companies?.length,
+        comparisonCount: response?.comparison?.length,
+      });
+
       if (response?.success) {
         setGroupCompanies(response.companies || []);
-        setComparison(response.comparison);
+        setComparison(response.comparison || []);
         setComparisonSummary(response.summary);
         // Only switch to comparison view if explicitly requested
         if (switchToComparisonView) {
           setShowComparison(true);
         }
       } else {
+        console.warn("[XeroAccountsCard] Comparison failed:", response?.error);
         // Don't show error for background loading - only if comparison was explicitly requested
         if (switchToComparisonView) {
           setError(response?.error || "Failed to load comparison");
         }
       }
     } catch (err) {
+      console.error("[XeroAccountsCard] Comparison error:", err);
       // Don't show error for background loading
       if (switchToComparisonView) {
         setError((err as Error).message);
@@ -220,6 +229,14 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
             <CardTitle className="text-lg font-medium">Xero Chart of Accounts</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
               {accounts.length} accounts from {companyName || "this company"}
+              {groupCompanies.length > 0 && (
+                <span className="ml-2 text-xs text-blue-600">
+                  ({groupCompanies.length} {groupCompanies.length === 1 ? "company" : "companies"} in group)
+                </span>
+              )}
+              {comparisonLoading && (
+                <span className="ml-2 text-xs text-muted-foreground">(loading group...)</span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -373,8 +390,8 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
                     <th className="text-left py-2 px-3 font-medium">Type</th>
                     <th className="text-left py-2 px-3 font-medium">Tax Type</th>
                     <th className="text-center py-2 px-3 font-medium">Status</th>
-                    {/* Group company columns - only show if comparison data loaded */}
-                    {groupCompanies.length > 1 && groupCompanies.map((company) => (
+                    {/* Group company columns - show if comparison data loaded */}
+                    {groupCompanies.length >= 1 && groupCompanies.map((company) => (
                       <th key={company.company_id} className="text-center py-2 px-2 font-medium min-w-[60px]">
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -413,7 +430,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
                           )}
                         </td>
                         {/* Group company check/x columns */}
-                        {groupCompanies.length > 1 && groupCompanies.map((company) => {
+                        {groupCompanies.length >= 1 && groupCompanies.map((company) => {
                           const hasAccount = companiesWithAccount.includes(company.company_id);
                           return (
                             <td key={company.company_id} className="py-2 px-2 text-center">
