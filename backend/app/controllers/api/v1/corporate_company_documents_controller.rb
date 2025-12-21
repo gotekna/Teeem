@@ -319,7 +319,7 @@ module Api
           if result[:success] && result[:analysis][:confidence].to_i >= auto_apply_threshold
             # Auto-apply the suggestion if confidence meets threshold
             @document.update!(
-              title: @document.ai_suggested_name,
+              file_name: @document.ai_suggested_name,
               folder: @document.ai_suggested_folder,
               document_type: @document.ai_suggested_type,
               ai_verification_status: "verified",
@@ -365,9 +365,9 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        old_title = @document.title
+        old_name = @document.file_name
         @document.update!(
-          title: @document.ai_suggested_name,
+          file_name: @document.ai_suggested_name,
           ai_verification_status: "verified",
           user_validated_at: Time.current,
           user_validated_by: current_user
@@ -375,7 +375,7 @@ module Api
 
         render json: {
           success: true,
-          message: "Document renamed from '#{old_title}' to '#{@document.title}'",
+          message: "Document renamed from '#{old_name}' to '#{@document.file_name}'",
           document: @document.as_json(
             include: {
               company: {},
@@ -412,7 +412,7 @@ module Api
           ai_suggested_fy: @document.ai_suggested_fy,
           ai_confidence: @document.ai_confidence_score,
           # What user chose
-          user_final_name: feedback_params[:final_name] || @document.title,
+          user_final_name: feedback_params[:final_name] || @document.file_name,
           user_final_folder: feedback_params[:final_folder] || @document.folder,
           user_final_type: feedback_params[:final_type] || @document.document_type,
           user_final_fy: feedback_params[:final_fy],
@@ -439,22 +439,25 @@ module Api
       # POST /api/v1/company_documents/:id/relocate
       # Moves/renames document in OneDrive and updates metadata
       def relocate
-        relocate_params = params.require(:relocate).permit(:title, :company_id, :folder, :document_type, :ref_date, :filed_date, :notes, financial_years: [])
+        relocate_params = params.require(:relocate).permit(:file_name, :title, :company_id, :folder, :document_type, :ref_date, :filed_date, :notes, financial_years: [])
 
         # Capture old values for activity log
         old_values = {
-          title: @document.title,
+          file_name: @document.file_name,
           company_id: @document.company_id,
           folder: @document.folder,
           document_type: @document.document_type,
           financial_years: @document.financial_years
         }
 
+        # SSoT: Use file_name, fall back to title for backwards compatibility
+        new_file_name = relocate_params[:file_name] || relocate_params[:title]
+
         service = DocumentRelocateService.new(@document)
         result = service.relocate!(
           new_company_id: relocate_params[:company_id],
           new_folder: relocate_params[:folder],
-          new_title: relocate_params[:title]
+          new_file_name: new_file_name
         )
 
         if result[:success]
@@ -470,7 +473,7 @@ module Api
 
           # Log activity - determine action type based on what changed
           new_values = {
-            title: @document.title,
+            file_name: @document.file_name,
             company_id: @document.company_id,
             folder: @document.folder,
             document_type: @document.document_type,
@@ -480,7 +483,7 @@ module Api
           # Determine action type
           action = if old_values[:company_id] != new_values[:company_id] || old_values[:folder] != new_values[:folder]
                      "moved"
-          elsif old_values[:title] != new_values[:title]
+          elsif old_values[:file_name] != new_values[:file_name]
                      "renamed"
           else
                      "updated"
@@ -528,7 +531,7 @@ module Api
           return render json: { success: false, error: "No file or file_data provided" }, status: :bad_request
         end
 
-        new_filename = params[:file_name] || params[:filename] || @document.title
+        new_filename = params[:file_name] || params[:filename] || @document.file_name
         create_new = params[:create_new] == "true" || params[:create_new] == true
 
         begin
@@ -554,7 +557,7 @@ module Api
             # Create new document record
             new_document = CorporateCompanyDocument.create!(
               company_id: @document.company_id,
-              title: new_filename,
+              file_name: new_filename,
               folder: @document.folder,
               document_type: params[:document_type] || @document.document_type,
               source: "edited",
@@ -562,7 +565,7 @@ module Api
               file_size: content.bytesize,
               financial_years: @document.financial_years,
               ai_verification_status: "pending",
-              ai_analysis_notes: "Created from edited version of #{@document.title}"
+              ai_analysis_notes: "Created from edited version of #{@document.file_name}"
             )
 
             render json: {
@@ -580,7 +583,7 @@ module Api
             # Update document record
             @document.update!(
               file_size: content.bytesize,
-              title: new_filename
+              file_name: new_filename
             )
 
             render json: {
@@ -755,10 +758,11 @@ module Api
       end
 
       def document_params
+        # SSoT: file_name is THE filename field. :title kept for backwards compatibility.
         params.require(:company_document).permit(
-          :company_id, :contact_id, :asset_id, :document_type_id, :title, :document_name,
+          :company_id, :contact_id, :asset_id, :document_type_id, :file_name, :title, :document_name,
           :document_type, :description, :file_url, :year, :period, :folder,
-          :storage_type, :source, :file_name, :file_size, :mime_type,
+          :storage_type, :source, :file_size, :mime_type,
           :ref_date, :filed_date,
           financial_years: []
         )

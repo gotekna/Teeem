@@ -37,8 +37,8 @@ class DocumentType < ApplicationRecord
   # Callbacks - clear CorporateCompanyDocument abbreviation cache when document types change
   after_save :clear_abbreviation_cache
   after_destroy :clear_abbreviation_cache
-  # ULTRA SSoT: When display_name changes, regenerate all linked documents' display_titles
-  after_save :regenerate_document_display_titles, if: :saved_change_to_display_name?
+  # ULTRA SSoT: When display_name template changes, regenerate all linked documents' display_names
+  after_save :regenerate_document_display_names, if: :saved_change_to_display_name?
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -293,17 +293,17 @@ class DocumentType < ApplicationRecord
     CorporateCompanyDocument.clear_abbreviations_cache!
   end
 
-  # ULTRA SSoT: Regenerate display_titles for all linked documents when display_name changes
-  def regenerate_document_display_titles
+  # ULTRA SSoT: Regenerate display_names for all linked documents when display_name template changes
+  def regenerate_document_display_names
     return unless display_name.present?
 
     # Queue a background job to avoid blocking the save
-    RegenerateDisplayTitlesJob.perform_later(id) if defined?(RegenerateDisplayTitlesJob)
+    RegenerateDisplayNamesJob.perform_later(id) if defined?(RegenerateDisplayNamesJob)
 
     # For now, also do inline update for immediate effect (small batches)
     corporate_company_documents.find_each(batch_size: 100) do |doc|
-      new_title = doc.expand_display_template(display_name)
-      doc.update_column(:display_title, new_title) if new_title != doc.display_title
+      new_name = doc.expand_display_template(display_name)
+      doc.update_column(:display_name, new_name) if new_name != doc.display_name
     end
   end
 end

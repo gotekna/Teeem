@@ -44,6 +44,7 @@ export { XeroOverviewCard } from './XeroOverviewCard';
 export { XeroAccountsCard } from './XeroAccountsCard';
 export { XeroProfitLossCard, XeroBalanceSheetCard } from './XeroFinancialReports';
 export { XeroProfitLossMonthly } from './XeroProfitLossMonthly';
+export { XeroPLStatementView } from './XeroPLStatementView';
 export { XeroBankAccountsCard } from './XeroBankAccountsCard';
 export { XeroConsolidatedCard } from './XeroConsolidatedCard';
 

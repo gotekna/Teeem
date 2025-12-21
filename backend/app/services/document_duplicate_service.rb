@@ -5,21 +5,21 @@ class DocumentDuplicateService
 
   class DuplicateError < StandardError; end
 
-  # Find all duplicate documents (same title within same company)
+  # Find all duplicate documents (same file_name within same company)
   def self.find_duplicates(company_id: nil)
-    scope = CorporateCompanyDocument.select(:title, :company_id)
-                          .group(:title, :company_id)
+    scope = CorporateCompanyDocument.select(:file_name, :company_id)
+                          .group(:file_name, :company_id)
                           .having("COUNT(*) > 1")
 
     scope = scope.where(company_id: company_id) if company_id.present?
 
     duplicates = []
     scope.each do |dup|
-      docs = CorporateCompanyDocument.where(title: dup.title, company_id: dup.company_id)
+      docs = CorporateCompanyDocument.where(file_name: dup.file_name, company_id: dup.company_id)
                            .includes(:corporate_company)
                            .order(:created_at)
       duplicates << {
-        title: dup.title,
+        file_name: dup.file_name,
         company_id: dup.company_id,
         company_name: docs.first&.company&.name,
         count: docs.count,
@@ -40,7 +40,7 @@ class DocumentDuplicateService
     doc_contents = documents.map do |doc|
       {
         id: doc.id,
-        title: doc.title,
+        file_name: doc.file_name,
         folder: doc.folder,
         company: doc.company&.name,
         company_code: doc.company&.code,
@@ -99,7 +99,7 @@ class DocumentDuplicateService
     duplicates.each do |dup_set|
       document_ids = dup_set[:documents].map { |d| d[:id] }
 
-      Rails.logger.info "[AutoResolve] Analyzing: #{dup_set[:title]} (#{dup_set[:count]} copies)"
+      Rails.logger.info "[AutoResolve] Analyzing: #{dup_set[:file_name]} (#{dup_set[:count]} copies)"
 
       begin
         # Get AI recommendation
@@ -107,7 +107,7 @@ class DocumentDuplicateService
 
         if analysis[:error]
           results << {
-            title: dup_set[:title],
+            file_name: dup_set[:file_name],
             company: dup_set[:company_name],
             status: :error,
             error: analysis[:error]
@@ -119,7 +119,7 @@ class DocumentDuplicateService
         confidence = analysis[:confidence] || 0
 
         result_entry = {
-          title: dup_set[:title],
+          file_name: dup_set[:file_name],
           company: dup_set[:company_name],
           document_ids: document_ids,
           recommendation: recommendation,
@@ -184,9 +184,9 @@ class DocumentDuplicateService
         results << result_entry
 
       rescue StandardError => e
-        Rails.logger.error "[AutoResolve] Error processing #{dup_set[:title]}: #{e.message}"
+        Rails.logger.error "[AutoResolve] Error processing #{dup_set[:file_name]}: #{e.message}"
         results << {
-          title: dup_set[:title],
+          file_name: dup_set[:file_name],
           company: dup_set[:company_name],
           status: :error,
           error: e.message

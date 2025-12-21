@@ -502,11 +502,10 @@ class CorporateSharePointScannerService
     document_type_enum = map_folder_to_document_type_enum(document_type_string)
 
     company_doc.assign_attributes(
-      title: doc["name"],
+      file_name: doc["name"],
       document_type: document_type_enum,
       document_type_id: document_type&.id,
       file_url: doc["webUrl"],
-      file_name: doc["name"],
       onedrive_download_url: download_url,
       file_size: doc.dig("size"),
       last_modified_at: doc.dig("lastModifiedDateTime")&.to_datetime,

@@ -96,7 +96,7 @@ class CorporateCompanyDocument < ApplicationRecord
   end
 
   # Validations
-  validates :title, presence: true
+  validates :file_name, presence: true  # SSoT: file_name is THE filename
   # Allow document_type from the DocumentType table or legacy hardcoded values
   validates :document_type, inclusion: {
     in: ->(doc) { doc.class.allowed_document_types }
@@ -139,9 +139,8 @@ class CorporateCompanyDocument < ApplicationRecord
   # Callbacks
   after_create :create_activity
   before_validation :set_focus
-  before_save :sync_file_name_from_title  # SSoT: file_name is THE filename
-  before_save :extract_financial_years_from_title
-  before_save :generate_display_title
+  before_save :extract_financial_years_from_file_name  # SSoT: file_name is THE filename
+  before_save :generate_display_name                    # SSoT: display_name is THE display
 
   # Instance methods
   def formatted_document_type
@@ -153,8 +152,9 @@ class CorporateCompanyDocument < ApplicationRecord
     (file_size.to_f / 1024 / 1024).round(2)
   end
 
-  def display_name
-    title
+  # SSoT: Alias for backwards compatibility during transition
+  def title
+    file_name
   end
 
   # Find an existing document by content hash
@@ -200,7 +200,7 @@ class CorporateCompanyDocument < ApplicationRecord
     performer = user || (defined?(Current) && Current.respond_to?(:user) ? Current.user : nil) || User.first
     corporate_company.company_activities.create!(
       activity_type: "document_uploaded",
-      description: "Document uploaded: #{title}",
+      description: "Document uploaded: #{file_name}",
       change_details: {
         document_type: document_type,
         file_name: file_name,
@@ -216,19 +216,18 @@ class CorporateCompanyDocument < ApplicationRecord
     end
   end
 
-  # Generate a user-friendly display title from the abbreviated filename
-  # Examples:
+  # Generate a user-friendly display name from the filename
   # ULTRA SSoT: DocumentType.display_name IS the template
   # If document has a type, use its template. Otherwise, clean the filename.
-  def generate_display_title
-    return if title.blank?
-    # Only regenerate if relevant fields changed or display_title is blank
-    return if display_title.present? && !title_changed? && !document_type_id_changed?
+  def generate_display_name
+    return if file_name.blank?
+    # Only regenerate if relevant fields changed or display_name is blank
+    return if display_name.present? && !file_name_changed? && !document_type_id_changed?
 
     if document_type_record&.display_name.present?
-      self.display_title = expand_display_template(document_type_record.display_name)
+      self.display_name = expand_display_template(document_type_record.display_name)
     else
-      self.display_title = clean_title_for_display
+      self.display_name = clean_file_name_for_display
     end
   end
 
@@ -237,7 +236,7 @@ class CorporateCompanyDocument < ApplicationRecord
     result = template.dup
 
     # Financial year tokens
-    fy = financial_years&.first || extract_fy_from_title
+    fy = financial_years&.first || extract_fy_from_file_name
     if fy
       fy_short = fy.to_s[-2..-1] # "2025" -> "25"
       result.gsub!('{YY}', fy_short)
@@ -256,10 +255,10 @@ class CorporateCompanyDocument < ApplicationRecord
     # Document type name (for generic templates)
     result.gsub!('{DocTypeName}', document_type_record&.name.to_s)
 
-    # Signed status from title
-    if title&.match?(/\bUS\b|Unsigned/i)
+    # Signed status from file_name
+    if file_name&.match?(/\bUS\b|Unsigned/i)
       result.gsub!('{Signed}', 'Unsigned')
-    elsif title&.match?(/\bS\b.*\b(CTR|TTR)\b|Signed/i)
+    elsif file_name&.match?(/\bS\b.*\b(CTR|TTR)\b|Signed/i)
       result.gsub!('{Signed}', 'Signed')
     end
 
@@ -270,19 +269,19 @@ class CorporateCompanyDocument < ApplicationRecord
     result.gsub!(/\s+/, ' ').strip
   end
 
-  # Extract FY from title if not in financial_years
-  def extract_fy_from_title
-    return nil unless title.present?
-    if title.match?(/FY(\d{2})\b/)
-      "20#{title.match(/FY(\d{2})\b/)[1]}".to_i
-    elsif title.match?(/FY(\d{4})\b/)
-      title.match(/FY(\d{4})\b/)[1].to_i
+  # Extract FY from file_name if not in financial_years
+  def extract_fy_from_file_name
+    return nil unless file_name.present?
+    if file_name.match?(/FY(\d{2})\b/)
+      "20#{file_name.match(/FY(\d{2})\b/)[1]}".to_i
+    elsif file_name.match?(/FY(\d{4})\b/)
+      file_name.match(/FY(\d{4})\b/)[1].to_i
     end
   end
 
   # Fallback: clean filename for display when no DocumentType
-  def clean_title_for_display
-    display = title.dup
+  def clean_file_name_for_display
+    display = file_name.dup
 
     # Remove company code prefix if present
     if corporate_company&.code.present?
@@ -297,21 +296,15 @@ class CorporateCompanyDocument < ApplicationRecord
     display.strip
   end
 
-  # SSoT: file_name is THE filename field, title is deprecated
-  # This keeps them in sync during the transition period
-  def sync_file_name_from_title
-    self.file_name = title if title.present? && title_changed?
-  end
+  # Extract financial years from file_name
+  # ONLY extracts if file_name explicitly contains "FY" pattern
+  # If file_name uses dates or date ranges without FY, financial_years is cleared
+  def extract_financial_years_from_file_name
+    return if file_name.blank?
 
-  # Extract financial years from title
-  # ONLY extracts if title explicitly contains "FY" pattern
-  # If title uses dates or date ranges without FY, financial_years is cleared
-  def extract_financial_years_from_title
-    return if title.blank?
-
-    # Only populate financial_years if title explicitly contains "FY" pattern
+    # Only populate financial_years if file_name explicitly contains "FY" pattern
     # Documents with date ranges (e.g., "BAS Statement 01-07-2023 to 30-06-2024") should NOT have FY
-    unless title.match?(/FY\d{2,4}/i)
+    unless file_name.match?(/FY\d{2,4}/i)
       self.financial_years = []
       return
     end
@@ -319,7 +312,7 @@ class CorporateCompanyDocument < ApplicationRecord
     years = Set.new
 
     # Extract FY followed by 2 or 4 digits (e.g., FY21, FY2021)
-    title.scan(/FY(\d{2,4})/i).each do |match|
+    file_name.scan(/FY(\d{2,4})/i).each do |match|
       year_str = match[0]
       year = year_str.length == 2 ? "20#{year_str}".to_i : year_str.to_i
       years.add(year) if year >= 2000 && year <= 2100
@@ -331,22 +324,22 @@ class CorporateCompanyDocument < ApplicationRecord
   # Class method to update financial years for all existing documents
   def self.backfill_financial_years!
     CorporateCompanyDocument.find_each do |doc|
-      doc.extract_financial_years_from_title
+      doc.extract_financial_years_from_file_name
       doc.save(validate: false) if doc.financial_years_changed?
     end
   end
 
-  # Class method to generate display_title for all existing documents
-  def self.backfill_display_titles!
+  # Class method to generate display_name for all existing documents
+  def self.backfill_display_names!
     count = 0
     CorporateCompanyDocument.includes(:corporate_company).find_each do |doc|
-      doc.send(:generate_display_title)
-      if doc.display_title_changed?
+      doc.send(:generate_display_name)
+      if doc.display_name_changed?
         doc.save(validate: false)
         count += 1
       end
     end
-    puts "Updated #{count} documents with display titles"
+    puts "Updated #{count} documents with display names"
     count
   end
 end

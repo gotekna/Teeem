@@ -10,10 +10,10 @@ class DocumentRelocateService
 
   # Relocate document in OneDrive based on updated metadata
   # This handles:
-  # - Renaming the file (title change)
+  # - Renaming the file (file_name change)
   # - Moving to different company folder (company_id change)
   # - Moving to different subfolder (folder change)
-  def relocate!(new_company_id: nil, new_folder: nil, new_title: nil)
+  def relocate!(new_company_id: nil, new_folder: nil, new_file_name: nil)
     return { success: true, skipped: true, reason: "No OneDrive file" } unless @document.sharepoint_file_id.present?
     return { success: false, error: "No OneDrive credential" } unless @client
 
@@ -24,7 +24,7 @@ class DocumentRelocateService
     current_file = @client.get("/drives/#{drive_id}/items/#{@document.sharepoint_file_id}")
 
     # Determine what needs to change
-    needs_rename = new_title.present? && new_title != @document.title
+    needs_rename = new_file_name.present? && new_file_name != @document.file_name
     needs_move = (new_company_id.present? && new_company_id.to_s != @document.company_id.to_s) ||
                  (new_folder.present? && new_folder != @document.folder)
 
@@ -47,9 +47,9 @@ class DocumentRelocateService
     if needs_rename
       # Preserve file extension
       current_extension = File.extname(current_file["name"])
-      # Sanitize the title for OneDrive (remove illegal characters)
-      sanitized_title = sanitize_onedrive_filename(new_title)
-      new_name = sanitized_title.end_with?(current_extension) ? sanitized_title : "#{sanitized_title}#{current_extension}"
+      # Sanitize the file_name for OneDrive (remove illegal characters)
+      sanitized_name = sanitize_onedrive_filename(new_file_name)
+      new_name = sanitized_name.end_with?(current_extension) ? sanitized_name : "#{sanitized_name}#{current_extension}"
       update_payload[:name] = new_name
       actions << { type: "rename", from: current_file["name"], to: new_name }
     end
@@ -66,7 +66,7 @@ class DocumentRelocateService
 
       # Update the document record
       updates = {}
-      updates[:title] = new_title if needs_rename
+      updates[:file_name] = new_file_name if needs_rename
       updates[:company_id] = new_company_id if new_company_id.present?
       updates[:folder] = new_folder if new_folder.present?
 

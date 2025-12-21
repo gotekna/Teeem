@@ -92,7 +92,7 @@ import {
   XeroAccountsCard,
   XeroProfitLossCard,
   XeroBalanceSheetCard,
-  XeroProfitLossMonthly,
+  XeroPLStatementView,
   XeroBankAccountsCard,
   XeroReportsPanel,
   XeroConsolidatedCard,
@@ -3964,14 +3964,14 @@ export default function CompanyDetailPage() {
                 <XeroReportsPanel companyId={companyId} />
               )}
 
-              {/* Statement sub-tabs - show Xero reports */}
+              {/* Statement sub-tabs - show P&L PDF reports in table */}
               {xeroSubTab === "profit-loss-statement" && (
-                <XeroProfitLossCard companyId={companyId} />
+                <XeroPLStatementView companyId={companyId} />
               )}
 
-              {/* Transactions sub-tabs - show monthly P&L summaries */}
+              {/* Transactions sub-tabs - show raw P&L data from Xero */}
               {xeroSubTab === "profit-loss-transactions" && (
-                <XeroProfitLossMonthly companyId={companyId} />
+                <XeroProfitLossCard companyId={companyId} />
               )}
 
               {xeroSubTab === "balance-sheet-statement" && (

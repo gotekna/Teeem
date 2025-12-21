@@ -106,7 +106,7 @@ class DocumentVerificationService
     return false unless analysis[:suggested_name].present?
 
     # Rename file in SharePoint if name changed
-    if analysis[:suggested_name] != @document.title && @document.sharepoint_file_id.present?
+    if analysis[:suggested_name] != @document.file_name && @document.sharepoint_file_id.present?
       begin
         credential = OrganizationSharePointCredential.active_credential
         if credential
@@ -129,7 +129,7 @@ class DocumentVerificationService
 
     # Update document record with AI suggestions
     update_attrs = {
-      title: analysis[:suggested_name],
+      file_name: analysis[:suggested_name],
       folder: analysis[:suggested_folder] || @document.folder,
       document_type: analysis[:suggested_type] || @document.document_type,
       ref_date: analysis[:extracted_date].presence || @document.ref_date,
@@ -177,7 +177,7 @@ class DocumentVerificationService
   end
 
   def extract_text(content)
-    file_extension = File.extname(@document.title || @document.file_name || "").downcase
+    file_extension = File.extname(@document.file_name || "").downcase
 
     case file_extension
     when ".pdf"
@@ -379,7 +379,7 @@ class DocumentVerificationService
   def build_prompt(text_data)
     # Build context about the document
     context_parts = []
-    context_parts << "Current filename: #{@document.title}"
+    context_parts << "Current filename: #{@document.file_name}"
     if @company
       context_parts << "Company: #{@company.name} (code: #{@company.code})"
       # Include previous names if any - helps match documents from before company name changes
