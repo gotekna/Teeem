@@ -251,8 +251,12 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
   // Handle reordering column/parent tabs (the 8 main tabs)
   const handleColumnReorder = React.useCallback(
     async (newOrder: string[]) => {
+      const previousOrder = columnOrder;
+
+      // Optimistic update - update state immediately
+      setColumnOrder(newOrder);
+
       // Filter out "unassigned" - it's not a real tab in the database
-      // Only include real parent tabs
       const realTabs = newOrder.filter(id => id !== "unassigned");
       const reorderPayload = realTabs.map((tabKey, idx) => ({
         id: tabKey,
@@ -262,7 +266,6 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
       setSaving(true);
       try {
         await api.post("/api/v1/xero/tabs/reorder", { tabs: reorderPayload });
-        setColumnOrder(newOrder);
         toast({
           title: "Tab order saved",
           description: "Column order updated in database",
@@ -270,6 +273,8 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
         onUpdate();
       } catch (error) {
         console.error("Failed to reorder columns:", error);
+        // Revert on error
+        setColumnOrder(previousOrder);
         toast({
           title: "Error",
           description: "Failed to save column order",
@@ -279,7 +284,27 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
         setSaving(false);
       }
     },
-    [onUpdate, toast]
+    [columnOrder, onUpdate, toast]
+  );
+
+  // Handle position change when user types a new position number
+  const handlePositionChange = React.useCallback(
+    (colId: string, newPosition: number) => {
+      const currentIndex = columnOrder.indexOf(colId);
+      if (currentIndex === -1) return;
+
+      // Clamp to valid range
+      const targetIndex = Math.max(0, Math.min(newPosition - 1, columnOrder.length - 1));
+      if (targetIndex === currentIndex) return;
+
+      // Create new order by moving the item
+      const newOrder = [...columnOrder];
+      newOrder.splice(currentIndex, 1);
+      newOrder.splice(targetIndex, 0, colId);
+
+      handleColumnReorder(newOrder);
+    },
+    [columnOrder, handleColumnReorder]
   );
 
 
@@ -378,6 +403,9 @@ export function XeroTabsKanban({ tabs, onUpdate }: XeroTabsKanbanProps) {
                 key={colId}
                 id={colId}
                 position={index + 1}
+                editableBadge
+                onPositionChange={(newPos) => handlePositionChange(colId, newPos)}
+                maxPosition={columnOrder.length}
                 variant="card"
                 className="whitespace-nowrap"
               >
