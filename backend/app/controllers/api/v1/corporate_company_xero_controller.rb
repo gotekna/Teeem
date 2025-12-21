@@ -951,7 +951,202 @@ module Api
         end
       end
 
+      # GET /api/v1/companies/:company_id/xero/group/companies
+      # Returns all companies in the consolidated group with their Xero connection status
+      def group_companies
+        companies = get_group_companies
+
+        render json: {
+          success: true,
+          companies: companies.map do |company|
+            connection = company.corporate_company_xero_connection
+            {
+              id: company.id,
+              name: company.name,
+              slug: company.slug,
+              xero_connected: connection&.connected? || false,
+              xero_tenant_name: connection&.xero_tenant_name,
+              is_parent: company.has_consolidated_children?
+            }
+          end
+        }
+      end
+
+      # GET /api/v1/companies/:company_id/xero/group/profit_loss
+      # Returns P&L report merged across all group companies
+      def group_profit_loss
+        companies = get_group_companies.select { |c| c.corporate_company_xero_connection&.connected? }
+
+        if companies.empty?
+          return render json: {
+            success: false,
+            error: "No companies in this group are connected to Xero"
+          }, status: :bad_request
+        end
+
+        from_date = params[:from_date] || Date.today.beginning_of_year.to_s
+        to_date = params[:to_date] || Date.today.to_s
+        client = XeroApiClient.new
+
+        company_reports = []
+        all_rows = {}
+
+        companies.each do |company|
+          connection = company.corporate_company_xero_connection
+          connection.refresh_tokens! if connection.needs_refresh?
+
+          begin
+            result = client.get(
+              "Reports/ProfitAndLoss",
+              tenant_id: connection.xero_tenant_id,
+              access_token: connection.access_token,
+              params: { fromDate: from_date, toDate: to_date }
+            )
+
+            next unless result[:success]
+
+            report = result[:data]["Reports"]&.first
+            next unless report
+
+            rows = parse_xero_report_rows(report["Rows"] || [])
+
+            company_reports << {
+              company_id: company.id,
+              company_name: company.name,
+              rows: rows
+            }
+
+            # Merge rows by title/label for side-by-side comparison
+            rows.each_with_index do |row, idx|
+              key = row[:row_type] == "Row" ? (row[:cells]&.first&.dig(:value) || idx.to_s) : "#{row[:row_type]}_#{row[:title] || idx}"
+              all_rows[key] ||= {
+                row_type: row[:row_type],
+                title: row[:title],
+                label: row[:cells]&.first&.dig(:value),
+                values: {}
+              }
+              # Get the amount value (usually second cell)
+              amount = row[:cells]&.[](1)&.dig(:value)
+              all_rows[key][:values][company.id] = amount
+            end
+          rescue StandardError => e
+            Rails.logger.warn("Failed to fetch P&L for company #{company.id}: #{e.message}")
+          end
+        end
+
+        # Build merged rows with totals
+        merged_rows = all_rows.values.map do |row|
+          total = row[:values].values.sum { |v| v.to_s.gsub(/[^\d.-]/, "").to_f }
+          {
+            row_type: row[:row_type],
+            title: row[:title],
+            label: row[:label],
+            company_values: row[:values],
+            total: total
+          }
+        end
+
+        render json: {
+          success: true,
+          companies: company_reports.map { |r| { id: r[:company_id], name: r[:company_name] } },
+          rows: merged_rows,
+          from_date: from_date,
+          to_date: to_date
+        }
+      end
+
+      # GET /api/v1/companies/:company_id/xero/group/balance_sheet
+      # Returns Balance Sheet merged across all group companies
+      def group_balance_sheet
+        companies = get_group_companies.select { |c| c.corporate_company_xero_connection&.connected? }
+
+        if companies.empty?
+          return render json: {
+            success: false,
+            error: "No companies in this group are connected to Xero"
+          }, status: :bad_request
+        end
+
+        as_of_date = params[:date] || Date.today.to_s
+        client = XeroApiClient.new
+
+        company_reports = []
+        all_rows = {}
+
+        companies.each do |company|
+          connection = company.corporate_company_xero_connection
+          connection.refresh_tokens! if connection.needs_refresh?
+
+          begin
+            result = client.get(
+              "Reports/BalanceSheet",
+              tenant_id: connection.xero_tenant_id,
+              access_token: connection.access_token,
+              params: { date: as_of_date }
+            )
+
+            next unless result[:success]
+
+            report = result[:data]["Reports"]&.first
+            next unless report
+
+            rows = parse_xero_report_rows(report["Rows"] || [])
+
+            company_reports << {
+              company_id: company.id,
+              company_name: company.name,
+              rows: rows
+            }
+
+            # Merge rows by title/label
+            rows.each_with_index do |row, idx|
+              key = row[:row_type] == "Row" ? (row[:cells]&.first&.dig(:value) || idx.to_s) : "#{row[:row_type]}_#{row[:title] || idx}"
+              all_rows[key] ||= {
+                row_type: row[:row_type],
+                title: row[:title],
+                label: row[:cells]&.first&.dig(:value),
+                values: {}
+              }
+              amount = row[:cells]&.[](1)&.dig(:value)
+              all_rows[key][:values][company.id] = amount
+            end
+          rescue StandardError => e
+            Rails.logger.warn("Failed to fetch Balance Sheet for company #{company.id}: #{e.message}")
+          end
+        end
+
+        # Build merged rows with totals
+        merged_rows = all_rows.values.map do |row|
+          total = row[:values].values.sum { |v| v.to_s.gsub(/[^\d.-]/, "").to_f }
+          {
+            row_type: row[:row_type],
+            title: row[:title],
+            label: row[:label],
+            company_values: row[:values],
+            total: total
+          }
+        end
+
+        render json: {
+          success: true,
+          companies: company_reports.map { |r| { id: r[:company_id], name: r[:company_name] } },
+          rows: merged_rows,
+          as_of_date: as_of_date
+        }
+      end
+
       private
+
+      # Get all companies in the consolidated group (parent + children)
+      def get_group_companies
+        # If this company has a parent, start from parent
+        parent = @company.consolidation_parent_id ? CorporateCompany.find_by(id: @company.consolidation_parent_id) : @company
+
+        # Get parent and all its consolidated children
+        companies = [ parent ]
+        companies.concat(parent.consolidated_children.to_a) if parent.has_consolidated_children?
+        companies.compact.uniq
+      end
 
       # Helper to parse Xero report rows into a flat structure
       def parse_xero_report_rows(rows, depth = 0)

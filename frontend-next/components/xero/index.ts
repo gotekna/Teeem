@@ -46,6 +46,11 @@ export { XeroProfitLossCard, XeroBalanceSheetCard } from './XeroFinancialReports
 export { XeroBankAccountsCard } from './XeroBankAccountsCard';
 export { XeroConsolidatedCard } from './XeroConsolidatedCard';
 
+// Group Reports (side-by-side view for company groups)
+export { XeroGroupAccountsCard } from './XeroGroupAccountsCard';
+export { XeroGroupPLCard } from './XeroGroupPLCard';
+export { XeroGroupBalanceSheetCard } from './XeroGroupBalanceSheetCard';
+
 // Reports Components
 export { XeroReportsPanel } from './XeroReportsPanel';
 

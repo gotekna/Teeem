@@ -96,6 +96,9 @@ import {
   XeroReportsPanel,
   XeroConsolidatedCard,
   XeroCompanyDocSyncCard,
+  XeroGroupAccountsCard,
+  XeroGroupPLCard,
+  XeroGroupBalanceSheetCard,
 } from "@/components/xero";
 
 // =============================================================================
@@ -3921,21 +3924,7 @@ export default function CompanyDetailPage() {
 
               {/* Group Accounts - for any company in a group (side-by-side view) */}
               {xeroSubTab === "consolidated-accounts" && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Group Chart of Accounts</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      Side-by-side comparison of accounts across all group entities
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center text-muted-foreground py-8">
-                      <p className="font-medium mb-2">Accounts from all group entities</p>
-                      <p className="text-sm">Shows each account with balances from each connected Xero organisation in separate columns.</p>
-                      <p className="text-xs mt-4 text-amber-600">Coming soon - will display accounts side-by-side for comparison</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <XeroGroupAccountsCard companyId={companyId} />
               )}
 
               {xeroSubTab === "profit-loss" && (
@@ -4009,39 +3998,11 @@ export default function CompanyDetailPage() {
 
               {/* Group reports - for any company in a group */}
               {xeroSubTab === "consolidated-pl" && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Group Profit & Loss</p>
-                      <p className="text-sm">Combined P&L statement for all group entities.</p>
-                      <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate P&L from all connected Xero orgs</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <XeroGroupPLCard companyId={companyId} />
               )}
 
               {xeroSubTab === "consolidated-bs" && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Group Balance Sheet</p>
-                      <p className="text-sm">Combined Balance Sheet for all group entities.</p>
-                      <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate Balance Sheet from all connected Xero orgs</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {xeroSubTab === "consolidated-bank" && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Group Bank Accounts</p>
-                      <p className="text-sm">Combined Bank transactions for all group entities.</p>
-                      <p className="text-xs mt-2 text-amber-600">Coming soon - will aggregate Bank data from all connected Xero orgs</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <XeroGroupBalanceSheetCard companyId={companyId} />
               )}
 
               {/* Document folder sub-tabs from API (SSoT) */}

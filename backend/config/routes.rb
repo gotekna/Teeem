@@ -1822,6 +1822,10 @@ Rails.application.routes.draw do
         # Financial Reports from Xero
         get "xero/profit_loss", to: "corporate_company_xero#profit_loss"
         get "xero/balance_sheet", to: "corporate_company_xero#balance_sheet"
+        # Group reports (for consolidated company groups)
+        get "xero/group/companies", to: "corporate_company_xero#group_companies"
+        get "xero/group/profit_loss", to: "corporate_company_xero#group_profit_loss"
+        get "xero/group/balance_sheet", to: "corporate_company_xero#group_balance_sheet"
         # Bank transactions by account
         get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
 
