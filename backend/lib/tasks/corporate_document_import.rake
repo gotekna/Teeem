@@ -11,11 +11,28 @@
 #
 # HISTORY:
 #   2024-12-21: Team Harder Super Investments (ID 10) - imported successfully
-#   2024-12-21: W2G Assets (ID 11) - IN PROGRESS
+#   2024-12-21: W2G Assets (ID 11) - COMPLETED (62 documents)
+#              Path: Corporate/Team Harder Super Investments Group/W2G - W2G Assets Pty Ltd
+#              Folder ID: 01P43HWV5QAEDWTDW565E2DTTLY73JO6E4
 #
 # NEXT COMPANIES TO IMPORT:
-#   - W2G Assets (ID 11, code: W2G, path: Corporate File/Team Harder Group/W2G Assets)
 #   - Other W2G companies (IDs 465-471, 501-502)
+#
+# SHAREPOINT FOLDER STRUCTURE (as of 2024-12-21):
+#   Corporate/
+#     Team Harder Super Fund Group/
+#       - THAR - Team Harder Pty Ltd
+#       - THSF - Team Harder Super Fund
+#     Team Harder Super Investments Group/
+#       - THSI - Team Harder Super Investments Pty Ltd
+#       - W2G - W2G Assets Pty Ltd
+#     Team Harder Family Trust Group/
+#       - PROV - Prov1322 Global Pty Ltd
+#       - THFT - Team Harder Family Trust
+#     No Group/
+#       - CIC - Co Invest Capital Pty Ltd
+#       - CIH - Co Invest Homes Pty Ltd
+#       - GEN - Gen2612 Pty Ltd
 #
 # =============================================================================
 
