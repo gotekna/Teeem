@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { PlusIcon, BanknotesIcon, CreditCardIcon } from "@heroicons/react/24/outline";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import TransactionForm from "@/components/financial/TransactionForm";
+import { XeroStatementView } from "@/components/corporate/XeroStatementView";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -308,116 +310,133 @@ export default function FinancialTransactionsPage() {
 
   return (
     <div className="flex flex-col h-full -mx-4">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 px-4 shrink-0">
-        {/* Total Income */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Income</p>
-              <p className="mt-2 text-3xl font-bold text-green-600">
-                $
-                {summary.total_income?.toLocaleString("en-AU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) || "0.00"}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <BanknotesIcon className="h-8 w-8 text-green-600" />
-            </div>
-          </div>
+      <Tabs defaultValue="xero" className="flex flex-col h-full">
+        <div className="px-4 shrink-0">
+          <TabsList className="mb-4">
+            <TabsTrigger value="xero">Xero Bank Transactions</TabsTrigger>
+            <TabsTrigger value="teeem">TEEEM Transactions</TabsTrigger>
+          </TabsList>
         </div>
 
-        {/* Total Expenses */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Total Expenses</p>
-              <p className="mt-2 text-3xl font-bold text-red-600">
-                $
-                {summary.total_expenses?.toLocaleString("en-AU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) || "0.00"}
-              </p>
-            </div>
-            <div className="p-3 bg-red-100 rounded-full">
-              <CreditCardIcon className="h-8 w-8 text-red-600" />
-            </div>
-          </div>
-        </div>
+        {/* Xero Bank Transactions Tab */}
+        <TabsContent value="xero" className="flex-1 px-4 mt-0">
+          <XeroStatementView />
+        </TabsContent>
 
-        {/* Net Profit */}
-        <div className="bg-white rounded-lg shadow p-6 border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Net Profit</p>
-              <p
-                className={`mt-2 text-3xl font-bold ${
-                  (summary.net_profit || 0) >= 0
-                    ? "text-green-600"
-                    : "text-red-600"
-                }`}
-              >
-                $
-                {summary.net_profit?.toLocaleString("en-AU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) || "0.00"}
-              </p>
+        {/* TEEEM Internal Transactions Tab */}
+        <TabsContent value="teeem" className="flex-1 flex flex-col mt-0">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 px-4 shrink-0">
+            {/* Total Income */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Income</p>
+                  <p className="mt-2 text-3xl font-bold text-green-600">
+                    $
+                    {summary.total_income?.toLocaleString("en-AU", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }) || "0.00"}
+                  </p>
+                </div>
+                <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-full">
+                  <BanknotesIcon className="h-8 w-8 text-green-600" />
+                </div>
+              </div>
             </div>
-            <div
-              className={`p-3 rounded-full ${
-                (summary.net_profit || 0) >= 0 ? "bg-green-100" : "bg-red-100"
-              }`}
-            >
-              <BanknotesIcon
-                className={`h-8 w-8 ${
-                  (summary.net_profit || 0) >= 0
-                    ? "text-green-600"
-                    : "text-red-600"
-                }`}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Transactions Table */}
-      <TeeemTableView
-        category="financial"
-        foundationId="financial-transactions"
-        foundationIdNumeric={199}
-        tableName="Financial Transactions"
-        entries={transactions}
-        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        enableImport={true}
-        enableExport={true}
-        onImport={handleImport}
-        onExport={handleExport}
-        leftActions={
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleAddIncome}
-              className="inline-flex items-center gap-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Record Income
-            </button>
-            <button
-              onClick={handleAddExpense}
-              className="inline-flex items-center gap-2 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Record Expense
-            </button>
+            {/* Total Expenses */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Expenses</p>
+                  <p className="mt-2 text-3xl font-bold text-red-600">
+                    $
+                    {summary.total_expenses?.toLocaleString("en-AU", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }) || "0.00"}
+                  </p>
+                </div>
+                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full">
+                  <CreditCardIcon className="h-8 w-8 text-red-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Net Profit */}
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Net Profit</p>
+                  <p
+                    className={`mt-2 text-3xl font-bold ${
+                      (summary.net_profit || 0) >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    $
+                    {summary.net_profit?.toLocaleString("en-AU", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }) || "0.00"}
+                  </p>
+                </div>
+                <div
+                  className={`p-3 rounded-full ${
+                    (summary.net_profit || 0) >= 0 ? "bg-green-100 dark:bg-green-900/30" : "bg-red-100 dark:bg-red-900/30"
+                  }`}
+                >
+                  <BanknotesIcon
+                    className={`h-8 w-8 ${
+                      (summary.net_profit || 0) >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
-        }
-        hideFooter={true}
-      />
+
+          {/* Transactions Table */}
+          <TeeemTableView
+            category="financial"
+            foundationId="financial-transactions"
+            foundationIdNumeric={199}
+            tableName="Financial Transactions"
+            entries={transactions}
+            // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            enableImport={true}
+            enableExport={true}
+            onImport={handleImport}
+            onExport={handleExport}
+            leftActions={
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleAddIncome}
+                  className="inline-flex items-center gap-2 px-4 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+                >
+                  <PlusIcon className="h-5 w-5" />
+                  Record Income
+                </button>
+                <button
+                  onClick={handleAddExpense}
+                  className="inline-flex items-center gap-2 px-4 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors h-[42px]"
+                >
+                  <PlusIcon className="h-5 w-5" />
+                  Record Expense
+                </button>
+              </div>
+            }
+            hideFooter={true}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Transaction Form Modal */}
       <TransactionForm
