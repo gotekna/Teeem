@@ -3333,6 +3333,10 @@ export default function CompanyDetailPage() {
   const [xeroConnected, setXeroConnected] = React.useState(false);
   const [xeroContacts, setXeroContacts] = React.useState<any[]>([]);
   const [xeroContactsLoading, setXeroContactsLoading] = React.useState(false);
+  const [xeroBills, setXeroBills] = React.useState<any[]>([]);
+  const [xeroBillsLoading, setXeroBillsLoading] = React.useState(false);
+  const [xeroInvoices, setXeroInvoices] = React.useState<any[]>([]);
+  const [xeroInvoicesLoading, setXeroInvoicesLoading] = React.useState(false);
   const [documentCounts, setDocumentCounts] = React.useState<Record<string, number>>({});
   const [healthScore, setHealthScore] = React.useState<{ score: number; status: string } | null>(null);
   const [documentFolderTabs, setDocumentFolderTabs] = React.useState<Array<{ id: string; name: string; icon: any }>>([]);
@@ -3632,6 +3636,52 @@ export default function CompanyDetailPage() {
       }
     };
     loadXeroContacts();
+  }, [xeroSubTab, company?.corporate_company_xero_connection?.xero_tenant_id]);
+
+  // Load bills when Bills tab is selected
+  React.useEffect(() => {
+    const loadXeroBills = async () => {
+      const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
+      if (xeroSubTab !== "bills" || !tenantId) return;
+
+      setXeroBillsLoading(true);
+      try {
+        const response = await api.get<{ success: boolean; data: any[] }>(
+          `/api/v1/external_invoices?tenant_id=${tenantId}&type=bill&per_page=200`
+        );
+        if (response.success) {
+          setXeroBills(response.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to load Xero bills:", error);
+      } finally {
+        setXeroBillsLoading(false);
+      }
+    };
+    loadXeroBills();
+  }, [xeroSubTab, company?.corporate_company_xero_connection?.xero_tenant_id]);
+
+  // Load invoices when Invoices tab is selected
+  React.useEffect(() => {
+    const loadXeroInvoices = async () => {
+      const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
+      if (xeroSubTab !== "invoices" || !tenantId) return;
+
+      setXeroInvoicesLoading(true);
+      try {
+        const response = await api.get<{ success: boolean; data: any[] }>(
+          `/api/v1/external_invoices?tenant_id=${tenantId}&type=sales_invoice&per_page=200`
+        );
+        if (response.success) {
+          setXeroInvoices(response.data || []);
+        }
+      } catch (error) {
+        console.error("Failed to load Xero invoices:", error);
+      } finally {
+        setXeroInvoicesLoading(false);
+      }
+    };
+    loadXeroInvoices();
   }, [xeroSubTab, company?.corporate_company_xero_connection?.xero_tenant_id]);
 
   const handleTabChange = (tabId: string) => {
@@ -4050,28 +4100,90 @@ export default function CompanyDetailPage() {
                 </div>
               )}
 
-              {/* Invoices tab - shows invoices for this company */}
+              {/* Invoices tab - shows sales invoices for this company */}
               {xeroSubTab === "invoices" && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Invoices & Credit Notes</p>
-                      <p className="text-sm">View invoices in the Data Warehouse or Reports tab.</p>
+                <div className="flex flex-col h-full -mx-4">
+                  {xeroInvoicesLoading ? (
+                    <div className="flex items-center justify-center h-48">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  </CardContent>
-                </Card>
+                  ) : xeroInvoices.length === 0 ? (
+                    <Card className="mx-4">
+                      <CardContent className="p-6">
+                        <div className="text-center text-muted-foreground">
+                          <p className="font-medium mb-2">No Sales Invoices</p>
+                          <p className="text-sm">No sales invoices found for this Xero account.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <TeeemTableView
+                      entries={xeroInvoices}
+                      foundationId="external_invoices"
+                      tableName="Sales Invoices"
+                      onRefresh={async () => {
+                        const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
+                        if (tenantId) {
+                          setXeroInvoicesLoading(true);
+                          try {
+                            const response = await api.get<{ success: boolean; data: any[] }>(
+                              `/api/v1/external_invoices?tenant_id=${tenantId}&type=sales_invoice&per_page=200`
+                            );
+                            if (response.success) {
+                              setXeroInvoices(response.data || []);
+                            }
+                          } finally {
+                            setXeroInvoicesLoading(false);
+                          }
+                        }
+                      }}
+                      enableExport={true}
+                    />
+                  )}
+                </div>
               )}
 
               {/* Bills tab - shows bills for this company */}
               {xeroSubTab === "bills" && (
-                <Card>
-                  <CardContent className="p-6">
-                    <div className="text-center text-muted-foreground">
-                      <p className="font-medium mb-2">Bills & Purchase Orders</p>
-                      <p className="text-sm">View bills in the Data Warehouse or Reports tab.</p>
+                <div className="flex flex-col h-full -mx-4">
+                  {xeroBillsLoading ? (
+                    <div className="flex items-center justify-center h-48">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  </CardContent>
-                </Card>
+                  ) : xeroBills.length === 0 ? (
+                    <Card className="mx-4">
+                      <CardContent className="p-6">
+                        <div className="text-center text-muted-foreground">
+                          <p className="font-medium mb-2">No Bills</p>
+                          <p className="text-sm">No bills found for this Xero account.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <TeeemTableView
+                      entries={xeroBills}
+                      foundationId="external_invoices"
+                      tableName="Bills"
+                      onRefresh={async () => {
+                        const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
+                        if (tenantId) {
+                          setXeroBillsLoading(true);
+                          try {
+                            const response = await api.get<{ success: boolean; data: any[] }>(
+                              `/api/v1/external_invoices?tenant_id=${tenantId}&type=bill&per_page=200`
+                            );
+                            if (response.success) {
+                              setXeroBills(response.data || []);
+                            }
+                          } finally {
+                            setXeroBillsLoading(false);
+                          }
+                        }
+                      }}
+                      enableExport={true}
+                    />
+                  )}
+                </div>
               )}
 
               {xeroSubTab === "consolidated" && (
