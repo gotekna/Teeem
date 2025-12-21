@@ -171,14 +171,15 @@ export default function DocumentTypeDetailPage() {
       try {
         const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/xero/tabs");
         if (data.success) {
-          // Build hierarchy: root tabs with their children
-          const rootTabs = data.data.filter((t: any) => !t.parent_key);
+          // Build hierarchy: root tabs (no parent) with their children
+          // API returns: id (tab_key), name (display_name), parent (parent_key)
+          const rootTabs = data.data.filter((t: any) => !t.parent);
           const hierarchy = rootTabs.map((t: any) => ({
-            name: t.display_name,
-            key: t.tab_key,
+            name: t.name,
+            key: t.id,
             children: data.data
-              .filter((c: any) => c.parent_key === t.tab_key)
-              .map((c: any) => ({ name: c.display_name, key: c.tab_key }))
+              .filter((c: any) => c.parent === t.id)
+              .map((c: any) => ({ name: c.name, key: c.id }))
           }));
           setXeroTabs(hierarchy);
         }
