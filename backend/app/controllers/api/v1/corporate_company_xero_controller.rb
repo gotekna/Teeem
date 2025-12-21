@@ -740,8 +740,8 @@ module Api
           result = client.get(
             "Reports/ProfitAndLoss",
             tenant_id: connection.xero_tenant_id,
-            access_token: connection.access_token,
-            params: { fromDate: from_date, toDate: to_date }
+            fromDate: from_date,
+            toDate: to_date
           )
 
           unless result[:success]
@@ -811,8 +811,7 @@ module Api
           result = client.get(
             "Reports/BalanceSheet",
             tenant_id: connection.xero_tenant_id,
-            access_token: connection.access_token,
-            params: { date: as_of_date }
+            date: as_of_date
           )
 
           unless result[:success]

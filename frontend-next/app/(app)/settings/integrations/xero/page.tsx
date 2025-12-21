@@ -38,6 +38,7 @@ import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { XeroCommonContacts } from "./components/XeroCommonContacts";
 import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
 import { useGetDuplicateCount } from "@/lib/hooks/useDuplicateContacts";
+import { useToast } from "@/components/ui/use-toast";
 
 interface XeroStatus {
   connected: boolean;
@@ -106,6 +107,7 @@ export default function XeroIntegrationPage() {
 
   // Get duplicate contacts count for badge
   const duplicateCount = useGetDuplicateCount();
+  const { toast } = useToast();
 
   // Compute if any tenant needs attention (for default expanded state)
   // SSoT: Auto-expand when any tenant needs re-auth, is degraded, disconnected, or expired
@@ -199,14 +201,28 @@ export default function XeroIntegrationPage() {
   };
 
   const handleDisconnect = async () => {
+    console.log("[Xero] Disconnect button clicked, starting disconnect...");
     setDisconnecting(true);
     try {
+      console.log("[Xero] Calling api.xero.disconnect()...");
       await api.xero.disconnect();
+      console.log("[Xero] Disconnect successful");
       setStatus({ connected: false });
+      setTenants([]);
+      toast({
+        title: "Disconnected from Xero",
+        description: "All Xero connections have been removed. You can reconnect anytime.",
+      });
     } catch (error) {
-      console.error("Failed to disconnect Xero:", error);
+      console.error("[Xero] Failed to disconnect:", error);
+      toast({
+        title: "Failed to disconnect",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
     } finally {
       setDisconnecting(false);
+      console.log("[Xero] Disconnect process complete");
     }
   };
 
