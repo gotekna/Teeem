@@ -45,6 +45,12 @@ module Api
           query = query.where(id: duplicate_ids)
         end
 
+        # Filter contacts by Xero tenant (SSoT: ContactExternalLink.tenant_id)
+        if params[:xero_tenant_id].present? && model.table_name == "contacts"
+          query = query.joins(:external_links)
+                       .where(contact_external_links: { source: "xero", tenant_id: params[:xero_tenant_id] })
+        end
+
         # Apply search filter with multiple search modes
         # SSoT: Foundation column `searchable: true` is the source of truth for ALL tables
         # Search modes: contains (default), exact, starts_with, fuzzy, regex

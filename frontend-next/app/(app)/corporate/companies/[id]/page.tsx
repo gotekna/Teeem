@@ -3622,12 +3622,12 @@ export default function CompanyDetailPage() {
 
       setXeroContactsLoading(true);
       try {
-        // SSoT: Use contacts API with xero_tenant_id filter (must use api.get for auth)
-        const response = await api.get<{ success: boolean; contacts: any[] }>(
-          `/api/v1/contacts?xero_tenant_id=${tenantId}`
+        // SSoT: Use Foundation records API for proper TeeemTableView integration
+        const response = await api.get<{ success: boolean; entries: any[] }>(
+          `/api/v1/foundations/contacts/records?xero_tenant_id=${tenantId}`
         );
         if (response.success) {
-          setXeroContacts(response.contacts || []);
+          setXeroContacts(response.entries || []);
         }
       } catch (error) {
         console.error("Failed to load Xero contacts:", error);
@@ -4082,11 +4082,11 @@ export default function CompanyDetailPage() {
                         if (tenantId) {
                           setXeroContactsLoading(true);
                           try {
-                            const response = await api.get<{ success: boolean; contacts: any[] }>(
-                              `/api/v1/contacts?xero_tenant_id=${tenantId}`
+                            const response = await api.get<{ success: boolean; entries: any[] }>(
+                              `/api/v1/foundations/contacts/records?xero_tenant_id=${tenantId}`
                             );
                             if (response.success) {
-                              setXeroContacts(response.contacts || []);
+                              setXeroContacts(response.entries || []);
                             }
                           } finally {
                             setXeroContactsLoading(false);
