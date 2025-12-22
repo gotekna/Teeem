@@ -164,6 +164,7 @@ module Api
           # New Schedule Master fields
           :auto_include, :allow_duplicates, :ai_select,
           :photo_entity_tab_id, :linked_po_task_id,
+          :require_supplier_confirm, :is_master,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           spawn_office_tasks: [],
@@ -247,6 +248,8 @@ module Api
           photo_entity_tab_id: row.photo_entity_tab_id,
           linked_po_task_id: row.linked_po_task_id,
           linked_po_task_name: row.linked_po_task&.name,
+          require_supplier_confirm: row.require_supplier_confirm,
+          is_master: row.is_master,
           created_at: row.created_at,
           updated_at: row.updated_at
         }

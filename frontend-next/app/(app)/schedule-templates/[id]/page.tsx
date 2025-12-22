@@ -108,6 +108,8 @@ interface SmTemplateRow {
   photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
+  require_supplier_confirm: boolean;
+  is_master: boolean;
 }
 
 interface PlanType {
@@ -199,6 +201,8 @@ export default function ScheduleTemplateDetailPage() {
       complete_entity_tab_ids: row.complete_entity_tab_ids || [],
       photo_entity_tab_id: row.photo_entity_tab_id,
       linked_po_task_id: row.linked_po_task_id,
+      require_supplier_confirm: row.require_supplier_confirm,
+      is_master: row.is_master,
     });
     setShowEditDialog(true);
   };
@@ -554,7 +558,18 @@ export default function ScheduleTemplateDetailPage() {
                   />
                   <Label htmlFor="ai_select" className="text-sm">AI Select</Label>
                 </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="is_master"
+                    checked={editForm.is_master ?? false}
+                    onCheckedChange={(checked) => setEditForm({ ...editForm, is_master: !!checked })}
+                  />
+                  <Label htmlFor="is_master" className="text-sm">Master Task</Label>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Master Task: When completed, auto-completes all prior tasks (except in-progress photo/scan tasks)
+              </p>
             </div>
 
             {/* PO & Certification */}
@@ -578,6 +593,14 @@ export default function ScheduleTemplateDetailPage() {
                     onCheckedChange={(checked) => setEditForm({ ...editForm, critical_po: !!checked })}
                   />
                   <Label htmlFor="critical_po" className="text-sm">Critical PO</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="require_supplier_confirm"
+                    checked={editForm.require_supplier_confirm ?? false}
+                    onCheckedChange={(checked) => setEditForm({ ...editForm, require_supplier_confirm: !!checked })}
+                  />
+                  <Label htmlFor="require_supplier_confirm" className="text-sm">Require Supplier Confirm</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox

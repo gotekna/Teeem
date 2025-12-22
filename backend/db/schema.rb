@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_232420) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_234225) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4767,6 +4767,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_232420) do
     t.bigint "photo_entity_tab_id"
     t.integer "linked_po_task_id"
     t.string "cost_centre"
+    t.boolean "require_supplier_confirm", default: false
+    t.boolean "is_master", default: false
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
