@@ -41,6 +41,7 @@ interface UseCorporateEntityTabsReturn {
   // Pre-split by group for convenience
   overviewTabs: OverviewTab[];
   documentTabs: DocumentFolderTab[];
+  mainTabs: Array<{ id: string; name: string; icon?: string; component?: string }>;
   xeroSubTabs: Array<{ id: string; name: string; description: string; folderId: number }>;
   // State
   loading: boolean;
@@ -100,6 +101,18 @@ export function useCorporateEntityTabs(entityType?: string): UseCorporateEntityT
       });
   }, [tabs]);
 
+  // Main tabs (Xero, etc.) - SSoT: tabs with group="main"
+  const mainTabs = React.useMemo(() => {
+    return tabs
+      .filter((t) => t.group === "main")
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        icon: t.icon,
+        component: t.component,
+      }));
+  }, [tabs]);
+
   // Extract Xero sub-tabs if present
   const xeroSubTabs = React.useMemo(() => {
     const xeroTab = tabs.find((t) => t.id === "xero");
@@ -118,6 +131,7 @@ export function useCorporateEntityTabs(entityType?: string): UseCorporateEntityT
     tabs,
     overviewTabs,
     documentTabs,
+    mainTabs,
     xeroSubTabs,
     loading,
     error,

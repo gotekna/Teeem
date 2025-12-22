@@ -19,7 +19,7 @@ class EntityTab < ApplicationRecord
   # - reports: Xero reports (P&L, Balance Sheet, etc.)
   # - data: Xero data views (Accounts, Contacts, etc.)
   # - setup: Configuration tabs (Connection, Settings)
-  TAB_GROUPS = %w[overview documents reports data setup].freeze
+  TAB_GROUPS = %w[overview documents reports data setup main].freeze
 
   # Associations
   belongs_to :parent, class_name: 'EntityTab', optional: true

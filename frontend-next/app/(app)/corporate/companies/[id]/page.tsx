@@ -3396,6 +3396,7 @@ export default function CompanyDetailPage() {
   const {
     overviewTabs: entityOverviewTabs,
     documentTabs: documentFolderTabs,
+    mainTabs: apiMainTabs,
     xeroSubTabs: xeroDocumentFolders,
     loading: corporateTabsLoading,
   } = useCorporateEntityTabs(normalizedEntityType);
@@ -3481,15 +3482,20 @@ export default function CompanyDetailPage() {
 
   // Compute final DOCUMENT_TABS: folder tabs + special UI tabs
   const computedDocumentTabs = React.useMemo(() => {
-    // Special UI tabs (not document folders)
+    // SSoT: Main tabs from API (Xero, etc.) with icon mapping
+    const mainTabsWithIcons = apiMainTabs.map(tab => ({
+      ...tab,
+      icon: tab.id === "xero" ? RefreshCw : FileText,
+    }));
+
+    // Special UI tabs (not from database)
     const specialTabs = [
-      { id: "xero", name: "Xero", icon: RefreshCw },
       { id: "documents", name: "Documents", icon: FileText },
       { id: "data", name: "Data", icon: Database },
       { id: "activity", name: "Activity", icon: Clock },
     ];
 
-    // Combine: folder tabs + special tabs
+    // Combine: folder tabs + main tabs (from API) + special tabs
     // Keep original DOCUMENT_TABS order as fallback if folders not loaded yet
     if (documentFolderTabs.length === 0) {
       return DOCUMENT_TABS;
@@ -3501,8 +3507,8 @@ export default function CompanyDetailPage() {
       icon: getFolderIcon(tab.name.toUpperCase()),
     }));
 
-    return [...folderTabsWithIcons, ...specialTabs];
-  }, [documentFolderTabs]);
+    return [...folderTabsWithIcons, ...mainTabsWithIcons, ...specialTabs];
+  }, [documentFolderTabs, apiMainTabs]);
 
   // SSoT: Xero tabs from API only - no fallback
   // Backend filters out document folders that match functional tab names
