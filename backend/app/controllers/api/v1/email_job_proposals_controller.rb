@@ -266,8 +266,8 @@ module Api
           rejection_reason: proposal.rejection_reason,
           error_message: proposal.error_message,
 
-          # Email summary
-          email: {
+          # Email summary (may be nil if email was deleted)
+          email: proposal.email_warehouse ? {
             id: proposal.email_warehouse.id,
             subject: proposal.email_warehouse.subject,
             from_email: proposal.email_warehouse.from_email,
@@ -276,14 +276,14 @@ module Api
             has_attachments: proposal.email_warehouse.has_attachments,
             attachment_count: proposal.email_warehouse.attachment_count,
             pdf_count: proposal.email_warehouse.files.count
-          },
+          } : nil,
 
-          # User info
-          created_by: {
+          # User info (may be nil for system-created proposals)
+          created_by: proposal.created_by_user ? {
             id: proposal.created_by_user.id,
             name: proposal.created_by_user.name,
             email: proposal.created_by_user.email
-          },
+          } : nil,
 
           # Job info (if approved)
           job: proposal.job ? {
