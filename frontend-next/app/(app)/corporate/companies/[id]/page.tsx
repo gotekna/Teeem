@@ -127,7 +127,6 @@ const DOCUMENT_TABS = [
   { id: "assets-docs", name: "ASSETS", icon: Briefcase },
   { id: "ato", name: "ATO", icon: FileText },
   { id: "bank", name: "BANK", icon: Landmark },
-  { id: "xero", name: "XERO", icon: RefreshCw },
   { id: "company", name: "COMPANY", icon: Building2 },
   { id: "dividends-docs", name: "DIVIDENDS", icon: DollarSign },
   { id: "financials", name: "FINANCIALS", icon: FileText },
@@ -3484,6 +3483,7 @@ export default function CompanyDetailPage() {
   const computedDocumentTabs = React.useMemo(() => {
     // Special UI tabs (not document folders)
     const specialTabs = [
+      { id: "xero", name: "Xero", icon: RefreshCw },
       { id: "documents", name: "Documents", icon: FileText },
       { id: "data", name: "Data", icon: Database },
       { id: "activity", name: "Activity", icon: Clock },
