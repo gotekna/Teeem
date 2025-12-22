@@ -3889,18 +3889,10 @@ export default function CompanyDetailPage() {
                   <button
                     key={tab.id}
                     onClick={() => {
-                      if (tab.is_parent) {
-                        // For parent tabs, select the first child
-                        const children = getXeroChildTabs(tab.id);
-                        if (children.length > 0) {
-                          setXeroSubTab(children[0].id);
-                        } else {
-                          // Fallback: set the tab itself if no children
-                          setXeroSubTab(tab.id);
-                        }
-                      } else {
-                        setXeroSubTab(tab.id);
-                      }
+                      // Always set the tab's own ID first
+                      // For parent tabs, this shows the parent component (e.g., "accounts" -> XeroAccountsCard)
+                      // The child tabs will be shown in Level 2 navigation
+                      setXeroSubTab(tab.id);
                     }}
                     className={cn(
                       "px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors",
