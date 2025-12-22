@@ -125,15 +125,18 @@ class EntityTab < ApplicationRecord
     "#{base_path}/#{sharepoint_folder_path}"
   end
 
-  # Build hierarchy path (e.g., "Corporate/Xero/Profit & Loss/Transactions")
+  # Build hierarchy path - SSoT: Use sharepoint_folder_path when set
   def hierarchy_path
-    # Map scope to friendly prefix
+    # For document tabs with SharePoint paths, use the actual path (SSoT)
+    return sharepoint_folder_path if sharepoint_folder_path.present?
+
+    # Fallback for tabs without SharePoint paths (overview tabs, etc.)
     scope_prefix = case scope
     when 'corporate_entity' then 'Corporate'
     when 'people' then 'People'
     when 'job' then 'Jobs'
     when 'document' then 'Documents'
-    when 'xero' then 'Corporate'  # Xero tabs are under Corporate
+    when 'xero' then 'Corporate'
     else scope.titleize
     end
 
@@ -145,7 +148,6 @@ class EntityTab < ApplicationRecord
       current = current.parent
     end
 
-    # Combine scope prefix with tab hierarchy
     ([scope_prefix] + tab_parts).join('/')
   end
 
