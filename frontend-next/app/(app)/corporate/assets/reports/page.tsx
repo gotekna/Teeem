@@ -65,6 +65,7 @@ interface SummaryData {
   disposed_assets: number;
   by_type: Record<string, number>;
   by_status: Record<string, number>;
+  by_entity_type: Record<string, number>;
   financials: {
     total_purchase_value: number;
     total_book_value: number;
@@ -92,6 +93,7 @@ interface RegisterAsset {
   asset_type: string;
   status: string;
   company_name?: string;
+  entity_type?: string;
   make?: string;
   model?: string;
   location?: string;
@@ -166,11 +168,13 @@ export default function AssetReportsPage() {
   const [activeTab, setActiveTab] = React.useState("summary");
   const [loading, setLoading] = React.useState(true);
   const [companies, setCompanies] = React.useState<Company[]>([]);
+  const [entityTypes, setEntityTypes] = React.useState<string[]>([]);
 
   // Filters
   const [selectedCompany, setSelectedCompany] = React.useState<string>("all");
   const [selectedType, setSelectedType] = React.useState<string>("all");
   const [selectedStatus, setSelectedStatus] = React.useState<string>("all");
+  const [selectedEntityType, setSelectedEntityType] = React.useState<string>("all");
   const [financialYear, setFinancialYear] = React.useState<string>("");
 
   // Report data
@@ -182,13 +186,14 @@ export default function AssetReportsPage() {
   const [insuranceAssets, setInsuranceAssets] = React.useState<InsuranceAsset[]>([]);
   const [insuranceSummary, setInsuranceSummary] = React.useState<Record<string, number | Record<string, number>>>({});
 
-  // Load companies on mount
+  // Load companies and entity types on mount
   React.useEffect(() => {
     loadCompanies();
+    loadEntityTypes();
     loadSummary();
   }, []);
 
-  // Load data when tab changes
+  // Load data when tab changes or filters change
   React.useEffect(() => {
     if (activeTab === "summary") {
       loadSummary();
@@ -199,7 +204,7 @@ export default function AssetReportsPage() {
     } else if (activeTab === "insurance") {
       loadInsurance();
     }
-  }, [activeTab, selectedCompany, selectedType, selectedStatus, financialYear]);
+  }, [activeTab, selectedCompany, selectedType, selectedStatus, selectedEntityType, financialYear]);
 
   const loadCompanies = async () => {
     try {
@@ -210,11 +215,23 @@ export default function AssetReportsPage() {
     }
   };
 
+  const loadEntityTypes = async () => {
+    try {
+      const response = await api.get<{ entity_types: string[] }>("/api/v1/asset_reports/entity_types");
+      setEntityTypes(response.entity_types || []);
+    } catch (err) {
+      console.error("Failed to load entity types:", err);
+      // Fallback defaults
+      setEntityTypes(["Company", "Trust", "Superfund", "Charity", "Sole Trader", "Personal", "Director House"]);
+    }
+  };
+
   const loadSummary = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (selectedCompany !== "all") params.append("company_id", selectedCompany);
+      if (selectedEntityType !== "all") params.append("entity_type", selectedEntityType);
 
       const response = await api.get<{ summary: SummaryData }>(
         `/api/v1/asset_reports/summary?${params.toString()}`
@@ -234,6 +251,7 @@ export default function AssetReportsPage() {
       if (selectedCompany !== "all") params.append("company_id", selectedCompany);
       if (selectedType !== "all") params.append("asset_type", selectedType);
       if (selectedStatus !== "all") params.append("status", selectedStatus);
+      if (selectedEntityType !== "all") params.append("entity_type", selectedEntityType);
 
       const response = await api.get<{ report: { assets: RegisterAsset[]; summary: Record<string, number | Record<string, number>> } }>(
         `/api/v1/asset_reports/register?${params.toString()}`
@@ -253,6 +271,7 @@ export default function AssetReportsPage() {
       const params = new URLSearchParams();
       if (selectedCompany !== "all") params.append("company_id", selectedCompany);
       if (selectedType !== "all") params.append("asset_type", selectedType);
+      if (selectedEntityType !== "all") params.append("entity_type", selectedEntityType);
       if (financialYear) params.append("financial_year", financialYear);
 
       const response = await api.get<{ report: { assets: DepreciationAsset[]; summary: Record<string, number>; financial_year: string } }>(
@@ -276,6 +295,7 @@ export default function AssetReportsPage() {
       const params = new URLSearchParams();
       if (selectedCompany !== "all") params.append("company_id", selectedCompany);
       if (selectedType !== "all") params.append("asset_type", selectedType);
+      if (selectedEntityType !== "all") params.append("entity_type", selectedEntityType);
 
       const response = await api.get<{ report: { assets: InsuranceAsset[]; summary: Record<string, number | Record<string, number>> } }>(
         `/api/v1/asset_reports/insurance?${params.toString()}`
@@ -407,6 +427,23 @@ export default function AssetReportsPage() {
           </Select>
         </div>
 
+        <div className="w-44">
+          <Label className="text-xs text-muted-foreground">Entity Type</Label>
+          <Select value={selectedEntityType} onValueChange={setSelectedEntityType}>
+            <SelectTrigger>
+              <SelectValue placeholder="All Entity Types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Entity Types</SelectItem>
+              {entityTypes.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {activeTab === "register" && (
           <div className="w-40">
             <Label className="text-xs text-muted-foreground">Status</Label>
@@ -525,8 +562,8 @@ export default function AssetReportsPage() {
             </Card>
           </div>
 
-          {/* By Type and Depreciation */}
-          <div className="grid gap-6 md:grid-cols-2">
+          {/* By Type, Entity Type, and Depreciation */}
+          <div className="grid gap-6 md:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Assets by Type</CardTitle>
@@ -542,6 +579,31 @@ export default function AssetReportsPage() {
                       <Badge variant="outline">{count}</Badge>
                     </div>
                   ))}
+                  {Object.keys(summary.by_type).length === 0 && (
+                    <p className="text-sm text-muted-foreground">No assets</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Assets by Entity Type</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Object.entries(summary.by_entity_type || {}).map(([entityType, count]) => (
+                    <div key={entityType} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span>{entityType}</span>
+                      </div>
+                      <Badge variant="outline">{count}</Badge>
+                    </div>
+                  ))}
+                  {Object.keys(summary.by_entity_type || {}).length === 0 && (
+                    <p className="text-sm text-muted-foreground">No entity types</p>
+                  )}
                 </div>
               </CardContent>
             </Card>

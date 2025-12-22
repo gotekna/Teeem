@@ -1,6 +1,30 @@
 module Api
   module V1
     class AssetReportsController < ApplicationController
+      # Valid entity types for filtering
+      ENTITY_TYPES = [
+        "Company",
+        "Trust",
+        "Superfund",
+        "Charity",
+        "Corporate Trustee",
+        "Sole Trader",
+        "Personal",
+        "Director House"
+      ].freeze
+
+      # GET /api/v1/asset_reports/entity_types
+      # Returns available entity types for filtering
+      def entity_types
+        # Use configured entity types or defaults
+        types = CorporateCompanySetting.corporate_entity_types rescue ENTITY_TYPES
+
+        render json: {
+          success: true,
+          entity_types: types
+        }
+      end
+
       # GET /api/v1/asset_reports/register
       # Asset Register - Full list of all assets with values and status
       def register
@@ -11,6 +35,7 @@ module Api
         assets = assets.where(company_id: params[:company_id]) if params[:company_id].present?
         assets = assets.where(asset_type: params[:asset_type]) if params[:asset_type].present?
         assets = assets.where(status: params[:status]) if params[:status].present?
+        assets = apply_entity_type_filter(assets) if params[:entity_type].present?
 
         render json: {
           success: true,
@@ -20,14 +45,16 @@ module Api
             filters: {
               company_id: params[:company_id],
               asset_type: params[:asset_type],
-              status: params[:status]
+              status: params[:status],
+              entity_type: params[:entity_type]
             },
             summary: {
               total_assets: assets.count,
               total_purchase_value: assets.sum(:purchase_price) || 0,
               total_book_value: assets.sum(:current_book_value) || 0,
               by_type: assets.group(:asset_type).count,
-              by_status: assets.group(:status).count
+              by_status: assets.group(:status).count,
+              by_entity_type: assets.joins(:corporate_company).group("corporate_companies.entity_type").count
             },
             assets: assets.map do |asset|
               {
@@ -39,6 +66,7 @@ module Api
                 status: asset.status,
                 company_name: asset.corporate_company&.name,
                 company_code: asset.corporate_company&.code,
+                entity_type: asset.corporate_company&.entity_type,
                 make: asset.make,
                 model: asset.model,
                 serial_number: asset.serial_number,
@@ -70,6 +98,7 @@ module Api
         # Apply filters
         assets = assets.where(company_id: params[:company_id]) if params[:company_id].present?
         assets = assets.where(asset_type: params[:asset_type]) if params[:asset_type].present?
+        assets = apply_entity_type_filter(assets) if params[:entity_type].present?
 
         # Get schedules for the selected financial year
         schedules = AssetDepreciationSchedule.where(financial_year: financial_year)
@@ -83,7 +112,8 @@ module Api
             generated_at: Time.current.iso8601,
             filters: {
               company_id: params[:company_id],
-              asset_type: params[:asset_type]
+              asset_type: params[:asset_type],
+              entity_type: params[:entity_type]
             },
             summary: {
               total_assets: assets.count,
@@ -103,6 +133,7 @@ module Api
                 display_name: asset.display_name,
                 asset_type: asset.asset_type,
                 company_name: asset.corporate_company&.name,
+                entity_type: asset.corporate_company&.entity_type,
                 purchase_date: asset.purchase_date,
                 purchase_price: asset.purchase_price,
                 depreciable_cost: profile&.depreciable_cost,
@@ -142,6 +173,7 @@ module Api
         # Apply filters
         assets = assets.where(company_id: params[:company_id]) if params[:company_id].present?
         assets = assets.where(asset_type: params[:asset_type]) if params[:asset_type].present?
+        assets = apply_entity_type_filter(assets) if params[:entity_type].present?
 
         # Status filter
         case params[:insurance_status]
@@ -166,6 +198,7 @@ module Api
             filters: {
               company_id: params[:company_id],
               asset_type: params[:asset_type],
+              entity_type: params[:entity_type],
               insurance_status: params[:insurance_status]
             },
             summary: {
@@ -186,6 +219,7 @@ module Api
                 display_name: asset.display_name,
                 asset_type: asset.asset_type,
                 company_name: asset.corporate_company&.name,
+                entity_type: asset.corporate_company&.entity_type,
                 current_book_value: asset.current_book_value,
                 insurance: {
                   id: insurance.id,
@@ -214,8 +248,9 @@ module Api
       def summary
         assets = Asset.includes(:corporate_company, :depreciation_profile, :asset_insurance)
 
-        # Apply company filter
+        # Apply filters
         assets = assets.where(company_id: params[:company_id]) if params[:company_id].present?
+        assets = apply_entity_type_filter(assets) if params[:entity_type].present?
 
         active_assets = assets.where(status: "active")
         disposed_assets = assets.where(status: "disposed")
@@ -239,6 +274,7 @@ module Api
             disposed_assets: disposed_assets.count,
             by_type: assets.group(:asset_type).count,
             by_status: assets.group(:status).count,
+            by_entity_type: assets.joins(:corporate_company).group("corporate_companies.entity_type").count,
             financials: {
               total_purchase_value: assets.sum(:purchase_price) || 0,
               total_book_value: active_assets.sum(:current_book_value) || 0,
@@ -266,6 +302,13 @@ module Api
         today = Date.current
         year = today.month >= 7 ? today.year + 1 : today.year
         "FY#{year}"
+      end
+
+      # Filter assets by corporate company entity type
+      # Supports comma-separated multiple entity types
+      def apply_entity_type_filter(assets)
+        entity_types = params[:entity_type].to_s.split(",").map(&:strip)
+        assets.joins(:corporate_company).where(corporate_companies: { entity_type: entity_types })
       end
     end
   end

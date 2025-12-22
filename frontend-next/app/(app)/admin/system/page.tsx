@@ -72,7 +72,7 @@ import { WarehouseTab } from "./components/WarehouseTab";
 import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "./components/EmailAccountsTab";
-import { PlansTab } from "./components/PlansTab";
+// PlansTab removed - plans config now under Entity Configuration > Jobs > Plans (EntityTab SSoT)
 import { SharePointTab } from "./components/SharePointTab";
 import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
 import { NavigationTab } from "./components/NavigationTab";
@@ -107,7 +107,7 @@ const MAIN_TABS = [
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "navigation", label: "Navigation", icon: Menu },
   { id: "entity-config", label: "Entity Configuration", icon: Settings2 },
-  { id: "plans", label: "Plans", icon: Map },
+  // Plans tab removed - now under Entity Configuration > Jobs > Plans (EntityTab SSoT)
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
   { id: "meeting-types", label: "Meeting Types", icon: Calendar },
   { id: "whs", label: "WHS", icon: ShieldCheck },
@@ -773,9 +773,6 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="contact-types" className="flex-1 min-h-0 overflow-auto">
             <ContactTypesTab />
-          </TabsContent>
-          <TabsContent value="plans" className="flex-1 min-h-0 overflow-auto">
-            <PlansTab />
           </TabsContent>
           <TabsContent value="schedule-master" className="flex-1 min-h-0 overflow-auto">
             <ScheduleMasterTab />

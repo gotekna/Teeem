@@ -2000,6 +2000,7 @@ Rails.application.routes.draw do
       # Asset Reports (World-Class Asset Register Reports)
       resources :asset_reports, only: [] do
         collection do
+          get :entity_types    # Available entity types for filtering
           get :register        # Full asset register report
           get :depreciation    # Depreciation schedule report
           get :insurance       # Insurance summary report
