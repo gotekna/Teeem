@@ -309,8 +309,18 @@ export function EntityTabsConfig({
         parent_id: item.parent_id,
       }));
 
-      // Update order_position based on new order
-      await reorderTabs(reorderData);
+      // Build optimistic tabs array with updated order_positions
+      // This prevents jitter by immediately showing the new order
+      const optimisticTabs = tabs.map(tab => {
+        const newIndex = newItems.findIndex(ni => ni.id === tab.id);
+        if (newIndex !== -1) {
+          return { ...tab, order_position: newIndex };
+        }
+        return tab;
+      });
+
+      // Update order_position based on new order (with optimistic update)
+      await reorderTabs(reorderData, optimisticTabs);
     } catch (err) {
       console.error("Failed to reorder tabs:", err);
     } finally {
@@ -467,12 +477,19 @@ export function EntityTabsConfig({
   };
 
   // Helper to find siblings (tabs with same parent), sorted by order_position
+  // When showTabGroups is false (flat list mode), all root tabs are siblings
   const findSiblings = (tab: EntityTab): EntityTab[] => {
     let siblings: EntityTab[];
 
     if (!tab.parent_id) {
-      // Root level - filter by tab_group
-      siblings = tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group);
+      // Root level
+      if (showTabGroups) {
+        // Grouped view - filter by tab_group
+        siblings = tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group);
+      } else {
+        // Flat list view - ALL root tabs are siblings (regardless of group)
+        siblings = tabs.filter(t => !t.parent_id);
+      }
     } else {
       // Find parent and return its children
       const findParent = (items: EntityTab[]): EntityTab | null => {

@@ -30,7 +30,7 @@ interface UseEntityTabsReturn {
   updateTab: (id: number, params: EntityTabUpdateParams) => Promise<EntityTab>;
   deleteTab: (id: number) => Promise<void>;
   // Specialized operations
-  reorderTabs: (items: ReorderTabParams[]) => Promise<void>;
+  reorderTabs: (items: ReorderTabParams[], optimisticTabs?: EntityTab[]) => Promise<void>;
   toggleEnabled: (id: number) => Promise<EntityTab>;
   // Refresh
   refetch: () => Promise<void>;
@@ -129,12 +129,19 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     }
   };
 
-  const reorderTabs = async (items: ReorderTabParams[]): Promise<void> => {
+  const reorderTabs = async (items: ReorderTabParams[], optimisticTabs?: EntityTab[]): Promise<void> => {
+    // Optimistic update - immediately show new order to prevent jitter
+    if (optimisticTabs) {
+      setTabs(optimisticTabs);
+    }
+
     try {
       await api.post("/api/v1/entity_tabs/reorder", { tabs: items });
-      await fetchTabs();
+      await fetchTabs(); // Confirm with server data
     } catch (err) {
       console.error("Failed to reorder tabs:", err);
+      // Revert on error by refetching
+      await fetchTabs();
       throw err;
     }
   };
