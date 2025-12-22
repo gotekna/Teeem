@@ -3986,7 +3986,7 @@ export default function CompanyDetailPage() {
               )}
 
               {/* Transactions sub-tabs - show raw P&L data from Xero */}
-              {xeroSubTab === "profit-loss-transactions" && (
+              {xeroSubTab === "xero-profit-loss-transactions" && (
                 <XeroProfitLossCard companyId={companyId} />
               )}
 
@@ -3994,15 +3994,15 @@ export default function CompanyDetailPage() {
                 <XeroBalanceSheetStatementView companyId={companyId} />
               )}
 
-              {xeroSubTab === "balance-sheet-transactions" && (
+              {xeroSubTab === "xero-balance-sheet-transactions" && (
                 <XeroBalanceSheetCard companyId={companyId} />
               )}
 
-              {xeroSubTab === "bank-statement" && (
+              {xeroSubTab === "xero-bank-statement" && (
                 <XeroStatementView companyId={companyId} />
               )}
 
-              {xeroSubTab === "bank-accounts" && (
+              {xeroSubTab === "xero-bank-accounts" && (
                 <XeroBankAccountsCard companyId={companyId} />
               )}
 
@@ -4143,16 +4143,16 @@ export default function CompanyDetailPage() {
                 </div>
               )}
 
-              {xeroSubTab === "consolidated" && (
+              {xeroSubTab === "xero-consolidated-accounts" && (
                 <XeroConsolidatedCard companyId={companyId} companyName={company?.name} />
               )}
 
               {/* Group reports - for any company in a group */}
-              {xeroSubTab === "consolidated-pl" && (
+              {xeroSubTab === "xero-consolidated-pl" && (
                 <XeroGroupPLCard companyId={companyId} />
               )}
 
-              {xeroSubTab === "consolidated-bs" && (
+              {xeroSubTab === "xero-consolidated-bs" && (
                 <XeroGroupBalanceSheetCard companyId={companyId} />
               )}
 
