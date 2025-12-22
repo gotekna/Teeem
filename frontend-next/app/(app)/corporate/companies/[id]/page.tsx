@@ -3352,6 +3352,21 @@ export default function CompanyDetailPage() {
   const [isBillDrawerOpen, setIsBillDrawerOpen] = React.useState(false);
   const billClickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
+  // Company edit sheet state
+  const [isEditSheetOpen, setIsEditSheetOpen] = React.useState(false);
+  const [savingEdit, setSavingEdit] = React.useState(false);
+  const [editFormData, setEditFormData] = React.useState({
+    name: "",
+    acn: "",
+    abn: "",
+    status: "",
+    entity_type: "",
+    date_incorporated: "",
+    registered_office_address: "",
+    principal_place_of_business: "",
+    purpose: "",
+  });
+
   // Bill click handlers (single = drawer, double = navigate to PO)
   const handleBillSingleClick = (bill: any) => {
     if (billClickTimeoutRef.current) {
@@ -3374,6 +3389,37 @@ export default function CompanyDetailPage() {
     // Navigate to invoice detail page (SSoT: /finance/invoices/[id])
     if (bill.id) {
       router.push(`/finance/invoices/${bill.id}`);
+    }
+  };
+
+  // Company edit handlers
+  const openEditSheet = () => {
+    if (company) {
+      setEditFormData({
+        name: company.name || "",
+        acn: company.acn || "",
+        abn: company.abn || "",
+        status: company.status || "active",
+        entity_type: company.entity_type || "Company",
+        date_incorporated: company.date_incorporated || "",
+        registered_office_address: company.registered_office_address || "",
+        principal_place_of_business: company.principal_place_of_business || "",
+        purpose: company.purpose || "",
+      });
+      setIsEditSheetOpen(true);
+    }
+  };
+
+  const handleSaveCompany = async () => {
+    setSavingEdit(true);
+    try {
+      await api.put(`/api/v1/companies/${companyId}`, { company: editFormData });
+      setIsEditSheetOpen(false);
+      loadCompany();
+    } catch (error) {
+      console.error("Failed to save company:", error);
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -3771,7 +3817,7 @@ export default function CompanyDetailPage() {
                   SharePoint
                 </a>
               </Button>
-              <Button variant="outline">
+              <Button variant="outline" onClick={openEditSheet}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
@@ -4267,6 +4313,139 @@ export default function CompanyDetailPage() {
               </div>
             </div>
           )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Company Edit Sheet */}
+      <Sheet open={isEditSheetOpen} onOpenChange={setIsEditSheetOpen}>
+        <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Edit Company</SheetTitle>
+            <SheetDescription>
+              Update company details. Changes will be saved immediately.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Company Name</Label>
+              <Input
+                id="edit-name"
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-acn">ACN</Label>
+                <Input
+                  id="edit-acn"
+                  value={editFormData.acn}
+                  onChange={(e) => setEditFormData({ ...editFormData, acn: e.target.value })}
+                  placeholder="000 000 000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-abn">ABN</Label>
+                <Input
+                  id="edit-abn"
+                  value={editFormData.abn}
+                  onChange={(e) => setEditFormData({ ...editFormData, abn: e.target.value })}
+                  placeholder="00 000 000 000"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">Status</Label>
+                <Select
+                  value={editFormData.status}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, status: value })}
+                >
+                  <SelectTrigger id="edit-status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="deregistered">Deregistered</SelectItem>
+                    <SelectItem value="struck_off">Struck Off</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-entity-type">Entity Type</Label>
+                <Select
+                  value={editFormData.entity_type}
+                  onValueChange={(value) => setEditFormData({ ...editFormData, entity_type: value })}
+                >
+                  <SelectTrigger id="edit-entity-type">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Company">Company</SelectItem>
+                    <SelectItem value="Trust">Trust</SelectItem>
+                    <SelectItem value="Superfund">Superfund</SelectItem>
+                    <SelectItem value="Charity">Charity</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-date-incorporated">Date Incorporated</Label>
+              <Input
+                id="edit-date-incorporated"
+                type="date"
+                value={editFormData.date_incorporated}
+                onChange={(e) => setEditFormData({ ...editFormData, date_incorporated: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-registered-office">Registered Office Address</Label>
+              <Textarea
+                id="edit-registered-office"
+                value={editFormData.registered_office_address}
+                onChange={(e) => setEditFormData({ ...editFormData, registered_office_address: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-ppob">Principal Place of Business</Label>
+              <Textarea
+                id="edit-ppob"
+                value={editFormData.principal_place_of_business}
+                onChange={(e) => setEditFormData({ ...editFormData, principal_place_of_business: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-purpose">Purpose</Label>
+              <Textarea
+                id="edit-purpose"
+                value={editFormData.purpose}
+                onChange={(e) => setEditFormData({ ...editFormData, purpose: e.target.value })}
+                rows={3}
+                placeholder="Company purpose or activities..."
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setIsEditSheetOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveCompany} disabled={savingEdit}>
+                {savingEdit ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
         </SheetContent>
       </Sheet>
     </div>
