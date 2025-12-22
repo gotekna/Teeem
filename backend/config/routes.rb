@@ -289,15 +289,6 @@ Rails.application.routes.draw do
           end
         end
 
-        # Schedule tasks (nested under jobs)
-        resources :schedule_tasks, only: [ :index, :create ] do
-          collection do
-            post :import
-            post :copy_from_template
-            get :gantt_data
-          end
-        end
-
         # Document tasks (nested under jobs)
         resources :document_tasks, only: [ :index ] do
           member do
@@ -383,21 +374,6 @@ Rails.application.routes.draw do
         collection do
           post :bulk_delete
           post :bulk_create
-        end
-      end
-
-      # Schedule tasks (non-nested routes)
-      resources :schedule_tasks, only: [ :show, :update, :destroy ] do
-        member do
-          patch :match_po
-          delete :unmatch_po
-        end
-
-        # Checklist items for supervisor checks
-        resources :checklist_items, controller: "schedule_task_checklist_items", only: [ :index, :create, :update, :destroy ] do
-          member do
-            post :toggle
-          end
         end
       end
 

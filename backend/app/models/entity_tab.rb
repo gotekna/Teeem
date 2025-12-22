@@ -22,9 +22,28 @@ class EntityTab < ApplicationRecord
 
   has_many :children, class_name: 'EntityTab', foreign_key: :parent_id, dependent: :destroy
 
-  # Document type links
+  # Document type links (SSoT for tab-to-document-type associations)
   has_many :entity_tab_document_types, dependent: :destroy
   has_many :document_types, through: :entity_tab_document_types
+
+  # Set document types by IDs (SSoT: replaces existing assignments)
+  def document_type_ids=(ids)
+    ids = Array(ids).map(&:to_i).reject(&:zero?)
+    existing_ids = entity_tab_document_types.pluck(:document_type_id)
+
+    # Remove old assignments
+    entity_tab_document_types.where.not(document_type_id: ids).destroy_all
+
+    # Add new assignments
+    (ids - existing_ids).each do |doc_type_id|
+      entity_tab_document_types.create(document_type_id: doc_type_id)
+    end
+  end
+
+  # Get document type IDs
+  def document_type_ids
+    entity_tab_document_types.pluck(:document_type_id)
+  end
 
   # Validations
   validates :scope, presence: true, inclusion: { in: SCOPES }

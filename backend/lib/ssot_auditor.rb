@@ -17,7 +17,7 @@ class SsotAuditor
   PRIORITY_MODELS = %w[
     Job Contact PurchaseOrder ExternalInvoice CorporateCompany
     SmTask CaseRecord QuoteRequest QuoteResponse Meeting User
-    ScheduleTask Lead Project PricebookItem PricebookCategory
+    Lead Project PricebookItem PricebookCategory
     CorporateCompanyShareholding CorporateCompanyDirector
     EmailWarehouse BillInbox
   ].freeze

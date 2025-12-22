@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_110000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4543,56 +4543,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110000) do
     t.index ["position"], name: "index_roles_on_position"
   end
 
-  create_table "schedule_task_checklist_items", force: :cascade do |t|
-    t.bigint "schedule_task_id", null: false
-    t.string "name", null: false
-    t.text "description"
-    t.string "category"
-    t.boolean "is_completed", default: false
-    t.datetime "completed_at"
-    t.string "completed_by"
-    t.integer "sequence_order", default: 0
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "response_type", default: "checkbox"
-    t.text "response_note"
-    t.string "response_photo_url"
-    t.index ["is_completed"], name: "index_schedule_task_checklist_items_on_is_completed"
-    t.index ["schedule_task_id", "sequence_order"], name: "idx_on_schedule_task_id_sequence_order_bbbbb75501"
-    t.index ["schedule_task_id"], name: "index_schedule_task_checklist_items_on_schedule_task_id"
-  end
-
-  create_table "schedule_tasks", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "purchase_order_id"
-    t.string "title", null: false
-    t.string "status", default: "not_started"
-    t.datetime "start_date"
-    t.datetime "complete_date"
-    t.string "duration"
-    t.integer "duration_days"
-    t.string "supplier_category"
-    t.string "supplier_name"
-    t.boolean "paid_internal", default: false
-    t.datetime "approx_date"
-    t.boolean "confirm", default: false
-    t.boolean "supplier_confirm", default: false
-    t.datetime "task_started"
-    t.datetime "completed"
-    t.jsonb "predecessors", default: []
-    t.text "attachments"
-    t.boolean "matched_to_po", default: false
-    t.integer "sequence_order"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_id", "matched_to_po"], name: "index_schedule_tasks_on_job_id_and_matched_to_po"
-    t.index ["job_id"], name: "index_schedule_tasks_on_job_id"
-    t.index ["matched_to_po"], name: "index_schedule_tasks_on_matched_to_po"
-    t.index ["purchase_order_id"], name: "index_schedule_tasks_on_purchase_order_id"
-    t.index ["start_date"], name: "index_schedule_tasks_on_start_date"
-    t.index ["status"], name: "index_schedule_tasks_on_status"
-  end
-
   create_table "schedule_template_row_audits", force: :cascade do |t|
     t.bigint "schedule_template_row_id", null: false
     t.bigint "user_id", null: false
@@ -6456,9 +6406,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110000) do
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
   add_foreign_key "role_permissions", "permissions"
-  add_foreign_key "schedule_task_checklist_items", "schedule_tasks"
-  add_foreign_key "schedule_tasks", "jobs"
-  add_foreign_key "schedule_tasks", "purchase_orders"
   add_foreign_key "schedule_template_row_audits", "schedule_template_rows"
   add_foreign_key "schedule_template_row_audits", "users"
   add_foreign_key "schedule_template_rows", "contacts", column: "supplier_id"

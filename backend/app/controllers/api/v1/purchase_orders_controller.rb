@@ -118,10 +118,10 @@ module Api
           end
 
           if @purchase_order.save
-            # Link schedule task to this PO if provided
+            # Link SmTask to this PO if provided (SmTask is THE ONE - SSoT)
             if schedule_task_id.present?
-              schedule_task = ScheduleTask.find(schedule_task_id)
-              schedule_task.update!(purchase_order_id: @purchase_order.id)
+              sm_task = SmTask.find(schedule_task_id)
+              sm_task.update!(purchase_order_id: @purchase_order.id)
             end
 
             render json: @purchase_order.as_json(include: :line_items), status: :created
@@ -147,17 +147,17 @@ module Api
         ActiveRecord::Base.transaction do
           # Update the PO
           if @purchase_order.update(purchase_order_params.except(:schedule_task_id))
-            # Handle schedule task assignment changes
+            # Handle SmTask assignment changes (SmTask is THE ONE - SSoT)
             if schedule_task_id.present?
-              # Unlink any existing schedule tasks from this PO
-              ScheduleTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
+              # Unlink any existing tasks from this PO
+              SmTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
 
-              # Link the new schedule task to this PO
-              schedule_task = ScheduleTask.find(schedule_task_id)
-              schedule_task.update!(purchase_order_id: @purchase_order.id)
+              # Link the new task to this PO
+              sm_task = SmTask.find(schedule_task_id)
+              sm_task.update!(purchase_order_id: @purchase_order.id)
             elsif params[:purchase_order].key?(:schedule_task_id) && schedule_task_id.nil?
-              # Explicitly setting to nil - unlink all schedule tasks
-              ScheduleTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
+              # Explicitly setting to nil - unlink all tasks
+              SmTask.where(purchase_order_id: @purchase_order.id).update_all(purchase_order_id: nil)
             end
 
             render json: @purchase_order.as_json(include: :line_items)

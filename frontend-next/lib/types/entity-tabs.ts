@@ -65,6 +65,7 @@ export interface EntityTabCreateParams {
   component_name?: string;
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
+  document_type_ids?: number[];  // SSoT: Link document types to this tab
 }
 
 export interface EntityTabUpdateParams {
@@ -79,6 +80,7 @@ export interface EntityTabUpdateParams {
   component_name?: string;
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
+  document_type_ids?: number[];  // SSoT: Link document types to this tab
 }
 
 export interface ReorderTabParams {

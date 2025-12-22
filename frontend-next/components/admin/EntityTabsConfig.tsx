@@ -173,6 +173,28 @@ export function EntityTabsConfig({
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
   const [newEntityType, setNewEntityType] = React.useState("");
 
+  // All document types for linking (SSoT)
+  const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
+
+  // Fetch all document types on mount
+  React.useEffect(() => {
+    const fetchDocumentTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: any[] }>('/api/v1/document_types');
+        if (response?.success && Array.isArray(response.data)) {
+          setAllDocumentTypes(response.data.map((dt: any) => ({
+            id: dt.id,
+            name: dt.name,
+            display_name: dt.display_name,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch document types:', err);
+      }
+    };
+    fetchDocumentTypes();
+  }, []);
+
   // Form state for create/edit
   const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams>>({});
 
@@ -328,6 +350,8 @@ export function EntityTabsConfig({
       icon_name: tab.icon_name || "",
       has_sharepoint_folder: tab.has_sharepoint_folder,
       sharepoint_folder_path: tab.sharepoint_folder_path || "",
+      // SSoT: Include linked document type IDs
+      document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
     });
     setEditingTab(tab);
     setIsCreateDialogOpen(true);
@@ -354,6 +378,8 @@ export function EntityTabsConfig({
           icon_name: formData.icon_name,
           has_sharepoint_folder: formData.has_sharepoint_folder,
           sharepoint_folder_path: formData.sharepoint_folder_path,
+          // SSoT: Include linked document type IDs
+          document_type_ids: formData.document_type_ids,
         };
         await updateTab(editingTab.id, updateParams);
       } else {
@@ -557,7 +583,13 @@ export function EntityTabsConfig({
           {/* Name and badges */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium">{tab.display_name}</span>
+              <span
+                className="font-medium cursor-pointer hover:text-primary hover:underline"
+                onClick={() => openEditDialog(tab)}
+                title="Click to edit"
+              >
+                {tab.display_name}
+              </span>
               <Badge variant="outline" className="text-xs">
                 {tab.tab_key}
               </Badge>
@@ -1130,6 +1162,46 @@ export function EntityTabsConfig({
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Document Types (SSoT: Link document types to this tab) */}
+            {(editingTab?.tab_group === 'documents' || formData.tab_group === 'documents') && (
+              <div className="space-y-2">
+                <Label>Linked Document Types</Label>
+                <p className="text-xs text-muted-foreground">
+                  Select which document types should appear under this tab
+                </p>
+                <MultipleSelector
+                  value={
+                    (formData.document_type_ids || []).map((id) => {
+                      const dt = allDocumentTypes.find((d) => d.id === id);
+                      return {
+                        value: id.toString(),
+                        label: dt?.display_name || dt?.name || `Type ${id}`,
+                      };
+                    })
+                  }
+                  onChange={(options: Option[]) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      document_type_ids: options.map((o: Option) => parseInt(o.value)),
+                    }))
+                  }
+                  defaultOptions={allDocumentTypes.map((dt) => ({
+                    value: dt.id.toString(),
+                    label: dt.display_name || dt.name,
+                  }))}
+                  placeholder="Select document types..."
+                  emptyIndicator={
+                    <p className="text-center text-sm text-muted-foreground">
+                      No document types available
+                    </p>
+                  }
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(formData.document_type_ids || []).length} document types linked
+                </p>
               </div>
             )}
 
