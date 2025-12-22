@@ -93,6 +93,7 @@ import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
 import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { XeroSetupWizard } from "@/components/xero/XeroSetupWizard";
+import { XeroContactsTable } from "@/components/xero/XeroContactsTable";
 import {
   XeroConnectionCard,
   XeroOverviewCard,
@@ -4024,31 +4025,20 @@ export default function CompanyDetailPage() {
                       </CardContent>
                     </Card>
                   ) : (
-                    <TeeemTableView
-                      entries={xeroContacts}
-                      foundationId="contacts"
-                      foundationIdNumeric={214}
-                      tableName="Xero Linked Contacts"
-                      defaultViewId={237}
-                      onRefresh={async () => {
-                        const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
-                        if (tenantId) {
-                          setXeroContactsLoading(true);
-                          try {
-                            const response = await api.get<{ success: boolean; contacts: any[] }>(
-                              `/api/v1/contacts?xero_tenant_id=${tenantId}`
-                            );
-                            if (response.success) {
-                              setXeroContacts(response.contacts || []);
-                            }
-                          } finally {
-                            setXeroContactsLoading(false);
-                          }
-                        }
-                      }}
-                      onRowClick={(row) => router.push(`/contacts/${row.id}`)}
-                      enableExport={true}
-                    />
+                    <div className="px-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">
+                          Xero Linked Contacts
+                          <Badge variant="secondary" className="ml-2">
+                            {xeroContacts.length}
+                          </Badge>
+                        </h3>
+                      </div>
+                      <XeroContactsTable
+                        contacts={xeroContacts}
+                        onRowClick={(contact) => router.push(`/contacts/${contact.id}`)}
+                      />
+                    </div>
                   )}
                 </div>
               )}
