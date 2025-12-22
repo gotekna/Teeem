@@ -11,6 +11,8 @@ export { ActivityTab } from "./ActivityTab";
 export { DirectorsTab } from "./DirectorsTab";
 export { TrustDeedTab } from "./TrustDeedTab";
 export { DistributionsTab } from "./DistributionsTab";
+export { TrusteeTab } from "./TrusteeTab";
+export { BeneficiariesTab } from "./BeneficiariesTab";
 
 // TODO: Export remaining components as they are extracted
 // export { CorporateTab } from "./CorporateTab";
@@ -18,11 +20,7 @@ export { DistributionsTab } from "./DistributionsTab";
 // export { BankAccountsTab } from "./BankAccountsTab";
 // export { HealthTab } from "./HealthTab";
 // export { TrustsTab } from "./TrustsTab";
-// export { TrusteeTab } from "./TrusteeTab";
-// export { BeneficiariesTab } from "./BeneficiariesTab";
 // export { AppointorTab } from "./AppointorTab";
-// export { TrustDeedTab } from "./TrustDeedTab";
-// export { DistributionsTab } from "./DistributionsTab";
 // export { MembersTab } from "./MembersTab";
 // export { ConsolidationTab } from "./ConsolidationTab";
 // export { DataTab } from "./DataTab";

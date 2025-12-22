@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
+  useSetLayoutMode("full-height");
   const { user } = useAuth();
   const [stats] = useState<DashboardStats>({
     activeJobs: 12,
