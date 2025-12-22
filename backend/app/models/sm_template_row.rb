@@ -20,6 +20,13 @@ class SmTemplateRow < ApplicationRecord
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
+  # PO hierarchy - link this task's PO to another task's PO
+  belongs_to :linked_po_task, class_name: "SmTemplateRow", optional: true
+  has_many :linked_po_children, class_name: "SmTemplateRow", foreign_key: :linked_po_task_id, dependent: :nullify
+
+  # Photo storage EntityTab
+  belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
+
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
 
@@ -41,6 +48,9 @@ class SmTemplateRow < ApplicationRecord
   scope :by_stage, ->(stage) { where(stage: stage) if stage.present? }
   scope :requiring_po, -> { where(po_required: true) }
   scope :with_photos, -> { where(require_photo: true) }
+  scope :auto_included, -> { where(auto_include: true) }
+  scope :manual_only, -> { where(auto_include: false) }
+  scope :allow_duplicates, -> { where(allow_duplicates: true) }
 
   # Callbacks
   before_validation :set_task_number, on: :create
@@ -61,6 +71,28 @@ class SmTemplateRow < ApplicationRecord
 
   def tag_list
     tags || []
+  end
+
+  # Plan types to attach to this task
+  def plan_type_list
+    plan_type_ids || []
+  end
+
+  # EntityTabs for documents sent on START
+  def start_entity_tabs
+    return [] if start_entity_tab_ids.blank?
+    EntityTab.where(id: start_entity_tab_ids)
+  end
+
+  # EntityTabs for documents received on COMPLETE
+  def complete_entity_tabs
+    return [] if complete_entity_tab_ids.blank?
+    EntityTab.where(id: complete_entity_tab_ids)
+  end
+
+  # All linked EntityTab IDs (start + complete)
+  def all_entity_tab_ids
+    (start_entity_tab_ids || []) + (complete_entity_tab_ids || [])
   end
 
   # Format predecessors as "2FS+3, 5SS" etc

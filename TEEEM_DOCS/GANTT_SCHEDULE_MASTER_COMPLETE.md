@@ -167,6 +167,22 @@ Configurable dropdown for hold reasons.
 | `sm_templates` | Schedule templates |
 | `sm_template_rows` | Template task definitions |
 
+#### sm_template_rows - Template Configuration Columns
+
+| Column | Type | Default | Purpose |
+|--------|------|---------|---------|
+| `auto_include` | boolean | true | If false, task is manually added only |
+| `allow_duplicates` | boolean | false | Can add same task multiple times with numbering |
+| `ai_select` | boolean | false | AI auto-selection for task |
+| `plan_type_ids` | jsonb | [] | Plan types to attach to PO |
+| `start_entity_tab_ids` | jsonb | [] | EntityTabs for docs sent on START |
+| `complete_entity_tab_ids` | jsonb | [] | EntityTabs for docs received on COMPLETE |
+| `photo_entity_tab_id` | bigint | null | EntityTab for photo storage |
+| `linked_po_task_id` | integer | null | Parent task for PO hierarchy |
+| `cost_centre` | string | null | BOQ category for PO filtering |
+| `require_supplier_confirm` | boolean | false | Task needs supplier confirmation |
+| `is_master` | boolean | false | Completing this auto-completes prior tasks |
+
 ### 2.3 Phase 2 Tables (Implemented but not in use)
 
 | Table | Purpose |
@@ -397,7 +413,27 @@ class SmRolloverJob < ApplicationJob
 end
 ```
 
-### 5.4 Hold System
+### 5.4 Confirmation Workflow
+
+**Automatic for all PO tasks** (`po_required = true`):
+1. **Unsure State** - Task dragged to date not following dependencies (yellow)
+2. **Confirm** - User confirms date → notifies supplier (blue)
+3. **Supplier Confirm** - Supplier confirms via email/text/UI (green)
+
+**If supplier confirmed → skip ordering** (already arranged)
+
+**Template Setting:** `require_supplier_confirm = true` enables supplier confirmation for task type
+
+### 5.5 Master Task Cascade
+
+When a task with `is_master = true` is completed:
+1. Auto-complete all tasks BEFORE it in sequence
+2. EXCEPT: Photo/scan tasks already in progress
+3. Example: Scan signed contract → auto-completes "Customer Require Quote"
+
+This allows milestone tasks to cascade completion backwards (things no longer needed).
+
+### 5.6 Hold System
 
 When activating hold:
 1. Create Hold Task at position 1

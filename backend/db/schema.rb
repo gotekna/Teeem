@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_130007) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_234225) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4758,9 +4758,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_130007) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "auto_include", default: true
+    t.boolean "allow_duplicates", default: false
+    t.boolean "ai_select", default: false
+    t.jsonb "plan_type_ids", default: []
+    t.jsonb "start_entity_tab_ids", default: []
+    t.jsonb "complete_entity_tab_ids", default: []
+    t.bigint "photo_entity_tab_id"
+    t.integer "linked_po_task_id"
+    t.string "cost_centre"
+    t.boolean "require_supplier_confirm", default: false
+    t.boolean "is_master", default: false
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
+    t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
     t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
+    t.index ["linked_po_task_id"], name: "index_sm_template_rows_on_linked_po_task_id"
     t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
     t.index ["sm_template_id", "sequence_order"], name: "index_sm_template_rows_on_sm_template_id_and_sequence_order"
     t.index ["sm_template_id", "task_number"], name: "index_sm_template_rows_on_sm_template_id_and_task_number", unique: true
