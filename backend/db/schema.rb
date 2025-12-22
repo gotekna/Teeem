@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_110003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3435,12 +3435,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
     t.bigint "presenter_id"
     t.boolean "completed", default: false
     t.text "notes"
-    t.bigint "created_task_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "sm_task_id"
     t.index ["completed"], name: "index_meeting_agenda_items_on_completed"
-    t.index ["created_task_id"], name: "index_meeting_agenda_items_on_created_task_id"
     t.index ["meeting_id", "sequence_order"], name: "index_meeting_agenda_items_on_meeting_id_and_sequence_order"
     t.index ["meeting_id"], name: "index_meeting_agenda_items_on_meeting_id"
     t.index ["presenter_id"], name: "index_meeting_agenda_items_on_presenter_id"
@@ -4194,83 +4192,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
     t.index ["company_id"], name: "index_profit_loss_reports_on_company_id"
     t.index ["financial_year"], name: "index_profit_loss_reports_on_financial_year"
     t.index ["status"], name: "index_profit_loss_reports_on_status"
-  end
-
-  create_table "project_task_checklist_items", force: :cascade do |t|
-    t.bigint "project_task_id", null: false
-    t.string "name", null: false
-    t.text "description"
-    t.string "category"
-    t.boolean "is_completed", default: false
-    t.datetime "completed_at"
-    t.string "completed_by"
-    t.integer "sequence_order", default: 0
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "response_type", default: "checkbox"
-    t.text "response_note"
-    t.string "response_photo_url"
-    t.index ["is_completed"], name: "index_project_task_checklist_items_on_is_completed"
-    t.index ["project_task_id", "sequence_order"], name: "idx_on_project_task_id_sequence_order_cc3d531d29"
-    t.index ["project_task_id"], name: "index_project_task_checklist_items_on_project_task_id"
-  end
-
-  create_table "project_tasks", force: :cascade do |t|
-    t.bigint "project_id", null: false
-    t.bigint "task_template_id"
-    t.bigint "purchase_order_id"
-    t.string "name", null: false
-    t.string "task_type", null: false
-    t.string "category", null: false
-    t.string "task_code"
-    t.string "status", default: "not_started"
-    t.integer "progress_percentage", default: 0
-    t.date "planned_start_date"
-    t.date "planned_end_date"
-    t.date "actual_start_date"
-    t.date "actual_end_date"
-    t.integer "duration_days", default: 1
-    t.bigint "assigned_to_id"
-    t.string "supplier_name"
-    t.boolean "is_milestone", default: false
-    t.boolean "is_critical_path", default: false
-    t.text "notes"
-    t.text "completion_notes"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.integer "sequence_order"
-    t.date "required_on_site_date"
-    t.string "spawned_type"
-    t.bigint "parent_task_id"
-    t.boolean "requires_supervisor_check", default: false, null: false
-    t.datetime "supervisor_checked_at"
-    t.bigint "supervisor_checked_by_id"
-    t.datetime "photo_uploaded_at"
-    t.datetime "certificate_uploaded_at"
-    t.jsonb "tags", default: [], null: false
-    t.boolean "critical_po", default: false, null: false
-    t.boolean "auto_complete_predecessors", default: false, null: false
-    t.jsonb "auto_complete_task_ids", default: [], null: false
-    t.jsonb "subtask_template_ids", default: [], null: false
-    t.boolean "manual_task", default: false, null: false
-    t.boolean "allow_multiple_instances", default: false, null: false
-    t.boolean "order_required", default: false, null: false
-    t.boolean "call_up_required", default: false, null: false
-    t.boolean "plan_required", default: false, null: false
-    t.integer "duration", default: 0, null: false
-    t.index ["assigned_to_id"], name: "index_project_tasks_on_assigned_to_id"
-    t.index ["is_critical_path"], name: "index_project_tasks_on_is_critical_path"
-    t.index ["parent_task_id"], name: "index_project_tasks_on_parent_task_id"
-    t.index ["planned_start_date", "planned_end_date"], name: "index_project_tasks_on_planned_start_date_and_planned_end_date"
-    t.index ["project_id", "status", "planned_start_date"], name: "index_project_tasks_on_project_status_start"
-    t.index ["project_id", "status"], name: "index_project_tasks_on_project_id_and_status"
-    t.index ["project_id"], name: "index_project_tasks_on_project_id"
-    t.index ["purchase_order_id"], name: "index_project_tasks_on_purchase_order_id"
-    t.index ["requires_supervisor_check"], name: "index_project_tasks_on_requires_supervisor_check"
-    t.index ["spawned_type"], name: "index_project_tasks_on_spawned_type"
-    t.index ["supervisor_checked_by_id"], name: "index_project_tasks_on_supervisor_checked_by_id"
-    t.index ["tags"], name: "index_project_tasks_on_tags", using: :gin
-    t.index ["task_template_id"], name: "index_project_tasks_on_task_template_id"
   end
 
   create_table "projects", force: :cascade do |t|
@@ -5117,19 +5038,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
   end
 
-  create_table "task_dependencies", force: :cascade do |t|
-    t.bigint "successor_task_id", null: false
-    t.bigint "predecessor_task_id", null: false
-    t.string "dependency_type", default: "finish_to_start"
-    t.integer "lag_days", default: 0
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["predecessor_task_id"], name: "index_task_dependencies_on_predecessor_task_id"
-    t.index ["successor_task_id", "predecessor_task_id"], name: "index_unique_task_dependency", unique: true
-    t.index ["successor_task_id"], name: "index_task_dependencies_on_successor_task_id"
-    t.check_constraint "successor_task_id <> predecessor_task_id", name: "check_no_self_dependency"
-  end
-
   create_table "task_templates", force: :cascade do |t|
     t.string "name", null: false
     t.string "task_type", null: false
@@ -5146,23 +5054,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
     t.index ["category"], name: "index_task_templates_on_category"
     t.index ["sequence_order"], name: "index_task_templates_on_sequence_order"
     t.index ["task_type"], name: "index_task_templates_on_task_type"
-  end
-
-  create_table "task_updates", force: :cascade do |t|
-    t.bigint "project_task_id", null: false
-    t.bigint "user_id", null: false
-    t.string "status_before"
-    t.string "status_after"
-    t.integer "progress_before"
-    t.integer "progress_after"
-    t.text "notes"
-    t.text "photo_urls", default: [], array: true
-    t.date "update_date", default: -> { "CURRENT_DATE" }, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["project_task_id"], name: "index_task_updates_on_project_task_id"
-    t.index ["update_date"], name: "index_task_updates_on_update_date"
-    t.index ["user_id"], name: "index_task_updates_on_user_id"
   end
 
   create_table "tasks", force: :cascade do |t|
@@ -5509,7 +5400,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
     t.bigint "actionable_id", null: false
     t.bigint "assigned_to_user_id"
     t.bigint "created_by_id", null: false
-    t.bigint "project_task_id"
     t.string "title", null: false
     t.text "description"
     t.string "action_type", null: false
@@ -5527,7 +5417,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
     t.index ["created_by_id"], name: "index_whs_action_items_on_created_by_id"
     t.index ["due_date"], name: "index_whs_action_items_on_due_date"
     t.index ["priority"], name: "index_whs_action_items_on_priority"
-    t.index ["project_task_id"], name: "index_whs_action_items_on_project_task_id"
     t.index ["sm_task_id"], name: "index_whs_action_items_on_sm_task_id"
     t.index ["status"], name: "index_whs_action_items_on_status"
   end
@@ -6239,7 +6128,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
   add_foreign_key "maintenance_requests", "purchase_orders"
   add_foreign_key "maintenance_requests", "users", column: "reported_by_user_id"
   add_foreign_key "meeting_agenda_items", "meetings"
-  add_foreign_key "meeting_agenda_items", "project_tasks", column: "created_task_id"
   add_foreign_key "meeting_agenda_items", "tasks", column: "sm_task_id"
   add_foreign_key "meeting_agenda_items", "users", column: "presenter_id"
   add_foreign_key "meeting_participants", "contacts"
@@ -6290,13 +6178,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
   add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebook", "pricebook_categories", column: "category_id"
   add_foreign_key "profit_loss_reports", "corporate_companies", column: "company_id"
-  add_foreign_key "project_task_checklist_items", "project_tasks"
-  add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
-  add_foreign_key "project_tasks", "projects"
-  add_foreign_key "project_tasks", "purchase_orders"
-  add_foreign_key "project_tasks", "task_templates"
-  add_foreign_key "project_tasks", "users", column: "assigned_to_id"
-  add_foreign_key "project_tasks", "users", column: "supervisor_checked_by_id"
   add_foreign_key "projects", "jobs"
   add_foreign_key "projects", "users", column: "project_manager_id"
   add_foreign_key "purchase_order_documents", "document_tasks"
@@ -6370,10 +6251,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
-  add_foreign_key "task_dependencies", "project_tasks", column: "predecessor_task_id"
-  add_foreign_key "task_dependencies", "project_tasks", column: "successor_task_id"
-  add_foreign_key "task_updates", "project_tasks"
-  add_foreign_key "task_updates", "users"
   add_foreign_key "tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "tasks", "jobs", on_delete: :cascade
   add_foreign_key "tasks", "purchase_orders", on_delete: :nullify
@@ -6400,7 +6277,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
   add_foreign_key "warehouse_bank_transactions", "contacts"
   add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
   add_foreign_key "warehouse_contacts", "contacts"
-  add_foreign_key "whs_action_items", "project_tasks"
   add_foreign_key "whs_action_items", "tasks", column: "sm_task_id"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"

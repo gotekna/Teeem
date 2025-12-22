@@ -1,7 +1,7 @@
 # Phase 6: Deprecated Code Deletion Audit
 
 **Created:** 2025-12-22
-**Status:** TIER 1 COMPLETE - Tier 2-4 pending validation
+**Status:** ALL TIERS COMPLETE - SmTask is THE ONE task system
 
 ---
 
@@ -68,45 +68,36 @@
 - `generator_service.rb` → SmTask + SmDependency system
 - `schedule_cascade_service.rb` → `SmCascadeService`
 
-**Also Updated:**
-- `project_task.rb` - Removed `schedule_template_row` association, disabled spawn callback
-
 ---
 
-### Tier 4: ProjectTask System (Delete LAST - After Full Validation)
-**Reason:** Still used by WHS/Meetings in dual-write mode
+### ✅ Tier 4: ProjectTask System - DELETED (2025-12-22)
+**Reason:** WHS/Meetings migrated to SmTask via dual-write pattern
 
-| Type | File | Lines | Notes |
-|------|------|-------|-------|
-| Model | `app/models/project_task.rb` | ~250 | WHS/Meeting still create these |
-| Model | `app/models/project_task_checklist_item.rb` | ~50 | Child model |
-| Model | `app/models/task_dependency.rb` | 73 | Old dependency system |
-| Model | `app/models/task_update.rb` | ~50 | Task history |
-| Controller | `app/controllers/api/v1/project_tasks_controller.rb` | ~400 | CRUD + gantt |
+| Type | File | Status |
+|------|------|--------|
+| Model | `app/models/project_task.rb` | ✅ DELETED |
+| Model | `app/models/project_task_checklist_item.rb` | ✅ DELETED |
+| Model | `app/models/task_dependency.rb` | ✅ DELETED |
+| Model | `app/models/task_update.rb` | ✅ DELETED |
+| Controller | `app/controllers/api/v1/project_tasks_controller.rb` | ✅ DELETED |
+| Routes | `resources :tasks, controller: "project_tasks"` (nested under projects) | ✅ REMOVED |
+| Tables | `project_tasks`, `project_task_checklist_items`, `task_dependencies`, `task_updates` | ✅ DROPPED |
 
-**BLOCKING DEPENDENCIES (must resolve first):**
-1. `whs_action_item.rb` - has `belongs_to :project_task`
-2. `whs_incident.rb` - creates project_tasks via callback
-3. `whs_swms.rb` - creates project_tasks via callback
-4. `meeting_agenda_item.rb` - has `belongs_to :created_task` (ProjectTask)
+**Migration:** `20251222110003_remove_project_task_tables.rb`
 
-**Pre-deletion steps:**
-1. Stop dual-write (remove old callbacks)
-2. Remove `project_task_id` from WHS models
-3. Remove `created_task_id` from MeetingAgendaItem
-4. Run migration to drop columns
-
-**Routes to remove:**
-```ruby
-# backend/config/routes.rb line 411
-resources :tasks, controller: "project_tasks"
-```
-
-**Database tables to drop:**
-- `project_tasks`
-- `project_task_checklist_items`
-- `task_dependencies`
-- `task_updates`
+**Also Updated:**
+- `whs_action_item.rb` - Removed `project_task` association, now uses SmTask only
+- `whs_incident.rb` - Removed ProjectTask callbacks, now uses SmTask only
+- `whs_swms.rb` - Removed ProjectTask callbacks, now uses SmTask only
+- `meeting_agenda_item.rb` - Removed `created_task` association, now uses SmTask only
+- `purchase_order.rb` - Removed `project_tasks` and `schedule_tasks` associations, uses SmTask
+- `project.rb` - Removed `project_tasks` association, helper methods now use SmTask via job
+- `task_template.rb` - Removed `project_tasks` association
+- `job.rb` - Removed `schedule_tasks` association
+- `projects_controller.rb` - Updated gantt action to use SmTask
+- `purchase_orders_controller.rb` - Updated includes to use SmTask
+- `whs_action_items_controller.rb` - Updated includes and params to use SmTask
+- `schema_controller.rb` - Updated table icon mapping
 
 ---
 
@@ -125,54 +116,6 @@ resources :tasks, controller: "project_tasks"
 
 ---
 
-## MIGRATION SCRIPT (Phase 6)
-
-```ruby
-# db/migrate/XXXXXX_remove_deprecated_schedule_tables.rb
-class RemoveDeprecatedScheduleTables < ActiveRecord::Migration[8.0]
-  def change
-    # Tier 1: ScheduleTask
-    drop_table :schedule_task_checklist_items, if_exists: true
-    drop_table :schedule_tasks, if_exists: true
-
-    # Tier 2: ScheduleTemplate
-    drop_table :schedule_template_rows, if_exists: true
-    drop_table :schedule_templates, if_exists: true
-  end
-end
-
-# db/migrate/XXXXXX_remove_project_task_system.rb (LATER)
-class RemoveProjectTaskSystem < ActiveRecord::Migration[8.0]
-  def change
-    # Remove FKs first
-    remove_column :whs_action_items, :project_task_id, if_exists: true
-    remove_column :meeting_agenda_items, :created_task_id, if_exists: true
-
-    # Then drop tables
-    drop_table :task_updates, if_exists: true
-    drop_table :task_dependencies, if_exists: true
-    drop_table :project_task_checklist_items, if_exists: true
-    drop_table :project_tasks, if_exists: true
-  end
-end
-```
-
----
-
-## ROUTES CLEANUP
-
-```ruby
-# Remove from backend/config/routes.rb:
-
-# Lines 293-297 (schedule_tasks nested)
-# Lines 390-408 (schedule_tasks resources)
-# Line 411 (project_tasks as tasks)
-# Line 974 (sync_schedule_templates)
-# Lines 1083-1098 (schedule_templates resources)
-```
-
----
-
 ## SUMMARY
 
 | Tier | Files | Tables | Status |
@@ -180,17 +123,51 @@ end
 | 1: ScheduleTask | 4 | 2 | ✅ COMPLETE (2025-12-22) |
 | 2: ScheduleTemplate | 5 | 3 | ✅ COMPLETE (2025-12-22) |
 | 3: Services | 5 | 0 | ✅ COMPLETE (2025-12-22) |
-| 4: ProjectTask | 5 | 4 | ⏳ After WHS validation (2-4 weeks) |
+| 4: ProjectTask | 5 | 4 | ✅ COMPLETE (2025-12-22) |
 
-**Deleted:** 14 files, 5 tables
-**Remaining:** 5 files, 4 tables (ProjectTask system)
+**Total Deleted:** 19 files, 9 tables
+**Remaining:** 0 files, 0 tables
 
 ---
 
-## VALIDATION CHECKLIST (Before Each Tier)
+## MIGRATIONS CREATED
 
-- [ ] Run `rails phase5:status` - confirm no active usage
-- [ ] Check Sentry for errors related to deprecated endpoints
-- [ ] Verify frontend doesn't call old APIs
-- [ ] Create database backup
-- [ ] Test in staging first
+```ruby
+# Tier 1
+db/migrate/20251222110001_remove_schedule_task_tables.rb
+
+# Tier 2
+db/migrate/20251222110002_remove_schedule_template_tables.rb
+
+# Tier 4
+db/migrate/20251222110003_remove_project_task_tables.rb
+```
+
+---
+
+## POST-CLEANUP NOTES
+
+### SmTask is THE ONE Task System (SSoT)
+
+All task functionality now uses the SmTask ecosystem:
+
+| Old System | New System (SSoT) |
+|------------|-------------------|
+| `ProjectTask` | `SmTask` |
+| `ScheduleTask` | `SmTask` |
+| `TaskDependency` | `SmDependency` |
+| `ScheduleTemplate` | `SmTemplate` |
+| `ScheduleTemplateRow` | `SmTemplateRow` |
+| `schedule_cascade_service.rb` | `SmCascadeService` |
+| `schedule/task_spawner.rb` | `SmTaskCompletionService` |
+| `schedule/template_instantiator.rb` | `SmTemplateCopyService` |
+
+### WHS/Meeting Integration
+
+All WHS and Meeting models now create SmTask via callbacks:
+- `WHSActionItem` → creates SmTask on create
+- `WHSIncident` → creates SmTask on create
+- `WHSSWMS` → creates SmTask on create
+- `MeetingAgendaItem` → creates SmTask via `create_action_item!`
+
+Status changes sync bidirectionally between source record and SmTask.

@@ -9,8 +9,7 @@ module Api
         @purchase_orders = PurchaseOrder.includes(
           :supplier,
           :job,
-          :project_tasks,
-          :schedule_tasks,
+          :sm_tasks,  # SSoT: SmTask is THE ONE task system
           line_items: :pricebook_item
         ).all
 
@@ -85,13 +84,12 @@ module Api
               job: {
                 methods: [ :site_supervisor_info ]
               },
-              schedule_tasks: {},
+              sm_tasks: {  # SSoT: SmTask is THE ONE task system
+                methods: [ :materials_status ]
+              },
               line_items: {
                 include: { pricebook_item: { methods: [ :active_price ] } },
                 methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
-              },
-              project_tasks: {
-                methods: [ :materials_status ]
               },
               document_tasks: {
                 methods: [ :document_url ]

@@ -15,7 +15,7 @@ class Job < ApplicationRecord
   has_many :purchase_orders, dependent: :destroy
   has_many :job_claims, dependent: :destroy
   has_many :job_claim_stages, dependent: :destroy
-  has_many :schedule_tasks, dependent: :destroy
+  # Note: schedule_tasks association removed in Phase 6 - SmTask is THE ONE task system (see sm_tasks)
   has_one :project, dependent: :destroy
   has_one :one_drive_credential, dependent: :destroy
   belongs_to :design, optional: true

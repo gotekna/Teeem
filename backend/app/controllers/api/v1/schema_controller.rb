@@ -536,8 +536,7 @@ module Api
           "pricebook_items" => "💰",
           "price_histories" => "📈",
           "projects" => "📋",
-          "project_tasks" => "✓",
-          "schedule_tasks" => "📅",
+          "tasks" => "✓",  # SSoT: SmTask (tasks table)
           "users" => "👥",
           "import_sessions" => "📥",
           "grok_plans" => "🤖",
