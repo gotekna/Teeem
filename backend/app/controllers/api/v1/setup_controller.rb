@@ -23,8 +23,8 @@ module Api
               users: User.count,
               documentation_categories: DocumentationCategory.count,
               supervisor_checklist_templates: SupervisorChecklistTemplate.count,
-              schedule_templates: ScheduleTemplate.count,
-              schedule_template_rows: ScheduleTemplateRow.count
+              sm_templates: SmTemplate.count,
+              sm_template_rows: SmTemplateRow.count
             }
           }
         rescue StandardError => e
@@ -80,23 +80,6 @@ module Api
         end
       end
 
-      # POST /api/v1/setup/sync_schedule_templates
-      def sync_schedule_templates
-        begin
-          sync_data_type("schedule_templates")
-          render json: {
-            success: true,
-            message: "Schedule templates successfully synced",
-            counts: {
-              templates: ScheduleTemplate.count,
-              rows: ScheduleTemplateRow.count
-            }
-          }
-        rescue StandardError => e
-          handle_sync_error("schedule templates", e)
-        end
-      end
-
       # POST /api/v1/setup/sync_folder_templates
       def sync_folder_templates
         begin
@@ -133,8 +116,6 @@ module Api
           sync_documentation_categories_data
         when "supervisor_checklists"
           sync_supervisor_checklists_data
-        when "schedule_templates"
-          sync_schedule_templates_data
         when "folder_templates"
           sync_folder_templates_data
         end
@@ -201,81 +182,6 @@ module Api
             sequence_order: row[:sequence_order].to_i,
             is_active: row[:is_active] == "true"
           )
-        end
-      end
-
-      def sync_schedule_templates_data
-        schedule_templates_file = Rails.root.join("db", "import_data", "schedule_templates.csv")
-        schedule_rows_file = Rails.root.join("db", "import_data", "schedule_template_rows.csv")
-
-        raise "Schedule templates file not found" unless File.exist?(schedule_templates_file)
-        raise "Schedule template rows file not found" unless File.exist?(schedule_rows_file)
-
-        # Delete existing data
-        ScheduleTemplateRow.delete_all
-        ScheduleTemplate.delete_all
-
-        # Import templates
-        template_map = {}
-        creator = User.first || User.create!(
-          email: "system@teeem.com",
-          name: "System",
-          password: SecureRandom.hex(20)
-        )
-
-        CSV.foreach(schedule_templates_file, headers: true, header_converters: :symbol) do |row|
-          template = ScheduleTemplate.create!(
-            name: row[:name],
-            description: row[:description],
-            is_default: row[:is_default] == "true",
-            created_by: creator
-          )
-          template_map[row[:id].to_i] = template.id
-        end
-
-        # Import rows
-        CSV.foreach(schedule_rows_file, headers: true, header_converters: :symbol) do |row|
-          template_id = template_map[row[:schedule_template_id].to_i]
-          next unless template_id
-
-          predecessor_ids = row[:predecessor_ids].present? ? JSON.parse(row[:predecessor_ids]) : []
-          price_book_item_ids = row[:price_book_item_ids].present? ? JSON.parse(row[:price_book_item_ids]) : []
-          documentation_category_ids = row[:documentation_category_ids].present? ? JSON.parse(row[:documentation_category_ids]) : []
-          supervisor_checklist_template_ids = row[:supervisor_checklist_template_ids].present? ? JSON.parse(row[:supervisor_checklist_template_ids]) : []
-          tags = row[:tags].present? ? JSON.parse(row[:tags]) : []
-          subtask_names = row[:subtask_names].present? ? JSON.parse(row[:subtask_names]) : []
-          linked_task_ids = row[:linked_task_ids].present? ? JSON.parse(row[:linked_task_ids]) : []
-
-          attributes = {
-            schedule_template_id: template_id,
-            name: row[:name],
-            supplier_id: row[:supplier_id].present? ? row[:supplier_id].to_i : nil,
-            assigned_user_id: row[:assigned_user_id].present? ? row[:assigned_user_id].to_i : nil,
-            predecessor_ids: predecessor_ids,
-            po_required: row[:po_required] == "true",
-            create_po_on_job_start: row[:create_po_on_job_start] == "true",
-            critical_po: row[:critical_po] == "true",
-            price_book_item_ids: price_book_item_ids,
-            documentation_category_ids: documentation_category_ids,
-            tags: tags,
-            require_photo: row[:require_photo] == "true",
-            require_certificate: row[:require_certificate] == "true",
-            cert_lag_days: row[:cert_lag_days].present? ? row[:cert_lag_days].to_i : nil,
-            require_supervisor_check: row[:require_supervisor_check] == "true",
-            auto_complete_predecessors: row[:auto_complete_predecessors] == "true",
-            has_subtasks: row[:has_subtasks] == "true",
-            subtask_count: row[:subtask_count].present? ? row[:subtask_count].to_i : nil,
-            subtask_names: subtask_names,
-            sequence_order: row[:sequence_order].to_i,
-            linked_task_ids: linked_task_ids,
-            linked_template_id: row[:linked_template_id].present? ? row[:linked_template_id].to_i : nil
-          }
-
-          if ScheduleTemplateRow.column_names.include?("supervisor_checklist_template_ids")
-            attributes[:supervisor_checklist_template_ids] = supervisor_checklist_template_ids
-          end
-
-          ScheduleTemplateRow.create!(attributes)
         end
       end
 

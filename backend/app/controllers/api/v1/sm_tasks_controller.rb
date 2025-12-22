@@ -102,7 +102,8 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        template_row = ScheduleTemplateRow.find_by(id: params[:template_row_id])
+        # Use SmTemplateRow (THE ONE template system - SSoT)
+        template_row = SmTemplateRow.find_by(id: params[:template_row_id])
 
         unless template_row
           return render json: {
@@ -116,13 +117,13 @@ module Api
 
         # Create task from template row
         @task = @job.sm_tasks.new(
-          name: template_row.title,
+          name: template_row.name,
           status: "not_started",
-          duration_days: template_row.duration,
+          duration_days: template_row.duration_days || 1,
           start_date: Date.current,
-          template_row_id: template_row.id,
+          sm_template_row_id: template_row.id,
           sequence_order: max_sequence + 1,
-          trade: template_row.category,
+          trade: template_row.trade,
           created_by: current_user
         )
 

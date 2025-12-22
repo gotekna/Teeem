@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_110002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4240,7 +4240,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
     t.datetime "updated_at", null: false
     t.integer "sequence_order"
     t.date "required_on_site_date"
-    t.bigint "schedule_template_row_id"
     t.string "spawned_type"
     t.bigint "parent_task_id"
     t.boolean "requires_supervisor_check", default: false, null: false
@@ -4268,7 +4267,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
     t.index ["project_id"], name: "index_project_tasks_on_project_id"
     t.index ["purchase_order_id"], name: "index_project_tasks_on_purchase_order_id"
     t.index ["requires_supervisor_check"], name: "index_project_tasks_on_requires_supervisor_check"
-    t.index ["schedule_template_row_id"], name: "index_project_tasks_on_schedule_template_row_id"
     t.index ["spawned_type"], name: "index_project_tasks_on_spawned_type"
     t.index ["supervisor_checked_by_id"], name: "index_project_tasks_on_supervisor_checked_by_id"
     t.index ["tags"], name: "index_project_tasks_on_tags", using: :gin
@@ -4543,85 +4541,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
     t.index ["position"], name: "index_roles_on_position"
   end
 
-  create_table "schedule_template_row_audits", force: :cascade do |t|
-    t.bigint "schedule_template_row_id", null: false
-    t.bigint "user_id", null: false
-    t.string "field_name", null: false
-    t.boolean "old_value"
-    t.boolean "new_value"
-    t.datetime "changed_at", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["schedule_template_row_id", "changed_at"], name: "idx_on_schedule_template_row_id_changed_at_d2d3f08a64"
-    t.index ["schedule_template_row_id"], name: "index_schedule_template_row_audits_on_schedule_template_row_id"
-    t.index ["user_id"], name: "index_schedule_template_row_audits_on_user_id"
-  end
-
-  create_table "schedule_template_rows", force: :cascade do |t|
-    t.bigint "schedule_template_id", null: false
-    t.string "name", null: false
-    t.bigint "supplier_id"
-    t.jsonb "predecessor_ids", default: [], null: false
-    t.boolean "po_required", default: false, null: false
-    t.boolean "create_po_on_job_start", default: false, null: false
-    t.jsonb "price_book_item_ids", default: [], null: false
-    t.boolean "critical_po", default: false, null: false
-    t.jsonb "tags", default: [], null: false
-    t.boolean "require_photo", default: false, null: false
-    t.boolean "require_certificate", default: false, null: false
-    t.integer "cert_lag_days", default: 10, null: false
-    t.boolean "require_supervisor_check", default: false, null: false
-    t.boolean "auto_complete_predecessors", default: false, null: false
-    t.boolean "has_subtasks", default: false, null: false
-    t.integer "subtask_count"
-    t.jsonb "subtask_names", default: [], null: false
-    t.integer "sequence_order", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "assigned_user_id"
-    t.integer "documentation_category_ids", default: [], array: true
-    t.integer "supervisor_checklist_template_ids", default: [], array: true
-    t.text "linked_task_ids", default: "[]"
-    t.integer "linked_template_id"
-    t.jsonb "auto_complete_task_ids", default: [], null: false
-    t.jsonb "subtask_template_ids", default: [], null: false
-    t.boolean "manual_task", default: false, null: false
-    t.boolean "allow_multiple_instances", default: false, null: false
-    t.boolean "order_required", default: false, null: false
-    t.boolean "call_up_required", default: false, null: false
-    t.boolean "plan_required", default: false, null: false
-    t.boolean "manually_positioned", default: false, null: false
-    t.boolean "confirm", default: false, null: false
-    t.boolean "supplier_confirm", default: false, null: false
-    t.boolean "start", default: false, null: false
-    t.boolean "complete", default: false, null: false
-    t.integer "duration", default: 0, null: false
-    t.integer "start_date", default: 0, null: false
-    t.boolean "dependencies_broken", default: false, null: false
-    t.jsonb "broken_predecessor_ids", default: [], null: false
-    t.index ["assigned_user_id"], name: "index_schedule_template_rows_on_assigned_user_id"
-    t.index ["documentation_category_ids"], name: "index_schedule_template_rows_on_documentation_category_ids", using: :gin
-    t.index ["linked_template_id"], name: "index_schedule_template_rows_on_linked_template_id"
-    t.index ["schedule_template_id", "sequence_order"], name: "idx_on_schedule_template_id_sequence_order_1bea5d762b"
-    t.index ["schedule_template_id"], name: "index_schedule_template_rows_on_schedule_template_id"
-    t.index ["sequence_order"], name: "index_schedule_template_rows_on_sequence_order"
-    t.index ["supervisor_checklist_template_ids"], name: "idx_on_supervisor_checklist_template_ids_08080bc25c", using: :gin
-    t.index ["supervisor_checklist_template_ids"], name: "index_schedule_template_rows_on_supervisor_checklist_template_i", using: :gin
-    t.index ["supplier_id"], name: "index_schedule_template_rows_on_supplier_id"
-  end
-
-  create_table "schedule_templates", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.boolean "is_default", default: false, null: false
-    t.bigint "created_by_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_by_id"], name: "index_schedule_templates_on_created_by_id"
-    t.index ["is_default"], name: "index_schedule_templates_on_is_default"
-    t.index ["name"], name: "index_schedule_templates_on_name"
-  end
-
   create_table "share_transfers", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.bigint "from_shareholder_id"
@@ -4773,10 +4692,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
     t.boolean "notify_on_hold", default: true
     t.boolean "notify_on_supplier_confirm", default: true
     t.boolean "notify_on_rollover", default: true
-    t.bigint "default_template_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["default_template_id"], name: "index_sm_settings_on_default_template_id"
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|
@@ -5250,7 +5167,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
 
   create_table "tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
-    t.bigint "template_row_id"
     t.bigint "parent_task_id"
     t.integer "task_number", null: false
     t.string "name", limit: 255, null: false
@@ -5325,7 +5241,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
     t.index ["status"], name: "index_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_tasks_on_supplier_confirmed_by_id"
     t.index ["supplier_id"], name: "index_tasks_on_supplier_id"
-    t.index ["template_row_id"], name: "index_tasks_on_template_row_id"
     t.index ["trade"], name: "index_tasks_on_trade"
     t.index ["updated_by_id"], name: "index_tasks_on_updated_by_id"
   end
@@ -6379,7 +6294,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
   add_foreign_key "project_tasks", "project_tasks", column: "parent_task_id"
   add_foreign_key "project_tasks", "projects"
   add_foreign_key "project_tasks", "purchase_orders"
-  add_foreign_key "project_tasks", "schedule_template_rows"
   add_foreign_key "project_tasks", "task_templates"
   add_foreign_key "project_tasks", "users", column: "assigned_to_id"
   add_foreign_key "project_tasks", "users", column: "supervisor_checked_by_id"
@@ -6406,12 +6320,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
   add_foreign_key "role_permissions", "permissions"
-  add_foreign_key "schedule_template_row_audits", "schedule_template_rows"
-  add_foreign_key "schedule_template_row_audits", "users"
-  add_foreign_key "schedule_template_rows", "contacts", column: "supplier_id"
-  add_foreign_key "schedule_template_rows", "schedule_templates"
-  add_foreign_key "schedule_template_rows", "users", column: "assigned_user_id"
-  add_foreign_key "schedule_templates", "users", column: "created_by_id"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
@@ -6430,7 +6338,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "tasks", on_delete: :cascade
-  add_foreign_key "sm_settings", "schedule_templates", column: "default_template_id", on_delete: :nullify
   add_foreign_key "sm_spawn_logs", "tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
@@ -6470,7 +6377,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_110001) do
   add_foreign_key "tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "tasks", "jobs", on_delete: :cascade
   add_foreign_key "tasks", "purchase_orders", on_delete: :nullify
-  add_foreign_key "tasks", "schedule_template_rows", column: "template_row_id", on_delete: :nullify
   add_foreign_key "tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "tasks", "sm_template_rows"
   add_foreign_key "tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify

@@ -6,8 +6,8 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.8
 #
 class SmSetting < ApplicationRecord
-  # Associations
-  belongs_to :default_template, class_name: "ScheduleTemplate", optional: true
+  # Note: default_template_id column removed in Phase 6 Tier 2
+  # Default template is now determined by SmTemplate.default_template scope
 
   # Singleton pattern - always use instance method
   def self.instance

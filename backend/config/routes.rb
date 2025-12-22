@@ -947,7 +947,6 @@ Rails.application.routes.draw do
       post "setup/sync_users", to: "setup#sync_users"
       post "setup/sync_documentation_categories", to: "setup#sync_documentation_categories"
       post "setup/sync_supervisor_checklists", to: "setup#sync_supervisor_checklists"
-      post "setup/sync_schedule_templates", to: "setup#sync_schedule_templates"
       post "setup/sync_folder_templates", to: "setup#sync_folder_templates"
 
       # Documentation Categories (Global)
@@ -1052,28 +1051,6 @@ Rails.application.routes.draw do
         collection do
           post :reorder
           get :categories
-        end
-      end
-
-      # Schedule Templates for Schedule Master
-      resources :schedule_templates do
-        collection do
-          get :default
-        end
-        member do
-          post :duplicate
-          post :set_as_default
-        end
-        # Template rows (nested under schedule_templates)
-        resources :rows, controller: "schedule_template_rows", except: [ :index, :show ] do
-          collection do
-            post :bulk_delete
-            post :bulk_update
-            post :reorder
-          end
-          member do
-            get :audit_logs
-          end
         end
       end
 

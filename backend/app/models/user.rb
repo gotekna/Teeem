@@ -4,7 +4,6 @@ class User < ApplicationRecord
   belongs_to :user_group, optional: true
   has_many :grok_plans, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
-  has_many :schedule_template_row_audits, dependent: :nullify
   has_many :foundation_views, dependent: :destroy
   has_one :outlook_credential, class_name: "UserOutlookCredential", dependent: :destroy
   has_many :imap_credentials, dependent: :destroy
@@ -23,7 +22,7 @@ class User < ApplicationRecord
   # Role constants
   ROLES = %w[user admin product_owner estimator supervisor builder].freeze
 
-  # Group/team assignment options (matches ScheduleTemplateRow::ASSIGNABLE_ROLES)
+  # Group/team assignment options (matches SmTemplateRow::ASSIGNABLE_ROLES)
   ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
 
   validates :email, presence: true, uniqueness: true, format: { with: URI::MailTo::EMAIL_REGEXP }

@@ -42,12 +42,14 @@ module Api
           :rollover_enabled,
           :notify_on_hold,
           :notify_on_supplier_confirm,
-          :notify_on_rollover,
-          :default_template_id
+          :notify_on_rollover
         )
       end
 
       def settings_to_json(settings)
+        # Get default template from SmTemplate (THE ONE template system - SSoT)
+        default_template = SmTemplate.default_template.first
+
         {
           id: settings.id,
           rollover_time: settings.rollover_time&.strftime("%H:%M"),
@@ -56,8 +58,8 @@ module Api
           notify_on_hold: settings.notify_on_hold,
           notify_on_supplier_confirm: settings.notify_on_supplier_confirm,
           notify_on_rollover: settings.notify_on_rollover,
-          default_template_id: settings.default_template_id,
-          default_template: settings.default_template&.slice(:id, :name),
+          default_template_id: default_template&.id,
+          default_template: default_template&.slice(:id, :name),
           # Computed values
           current_time: settings.current_time,
           today: settings.today,
@@ -67,7 +69,8 @@ module Api
       end
 
       def available_templates
-        ScheduleTemplate.order(:name).pluck(:id, :name).map do |id, name|
+        # Use SmTemplate (THE ONE template system - SSoT)
+        SmTemplate.order(:name).pluck(:id, :name).map do |id, name|
           { id: id, name: name }
         end
       end

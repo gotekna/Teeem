@@ -223,13 +223,37 @@ export default function DocumentTypeDetailPage() {
   }, []);
 
   const documentTypeId = params.id as string;
+  const isNew = documentTypeId === "new";
 
   React.useEffect(() => {
-    if (documentTypeId) {
+    if (isNew) {
+      // Initialize empty document type for creation
+      setDocumentType({
+        id: 0,
+        name: "",
+        display_name: "",
+        abbreviation: "",
+        file_name: "",
+        category: "",
+        folder: "",
+        description: "",
+        requires_filing: false,
+        retention_years: undefined,
+        active: true,
+        tabs: [],
+        primary_tab: "",
+        scope: "company",
+        file_extensions: [],
+        target_folder: "",
+        entity_tab_ids: [],
+      });
+      setLoading(false);
+      loadCompanies();
+    } else if (documentTypeId) {
       loadDocumentType();
       loadCompanies();
     }
-  }, [documentTypeId]);
+  }, [documentTypeId, isNew]);
 
   const loadCompanies = async () => {
     try {
@@ -328,20 +352,47 @@ export default function DocumentTypeDetailPage() {
   const handleSave = async () => {
     if (!documentType) return;
 
+    // Validate required fields
+    if (!documentType.name?.trim()) {
+      toast({
+        title: "Error",
+        description: "Name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setSaving(true);
-      await api.patch(`/api/v1/document_types/${documentTypeId}`, {
-        document_type: documentType
-      });
-      toast({
-        title: "Success",
-        description: "Document type saved successfully",
-      });
+
+      if (isNew) {
+        // Create new document type
+        const response = await api.post<{ success: boolean; data: DocumentType }>(`/api/v1/document_types`, {
+          document_type: documentType
+        });
+        toast({
+          title: "Success",
+          description: "Document type created successfully",
+        });
+        // Redirect to the new document type's edit page
+        if (response.data?.id) {
+          router.push(`/admin/system/document-types/${response.data.id}`);
+        }
+      } else {
+        // Update existing document type
+        await api.patch(`/api/v1/document_types/${documentTypeId}`, {
+          document_type: documentType
+        });
+        toast({
+          title: "Success",
+          description: "Document type saved successfully",
+        });
+      }
     } catch (error) {
       console.error("Failed to save document type:", error);
       toast({
         title: "Error",
-        description: "Failed to save document type",
+        description: isNew ? "Failed to create document type" : "Failed to save document type",
         variant: "destructive",
       });
     } finally {
@@ -740,64 +791,70 @@ export default function DocumentTypeDetailPage() {
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          {/* Previous/Next navigation - filtered by scope */}
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={navigateToPrevious}
-              disabled={!hasPrevious}
-              className="h-8 w-8"
-              title={hasPrevious ? `Previous: ${scopeFilteredTypes[currentIndex - 1]?.name}` : "No previous"}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={navigateToNext}
-              disabled={!hasNext}
-              className="h-8 w-8"
-              title={hasNext ? `Next: ${scopeFilteredTypes[currentIndex + 1]?.name}` : "No next"}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
+          {/* Previous/Next navigation - filtered by scope (hidden for new) */}
+          {!isNew && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={navigateToPrevious}
+                disabled={!hasPrevious}
+                className="h-8 w-8"
+                title={hasPrevious ? `Previous: ${scopeFilteredTypes[currentIndex - 1]?.name}` : "No previous"}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={navigateToNext}
+                disabled={!hasNext}
+                className="h-8 w-8"
+                title={hasNext ? `Next: ${scopeFilteredTypes[currentIndex + 1]?.name}` : "No next"}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <div>
             <div className="flex items-center gap-3">
               <FileText className="h-6 w-6 text-muted-foreground" />
-              <h1 className="text-2xl font-bold tracking-tight font-serif">{documentType.name}</h1>
-              {documentType.abbreviation && (
+              <h1 className="text-2xl font-bold tracking-tight font-serif">
+                {isNew ? "New Document Type" : documentType.name || "Untitled"}
+              </h1>
+              {!isNew && documentType.abbreviation && (
                 <Badge variant="outline" className="font-mono font-bold">
                   {documentType.abbreviation}
                 </Badge>
               )}
-              {scopeFilteredTypes.length > 0 && (
+              {!isNew && scopeFilteredTypes.length > 0 && (
                 <span className="text-xs text-muted-foreground">
                   {currentIndex + 1} of {scopeFilteredTypes.length} {currentScope}
                 </span>
               )}
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              {documentType.documents_count || 0} documents using this type
+              {isNew ? "Create a new document type" : `${documentType.documents_count || 0} documents using this type`}
             </p>
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="destructive" onClick={handleDelete} disabled={saving}>
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </Button>
+          {!isNew && (
+            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+          )}
           <Button onClick={handleSave} disabled={saving}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
+                {isNew ? "Creating..." : "Saving..."}
               </>
             ) : (
               <>
                 <Save className="h-4 w-4 mr-2" />
-                Save Changes
+                {isNew ? "Create Document Type" : "Save Changes"}
               </>
             )}
           </Button>

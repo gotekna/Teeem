@@ -1168,7 +1168,18 @@ export function EntityTabsConfig({
             {/* Document Types (SSoT: Link document types to this tab) */}
             {(editingTab?.tab_group === 'documents' || formData.tab_group === 'documents') && (
               <div className="space-y-2">
-                <Label>Linked Document Types</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Linked Document Types</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => window.open('/admin/system/document-types/new', '_blank')}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    New Document Type
+                  </Button>
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Select which document types should appear under this tab
                 </p>
@@ -1201,7 +1212,31 @@ export function EntityTabsConfig({
                 />
                 <p className="text-xs text-muted-foreground">
                   {(formData.document_type_ids || []).length} document types linked
+                  {(formData.document_type_ids || []).length > 0 && (
+                    <span className="ml-2">
+                      — Click badge to edit document type
+                    </span>
+                  )}
                 </p>
+                {/* Clickable links to edit document types */}
+                {(formData.document_type_ids || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {(formData.document_type_ids || []).map((id) => {
+                      const dt = allDocumentTypes.find((d) => d.id === id);
+                      return (
+                        <Badge
+                          key={id}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-primary/10 text-xs"
+                          onClick={() => window.open(`/admin/system/document-types/${id}`, '_blank')}
+                        >
+                          {dt?.display_name || dt?.name || `Type ${id}`}
+                          <span className="ml-1 opacity-50">↗</span>
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

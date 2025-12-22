@@ -24,41 +24,52 @@
 
 ---
 
-### Tier 2: ScheduleTemplate System (Safe to Delete)
+### ✅ Tier 2: ScheduleTemplate System - DELETED (2025-12-22)
 **Reason:** Frontend migrated to SmTemplate, ScheduleMasterTab uses `/api/v1/sm_templates`
 
-| Type | File | Lines | Notes |
-|------|------|-------|-------|
-| Model | `app/models/schedule_template.rb` | ~150 | DEPRECATED marker present |
-| Model | `app/models/schedule_template_row.rb` | ~200 | Child of ScheduleTemplate |
-| Controller | `app/controllers/api/v1/schedule_templates_controller.rb` | ~300 | Old CRUD |
-| Controller | `app/controllers/api/v1/schedule_template_rows_controller.rb` | ~200 | Nested controller |
+| Type | File | Status |
+|------|------|--------|
+| Model | `app/models/schedule_template.rb` | ✅ DELETED |
+| Model | `app/models/schedule_template_row.rb` | ✅ DELETED |
+| Model | `app/models/schedule_template_row_audit.rb` | ✅ DELETED |
+| Controller | `app/controllers/api/v1/schedule_templates_controller.rb` | ✅ DELETED |
+| Controller | `app/controllers/api/v1/schedule_template_rows_controller.rb` | ✅ DELETED |
+| Routes | `schedule_templates` routes + `sync_schedule_templates` | ✅ REMOVED |
+| Tables | `schedule_templates`, `schedule_template_rows`, `schedule_template_row_audits` | ✅ DROPPED |
 
-**Routes to remove:**
-```ruby
-# backend/config/routes.rb lines 1083-1098
-resources :schedule_templates
-```
-
-**Database tables to drop (migration needed):**
-- `schedule_templates`
-- `schedule_template_rows`
+**Migration:** `20251222110002_remove_schedule_template_tables.rb`
+**Also Updated:**
+- `sm_task.rb` - Removed deprecated `template_row` association
+- `sm_setting.rb` - Removed `default_template` association
+- `sm_settings_controller.rb` - Updated to use SmTemplate
+- `sm_tasks_controller.rb` - Updated to use SmTemplateRow
+- `jobs_controller.rb` - Updated to use SmTemplateCopyService
+- `setup_controller.rb` - Removed sync_schedule_templates method
+- `user.rb` - Removed `schedule_template_row_audits` association
+- `bug_hunter_tests_controller.rb` - Updated to use SmTemplate
 
 ---
 
-### Tier 3: Schedule Services (Delete After Tiers 1-2)
+### ✅ Tier 3: Schedule Services - DELETED (2025-12-22)
 **Reason:** Only used by old ScheduleTask/ProjectTask system
 
-| Type | File | Lines | Notes |
-|------|------|-------|-------|
-| Service | `app/services/schedule/template_instantiator.rb` | 280 | Creates ProjectTask from ScheduleTemplate |
-| Service | `app/services/schedule/task_spawner.rb` | 156 | Spawns ProjectTask children |
-| Service | `app/services/schedule/generator_service.rb` | ~300 | Schedule generation |
+| Type | File | Status |
+|------|------|--------|
+| Service | `app/services/schedule/template_instantiator.rb` | ✅ DELETED |
+| Service | `app/services/schedule/task_spawner.rb` | ✅ DELETED |
+| Service | `app/services/schedule/generator_service.rb` | ✅ DELETED |
+| Service | `app/services/schedule_cascade_service.rb` | ✅ DELETED |
+| Spec | `spec/services/schedule_cascade_service_spec.rb` | ✅ DELETED |
+| Directory | `app/services/schedule/` | ✅ DELETED |
 
 **Replacements (already exist):**
 - `template_instantiator.rb` → `SmTemplateCopyService`
 - `task_spawner.rb` → `SmTaskCompletionService`
 - `generator_service.rb` → SmTask + SmDependency system
+- `schedule_cascade_service.rb` → `SmCascadeService`
+
+**Also Updated:**
+- `project_task.rb` - Removed `schedule_template_row` association, disabled spawn callback
 
 ---
 
@@ -167,12 +178,12 @@ end
 | Tier | Files | Tables | Status |
 |------|-------|--------|--------|
 | 1: ScheduleTask | 4 | 2 | ✅ COMPLETE (2025-12-22) |
-| 2: ScheduleTemplate | 4 | 2 | ⏳ Ready to delete |
-| 3: Services | 3 | 0 | ⏳ After Tier 2 |
-| 4: ProjectTask | 5 | 4 | ⏳ After WHS validation |
+| 2: ScheduleTemplate | 5 | 3 | ✅ COMPLETE (2025-12-22) |
+| 3: Services | 5 | 0 | ✅ COMPLETE (2025-12-22) |
+| 4: ProjectTask | 5 | 4 | ⏳ After WHS validation (2-4 weeks) |
 
-**Deleted:** 4 files, 2 tables
-**Remaining:** 12 files, 6 tables
+**Deleted:** 14 files, 5 tables
+**Remaining:** 5 files, 4 tables (ProjectTask system)
 
 ---
 

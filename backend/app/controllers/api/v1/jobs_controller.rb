@@ -934,28 +934,19 @@ module Api
       end
 
       def instantiate_schedule_template(template_id)
-        # Find the template
-        template = ScheduleTemplate.find_by(id: template_id)
+        # Use SmTemplate (THE ONE template system - SSoT)
+        template = SmTemplate.find_by(id: template_id)
         unless template
           Rails.logger.warn("Template #{template_id} not found for job #{@job.id}")
           return { success: false, error: "Template not found" }
         end
 
-        # Get or create the project for this job
-        # The project is needed for the template instantiation service
-        project = @job.project
-        unless project
-          # Create a project using the job's helper method
-          project = @job.create_project!(
-            project_manager: current_user,
-            name: "#{@job.title} - Master Schedule"
-          )
-        end
-
-        # Instantiate the template using the service
-        result = Schedule::TemplateInstantiator.new(
-          project: project,
-          template: template
+        # Use SmTemplateCopyService (THE ONE template copy service - SSoT)
+        result = SmTemplateCopyService.new(
+          template: template,
+          job: @job,
+          start_date: Date.current,
+          user: current_user
         ).call
 
         if result[:success]
@@ -963,11 +954,10 @@ module Api
           {
             success: true,
             template_name: template.name,
-            tasks_created: result[:tasks].count,
-            project_id: project.id
+            tasks_created: result[:tasks]&.count || 0
           }
         else
-          Rails.logger.error("Failed to instantiate template: #{result[:errors].join(', ')}")
+          Rails.logger.error("Failed to instantiate template: #{result[:errors]&.join(', ')}")
           {
             success: false,
             errors: result[:errors]

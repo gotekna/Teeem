@@ -4,8 +4,7 @@ class ProjectTask < ApplicationRecord
   belongs_to :purchase_order, optional: true
   belongs_to :assigned_to, class_name: "User", optional: true
 
-  # Schedule template relationships
-  belongs_to :schedule_template_row, optional: true
+  # Parent task relationship (for spawned subtasks)
   belongs_to :parent_task, class_name: "ProjectTask", optional: true
   has_many :spawned_tasks, class_name: "ProjectTask", foreign_key: "parent_task_id", dependent: :destroy
   belongs_to :supervisor_checked_by, class_name: "User", optional: true
@@ -189,24 +188,9 @@ class ProjectTask < ApplicationRecord
   end
 
   def spawn_child_tasks_on_status_change
-    # Don't spawn tasks for spawned tasks themselves
-    return if spawned_task?
-    return unless schedule_template_row
-
-    spawner = Schedule::TaskSpawner.new(self)
-
-    case status
-    when "in_progress"
-      # Spawn subtasks when task starts
-      spawner.spawn_subtasks if schedule_template_row.has_subtasks
-    when "complete"
-      # Spawn photo and certificate tasks when task completes
-      spawner.spawn_photo_task if schedule_template_row.require_photo
-      spawner.spawn_certificate_task if schedule_template_row.require_certificate
-    end
-  rescue StandardError => e
-    Rails.logger.error("Failed to spawn child tasks for task #{id}: #{e.message}")
-    # Don't raise - we don't want to block the status change
+    # DEPRECATED: Phase 6 Tier 3 - ScheduleTemplateRow and Schedule::TaskSpawner deleted
+    # Task spawning is now handled by SmTaskCompletionService for SmTask
+    # This callback is a no-op for backward compatibility
   end
 
   def auto_complete_predecessors_if_enabled
