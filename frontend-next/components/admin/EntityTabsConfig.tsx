@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -430,10 +431,12 @@ export function EntityTabsConfig({
         };
         await createTab(createParams);
       }
+      toast.success(editingTab ? "Tab updated" : "Tab created");
       setIsCreateDialogOpen(false);
       setEditingTab(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save tab:", err);
+      toast.error(err?.message || "Failed to save tab");
     } finally {
       setSaving(false);
     }

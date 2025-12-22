@@ -6,13 +6,16 @@ module Api
       before_action :set_entity_tab, only: [:show, :update, :destroy]
 
       # GET /api/v1/entity_tabs?scope=corporate_entity
+      # Use include_disabled=true for admin views to show all tabs
       def index
         tabs = EntityTab.for_scope(params[:scope])
                         .global
-                        .enabled
                         .root_tabs
                         .ordered
                         .includes(children: { children: :children }, document_types: [])
+
+        # Filter to enabled only unless include_disabled is set (for admin)
+        tabs = tabs.enabled unless params[:include_disabled] == "true"
 
         # Filter by entity type if provided
         if params[:entity_type].present?

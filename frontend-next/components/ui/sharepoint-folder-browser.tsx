@@ -319,11 +319,13 @@ export function SharePointFolderBrowser({
         setTreeNodes(nodes);
       }
     } catch (err: any) {
-      console.error("Failed to load folders:", err);
-      // Check for auth errors that slipped through
-      if (err?.response?.status === 401 || err?.response?.status === 403) {
+      // Check for auth errors - SharePoint not connected (don't spam console)
+      const isAuthError = err?.status === 401 || err?.status === 403 ||
+        err?.message?.includes("Session expired") || err?.message?.includes("Unauthorized");
+      if (isAuthError) {
         setError("SharePoint not connected");
       } else {
+        console.error("Failed to load folders:", err);
         setError(err instanceof Error ? err.message : "Failed to load folders");
       }
     } finally {
