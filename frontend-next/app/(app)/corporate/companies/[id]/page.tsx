@@ -156,7 +156,7 @@ const OVERVIEW_SUB_TABS = [
 // Trust-specific sub-tabs (fallback - SSoT is database with entity_types filter)
 const TRUST_SUB_TABS = [
   { id: "info", name: "Information" },
-  { id: "trustee", name: "Trustee" },
+  { id: "trustees", name: "Trustees" },  // SSoT: matches DB tab_key 'trustees'
   { id: "beneficiaries", name: "Beneficiaries" },
   { id: "appointor", name: "Appointor" },
   { id: "trust-deed", name: "Trust Deed" },
@@ -169,7 +169,7 @@ const TRUSTEE_COMPANY_SUB_TABS = [
   { id: "corporate", name: "Corporate" },
   { id: "directors", name: "Directors" },
   { id: "shareholdings", name: "Shareholdings" },
-  { id: "trusts", name: "Trusts Managed" },
+  { id: "trusts-managed", name: "Trusts Managed" },  // SSoT: matches DB tab_key 'trusts-managed'
 ];
 
 // SSoT: Xero tabs come from API only (GET /api/v1/xero/tabs)
