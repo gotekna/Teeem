@@ -1160,6 +1160,7 @@ Rails.application.routes.draw do
       resources :sm_templates, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :set_default
+          post :copy_to_job
         end
         collection do
           get :default

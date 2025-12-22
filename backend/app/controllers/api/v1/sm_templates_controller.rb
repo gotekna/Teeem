@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :set_default ]
+      before_action :set_template, only: [ :show, :update, :destroy, :set_default, :copy_to_job ]
 
       # GET /api/v1/sm_templates
       def index
@@ -74,6 +74,44 @@ module Api
           success: true,
           sm_template: template_json(@template)
         }
+      end
+
+      # POST /api/v1/sm_templates/:id/copy_to_job
+      # Copies the template to a job, creating SmTask records
+      #
+      # Params:
+      #   job_id: ID of the job to copy to (required)
+      #   start_date: Start date for the schedule (optional, defaults to today)
+      #   clear_existing: Whether to clear existing tasks (optional, defaults to false)
+      #
+      def copy_to_job
+        job = Job.find(params[:job_id])
+
+        result = SmTemplateCopyService.new(@template, job, {
+          start_date: params[:start_date],
+          user: current_user,
+          clear_existing: params[:clear_existing] == true || params[:clear_existing] == "true"
+        }).execute
+
+        if result[:success]
+          render json: {
+            success: true,
+            message: "Template copied successfully",
+            summary: result[:summary],
+            tasks_created: result[:tasks].count,
+            dependencies_created: result[:dependencies].count
+          }
+        else
+          render json: {
+            success: false,
+            errors: result[:errors]
+          }, status: :unprocessable_entity
+        end
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
       end
 
       # GET /api/v1/sm_templates/default

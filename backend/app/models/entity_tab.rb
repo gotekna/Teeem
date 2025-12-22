@@ -101,15 +101,28 @@ class EntityTab < ApplicationRecord
     "#{base_path}/#{sharepoint_folder_path}"
   end
 
-  # Build hierarchy path (e.g., "Xero/Profit & Loss/Transactions")
+  # Build hierarchy path (e.g., "Corporate/Xero/Profit & Loss/Transactions")
   def hierarchy_path
-    parts = []
+    # Map scope to friendly prefix
+    scope_prefix = case scope
+    when 'corporate_entity' then 'Corporate'
+    when 'people' then 'People'
+    when 'job' then 'Jobs'
+    when 'document' then 'Documents'
+    when 'xero' then 'Corporate'  # Xero tabs are under Corporate
+    else scope.titleize
+    end
+
+    # Build tab hierarchy (root to leaf)
+    tab_parts = []
     current = self
     while current
-      parts.unshift(current.display_name)
+      tab_parts.unshift(current.display_name)
       current = current.parent
     end
-    parts.join('/')
+
+    # Combine scope prefix with tab hierarchy
+    ([scope_prefix] + tab_parts).join('/')
   end
 
   # Convert to nested JSON for API

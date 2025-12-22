@@ -57,6 +57,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 import type {
   EntityTab,
   EntityTabScope,
@@ -956,17 +957,20 @@ export function EntityTabsConfig({
                 </div>
                 {formData.has_sharepoint_folder && (
                   <div className="space-y-2 pl-6">
-                    <Label htmlFor="sharepoint_path">SharePoint Path</Label>
-                    <Input
-                      id="sharepoint_path"
-                      value={formData.sharepoint_folder_path || ""}
-                      onChange={(e) =>
+                    <Label>SharePoint Folder</Label>
+                    {formData.sharepoint_folder_path && (
+                      <div className="text-sm text-muted-foreground mb-2">
+                        Selected: <span className="font-mono">{formData.sharepoint_folder_path}</span>
+                      </div>
+                    )}
+                    <SharePointFolderBrowser
+                      onSelect={(folder, path) => {
                         setFormData((prev) => ({
                           ...prev,
-                          sharepoint_folder_path: e.target.value,
-                        }))
-                      }
-                      placeholder="e.g., /Documents/ATO"
+                          sharepoint_folder_path: path,
+                        }));
+                      }}
+                      rootFolder=""
                     />
                   </div>
                 )}

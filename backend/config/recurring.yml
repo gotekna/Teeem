@@ -250,3 +250,19 @@ plan_staging_cleanup:
   class: PlanStagingCleanupJob
   queue: low
   schedule: at 4am every day
+
+# ============================================
+# SCHEDULE MASTER (SM GANTT)
+# ============================================
+
+# Nightly rollover of past-due tasks
+# Runs at midnight Brisbane time to:
+# - Find all not_started tasks with start_date < today
+# - Move them forward to today (preserving duration)
+# - Soft-delete broken predecessor dependencies
+# - Cascade to affected successor tasks
+# - Log all changes to sm_rollover_logs
+sm_rollover:
+  class: SmRolloverJob
+  queue: critical
+  schedule: at midnight every day

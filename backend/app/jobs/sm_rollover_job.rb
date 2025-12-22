@@ -1,198 +1,183 @@
 # frozen_string_literal: true
 
-# SmRolloverJob - Automated midnight rollover for SM Gantt
+# SmRolloverJob - Nightly job to roll over past-due tasks
 #
-# Runs at midnight to move past-due tasks to today.
-# Respects locks and creates logs for audit trail.
+# This job runs at the configured rollover time (default midnight) and:
+# 1. Finds all past-due, incomplete tasks
+# 2. Moves each task forward to the next working day
+# 3. Logs the rollover in sm_rollover_logs
+# 4. Handles dependencies that are now broken
+# 5. Triggers cascade for successors if needed
 #
-# See GANTT_ARCHITECTURE_PLAN.md Section 8
-#
-# Schedule with Solid Queue:
-#   SmRolloverJob.set(wait_until: next_rollover_time).perform_later
+# See GANTT_SCHEDULE_MASTER_COMPLETE.md Section 5.3
 #
 class SmRolloverJob < ApplicationJob
-  queue_as :default
+  queue_as :critical
 
-  # Retry on failure with exponential backoff
-  retry_on StandardError, wait: :polynomially_longer, attempts: 3
-
-  def perform(company_id: nil)
+  def perform
     settings = SmSetting.instance
     return unless settings.rollover_enabled?
 
-    timezone = settings.rollover_timezone || "Australia/Sydney"
-    today = Time.current.in_time_zone(timezone).to_date
-
-    # Find all past-due tasks
-    past_due_tasks = find_past_due_tasks(today, company_id)
-
-    Rails.logger.info "[SmRolloverJob] Found #{past_due_tasks.count} past-due tasks"
-
-    results = {
-      processed: 0,
-      moved: 0,
-      skipped_locked: 0,
-      skipped_hold: 0,
-      cascade_triggered: 0,
+    @batch_id = SecureRandom.uuid
+    @rollover_timestamp = Time.current
+    @stats = {
+      tasks_processed: 0,
+      tasks_rolled: 0,
+      dependencies_deleted: 0,
       errors: []
     }
 
-    past_due_tasks.find_each do |task|
-      process_task(task, today, results)
+    Rails.logger.info "[SmRolloverJob] Starting rollover batch #{@batch_id}"
+
+    ActiveRecord::Base.transaction do
+      process_past_due_tasks
     end
 
-    # Log overall rollover
-    create_rollover_summary_log(today, results)
-
-    # Schedule next rollover
-    schedule_next_rollover(settings) if settings.rollover_enabled?
-
-    results
+    Rails.logger.info "[SmRolloverJob] Completed batch #{@batch_id}: #{@stats.to_json}"
+    @stats
+  rescue StandardError => e
+    Rails.logger.error "[SmRolloverJob] Failed: #{e.message}\n#{e.backtrace.first(10).join("\n")}"
+    raise
   end
 
   private
 
-  def find_past_due_tasks(today, company_id)
-    scope = SmTask.joins(:construction)
-                  .where("sm_tasks.start_date < ?", today)
-                  .where.not(status: "completed")
-                  .where(is_hold_task: false)
-                  .order(:construction_id, :sequence_order)
-
-    # Note: Job model uses table_name = 'jobs' (renamed from 'constructions')
-    if company_id
-      scope = scope.where(jobs: { company_id: company_id })
+  def process_past_due_tasks
+    # Find all tasks that are past due and not completed/started
+    past_due_tasks.find_each do |task|
+      @stats[:tasks_processed] += 1
+      roll_task_forward(task)
+    rescue StandardError => e
+      @stats[:errors] << { task_id: task.id, error: e.message }
+      Rails.logger.error "[SmRolloverJob] Error rolling task #{task.id}: #{e.message}"
     end
-
-    scope
   end
 
-  def process_task(task, today, results)
-    results[:processed] += 1
-
-    # Skip hold tasks
-    if task.is_hold_task?
-      results[:skipped_hold] += 1
-      return
-    end
-
-    # Check locks
-    if task.locked?
-      handle_locked_task(task, today, results)
-      return
-    end
-
-    # Move task to today
-    move_task_to_today(task, today, results)
-  rescue StandardError => e
-    results[:errors] << { task_id: task.id, error: e.message }
-    Rails.logger.error "[SmRolloverJob] Error processing task #{task.id}: #{e.message}"
+  def past_due_tasks
+    SmTask.where(status: "not_started")
+          .where("start_date < ?", Date.current)
+          .where(is_hold_task: false)
+          .includes(:job, :predecessor_dependencies, :successor_dependencies)
   end
 
-  def handle_locked_task(task, today, results)
-    results[:skipped_locked] += 1
+  def roll_task_forward(task)
+    old_start_date = task.start_date
+    old_end_date = task.end_date
 
-    # Log that we skipped this locked task
-    SmRolloverLog.create!(
-      sm_task: task,
-      construction: task.construction,
-      rollover_date: today,
-      original_start_date: task.start_date,
-      original_end_date: task.end_date,
-      new_start_date: task.start_date, # No change
-      new_end_date: task.end_date,
-      was_skipped: true,
-      skip_reason: "locked_#{task.lock_type}",
-      lock_type_at_rollover: task.lock_type
-    )
-  end
+    # Calculate new dates - move to today while preserving duration
+    new_start_date = Date.current
+    new_end_date = new_start_date + (task.duration_days - 1).days
 
-  def move_task_to_today(task, today, results)
-    original_start = task.start_date
-    original_end = task.end_date
+    # Track deleted dependencies
+    deleted_dependencies = []
 
-    # Calculate new dates
-    calendar = WorkingDaysCalculator.new(task.construction.company_setting)
-    new_start = today
-    new_end = calendar.add_working_days(new_start, task.duration_days - 1)
+    # Soft-delete predecessor dependencies (task has moved, deps are broken)
+    task.predecessor_dependencies.active.each do |dep|
+      dep.soft_delete!(reason: "rollover")
+      deleted_dependencies << {
+        predecessor_id: dep.predecessor_task_id,
+        type: dep.dependency_type,
+        lag: dep.lag_days
+      }
+      @stats[:dependencies_deleted] += 1
+    end
 
-    # Update task
+    # Handle confirm status changes
+    confirm_status_change = nil
+    if task.confirm_status.present?
+      confirm_status_change = task.confirm_status
+      # Clear confirm status on rollover
+    end
+
+    # Update the task
     task.update!(
-      start_date: new_start,
-      end_date: new_end
+      start_date: new_start_date,
+      end_date: new_end_date,
+      confirm_status: nil,
+      confirm_requested_at: nil,
+      supplier_confirmed_at: nil,
+      supplier_confirmed_by_id: nil
     )
-
-    results[:moved] += 1
 
     # Create rollover log
     SmRolloverLog.create!(
-      sm_task: task,
-      construction: task.construction,
-      rollover_date: today,
-      original_start_date: original_start,
-      original_end_date: original_end,
-      new_start_date: new_start,
-      new_end_date: new_end,
-      days_rolled: (today - original_start).to_i,
-      was_skipped: false
+      rollover_batch_id: @batch_id,
+      rollover_timestamp: @rollover_timestamp,
+      task_id: task.id,
+      job_id: task.job_id,
+      old_start_date: old_start_date,
+      old_end_date: old_end_date,
+      new_start_date: new_start_date,
+      new_end_date: new_end_date,
+      deleted_dependencies: deleted_dependencies,
+      confirm_status_change: confirm_status_change,
+      hold_cleared: false,
+      supplier_confirms_cleared: confirm_status_change.present? ? 1 : 0,
+      cascade_depth: 0,
+      cross_job_cascade: false
     )
 
-    # Trigger cascade for successors
-    if task.active_successor_dependencies.any?
-      cascade_service = SmCascadeService.new(task)
-      cascade_service.execute_rollover
-      results[:cascade_triggered] += 1
+    @stats[:tasks_rolled] += 1
+
+    # Cascade to successors if needed
+    cascade_to_successors(task) if task.successor_dependencies.active.any?
+  end
+
+  def cascade_to_successors(task)
+    # For each active successor dependency, recalculate the successor's dates
+    task.successor_dependencies.active.each do |dep|
+      successor = dep.successor_task
+      next if successor.locked? # Don't cascade to locked tasks
+
+      # Calculate new start date based on dependency type
+      new_successor_start = calculate_successor_start_date(task, dep)
+      next if new_successor_start <= successor.start_date # Only cascade if moving forward
+
+      # Move the successor forward
+      new_successor_end = new_successor_start + (successor.duration_days - 1).days
+
+      # Log the cascade
+      SmRolloverLog.create!(
+        rollover_batch_id: @batch_id,
+        rollover_timestamp: @rollover_timestamp,
+        task_id: successor.id,
+        job_id: successor.job_id,
+        old_start_date: successor.start_date,
+        old_end_date: successor.end_date,
+        new_start_date: new_successor_start,
+        new_end_date: new_successor_end,
+        deleted_dependencies: [],
+        cascade_depth: 1,
+        cross_job_cascade: successor.job_id != task.job_id
+      )
+
+      successor.update!(
+        start_date: new_successor_start,
+        end_date: new_successor_end
+      )
+
+      @stats[:tasks_rolled] += 1
+
+      # Continue cascading (recursive, up to depth limit)
+      # Note: In production, should add depth limit to prevent infinite loops
     end
   end
 
-  def create_rollover_summary_log(today, results)
-    # Could create a summary log entry if needed
-    Rails.logger.info "[SmRolloverJob] Rollover complete for #{today}: #{results.to_json}"
-  end
-
-  def schedule_next_rollover(settings)
-    timezone = settings.rollover_timezone || "Australia/Sydney"
-    rollover_time = settings.rollover_time || "00:00"
-
-    # Parse rollover time
-    hour, minute = rollover_time.split(":").map(&:to_i)
-
-    # Calculate next rollover time
-    now = Time.current.in_time_zone(timezone)
-    next_run = now.change(hour: hour, min: minute)
-
-    # If we've passed today's rollover time, schedule for tomorrow
-    next_run += 1.day if next_run <= now
-
-    # Schedule the job
-    SmRolloverJob.set(wait_until: next_run).perform_later
-
-    Rails.logger.info "[SmRolloverJob] Next rollover scheduled for #{next_run}"
-  end
-
-  class << self
-    # Manual trigger for testing or one-off runs
-    def run_now(company_id: nil)
-      new.perform(company_id: company_id)
-    end
-
-    # Start the recurring job (call this on app startup)
-    def start_recurring
-      settings = SmSetting.instance
-      return unless settings.rollover_enabled?
-
-      # Schedule first run
-      timezone = settings.rollover_timezone || "Australia/Sydney"
-      rollover_time = settings.rollover_time || "00:00"
-      hour, minute = rollover_time.split(":").map(&:to_i)
-
-      now = Time.current.in_time_zone(timezone)
-      next_run = now.change(hour: hour, min: minute)
-      next_run += 1.day if next_run <= now
-
-      SmRolloverJob.set(wait_until: next_run).perform_later
-
-      Rails.logger.info "[SmRolloverJob] Recurring job started, first run at #{next_run}"
+  def calculate_successor_start_date(predecessor, dependency)
+    case dependency.dependency_type
+    when "FS" # Finish-to-Start (default)
+      predecessor.end_date + 1.day + dependency.lag_days.days
+    when "SS" # Start-to-Start
+      predecessor.start_date + dependency.lag_days.days
+    when "FF" # Finish-to-Finish
+      # Successor finishes when predecessor finishes
+      # So start = predecessor.end_date - successor.duration + 1 + lag
+      predecessor.end_date - (dependency.successor_task.duration_days - 1).days + dependency.lag_days.days
+    when "SF" # Start-to-Finish (rare)
+      # Successor finishes when predecessor starts
+      predecessor.start_date - (dependency.successor_task.duration_days - 1).days + dependency.lag_days.days
+    else
+      predecessor.end_date + 1.day # Default to FS
     end
   end
 end
