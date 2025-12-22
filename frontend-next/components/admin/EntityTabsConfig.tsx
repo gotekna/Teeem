@@ -166,6 +166,7 @@ export function EntityTabsConfig({
 
   const [saving, setSaving] = React.useState(false);
   const [expandedItems, setExpandedItems] = React.useState<Set<number>>(new Set());
+  const [expandedDocTypes, setExpandedDocTypes] = React.useState<Set<number>>(new Set());
   const [editingTab, setEditingTab] = React.useState<EntityTab | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
   const [deleteConfirmTab, setDeleteConfirmTab] = React.useState<EntityTab | null>(null);
@@ -519,6 +520,77 @@ export function EntityTabsConfig({
     return (
       <React.Fragment key={tab.id}>
         {renderTabItem(tab, index, depth > 0, depth)}
+        {/* Expanded document types - table view */}
+        {expandedDocTypes.has(tab.id) && tab.document_types && tab.document_types.length > 0 && (
+          <div className={cn(
+            "mt-1 mb-2 rounded-lg border bg-muted/30",
+            depth === 0 && "ml-16",
+            depth === 1 && "ml-26",
+            depth >= 2 && "ml-36"
+          )}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground w-20">CODE</th>
+                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground w-48">NAME</th>
+                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground">FILE NAME</th>
+                  <th className="text-left py-1.5 px-3 font-medium text-muted-foreground">DISPLAY NAME</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tab.document_types.map((dt) => {
+                  // Generate example with Tekna Homes dummy data
+                  const applyReplacements = (str: string | undefined) => str
+                    ?.replace(/\{CompanyCode\}/gi, 'TH')
+                    ?.replace(/\{CompanyName\}/gi, 'Tekna Homes')
+                    ?.replace(/\{JobCode\}/gi, '46')
+                    ?.replace(/\{JobId\}/gi, '46')
+                    ?.replace(/\{JobNumber\}/gi, '46')
+                    ?.replace(/\{Date\}/gi, '15-Dec-2024')
+                    ?.replace(/\{ExpiryDate\}/gi, '15-Dec-2025')
+                    ?.replace(/\{Expiry\}/gi, '15-Dec-2025')
+                    ?.replace(/\{FY\}/gi, 'FY2024')
+                    ?.replace(/\{PersonCode\}/gi, 'RH')
+                    ?.replace(/\{PersonShort\}/gi, 'RH')
+                    ?.replace(/\{Person\}/gi, 'RH')
+                    ?.replace(/\{PersonName\}/gi, 'Robert Harder')
+                    ?.replace(/\{PersonDisplayName\}/gi, 'Robert Harder')
+                    ?.replace(/\{DisplayName\}/gi, 'Robert Harder')
+                    ?.replace(/\{DocTypeName\}/gi, dt.name)
+                    || '—';
+                  const exampleFileName = applyReplacements(dt.file_name);
+                  const exampleDisplayName = applyReplacements(dt.display_name);
+
+                  return (
+                    <React.Fragment key={dt.id}>
+                      {/* Template row */}
+                      <tr
+                        className="border-b hover:bg-muted/50 cursor-pointer"
+                        onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                      >
+                        <td className="py-1.5 px-3 font-mono text-xs">{dt.abbreviation || '—'}</td>
+                        <td className="py-1.5 px-3">{dt.name}</td>
+                        <td className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.file_name || '—'}</td>
+                        <td className="py-1.5 px-3 text-muted-foreground text-xs font-mono">{dt.display_name || '—'}</td>
+                      </tr>
+                      {/* Example row with resolved values */}
+                      <tr
+                        className="border-b last:border-0 hover:bg-muted/50 cursor-pointer bg-green-50/50 dark:bg-green-900/10"
+                        onDoubleClick={() => window.open(`/admin/system/document-types/${dt.id}`, '_blank')}
+                      >
+                        <td className="py-1 px-3 text-xs text-green-600 dark:text-green-400">↳ eg.</td>
+                        <td className="py-1 px-3 text-xs text-muted-foreground italic"></td>
+                        <td className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleFileName}</td>
+                        <td className="py-1 px-3 text-xs text-green-700 dark:text-green-300">{exampleDisplayName}</td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {/* Expanded children */}
         {expandedItems.has(tab.id) && tab.children && tab.children.length > 0 && (
           <SortableList
             items={tab.children}
@@ -643,23 +715,29 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
               {tab.document_types && tab.document_types.length > 0 && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Badge variant="outline" className="text-xs gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
-                        {tab.document_types.length} type{tab.document_types.length !== 1 ? 's' : ''}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-xs">
-                      <p className="font-medium mb-1">Linked Document Types:</p>
-                      <ul className="text-xs space-y-0.5">
-                        {tab.document_types.map((dt) => (
-                          <li key={dt.id}>• {dt.display_name || dt.name}</li>
-                        ))}
-                      </ul>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <Badge
+                  variant="outline"
+                  className="text-xs gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setExpandedDocTypes((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(tab.id)) {
+                        next.delete(tab.id);
+                      } else {
+                        next.add(tab.id);
+                      }
+                      return next;
+                    });
+                  }}
+                >
+                  {expandedDocTypes.has(tab.id) ? (
+                    <ChevronDown className="h-3 w-3" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3" />
+                  )}
+                  {tab.document_types.length} type{tab.document_types.length !== 1 ? 's' : ''}
+                </Badge>
               )}
             </div>
             {/* Entity filters (for corporate_entity) - clickable toggles, only on root items */}
@@ -1186,7 +1264,11 @@ export function EntityTabsConfig({
                     variant="outline"
                     size="sm"
                     className="h-7 text-xs"
-                    onClick={() => window.open('/admin/system/document-types/new', '_blank')}
+                    onClick={() => {
+                      // Map EntityTabScope to document type scope
+                      const docTypeScope = scope === 'corporate_entity' || scope === 'xero' ? 'company' : scope;
+                      window.open(`/admin/system/document-types/new?scope=${docTypeScope}`, '_blank');
+                    }}
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     New Document Type

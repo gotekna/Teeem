@@ -78,7 +78,7 @@ class DocumentType < ApplicationRecord
 
   # Validations
   validates :name, presence: true, uniqueness: true
-  validates :category, inclusion: { in: %w[corporate tax compliance general financial company trust advice registry insurance asic ato bank assets dividends loans minutes people], allow_blank: true }
+  # Note: category field is deprecated - tabs/folders (EntityTab) are now the primary organization method
 
   # Scopes
   scope :active, -> { where(active: true) }

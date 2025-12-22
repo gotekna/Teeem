@@ -173,7 +173,13 @@ class EntityTab < ApplicationRecord
       document_count: document_count,
       can_delete: can_delete?,
       children: children.enabled.ordered.map(&:as_nested_json),
-      document_types: document_types.map { |dt| { id: dt.id, name: dt.name, display_name: dt.display_name } }
+      document_types: document_types.map { |dt| {
+        id: dt.id,
+        name: dt.name,
+        display_name: dt.display_name,
+        abbreviation: dt.abbreviation,
+        file_name: dt.file_name
+      } }
     }
   end
 

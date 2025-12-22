@@ -102,6 +102,14 @@ export const COMPANY_PLACEHOLDERS: PlaceholderToken[] = [
     color: "purple",
     description: "Bank account number",
   },
+  {
+    code: "{PersonCode}",
+    example: "RH",
+    longCode: "{PersonName}",
+    longExample: "Robert Harder",
+    color: "purple",
+    description: "Person code/name",
+  },
 ];
 
 // =============================================================================
@@ -169,6 +177,14 @@ export const DATE_PLACEHOLDERS: PlaceholderToken[] = [
     example: "9-12-25",
     color: "green",
     description: "Short date",
+  },
+  {
+    code: "{Expiry}",
+    example: "15-Dec-25",
+    longCode: "{ExpiryDate}",
+    longExample: "15 December 2025",
+    color: "green",
+    description: "Expiry date",
   },
 ];
 

@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import { ArrowLeft, Loader2, Save, Trash2, FileText, X, GripVertical, ChevronDow
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import MultipleSelector from "@/components/ui/multiple-selector";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
@@ -114,6 +115,7 @@ export default function DocumentTypeDetailPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
   const [documentType, setDocumentType] = React.useState<DocumentType | null>(null);
@@ -131,7 +133,11 @@ export default function DocumentTypeDetailPage() {
   const [showFullDescription, setShowFullDescription] = React.useState(true);
   const [removeCompanyName, setRemoveCompanyName] = React.useState(true);
   const [previewCompanyId, setPreviewCompanyId] = React.useState<number | null>(null);
+  const [previewPersonId, setPreviewPersonId] = React.useState<number | null>(null);
+  const [previewJobId, setPreviewJobId] = React.useState<number | null>(46); // Default to Job 46
   const [companies, setCompanies] = React.useState<Array<{id: number; name: string; code: string}>>([]);
+  const [people, setPeople] = React.useState<Array<{id: number; name: string; code: string}>>([]);
+  const [jobs, setJobs] = React.useState<Array<{id: number; name: string; code: string}>>([]);
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
@@ -224,36 +230,54 @@ export default function DocumentTypeDetailPage() {
 
   const documentTypeId = params.id as string;
   const isNew = documentTypeId === "new";
+  const searchParams = useSearchParams();
+  const urlScope = searchParams.get("scope") as "company" | "job" | "people" | null;
+
+  // Get default file name template based on scope
+  const getDefaultFileNameForScope = (scope: string) => {
+    if (scope === "people") return "{PersonCode} {DocTypeCode} {FY}";
+    if (scope === "job") return "{JobCode} {DocTypeCode} {FY}";
+    return "{CompanyCode} {DocTypeCode} {FY}";
+  };
 
   React.useEffect(() => {
     if (isNew) {
-      // Initialize empty document type for creation
+      // Get scope from URL or default to company
+      const initialScope = urlScope || "company";
+
+      // Initialize document type with sensible defaults for creation
       setDocumentType({
         id: 0,
         name: "",
         display_name: "",
         abbreviation: "",
-        file_name: "",
-        category: "",
-        folder: "",
+        file_name: getDefaultFileNameForScope(initialScope),
+        category: "", // Deprecated - not used, kept for backwards compatibility
+        folder: "GENERAL",
         description: "",
         requires_filing: false,
         retention_years: undefined,
         active: true,
         tabs: [],
-        primary_tab: "",
-        scope: "company",
-        file_extensions: [],
+        primary_tab: "GENERAL",
+        scope: initialScope,
+        file_extensions: [".pdf"],
         target_folder: "",
         entity_tab_ids: [],
       });
+      // Open Basic Information when creating new
+      setBasicInfoExpanded(true);
       setLoading(false);
       loadCompanies();
+      loadPeople();
+      loadJobs();
     } else if (documentTypeId) {
       loadDocumentType();
       loadCompanies();
+      loadPeople();
+      loadJobs();
     }
-  }, [documentTypeId, isNew]);
+  }, [documentTypeId, isNew, urlScope]);
 
   const loadCompanies = async () => {
     try {
@@ -283,6 +307,66 @@ export default function DocumentTypeDetailPage() {
     }
   };
 
+  const loadPeople = async () => {
+    try {
+      const response = await api.get<any>('/api/v1/contacts');
+      const peopleData = response.data?.data || response.data || response;
+
+      if (Array.isArray(peopleData)) {
+        // Map contacts to people with code (initials)
+        const mappedPeople = peopleData.map((p: any) => ({
+          id: p.id,
+          name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+          code: p.code || getInitials(p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim())
+        }));
+        setPeople(mappedPeople);
+
+        // Auto-select Robert Harder as default
+        if (mappedPeople.length > 0 && previewPersonId === null) {
+          const robertHarder = mappedPeople.find((p: any) =>
+            p.name?.toLowerCase().includes("robert harder") ||
+            p.code === "RH"
+          );
+          setPreviewPersonId(robertHarder ? robertHarder.id : mappedPeople[0].id);
+        }
+      } else {
+        setPeople([]);
+      }
+    } catch (error) {
+      console.error("Failed to load people:", error);
+    }
+  };
+
+  const loadJobs = async () => {
+    try {
+      const response = await api.get<any>('/api/v1/jobs');
+      const jobsData = response.data?.data || response.data?.jobs || response.data || response;
+
+      if (Array.isArray(jobsData)) {
+        const mappedJobs = jobsData.map((j: any) => ({
+          id: j.id,
+          name: j.title || j.name || `Job ${j.id}`,
+          code: j.code || `J${String(j.id).padStart(3, '0')}`
+        }));
+        setJobs(mappedJobs);
+      } else {
+        setJobs([]);
+      }
+    } catch (error) {
+      console.error("Failed to load jobs:", error);
+    }
+  };
+
+  // Helper to get initials from name
+  const getInitials = (name: string): string => {
+    if (!name) return "";
+    return name
+      .split(/\s+/)
+      .map(word => word.charAt(0).toUpperCase())
+      .join("")
+      .slice(0, 2);
+  };
+
   // Initialize checkbox state based on whether display_name exists
   React.useEffect(() => {
     if (documentType) {
@@ -292,6 +376,31 @@ export default function DocumentTypeDetailPage() {
       setRemoveCompanyName(true);
     }
   }, [documentType?.id]); // Only run when document type changes
+
+  // Update file_name template when scope changes (only for new document types or empty file_name)
+  React.useEffect(() => {
+    if (documentType && isNew) {
+      const scope = documentType.scope || "company";
+      let defaultTemplate = "{CompanyCode} {DocTypeCode} {FY}";
+
+      if (scope === "people") {
+        defaultTemplate = "{PersonCode} {DocTypeCode} {FY}";
+      } else if (scope === "job") {
+        defaultTemplate = "{JobCode} {DocTypeCode} {FY}";
+      }
+
+      // Only update if file_name is using a default template pattern
+      const currentFileName = documentType.file_name || "";
+      const isDefaultPattern = currentFileName === "" ||
+        currentFileName === "{CompanyCode} {DocTypeCode} {FY}" ||
+        currentFileName === "{PersonCode} {DocTypeCode} {FY}" ||
+        currentFileName === "{JobCode} {DocTypeCode} {FY}";
+
+      if (isDefaultPattern && currentFileName !== defaultTemplate) {
+        updateField("file_name", defaultTemplate);
+      }
+    }
+  }, [documentType?.scope, isNew]);
 
   // Map short codes to long codes - uses SSoT from lib/placeholders.ts
   const shortToLongMap: Record<string, string> = {
@@ -322,14 +431,24 @@ export default function DocumentTypeDetailPage() {
         fileName = convertToLongCodes(fileName);
       }
 
-      // Remove {CompanyName} if the checkbox is checked
+      // Remove entity placeholder based on scope if the checkbox is checked
       if (removeCompanyName) {
-        fileName = fileName.replace(/\{CompanyName\}\s*/g, '').replace(/\{CompanyCode\}\s*/g, '');
+        const scope = documentType.scope || "company";
+        if (scope === "people") {
+          // Remove person placeholders for people scope
+          fileName = fileName.replace(/\{PersonName\}\s*/g, '').replace(/\{PersonCode\}\s*/g, '').replace(/\{Person\}\s*/g, '');
+        } else if (scope === "job") {
+          // Remove job placeholders for job scope
+          fileName = fileName.replace(/\{JobTitle\}\s*/g, '').replace(/\{JobCode\}\s*/g, '').replace(/\{JobName\}\s*/g, '');
+        } else {
+          // Remove company placeholders for company scope (default)
+          fileName = fileName.replace(/\{CompanyName\}\s*/g, '').replace(/\{CompanyCode\}\s*/g, '');
+        }
       }
 
       updateField("display_name", fileName);
     }
-  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.file_name]);
+  }, [displayNameSameAsFileName, showFullDescription, removeCompanyName, documentType?.file_name, documentType?.scope]);
 
   const loadDocumentType = async () => {
     try {
@@ -375,7 +494,7 @@ export default function DocumentTypeDetailPage() {
           description: "Document type created successfully",
         });
         // Redirect to the new document type's edit page
-        if (response.data?.id) {
+        if (response?.data?.id) {
           router.push(`/admin/system/document-types/${response.data.id}`);
         }
       } else {
@@ -577,6 +696,18 @@ export default function DocumentTypeDetailPage() {
     const companyCode = selectedCompany?.code || "TH";
     const companyName = selectedCompany?.name || "Tekna Homes";
 
+    // Get selected person data or use current user (auto-detected)
+    const selectedPerson = previewPersonId ? people.find(p => p.id === previewPersonId) : null;
+    const currentUserName = user?.name || "Robert Harder";
+    const currentUserCode = getInitials(currentUserName);
+    const personCode = selectedPerson?.code || currentUserCode;
+    const personName = selectedPerson?.name || currentUserName;
+
+    // Get selected job data or use defaults (Job 46)
+    const selectedJob = previewJobId ? jobs.find(j => j.id === previewJobId) : null;
+    const jobCode = selectedJob?.code || "J046";
+    const jobName = selectedJob?.name || "Job 46";
+
     // Replace DocType placeholders with current document type values
     preview = preview.replace(/\{DocTypeCode\}/g, documentType?.abbreviation || "");
     preview = preview.replace(/\{DocTypeName\}/g, getCleanDocTypeName());
@@ -584,7 +715,19 @@ export default function DocumentTypeDetailPage() {
     // Replace placeholders with example values
     // Use full names if checkbox is checked, otherwise use codes
     preview = preview.replace(/\{CompanyCode\}/g, companyCode);
+    preview = preview.replace(/\{CompanyName\}/g, companyName);
     preview = preview.replace(/\{DisplayName\}/g, companyName);
+
+    // Person placeholders
+    preview = preview.replace(/\{PersonCode\}/g, personCode);
+    preview = preview.replace(/\{PersonName\}/g, personName);
+    preview = preview.replace(/\{Person\}/g, personCode);
+
+    // Job placeholders
+    preview = preview.replace(/\{JobCode\}/g, jobCode);
+    preview = preview.replace(/\{JobTitle\}/g, jobName);
+    preview = preview.replace(/\{JobName\}/g, jobName);
+
     preview = preview.replace(/\{LoanID\}/g, "L001");
     preview = preview.replace(/\{LoanName\}/g, "Loan to ABC Trust");
     preview = preview.replace(/\{AssetCode\}/g, "PROP1");
@@ -597,8 +740,8 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{PeriodLong\}/g, "Q1 Jul-Sep");
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
-    preview = preview.replace(/\{JobCode\}/g, "J069");
-    preview = preview.replace(/\{JobTitle\}/g, "83 West Ridge");
+    preview = preview.replace(/\{Expiry\}/g, "15-Dec-25");
+    preview = preview.replace(/\{ExpiryDate\}/g, "15 December 2025");
     preview = preview.replace(/\{CertType\}/g, useFullDescription ? "Certificate of Occupancy" : "Occupancy");
     preview = preview.replace(/\{Consultant\}/g, useFullDescription ? "ABC Engineering" : "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
@@ -945,29 +1088,6 @@ export default function DocumentTypeDetailPage() {
                 {SCOPE_OPTIONS.find(o => o.value === documentType.scope)?.description}
               </p>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={documentType.category || ""}
-                onChange={(e) => updateField("category", e.target.value)}
-                placeholder="e.g., Tax, Compliance"
-              />
-              <p className="text-xs text-muted-foreground">Optional grouping</p>
-            </div>
-
-            <div className="flex items-center justify-between pt-8">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="active">Active</Label>
-                <p className="text-xs text-muted-foreground">Show in dropdowns</p>
-              </div>
-              <Switch
-                id="active"
-                checked={documentType.active}
-                onCheckedChange={(checked) => updateField("active", checked)}
-              />
-            </div>
           </div>
           </CardContent>
         )}
@@ -993,31 +1113,72 @@ export default function DocumentTypeDetailPage() {
           <div className="flex gap-4">
             {/* Left side - File Name and Display Name */}
             <div className="flex-1 space-y-4">
-              {/* Preview Company Dropdown */}
-              <div className="space-y-1 mb-6">
-                <Label htmlFor="preview-company" className="text-sm text-muted-foreground">
-                  Preview Company
-                </Label>
+              {/* Preview Data - Compact inline bar */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 p-2 bg-muted/30 rounded-md border">
+                <span className="font-medium shrink-0">Preview with:</span>
                 <Select
                   value={previewCompanyId?.toString() || "default"}
                   onValueChange={(value) => setPreviewCompanyId(value === "default" ? null : parseInt(value))}
                 >
-                  <SelectTrigger id="preview-company" className="h-9">
+                  <SelectTrigger className="h-7 text-xs w-auto min-w-[60px] bg-background">
                     <SelectValue>
                       {previewCompanyId
-                        ? (() => {
-                            const company = companies.find(c => c.id === previewCompanyId);
-                            return company ? `${company.code} - ${company.name}` : "Example Data";
-                          })()
-                        : "Example Data"
+                        ? companies.find(c => c.id === previewCompanyId)?.code || "TH"
+                        : "TH"
                       }
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="default">Example Data</SelectItem>
+                    <SelectItem value="default">TH - Tekna Homes</SelectItem>
                     {companies.map(company => (
                       <SelectItem key={company.id} value={company.id.toString()}>
                         {company.code} - {company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-muted-foreground/50">|</span>
+                <Select
+                  value={previewPersonId?.toString() || "default"}
+                  onValueChange={(value) => setPreviewPersonId(value === "default" ? null : parseInt(value))}
+                >
+                  <SelectTrigger className="h-7 text-xs w-auto min-w-[50px] bg-background">
+                    <SelectValue>
+                      {previewPersonId
+                        ? people.find(p => p.id === previewPersonId)?.code || getInitials(user?.name || "")
+                        : getInitials(user?.name || "") || "RH"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="default">{getInitials(user?.name || "")} - {user?.name || "Current User"}</SelectItem>
+                    {people.map(person => (
+                      <SelectItem key={person.id} value={person.id.toString()}>
+                        {person.code} - {person.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-muted-foreground/50">|</span>
+                <Select
+                  value={previewJobId?.toString() || "46"}
+                  onValueChange={(value) => setPreviewJobId(parseInt(value) || 46)}
+                >
+                  <SelectTrigger className="h-7 text-xs w-auto min-w-[60px] bg-background">
+                    <SelectValue>
+                      {previewJobId
+                        ? jobs.find(j => j.id === previewJobId)?.code || `J${String(previewJobId).padStart(3, '0')}`
+                        : "J046"
+                      }
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.length === 0 ? (
+                      <SelectItem value="46">J046 - Job 46</SelectItem>
+                    ) : null}
+                    {jobs.map(job => (
+                      <SelectItem key={job.id} value={job.id.toString()}>
+                        {job.code} - {job.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -1070,7 +1070,7 @@ export function DocumentTypesTab() {
           onColumnUpdate={fetchColumns}
           initialGroupByColumn="folder"
           leftActions={
-            <Button onClick={() => setShowAddForm(true)}>
+            <Button onClick={() => router.push(`/admin/system/document-types/new${scopeFilter !== "all" ? `?scope=${scopeFilter}` : ""}`)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Document Type
             </Button>

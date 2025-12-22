@@ -35,6 +35,8 @@ export interface EntityTabDocumentType {
   id: number;
   name: string;
   display_name: string;
+  abbreviation?: string;
+  file_name?: string;
 }
 
 export interface EntityTabsResponse {
