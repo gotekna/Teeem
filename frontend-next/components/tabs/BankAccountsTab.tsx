@@ -12,7 +12,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
-import { TeeemTableView } from "@/components/table/TeeemTableView";
+import TeeemTableView from "@/components/table/TeeemTableView";
 import type { CorporateCompany } from "@/lib/types/corporate";
 
 interface BankAccountsTabProps {

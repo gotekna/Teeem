@@ -98,16 +98,16 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "DistributionsTab": lazy(() => import("@/components/tabs/DistributionsTab")),
   "TrusteeTab": lazy(() => import("@/components/tabs/TrusteeTab")),
   "BeneficiariesTab": lazy(() => import("@/components/tabs/BeneficiariesTab")),
+  "AppointorTab": lazy(() => import("@/components/tabs/AppointorTab")),
+  "ShareholdingsTab": lazy(() => import("@/components/tabs/ShareholdingsTab")),
+  "MembersTab": lazy(() => import("@/components/tabs/MembersTab")),
+  "BankAccountsTab": lazy(() => import("@/components/tabs/BankAccountsTab")),
+  "HealthTab": lazy(() => import("@/components/tabs/HealthTab")),
+  "TrustsTab": lazy(() => import("@/components/tabs/TrustsTab")),
+  "ConsolidationTab": lazy(() => import("@/components/tabs/ConsolidationTab")),
 
   // TODO: Extract remaining components from corporate page.tsx
   // "CorporateTab": lazy(() => import("@/components/tabs/CorporateTab")),
-  // "ShareholdingsTab": lazy(() => import("@/components/tabs/ShareholdingsTab")),
-  // "BankAccountsTab": lazy(() => import("@/components/tabs/BankAccountsTab")),
-  // "HealthTab": lazy(() => import("@/components/tabs/HealthTab")),
-  // "TrustsTab": lazy(() => import("@/components/tabs/TrustsTab")),
-  // "AppointorTab": lazy(() => import("@/components/tabs/AppointorTab")),
-  // "MembersTab": lazy(() => import("@/components/tabs/MembersTab")),
-  // "ConsolidationTab": lazy(() => import("@/components/tabs/ConsolidationTab")),
   // "DataTab": lazy(() => import("@/components/tabs/DataTab")),
   // "DocumentsTab": lazy(() => import("@/components/tabs/DocumentsTab")),
 
