@@ -33,6 +33,7 @@ const scopes = [
     showSharePointPaths: true,
     showDocumentTypes: true,
     isEntityTab: true,
+    showTabGroups: false,  // Flat list - allows mixing tabs from any group
   },
   {
     id: "people",
@@ -42,6 +43,7 @@ const scopes = [
     showSharePointPaths: false,
     showDocumentTypes: false,
     isEntityTab: true,
+    showTabGroups: false,  // Flat list - allows mixing tabs from any group
   },
   {
     id: "job",
@@ -51,6 +53,7 @@ const scopes = [
     showSharePointPaths: true,
     showDocumentTypes: false,
     isEntityTab: true,
+    showTabGroups: false,  // Flat list - allows mixing tabs from any group
   },
   {
     id: "document_types",
@@ -155,7 +158,7 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}
-                  showTabGroups={true}
+                  showTabGroups={scope.showTabGroups !== false}
                   compact={true}
                 />
               ) : (

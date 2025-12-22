@@ -3598,7 +3598,7 @@ export default function CompanyDetailPage() {
   React.useEffect(() => {
     const loadXeroBills = async () => {
       const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
-      if (xeroSubTab !== "bills" || !tenantId) return;
+      if (xeroSubTab !== "xero-bills" || !tenantId) return;
 
       setXeroBillsLoading(true);
       try {
@@ -3621,7 +3621,7 @@ export default function CompanyDetailPage() {
   React.useEffect(() => {
     const loadXeroInvoices = async () => {
       const tenantId = company?.corporate_company_xero_connection?.xero_tenant_id;
-      if (xeroSubTab !== "invoices" || !tenantId) return;
+      if (xeroSubTab !== "xero-invoices" || !tenantId) return;
 
       setXeroInvoicesLoading(true);
       try {
@@ -4054,7 +4054,7 @@ export default function CompanyDetailPage() {
               )}
 
               {/* Invoices tab - shows sales invoices for this company */}
-              {xeroSubTab === "invoices" && (
+              {xeroSubTab === "xero-invoices" && (
                 <div className="flex flex-col h-full -mx-4">
                   {xeroInvoicesLoading ? (
                     <div className="flex items-center justify-center h-48">
@@ -4098,7 +4098,7 @@ export default function CompanyDetailPage() {
               )}
 
               {/* Bills tab - shows bills for this company */}
-              {xeroSubTab === "bills" && (
+              {xeroSubTab === "xero-bills" && (
                 <div className="flex flex-col h-full -mx-4">
                   {xeroBillsLoading ? (
                     <div className="flex items-center justify-center h-48">
