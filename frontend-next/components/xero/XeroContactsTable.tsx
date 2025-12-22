@@ -160,15 +160,24 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
         {contact.display_name || "—"}
       </TableCell>
 
-      {/* Xero Links Count */}
+      {/* Xero Links Count - format: X/10 */}
       <TableCell>
         {contact.xero_linked_count ? (
-          <Badge variant="secondary" className="text-xs">
-            {contact.xero_linked_count}
+          <Badge
+            variant="outline"
+            className="text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800"
+          >
+            <span className="mr-1">✓</span>
+            {contact.xero_linked_count}/10
           </Badge>
         ) : (
-          "—"
+          <span className="text-muted-foreground text-sm">0/10</span>
         )}
+      </TableCell>
+
+      {/* Xero Orgs - org names */}
+      <TableCell className="text-muted-foreground text-sm">
+        {contact.xero_tenant_names?.join(", ") || "—"}
       </TableCell>
 
       {/* Email */}
@@ -215,7 +224,7 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
           className="bg-muted/30 dark:bg-muted/10 cursor-pointer hover:bg-muted/50 dark:hover:bg-muted/20"
           onClick={() => toggleGroup(groupKey)}
         >
-          <TableCell colSpan={5} className="py-2">
+          <TableCell colSpan={6} className="py-2">
             <div className="flex items-center gap-2 font-medium text-sm">
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4" />
@@ -312,11 +321,12 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50 dark:bg-muted/20">
-            <TableHead className="w-[250px]">Display Name</TableHead>
-            <TableHead className="w-[100px]">Xero Links</TableHead>
-            <TableHead className="w-[200px]">Email</TableHead>
-            <TableHead className="w-[130px]">Mobile</TableHead>
-            <TableHead className="w-[120px]">Xero Type</TableHead>
+            <TableHead className="w-[220px]">Display Name</TableHead>
+            <TableHead className="w-[90px]">Xero Links</TableHead>
+            <TableHead className="w-[180px]">Xero Orgs</TableHead>
+            <TableHead className="w-[180px]">Email</TableHead>
+            <TableHead className="w-[120px]">Mobile</TableHead>
+            <TableHead className="w-[100px]">Xero Type</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
