@@ -1126,7 +1126,8 @@ export function EntityTabsConfig({
                   onValueChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
-                      parent_id: value === "none" ? undefined : parseInt(value, 10),
+                      // Use null (not undefined) so JSON serialization includes it
+                      parent_id: value === "none" ? null : parseInt(value, 10),
                     }))
                   }
                 >
@@ -1267,7 +1268,9 @@ export function EntityTabsConfig({
                     onClick={() => {
                       // Map EntityTabScope to document type scope
                       const docTypeScope = scope === 'corporate_entity' || scope === 'xero' ? 'company' : scope;
-                      window.open(`/admin/system/document-types/new?scope=${docTypeScope}`, '_blank');
+                      // Pass tab ID so it can be pre-selected as the folder
+                      const tabId = editingTab?.id;
+                      window.open(`/admin/system/document-types/new?scope=${docTypeScope}${tabId ? `&tab=${tabId}` : ''}`, '_blank');
                     }}
                   >
                     <Plus className="h-3 w-3 mr-1" />

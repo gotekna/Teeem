@@ -149,12 +149,23 @@ export default function DocumentTypeDetailPage() {
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
 
+  // URL params - must be declared before useEffects that use them
+  const documentTypeId = params.id as string;
+  const isNew = documentTypeId === "new";
+  const searchParams = useSearchParams();
+  const urlScope = searchParams.get("scope") as "company" | "job" | "people" | null;
+  const urlTabId = searchParams.get("tab");
+
   // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        // Fetch EntityTabs for corporate_entity scope, documents group
-        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>("/api/v1/entity_tabs?scope=corporate_entity");
+        // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
+        const scope = documentType?.scope || urlScope || "company";
+        // Map document type scope to EntityTab scope
+        const entityTabScope = scope === "people" ? "people" : scope === "job" ? "job" : "corporate_entity";
+        // Fetch EntityTabs for the appropriate scope, documents group
+        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
         if (data.success && data.data?.tabs) {
           // Filter to documents group only
           const documentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
@@ -188,7 +199,7 @@ export default function DocumentTypeDetailPage() {
       }
     };
     fetchFolders();
-  }, []);
+  }, [urlScope, documentType?.scope]);
 
   // SSoT: Xero subtabs are now children of "Xero" tab in EntityTab system
   // They're included in the main entity_tabs fetch above, so we extract them from folderHierarchy
@@ -209,6 +220,28 @@ export default function DocumentTypeDetailPage() {
     }
   }, [folderHierarchy]);
 
+  // Pre-fill folder from URL tab ID once hierarchy is loaded
+  React.useEffect(() => {
+    if (!isNew || !urlTabId || folderHierarchy.length === 0) return;
+
+    const tabIdNum = parseInt(urlTabId);
+    // Find the tab name from the hierarchy
+    for (const folder of folderHierarchy) {
+      if (folder.id === tabIdNum) {
+        setDocumentType(prev => prev ? { ...prev, folder: folder.name, primary_tab: folder.name } : prev);
+        return;
+      }
+      // Check children
+      for (const child of folder.children || []) {
+        if (child.id === tabIdNum) {
+          // For subtabs, set folder to parent and keep the child in entity_tab_ids
+          setDocumentType(prev => prev ? { ...prev, folder: folder.name, primary_tab: folder.name } : prev);
+          return;
+        }
+      }
+    }
+  }, [folderHierarchy, urlTabId, isNew]);
+
   // Fetch all document types for navigation
   React.useEffect(() => {
     const fetchAllDocumentTypes = async () => {
@@ -228,11 +261,6 @@ export default function DocumentTypeDetailPage() {
     fetchAllDocumentTypes();
   }, []);
 
-  const documentTypeId = params.id as string;
-  const isNew = documentTypeId === "new";
-  const searchParams = useSearchParams();
-  const urlScope = searchParams.get("scope") as "company" | "job" | "people" | null;
-
   // Get default file name template based on scope
   const getDefaultFileNameForScope = (scope: string) => {
     if (scope === "people") return "{PersonCode} {DocTypeCode} {FY}";
@@ -244,6 +272,8 @@ export default function DocumentTypeDetailPage() {
     if (isNew) {
       // Get scope from URL or default to company
       const initialScope = urlScope || "company";
+      // Get tab ID from URL for pre-selecting folder
+      const initialTabIds = urlTabId ? [parseInt(urlTabId)] : [];
 
       // Initialize document type with sensible defaults for creation
       setDocumentType({
@@ -263,7 +293,7 @@ export default function DocumentTypeDetailPage() {
         scope: initialScope,
         file_extensions: [".pdf"],
         target_folder: "",
-        entity_tab_ids: [],
+        entity_tab_ids: initialTabIds,
       });
       // Open Basic Information when creating new
       setBasicInfoExpanded(true);
@@ -277,7 +307,7 @@ export default function DocumentTypeDetailPage() {
       loadPeople();
       loadJobs();
     }
-  }, [documentTypeId, isNew, urlScope]);
+  }, [documentTypeId, isNew, urlScope, urlTabId]);
 
   const loadCompanies = async () => {
     try {
@@ -499,9 +529,13 @@ export default function DocumentTypeDetailPage() {
         }
       } else {
         // Update existing document type
-        await api.patch(`/api/v1/document_types/${documentTypeId}`, {
+        const response = await api.patch<{ success: boolean; data: DocumentType }>(`/api/v1/document_types/${documentTypeId}`, {
           document_type: documentType
         });
+        // Refresh local state with saved data from server
+        if (response?.data) {
+          setDocumentType(response.data);
+        }
         toast({
           title: "Success",
           description: "Document type saved successfully",
@@ -620,8 +654,9 @@ export default function DocumentTypeDetailPage() {
     // Get base placeholders from SSoT
     const basePlaceholders = getBasePlaceholders(scope);
 
-    // Add DocType placeholder at the beginning
-    const placeholders: PlaceholderToken[] = [docTypePlaceholder, ...basePlaceholders];
+    // Add DocType placeholder and sort alphabetically by code
+    const placeholders: PlaceholderToken[] = [docTypePlaceholder, ...basePlaceholders]
+      .sort((a, b) => a.code.replace(/[{}]/g, '').localeCompare(b.code.replace(/[{}]/g, '')));
 
     // Filter by search term
     if (placeholderSearch.trim()) {
@@ -740,8 +775,8 @@ export default function DocumentTypeDetailPage() {
     preview = preview.replace(/\{PeriodLong\}/g, "Q1 Jul-Sep");
     preview = preview.replace(/\{Date\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
     preview = preview.replace(/\{PrintDate\}/g, new Date().toLocaleDateString("en-AU", { day: "2-digit", month: "2-digit", year: "numeric" }).replace(/\//g, "-"));
-    preview = preview.replace(/\{Expiry\}/g, "15-Dec-25");
-    preview = preview.replace(/\{ExpiryDate\}/g, "15 December 2025");
+    preview = preview.replace(/\{EX\}/g, "EX 15/12/25");
+    preview = preview.replace(/\{Expiry\}/g, "Expiry 15 December 2025");
     preview = preview.replace(/\{CertType\}/g, useFullDescription ? "Certificate of Occupancy" : "Occupancy");
     preview = preview.replace(/\{Consultant\}/g, useFullDescription ? "ABC Engineering" : "ABC Eng");
     preview = preview.replace(/\{Number\}/g, "01");
@@ -931,7 +966,14 @@ export default function DocumentTypeDetailPage() {
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between p-2 shrink-0">
         <div className="flex items-start gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" onClick={() => {
+            // If opened in new tab (no history), navigate to list; otherwise go back
+            if (window.history.length <= 1) {
+              router.push("/admin/system?tab=document-types");
+            } else {
+              router.back();
+            }
+          }}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           {/* Previous/Next navigation - filtered by scope (hidden for new) */}
@@ -1093,14 +1135,14 @@ export default function DocumentTypeDetailPage() {
         )}
       </Card>
 
-      {/* Naming & Organization */}
+      {/* File Naming */}
       <Card>
         <CardHeader
           className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
           onClick={() => setNamingOrgExpanded(!namingOrgExpanded)}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Naming & Organization</CardTitle>
+            <CardTitle className="text-base">File Naming</CardTitle>
             {namingOrgExpanded ? (
               <ChevronDown className="h-5 w-5 text-muted-foreground" />
             ) : (
@@ -1637,14 +1679,14 @@ export default function DocumentTypeDetailPage() {
         )}
       </Card>
 
-      {/* Filing & Organization */}
+      {/* Tab View */}
       <Card>
         <CardHeader
           className="cursor-pointer hover:bg-muted/50 transition-colors pb-2 pt-4"
           onClick={() => setFilingOrgExpanded(!filingOrgExpanded)}
         >
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Filing & Organization</CardTitle>
+            <CardTitle className="text-base">Tab View</CardTitle>
             {filingOrgExpanded ? (
               <ChevronDown className="h-5 w-5 text-muted-foreground" />
             ) : (
@@ -1654,99 +1696,90 @@ export default function DocumentTypeDetailPage() {
         </CardHeader>
         {filingOrgExpanded && (
           <CardContent className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="folder">Folder</Label>
-                <Select
-                  value={documentType.folder || "GENERAL"}
-                  onValueChange={(value) => updateField("folder", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {folderOptions.map(f => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Main folder location</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="primary_tab">Primary Tab</Label>
-                <Select
-                  value={documentType.primary_tab || "GENERAL"}
-                  onValueChange={(value) => updateField("primary_tab", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {folderOptions.map(f => (
-                      <SelectItem key={f} value={f}>{f}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Default tab to show</p>
-              </div>
+            {/* Primary Tab */}
+            <div className="space-y-2">
+              <Label>Primary Tab</Label>
+              {/* Show parent info if selected tab has a parent */}
+              {(() => {
+                const selectedId = documentType.entity_tab_ids?.[0];
+                if (!selectedId) return null;
+                for (const folder of folderHierarchy as any[]) {
+                  for (const child of (folder.children || []) as any[]) {
+                    if (child.id === selectedId) {
+                      return <p className="text-xs text-muted-foreground">Parent: {folder.name}</p>;
+                    }
+                  }
+                }
+                return null;
+              })()}
+              <Select
+                value={(documentType.entity_tab_ids?.[0] || "").toString()}
+                onValueChange={(value) => {
+                  const newId = parseInt(value);
+                  const currentIds = documentType.entity_tab_ids || [];
+                  updateField("entity_tab_ids", [newId, ...currentIds.slice(1)]);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select tab..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {folderHierarchy.map((folder: any) => (
+                    <React.Fragment key={folder.id || folder.name}>
+                      {folder.id && (
+                        <SelectItem value={folder.id.toString()}>{folder.name}</SelectItem>
+                      )}
+                      {(folder.children || []).map((child: any) => (
+                        child.id && (
+                          <SelectItem key={child.id} value={child.id.toString()}>
+                            &nbsp;&nbsp;└ {child.name}
+                          </SelectItem>
+                        )
+                      ))}
+                    </React.Fragment>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
+            {/* Also Display On - multi-select for view-only display on other tabs */}
             <div className="space-y-2">
-              <Label>Additional Tabs</Label>
-              <p className="text-xs text-muted-foreground mb-2">
-                Select all tabs where this document type should appear
-              </p>
+              <Label>Also Display On</Label>
+              <p className="text-xs text-muted-foreground mb-1">View-only: show in additional tabs</p>
               <MultipleSelector
-                placeholder="Select folders/tabs..."
+                placeholder="Select additional tabs..."
                 options={(() => {
                   const opts: Array<{ value: string; label: string }> = [];
+                  const primaryId = documentType.entity_tab_ids?.[0];
 
-                  // SSoT: Build options from EntityTab hierarchy
                   folderHierarchy.forEach((folder: any) => {
-                    // Add the folder itself (use ID as value)
-                    if (folder.id) {
-                      opts.push({
-                        value: folder.id.toString(),
-                        label: folder.name,
-                      });
+                    if (folder.id && folder.id !== primaryId) {
+                      opts.push({ value: folder.id.toString(), label: folder.name });
                     }
-
-                    // Add children (subtabs)
                     (folder.children || []).forEach((child: any) => {
-                      if (child.id) {
-                        opts.push({
-                          value: child.id.toString(),
-                          label: `  └ ${child.name}`,
-                        });
+                      if (child.id && child.id !== primaryId) {
+                        opts.push({ value: child.id.toString(), label: `  └ ${child.name}` });
                       }
                     });
                   });
-
                   return opts;
                 })()}
-                value={(documentType.entity_tab_ids || []).map(tabId => {
-                  // Find the tab in hierarchy to get label
+                value={(documentType.entity_tab_ids || []).slice(1).map(tabId => {
                   let label = `Tab ${tabId}`;
                   for (const folder of folderHierarchy as any[]) {
-                    if (folder.id === tabId) {
-                      label = folder.name;
-                      break;
-                    }
+                    if (folder.id === tabId) { label = folder.name; break; }
                     for (const child of (folder.children || []) as any[]) {
-                      if (child.id === tabId) {
-                        label = child.name;
-                        break;
-                      }
+                      if (child.id === tabId) { label = child.name; break; }
                     }
                   }
                   return { value: tabId.toString(), label };
                 })}
-                onChange={(options) => updateField("entity_tab_ids", options.map(o => parseInt(o.value)))}
+                onChange={(options) => {
+                  const primaryId = documentType.entity_tab_ids?.[0];
+                  const additionalIds = options.map(o => parseInt(o.value));
+                  updateField("entity_tab_ids", primaryId ? [primaryId, ...additionalIds] : additionalIds);
+                }}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Select the tabs where documents of this type should be displayed.
-              </p>
             </div>
           </CardContent>
         )}

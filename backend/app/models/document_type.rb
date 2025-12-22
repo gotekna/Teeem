@@ -24,6 +24,22 @@ class DocumentType < ApplicationRecord
   # Set tabs by EntityTab IDs (SSoT: replaces old folder_ids=)
   def entity_tab_ids=(ids)
     ids = Array(ids).map(&:to_i).reject(&:zero?)
+
+    # For new records, store the IDs and create associations after save
+    if new_record?
+      @pending_entity_tab_ids = ids
+    else
+      sync_entity_tab_ids(ids)
+    end
+  end
+
+  # Get EntityTab IDs
+  def entity_tab_ids
+    entity_tab_document_types.pluck(:entity_tab_id)
+  end
+
+  # Sync entity_tab_ids with the database
+  def sync_entity_tab_ids(ids)
     existing_ids = entity_tab_document_types.pluck(:entity_tab_id)
 
     # Remove old assignments
@@ -33,11 +49,6 @@ class DocumentType < ApplicationRecord
     (ids - existing_ids).each do |tab_id|
       entity_tab_document_types.create(entity_tab_id: tab_id)
     end
-  end
-
-  # Get EntityTab IDs
-  def entity_tab_ids
-    entity_tab_document_types.pluck(:entity_tab_id)
   end
 
   # DEPRECATED: Old folder methods - keeping for backwards compatibility
@@ -75,6 +86,8 @@ class DocumentType < ApplicationRecord
   after_destroy :clear_abbreviation_cache
   # ULTRA SSoT: When display_name template changes, regenerate all linked documents' display_names
   after_save :regenerate_document_display_names, if: :saved_change_to_display_name?
+  # Sync pending entity_tab_ids after create (deferred from entity_tab_ids= setter)
+  after_create :sync_pending_entity_tab_ids
 
   # Validations
   validates :name, presence: true, uniqueness: true
@@ -341,5 +354,13 @@ class DocumentType < ApplicationRecord
       new_name = doc.expand_display_template(display_name)
       doc.update_column(:display_name, new_name) if new_name != doc.display_name
     end
+  end
+
+  # Sync pending entity_tab_ids that were deferred during create
+  def sync_pending_entity_tab_ids
+    return unless @pending_entity_tab_ids.present?
+
+    sync_entity_tab_ids(@pending_entity_tab_ids)
+    @pending_entity_tab_ids = nil
   end
 end
