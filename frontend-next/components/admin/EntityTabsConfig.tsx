@@ -269,23 +269,7 @@ export function EntityTabsConfig({
       .sort((a, b) => a.order_position - b.order_position);
   }, [tabs]);
 
-  // Auto-expand all items with children on load (recursive)
-  React.useEffect(() => {
-    const collectItemsWithChildren = (items: EntityTab[]): number[] => {
-      const result: number[] = [];
-      for (const item of items) {
-        if (item.children && item.children.length > 0) {
-          result.push(item.id);
-          result.push(...collectItemsWithChildren(item.children));
-        }
-      }
-      return result;
-    };
-    const itemsWithChildren = collectItemsWithChildren(tabs);
-    if (itemsWithChildren.length > 0) {
-      setExpandedItems(new Set(itemsWithChildren));
-    }
-  }, [tabs]);
+  // Items start collapsed by default - user can expand as needed
 
   // Toggle item expansion
   const toggleExpanded = (itemId: number) => {
@@ -638,7 +622,7 @@ export function EntityTabsConfig({
             items={tab.children}
             onReorder={(newChildren) => handleChildReorder(tab, newChildren)}
           >
-            <div className="space-y-2 mt-2">
+            <div className="space-y-1 mt-1">
               {tab.children.map((child, childIndex) =>
                 renderTabWithChildren(child, childIndex, depth + 1)
               )}
@@ -663,14 +647,19 @@ export function EntityTabsConfig({
         editablePosition={true}
         onPositionChange={(newPosition) => handlePositionChange(tab, newPosition, depth)}
         className={cn(
-          "border rounded-lg bg-background",
+          "border rounded-lg",
           !tab.enabled && "opacity-50",
-          depth === 1 && "ml-10 border-l-4 border-l-muted-foreground/30",
-          depth === 2 && "ml-20 border-l-4 border-l-primary/30",
-          depth >= 3 && "ml-28 border-l-4 border-l-primary/50"
+          // Parent tabs with children get a colored background
+          depth === 0 && hasChildren && "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",
+          // Root tabs without children
+          depth === 0 && !hasChildren && "bg-background",
+          // Child tabs get indentation and left border
+          depth === 1 && "ml-10 border-l-4 border-l-blue-300 dark:border-l-blue-700 bg-background",
+          depth === 2 && "ml-20 border-l-4 border-l-primary/30 bg-background",
+          depth >= 3 && "ml-28 border-l-4 border-l-primary/50 bg-background"
         )}
       >
-        <div className="flex items-center gap-3 flex-1 py-2 px-3">
+        <div className="flex items-center gap-2 flex-1 py-1 px-2">
           {/* Drag handle */}
           <DragHandle />
 
@@ -698,8 +687,8 @@ export function EntityTabsConfig({
           )}
 
           {/* Icon */}
-          <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-            <IconComponent className="h-4 w-4" />
+          <div className="h-6 w-6 rounded bg-muted flex items-center justify-center shrink-0">
+            <IconComponent className="h-3.5 w-3.5" />
           </div>
 
           {/* Name and badges */}
@@ -951,15 +940,15 @@ export function EntityTabsConfig({
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-0">
           {tabsInGroup.length > 0 ? (
             <SortableList items={tabsInGroup} onReorder={(items) => handleReorder(items, group)}>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {tabsInGroup.map((tab, index) => renderTabWithChildren(tab, index))}
               </div>
             </SortableList>
           ) : (
-            <div className="text-center py-6 text-muted-foreground">
+            <div className="text-center py-4 text-muted-foreground">
               No tabs in this group
             </div>
           )}
@@ -990,34 +979,39 @@ export function EntityTabsConfig({
     );
   }
 
+  // Action buttons - rendered in Card header for compact mode, or standalone for non-compact
+  const actionButtons = (
+    <div className="flex items-center gap-2">
+      {scope === "corporate_entity" && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowEntityTypesEditor(!showEntityTypesEditor)}
+          className="text-muted-foreground"
+        >
+          <Settings2 className="h-4 w-4 mr-2" />
+          Entity Types
+        </Button>
+      )}
+      <Button variant="outline" size="sm" onClick={() => openCreateDialog()}>
+        <Plus className="h-4 w-4 mr-2" />
+        Add Custom Tab
+      </Button>
+    </div>
+  );
+
   return (
     <div className={compact ? "space-y-4" : "space-y-6"}>
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        {!compact && (
+      {/* Header - only show outside card for non-compact mode */}
+      {!compact && (
+        <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-medium">{displayTitle}</h3>
             <p className="text-sm text-muted-foreground">{displayDescription}</p>
           </div>
-        )}
-        <div className={`flex items-center gap-2 ${compact ? "w-full justify-end" : ""}`}>
-          {scope === "corporate_entity" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowEntityTypesEditor(!showEntityTypesEditor)}
-              className="text-muted-foreground"
-            >
-              <Settings2 className="h-4 w-4 mr-2" />
-              Entity Types
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => openCreateDialog()}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Custom Tab
-          </Button>
+          {actionButtons}
         </div>
-      </div>
+      )}
 
       {/* Entity Types Editor (SSoT) - Only for corporate_entity scope */}
       {scope === "corporate_entity" && showEntityTypesEditor && (
@@ -1116,21 +1110,24 @@ export function EntityTabsConfig({
       ) : (
         /* Flat list without groups */
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle>All Tabs</CardTitle>
-              <Badge variant="secondary">{flatTabs.length}</Badge>
+              <div className="flex items-center gap-3">
+                <CardTitle>All Tabs</CardTitle>
+                <Badge variant="secondary">{flatTabs.length}</Badge>
+              </div>
+              {compact && actionButtons}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             {flatTabs.length > 0 ? (
               <SortableList items={flatTabs} onReorder={handleReorder}>
-                <div className="space-y-2">
+                <div className="space-y-1">
                   {flatTabs.map((tab, index) => renderTabWithChildren(tab, index))}
                 </div>
               </SortableList>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-4 text-muted-foreground">
                 No tabs configured
               </div>
             )}
