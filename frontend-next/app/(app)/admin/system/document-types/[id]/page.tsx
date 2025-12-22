@@ -164,27 +164,48 @@ export default function DocumentTypeDetailPage() {
         const scope = documentType?.scope || urlScope || "company";
         // Map document type scope to EntityTab scope
         const entityTabScope = scope === "people" ? "people" : scope === "job" ? "job" : "corporate_entity";
+
+        // Build folder hierarchy recursively for all depths
+        const mapTabRecursive = (tab: any): any => ({
+          id: tab.id,
+          name: tab.display_name,
+          tab_key: tab.tab_key,
+          children: (tab.children || []).map(mapTabRecursive)
+        });
+
         // Fetch EntityTabs for the appropriate scope, documents group
         const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
-        if (data.success && data.data?.tabs) {
-          // Filter to documents group only
-          const documentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
+        let allDocumentTabs: any[] = [];
 
-          // Build folder hierarchy for the additional tabs selector
-          const hierarchy = documentTabs.map((t: any) => ({
-            id: t.id,
-            name: t.display_name,
-            tab_key: t.tab_key,
-            children: (t.children || []).map((c: any) => ({
-              id: c.id,
-              name: c.display_name,
-              tab_key: c.tab_key
-            }))
-          }));
+        if (data.success && data.data?.tabs) {
+          // Filter to documents group only, and EXCLUDE "Xero" (SSoT: Xero comes from xero scope)
+          allDocumentTabs = data.data.tabs.filter((t: any) =>
+            t.tab_group === 'documents' && t.tab_key !== 'xero'
+          );
+        }
+
+        // For company-scoped document types, fetch xero tabs from xero scope (SSoT)
+        if (entityTabScope === "corporate_entity") {
+          const xeroData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=xero`);
+          if (xeroData.success && xeroData.data?.tabs && xeroData.data.tabs.length > 0) {
+            // Wrap xero tabs under a "Xero" parent for display hierarchy
+            const xeroWrapper = {
+              id: null, // No ID - just a display wrapper
+              display_name: "Xero",
+              tab_key: "xero",
+              children: xeroData.data.tabs
+            };
+            // Put Xero at top of dropdown
+            allDocumentTabs = [xeroWrapper, ...allDocumentTabs];
+          }
+        }
+
+        if (allDocumentTabs.length > 0) {
+          const hierarchy = allDocumentTabs.map(mapTabRecursive);
           setFolderHierarchy(hierarchy);
 
-          // Extract root tab names for Folder/Primary Tab dropdowns
-          const rootNames = documentTabs.map((t: any) => t.display_name).sort();
+          // Extract root tab names for Folder/Primary Tab dropdowns (keep sorted)
+          const rootNames = allDocumentTabs.map((t: any) => t.display_name).sort();
           setFolderOptions(rootNames);
         } else {
           // Fallback to hard-coded list if API fails
@@ -1699,18 +1720,35 @@ export default function DocumentTypeDetailPage() {
             {/* Primary Tab */}
             <div className="space-y-2">
               <Label>Primary Tab</Label>
-              {/* Show parent info if selected tab has a parent */}
+              {/* Show full parent path if selected tab has parents */}
               {(() => {
                 const selectedId = documentType.entity_tab_ids?.[0];
                 if (!selectedId) return null;
-                for (const folder of folderHierarchy as any[]) {
-                  for (const child of (folder.children || []) as any[]) {
-                    if (child.id === selectedId) {
-                      return <p className="text-xs text-muted-foreground">Parent: {folder.name}</p>;
+
+                // Recursively find the path to the selected tab
+                const findPath = (items: any[], path: string[] = []): string[] | null => {
+                  for (const item of items) {
+                    const currentPath = item.name ? [...path, item.name] : path;
+                    if (item.id === selectedId) {
+                      // Found it - return path WITHOUT the selected item itself
+                      return path.length > 0 ? path : null;
+                    }
+                    if (item.children?.length) {
+                      const found = findPath(item.children, currentPath);
+                      if (found) return found;
                     }
                   }
-                }
-                return null;
+                  return null;
+                };
+
+                const parentPath = findPath(folderHierarchy);
+                if (!parentPath || parentPath.length === 0) return null;
+
+                return (
+                  <p className="text-sm text-muted-foreground font-medium">
+                    {parentPath.join(" / ")}
+                  </p>
+                );
               })()}
               <Select
                 value={(documentType.entity_tab_ids?.[0] || "").toString()}
@@ -1724,20 +1762,39 @@ export default function DocumentTypeDetailPage() {
                   <SelectValue placeholder="Select tab..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {folderHierarchy.map((folder: any) => (
-                    <React.Fragment key={folder.id || folder.name}>
-                      {folder.id && (
-                        <SelectItem value={folder.id.toString()}>{folder.name}</SelectItem>
-                      )}
-                      {(folder.children || []).map((child: any) => (
-                        child.id && (
-                          <SelectItem key={child.id} value={child.id.toString()}>
-                            &nbsp;&nbsp;└ {child.name}
-                          </SelectItem>
-                        )
-                      ))}
-                    </React.Fragment>
-                  ))}
+                  {(() => {
+                    // Render all levels of hierarchy recursively with proper indentation
+                    const renderItems = (items: any[], depth: number = 0): React.ReactNode[] => {
+                      const result: React.ReactNode[] = [];
+                      for (const item of items) {
+                        // Create proper indentation: spaces + └ for children
+                        const spaces = "\u00A0\u00A0\u00A0\u00A0".repeat(depth); // 4 non-breaking spaces per level
+                        const prefix = depth === 0 ? "" : `${spaces}└ `;
+
+                        if (item.id) {
+                          // Selectable item
+                          result.push(
+                            <SelectItem key={item.id} value={item.id.toString()}>
+                              {prefix}{item.name}
+                            </SelectItem>
+                          );
+                        } else if (item.name) {
+                          // Non-selectable header (e.g., "Xero" wrapper)
+                          result.push(
+                            <div key={item.tab_key || item.name} className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                              {prefix}{item.name}
+                            </div>
+                          );
+                        }
+
+                        if (item.children?.length) {
+                          result.push(...renderItems(item.children, depth + 1));
+                        }
+                      }
+                      return result;
+                    };
+                    return renderItems(folderHierarchy);
+                  })()}
                 </SelectContent>
               </Select>
             </div>
@@ -1752,26 +1809,36 @@ export default function DocumentTypeDetailPage() {
                   const opts: Array<{ value: string; label: string }> = [];
                   const primaryId = documentType.entity_tab_ids?.[0];
 
-                  folderHierarchy.forEach((folder: any) => {
-                    if (folder.id && folder.id !== primaryId) {
-                      opts.push({ value: folder.id.toString(), label: folder.name });
-                    }
-                    (folder.children || []).forEach((child: any) => {
-                      if (child.id && child.id !== primaryId) {
-                        opts.push({ value: child.id.toString(), label: `  └ ${child.name}` });
+                  // Recursively collect all tabs at all depths with proper indentation
+                  const collectTabs = (items: any[], depth: number = 0) => {
+                    for (const item of items) {
+                      if (item.id && item.id !== primaryId) {
+                        // Create proper indentation: spaces + └ for children
+                        const spaces = "\u00A0\u00A0\u00A0\u00A0".repeat(depth); // 4 non-breaking spaces per level
+                        const prefix = depth === 0 ? "" : `${spaces}└ `;
+                        opts.push({ value: item.id.toString(), label: `${prefix}${item.name}` });
                       }
-                    });
-                  });
+                      if (item.children?.length) {
+                        collectTabs(item.children, depth + 1);
+                      }
+                    }
+                  };
+                  collectTabs(folderHierarchy);
                   return opts;
                 })()}
                 value={(documentType.entity_tab_ids || []).slice(1).map(tabId => {
-                  let label = `Tab ${tabId}`;
-                  for (const folder of folderHierarchy as any[]) {
-                    if (folder.id === tabId) { label = folder.name; break; }
-                    for (const child of (folder.children || []) as any[]) {
-                      if (child.id === tabId) { label = child.name; break; }
+                  // Recursive search to find tab name at any depth
+                  const findTabName = (items: any[]): string | null => {
+                    for (const item of items) {
+                      if (item.id === tabId) return item.name;
+                      if (item.children?.length) {
+                        const found = findTabName(item.children);
+                        if (found) return found;
+                      }
                     }
-                  }
+                    return null;
+                  };
+                  const label = findTabName(folderHierarchy) || `Tab ${tabId}`;
                   return { value: tabId.toString(), label };
                 })}
                 onChange={(options) => {

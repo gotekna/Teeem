@@ -135,13 +135,6 @@ Rails.application.routes.draw do
         end
       end
 
-      # Job Tabs (per-user configuration)
-      get "job_tabs", to: "job_tabs#index"
-      patch "job_tabs/reorder", to: "job_tabs#reorder"
-      post "job_tabs/reset", to: "job_tabs#reset"
-      patch "job_tabs/:id/toggle_hidden", to: "job_tabs#toggle_hidden"
-      patch "job_tabs/:id/set_parent", to: "job_tabs#set_parent"
-
       # Health checks - NEW unified endpoints
       get "health/unified", to: "health#unified"       # Main unified health dashboard
       post "health/fix", to: "health#fix"              # Fix health issues
@@ -917,15 +910,6 @@ Rails.application.routes.draw do
         post "sharepoint/test", on: :collection, action: :test_sharepoint
       end
 
-      # Corporate Entity Tabs (SSoT for company/trust/superfund tabs)
-      get "corporate/entity_tabs", to: "corporate_entity_tabs#index"
-      get "corporate/entity_tabs/:id", to: "corporate_entity_tabs#show"
-      post "corporate/entity_tabs", to: "corporate_entity_tabs#create"
-      patch "corporate/entity_tabs/:id", to: "corporate_entity_tabs#update"
-      delete "corporate/entity_tabs/:id", to: "corporate_entity_tabs#destroy"
-      post "corporate/entity_tabs/reorder", to: "corporate_entity_tabs#reorder"
-      post "corporate/entity_tabs/seed", to: "corporate_entity_tabs#seed"
-
       # Folder Templates for OneDrive sync
       resources :folder_templates do
         member do
@@ -1454,11 +1438,7 @@ Rails.application.routes.draw do
       get "xero/health/patterns", to: "xero_health#patterns"
       get "xero/health/trends", to: "xero_health#trends"
 
-      # Xero Feature Tabs (SSoT for Xero sub-tabs on company pages)
-      get "xero/tabs", to: "xero_tabs#index"
-      get "xero/tabs/:id", to: "xero_tabs#show"
-      patch "xero/tabs/:id", to: "xero_tabs#update"
-      post "xero/tabs/reorder", to: "xero_tabs#reorder"
+      # Xero rate limits (for API monitoring)
       get "xero/rate_limits", to: "xero_alerts#rate_limits"
 
       # Xero Duplicate Detection & Merge
@@ -1951,13 +1931,6 @@ Rails.application.routes.draw do
       resources :document_types do
         collection do
           get :tabs
-        end
-      end
-
-      # Document Folders (tabs/folders configuration)
-      resources :document_folders do
-        collection do
-          post :reorder
         end
       end
 

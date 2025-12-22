@@ -59,7 +59,7 @@ export interface EntityTabCreateParams {
   display_name: string;
   description?: string;
   tab_group?: TabGroup;
-  parent_id?: number;
+  parent_id?: number | null;
   job_id?: number;
   entity_filters?: string[];
   order_position?: number;

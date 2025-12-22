@@ -3,11 +3,7 @@ class DocumentType < ApplicationRecord
   has_many :corporate_company_documents, dependent: :nullify
   has_many :job_documents, dependent: :nullify
 
-  # OLD (deprecated - keeping for dual-write period)
-  has_many :document_type_folders, dependent: :destroy
-  has_many :folders, through: :document_type_folders, source: :document_folder
-
-  # NEW SSoT: EntityTab associations
+  # SSoT: EntityTab associations
   has_many :entity_tab_document_types, dependent: :destroy
   has_many :entity_tabs, through: :entity_tab_document_types
 
@@ -49,36 +45,6 @@ class DocumentType < ApplicationRecord
     (ids - existing_ids).each do |tab_id|
       entity_tab_document_types.create(entity_tab_id: tab_id)
     end
-  end
-
-  # DEPRECATED: Old folder methods - keeping for backwards compatibility
-  # Get folder names for display (backwards compatible with old tabs array)
-  def folder_names
-    folders.pluck(:name)
-  end
-
-  # Get the primary folder
-  def primary_folder
-    document_type_folders.find_by(is_primary: true)&.document_folder
-  end
-
-  # Set folders by IDs (replaces existing assignments)
-  def folder_ids=(ids)
-    ids = Array(ids).map(&:to_i).reject(&:zero?)
-    existing_ids = document_type_folders.pluck(:document_folder_id)
-
-    # Remove old assignments
-    document_type_folders.where.not(document_folder_id: ids).destroy_all
-
-    # Add new assignments
-    (ids - existing_ids).each do |folder_id|
-      document_type_folders.create(document_folder_id: folder_id)
-    end
-  end
-
-  # Get folder IDs
-  def folder_ids
-    document_type_folders.pluck(:document_folder_id)
   end
 
   # Callbacks - clear CorporateCompanyDocument abbreviation cache when document types change

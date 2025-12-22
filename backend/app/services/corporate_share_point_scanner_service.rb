@@ -48,9 +48,13 @@ class CorporateSharePointScannerService
   ].freeze
 
   # Tab folders within each company folder (matching UI tabs)
-  # SSoT: Fetch from database
+  # SSoT: Fetch from EntityTab (unified tab model)
   def self.tab_folders
-    @tab_folders ||= DocumentFolder.active.ordered.pluck(:name)
+    @tab_folders ||= EntityTab.for_scope('corporate_entity')
+                              .for_group('documents')
+                              .enabled
+                              .ordered
+                              .pluck(:display_name)
   end
 
   def initialize(credential = nil, folder_path: nil)
