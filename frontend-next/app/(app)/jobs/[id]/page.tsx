@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -597,6 +598,7 @@ function AddressDetailsCard({
 }
 
 export default function JobDetailPage() {
+  useSetLayoutMode("full-height");
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
