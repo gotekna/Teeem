@@ -3396,7 +3396,6 @@ export default function CompanyDetailPage() {
   const {
     overviewTabs: entityOverviewTabs,
     documentTabs: documentFolderTabs,
-    mainTabs: apiMainTabs,
     xeroSubTabs: xeroDocumentFolders,
     loading: corporateTabsLoading,
   } = useCorporateEntityTabs(normalizedEntityType);
@@ -3480,34 +3479,20 @@ export default function CompanyDetailPage() {
     }
   }, [companyId]);
 
-  // Compute final DOCUMENT_TABS: folder tabs + special UI tabs
+  // Compute final DOCUMENT_TABS from API (SSoT: documents group)
+  // Xero is now a document folder tab with its sub-tabs as children
   const computedDocumentTabs = React.useMemo(() => {
-    // SSoT: Main tabs from API (Xero, Documents, Data, Activity) with icon mapping
-    const iconMap: Record<string, any> = {
-      "xero": RefreshCw,
-      "documents-main": FileText,
-      "data-main": Database,
-      "activity-main": Clock,
-    };
-    const mainTabsWithIcons = apiMainTabs.map(tab => ({
-      ...tab,
-      icon: iconMap[tab.id] || FileText,
-    }));
-
-    // Combine: folder tabs + main tabs (ALL from API - SSoT Masterpiece)
     // Keep original DOCUMENT_TABS order as fallback if folders not loaded yet
-    if (documentFolderTabs.length === 0 && apiMainTabs.length === 0) {
+    if (documentFolderTabs.length === 0) {
       return DOCUMENT_TABS;
     }
 
     // Convert document folder tabs (string icons) to Lucide components
-    const folderTabsWithIcons = documentFolderTabs.map(tab => ({
+    return documentFolderTabs.map(tab => ({
       ...tab,
-      icon: getFolderIcon(tab.name.toUpperCase()),
+      icon: tab.id === "xero" ? RefreshCw : getFolderIcon(tab.name.toUpperCase()),
     }));
-
-    return [...folderTabsWithIcons, ...mainTabsWithIcons];
-  }, [documentFolderTabs, apiMainTabs]);
+  }, [documentFolderTabs]);
 
   // SSoT: Xero tabs from API only - no fallback
   // Backend filters out document folders that match functional tab names

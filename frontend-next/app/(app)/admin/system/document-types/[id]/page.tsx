@@ -179,17 +179,8 @@ export default function DocumentTypeDetailPage() {
         let allDocumentTabs: any[] = [];
 
         if (data.success && data.data?.tabs) {
-          // Filter to documents group tabs (includes Xero with its children already nested)
+          // Filter to documents group tabs (Xero is now in documents group with children nested)
           allDocumentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
-
-          // Also include Xero (main group) for corporate_entity - it has sub-tabs for document selection
-          if (entityTabScope === "corporate_entity") {
-            const xeroTab = data.data.tabs.find((t: any) => t.tab_key === 'xero');
-            if (xeroTab) {
-              // Put Xero at top of dropdown
-              allDocumentTabs = [xeroTab, ...allDocumentTabs];
-            }
-          }
         }
 
         if (allDocumentTabs.length > 0) {

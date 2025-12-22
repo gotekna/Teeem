@@ -1997,6 +1997,16 @@ Rails.application.routes.draw do
         end
       end
 
+      # Asset Reports (World-Class Asset Register Reports)
+      resources :asset_reports, only: [] do
+        collection do
+          get :register        # Full asset register report
+          get :depreciation    # Depreciation schedule report
+          get :insurance       # Insurance summary report
+          get :summary         # Dashboard summary metrics
+        end
+      end
+
       # Company Documents (routes to CorporateCompanyDocumentsController)
       resources :company_documents, controller: "corporate_company_documents" do
         collection do
