@@ -136,9 +136,9 @@ const DOCUMENT_TABS = [
   { id: "minutes-docs", name: "MINUTES", icon: FileText },
   { id: "registry", name: "REGISTRY", icon: FileText },
   { id: "trust", name: "TRUST", icon: Users },
-  { id: "documents", name: "Documents", icon: FileText },
-  { id: "data", name: "Data", icon: Database },
-  { id: "activity", name: "Activity", icon: Clock },
+  { id: "documents-main", name: "Documents", icon: FileText },
+  { id: "data-main", name: "Data", icon: Database },
+  { id: "activity-main", name: "Activity", icon: Clock },
 ];
 
 // Overview sub-tabs for Companies (fallback - SSoT is database, group: "overview")
@@ -3482,22 +3482,21 @@ export default function CompanyDetailPage() {
 
   // Compute final DOCUMENT_TABS: folder tabs + special UI tabs
   const computedDocumentTabs = React.useMemo(() => {
-    // SSoT: Main tabs from API (Xero, etc.) with icon mapping
+    // SSoT: Main tabs from API (Xero, Documents, Data, Activity) with icon mapping
+    const iconMap: Record<string, any> = {
+      "xero": RefreshCw,
+      "documents-main": FileText,
+      "data-main": Database,
+      "activity-main": Clock,
+    };
     const mainTabsWithIcons = apiMainTabs.map(tab => ({
       ...tab,
-      icon: tab.id === "xero" ? RefreshCw : FileText,
+      icon: iconMap[tab.id] || FileText,
     }));
 
-    // Special UI tabs (not from database)
-    const specialTabs = [
-      { id: "documents", name: "Documents", icon: FileText },
-      { id: "data", name: "Data", icon: Database },
-      { id: "activity", name: "Activity", icon: Clock },
-    ];
-
-    // Combine: folder tabs + main tabs (from API) + special tabs
+    // Combine: folder tabs + main tabs (ALL from API - SSoT Masterpiece)
     // Keep original DOCUMENT_TABS order as fallback if folders not loaded yet
-    if (documentFolderTabs.length === 0) {
+    if (documentFolderTabs.length === 0 && apiMainTabs.length === 0) {
       return DOCUMENT_TABS;
     }
 
@@ -3507,7 +3506,7 @@ export default function CompanyDetailPage() {
       icon: getFolderIcon(tab.name.toUpperCase()),
     }));
 
-    return [...folderTabsWithIcons, ...mainTabsWithIcons, ...specialTabs];
+    return [...folderTabsWithIcons, ...mainTabsWithIcons];
   }, [documentFolderTabs, apiMainTabs]);
 
   // SSoT: Xero tabs from API only - no fallback
@@ -3658,7 +3657,7 @@ export default function CompanyDetailPage() {
 
   const handleTabChange = (tabId: string) => {
     // Redirect Data tab to data warehouse page with company filter
-    if (tabId === "data") {
+    if (tabId === "data-main") {
       router.push(`/data-warehouse?company_id=${companyId}`);
       return;
     }
@@ -3819,7 +3818,7 @@ export default function CompanyDetailPage() {
                             tab.id === "minutes-docs" ? "minutes-docs" :
                             tab.id;
             const count = documentCounts[countKey] || 0;
-            const showCount = !["documents", "data", "activity"].includes(tab.id);
+            const showCount = !["documents-main", "data-main", "activity-main"].includes(tab.id);
             return (
               <button
                 key={tab.id}
@@ -4184,7 +4183,7 @@ export default function CompanyDetailPage() {
           )}
 
           {/* Document Category Tabs */}
-          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity" && activeTab !== "documents" && activeTab !== "data" && activeTab !== "xero" && (
+          {computedDocumentTabs.find(t => t.id === activeTab)?.name && activeTab !== "activity-main" && activeTab !== "documents-main" && activeTab !== "data-main" && activeTab !== "xero" && (
             <>
               <CompanyDocumentsTab
                 companyId={companyId}
@@ -4194,11 +4193,11 @@ export default function CompanyDetailPage() {
             </>
           )}
 
-          {activeTab === "documents" && (
+          {activeTab === "documents-main" && (
             <CompanyDocumentsTab companyId={companyId} company={company} category="all" />
           )}
           {/* Data tab redirects to /admin/system?tab=data-warehouse&company_id={id} */}
-          {activeTab === "activity" && <ActivityTab />}
+          {activeTab === "activity-main" && <ActivityTab />}
         </CardContent>
       </Card>
 
