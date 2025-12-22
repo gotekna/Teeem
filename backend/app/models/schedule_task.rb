@@ -1,4 +1,18 @@
+# DEPRECATED: Use SmTask instead
+# This model is being replaced by SmTask as part of SSoT consolidation.
+# The SmTask system uses the `tasks` table and provides full SM Gantt functionality.
+# This model will be removed in a future release.
+#
+# Migration path:
+# - Import functionality should use SmTaskImportService (to be created)
+# - Frontend should use /api/v1/sm_tasks instead of /api/v1/schedule_tasks
+# - Gantt display should use SmTask via SmTasksController
+#
 class ScheduleTask < ApplicationRecord
+  include Deprecatable
+
+  after_find { log_deprecation("ScheduleTask is deprecated. Use SmTask instead.") }
+
   # Associations
   belongs_to :job
   belongs_to :purchase_order, optional: true

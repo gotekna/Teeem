@@ -17,6 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/use-toast";
+import {
   ArrowLeft,
   Calendar,
   ListChecks,
@@ -26,27 +37,46 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Pause,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { addDays, parseISO } from "date-fns";
+import { parseISO } from "date-fns";
 
-interface ScheduleTask {
-  id: string;
+// SmTask interface matching backend response
+interface SmTask {
+  id: number;
+  task_number: number;
   name: string;
   start_date: string;
   end_date: string;
-  status: string;
-  progress: number;
+  duration_days: number;
+  status: "not_started" | "started" | "completed";
+  progress_percentage: number;
+  trade?: string;
+  description?: string;
+  locked: boolean;
+  lock_type?: LockType;
+  confirm: boolean;
+  supplier_confirm: boolean;
+  manually_positioned: boolean;
+  is_hold_task: boolean;
+  hold_reason?: string;
+  purchase_order_id?: number;
+  supplier_id?: number;
+  sequence_order: number;
+  // Frontend-only: Local state for dependency management (backend uses SmDependency model)
   dependencies?: string[];
-  group_id?: string;
-  lock?: LockType;
-  po_matched?: boolean;
 }
 
-interface TaskGroup {
-  id: string;
-  name: string;
-  sort_order: number;
+interface SmTasksResponse {
+  success: boolean;
+  sm_tasks: SmTask[];
+  meta: {
+    total_count: number;
+    active_count: number;
+    hold_count: number;
+    completed_count: number;
+  };
 }
 
 interface Job {
@@ -56,22 +86,22 @@ interface Job {
   stage: string;
 }
 
-function mapTaskToFeature(task: ScheduleTask): GanttFeature {
+function mapTaskToFeature(task: SmTask): GanttFeature {
+  // Map SmTask status to Gantt status
   const statusMap: Record<string, typeof defaultStatuses[number]> = {
     not_started: defaultStatuses[0],
-    in_progress: defaultStatuses[1],
+    started: defaultStatuses[1],  // SmTask uses "started" not "in_progress"
     completed: defaultStatuses[2],
   };
 
   return {
-    id: task.id,
+    id: String(task.id),
     name: task.name,
     startAt: parseISO(task.start_date),
     endAt: parseISO(task.end_date),
     status: statusMap[task.status] || defaultStatuses[0],
-    progress: task.progress || 0,
-    dependencies: task.dependencies,
-    lock: task.lock,
+    progress: task.progress_percentage || 0,
+    lock: task.locked ? task.lock_type : undefined,
   };
 }
 
@@ -80,25 +110,31 @@ export default function ScheduleMasterPage() {
   const router = useRouter();
   const jobId = params.id as string;
 
+  const { toast } = useToast();
   const [job, setJob] = React.useState<Job | null>(null);
-  const [tasks, setTasks] = React.useState<ScheduleTask[]>([]);
-  const [taskGroups, setTaskGroups] = React.useState<TaskGroup[]>([]);
+  const [tasks, setTasks] = React.useState<SmTask[]>([]);
+  const [tasksMeta, setTasksMeta] = React.useState<SmTasksResponse["meta"] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [activeView, setActiveView] = React.useState<"gantt" | "list">("gantt");
   const [holdState] = React.useState<HoldState>({ isOnHold: false });
+
+  // Import modal state
+  const [importModalOpen, setImportModalOpen] = React.useState(false);
+  const [importFile, setImportFile] = React.useState<File | null>(null);
+  const [clearExisting, setClearExisting] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const fetchData = async () => {
       try {
         const [jobData, tasksData] = await Promise.all([
           api.get<Job>(`/api/v1/jobs/${jobId}`),
-          api.get<{ tasks: ScheduleTask[]; groups: TaskGroup[] }>(
-            `/api/v1/jobs/${jobId}/schedule_tasks`
-          ),
+          api.get<SmTasksResponse>(`/api/v1/jobs/${jobId}/sm_tasks`),
         ]);
         setJob(jobData);
-        setTasks(tasksData.tasks || []);
-        setTaskGroups(tasksData.groups || []);
+        setTasks(tasksData.sm_tasks || []);
+        setTasksMeta(tasksData.meta || null);
       } catch (error) {
         console.error("Failed to fetch schedule data:", error);
       } finally {
@@ -111,15 +147,90 @@ export default function ScheduleMasterPage() {
     }
   }, [jobId]);
 
+  // Refetch tasks after import
+  const refetchTasks = async () => {
+    try {
+      const tasksData = await api.get<SmTasksResponse>(`/api/v1/jobs/${jobId}/sm_tasks`);
+      setTasks(tasksData.sm_tasks || []);
+      setTasksMeta(tasksData.meta || null);
+    } catch (error) {
+      console.error("Failed to refetch tasks:", error);
+    }
+  };
+
+  // Handle file import
+  const handleImport = async () => {
+    if (!importFile) {
+      toast({ title: "Error", description: "Please select a file to import", variant: "destructive" });
+      return;
+    }
+
+    setImporting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", importFile);
+      if (clearExisting) {
+        formData.append("clear_existing", "true");
+      }
+
+      const response = await fetch(`/api/v1/jobs/${jobId}/sm_tasks/import`, {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast({
+          title: "Import Successful",
+          description: `Imported ${result.imported_count} tasks${result.dependencies_count ? ` and ${result.dependencies_count} dependencies` : ""}`,
+        });
+        setImportModalOpen(false);
+        setImportFile(null);
+        setClearExisting(false);
+        refetchTasks();
+      } else {
+        toast({
+          title: "Import Failed",
+          description: result.error || result.errors?.join(", ") || "Unknown error",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Import error:", error);
+      toast({
+        title: "Import Failed",
+        description: "An error occurred during import",
+        variant: "destructive",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Convert tasks to Gantt format
   const { features, groups, markers } = React.useMemo(() => {
-    const ungroupedTasks = tasks.filter((t) => !t.group_id);
+    // Group tasks by trade if available
+    const tradeGroups = new Map<string, SmTask[]>();
+    const ungroupedTasks: SmTask[] = [];
+
+    tasks.forEach((task) => {
+      if (task.trade) {
+        const existing = tradeGroups.get(task.trade) || [];
+        tradeGroups.set(task.trade, [...existing, task]);
+      } else {
+        ungroupedTasks.push(task);
+      }
+    });
+
     const features: GanttFeature[] = ungroupedTasks.map(mapTaskToFeature);
 
-    const groups: GanttGroup[] = taskGroups.map((group) => ({
-      id: group.id,
-      name: group.name,
-      features: tasks.filter((t) => t.group_id === group.id).map(mapTaskToFeature),
+    const groups: GanttGroup[] = Array.from(tradeGroups.entries()).map(([trade, tradeTasks]) => ({
+      id: trade,
+      name: trade,
+      features: tradeTasks.map(mapTaskToFeature),
     }));
 
     // Find key milestones for markers
@@ -135,19 +246,30 @@ export default function ScheduleMasterPage() {
     }
 
     return { features, groups, markers };
-  }, [tasks, taskGroups]);
+  }, [tasks]);
 
-  // Stats
+  // Stats - use meta from API or calculate from tasks
   const stats = React.useMemo(() => {
+    if (tasksMeta) {
+      return {
+        total: tasksMeta.total_count,
+        completed: tasksMeta.completed_count,
+        inProgress: tasksMeta.active_count - tasksMeta.hold_count,
+        notStarted: tasksMeta.total_count - tasksMeta.active_count - tasksMeta.completed_count,
+        holdCount: tasksMeta.hold_count,
+        poLinked: tasks.filter((t) => t.purchase_order_id).length,
+      };
+    }
+    // Fallback to calculating from tasks array
     const total = tasks.length;
     const completed = tasks.filter((t) => t.status === "completed").length;
-    const inProgress = tasks.filter((t) => t.status === "in_progress").length;
+    const started = tasks.filter((t) => t.status === "started").length;
     const notStarted = tasks.filter((t) => t.status === "not_started").length;
-    const matched = tasks.filter((t) => t.po_matched).length;
-    const unmatched = total - matched;
+    const holdCount = tasks.filter((t) => t.is_hold_task && t.status === "not_started").length;
+    const poLinked = tasks.filter((t) => t.purchase_order_id).length;
 
-    return { total, completed, inProgress, notStarted, matched, unmatched };
-  }, [tasks]);
+    return { total, completed, inProgress: started, notStarted, holdCount, poLinked };
+  }, [tasks, tasksMeta]);
 
   const getAllFeatures = React.useCallback(() => {
     const all: GanttFeature[] = [...features];
@@ -176,30 +298,39 @@ export default function ScheduleMasterPage() {
   );
 
   const handleFeatureUpdate = async (updatedFeature: GanttFeature) => {
-    // Update local state
+    const taskId = parseInt(updatedFeature.id);
+
+    // Update local state optimistically
     setTasks((prev) =>
       prev.map((task) =>
-        task.id === updatedFeature.id
+        task.id === taskId
           ? {
               ...task,
-              start_date: updatedFeature.startAt.toISOString(),
-              end_date: updatedFeature.endAt.toISOString(),
+              start_date: updatedFeature.startAt.toISOString().split("T")[0],
+              end_date: updatedFeature.endAt.toISOString().split("T")[0],
             }
           : task
       )
     );
 
-    // TODO: Save to API
-    // await api.patch(`/api/v1/schedule_tasks/${updatedFeature.id}`, {
-    //   start_date: updatedFeature.startAt.toISOString(),
-    //   end_date: updatedFeature.endAt.toISOString(),
-    // });
+    // Save to SmTask API
+    try {
+      await api.patch(`/api/v1/sm_tasks/${taskId}`, {
+        sm_task: {
+          start_date: updatedFeature.startAt.toISOString().split("T")[0],
+          end_date: updatedFeature.endAt.toISOString().split("T")[0],
+        },
+      });
+    } catch (error) {
+      console.error("Failed to update task:", error);
+      // TODO: Revert optimistic update on error
+    }
   };
 
   const handleCreateDependency = async (fromId: string, toId: string) => {
     setTasks((prev) =>
       prev.map((task) => {
-        if (task.id === toId) {
+        if (String(task.id) === toId) {
           const deps = task.dependencies || [];
           if (!deps.includes(fromId)) {
             return { ...task, dependencies: [...deps, fromId] };
@@ -235,7 +366,8 @@ export default function ScheduleMasterPage() {
 
     setTasks((prev) =>
       prev.map((task) => {
-        if (task.id === sourceFeature.id) {
+        const taskIdStr = String(task.id);
+        if (taskIdStr === sourceFeature.id) {
           return {
             ...task,
             start_date: sourceFeature.startAt.toISOString(),
@@ -245,14 +377,14 @@ export default function ScheduleMasterPage() {
 
         let updated = { ...task };
 
-        const resolution = resolutions.find((r) => r.featureId === task.id);
+        const resolution = resolutions.find((r) => r.featureId === taskIdStr);
         if (resolution?.action === "unlink") {
           updated.dependencies = (updated.dependencies || []).filter(
             (depId) => depId !== sourceFeature.id
           );
         }
 
-        if (tasksToMove.has(task.id) && timeShift !== 0) {
+        if (tasksToMove.has(taskIdStr) && timeShift !== 0) {
           updated = {
             ...updated,
             start_date: new Date(parseISO(task.start_date).getTime() + timeShift).toISOString(),
@@ -260,8 +392,9 @@ export default function ScheduleMasterPage() {
           };
         }
 
-        if (tasksToUnlock.has(task.id)) {
-          updated.lock = undefined;
+        if (tasksToUnlock.has(taskIdStr)) {
+          updated.locked = false;
+          updated.lock_type = undefined;
         }
 
         return updated;
@@ -293,7 +426,7 @@ export default function ScheduleMasterPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => setImportModalOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />
             Import Schedule
           </Button>
@@ -333,7 +466,7 @@ export default function ScheduleMasterPage() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <AlertTriangle className="h-4 w-4 text-gray-400" />
               <span className="text-sm text-muted-foreground">Not Started</span>
             </div>
             <p className="text-2xl font-bold mt-1">{stats.notStarted}</p>
@@ -342,19 +475,19 @@ export default function ScheduleMasterPage() {
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">PO Matched</span>
+              <Pause className="h-4 w-4 text-orange-500" />
+              <span className="text-sm text-muted-foreground">On Hold</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.matched}</p>
+            <p className="text-2xl font-bold mt-1">{stats.holdCount}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-orange-500" />
-              <span className="text-sm text-muted-foreground">Unmatched</span>
+              <CheckCircle2 className="h-4 w-4 text-indigo-500" />
+              <span className="text-sm text-muted-foreground">PO Linked</span>
             </div>
-            <p className="text-2xl font-bold mt-1">{stats.unmatched}</p>
+            <p className="text-2xl font-bold mt-1">{stats.poLinked}</p>
           </CardContent>
         </Card>
       </div>
@@ -421,7 +554,7 @@ export default function ScheduleMasterPage() {
                           className={`w-2 h-2 rounded-full ${
                             task.status === "completed"
                               ? "bg-green-500"
-                              : task.status === "in_progress"
+                              : task.status === "started"
                               ? "bg-blue-500"
                               : "bg-gray-300"
                           }`}
@@ -433,17 +566,18 @@ export default function ScheduleMasterPage() {
                           {new Date(task.start_date).toLocaleDateString("en-AU")} -{" "}
                           {new Date(task.end_date).toLocaleDateString("en-AU")}
                         </span>
-                        {task.po_matched && <Badge variant="secondary">PO Matched</Badge>}
+                        {task.purchase_order_id && <Badge variant="secondary">PO Linked</Badge>}
+                        {task.is_hold_task && <Badge variant="outline" className="text-orange-500 border-orange-500">On Hold</Badge>}
                         <Badge
                           variant={
                             task.status === "completed"
                               ? "default"
-                              : task.status === "in_progress"
+                              : task.status === "started"
                               ? "secondary"
                               : "outline"
                           }
                         >
-                          {task.status.replace("_", " ")}
+                          {task.status === "not_started" ? "Not Started" : task.status === "started" ? "In Progress" : "Completed"}
                         </Badge>
                       </div>
                     </div>
@@ -471,6 +605,68 @@ export default function ScheduleMasterPage() {
           </div>
         ))}
       </div>
+
+      {/* Import Modal */}
+      <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Schedule</DialogTitle>
+            <DialogDescription>
+              Import tasks from an Excel (.xlsx, .xls) or CSV file. The file should have columns for
+              task name, dates, duration, and optionally predecessors.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="import-file">Select File</Label>
+              <input
+                ref={fileInputRef}
+                id="import-file"
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              {importFile && (
+                <p className="text-sm text-muted-foreground">{importFile.name}</p>
+              )}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="clear-existing"
+                checked={clearExisting}
+                onCheckedChange={setClearExisting}
+              />
+              <Label htmlFor="clear-existing" className="text-sm">
+                Clear existing tasks before import
+              </Label>
+            </div>
+            {clearExisting && (
+              <p className="text-sm text-orange-500">
+                Warning: This will delete all existing tasks for this job before importing.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleImport} disabled={!importFile || importing}>
+              {importing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

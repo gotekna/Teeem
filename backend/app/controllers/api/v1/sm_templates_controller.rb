@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :set_default, :copy_to_job ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job ]
 
       # GET /api/v1/sm_templates
       def index
@@ -64,6 +64,38 @@ module Api
         @template.update!(is_active: false, updated_by: current_user)
 
         render json: { success: true, message: "Template archived" }
+      end
+
+      # POST /api/v1/sm_templates/:id/duplicate
+      # Creates a copy of the template with all its rows
+      def duplicate
+        new_template = SmTemplate.new(
+          name: "#{@template.name} (Copy)",
+          description: @template.description,
+          is_default: false,
+          is_active: true,
+          created_by: current_user
+        )
+
+        if new_template.save
+          # Copy all rows
+          @template.sm_template_rows.ordered.each do |row|
+            new_row = row.dup
+            new_row.sm_template = new_template
+            new_row.save!
+          end
+
+          render json: {
+            success: true,
+            sm_template: template_json(new_template),
+            message: "Template duplicated successfully"
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: new_template.errors.full_messages
+          }, status: :unprocessable_entity
+        end
       end
 
       # POST /api/v1/sm_templates/:id/set_default

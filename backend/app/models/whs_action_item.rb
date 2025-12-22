@@ -3,7 +3,12 @@ class WHSActionItem < ApplicationRecord
   belongs_to :actionable, polymorphic: true
   belongs_to :assigned_to_user, class_name: "User", optional: true
   belongs_to :created_by, class_name: "User"
+
+  # DEPRECATED: Old task system - will be removed after Phase 5 migration
   belongs_to :project_task, optional: true
+
+  # NEW: SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
 
   # Constants
   ACTION_TYPES = %w[immediate short_term long_term preventative].freeze
@@ -18,7 +23,9 @@ class WHSActionItem < ApplicationRecord
 
   # Callbacks
   after_create :create_project_task_if_needed
+  after_create :create_sm_task_if_needed  # NEW: SSoT task creation
   after_save :sync_with_project_task
+  after_save :sync_with_sm_task  # NEW: SSoT task sync
   before_save :set_completion_timestamp
 
   # Scopes
@@ -180,6 +187,77 @@ class WHSActionItem < ApplicationRecord
       "completed"
     when "cancelled"
       "cancelled"
+    else
+      "not_started"
+    end
+  end
+
+  # NEW: SmTask (SSoT) task creation
+  def create_sm_task_if_needed
+    return if sm_task.present?
+    return unless assigned_to_user.present?
+
+    # Find the related job (construction)
+    job = find_related_job
+    return unless job
+
+    task = job.sm_tasks.create!(
+      name: "WHS: #{title}",
+      description: description,
+      trade: "WHS",
+      stage: source_type,
+      status: status_for_sm_task,
+      assigned_user: assigned_to_user,
+      start_date: CorporateCompanySetting.today,
+      end_date: due_date || CorporateCompanySetting.today + 7.days,
+      duration_days: due_date ? [(due_date - CorporateCompanySetting.today).to_i, 1].max : 7,
+      created_by: created_by
+    )
+    update_column(:sm_task_id, task.id)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to create SmTask for action item #{id}: #{e.message}")
+    # Don't fail the action item creation if task creation fails
+  end
+
+  # NEW: SmTask sync
+  def sync_with_sm_task
+    return unless sm_task.present?
+    return unless saved_change_to_status? || saved_change_to_due_date?
+
+    sm_task.update(
+      status: status_for_sm_task,
+      end_date: due_date
+    )
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to sync SmTask for action item #{id}: #{e.message}")
+  end
+
+  def find_related_job
+    # Find the job (construction) related to this action item
+    case actionable_type
+    when "WhsInspection"
+      actionable.job
+    when "WhsIncident"
+      actionable.job
+    when "WhsSwmsHazard"
+      actionable.whs_swms&.job
+    else
+      nil
+    end
+  rescue StandardError
+    nil
+  end
+
+  def status_for_sm_task
+    case status
+    when "open"
+      "not_started"
+    when "in_progress"
+      "started"  # SmTask uses "started" not "in_progress"
+    when "completed"
+      "completed"
+    when "cancelled"
+      "completed"  # No cancelled in SmTask, mark as completed
     else
       "not_started"
     end

@@ -5,6 +5,12 @@ class WHSSWMS < ApplicationRecord
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :superseded_by, class_name: "WHSSWMS", optional: true
 
+  # DEPRECATED: Old task system - will be removed after Phase 5 migration
+  # See: create_swms_approval_task callback
+
+  # NEW: SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
+
   has_many :whs_swms_hazards, dependent: :destroy
   has_many :whs_swms_controls, through: :whs_swms_hazards
   has_many :whs_swms_acknowledgments, dependent: :destroy
@@ -35,6 +41,8 @@ class WHSSWMS < ApplicationRecord
   before_save :update_approval_timestamp
   before_save :update_superseded_timestamp
   after_create :create_approval_task_if_needed
+  after_create :create_sm_task_if_needed  # NEW: SSoT task creation
+  after_save :sync_with_sm_task           # NEW: SSoT task sync
 
   # Scopes
   scope :draft, -> { where(status: "draft") }
@@ -234,6 +242,63 @@ class WHSSWMS < ApplicationRecord
   def cannot_approve_own_swms
     if status_changed? && status == "approved" && approved_by_id == created_by_id
       errors.add(:base, "Cannot approve your own SWMS unless you are a WPHS Appointee")
+    end
+  end
+
+  # NEW: SmTask (SSoT) task creation
+  def create_sm_task_if_needed
+    return if sm_task.present?
+    return unless job.present?
+
+    # If created by WPHS Appointee, auto-approved - no task needed
+    return if created_by.wphs_appointee?
+
+    # Find WPHS Appointee for assignment
+    wphs_appointee = User.where(wphs_appointee: true).first
+    return unless wphs_appointee.present?
+
+    task = job.sm_tasks.create!(
+      name: "WHS: Approve SWMS #{swms_number}",
+      description: "Review and approve: #{title}",
+      trade: "WHS",
+      stage: "SWMS Approval",
+      status: status_for_sm_task,
+      assigned_user: wphs_appointee,
+      start_date: CorporateCompanySetting.today,
+      end_date: CorporateCompanySetting.today + 2.days,
+      duration_days: 1,
+      created_by: created_by
+    )
+    update_column(:sm_task_id, task.id)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to create SmTask for SWMS #{id}: #{e.message}")
+    # Don't fail SWMS creation if task creation fails
+  end
+
+  # NEW: SmTask sync
+  def sync_with_sm_task
+    return unless sm_task.present?
+    return unless saved_change_to_status?
+
+    sm_task.update(status: status_for_sm_task)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to sync SmTask for SWMS #{id}: #{e.message}")
+  end
+
+  def status_for_sm_task
+    case status
+    when "draft"
+      "not_started"
+    when "pending_approval"
+      "started"  # SmTask uses "started" not "in_progress"
+    when "approved"
+      "completed"
+    when "rejected"
+      "completed"  # Rejected = done, just not approved
+    when "superseded"
+      "completed"  # Superseded = done
+    else
+      "not_started"
     end
   end
 end

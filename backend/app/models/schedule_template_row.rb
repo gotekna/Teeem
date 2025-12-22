@@ -1,4 +1,11 @@
+# DEPRECATED: Use SmTemplateRow instead
+# This model is being replaced by SmTemplateRow as part of SSoT consolidation.
+# Data has been migrated. This model will be removed in a future release.
 class ScheduleTemplateRow < ApplicationRecord
+  include Deprecatable
+
+  after_find { log_deprecation("ScheduleTemplateRow is deprecated. Use SmTemplateRow instead.") }
+
   belongs_to :schedule_template
   belongs_to :supplier, class_name: "Contact", foreign_key: "supplier_id", optional: true  # Supplier contact, only required if po_required is true
   belongs_to :linked_template, class_name: "ScheduleTemplate", optional: true

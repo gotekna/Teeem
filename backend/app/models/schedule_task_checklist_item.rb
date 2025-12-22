@@ -1,4 +1,10 @@
+# DEPRECATED: Part of the deprecated ScheduleTask system.
+# This will be removed when ScheduleTask is removed.
 class ScheduleTaskChecklistItem < ApplicationRecord
+  include Deprecatable
+
+  after_find { log_deprecation("ScheduleTaskChecklistItem is deprecated along with ScheduleTask.") }
+
   belongs_to :schedule_task
 
   validates :name, presence: true

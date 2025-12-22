@@ -9,8 +9,6 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -21,6 +19,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SetupTable } from "@/components/ui/setup-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,8 +41,6 @@ import {
   Layers,
   MapPin,
   Search,
-  Filter,
-  Building,
   Percent,
   Receipt,
 } from "lucide-react";
@@ -124,239 +121,6 @@ const SEQ_COUNCILS = [
   "Toowoomba Regional Council",
 ];
 
-// Individual sortable item component - uses standard DnD primitives
-function SortableItem<T extends { id: number; name: string; color?: string; position: number }>({
-  item,
-  index,
-  totalItems,
-  onEdit,
-  onDelete,
-  onPositionChange,
-}: {
-  item: T;
-  index: number;
-  totalItems: number;
-  onEdit: (item: T) => void;
-  onDelete: (id: number) => void;
-  onPositionChange: (newPosition: number) => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-    isOver,
-  } = useSortable({ id: item.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "flex items-center gap-2 p-2 rounded-md border bg-background transition-all relative",
-        isDragging && "opacity-50 shadow-lg scale-[1.02] z-50 border-primary bg-primary/5",
-        isOver && !isDragging && "border-t-4 border-t-primary pt-4 mt-1"
-      )}
-    >
-      {/* DnD Primitives: DragHandle + ItemBadge */}
-      <DragHandle {...attributes} {...listeners} size="sm" />
-      <ItemBadge
-        position={index + 1}
-        editable
-        onPositionChange={onPositionChange}
-        maxPosition={totalItems}
-        size="sm"
-      />
-
-      {/* Color indicator */}
-      {item.color && (
-        <div
-          className="w-3 h-3 rounded-full shrink-0"
-          style={{ backgroundColor: item.color }}
-        />
-      )}
-
-      {/* Item name */}
-      <span className="flex-1 text-sm truncate">{item.name}</span>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => onEdit(item)}
-        >
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7 text-destructive hover:text-destructive"
-          onClick={() => onDelete(item.id)}
-        >
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// Main sortable list with DndContext
-function SortableList<T extends { id: number; name: string; color?: string; position: number }>({
-  items,
-  title,
-  icon: Icon,
-  onAdd,
-  onEdit,
-  onDelete,
-  onReorder,
-  loading,
-}: {
-  items: T[];
-  title: string;
-  icon: typeof Briefcase;
-  onAdd: () => void;
-  onEdit: (item: T) => void;
-  onDelete: (id: number) => void;
-  onReorder: (items: T[]) => void;
-  loading: boolean;
-}) {
-  const [activeId, setActiveId] = React.useState<number | null>(null);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const sortedItems = React.useMemo(
-    () => [...items].sort((a, b) => a.position - b.position),
-    [items]
-  );
-
-  const activeItem = activeId ? sortedItems.find((item) => item.id === activeId) : null;
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as number);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (over && active.id !== over.id) {
-      const oldIndex = sortedItems.findIndex((item) => item.id === active.id);
-      const newIndex = sortedItems.findIndex((item) => item.id === over.id);
-
-      const newItems = arrayMove(sortedItems, oldIndex, newIndex);
-      // Update positions
-      newItems.forEach((item, i) => {
-        item.position = i + 1;
-      });
-      onReorder(newItems);
-    }
-  };
-
-  const handlePositionChange = (itemId: number, newPosition: number) => {
-    const currentIndex = sortedItems.findIndex((item) => item.id === itemId);
-    if (currentIndex === -1) return;
-
-    const newIndex = newPosition - 1;
-    if (newIndex < 0 || newIndex >= sortedItems.length) return;
-
-    const newItems = arrayMove(sortedItems, currentIndex, newIndex);
-    newItems.forEach((item, i) => {
-      item.position = i + 1;
-    });
-    onReorder(newItems);
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon className="h-5 w-5 text-muted-foreground" />
-            <CardTitle className="text-base">{title}</CardTitle>
-          </div>
-          <Button size="sm" onClick={onAdd}>
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <div className="flex items-center justify-center h-32">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : !Array.isArray(items) || items.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No items yet. Click Add to create one.
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={sortedItems.map((item) => item.id)}
-              strategy={verticalListSortingStrategy}
-            >
-              <div className="space-y-1">
-                {sortedItems.map((item, index) => (
-                  <SortableItem
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    totalItems={sortedItems.length}
-                    onEdit={onEdit}
-                    onDelete={onDelete}
-                    onPositionChange={(newPos) => handlePositionChange(item.id, newPos)}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {activeItem ? (
-                <div className="flex items-center gap-2 p-2 rounded-md border bg-background shadow-lg scale-[1.02] border-primary">
-                  <DragHandle size="sm" />
-                  <ItemBadge
-                    position={sortedItems.findIndex((i) => i.id === activeItem.id) + 1}
-                    size="sm"
-                    color="primary"
-                  />
-                  {activeItem.color && (
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: activeItem.color }}
-                    />
-                  )}
-                  <span className="flex-1 text-sm">{activeItem.name}</span>
-                </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 // Claim Stage Item (sortable)
 function ClaimStageItem({
@@ -870,33 +634,42 @@ export function JobSetupTab() {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 md:grid-cols-3">
-        <SortableList
+        <SetupTable
           items={jobTypes}
           title="Job Types"
           icon={Briefcase}
+          getLabel={(item) => item.name}
+          getColor={(item) => item.color}
+          getIsActive={(item) => item.active}
           onAdd={() => handleOpenAddDialog("type")}
           onEdit={(item) => handleOpenEditDialog(item, "type")}
-          onDelete={(id) => handleDelete(id, "type")}
+          onDelete={(item) => handleDelete(item.id, "type")}
           onReorder={(items) => handleReorder(items, "type")}
           loading={loading}
         />
-        <SortableList
+        <SetupTable
           items={jobStatuses}
           title="Job Statuses"
           icon={ListChecks}
+          getLabel={(item) => item.name}
+          getColor={(item) => item.color}
+          getIsActive={(item) => item.active}
           onAdd={() => handleOpenAddDialog("status")}
           onEdit={(item) => handleOpenEditDialog(item, "status")}
-          onDelete={(id) => handleDelete(id, "status")}
+          onDelete={(item) => handleDelete(item.id, "status")}
           onReorder={(items) => handleReorder(items, "status")}
           loading={loading}
         />
-        <SortableList
+        <SetupTable
           items={jobStages}
           title="Job Stages"
           icon={Layers}
+          getLabel={(item) => item.name}
+          getColor={(item) => item.color}
+          getIsActive={(item) => item.active}
           onAdd={() => handleOpenAddDialog("stage")}
           onEdit={(item) => handleOpenEditDialog(item, "stage")}
-          onDelete={(id) => handleDelete(id, "stage")}
+          onDelete={(item) => handleDelete(item.id, "stage")}
           onReorder={(items) => handleReorder(items, "stage")}
           loading={loading}
         />

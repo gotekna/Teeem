@@ -1,7 +1,7 @@
 // EntityTab types - SSoT for unified tab configuration
 // Matches backend EntityTab model exactly
 
-export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'document' | 'xero';
+export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'xero';
 
 export type TabGroup = 'overview' | 'documents';
 
@@ -91,7 +91,6 @@ export const SCOPE_LABELS: Record<EntityTabScope, string> = {
   corporate_entity: 'Corporate Entity',
   people: 'People',
   job: 'Job',
-  document: 'Document Folders',
   xero: 'Xero',
 };
 

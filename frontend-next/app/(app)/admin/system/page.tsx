@@ -67,7 +67,7 @@ import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
 import { PerformanceTab } from "./components/PerformanceTab";
 import { DocumentTypesTab } from "./components/DocumentTypesTab";
 import { ContactTypesTab } from "./components/ContactTypesTab";
-import { FoldersTabsConfigTab } from "./components/FoldersTabsConfigTab";
+// FoldersTabsConfigTab removed - use Entity Configuration > Corporate > Documents (SSoT)
 import { WarehouseTab } from "./components/WarehouseTab";
 import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
@@ -76,7 +76,7 @@ import { PlansTab } from "./components/PlansTab";
 import { SharePointTab } from "./components/SharePointTab";
 import { ScheduledJobsTab } from "./components/ScheduledJobsTab";
 import { NavigationTab } from "./components/NavigationTab";
-import { JobTabsConfigTab } from "./components/JobTabsConfigTab";
+// Old JobTabsConfigTab removed - jobs now use Entity Configuration > Jobs (EntityTab SSoT)
 import { EntityConfigurationTab } from "./components/EntityConfigurationTab";
 import { PdfFieldsTab } from "./components/PdfFieldsTab";
 import { AiProcessingTab } from "./components/AiProcessingTab";
@@ -106,7 +106,6 @@ const MAIN_TABS = [
   { id: "components", label: "Components", icon: Star },
   { id: "developer-tools", label: "Developer Tools", icon: Wrench },
   { id: "navigation", label: "Navigation", icon: Menu },
-  { id: "job-tabs", label: "Job Tabs", icon: FileText },
   { id: "entity-config", label: "Entity Configuration", icon: Settings2 },
   { id: "plans", label: "Plans", icon: Map },
   { id: "schedule-master", label: "Schedule Master", icon: CalendarDays },
@@ -854,9 +853,6 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="navigation" className="flex-1 min-h-0 overflow-auto">
             <NavigationTab />
-          </TabsContent>
-          <TabsContent value="job-tabs" className="flex-1 min-h-0 overflow-auto">
-            <JobTabsConfigTab />
           </TabsContent>
           <TabsContent value="entity-config" className="flex-1 min-h-0 overflow-auto">
             <EntityConfigurationTab onClose={() => handleTabChange("company")} />

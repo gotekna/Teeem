@@ -1,239 +1,284 @@
 # frozen_string_literal: true
 
-# SmTemplateCopyService - Copies an SmTemplate to a construction as SmTasks
+# SmTemplateCopyService - Copies an SmTemplate to a Job as SmTasks
+#
+# This is a critical service that instantiates a template into actual tasks.
+# It handles:
+# - Creating SmTask records from SmTemplateRow records
+# - Creating SmDependency records based on predecessor relationships
+# - Calculating start/end dates based on dependencies
+# - Optionally creating Purchase Orders for tasks that require them
 #
 # Usage:
-#   result = SmTemplateCopyService.new(template, construction, options).execute
+#   result = SmTemplateCopyService.new(template, job, options).execute
 #
 # Options:
-#   start_date: Date to start the schedule (default: Date.current)
-#   user: User performing the action (for audit trail)
-#   clear_existing: Boolean to delete existing tasks first (default: false)
-#
-# Returns:
-#   { success: true, tasks: [...], dependencies: [...], summary: {...} }
-#   or
-#   { success: false, errors: [...] }
+#   user: User performing the copy (for audit trail)
+#   start_date: The start date for the first task (default: today)
+#   clear_existing: Clear existing tasks before copying (default: false)
+#   create_purchase_orders: Create POs for tasks marked with create_po_on_job_start (default: false)
 #
 class SmTemplateCopyService
-  attr_reader :template, :construction, :options, :errors
+  attr_reader :template, :job, :options, :errors
 
-  def initialize(template, construction, options = {})
+  def initialize(template, job, options = {})
     @template = template
-    @construction = construction
+    @job = job
     @options = options.with_indifferent_access
     @errors = []
     @created_tasks = []
     @created_dependencies = []
-    @task_number_to_task_map = {} # Maps template task_number to created SmTask
+    @task_number_map = {} # Maps template row task_number to created SmTask
+    @row_map = {}         # Maps template row id to SmTemplateRow
   end
 
   def execute
     return failure("Template is required") unless template.present?
-    return failure("Construction (Job) is required") unless construction.present?
+    return failure("Job is required") unless job.present?
+
+    # Build row lookup map
+    template.sm_template_rows.active.in_sequence.each do |row|
+      @row_map[row.id] = row
+    end
+
+    return failure("Template has no active rows") if @row_map.empty?
 
     ActiveRecord::Base.transaction do
       clear_existing_tasks if options[:clear_existing]
-      create_tasks_from_template
+
+      # First pass: Create all tasks
+      create_tasks
+
+      # Second pass: Create dependencies
       create_dependencies
 
-      if errors.any?
+      # Third pass: Calculate dates based on dependencies
+      calculate_dates
+
+      if @errors.any?
         raise ActiveRecord::Rollback
       end
     end
 
-    if errors.any?
-      failure(errors.join(", "))
+    if @errors.any?
+      failure(@errors.join("; "))
     else
       success
     end
   rescue StandardError => e
     Rails.logger.error "SmTemplateCopyService error: #{e.message}\n#{e.backtrace.first(10).join("\n")}"
-    failure("Failed to copy template: #{e.message}")
+    failure("Copy failed: #{e.message}")
   end
 
   private
-
-  def start_date
-    @start_date ||= (options[:start_date] || Date.current).to_date
-  end
 
   def user
     @user ||= options[:user]
   end
 
+  def start_date
+    @start_date ||= begin
+      date = options[:start_date]
+      case date
+      when Date then date
+      when String then Date.parse(date)
+      else Date.current
+      end
+    end
+  end
+
   def clear_existing_tasks
-    existing_count = construction.sm_tasks.count
-    construction.sm_tasks.destroy_all
-    Rails.logger.info "SmTemplateCopyService: Cleared #{existing_count} existing tasks"
+    count = job.sm_tasks.count
+    job.sm_tasks.destroy_all
+    Rails.logger.info "SmTemplateCopyService: Cleared #{count} existing tasks for job #{job.id}"
   end
 
-  def create_tasks_from_template
-    rows = template.ordered_rows
-    return if rows.empty?
+  def create_tasks
+    sequence = 0
+    max_task_number = job.sm_tasks.maximum(:task_number) || 0
 
-    # First pass: Create all tasks (without dependencies)
-    rows.each_with_index do |row, index|
-      task = create_task_from_row(row, index)
-      if task.persisted?
+    @row_map.values.sort_by(&:sequence_order).each do |row|
+      sequence += 1
+      task_number = max_task_number + sequence
+
+      task = SmTask.new(
+        construction_id: job.id,
+        sm_template_row_id: row.id,  # Link to SSoT template row
+        name: row.name,
+        description: row.description,
+        task_number: task_number,
+        sequence_order: sequence,
+        duration_days: row.duration_days,
+        trade: row.trade,
+        stage: row.stage,
+        supplier_id: row.supplier_id,
+        checklist_id: row.checklist_id,
+        status: "not_started",
+        # Spawn/cert settings from template
+        spawn_type: row.spawn_type,
+        spawn_on: row.spawn_on,
+        spawn_per_item: row.spawn_per_item,
+        spawn_prefix: row.spawn_prefix,
+        cert_lag_days: row.cert_lag_days,
+        has_subtasks: row.has_subtasks,
+        subtask_count: row.subtask_count,
+        subtask_names: row.subtask_names,
+        require_photo: row.require_photo,
+        require_voice_note: row.require_voice_note,
+        po_required: row.po_required,
+        assignable_role: row.assignable_role,
+        tags: row.tags,
+        # Start with template row start_date offset, will be calculated later
+        start_date: start_date,
+        end_date: start_date + (row.duration_days - 1).days,
+        # Audit
+        created_by: user,
+        updated_by: user
+      )
+
+      if task.save
         @created_tasks << task
-        @task_number_to_task_map[row.task_number] = task
+        @task_number_map[row.task_number] = task
+        Rails.logger.debug "SmTemplateCopyService: Created task #{task.task_number}: #{task.name}"
       else
-        errors << "Failed to create task '#{row.name}': #{task.errors.full_messages.join(', ')}"
+        @errors << "Row '#{row.name}': #{task.errors.full_messages.join(', ')}"
       end
     end
-  end
-
-  def create_task_from_row(row, index)
-    # Calculate task dates
-    task_start_date = calculate_task_start_date(row, index)
-    task_end_date = task_start_date + (row.duration_days - 1).days
-
-    SmTask.create!(
-      # Core fields - using job_id (not construction_id, per schema)
-      job_id: construction.id,
-      name: row.name,
-      task_number: row.task_number,
-      sequence_order: row.sequence_order,
-
-      # Dates
-      start_date: task_start_date,
-      end_date: task_end_date,
-      duration_days: row.duration_days,
-
-      # Status
-      status: "not_started",
-
-      # From template row
-      trade: row.trade,
-      stage: row.stage,
-      description: row.description,
-
-      # Supplier (if specified in template)
-      supplier_id: row.supplier_id,
-
-      # Photo requirements
-      require_photo: row.require_photo || false,
-
-      # Certification
-      require_certificate: row.require_certificate || false,
-      require_supervisor_check: row.require_supervisor_check || false,
-
-      # PO
-      po_required: row.po_required || false,
-      critical_po: row.critical_po || false,
-
-      # Spawning
-      spawn_photo_task: row.spawn_photo_task || false,
-      spawn_scan_task: row.spawn_scan_task || false,
-      spawn_office_tasks: row.spawn_office_tasks || [],
-      pass_fail_enabled: row.pass_fail_enabled || false,
-
-      # Timing
-      order_time_days: row.order_time_days,
-      call_time_days: row.call_time_days,
-
-      # Checklist
-      checklist_id: row.checklist_id,
-
-      # Documentation
-      documentation_category_ids: row.documentation_category_ids || [],
-      show_in_docs_tab: row.show_in_docs_tab || false,
-      linked_task_ids: [], # Will be populated when dependencies are created
-
-      # Parent task (if hierarchical)
-      parent_task_id: resolve_parent_task_id(row),
-
-      # Template reference (for tracking which template row created this)
-      template_row_id: row.id,
-
-      # Audit
-      created_by_id: user&.id,
-      updated_by_id: user&.id
-    )
-  rescue ActiveRecord::RecordInvalid => e
-    # Return an unsaved task with errors for the caller to handle
-    task = SmTask.new
-    task.errors.add(:base, e.message)
-    task
-  end
-
-  def calculate_task_start_date(row, _index)
-    # If row has predecessors, we'll calculate based on predecessor end dates later
-    # For now, use start_date + offset
-    # In a more advanced version, we'd use a forward pass scheduling algorithm
-
-    if row.predecessor_ids.present? && row.predecessor_ids.any?
-      # For tasks with predecessors, calculate based on max predecessor end date
-      # This is a simplified version - full implementation would handle all dependency types
-      predecessor_task_numbers = row.predecessor_ids.map { |p| p["id"] || p[:id] }
-      predecessor_tasks = predecessor_task_numbers.map { |tn| @task_number_to_task_map[tn] }.compact
-
-      if predecessor_tasks.any?
-        max_end_date = predecessor_tasks.map(&:end_date).max
-        # FS (Finish-to-Start) is default - start after predecessor ends
-        # Add lag if specified
-        first_pred = row.predecessor_ids.first
-        lag = (first_pred["lag"] || first_pred[:lag] || 0).to_i
-        return max_end_date + 1.day + lag.days
-      end
-    end
-
-    # No predecessors or predecessors not found - use start_date
-    start_date
-  end
-
-  def resolve_parent_task_id(row)
-    return nil unless row.parent_row_id.present?
-
-    parent_row = template.sm_template_rows.find_by(id: row.parent_row_id)
-    return nil unless parent_row
-
-    @task_number_to_task_map[parent_row.task_number]&.id
   end
 
   def create_dependencies
-    template.ordered_rows.each do |row|
-      next unless row.predecessor_ids.present?
+    @row_map.values.each do |row|
+      next if row.predecessor_ids.blank?
 
-      successor_task = @task_number_to_task_map[row.task_number]
+      successor_task = @task_number_map[row.task_number]
       next unless successor_task
 
       row.predecessor_ids.each do |pred_data|
         pred_task_number = pred_data["id"] || pred_data[:id]
-        predecessor_task = @task_number_to_task_map[pred_task_number]
+        predecessor_task = @task_number_map[pred_task_number]
         next unless predecessor_task
 
-        dependency = SmDependency.create(
+        dep_type = pred_data["type"] || pred_data[:type] || "FS"
+        lag_days = (pred_data["lag"] || pred_data[:lag] || 0).to_i
+
+        dependency = SmDependency.new(
           predecessor_task_id: predecessor_task.id,
           successor_task_id: successor_task.id,
-          dependency_type: pred_data["type"] || pred_data[:type] || "FS",
-          lag_days: (pred_data["lag"] || pred_data[:lag] || 0).to_i,
+          dependency_type: dep_type,
+          lag_days: lag_days,
           active: true,
-          created_by_id: user&.id
+          created_by: user
         )
 
-        if dependency.persisted?
+        if dependency.save
           @created_dependencies << dependency
+          Rails.logger.debug "SmTemplateCopyService: Created dependency #{predecessor_task.task_number} -> #{successor_task.task_number}"
         else
-          errors << "Failed to create dependency: #{dependency.errors.full_messages.join(', ')}"
+          @errors << "Dependency #{predecessor_task.name} -> #{successor_task.name}: #{dependency.errors.full_messages.join(', ')}"
         end
       end
     end
   end
 
+  def calculate_dates
+    # Sort tasks by their dependencies using topological sort
+    sorted_tasks = topological_sort(@created_tasks)
+
+    sorted_tasks.each do |task|
+      # Calculate earliest start based on predecessors
+      earliest_start = calculate_earliest_start(task)
+      task.start_date = earliest_start
+      task.end_date = earliest_start + (task.duration_days - 1).days
+      task.save!
+    end
+  end
+
+  def calculate_earliest_start(task)
+    predecessor_deps = SmDependency.where(successor_task_id: task.id, active: true).includes(:predecessor_task)
+
+    if predecessor_deps.empty?
+      return start_date
+    end
+
+    earliest = predecessor_deps.map do |dep|
+      pred = dep.predecessor_task
+      case dep.dependency_type
+      when "FS" # Finish-to-Start: successor starts after predecessor ends
+        pred.end_date + 1.day + dep.lag_days.days
+      when "SS" # Start-to-Start: successor starts when predecessor starts
+        pred.start_date + dep.lag_days.days
+      when "FF" # Finish-to-Finish: successor ends when predecessor ends
+        pred.end_date - (task.duration_days - 1).days + dep.lag_days.days
+      when "SF" # Start-to-Finish: successor ends when predecessor starts
+        pred.start_date - (task.duration_days - 1).days + dep.lag_days.days
+      else
+        pred.end_date + 1.day + dep.lag_days.days
+      end
+    end.max
+
+    # Ensure we don't go before the project start date
+    [earliest, start_date].max
+  end
+
+  def topological_sort(tasks)
+    # Build dependency graph
+    task_by_id = tasks.index_by(&:id)
+    in_degree = Hash.new(0)
+    adjacency = Hash.new { |h, k| h[k] = [] }
+
+    tasks.each do |task|
+      in_degree[task.id] ||= 0
+    end
+
+    SmDependency.where(successor_task_id: tasks.map(&:id), active: true).find_each do |dep|
+      next unless task_by_id[dep.predecessor_task_id] # predecessor must be in our set
+
+      adjacency[dep.predecessor_task_id] << dep.successor_task_id
+      in_degree[dep.successor_task_id] += 1
+    end
+
+    # Kahn's algorithm
+    queue = tasks.select { |t| in_degree[t.id] == 0 }
+    sorted = []
+
+    while queue.any?
+      task = queue.shift
+      sorted << task
+
+      adjacency[task.id].each do |successor_id|
+        in_degree[successor_id] -= 1
+        if in_degree[successor_id] == 0
+          successor = task_by_id[successor_id]
+          queue << successor if successor
+        end
+      end
+    end
+
+    # If we couldn't sort all tasks, there's a cycle - fall back to sequence order
+    if sorted.length != tasks.length
+      Rails.logger.warn "SmTemplateCopyService: Detected dependency cycle, using sequence order"
+      return tasks.sort_by(&:sequence_order)
+    end
+
+    sorted
+  end
+
   def success
     {
       success: true,
+      job_id: job.id,
+      template_id: template.id,
+      tasks_created: @created_tasks.count,
+      dependencies_created: @created_dependencies.count,
       tasks: @created_tasks,
       dependencies: @created_dependencies,
+      errors: [],
       summary: {
         template_name: template.name,
-        construction_name: construction.name,
-        tasks_created: @created_tasks.count,
-        dependencies_created: @created_dependencies.count,
-        start_date: start_date,
-        end_date: @created_tasks.map(&:end_date).max
+        job_name: job.name,
+        start_date: start_date.to_s,
+        task_count: @created_tasks.count,
+        dependency_count: @created_dependencies.count
       }
     }
   end
@@ -241,7 +286,9 @@ class SmTemplateCopyService
   def failure(message)
     {
       success: false,
-      errors: Array(message)
+      tasks_created: 0,
+      dependencies_created: 0,
+      errors: Array(message) + @errors
     }
   end
 end

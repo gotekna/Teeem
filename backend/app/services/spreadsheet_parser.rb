@@ -1,132 +1,137 @@
-require "roo"
+# frozen_string_literal: true
 
+# SpreadsheetParser - Generic parser for Excel/CSV files using Roo
+#
+# Usage:
+#   parser = SpreadsheetParser.new(file_path)
+#   result = parser.parse
+#   if result[:success]
+#     rows = parser.all_rows
+#     rows.each { |row| puts row["Name"] }
+#   end
+#
 class SpreadsheetParser
-  PREVIEW_ROW_COUNT = 10
-  MAX_FILE_SIZE = 50.megabytes
+  SUPPORTED_EXTENSIONS = %w[.xlsx .xls .csv].freeze
 
-  attr_reader :file_path, :spreadsheet, :errors
+  attr_reader :file_path, :spreadsheet, :headers
 
   def initialize(file_path)
     @file_path = file_path
+    @spreadsheet = nil
+    @headers = []
+    @rows = []
     @errors = []
   end
 
-  # Parse the spreadsheet and return structured data
   def parse
-    return { success: false, errors: @errors } unless validate_file
+    validate_file!
+    return failure if @errors.any?
 
-    begin
-      @spreadsheet = Roo::Spreadsheet.open(@file_path)
+    open_spreadsheet!
+    return failure if @errors.any?
 
+    extract_headers!
+    return failure if @errors.any?
+
+    extract_rows!
+
+    if @errors.any?
+      failure
+    else
       {
         success: true,
-        headers: headers,
-        preview_data: preview_data,
-        total_rows: total_rows,
-        detected_types: detect_column_types,
-        suggested_table_name: suggested_table_name
+        total_rows: @rows.count,
+        headers: @headers,
+        errors: []
       }
-    rescue => e
-      @errors << "Failed to parse spreadsheet: #{e.message}"
-      { success: false, errors: @errors }
     end
+  rescue StandardError => e
+    Rails.logger.error "SpreadsheetParser error: #{e.message}"
+    @errors << "Failed to parse file: #{e.message}"
+    failure
   end
 
-  # Get all rows (for actual import)
   def all_rows
-    return [] unless @spreadsheet
+    @rows
+  end
 
-    rows = []
-    (2..@spreadsheet.last_row).each do |row_number|
-      row_data = {}
-      headers.each_with_index do |header, index|
-        row_data[header] = @spreadsheet.cell(row_number, index + 1)
-      end
-      rows << row_data
-    end
-    rows
+  def row(index)
+    @rows[index]
+  end
+
+  def row_count
+    @rows.count
   end
 
   private
 
-  def validate_file
-    unless File.exist?(@file_path)
-      @errors << "File does not exist"
-      return false
+  def validate_file!
+    unless File.exist?(file_path)
+      @errors << "File not found: #{file_path}"
+      return
     end
 
-    if File.size(@file_path) > MAX_FILE_SIZE
-      @errors << "File size exceeds maximum of #{MAX_FILE_SIZE / 1.megabyte}MB"
-      return false
-    end
-
-    extension = File.extname(@file_path).downcase
-    unless [ ".csv", ".xlsx", ".xls" ].include?(extension)
-      @errors << "Invalid file format. Please upload CSV or Excel files only."
-      return false
-    end
-
-    true
-  end
-
-  def headers
-    return [] unless @spreadsheet
-
-    @headers ||= begin
-      header_row = []
-      (1..@spreadsheet.last_column).each do |col|
-        header_row << @spreadsheet.cell(1, col).to_s.strip
-      end
-      header_row
+    ext = File.extname(file_path).downcase
+    unless SUPPORTED_EXTENSIONS.include?(ext)
+      @errors << "Unsupported file format: #{ext}. Supported: #{SUPPORTED_EXTENSIONS.join(', ')}"
     end
   end
 
-  def preview_data
-    return [] unless @spreadsheet
+  def open_spreadsheet!
+    ext = File.extname(file_path).downcase
 
-    preview_rows = []
-    end_row = [ 2 + PREVIEW_ROW_COUNT - 1, @spreadsheet.last_row ].min
-
-    (2..end_row).each do |row_number|
-      row_data = {}
-      headers.each_with_index do |header, index|
-        row_data[header] = @spreadsheet.cell(row_number, index + 1)
-      end
-      preview_rows << row_data
+    @spreadsheet = case ext
+    when ".csv"
+      Roo::CSV.new(file_path)
+    when ".xls"
+      Roo::Excel.new(file_path)
+    when ".xlsx"
+      Roo::Excelx.new(file_path)
     end
 
-    preview_rows
+    if @spreadsheet.nil? || @spreadsheet.last_row.nil? || @spreadsheet.last_row < 1
+      @errors << "File appears to be empty or invalid"
+    end
+  rescue StandardError => e
+    @errors << "Failed to open spreadsheet: #{e.message}"
   end
 
-  def total_rows
-    return 0 unless @spreadsheet
-    # Subtract 1 for header row
-    [ @spreadsheet.last_row - 1, 0 ].max
+  def extract_headers!
+    return if @spreadsheet.nil?
+
+    first_row = @spreadsheet.row(1)
+
+    if first_row.nil? || first_row.compact.empty?
+      @errors << "No headers found in first row"
+      return
+    end
+
+    @headers = first_row.map { |h| h.to_s.strip }
   end
 
-  def detect_column_types
-    return {} unless @spreadsheet
+  def extract_rows!
+    return if @spreadsheet.nil? || @headers.empty?
 
-    column_types = {}
+    (2..@spreadsheet.last_row).each do |row_num|
+      row_data = @spreadsheet.row(row_num)
+      next if row_data.nil? || row_data.compact.empty?
 
-    headers.each_with_index do |header, index|
-      # Collect values for this column (skip header row)
-      column_values = []
-      (2..@spreadsheet.last_row).each do |row_number|
-        column_values << @spreadsheet.cell(row_number, index + 1)
+      row_hash = {}
+      @headers.each_with_index do |header, idx|
+        next if header.blank?
+        row_hash[header] = row_data[idx]
       end
 
-      # Detect type
-      detector = TypeDetector.new(column_values)
-      column_types[header] = detector.detect
+      @rows << row_hash if row_hash.values.any?(&:present?)
     end
-
-    column_types
   end
 
-  def suggested_table_name
-    # Try to derive a table name from the filename
-    filename = File.basename(@file_path, ".*")
-    filename.titleize
+  def failure
+    {
+      success: false,
+      total_rows: 0,
+      headers: [],
+      errors: @errors
+    }
   end
 end

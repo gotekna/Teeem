@@ -4,6 +4,7 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SimpleTableView, type SimpleColumn } from "@/components/table";
 import {
   Clock,
   RefreshCw,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
 
 interface ScheduledJob {
+  [key: string]: unknown;
   id: number;
   key: string;
   class_name: string;
@@ -26,7 +28,7 @@ interface ScheduledJob {
   schedule: string;
   schedule_human: string;
   queue_name: string;
-  arguments: any;
+  arguments: unknown;
   description: string | null;
   last_run_at: string | null;
   next_run_at: string | null;
@@ -230,96 +232,105 @@ export function ScheduledJobsTab() {
       )}
 
       {/* Jobs Table */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">All Scheduled Tasks</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-2 font-medium">Task</th>
-                  <th className="text-left py-2 px-2 font-medium">Schedule</th>
-                  <th className="text-left py-2 px-2 font-medium">Queue</th>
-                  <th className="text-left py-2 px-2 font-medium">Last Run</th>
-                  <th className="text-left py-2 px-2 font-medium">Next Run</th>
-                  <th className="text-left py-2 px-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((job) => (
-                  <tr key={job.id} className="border-b border-muted/50 hover:bg-muted/30">
-                    <td className="py-2 px-2">
-                      <div>
-                        <p className="font-mono text-xs">{job.key}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {job.class_name}
-                        </p>
-                      </div>
-                    </td>
-                    <td className="py-2 px-2">
-                      <Badge variant="outline" className="text-xs font-normal">
-                        {job.schedule_human}
-                      </Badge>
-                    </td>
-                    <td className="py-2 px-2">
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "text-xs",
-                          job.queue_name === "default" && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-                          job.queue_name === "low" && "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
-                        )}
-                      >
-                        {job.queue_name}
-                      </Badge>
-                    </td>
-                    <td className="py-2 px-2">
-                      {job.last_run_at ? (
-                        <span className="text-xs text-muted-foreground" title={format(new Date(job.last_run_at), "PPpp")}>
-                          {formatDistanceToNow(new Date(job.last_run_at), { addSuffix: true })}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Never</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-2">
-                      {job.next_run_at ? (
-                        <span className="text-xs text-muted-foreground" title={format(new Date(job.next_run_at), "PPpp")}>
-                          {formatDistanceToNow(new Date(job.next_run_at), { addSuffix: true })}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-2">
-                      {job.status === "ok" && (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 text-xs">
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          OK
-                        </Badge>
-                      )}
-                      {job.status === "overdue" && (
-                        <Badge variant="destructive" className="text-xs">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Overdue
-                        </Badge>
-                      )}
-                      {job.status === "pending" && (
-                        <Badge variant="outline" className="text-xs">
-                          <Play className="h-3 w-3 mr-1" />
-                          Pending
-                        </Badge>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <SimpleTableView
+        tableName="All Scheduled Tasks"
+        entries={jobs}
+        columns={[
+          { key: "key", label: "Task", width: 200 },
+          { key: "schedule_human", label: "Schedule", width: 120 },
+          { key: "queue_name", label: "Queue", width: 100 },
+          { key: "last_run_at", label: "Last Run", width: 130 },
+          { key: "next_run_at", label: "Next Run", width: 130 },
+          { key: "status", label: "Status", width: 100 },
+        ]}
+        customCellRenderer={(column, value, row) => {
+          const job = row as ScheduledJob;
+
+          if (column.key === "key") {
+            return (
+              <div className="min-w-0">
+                <p className="font-mono text-xs truncate">{job.key}</p>
+                <p className="text-xs text-muted-foreground truncate">{job.class_name}</p>
+              </div>
+            );
+          }
+
+          if (column.key === "schedule_human") {
+            return (
+              <Badge variant="outline" className="text-xs font-normal">
+                {job.schedule_human}
+              </Badge>
+            );
+          }
+
+          if (column.key === "queue_name") {
+            return (
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-xs",
+                  job.queue_name === "default" && "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+                  job.queue_name === "low" && "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
+                )}
+              >
+                {job.queue_name}
+              </Badge>
+            );
+          }
+
+          if (column.key === "last_run_at") {
+            return job.last_run_at ? (
+              <span className="text-xs text-muted-foreground" title={format(new Date(job.last_run_at), "PPpp")}>
+                {formatDistanceToNow(new Date(job.last_run_at), { addSuffix: true })}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Never</span>
+            );
+          }
+
+          if (column.key === "next_run_at") {
+            return job.next_run_at ? (
+              <span className="text-xs text-muted-foreground" title={format(new Date(job.next_run_at), "PPpp")}>
+                {formatDistanceToNow(new Date(job.next_run_at), { addSuffix: true })}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">-</span>
+            );
+          }
+
+          if (column.key === "status") {
+            if (job.status === "ok") {
+              return (
+                <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 text-xs">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  OK
+                </Badge>
+              );
+            }
+            if (job.status === "overdue") {
+              return (
+                <Badge variant="destructive" className="text-xs">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  Overdue
+                </Badge>
+              );
+            }
+            if (job.status === "pending") {
+              return (
+                <Badge variant="outline" className="text-xs">
+                  <Play className="h-3 w-3 mr-1" />
+                  Pending
+                </Badge>
+              );
+            }
+          }
+
+          return null;
+        }}
+        showFooter={false}
+        rowHeight={44}
+        className="h-[400px]"
+      />
 
       {/* Queue Priority Info */}
       <Card>

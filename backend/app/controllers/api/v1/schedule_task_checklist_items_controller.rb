@@ -1,6 +1,9 @@
+# DEPRECATED: Part of the deprecated ScheduleTask system.
+# This controller will be removed when ScheduleTask is removed.
 module Api
   module V1
     class ScheduleTaskChecklistItemsController < ApplicationController
+      before_action :log_deprecation_warning
       before_action :set_schedule_task
       before_action :set_checklist_item, only: [ :update, :destroy, :toggle ]
 
@@ -50,6 +53,10 @@ module Api
       end
 
       private
+
+      def log_deprecation_warning
+        Rails.logger.warn "[DEPRECATED] ScheduleTaskChecklistItemsController accessed. Part of deprecated ScheduleTask system."
+      end
 
       def set_schedule_task
         @schedule_task = ScheduleTask.find(params[:schedule_task_id])

@@ -1,6 +1,11 @@
+# DEPRECATED: Use SmTasksController instead
+# This controller is being replaced as part of SSoT consolidation.
+# The SmTask system provides full SM Gantt functionality.
+# This controller will be removed in a future release.
 module Api
   module V1
     class ScheduleTasksController < ApplicationController
+      before_action :log_deprecation_warning
       before_action :set_job, only: [ :index, :import, :gantt_data, :create, :copy_from_template ]
       before_action :set_schedule_task, only: [ :show, :update, :destroy, :match_po, :unmatch_po ]
 
@@ -227,6 +232,10 @@ module Api
       end
 
       private
+
+      def log_deprecation_warning
+        Rails.logger.warn "[DEPRECATED] ScheduleTasksController accessed. Use SmTasksController (/api/v1/sm_tasks) instead. Action: #{action_name}"
+      end
 
       def set_job
         @job = Job.find(params[:job_id])

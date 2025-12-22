@@ -1,7 +1,12 @@
+# DEPRECATED: Use SmTemplatesController instead
+# This controller is being replaced as part of SSoT consolidation.
+# Frontend has been updated to use /api/v1/sm_templates.
+# This controller will be removed in a future release.
 module Api
   module V1
     class ScheduleTemplatesController < ApplicationController
       before_action :authorize_request
+      before_action :log_deprecation_warning
       before_action :set_schedule_template, only: [ :show, :update, :destroy, :duplicate, :set_as_default ]
       before_action :check_can_create_templates, only: [ :create, :duplicate ]
       before_action :check_can_edit_templates, only: [ :update, :destroy, :set_as_default ]
@@ -99,6 +104,10 @@ module Api
       end
 
       private
+
+      def log_deprecation_warning
+        Rails.logger.warn "[DEPRECATED] ScheduleTemplatesController accessed. Use SmTemplatesController (/api/v1/sm_templates) instead. Action: #{action_name}"
+      end
 
       def set_schedule_template
         @schedule_template = ScheduleTemplate.find(params[:id])

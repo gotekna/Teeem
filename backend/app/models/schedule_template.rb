@@ -1,4 +1,18 @@
+# DEPRECATED: Use SmTemplate instead
+# This model is being replaced by SmTemplate as part of SSoT consolidation.
+# See GANTT_SCHEDULE_MASTER_COMPLETE.md for migration details.
+# Data has been migrated to SmTemplate. This model will be removed in a future release.
+#
+# Migration completed: 2024-12-22
+# - 2 templates with 148 rows migrated to SmTemplate
+# - Frontend updated to use /api/v1/sm_templates
+#
 class ScheduleTemplate < ApplicationRecord
+  include Deprecatable
+
+  # Log deprecation warning on any access
+  after_find { log_deprecation("ScheduleTemplate is deprecated. Use SmTemplate instead.") }
+
   belongs_to :created_by, class_name: "User"
   has_many :schedule_template_rows, dependent: :destroy
 

@@ -1162,6 +1162,7 @@ Rails.application.routes.draw do
         member do
           post :set_default
           post :copy_to_job
+          post :duplicate
         end
         collection do
           get :default

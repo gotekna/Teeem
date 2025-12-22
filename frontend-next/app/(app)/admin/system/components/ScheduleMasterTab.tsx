@@ -42,23 +42,32 @@ import { SMGanttTab } from "./SMGanttTab";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 
-interface ScheduleTask {
+interface SmTemplateRow {
   id: number;
+  task_number: number;
   name: string;
   duration_days: number;
-  offset_days: number;
-  dependency_id: number | null;
-  position: number;
-  checklist_items?: string[];
+  start_day_offset: number;
+  sequence_order: number;
+  predecessor_ids: Array<{ id: number; type?: string; lag?: number }>;
+  trade?: string;
+  stage?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  po_required: boolean;
+  require_photo: boolean;
 }
 
-interface ScheduleTemplate {
+interface SmTemplate {
   id: number;
   name: string;
   description: string;
-  job_type_id: number | null;
-  tasks: ScheduleTask[];
+  is_default: boolean;
+  is_active: boolean;
+  row_count: number;
+  rows?: SmTemplateRow[];
   created_at: string;
+  updated_at: string;
 }
 
 interface TaskTemplate {
@@ -104,14 +113,15 @@ export function ScheduleMasterTab() {
   const [activeTab, setActiveTab] = React.useState("schedule-templates");
 
   // Schedule Templates state
-  const [templates, setTemplates] = React.useState<ScheduleTemplate[]>([]);
+  const [templates, setTemplates] = React.useState<SmTemplate[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [expandedTemplate, setExpandedTemplate] = React.useState<number | null>(null);
   const [showDialog, setShowDialog] = React.useState(false);
-  const [editingTemplate, setEditingTemplate] = React.useState<ScheduleTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = React.useState<SmTemplate | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [duplicating, setDuplicating] = React.useState<number | null>(null);
   const [deleting, setDeleting] = React.useState<number | null>(null);
+  const [loadingRows, setLoadingRows] = React.useState<number | null>(null);
 
   const [formData, setFormData] = React.useState({
     name: "",
@@ -145,45 +155,11 @@ export function ScheduleMasterTab() {
 
   const loadTemplates = async () => {
     try {
-      const data = await api.get<ScheduleTemplate[] | { schedule_templates: ScheduleTemplate[] }>("/api/v1/schedule_templates");
-      // Handle both direct array and { schedule_templates: [...] } response formats
-      const templatesArray = Array.isArray(data) ? data : (data?.schedule_templates || []);
-      setTemplates(templatesArray);
+      const data = await api.get<{ success: boolean; sm_templates: SmTemplate[] }>("/api/v1/sm_templates");
+      setTemplates(data?.sm_templates || []);
     } catch (error) {
       console.error("Failed to load templates:", error);
-      // Mock data for development
-      setTemplates([
-        {
-          id: 1,
-          name: "Standard New Build",
-          description: "Default schedule for new residential builds",
-          job_type_id: 1,
-          tasks: [
-            { id: 1, name: "Site Preparation", duration_days: 5, offset_days: 0, dependency_id: null, position: 1 },
-            { id: 2, name: "Foundation", duration_days: 10, offset_days: 0, dependency_id: 1, position: 2 },
-            { id: 3, name: "Frame", duration_days: 15, offset_days: 0, dependency_id: 2, position: 3 },
-            { id: 4, name: "Roof", duration_days: 7, offset_days: 0, dependency_id: 3, position: 4 },
-            { id: 5, name: "Lock Up", duration_days: 5, offset_days: 0, dependency_id: 4, position: 5 },
-            { id: 6, name: "Fit Out", duration_days: 20, offset_days: 0, dependency_id: 5, position: 6 },
-            { id: 7, name: "Handover", duration_days: 3, offset_days: 0, dependency_id: 6, position: 7 },
-          ],
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 2,
-          name: "Renovation Template",
-          description: "Schedule for renovation projects",
-          job_type_id: 2,
-          tasks: [
-            { id: 8, name: "Demo & Strip Out", duration_days: 5, offset_days: 0, dependency_id: null, position: 1 },
-            { id: 9, name: "Structural Work", duration_days: 10, offset_days: 0, dependency_id: 8, position: 2 },
-            { id: 10, name: "Services Rough-in", duration_days: 7, offset_days: 0, dependency_id: 9, position: 3 },
-            { id: 11, name: "Fit Out", duration_days: 15, offset_days: 0, dependency_id: 10, position: 4 },
-            { id: 12, name: "Finishing", duration_days: 5, offset_days: 0, dependency_id: 11, position: 5 },
-          ],
-          created_at: new Date().toISOString(),
-        },
-      ]);
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -195,7 +171,7 @@ export function ScheduleMasterTab() {
     setShowDialog(true);
   };
 
-  const handleOpenEditDialog = (template: ScheduleTemplate) => {
+  const handleOpenEditDialog = (template: SmTemplate) => {
     setFormData({
       name: template.name,
       description: template.description || "",
@@ -213,13 +189,13 @@ export function ScheduleMasterTab() {
     setSaving(true);
     try {
       if (editingTemplate) {
-        await api.patch(`/api/v1/schedule_templates/${editingTemplate.id}`, {
-          schedule_template: formData,
+        await api.patch(`/api/v1/sm_templates/${editingTemplate.id}`, {
+          sm_template: formData,
         });
         toast({ title: "Success", description: "Template updated successfully" });
       } else {
-        await api.post("/api/v1/schedule_templates", {
-          schedule_template: formData,
+        await api.post("/api/v1/sm_templates", {
+          sm_template: formData,
         });
         toast({ title: "Success", description: "Template created successfully" });
       }
@@ -236,7 +212,7 @@ export function ScheduleMasterTab() {
   const handleDuplicate = async (id: number) => {
     setDuplicating(id);
     try {
-      await api.post(`/api/v1/schedule_templates/${id}/duplicate`);
+      await api.post(`/api/v1/sm_templates/${id}/duplicate`);
       toast({ title: "Success", description: "Template duplicated successfully" });
       loadTemplates();
     } catch (error) {
@@ -252,23 +228,50 @@ export function ScheduleMasterTab() {
 
     setDeleting(id);
     try {
-      await api.delete(`/api/v1/schedule_templates/${id}`);
-      toast({ title: "Success", description: "Template deleted successfully" });
+      await api.delete(`/api/v1/sm_templates/${id}`);
+      toast({ title: "Success", description: "Template archived successfully" });
       loadTemplates();
     } catch (error) {
       console.error("Failed to delete template:", error);
-      toast({ title: "Error", description: "Failed to delete template", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to archive template", variant: "destructive" });
     } finally {
       setDeleting(null);
     }
   };
 
-  const toggleExpand = (id: number) => {
-    setExpandedTemplate(expandedTemplate === id ? null : id);
+  const toggleExpand = async (id: number) => {
+    if (expandedTemplate === id) {
+      setExpandedTemplate(null);
+      return;
+    }
+
+    // Check if we already have rows for this template
+    const template = templates.find(t => t.id === id);
+    if (template?.rows && template.rows.length > 0) {
+      setExpandedTemplate(id);
+      return;
+    }
+
+    // Fetch the template with rows
+    setLoadingRows(id);
+    try {
+      const data = await api.get<{ success: boolean; sm_template: SmTemplate }>(`/api/v1/sm_templates/${id}`);
+      if (data?.sm_template) {
+        setTemplates(prev => prev.map(t =>
+          t.id === id ? { ...t, rows: data.sm_template.rows } : t
+        ));
+      }
+      setExpandedTemplate(id);
+    } catch (error) {
+      console.error("Failed to load template rows:", error);
+      toast({ title: "Error", description: "Failed to load template details", variant: "destructive" });
+    } finally {
+      setLoadingRows(null);
+    }
   };
 
-  const getTotalDuration = (tasks: ScheduleTask[]) => {
-    return tasks.reduce((sum, task) => sum + task.duration_days, 0);
+  const getTotalDuration = (rows: SmTemplateRow[]) => {
+    return rows.reduce((sum, row) => sum + row.duration_days, 0);
   };
 
   // Task Templates functions
@@ -457,10 +460,10 @@ export function ScheduleMasterTab() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary">
-                          {(Array.isArray(template.tasks) ? template.tasks : []).length} tasks
+                          {template.row_count || (template.rows?.length ?? 0)} tasks
                         </Badge>
                         <Badge variant="outline">
-                          {getTotalDuration(Array.isArray(template.tasks) ? template.tasks : [])} days
+                          {getTotalDuration(template.rows || [])} days
                         </Badge>
                         <Button
                           variant="ghost"
@@ -500,44 +503,66 @@ export function ScheduleMasterTab() {
 
                   {expandedTemplate === template.id && (
                     <CardContent>
-                      <div className="border rounded-lg divide-y">
-                        {[...(Array.isArray(template.tasks) ? template.tasks : [])]
-                          .sort((a, b) => (a.position || 0) - (b.position || 0))
-                          .map((task, index) => (
-                            <div
-                              key={task.id}
-                              className="flex items-center gap-4 p-3 hover:bg-muted/50"
-                            >
-                              <span className="w-6 text-center text-sm text-muted-foreground">
-                                {index + 1}
-                              </span>
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">{task.name}</p>
-                                {task.checklist_items && task.checklist_items.length > 0 && (
-                                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                                    <ListChecks className="h-3 w-3" />
-                                    {task.checklist_items.length} checklist items
-                                  </p>
-                                )}
-                              </div>
-                              <Badge variant="outline" className="text-xs">
-                                {task.duration_days} days
-                              </Badge>
-                              {task.offset_days > 0 && (
-                                <Badge variant="secondary" className="text-xs">
-                                  +{task.offset_days} offset
-                                </Badge>
-                              )}
-                            </div>
-                          ))}
-                      </div>
+                      {loadingRows === template.id ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : (
+                        <>
+                          <div className="border rounded-lg divide-y">
+                            {[...(template.rows || [])]
+                              .sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0))
+                              .map((row, index) => (
+                                <div
+                                  key={row.id}
+                                  className="flex items-center gap-4 p-3 hover:bg-muted/50"
+                                >
+                                  <span className="w-6 text-center text-sm text-muted-foreground">
+                                    {row.task_number || index + 1}
+                                  </span>
+                                  <div className="flex-1">
+                                    <p className="font-medium text-sm">{row.name}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      {row.trade && (
+                                        <span className="text-xs text-muted-foreground">{row.trade}</span>
+                                      )}
+                                      {row.supplier_name && (
+                                        <span className="text-xs text-muted-foreground">• {row.supplier_name}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <Badge variant="outline" className="text-xs">
+                                    {row.duration_days} days
+                                  </Badge>
+                                  {row.start_day_offset > 0 && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      +{row.start_day_offset} offset
+                                    </Badge>
+                                  )}
+                                  {row.po_required && (
+                                    <Badge variant="outline" className="text-xs text-orange-600 dark:text-orange-400">
+                                      PO
+                                    </Badge>
+                                  )}
+                                  {row.require_photo && (
+                                    <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400">
+                                      <Camera className="h-3 w-3" />
+                                    </Badge>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
 
-                      <div className="mt-4 flex justify-end">
-                        <Button variant="outline" size="sm">
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Edit Tasks
-                        </Button>
-                      </div>
+                          <div className="mt-4 flex justify-end">
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={`/schedule-templates/${template.id}`}>
+                                <Pencil className="h-3 w-3 mr-1" />
+                                Edit Rows
+                              </a>
+                            </Button>
+                          </div>
+                        </>
+                      )}
                     </CardContent>
                   )}
                 </Card>

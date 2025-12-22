@@ -4,6 +4,12 @@ class WHSIncident < ApplicationRecord
   belongs_to :reported_by_user, class_name: "User"
   belongs_to :investigated_by_user, class_name: "User", optional: true
 
+  # DEPRECATED: Old task system - will be removed after Phase 5 migration
+  # See: create_investigation_task callback
+
+  # NEW: SSoT task system (SmTask via tasks table)
+  belongs_to :sm_task, optional: true
+
   has_many :whs_action_items, as: :actionable, dependent: :destroy
 
   # Constants
@@ -33,6 +39,8 @@ class WHSIncident < ApplicationRecord
   before_validation :set_report_date, on: :create
   before_save :check_workcov_notification_requirement
   after_create :create_investigation_task
+  after_create :create_sm_task_if_needed  # NEW: SSoT task creation
+  after_save :sync_with_sm_task           # NEW: SSoT task sync
 
   # Scopes
   scope :reported, -> { where(status: "reported") }
@@ -182,5 +190,61 @@ class WHSIncident < ApplicationRecord
   rescue => e
     Rails.logger.error("Failed to create investigation task for incident #{id}: #{e.message}")
     # Don't fail incident creation if task creation fails
+  end
+
+  # NEW: SmTask (SSoT) task creation
+  def create_sm_task_if_needed
+    return if sm_task.present?
+    return unless job.present?
+
+    # Find WPHS Appointee for assignment
+    wphs_appointee = User.where(wphs_appointee: true).first
+
+    task = job.sm_tasks.create!(
+      name: "WHS: Investigate Incident #{incident_number}",
+      description: "Investigate incident: #{what_happened}",
+      trade: "WHS",
+      stage: "Incident Investigation",
+      status: status_for_sm_task,
+      assigned_user: wphs_appointee,
+      start_date: CorporateCompanySetting.today,
+      end_date: CorporateCompanySetting.today + 3.days,
+      duration_days: 3,
+      created_by: reported_by_user
+    )
+    update_column(:sm_task_id, task.id)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to create SmTask for incident #{id}: #{e.message}")
+    # Don't fail incident creation if task creation fails
+  end
+
+  # NEW: SmTask sync
+  def sync_with_sm_task
+    return unless sm_task.present?
+    return unless saved_change_to_status?
+
+    sm_task.update(status: status_for_sm_task)
+  rescue StandardError => e
+    Rails.logger.error("[WHS→SmTask] Failed to sync SmTask for incident #{id}: #{e.message}")
+  end
+
+  def status_for_sm_task
+    case status
+    when "reported"
+      "not_started"
+    when "under_investigation"
+      "started"  # SmTask uses "started" not "in_progress"
+    when "actions_required"
+      "started"  # Still in progress, waiting for actions
+    when "closed"
+      "completed"
+    else
+      "not_started"
+    end
+  end
+
+  # Alias for backward compatibility (job was previously called construction)
+  def construction
+    job
   end
 end

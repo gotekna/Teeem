@@ -54,6 +54,10 @@ import {
   FolderTree,
   Copy,
   X,
+  LayoutList,
+  TableProperties,
+  Trash2,
+  Briefcase,
 } from "lucide-react";
 import {
   Dialog,
@@ -81,6 +85,7 @@ import {
 } from "@/components/ui/accordion";
 import { SharePointPathConfigurator } from "@/components/ui/sharepoint-path-configurator";
 import { UIComponentsPlaygroundTab } from "./UIComponentsPlaygroundTab";
+import { SortableList, SortableItem, DragHandle, ItemBadge } from "@/components/ui/dnd";
 
 // Foundation ID for document_types table
 const DOCUMENT_TYPES_FOUNDATION_ID = 454;
@@ -2302,6 +2307,427 @@ function SyncCheckTab() {
   );
 }
 
+// =============================================================================
+// DEMO: SimpleTableView Preview
+// =============================================================================
+
+interface SimpleTableDemoRow {
+  id: number;
+  code: string;
+  name: string;
+  type: string;
+  amount: number;
+  status: string;
+  date: string;
+  email: string;
+  active: boolean;
+}
+
+function SimpleTableViewDemo() {
+  const [sortColumn, setSortColumn] = React.useState<string | null>(null);
+  const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc");
+
+  // Sample data
+  const sampleData: SimpleTableDemoRow[] = [
+    { id: 1, code: "ACC-001", name: "Revenue Account", type: "Revenue", amount: 125000.50, status: "Active", date: "2024-12-15", email: "finance@company.com", active: true },
+    { id: 2, code: "ACC-002", name: "Expense Account", type: "Expense", amount: 45230.00, status: "Active", date: "2024-12-14", email: "accounts@company.com", active: true },
+    { id: 3, code: "ACC-003", name: "Asset Account", type: "Asset", amount: 890000.00, status: "Pending", date: "2024-12-13", email: "assets@company.com", active: true },
+    { id: 4, code: "ACC-004", name: "Liability Account", type: "Liability", amount: 250000.00, status: "Active", date: "2024-12-12", email: "liability@company.com", active: false },
+    { id: 5, code: "ACC-005", name: "Equity Account", type: "Equity", amount: 500000.00, status: "Archived", date: "2024-12-11", email: "equity@company.com", active: true },
+    { id: 6, code: "ACC-006", name: "Cost of Goods", type: "Expense", amount: 78500.25, status: "Active", date: "2024-12-10", email: "cogs@company.com", active: true },
+    { id: 7, code: "ACC-007", name: "Sales Revenue", type: "Revenue", amount: 345000.00, status: "Active", date: "2024-12-09", email: "sales@company.com", active: true },
+    { id: 8, code: "ACC-008", name: "Bank Account", type: "Asset", amount: 1250000.00, status: "Active", date: "2024-12-08", email: "bank@company.com", active: true },
+  ];
+
+  // Sort data
+  const sortedData = React.useMemo(() => {
+    if (!sortColumn) return sampleData;
+    return [...sampleData].sort((a, b) => {
+      const aVal = a[sortColumn as keyof SimpleTableDemoRow];
+      const bVal = b[sortColumn as keyof SimpleTableDemoRow];
+      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [sortColumn, sortDirection]);
+
+  const handleSort = (column: string) => {
+    if (sortColumn === column) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
+
+  const columns = [
+    { key: "code", label: "Code", width: 100 },
+    { key: "name", label: "Name", width: 200 },
+    { key: "type", label: "Type", width: 100 },
+    { key: "amount", label: "Amount", width: 120, align: "right" as const },
+    { key: "status", label: "Status", width: 100 },
+    { key: "date", label: "Date", width: 100 },
+    { key: "email", label: "Email", width: 180 },
+    { key: "active", label: "Active", width: 80 },
+  ];
+
+  const formatValue = (key: string, value: unknown) => {
+    if (key === "amount" && typeof value === "number") {
+      return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+    }
+    if (key === "active") {
+      return value ? (
+        <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">Yes</Badge>
+      ) : (
+        <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">No</Badge>
+      );
+    }
+    if (key === "status") {
+      const statusColors: Record<string, string> = {
+        Active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+        Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+        Archived: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+      };
+      return <Badge className={cn("text-[10px]", statusColors[value as string])}>{value as string}</Badge>;
+    }
+    if (key === "email") {
+      return <a href={`mailto:${value}`} className="text-primary hover:underline">{value as string}</a>;
+    }
+    return value as React.ReactNode;
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TableProperties className="h-5 w-5" />
+            SimpleTableView Demo
+          </CardTitle>
+          <CardDescription>
+            View-only table with same styling as TeeemTableView. No Foundation required.
+            Click headers to sort. This is what the component will look like.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Header with title and count - matches TeeemTableView */}
+          <div className="px-4 py-2 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold">Sample Accounts</h3>
+              <span className="text-sm text-muted-foreground">{sortedData.length} records</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+            </div>
+          </div>
+
+          {/* Table - matches TeeemTableView styling */}
+          <div className="border-t">
+            <Table>
+              <TableHeader>
+                <TableRow className="h-8 bg-muted/30">
+                  {columns.map((col) => (
+                    <TableHead
+                      key={col.key}
+                      className={cn(
+                        "h-7 text-[11px] font-medium cursor-pointer hover:bg-muted/50 select-none",
+                        col.align === "right" && "text-right"
+                      )}
+                      style={{ width: col.width }}
+                      onClick={() => handleSort(col.key)}
+                    >
+                      <div className={cn("flex items-center gap-1", col.align === "right" && "justify-end")}>
+                        {col.label}
+                        {sortColumn === col.key && (
+                          <span className="text-primary">{sortDirection === "asc" ? "↑" : "↓"}</span>
+                        )}
+                      </div>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedData.map((row, index) => (
+                  <TableRow
+                    key={row.id}
+                    className={cn(
+                      "h-7 hover:bg-accent/50 cursor-pointer",
+                      index % 2 === 1 && "bg-muted/20"
+                    )}
+                  >
+                    {columns.map((col) => (
+                      <TableCell
+                        key={col.key}
+                        className={cn(
+                          "py-1 text-[11px]",
+                          col.align === "right" && "text-right"
+                        )}
+                      >
+                        {formatValue(col.key, row[col.key as keyof SimpleTableDemoRow])}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Footer - matches TeeemTableView */}
+          <div className="px-4 py-2 border-t text-xs text-muted-foreground">
+            Showing {sortedData.length} of {sortedData.length} records
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Props Preview */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Usage Example</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`<SimpleTableView
+  tableName="Sample Accounts"
+  entries={accounts}
+  columns={[
+    { key: "code", label: "Code", width: 100 },
+    { key: "name", label: "Name" },
+    { key: "amount", label: "Amount", type: "currency", align: "right" },
+    { key: "status", label: "Status" },
+    { key: "active", label: "Active", type: "boolean" },
+  ]}
+  onRowClick={(row) => console.log(row)}
+/>`}
+          </pre>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// =============================================================================
+// DEMO: SetupTable Preview
+// =============================================================================
+
+interface SetupItem {
+  id: number;
+  name: string;
+  color: string;
+  active: boolean;
+}
+
+function SetupTableDemo() {
+  const [items, setItems] = React.useState<SetupItem[]>([
+    { id: 1, name: "House", color: "#3b82f6", active: true },
+    { id: 2, name: "Duplex", color: "#3b82f6", active: true },
+    { id: 3, name: "Townhouse", color: "#3b82f6", active: true },
+    { id: 4, name: "Micro Apartment", color: "#3b82f6", active: true },
+    { id: 5, name: "Co Living", color: "#3b82f6", active: true },
+    { id: 6, name: "NDIS House", color: "#3b82f6", active: true },
+    { id: 7, name: "NDIS Units", color: "#3b82f6", active: false },
+  ]);
+
+  const [editingItem, setEditingItem] = React.useState<SetupItem | null>(null);
+  const [showAddDialog, setShowAddDialog] = React.useState(false);
+  const [newItemName, setNewItemName] = React.useState("");
+
+  const handleReorder = (newItems: SetupItem[]) => {
+    setItems(newItems);
+  };
+
+  const handleAdd = () => {
+    if (newItemName.trim()) {
+      const newItem: SetupItem = {
+        id: Math.max(...items.map(i => i.id)) + 1,
+        name: newItemName.trim(),
+        color: "#3b82f6",
+        active: true,
+      };
+      setItems([...items, newItem]);
+      setNewItemName("");
+      setShowAddDialog(false);
+    }
+  };
+
+  const handleDelete = (item: SetupItem) => {
+    setItems(items.filter(i => i.id !== item.id));
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <LayoutList className="h-5 w-5" />
+            SetupTable Demo
+          </CardTitle>
+          <CardDescription>
+            Editable config list with drag-and-drop reordering.
+            Uses existing SortableList/SortableItem components.
+            Drag items to reorder, click edit/delete buttons.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {/* Header with icon, title and Add button - THE SetupTable pattern */}
+          <div className="px-4 py-3 border-b flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold">Job Types</h3>
+            </div>
+            <Button size="sm" onClick={() => setShowAddDialog(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          </div>
+
+          {/* Sortable List */}
+          <div className="p-2">
+            <SortableList items={items} onReorder={handleReorder}>
+              {items.map((item, index) => (
+                <SortableItem
+                  key={item.id}
+                  id={item.id}
+                  position={index + 1}
+                  showHandle
+                  showBadge
+                  variant="card"
+                  className="mb-1"
+                  actions={
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingItem(item);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className={cn("text-sm", !item.active && "text-muted-foreground line-through")}>
+                      {item.name}
+                    </span>
+                    {!item.active && (
+                      <Badge variant="outline" className="text-[9px] h-4">Inactive</Badge>
+                    )}
+                  </div>
+                </SortableItem>
+              ))}
+            </SortableList>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Job Type</DialogTitle>
+            <DialogDescription>Enter a name for the new job type.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="new-name">Name</Label>
+            <Input
+              id="new-name"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              placeholder="Enter name..."
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleAdd}>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Job Type</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div>
+              <Label htmlFor="edit-name">Name</Label>
+              <Input
+                id="edit-name"
+                value={editingItem?.name || ""}
+                onChange={(e) => setEditingItem(editingItem ? { ...editingItem, name: e.target.value } : null)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="edit-active"
+                checked={editingItem?.active || false}
+                onCheckedChange={(checked) =>
+                  setEditingItem(editingItem ? { ...editingItem, active: checked === true } : null)
+                }
+              />
+              <Label htmlFor="edit-active">Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingItem(null)}>Cancel</Button>
+            <Button onClick={() => {
+              if (editingItem) {
+                setItems(items.map(i => i.id === editingItem.id ? editingItem : i));
+                setEditingItem(null);
+              }
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Props Preview */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm">Usage Example</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
+{`<SetupTable
+  title="Job Types"
+  icon={Briefcase}
+  items={jobTypes}
+  getLabel={(item) => item.name}
+  getColor={(item) => item.color}
+  onAdd={() => setShowAddModal(true)}
+  onEdit={(item) => setEditingItem(item)}
+  onDelete={(item) => handleDelete(item)}
+  onReorder={(items) => saveOrder(items)}
+/>`}
+          </pre>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export function GoldStandardTab() {
   return (
     <Tabs defaultValue="table" className="h-full flex flex-col">
@@ -2334,6 +2760,14 @@ export function GoldStandardTab() {
           <Settings className="h-4 w-4" />
           UI Components
         </TabsTrigger>
+        <TabsTrigger value="simple-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
+          <TableProperties className="h-4 w-4" />
+          SimpleTable Demo
+        </TabsTrigger>
+        <TabsTrigger value="setup-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
+          <LayoutList className="h-4 w-4" />
+          SetupTable Demo
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="table" className="mt-0 flex-1 min-h-0 flex flex-col">
@@ -2362,6 +2796,14 @@ export function GoldStandardTab() {
 
       <TabsContent value="ui-components" className="mt-0">
         <UIComponentsPlaygroundTab />
+      </TabsContent>
+
+      <TabsContent value="simple-table-demo" className="mt-0">
+        <SimpleTableViewDemo />
+      </TabsContent>
+
+      <TabsContent value="setup-table-demo" className="mt-0">
+        <SetupTableDemo />
       </TabsContent>
     </Tabs>
   );

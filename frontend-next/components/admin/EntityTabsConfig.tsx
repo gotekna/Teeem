@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -315,6 +322,7 @@ export function EntityTabsConfig({
       display_name: tab.display_name,
       description: tab.description || "",
       tab_group: tab.tab_group || undefined,
+      parent_id: tab.parent_id || undefined,
       entity_filters: tab.entity_filters,
       enabled: tab.enabled,
       icon_name: tab.icon_name || "",
@@ -324,6 +332,11 @@ export function EntityTabsConfig({
     setEditingTab(tab);
     setIsCreateDialogOpen(true);
   };
+
+  // Get available parent tabs (root-level tabs that can be parents)
+  const availableParents = React.useMemo(() => {
+    return tabs.filter((t) => !t.parent_id && t.id !== editingTab?.id);
+  }, [tabs, editingTab]);
 
   // Handle form submit
   const handleFormSubmit = async () => {
@@ -335,6 +348,7 @@ export function EntityTabsConfig({
           display_name: formData.display_name,
           description: formData.description,
           tab_group: formData.tab_group,
+          parent_id: formData.parent_id,
           entity_filters: formData.entity_filters,
           enabled: formData.enabled,
           icon_name: formData.icon_name,
@@ -397,15 +411,38 @@ export function EntityTabsConfig({
     }
   };
 
+  // Helper to find siblings (tabs with same parent)
+  const findSiblings = (tab: EntityTab): EntityTab[] => {
+    if (!tab.parent_id) {
+      // Root level - filter by tab_group
+      return tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group);
+    }
+
+    // Find parent and return its children
+    const findParent = (items: EntityTab[]): EntityTab | null => {
+      for (const item of items) {
+        if (item.id === tab.parent_id) return item;
+        if (item.children?.length) {
+          const found = findParent(item.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    const parent = findParent(tabs);
+    return parent?.children || [];
+  };
+
   // Handle position change via typing a number
   const handlePositionChange = async (tab: EntityTab, newPosition: number, depth: number) => {
     try {
-      // Get siblings (tabs at same level with same parent)
-      const siblings = depth === 0
-        ? tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group)
-        : tabs.flatMap(t => t.children || []).filter(c => c.parent_id === tab.parent_id);
+      const siblings = findSiblings(tab);
+      if (siblings.length === 0) return;
 
       const currentIndex = siblings.findIndex(t => t.id === tab.id);
+      if (currentIndex === -1) return;
+
       const targetIndex = Math.max(0, Math.min(newPosition - 1, siblings.length - 1));
 
       if (currentIndex === targetIndex) return;
@@ -416,7 +453,7 @@ export function EntityTabsConfig({
       reordered.splice(targetIndex, 0, moved);
 
       // Update positions via API
-      const reorderData = reordered.map((t, idx) => ({
+      const reorderData = reordered.map((t) => ({
         id: t.id,
         parent_id: t.parent_id
       }));
@@ -427,17 +464,38 @@ export function EntityTabsConfig({
     }
   };
 
+  // Handle reorder for children
+  const handleChildReorder = async (parentTab: EntityTab, newChildren: EntityTab[]) => {
+    setSaving(true);
+    try {
+      const reorderData: ReorderTabParams[] = newChildren.map((item) => ({
+        id: item.id,
+        parent_id: item.parent_id,
+      }));
+      await reorderTabs(reorderData);
+    } catch (err) {
+      console.error("Failed to reorder children:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Render tab with all its children recursively
   const renderTabWithChildren = (tab: EntityTab, index: number, depth = 0): React.ReactNode => {
     return (
       <React.Fragment key={tab.id}>
         {renderTabItem(tab, index, depth > 0, depth)}
         {expandedItems.has(tab.id) && tab.children && tab.children.length > 0 && (
-          <div className="space-y-2 mt-2">
-            {tab.children.map((child, childIndex) =>
-              renderTabWithChildren(child, childIndex, depth + 1)
-            )}
-          </div>
+          <SortableList
+            items={tab.children}
+            onReorder={(newChildren) => handleChildReorder(tab, newChildren)}
+          >
+            <div className="space-y-2 mt-2">
+              {tab.children.map((child, childIndex) =>
+                renderTabWithChildren(child, childIndex, depth + 1)
+              )}
+            </div>
+          </SortableList>
         )}
       </React.Fragment>
     );
@@ -544,6 +602,25 @@ export function EntityTabsConfig({
                   </Tooltip>
                 </TooltipProvider>
               )}
+              {tab.document_types && tab.document_types.length > 0 && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="outline" className="text-xs gap-1 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800">
+                        {tab.document_types.length} type{tab.document_types.length !== 1 ? 's' : ''}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                      <p className="font-medium mb-1">Linked Document Types:</p>
+                      <ul className="text-xs space-y-0.5">
+                        {tab.document_types.map((dt) => (
+                          <li key={dt.id}>• {dt.display_name || dt.name}</li>
+                        ))}
+                      </ul>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
             {/* Entity filters (for corporate_entity) - clickable toggles, only on root items */}
             {showEntityFilters && depth === 0 && (
@@ -570,6 +647,13 @@ export function EntityTabsConfig({
               </div>
             )}
           </div>
+
+          {/* Description - right aligned */}
+          {tab.description && (
+            <div className="hidden lg:block text-xs text-muted-foreground text-right shrink-0">
+              {tab.description}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex items-center gap-1">
@@ -910,6 +994,37 @@ export function EntityTabsConfig({
                 placeholder="Brief description of this tab"
               />
             </div>
+
+            {/* Parent Tab (for nesting under another tab) */}
+            {editingTab && availableParents.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="parent_id">Parent Tab</Label>
+                <Select
+                  value={formData.parent_id?.toString() || "none"}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      parent_id: value === "none" ? undefined : parseInt(value, 10),
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select parent tab (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No parent (root level)</SelectItem>
+                    {availableParents.map((parent) => (
+                      <SelectItem key={parent.id} value={parent.id.toString()}>
+                        {parent.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Move this tab under another tab to create a sub-tab
+                </p>
+              </div>
+            )}
 
             {/* Entity Filters (for corporate_entity) */}
             {showEntityFilters && (

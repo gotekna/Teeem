@@ -4,7 +4,8 @@ import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
-import { Building2, Users, Briefcase, FolderOpen, FileSpreadsheet, ArrowLeft } from "lucide-react";
+import { Building2, Users, Briefcase, ArrowLeft, FileText } from "lucide-react";
+import Link from "next/link";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -44,24 +45,8 @@ const scopes = [
     label: "Jobs",
     icon: Briefcase,
     showEntityFilters: false,
-    showSharePointPaths: false,
+    showSharePointPaths: true,
     showDocumentTypes: false,
-  },
-  {
-    id: "document",
-    label: "Folders",
-    icon: FolderOpen,
-    showEntityFilters: true,
-    showSharePointPaths: true,
-    showDocumentTypes: true,
-  },
-  {
-    id: "xero",
-    label: "Xero",
-    icon: FileSpreadsheet,
-    showEntityFilters: false,
-    showSharePointPaths: true,
-    showDocumentTypes: true,
   },
 ] as const;
 
@@ -111,17 +96,29 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
               })}
             </TabsList>
           </div>
-          {onClose && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-7 px-2 text-xs text-muted-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-              Back
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <Link href="/admin/system?tab=warehouse">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-3 text-xs"
+              >
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+                Document Types
+              </Button>
+            </Link>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="h-7 px-2 text-xs text-muted-foreground"
+              >
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" />
+                Back
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Scope Content */}
@@ -129,7 +126,7 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
           {scopes.map((scope) => (
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               <EntityTabsConfig
-                scope={scope.id as "corporate_entity" | "people" | "job" | "document" | "xero"}
+                scope={scope.id as "corporate_entity" | "people" | "job"}
                 showEntityFilters={scope.showEntityFilters}
                 showSharePointPaths={scope.showSharePointPaths}
                 showDocumentTypes={scope.showDocumentTypes}

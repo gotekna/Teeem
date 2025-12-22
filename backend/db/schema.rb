@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3438,11 +3438,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.bigint "created_task_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
     t.index ["completed"], name: "index_meeting_agenda_items_on_completed"
     t.index ["created_task_id"], name: "index_meeting_agenda_items_on_created_task_id"
     t.index ["meeting_id", "sequence_order"], name: "index_meeting_agenda_items_on_meeting_id_and_sequence_order"
     t.index ["meeting_id"], name: "index_meeting_agenda_items_on_meeting_id"
     t.index ["presenter_id"], name: "index_meeting_agenda_items_on_presenter_id"
+    t.index ["sm_task_id"], name: "index_meeting_agenda_items_on_sm_task_id"
   end
 
   create_table "meeting_participants", force: :cascade do |t|
@@ -5352,6 +5354,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_template_row_id"
     t.index ["assigned_user_id"], name: "index_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_tasks_on_checklist_id"
     t.index ["confirm_status"], name: "index_tasks_on_confirm_status"
@@ -5367,6 +5370,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.index ["parent_task_id"], name: "index_tasks_on_parent_task_id"
     t.index ["purchase_order_id"], name: "index_tasks_on_purchase_order_id"
     t.index ["sequence_order"], name: "index_tasks_on_sequence_order"
+    t.index ["sm_template_row_id"], name: "index_tasks_on_sm_template_row_id"
     t.index ["start_date"], name: "index_tasks_on_start_date"
     t.index ["status"], name: "index_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_tasks_on_supplier_confirmed_by_id"
@@ -5652,12 +5656,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
     t.index ["actionable_type", "actionable_id"], name: "index_whs_action_items_on_actionable"
     t.index ["assigned_to_user_id"], name: "index_whs_action_items_on_assigned_to_user_id"
     t.index ["created_by_id"], name: "index_whs_action_items_on_created_by_id"
     t.index ["due_date"], name: "index_whs_action_items_on_due_date"
     t.index ["priority"], name: "index_whs_action_items_on_priority"
     t.index ["project_task_id"], name: "index_whs_action_items_on_project_task_id"
+    t.index ["sm_task_id"], name: "index_whs_action_items_on_sm_task_id"
     t.index ["status"], name: "index_whs_action_items_on_status"
   end
 
@@ -5707,6 +5713,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
     t.index ["incident_category"], name: "index_whs_incidents_on_incident_category"
     t.index ["incident_date"], name: "index_whs_incidents_on_incident_date"
     t.index ["incident_number"], name: "index_whs_incidents_on_incident_number", unique: true
@@ -5715,6 +5722,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.index ["job_id"], name: "index_whs_incidents_on_job_id"
     t.index ["reported_by_user_id"], name: "index_whs_incidents_on_reported_by_user_id"
     t.index ["severity_level"], name: "index_whs_incidents_on_severity_level"
+    t.index ["sm_task_id"], name: "index_whs_incidents_on_sm_task_id"
     t.index ["status"], name: "index_whs_incidents_on_status"
     t.index ["workcov_notification_required"], name: "index_whs_incidents_on_workcov_notification_required"
   end
@@ -5889,12 +5897,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_task_id"
     t.index ["approved_by_id"], name: "index_whs_swms_on_approved_by_id"
     t.index ["company_wide"], name: "index_whs_swms_on_company_wide"
     t.index ["created_by_id"], name: "index_whs_swms_on_created_by_id"
     t.index ["high_risk_type"], name: "index_whs_swms_on_high_risk_type"
     t.index ["job_id", "status"], name: "index_whs_swms_on_job_id_and_status"
     t.index ["job_id"], name: "index_whs_swms_on_job_id"
+    t.index ["sm_task_id"], name: "index_whs_swms_on_sm_task_id"
     t.index ["status"], name: "index_whs_swms_on_status"
     t.index ["superseded_by_id"], name: "index_whs_swms_on_superseded_by_id"
     t.index ["swms_number"], name: "index_whs_swms_on_swms_number", unique: true
@@ -6365,6 +6375,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
   add_foreign_key "maintenance_requests", "users", column: "reported_by_user_id"
   add_foreign_key "meeting_agenda_items", "meetings"
   add_foreign_key "meeting_agenda_items", "project_tasks", column: "created_task_id"
+  add_foreign_key "meeting_agenda_items", "tasks", column: "sm_task_id"
   add_foreign_key "meeting_agenda_items", "users", column: "presenter_id"
   add_foreign_key "meeting_participants", "contacts"
   add_foreign_key "meeting_participants", "meetings"
@@ -6514,6 +6525,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
   add_foreign_key "tasks", "purchase_orders", on_delete: :nullify
   add_foreign_key "tasks", "schedule_template_rows", column: "template_row_id", on_delete: :nullify
   add_foreign_key "tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "tasks", "sm_template_rows"
   add_foreign_key "tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
   add_foreign_key "tasks", "tasks", column: "parent_task_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "assigned_user_id", on_delete: :nullify
@@ -6536,9 +6548,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
   add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
   add_foreign_key "warehouse_contacts", "contacts"
   add_foreign_key "whs_action_items", "project_tasks"
+  add_foreign_key "whs_action_items", "tasks", column: "sm_task_id"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"
   add_foreign_key "whs_incidents", "jobs"
+  add_foreign_key "whs_incidents", "tasks", column: "sm_task_id"
   add_foreign_key "whs_incidents", "users", column: "investigated_by_user_id"
   add_foreign_key "whs_incidents", "users", column: "reported_by_user_id"
   add_foreign_key "whs_inductions", "jobs"
@@ -6550,6 +6564,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_090000) do
   add_foreign_key "whs_inspections", "users", column: "created_by_id"
   add_foreign_key "whs_inspections", "users", column: "inspector_user_id"
   add_foreign_key "whs_swms", "jobs"
+  add_foreign_key "whs_swms", "tasks", column: "sm_task_id"
   add_foreign_key "whs_swms", "users", column: "approved_by_id"
   add_foreign_key "whs_swms", "users", column: "created_by_id"
   add_foreign_key "whs_swms", "whs_swms", column: "superseded_by_id"

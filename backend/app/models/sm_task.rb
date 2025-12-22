@@ -27,7 +27,11 @@ class SmTask < ApplicationRecord
   alias_method :construction, :job  # Backwards compatibility
   alias_attribute :construction_id, :job_id  # Backwards compatibility for queries
 
+  # DEPRECATED: Old association - points to schedule_template_rows (deprecated table)
   belongs_to :template_row, class_name: "ScheduleTemplateRow", optional: true
+
+  # NEW: SSoT association - points to sm_template_rows (THE ONE template system)
+  belongs_to :sm_template_row, optional: true
   belongs_to :parent_task, class_name: "SmTask", optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 
