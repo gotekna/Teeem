@@ -107,16 +107,13 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "TrustsTab": lazy(() => import("@/components/tabs/TrustsTab")),
   "ConsolidationTab": lazy(() => import("@/components/tabs/ConsolidationTab")),
 
-  // TODO: Extract remaining components from corporate page.tsx
-  // "DataTab": lazy(() => import("@/components/tabs/DataTab")),
-  // "DocumentsTab": lazy(() => import("@/components/tabs/DocumentsTab")),
-
   // ============================================
-  // DOCUMENT TAB COMPONENTS
+  // CORPORATE DOCUMENT COMPONENTS
   // ============================================
 
-  // SharePoint folder view (for document tabs)
-  // "SharePointFolderView": lazy(() => import("@/components/tabs/SharePointFolderView")),
+  // CompanyDocumentsTab - extracted component for corporate documents
+  // Note: Used directly in page.tsx, not via registry (accepts company prop)
+  // "CompanyDocumentsTab": lazy(() => import("@/components/corporate/CompanyDocumentsTab")),
 };
 
 /**

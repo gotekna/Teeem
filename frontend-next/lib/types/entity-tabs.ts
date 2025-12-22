@@ -1,7 +1,7 @@
 // EntityTab types - SSoT for unified tab configuration
 // Matches backend EntityTab model exactly
 
-export type EntityTabScope = 'corporate_entity' | 'people' | 'job';
+export type EntityTabScope = 'corporate_entity' | 'people' | 'job' | 'contact';
 
 // Tab groups - matches backend EntityTab::TAB_GROUPS
 export type TabGroup = 'overview' | 'documents' | 'reports' | 'data' | 'setup' | 'main';
@@ -96,6 +96,7 @@ export const SCOPE_LABELS: Record<EntityTabScope, string> = {
   corporate_entity: 'Corporate Entity',
   people: 'People',
   job: 'Job',
+  contact: 'Contact',
 };
 
 // Tab group display names for UI

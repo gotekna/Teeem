@@ -45,8 +45,6 @@ import {
   Trash2,
   Download,
   RefreshCw,
-  TrendingUp,
-  TrendingDown,
   Activity,
   Paperclip,
   User,
@@ -79,6 +77,11 @@ import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-brows
 
 // Import EditCaseContactDialog for editing contact relationships
 import { EditCaseContactDialog } from "@/components/cases/EditCaseContactDialog";
+
+// Extracted tab components
+import { CaseWarehouseTab } from "@/components/cases/CaseWarehouseTab";
+import { CaseTimelineTab } from "@/components/cases/CaseTimelineTab";
+import { CaseEntitiesTab } from "@/components/cases/CaseEntitiesTab";
 
 // Tabs for case detail
 const CASE_TABS = [
@@ -221,83 +224,6 @@ interface CaseEmail {
   created_at: string;
 }
 
-interface TimelineEvent {
-  id: number;
-  event_date: string;
-  event_type: string;
-  title: string;
-  description: string | null;
-  source: string | null;
-  icon: string | null;
-  color: string | null;
-  metadata: unknown;
-  created_at: string;
-}
-
-interface CaseContact {
-  id: number;
-  contact_id: number;
-  contact_name: string;
-  contact_email: string | null;
-  role: string;
-  relationship_type?: string;
-  formatted_relationship_type?: string;
-  alignment?: string;
-  formatted_alignment?: string;
-  alignment_color?: string;
-  is_primary?: boolean;
-  notes: string | null;
-  created_at: string;
-  reason?: string;
-  added_by_name?: string;
-  added_at?: string;
-  email_count?: number;
-}
-
-interface CaseCompany {
-  id: number;
-  company_id: number;
-  company_name: string;
-  abn: string | null;
-  role: string;
-  notes: string | null;
-  created_at: string;
-}
-
-interface CaseJob {
-  id: number;
-  job_id: number;
-  job_number: string;
-  job_title: string;
-  client_name: string | null;
-  role: string;
-  notes: string | null;
-  created_at: string;
-}
-
-interface WarehouseSummary {
-  case_number: string;
-  title: string;
-  status: string;
-  generated_at: string;
-  related_contacts: number;
-  related_companies: number;
-  related_jobs: number;
-  documents_linked: number;
-  emails_linked: number;
-  actions_completed: number;
-  actions_with_findings: number;
-  total_job_income: number;
-  total_job_expenses: number;
-  total_hours_logged: number;
-  inconsistencies: unknown[];
-  invoice_variances: number;
-  investigation_period: {
-    start: string | null;
-    end: string | null;
-  };
-}
-
 interface QAPair {
   id: number;
   question: string;
@@ -387,16 +313,23 @@ export default function CaseDetailPage() {
   const [emails, setEmails] = React.useState<CaseEmail[]>([]);
   const [loadingEmails, setLoadingEmails] = React.useState(false);
 
-  const [timelineEvents, setTimelineEvents] = React.useState<TimelineEvent[]>([]);
-  const [loadingTimeline, setLoadingTimeline] = React.useState(false);
-
-  const [contacts, setContacts] = React.useState<CaseContact[]>([]);
-  const [companies, setCompanies] = React.useState<CaseCompany[]>([]);
-  const [jobs, setJobs] = React.useState<CaseJob[]>([]);
-  const [loadingEntities, setLoadingEntities] = React.useState(false);
-
-  const [warehouseSummary, setWarehouseSummary] = React.useState<WarehouseSummary | null>(null);
-  const [loadingWarehouse, setLoadingWarehouse] = React.useState(false);
+  // Contacts for relationships tab (shared with entities tab)
+  const [contacts, setContacts] = React.useState<{
+    id: number;
+    contact_id: number;
+    contact_name: string;
+    contact_email: string | null;
+    role: string;
+    relationship_type?: string;
+    formatted_relationship_type?: string;
+    alignment?: string;
+    formatted_alignment?: string;
+    is_primary?: boolean;
+    notes: string | null;
+    reason?: string;
+    email_count?: number;
+  }[]>([]);
+  const [loadingContacts, setLoadingContacts] = React.useState(false);
 
   const [relationshipGraph, setRelationshipGraph] = React.useState<unknown>(null);
   const [loadingRelationships, setLoadingRelationships] = React.useState(false);
@@ -432,15 +365,6 @@ export default function CaseDetailPage() {
   const [newSubCaseTitle, setNewSubCaseTitle] = React.useState("");
   const [newSubCaseDescription, setNewSubCaseDescription] = React.useState("");
   const [creatingSubCase, setCreatingSubCase] = React.useState(false);
-
-  // Add contact modal
-  const [showAddContact, setShowAddContact] = React.useState(false);
-  const [contactSearchQuery, setContactSearchQuery] = React.useState("");
-  const [contactSearchResults, setContactSearchResults] = React.useState<Array<{id: number; display_name: string; email: string | null; company_name: string | null}>>([]);
-  const [searchingContacts, setSearchingContacts] = React.useState(false);
-  const [selectedContactRole, setSelectedContactRole] = React.useState("related_party");
-  const [contactReason, setContactReason] = React.useState("");
-  const [addingContact, setAddingContact] = React.useState(false);
 
   // Edit case modal
   const [showEditCase, setShowEditCase] = React.useState(false);
@@ -485,6 +409,7 @@ export default function CaseDetailPage() {
     switch (activeTab) {
       case "relationships":
         if (!relationshipGraph) loadRelationshipGraph();
+        if (contacts.length === 0) loadContacts();
         break;
       case "actions":
         if (actions.length === 0) loadActions();
@@ -495,15 +420,6 @@ export default function CaseDetailPage() {
         break;
       case "emails":
         if (emails.length === 0) loadEmails();
-        break;
-      case "timeline":
-        if (timelineEvents.length === 0) loadTimeline();
-        break;
-      case "entities":
-        if (contacts.length === 0 && companies.length === 0) loadEntities();
-        break;
-      case "warehouse":
-        if (!warehouseSummary) loadWarehouseSummary();
         break;
       case "qa":
         if (qaPairs.length === 0) loadQAPairs();
@@ -644,153 +560,18 @@ export default function CaseDetailPage() {
     }
   };
 
-  const loadTimeline = async () => {
+  // Load contacts for relationships tab
+  const loadContacts = async () => {
     try {
-      setLoadingTimeline(true);
-      const response = await api.get<{ success: boolean; data: TimelineEvent[] }>(
-        `/api/v1/cases/${caseId}/timeline`
+      setLoadingContacts(true);
+      const response = await api.get<{ success: boolean; data: typeof contacts }>(
+        `/api/v1/cases/${caseId}/contacts`
       );
-      setTimelineEvents(response.data || []);
+      setContacts(response.data || []);
     } catch (error) {
-      console.error("Failed to load timeline:", error);
+      console.error("Failed to load contacts:", error);
     } finally {
-      setLoadingTimeline(false);
-    }
-  };
-
-  const loadEntities = async () => {
-    try {
-      setLoadingEntities(true);
-      const [contactsRes, companiesRes, jobsRes] = await Promise.all([
-        api.get<{ success: boolean; data: CaseContact[] }>(`/api/v1/cases/${caseId}/contacts`),
-        api.get<{ success: boolean; data: CaseCompany[] }>(`/api/v1/cases/${caseId}/companies`),
-        api.get<{ success: boolean; data: CaseJob[] }>(`/api/v1/cases/${caseId}/jobs`),
-      ]);
-      setContacts(contactsRes.data || []);
-      setCompanies(companiesRes.data || []);
-      setJobs(jobsRes.data || []);
-    } catch (error) {
-      console.error("Failed to load entities:", error);
-    } finally {
-      setLoadingEntities(false);
-    }
-  };
-
-  // Search contacts for add dialog
-  const searchContactsForCase = async (query: string) => {
-    if (!query || query.length < 2) {
-      setContactSearchResults([]);
-      return;
-    }
-    try {
-      setSearchingContacts(true);
-      const response = await api.get<{ contacts?: Array<{id: number; display_name: string; email: string | null; company_name: string | null}> }>("/api/v1/contacts", {
-        params: { search: query, per_page: 10 },
-      });
-      // Filter out contacts already in the case
-      const existingIds = contacts.map((c) => c.contact_id);
-      const filtered = (response.contacts || []).filter((c) => !existingIds.includes(c.id));
-      setContactSearchResults(filtered);
-    } catch (error) {
-      console.error("Failed to search contacts:", error);
-    } finally {
-      setSearchingContacts(false);
-    }
-  };
-
-  // Debounced search
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      if (showAddContact && contactSearchQuery.length >= 2) {
-        searchContactsForCase(contactSearchQuery);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-     
-  }, [contactSearchQuery, showAddContact]);
-
-  // Load entities when Relationships tab is activated
-  React.useEffect(() => {
-    if (activeTab === "relationships" && contacts.length === 0) {
-      loadEntities();
-    }
-     
-  }, [activeTab]);
-
-  // Add contact to case
-  const handleAddContactToCase = async (contactId: number) => {
-    // Validate reason is provided
-    if (!contactReason.trim()) {
-      toast({
-        title: "Reason Required",
-        description: "Please provide a reason for adding this contact",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setAddingContact(true);
-      const response = await api.post<{ success: boolean; data: CaseContact }>(
-        `/api/v1/cases/${caseId}/add_contact`,
-        {
-          contact_id: contactId,
-          role: selectedContactRole,
-          reason: contactReason,
-        }
-      );
-      if (response?.success && response?.data) {
-        setContacts([...contacts, response.data]);
-        toast({
-          title: "Success",
-          description: "Contact added to case",
-        });
-      }
-      // Reset dialog state
-      setShowAddContact(false);
-      setContactSearchQuery("");
-      setContactSearchResults([]);
-      setSelectedContactRole("related_party");
-      setContactReason("");
-    } catch (error) {
-      console.error("Failed to add contact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to add contact to case",
-        variant: "destructive",
-      });
-    } finally {
-      setAddingContact(false);
-    }
-  };
-
-  // Delete contact from case
-  const handleDeleteContact = async (contactId: number, contactName: string) => {
-    // Confirm deletion
-    if (!confirm(`Remove ${contactName} from this case? This will also remove all emails involving this contact.`)) {
-      return;
-    }
-
-    try {
-      const response = await api.delete<{ success: boolean; message: string }>(
-        `/api/v1/cases/${caseId}/contacts/${contactId}`
-      );
-
-      if (response?.success) {
-        // Remove from local state
-        setContacts(contacts.filter(c => c.contact_id !== contactId));
-        toast({
-          title: "Success",
-          description: response.message || "Contact removed from case",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to delete contact:", error);
-      toast({
-        title: "Error",
-        description: "Failed to remove contact from case",
-        variant: "destructive",
-      });
+      setLoadingContacts(false);
     }
   };
 
@@ -858,20 +639,6 @@ export default function CaseDetailPage() {
         description: "Failed to delete case",
         variant: "destructive",
       });
-    }
-  };
-
-  const loadWarehouseSummary = async () => {
-    try {
-      setLoadingWarehouse(true);
-      const response = await api.get<{ success: boolean; data: WarehouseSummary }>(
-        `/api/v1/cases/${caseId}/warehouse_summary`
-      );
-      setWarehouseSummary(response.data);
-    } catch (error) {
-      console.error("Failed to load warehouse summary:", error);
-    } finally {
-      setLoadingWarehouse(false);
     }
   };
 
@@ -1038,20 +805,6 @@ export default function CaseDetailPage() {
     }
   };
 
-  const buildTimeline = async () => {
-    try {
-      setLoadingTimeline(true);
-      const response = await api.post<{ success: boolean; data: TimelineEvent[] }>(
-        `/api/v1/cases/${caseId}/build_timeline`
-      );
-      setTimelineEvents(response?.data || []);
-    } catch (error) {
-      console.error("Failed to build timeline:", error);
-    } finally {
-      setLoadingTimeline(false);
-    }
-  };
-
   const createSubCase = async () => {
     if (!newSubCaseTitle.trim()) return;
 
@@ -1169,40 +922,6 @@ export default function CaseDetailPage() {
         return "bg-gray-100 text-gray-700";
       default:
         return "bg-blue-100 text-blue-700";
-    }
-  };
-
-  const getTimelineIcon = (eventType: string) => {
-    switch (eventType) {
-      case "email":
-        return <Mail className="h-4 w-4" />;
-      case "document":
-        return <FileText className="h-4 w-4" />;
-      case "transaction":
-        return <DollarSign className="h-4 w-4" />;
-      case "meeting":
-        return <Users className="h-4 w-4" />;
-      case "filing":
-        return <Briefcase className="h-4 w-4" />;
-      default:
-        return <Clock className="h-4 w-4" />;
-    }
-  };
-
-  const getTimelineColor = (eventType: string) => {
-    switch (eventType) {
-      case "email":
-        return "bg-purple-500";
-      case "document":
-        return "bg-blue-500";
-      case "transaction":
-        return "bg-green-500";
-      case "meeting":
-        return "bg-amber-500";
-      case "filing":
-        return "bg-red-500";
-      default:
-        return "bg-gray-500";
     }
   };
 
@@ -1924,7 +1643,7 @@ export default function CaseDetailPage() {
                         variant="outline"
                         size="sm"
                         className="mt-2 w-full"
-                        onClick={() => setShowAddContact(true)}
+                        onClick={() => setActiveTab("entities")}
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Contact
@@ -2869,789 +2588,13 @@ export default function CaseDetailPage() {
           </div>
         )}
 
-        {activeTab === "timeline" && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Timeline ({timelineEvents.length} events)</CardTitle>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => loadTimeline()}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
-                </Button>
-                <Button size="sm" onClick={() => buildTimeline()}>
-                  <Activity className="h-4 w-4 mr-2" />
-                  Auto-Build
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loadingTimeline ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : timelineEvents.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>No timeline events yet</p>
-                  <p className="text-sm mt-1">
-                    Click &quot;Auto-Build&quot; to generate a timeline from warehouse data
-                  </p>
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Timeline line */}
-                  <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
-
-                  {/* Timeline events */}
-                  <div className="space-y-6">
-                    {timelineEvents.map((event) => (
-                      <div key={event.id} className="relative pl-10">
-                        {/* Timeline dot */}
-                        <div
-                          className={cn(
-                            "absolute left-2 w-5 h-5 rounded-full flex items-center justify-center text-white",
-                            getTimelineColor(event.event_type)
-                          )}
-                        >
-                          {getTimelineIcon(event.event_type)}
-                        </div>
-
-                        {/* Event content */}
-                        <div className="bg-muted/30 rounded-lg p-4">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="text-xs font-medium text-muted-foreground uppercase">
-                                  {format(new Date(event.event_date), "d MMM yyyy")}
-                                </span>
-                                <Badge variant="outline" className="text-xs">
-                                  {event.event_type}
-                                </Badge>
-                              </div>
-                              <h4 className="font-medium">{event.title}</h4>
-                              {event.description && (
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  {event.description}
-                                </p>
-                              )}
-                              {event.source && (
-                                <p className="text-xs text-muted-foreground mt-2">
-                                  Source: {event.source}
-                                </p>
-                              )}
-                            </div>
-                            {event.metadata && Object.keys(event.metadata).length > 0 ? (
-                              <Button variant="ghost" size="sm">
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        {activeTab === "timeline" && <CaseTimelineTab caseId={caseId} />}
 
         {activeTab === "entities" && (
-          <div className="space-y-6">
-            {loadingEntities ? (
-              <div className="flex items-center justify-center h-32">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                {/* Section 1: Case Info & Sub-cases */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      <FileText className="h-4 w-4 inline mr-2" />
-                      Case & Sub-cases
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Main Case Info */}
-                    <div className="p-4 bg-muted rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h3 className="font-semibold text-lg">{caseData?.title}</h3>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            {caseData?.case_number} • {caseData?.formatted_case_type}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2">
-                            <Badge variant={
-                              caseData?.status === 'open' ? 'default' :
-                              caseData?.status === 'in_progress' ? 'secondary' :
-                              caseData?.status === 'closed' ? 'outline' : 'default'
-                            }>
-                              {caseData?.formatted_status}
-                            </Badge>
-                            <Badge variant={
-                              caseData?.priority === 'urgent' ? 'destructive' :
-                              caseData?.priority === 'high' ? 'default' : 'secondary'
-                            }>
-                              {caseData?.formatted_priority}
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sub-cases */}
-                    {caseData?.child_cases && caseData.child_cases.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2">Sub-cases ({caseData.child_cases.length})</h4>
-                        <div className="space-y-2">
-                          {caseData.child_cases.map((subCase) => (
-                            <div
-                              key={subCase.id}
-                              className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                              onClick={() => router.push(`/cases/${subCase.id}`)}
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <p className="font-medium">{subCase.title}</p>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {subCase.case_number} • {subCase.formatted_case_type}
-                                  </p>
-                                </div>
-                                <Badge variant={subCase.status === 'open' ? 'default' : 'outline'}>
-                                  {subCase.formatted_status}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Section 2: Friendly Contacts */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span className="text-green-600">Friendly</span> Contacts
-                      <span className="text-muted-foreground text-sm">
-                        ({contacts.filter(c => c.alignment === 'friendly').length})
-                      </span>
-                    </CardTitle>
-                    <Button variant="outline" size="sm" onClick={() => setShowAddContact(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Contact
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    {contacts.filter(c => c.alignment === 'friendly').length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No friendly contacts
-                      </p>
-                    ) : (
-                      <div className="divide-y">
-                        {contacts.filter(c => c.alignment === 'friendly').map((contact) => (
-                          <div key={contact.id} className="py-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3 flex-1">
-                                <div className="p-2 bg-green-100 rounded-full text-green-600">
-                                  <User className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium">{contact.contact_name}</span>
-                                    {contact.is_primary && (
-                                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
-                                    )}
-                                    {contact.formatted_alignment && (
-                                      <Badge variant="secondary" className="bg-green-100 text-green-700">
-                                        {contact.formatted_alignment}
-                                      </Badge>
-                                    )}
-                                    {contact.email_count !== undefined && contact.email_count > 0 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        📧 {contact.email_count}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {contact.contact_email || "No email"}
-                                  </p>
-                                  {contact.formatted_relationship_type && (
-                                    <Badge variant="outline" className="mt-1 text-xs">
-                                      {contact.formatted_relationship_type}
-                                    </Badge>
-                                  )}
-                                  {contact.reason && (
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                      <span className="font-semibold">Reason:</span> {contact.reason}
-                                    </p>
-                                  )}
-                                  {contact.notes && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      <span className="font-semibold">Notes:</span> {contact.notes}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => router.push(`/contacts/${contact.contact_id}`)}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Section 3: Neutral Contacts */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span className="text-gray-600">Neutral</span> Contacts
-                      <span className="text-muted-foreground text-sm">
-                        ({contacts.filter(c => !c.alignment || c.alignment === 'neutral').length})
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {contacts.filter(c => !c.alignment || c.alignment === 'neutral').length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No neutral contacts
-                      </p>
-                    ) : (
-                      <div className="divide-y">
-                        {contacts.filter(c => !c.alignment || c.alignment === 'neutral').map((contact) => (
-                          <div key={contact.id} className="py-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3 flex-1">
-                                <div className="p-2 bg-gray-100 rounded-full text-gray-600">
-                                  <User className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium">{contact.contact_name}</span>
-                                    {contact.is_primary && (
-                                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
-                                    )}
-                                    {contact.email_count !== undefined && contact.email_count > 0 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        📧 {contact.email_count}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {contact.contact_email || "No email"}
-                                  </p>
-                                  {contact.formatted_relationship_type && (
-                                    <Badge variant="outline" className="mt-1 text-xs">
-                                      {contact.formatted_relationship_type}
-                                    </Badge>
-                                  )}
-                                  {contact.reason && (
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                      <span className="font-semibold">Reason:</span> {contact.reason}
-                                    </p>
-                                  )}
-                                  {contact.notes && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      <span className="font-semibold">Notes:</span> {contact.notes}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => router.push(`/contacts/${contact.contact_id}`)}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Section 4: Opposing Contacts */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span className="text-red-600">Opposing</span> Contacts
-                      <span className="text-muted-foreground text-sm">
-                        ({contacts.filter(c => c.alignment === 'opposing').length})
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    {contacts.filter(c => c.alignment === 'opposing').length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No opposing contacts
-                      </p>
-                    ) : (
-                      <div className="divide-y">
-                        {contacts.filter(c => c.alignment === 'opposing').map((contact) => (
-                          <div key={contact.id} className="py-3">
-                            <div className="flex items-start justify-between gap-4">
-                              <div className="flex items-start gap-3 flex-1">
-                                <div className="p-2 bg-red-100 rounded-full text-red-600">
-                                  <User className="h-4 w-4" />
-                                </div>
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium">{contact.contact_name}</span>
-                                    {contact.is_primary && (
-                                      <Badge variant="default" className="bg-blue-600">Primary</Badge>
-                                    )}
-                                    {contact.formatted_alignment && (
-                                      <Badge variant="secondary" className="bg-red-100 text-red-700">
-                                        {contact.formatted_alignment}
-                                      </Badge>
-                                    )}
-                                    {contact.email_count !== undefined && contact.email_count > 0 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        📧 {contact.email_count}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <p className="text-sm text-muted-foreground mt-1">
-                                    {contact.contact_email || "No email"}
-                                  </p>
-                                  {contact.formatted_relationship_type && (
-                                    <Badge variant="outline" className="mt-1 text-xs">
-                                      {contact.formatted_relationship_type}
-                                    </Badge>
-                                  )}
-                                  {contact.reason && (
-                                    <p className="text-xs text-muted-foreground mt-2">
-                                      <span className="font-semibold">Reason:</span> {contact.reason}
-                                    </p>
-                                  )}
-                                  {contact.notes && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      <span className="font-semibold">Notes:</span> {contact.notes}
-                                    </p>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => router.push(`/contacts/${contact.contact_id}`)}
-                                >
-                                  <ExternalLink className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleDeleteContact(contact.contact_id, contact.contact_name)}
-                                  className="text-red-600 hover:text-red-700"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Companies Section */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg">
-                      <Building2 className="h-4 w-4 inline mr-2" />
-                      Companies ({companies.length})
-                    </CardTitle>
-                    <Button variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Company
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    {companies.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No companies linked to this case
-                      </p>
-                    ) : (
-                      <div className="divide-y">
-                        {companies.map((company) => (
-                          <div
-                            key={company.id}
-                            className="py-3 flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 rounded text-blue-600">
-                                <Building2 className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <div className="font-medium">{company.company_name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  {company.abn && `ABN: ${company.abn}`}
-                                  {company.role && (
-                                    <Badge variant="outline" className="ml-2">
-                                      {company.role}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {company.notes && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {company.notes}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                router.push(`/corporate/companies/${company.company_id}`)
-                              }
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Jobs Section */}
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg">
-                      <Briefcase className="h-4 w-4 inline mr-2" />
-                      Jobs ({jobs.length})
-                    </CardTitle>
-                    <Button variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Job
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    {jobs.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No jobs linked to this case
-                      </p>
-                    ) : (
-                      <div className="divide-y">
-                        {jobs.map((job) => (
-                          <div
-                            key={job.id}
-                            className="py-3 flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-amber-100 rounded text-amber-600">
-                                <Briefcase className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <span className="font-mono text-sm">
-                                    {job.job_number}
-                                  </span>
-                                  <span className="font-medium">{job.job_title}</span>
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {job.client_name && `Client: ${job.client_name}`}
-                                  {job.role && (
-                                    <Badge variant="outline" className="ml-2">
-                                      {job.role}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {job.notes && (
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    {job.notes}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => router.push(`/jobs/${job.job_id}`)}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </div>
+          <CaseEntitiesTab caseId={caseId} caseData={caseData} />
         )}
 
-        {activeTab === "warehouse" && (
-          <div className="space-y-6">
-            {loadingWarehouse ? (
-              <div className="flex items-center justify-center h-32">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : !warehouseSummary ? (
-              <Card>
-                <CardContent className="py-8">
-                  <div className="text-center text-muted-foreground">
-                    <BarChart3 className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Failed to load warehouse data</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-4"
-                      onClick={() => loadWarehouseSummary()}
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <>
-                {/* Summary Stats Grid */}
-                <div className="grid grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Job Income</p>
-                          <p className="text-2xl font-bold text-green-600">
-                            {formatCurrency(warehouseSummary.total_job_income || 0)}
-                          </p>
-                        </div>
-                        <TrendingUp className="h-8 w-8 text-green-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Job Expenses</p>
-                          <p className="text-2xl font-bold text-red-600">
-                            {formatCurrency(warehouseSummary.total_job_expenses || 0)}
-                          </p>
-                        </div>
-                        <TrendingDown className="h-8 w-8 text-red-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Hours Logged</p>
-                          <p className="text-2xl font-bold">
-                            {(warehouseSummary.total_hours_logged || 0).toFixed(1)}
-                          </p>
-                        </div>
-                        <Clock className="h-8 w-8 text-blue-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Invoice Variances</p>
-                          <p className="text-2xl font-bold text-amber-600">
-                            {warehouseSummary.invoice_variances || 0}
-                          </p>
-                        </div>
-                        <AlertTriangle className="h-8 w-8 text-amber-500" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Related Entities Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Related Entities</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <Users className="h-6 w-6 mx-auto mb-2 text-teal-600" />
-                        <p className="text-2xl font-bold">{warehouseSummary.related_contacts}</p>
-                        <p className="text-sm text-muted-foreground">Contacts</p>
-                      </div>
-                      <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <Building2 className="h-6 w-6 mx-auto mb-2 text-blue-600" />
-                        <p className="text-2xl font-bold">{warehouseSummary.related_companies}</p>
-                        <p className="text-sm text-muted-foreground">Companies</p>
-                      </div>
-                      <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <Briefcase className="h-6 w-6 mx-auto mb-2 text-amber-600" />
-                        <p className="text-2xl font-bold">{warehouseSummary.related_jobs}</p>
-                        <p className="text-sm text-muted-foreground">Jobs</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Actions & Documents Summary */}
-                <div className="grid grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Actions Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Completed Actions</span>
-                          <span className="font-medium">{warehouseSummary.actions_completed}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">With Findings</span>
-                          <span className="font-medium">{warehouseSummary.actions_with_findings}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Documents Linked</span>
-                          <span className="font-medium">{warehouseSummary.documents_linked}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Emails Linked</span>
-                          <span className="font-medium">{warehouseSummary.emails_linked}</span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Investigation Period</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Start Date</span>
-                          <span className="font-medium">
-                            {warehouseSummary.investigation_period?.start
-                              ? format(new Date(warehouseSummary.investigation_period.start), "d MMM yyyy")
-                              : "Not set"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">End Date</span>
-                          <span className="font-medium">
-                            {warehouseSummary.investigation_period?.end
-                              ? format(new Date(warehouseSummary.investigation_period.end), "d MMM yyyy")
-                              : "Not set"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-muted-foreground">Generated At</span>
-                          <span className="font-medium">
-                            {format(new Date(warehouseSummary.generated_at), "d MMM yyyy HH:mm")}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Inconsistencies */}
-                {warehouseSummary.inconsistencies && warehouseSummary.inconsistencies.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-amber-500" />
-                        Issues & Inconsistencies ({warehouseSummary.inconsistencies.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {warehouseSummary.inconsistencies.map((issue: any, idx: number) => (
-                          <div
-                            key={idx}
-                            className={cn(
-                              "p-3 rounded-lg border",
-                              issue.severity === "high"
-                                ? "border-red-200 bg-red-50"
-                                : issue.severity === "medium"
-                                ? "border-amber-200 bg-amber-50"
-                                : "border-gray-200 bg-gray-50"
-                            )}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <Badge
-                                    className={cn(
-                                      issue.severity === "high"
-                                        ? "bg-red-100 text-red-700"
-                                        : issue.severity === "medium"
-                                        ? "bg-amber-100 text-amber-700"
-                                        : "bg-gray-100 text-gray-700"
-                                    )}
-                                  >
-                                    {issue.severity}
-                                  </Badge>
-                                  <span className="font-medium">{issue.title}</span>
-                                </div>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  {issue.description}
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Type: {issue.type} | Source: {issue.source}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* Refresh Button */}
-                <div className="flex justify-end">
-                  <Button variant="outline" onClick={() => loadWarehouseSummary()}>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Refresh Warehouse Data
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        {activeTab === "warehouse" && <CaseWarehouseTab caseId={caseId} />}
       </div>
 
       {/* Run Action Modal */}
@@ -3758,119 +2701,6 @@ export default function CaseDetailPage() {
                 <Plus className="h-4 w-4 mr-2" />
               )}
               Create Sub-case
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Contact Dialog */}
-      <Dialog open={showAddContact} onOpenChange={(open) => {
-        setShowAddContact(open);
-        if (!open) {
-          setContactSearchQuery("");
-          setContactSearchResults([]);
-          setSelectedContactRole("related_party");
-          setContactReason("");
-        }
-      }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Add Contact to Case
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Role</Label>
-              <Select value={selectedContactRole} onValueChange={setSelectedContactRole}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select role..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="subject">Subject</SelectItem>
-                  <SelectItem value="witness">Witness</SelectItem>
-                  <SelectItem value="advisor">Advisor</SelectItem>
-                  <SelectItem value="opposing_party">Opposing Party</SelectItem>
-                  <SelectItem value="related_party">Related Party</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="contact_reason">
-                Reason <span className="text-red-500">*</span>
-              </Label>
-              <Textarea
-                id="contact_reason"
-                placeholder="Why is this contact being added to the case? (e.g., 'Key witness in ATO audit', 'Client's accountant')"
-                value={contactReason}
-                onChange={(e) => setContactReason(e.target.value)}
-                rows={3}
-                className={!contactReason.trim() ? "border-red-300" : ""}
-              />
-              {!contactReason.trim() && (
-                <p className="text-xs text-red-500">Reason is required</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label>Search Contact</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, email, or company..."
-                  value={contactSearchQuery}
-                  onChange={(e) => setContactSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            {searchingContacts && (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            {!searchingContacts && contactSearchQuery.length >= 2 && contactSearchResults.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No contacts found matching &quot;{contactSearchQuery}&quot;
-              </p>
-            )}
-            {contactSearchResults.length > 0 && (
-              <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-                {contactSearchResults.map((contact) => (
-                  <div
-                    key={contact.id}
-                    className="p-3 hover:bg-muted cursor-pointer flex items-center justify-between"
-                    onClick={() => handleAddContactToCase(contact.id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-teal-100 rounded-full text-teal-600">
-                        <User className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{contact.display_name || "No name"}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {contact.email || "No email"}
-                          {contact.company_name && (
-                            <span className="ml-2 text-xs bg-slate-100 px-2 py-0.5 rounded">
-                              {contact.company_name}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {addingContact && (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddContact(false)}>
-              Cancel
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3998,7 +2828,7 @@ export default function CaseDetailPage() {
           caseId={parseInt(caseId)}
           contactId={editContactId}
           onSaved={() => {
-            loadEntities();
+            loadContacts();
             loadRelationshipGraph();
           }}
         />

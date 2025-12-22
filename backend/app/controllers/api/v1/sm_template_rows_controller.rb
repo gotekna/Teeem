@@ -152,7 +152,7 @@ module Api
         params.require(:row).permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days, :start_day_offset,
-          :trade, :stage, :assigned_role,
+          :trade, :stage, :assigned_role, :cost_centre,
           :supplier_id, :checklist_id, :parent_row_id,
           :require_photo, :require_certificate, :require_supervisor_check,
           :po_required, :critical_po, :create_po_on_job_start,
@@ -161,13 +161,20 @@ module Api
           :spawn_photo_task, :spawn_scan_task, :pass_fail_enabled,
           :order_time_days, :call_time_days,
           :show_in_docs_tab, :color,
+          # New Schedule Master fields
+          :auto_include, :allow_duplicates, :ai_select,
+          :photo_entity_tab_id, :linked_po_task_id,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           spawn_office_tasks: [],
           documentation_category_ids: [],
           subtask_names: [],
           price_book_item_ids: [],
-          tags: []
+          tags: [],
+          # New array fields
+          plan_type_ids: [],
+          start_entity_tab_ids: [],
+          complete_entity_tab_ids: []
         )
       end
 
@@ -202,6 +209,7 @@ module Api
           predecessor_display_names: row.predecessor_display_names,
           trade: row.trade,
           stage: row.stage,
+          cost_centre: row.cost_centre,
           assigned_role: row.assigned_role,
           supplier_id: row.supplier_id,
           supplier_name: row.supplier&.name,
@@ -229,6 +237,16 @@ module Api
           tags: row.tags,
           color: row.color,
           is_active: row.is_active,
+          # New Schedule Master fields
+          auto_include: row.auto_include,
+          allow_duplicates: row.allow_duplicates,
+          ai_select: row.ai_select,
+          plan_type_ids: row.plan_type_ids || [],
+          start_entity_tab_ids: row.start_entity_tab_ids || [],
+          complete_entity_tab_ids: row.complete_entity_tab_ids || [],
+          photo_entity_tab_id: row.photo_entity_tab_id,
+          linked_po_task_id: row.linked_po_task_id,
+          linked_po_task_name: row.linked_po_task&.name,
           created_at: row.created_at,
           updated_at: row.updated_at
         }
