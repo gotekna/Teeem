@@ -472,27 +472,32 @@ export function EntityTabsConfig({
     }
   };
 
-  // Helper to find siblings (tabs with same parent)
+  // Helper to find siblings (tabs with same parent), sorted by order_position
   const findSiblings = (tab: EntityTab): EntityTab[] => {
+    let siblings: EntityTab[];
+
     if (!tab.parent_id) {
       // Root level - filter by tab_group
-      return tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group);
+      siblings = tabs.filter(t => !t.parent_id && t.tab_group === tab.tab_group);
+    } else {
+      // Find parent and return its children
+      const findParent = (items: EntityTab[]): EntityTab | null => {
+        for (const item of items) {
+          if (item.id === tab.parent_id) return item;
+          if (item.children?.length) {
+            const found = findParent(item.children);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const parent = findParent(tabs);
+      siblings = parent?.children || [];
     }
 
-    // Find parent and return its children
-    const findParent = (items: EntityTab[]): EntityTab | null => {
-      for (const item of items) {
-        if (item.id === tab.parent_id) return item;
-        if (item.children?.length) {
-          const found = findParent(item.children);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const parent = findParent(tabs);
-    return parent?.children || [];
+    // CRITICAL: Sort by order_position to ensure correct ordering
+    return siblings.sort((a, b) => a.order_position - b.order_position);
   };
 
   // Handle position change via typing a number

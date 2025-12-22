@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_130006) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_130007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1825,6 +1825,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_130006) do
     t.boolean "enable_payments", default: false
     t.boolean "show_in_expense_claims", default: false
     t.datetime "synced_at"
+    t.string "consolidated_account_code"
     t.index ["account_code"], name: "index_corporate_company_xero_accounts_on_account_code"
     t.index ["company_xero_connection_id"], name: "idx_on_company_xero_connection_id_dd7b188bc9"
     t.index ["company_xero_connection_id"], name: "index_xero_accounts_on_connection_id"

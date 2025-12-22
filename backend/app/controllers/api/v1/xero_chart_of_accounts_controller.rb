@@ -95,9 +95,11 @@ module Api
 
       # POST /api/v1/xero_chart_of_accounts/sync_from_xero
       # Import chart of accounts from Xero
+      # Also syncs to CorporateCompanyXeroAccount if company_id provided
       def sync_from_xero
         company_group_id = params[:company_group_id]
         tenant_id = params[:tenant_id]
+        company_id = params[:company_id]
 
         unless tenant_id.present?
           return render json: {
@@ -118,12 +120,20 @@ module Api
           end
 
           accounts = result[:data]["Accounts"] || []
-          stats = { created: 0, updated: 0, skipped: 0 }
+          stats = { created: 0, updated: 0, skipped: 0, company_accounts_synced: 0 }
+
+          # Find company connection if company_id provided
+          connection = nil
+          if company_id.present?
+            company = CorporateCompany.find_by(id: company_id)
+            connection = company&.corporate_company_xero_connection
+          end
 
           accounts.each do |xero_account|
             # Skip system accounts
             next if xero_account["SystemAccount"].present?
 
+            # Sync to master chart (XeroChartOfAccount)
             account = XeroChartOfAccount.find_or_initialize_by(
               company_group_id: company_group_id,
               account_code: xero_account["Code"]
@@ -145,6 +155,34 @@ module Api
               stats[:updated] += 1
             else
               stats[:skipped] += 1
+            end
+
+            # Also sync to per-company accounts (CorporateCompanyXeroAccount)
+            if connection.present?
+              company_account = CorporateCompanyXeroAccount.find_or_initialize_by(
+                company_xero_connection_id: connection.id,
+                xero_account_id: xero_account["AccountID"]
+              )
+
+              company_account.assign_attributes(
+                account_code: xero_account["Code"],
+                account_name: xero_account["Name"],
+                account_type: xero_account["Type"],
+                account_class: xero_account["Class"],
+                tax_type: xero_account["TaxType"],
+                description: xero_account["Description"],
+                status: xero_account["Status"],
+                bank_account_number: xero_account["BankAccountNumber"],
+                currency_code: xero_account["CurrencyCode"],
+                reporting_code: xero_account["ReportingCode"],
+                reporting_code_name: xero_account["ReportingCodeName"],
+                enable_payments: xero_account["EnablePaymentsToAccount"] == true,
+                show_in_expense_claims: xero_account["ShowInExpenseClaims"] == true,
+                synced_at: Time.current
+              )
+
+              company_account.save!
+              stats[:company_accounts_synced] += 1
             end
           end
 
@@ -341,6 +379,67 @@ module Api
           tax_type: account.tax_type,
           description: account.description,
           active: account.active,
+          created_at: account.created_at,
+          updated_at: account.updated_at
+        }
+      end
+
+      # GET /api/v1/xero_chart_of_accounts/company_accounts
+      # Returns per-company Xero accounts with consolidated_account_code mapping
+      def company_accounts
+        company = CorporateCompany.find(params[:company_id])
+        connection = company.corporate_company_xero_connection
+
+        unless connection
+          return render json: {
+            success: false,
+            error: "No Xero connection for this company"
+          }, status: :not_found
+        end
+
+        @accounts = connection.corporate_company_xero_accounts
+        @accounts = @accounts.where(status: "ACTIVE") unless params[:include_inactive] == "true"
+        @accounts = @accounts.order(:account_code)
+
+        # Get Foundation for TeeemTableView
+        foundation = Foundation.find_by(model_class: "CorporateCompanyXeroAccount")
+
+        render json: {
+          success: true,
+          data: @accounts.map { |a| serialize_company_account(a) },
+          meta: {
+            total: @accounts.count,
+            foundation_id: foundation&.id,
+            company_name: company.name,
+            xero_tenant_name: connection.xero_tenant_name,
+            mapped_count: @accounts.mapped.count,
+            unmapped_count: @accounts.unmapped.count
+          }
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: e.message }, status: :not_found
+      end
+
+      def serialize_company_account(account)
+        {
+          id: account.id,
+          xero_account_id: account.xero_account_id,
+          account_code: account.account_code,
+          account_name: account.account_name,
+          display_name: account.display_name,
+          account_type: account.account_type,
+          account_class: account.account_class,
+          tax_type: account.tax_type,
+          description: account.description,
+          status: account.status,
+          active: account.status == "ACTIVE",
+          bank_account_number: account.bank_account_number,
+          currency_code: account.currency_code,
+          reporting_code: account.reporting_code,
+          reporting_code_name: account.reporting_code_name,
+          consolidated_account_code: account.consolidated_account_code,
+          mapped: account.mapped?,
+          synced_at: account.synced_at,
           created_at: account.created_at,
           updated_at: account.updated_at
         }

@@ -54,17 +54,28 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     setLoading(true);
     setError(null);
     try {
+      // Fetch per-company accounts with consolidated_account_code
       const response = await api.get<{
         success: boolean;
         data: TableRow[];
-        companies: CompanyInfo[];
-        meta: { foundation_id: number; company_group: string };
+        meta: {
+          foundation_id: number;
+          company_name: string;
+          xero_tenant_name: string;
+          mapped_count: number;
+          unmapped_count: number;
+        };
         error?: string;
-      }>(`/api/v1/xero_chart_of_accounts/with_company_presence?company_id=${companyId}`);
+      }>(`/api/v1/xero_chart_of_accounts/company_accounts?company_id=${companyId}`);
 
       if (response?.success) {
         setAccounts(response.data || []);
-        setCompanies(response.companies || []);
+        // Set companies from the single company (for UI compatibility)
+        setCompanies([{
+          id: Number(companyId),
+          name: response.meta?.company_name || '',
+          short_name: response.meta?.xero_tenant_name || ''
+        }]);
         setFoundationId(response.meta?.foundation_id || null);
       } else {
         setError(response?.error || "Failed to load accounts");
@@ -82,27 +93,23 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
 
   // Sync accounts from Xero to Foundation table
   const handleSyncFromXero = async () => {
-    if (companies.length === 0) return;
-
     setSyncing(true);
     setError(null);
 
     try {
-      // Sync from the first company's Xero connection
-      // The sync will populate the XeroChartOfAccount table
-      for (const company of companies) {
-        // Get the tenant_id for this company
-        const companyResponse = await api.get<{
-          success: boolean;
-          connection?: { xero_tenant_id: string };
-        }>(`/api/v1/companies/${company.id}/xero/connection`);
+      // Get the tenant_id for this company
+      const companyResponse = await api.get<{
+        success: boolean;
+        connection?: { xero_tenant_id: string };
+      }>(`/api/v1/companies/${companyId}/xero/connection`);
 
-        if (companyResponse?.success && companyResponse.connection?.xero_tenant_id) {
-          await api.post(`/api/v1/xero_chart_of_accounts/sync_from_xero`, {
-            tenant_id: companyResponse.connection.xero_tenant_id,
-            company_group_id: null, // Use global for now
-          });
-        }
+      if (companyResponse?.success && companyResponse.connection?.xero_tenant_id) {
+        // Sync from Xero - populates both XeroChartOfAccount (master) and CorporateCompanyXeroAccount (per-company)
+        await api.post(`/api/v1/xero_chart_of_accounts/sync_from_xero`, {
+          tenant_id: companyResponse.connection.xero_tenant_id,
+          company_id: companyId,
+          company_group_id: null,
+        });
       }
 
       // Reload data after sync
@@ -160,33 +167,12 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     }
   };
 
-  // Build dynamic columns for company presence
-  const extraColumns = React.useMemo<TableColumn[]>(() => {
-    return companies.map((company) => ({
-      key: `company_${company.id}`,
-      label: company.short_name,
-      column_type: "boolean",
-      width: 70,
-      editable: false,
-      tooltip: company.name,
-      sortable: true,
-      filterable: true,
-    }));
-  }, [companies]);
+  // No extra columns needed - Foundation has all columns including consolidated_account_code
+  const extraColumns = React.useMemo<TableColumn[]>(() => [], []);
 
-  // Custom cell renderer for company presence and status badges
+  // Custom cell renderer for status badges and mapped indicator
   const customCellRenderer = React.useCallback(
     (entry: TableRow, columnKey: string): React.ReactNode | null => {
-      // Company presence columns - show check/X icons
-      if (columnKey.startsWith("company_")) {
-        const hasAccount = entry[columnKey] as boolean;
-        return hasAccount ? (
-          <Check className="h-4 w-4 text-green-600 mx-auto" />
-        ) : (
-          <X className="h-4 w-4 text-red-400 mx-auto" />
-        );
-      }
-
       // Active status as colored badge
       if (columnKey === "active") {
         const active = entry[columnKey] as boolean;
@@ -208,6 +194,27 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         return <Badge variant="outline">{type}</Badge>;
       }
 
+      // Mapped status - show check/X
+      if (columnKey === "mapped") {
+        const mapped = entry[columnKey] as boolean;
+        return mapped ? (
+          <Check className="h-4 w-4 text-green-600 mx-auto" />
+        ) : (
+          <X className="h-4 w-4 text-red-400 mx-auto" />
+        );
+      }
+
+      // Consolidated account code - highlight if set
+      if (columnKey === "consolidated_account_code") {
+        const code = entry[columnKey] as string;
+        if (!code) return <span className="text-muted-foreground">—</span>;
+        return (
+          <Badge variant="secondary" className="font-mono">
+            {code}
+          </Badge>
+        );
+      }
+
       return null; // Use default rendering
     },
     []
@@ -216,30 +223,28 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
   // Left actions for the table header
   const leftActions = React.useMemo(() => (
     <div className="flex items-center gap-2">
-      {companies.length > 0 && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleStandardizeNames}
-          disabled={loading || standardizing}
-          title="Rename bank accounts in Xero to use standardized format: BANK BSB ACCOUNT_NUMBER"
-        >
-          {standardizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-          <span className="ml-2">Standardize Bank Names</span>
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleStandardizeNames}
+        disabled={loading || standardizing}
+        title="Rename bank accounts in Xero to use standardized format: BANK BSB ACCOUNT_NUMBER"
+      >
+        {standardizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+        <span className="ml-2">Standardize Bank Names</span>
+      </Button>
       <Button
         variant="outline"
         size="sm"
         onClick={handleSyncFromXero}
-        disabled={loading || syncing || companies.length === 0}
+        disabled={loading || syncing}
         title="Sync accounts from Xero to local database"
       >
         {syncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
         <span className="ml-2">Sync from Xero</span>
       </Button>
     </div>
-  ), [companies.length, loading, standardizing, syncing]);
+  ), [loading, standardizing, syncing]);
 
   if (loading && accounts.length === 0) {
     return (

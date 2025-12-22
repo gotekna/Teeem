@@ -1882,6 +1882,7 @@ Rails.application.routes.draw do
         collection do
           get "for_company/:company_id", action: :for_company
           get :with_company_presence
+          get :company_accounts
           post :sync_from_xero
           post :copy_to_group
         end
