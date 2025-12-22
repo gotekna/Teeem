@@ -237,6 +237,14 @@ export function EntityTabsConfig({
     return grouped;
   }, [tabs, groups]);
 
+  // Auto-select first non-empty group when tabs change or current group becomes empty
+  React.useEffect(() => {
+    const nonEmptyGroups = groups.filter((g) => (groupedTabs[g]?.length || 0) > 0);
+    if (nonEmptyGroups.length > 0 && (groupedTabs[activeGroup]?.length || 0) === 0) {
+      setActiveGroup(nonEmptyGroups[0]);
+    }
+  }, [groupedTabs, groups, activeGroup]);
+
   // Flat list for non-grouped view
   const flatTabs = React.useMemo(() => {
     return tabs
@@ -927,24 +935,28 @@ export function EntityTabsConfig({
         </Card>
       )}
 
-      {/* Tabs by group */}
+      {/* Tabs by group - only show groups that have tabs */}
       {showTabGroups ? (
         <Tabs value={activeGroup} onValueChange={setActiveGroup}>
           <TabsList>
-            {groups.map((group) => (
-              <TabsTrigger key={group} value={group} className="gap-2">
-                {GROUP_LABELS[group]}
-                <Badge variant="secondary" className="text-xs">
-                  {groupedTabs[group]?.length || 0}
-                </Badge>
-              </TabsTrigger>
-            ))}
+            {groups
+              .filter((group) => (groupedTabs[group]?.length || 0) > 0)
+              .map((group) => (
+                <TabsTrigger key={group} value={group} className="gap-2">
+                  {GROUP_LABELS[group]}
+                  <Badge variant="secondary" className="text-xs">
+                    {groupedTabs[group]?.length || 0}
+                  </Badge>
+                </TabsTrigger>
+              ))}
           </TabsList>
-          {groups.map((group) => (
-            <TabsContent key={group} value={group}>
-              {renderTabGroup(group, groupedTabs[group] || [])}
-            </TabsContent>
-          ))}
+          {groups
+            .filter((group) => (groupedTabs[group]?.length || 0) > 0)
+            .map((group) => (
+              <TabsContent key={group} value={group}>
+                {renderTabGroup(group, groupedTabs[group] || [])}
+              </TabsContent>
+            ))}
         </Tabs>
       ) : (
         /* Flat list without groups */

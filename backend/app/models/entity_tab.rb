@@ -13,8 +13,13 @@ class EntityTab < ApplicationRecord
   # Valid scopes
   SCOPES = %w[corporate_entity people job document xero].freeze
 
-  # Valid tab groups (simplified: overview = features/data, documents = file folders)
-  TAB_GROUPS = %w[overview documents].freeze
+  # Valid tab groups
+  # - overview: Main features and data display
+  # - documents: File/folder tabs with SharePoint integration
+  # - reports: Xero reports (P&L, Balance Sheet, etc.)
+  # - data: Xero data views (Accounts, Contacts, etc.)
+  # - setup: Configuration tabs (Connection, Settings)
+  TAB_GROUPS = %w[overview documents reports data setup].freeze
 
   # Associations
   belongs_to :parent, class_name: 'EntityTab', optional: true
