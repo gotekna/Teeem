@@ -378,16 +378,10 @@ Rails.application.routes.draw do
       end
 
       # Master Schedule - Projects
+      # Note: Project tasks removed in Phase 6 Tier 4 - SmTask is THE ONE task system
       resources :projects do
         member do
           get :gantt
-        end
-
-        # Project tasks (nested under projects)
-        resources :tasks, controller: "project_tasks" do
-          member do
-            post :auto_complete_subtasks
-          end
         end
       end
 

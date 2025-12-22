@@ -1203,12 +1203,16 @@ export function EntityTabsConfig({
                     value: dt.id.toString(),
                     label: dt.display_name || dt.name,
                   }))}
-                  placeholder="Select document types..."
+                  placeholder="Type to search document types..."
+                  hidePlaceholderWhenSelected={false}
                   emptyIndicator={
                     <p className="text-center text-sm text-muted-foreground">
-                      No document types available
+                      No document types found
                     </p>
                   }
+                  inputProps={{
+                    className: "min-w-[200px]",
+                  }}
                 />
                 <p className="text-xs text-muted-foreground">
                   {(formData.document_type_ids || []).length} document types linked

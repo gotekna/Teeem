@@ -4,10 +4,7 @@ class WHSIncident < ApplicationRecord
   belongs_to :reported_by_user, class_name: "User"
   belongs_to :investigated_by_user, class_name: "User", optional: true
 
-  # DEPRECATED: Old task system - will be removed after Phase 5 migration
-  # See: create_investigation_task callback
-
-  # NEW: SSoT task system (SmTask via tasks table)
+  # SSoT task system (SmTask via tasks table)
   belongs_to :sm_task, optional: true
 
   has_many :whs_action_items, as: :actionable, dependent: :destroy
@@ -38,9 +35,8 @@ class WHSIncident < ApplicationRecord
   before_validation :generate_incident_number, on: :create
   before_validation :set_report_date, on: :create
   before_save :check_workcov_notification_requirement
-  after_create :create_investigation_task
-  after_create :create_sm_task_if_needed  # NEW: SSoT task creation
-  after_save :sync_with_sm_task           # NEW: SSoT task sync
+  after_create :create_sm_task_if_needed
+  after_save :sync_with_sm_task
 
   # Scopes
   scope :reported, -> { where(status: "reported") }
@@ -163,36 +159,6 @@ class WHSIncident < ApplicationRecord
     end
   end
 
-  def create_investigation_task
-    return unless construction.present?
-
-    # Map severity to priority
-    task_priority = case severity_level
-    when "critical" then "critical"
-    when "high" then "high"
-    else "medium"
-    end
-
-    # Find WPHS Appointees
-    wphs_appointee = User.where(wphs_appointee: true).first
-
-    construction.project_tasks.create!(
-      name: "Investigate Incident #{incident_number}",
-      description: "Investigate incident: #{what_happened}",
-      task_type: "whs_investigation",
-      category: "safety",
-      status: "not_started",
-      assigned_to: wphs_appointee,
-      planned_end_date: CorporateCompanySetting.today + 3.days,
-      duration_days: 3,
-      tags: [ "whs", "incident", severity_level ]
-    )
-  rescue => e
-    Rails.logger.error("Failed to create investigation task for incident #{id}: #{e.message}")
-    # Don't fail incident creation if task creation fails
-  end
-
-  # NEW: SmTask (SSoT) task creation
   def create_sm_task_if_needed
     return if sm_task.present?
     return unless job.present?
@@ -218,7 +184,6 @@ class WHSIncident < ApplicationRecord
     # Don't fail incident creation if task creation fails
   end
 
-  # NEW: SmTask sync
   def sync_with_sm_task
     return unless sm_task.present?
     return unless saved_change_to_status?

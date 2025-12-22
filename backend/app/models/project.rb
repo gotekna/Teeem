@@ -1,7 +1,6 @@
 class Project < ApplicationRecord
   belongs_to :project_manager, class_name: "User"
   belongs_to :job
-  has_many :project_tasks, dependent: :destroy
   has_many :chat_messages, dependent: :destroy
   has_many :purchase_orders, through: :construction
 
@@ -12,19 +11,22 @@ class Project < ApplicationRecord
   scope :active, -> { where(status: [ "planning", "active" ]) }
   scope :completed, -> { where(status: "complete") }
 
+  # SSoT: All task methods now use SmTask via job
   def total_tasks
-    project_tasks.count
+    job.sm_tasks.count
   end
 
   def completed_tasks
-    project_tasks.where(status: "complete").count
+    job.sm_tasks.where(status: "completed").count
   end
 
   def progress_percentage
-    return 0 if project_tasks.empty?
+    return 0 if job.sm_tasks.empty?
 
     Rails.cache.fetch("project:#{id}:progress", expires_in: 5.minutes) do
-      (project_tasks.sum(:progress_percentage) / project_tasks.count.to_f).round
+      total = job.sm_tasks.count
+      completed = job.sm_tasks.where(status: "completed").count
+      ((completed.to_f / total) * 100).round
     end
   end
 
@@ -35,20 +37,20 @@ class Project < ApplicationRecord
 
   def on_schedule?
     return true unless planned_end_date
-    critical_path_end = project_tasks.where(is_critical_path: true)
-                                     .maximum(:planned_end_date)
+    critical_path_end = job.sm_tasks.where(is_critical_path: true)
+                                    .maximum(:end_date)
     critical_path_end.nil? || critical_path_end <= planned_end_date
   end
 
   def critical_path_tasks
-    project_tasks.where(is_critical_path: true).order(:planned_start_date)
+    job.sm_tasks.where(is_critical_path: true).order(:start_date)
   end
 
   def overdue_tasks
-    project_tasks.where("planned_end_date < ? AND status != ?", CorporateCompanySetting.today, "complete")
+    job.sm_tasks.where("end_date < ? AND status != ?", CorporateCompanySetting.today, "completed")
   end
 
   def upcoming_tasks
-    project_tasks.where("planned_start_date <= ? AND status = ?", 1.week.from_now, "not_started")
+    job.sm_tasks.where("start_date <= ? AND status = ?", 1.week.from_now, "not_started")
   end
 end

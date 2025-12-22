@@ -3,10 +3,7 @@ class MeetingAgendaItem < ApplicationRecord
   belongs_to :meeting
   belongs_to :presenter, class_name: "User", optional: true
 
-  # DEPRECATED: Old task system - will be removed after Phase 5 migration
-  belongs_to :created_task, class_name: "ProjectTask", optional: true
-
-  # NEW: SSoT task system (SmTask via tasks table)
+  # SSoT task system (SmTask via tasks table)
   belongs_to :sm_task, optional: true
 
   # Validations
@@ -28,33 +25,10 @@ class MeetingAgendaItem < ApplicationRecord
   end
 
   def create_action_item!(task_attributes)
-    return if created_task.present?
-
-    # Create a project task (action item) from this agenda item
-    # Following B11.001: Task status lifecycle
-    task = meeting.construction.project_tasks.build(task_attributes.merge(
-      status: "not_started",
-      description: "Action item from meeting: #{meeting.title}\n\nAgenda item: #{title}\n\n#{description}"
-    ))
-
-    if task.save
-      update(created_task: task)
-
-      # NEW: Also create SmTask (dual-write during migration)
-      create_sm_action_item!(task_attributes)
-
-      task
-    else
-      nil
-    end
-  end
-
-  # NEW: Create SmTask action item (SSoT)
-  def create_sm_action_item!(task_attributes)
-    return if sm_task.present?
+    return sm_task if sm_task.present?
 
     job = meeting.job
-    return unless job.present?
+    return nil unless job.present?
 
     task = job.sm_tasks.create!(
       name: "Meeting: #{task_attributes[:name] || title}",
@@ -69,9 +43,10 @@ class MeetingAgendaItem < ApplicationRecord
       created_by: meeting.organizer&.user
     )
     update_column(:sm_task_id, task.id)
+    task
   rescue StandardError => e
     Rails.logger.error("[Meeting→SmTask] Failed to create SmTask for agenda item #{id}: #{e.message}")
-    # Don't fail action item creation if SmTask creation fails
+    nil
   end
 
   private

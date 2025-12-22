@@ -17,8 +17,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :quote_response, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
   has_many :payments, dependent: :destroy
-  has_many :project_tasks, dependent: :nullify
-  has_many :schedule_tasks, dependent: :nullify
+  # SSoT: SmTask is THE ONE task system
   has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
@@ -190,24 +189,24 @@ class PurchaseOrder < ApplicationRecord
     (invoiced_amount / total * 100).round(2)
   end
 
-  # Check if PO delivery timing aligns with linked tasks
+  # Check if PO delivery timing aligns with linked tasks (SSoT: uses SmTask)
   def delivery_aligned_with_tasks?
-    return true if project_tasks.empty?
-    project_tasks.all? { |task| delivery_before_task_start?(task) }
+    return true if sm_tasks.empty?
+    sm_tasks.all? { |task| delivery_before_task_start?(task) }
   end
 
   # Check if this PO's delivery date is before a specific task's start date
   def delivery_before_task_start?(task)
-    return true if required_on_site_date.nil? || task.planned_start_date.nil?
-    required_on_site_date <= task.planned_start_date
+    return true if required_on_site_date.nil? || task.start_date.nil?
+    required_on_site_date <= task.start_date
   end
 
-  # Get timing warnings for all linked tasks
+  # Get timing warnings for all linked tasks (SSoT: uses SmTask)
   def timing_warnings
     warnings = []
-    project_tasks.each do |task|
+    sm_tasks.each do |task|
       unless delivery_before_task_start?(task)
-        days_late = (required_on_site_date - task.planned_start_date).to_i
+        days_late = (required_on_site_date - task.start_date).to_i
         warnings << "PO delivery is #{days_late} days after #{task.name} starts"
       end
     end

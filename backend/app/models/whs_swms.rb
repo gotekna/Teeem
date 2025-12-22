@@ -5,10 +5,7 @@ class WHSSWMS < ApplicationRecord
   belongs_to :approved_by, class_name: "User", optional: true
   belongs_to :superseded_by, class_name: "WHSSWMS", optional: true
 
-  # DEPRECATED: Old task system - will be removed after Phase 5 migration
-  # See: create_swms_approval_task callback
-
-  # NEW: SSoT task system (SmTask via tasks table)
+  # SSoT task system (SmTask via tasks table)
   belongs_to :sm_task, optional: true
 
   has_many :whs_swms_hazards, dependent: :destroy
@@ -41,8 +38,8 @@ class WHSSWMS < ApplicationRecord
   before_save :update_approval_timestamp
   before_save :update_superseded_timestamp
   after_create :create_approval_task_if_needed
-  after_create :create_sm_task_if_needed  # NEW: SSoT task creation
-  after_save :sync_with_sm_task           # NEW: SSoT task sync
+  after_create :create_sm_task_if_needed
+  after_save :sync_with_sm_task
 
   # Scopes
   scope :draft, -> { where(status: "draft") }
@@ -203,34 +200,8 @@ class WHSSWMS < ApplicationRecord
       return
     end
 
-    # Otherwise, set to pending and create approval task
+    # Otherwise, set to pending (SmTask created via create_sm_task_if_needed callback)
     update_column(:status, "pending_approval") if status == "draft"
-
-    # Create approval task for WPHS Appointees
-    create_swms_approval_task
-  end
-
-  def create_swms_approval_task
-    return unless job.present?
-
-    # Find WPHS Appointees
-    wphs_appointee = User.where(wphs_appointee: true).first
-    return unless wphs_appointee.present?
-
-    job.project_tasks.create!(
-      name: "Approve SWMS: #{title}",
-      description: "Review and approve SWMS #{swms_number}",
-      task_type: "whs_approval",
-      category: "safety",
-      status: "not_started",
-      assigned_to: wphs_appointee,
-      planned_end_date: CorporateCompanySetting.today + 2.days,
-      duration_days: 1,
-      tags: [ "whs", "swms", "approval" ]
-    )
-  rescue => e
-    Rails.logger.error("Failed to create approval task for SWMS #{id}: #{e.message}")
-    # Don't fail SWMS creation if task creation fails
   end
 
   def must_have_job_or_be_company_wide
@@ -245,7 +216,6 @@ class WHSSWMS < ApplicationRecord
     end
   end
 
-  # NEW: SmTask (SSoT) task creation
   def create_sm_task_if_needed
     return if sm_task.present?
     return unless job.present?
@@ -275,7 +245,6 @@ class WHSSWMS < ApplicationRecord
     # Don't fail SWMS creation if task creation fails
   end
 
-  # NEW: SmTask sync
   def sync_with_sm_task
     return unless sm_task.present?
     return unless saved_change_to_status?

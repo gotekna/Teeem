@@ -1,5 +1,6 @@
 class TaskTemplate < ApplicationRecord
-  has_many :project_tasks
+  # Note: project_tasks association removed in Phase 6 Tier 4
+  # TaskTemplate now provides patterns for SmTask creation
 
   validates :name, presence: true
   validates :task_type, presence: true

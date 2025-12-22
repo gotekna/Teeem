@@ -34,7 +34,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     # Apply pending filter (open or in_progress)
     action_items = action_items.pending if params[:pending] == "true"
 
-    action_items = action_items.includes(:actionable, :assigned_to_user, :created_by, :project_task)
+    action_items = action_items.includes(:actionable, :assigned_to_user, :created_by, :sm_task)
                                .order(due_date: :asc, priority: :desc)
 
     # Following B01.003: API response format
@@ -157,7 +157,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
     params.require(:whs_action_item).permit(
       :title, :description, :actionable_type, :actionable_id,
       :action_type, :priority, :status, :assigned_to_user_id,
-      :due_date, :completion_notes, :project_task_id
+      :due_date, :completion_notes, :sm_task_id
     )
   end
 
@@ -168,7 +168,7 @@ class Api::V1::WHSActionItemsController < ApplicationController
       },
       assigned_to_user: {},
       created_by: {},
-      project_task: {}
+      sm_task: {}
     }
   end
 end
