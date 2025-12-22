@@ -1682,8 +1682,10 @@ export default function TeeemTableView({
   // ============================================================================
 
   // Warn developers when foundationIdNumeric is missing but features require it
+  // Note: foundationIdNumeric === 0 means "no Foundation by design" (e.g., Assets, Companies)
+  // Only warn when it's truly undefined/missing
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && !foundationIdNumeric) {
+    if (process.env.NODE_ENV === 'development' && foundationIdNumeric === undefined) {
       const warnings: string[] = [];
 
       if (enableSchemaEditor) {
@@ -1697,7 +1699,7 @@ export default function TeeemTableView({
         console.warn(
           `[TeeemTableView] "${tableName}" (foundationId="${foundationId}"):\n` +
           warnings.map(w => `  - ${w}`).join('\n') +
-          '\n  To fix: Pass foundationIdNumeric={tableId} prop'
+          '\n  To fix: Pass foundationIdNumeric={tableId} prop (use 0 for non-Foundation tables)'
         );
       }
     }

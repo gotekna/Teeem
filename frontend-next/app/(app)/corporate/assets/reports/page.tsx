@@ -208,8 +208,8 @@ export default function AssetReportsPage() {
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ corporate_companies: Company[] }>("/api/v1/corporate_companies");
-      setCompanies(response.corporate_companies || []);
+      const response = await api.get<{ companies: Company[] }>("/api/v1/companies");
+      setCompanies(response.companies || []);
     } catch (err) {
       console.error("Failed to load companies:", err);
     }

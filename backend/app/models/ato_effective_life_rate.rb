@@ -7,7 +7,7 @@ class AtoEffectiveLifeRate < ApplicationRecord
   validates :description, presence: true
   validates :effective_life_years, presence: true, numericality: { greater_than: 0 }
   validates :effective_from, presence: true
-  validates :division_43_rate, numericality: { in: [2.5, 4.0] }, if: :is_division_43?
+  validates :division_43_rate, inclusion: { in: [2.5, 4.0], message: "must be 2.5 or 4.0" }, if: :is_division_43?
 
   # Scopes
   scope :current, -> { where(effective_until: nil).or(where("effective_until >= ?", Date.current)) }

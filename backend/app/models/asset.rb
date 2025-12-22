@@ -210,6 +210,16 @@ class Asset < ApplicationRecord
     assigned_user&.full_name
   end
 
+  # Company name (from association)
+  def company_name
+    corporate_company&.name
+  end
+
+  # Company code (from association)
+  def company_code
+    corporate_company&.code
+  end
+
   private
 
   # Create default depreciation profile when asset is created

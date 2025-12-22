@@ -195,15 +195,51 @@ export const DATE_PLACEHOLDERS: PlaceholderToken[] = [
 export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
   {
     code: "{JobCode}",
-    example: "J069",
+    example: "EB2401",
     color: "orange",
     description: "Job code/number",
+  },
+  {
+    code: "{JobName}",
+    example: "05 Wategors",
+    color: "orange",
+    description: "Job name/title (short)",
   },
   {
     code: "{JobTitle}",
     example: "83 West Ridge",
     color: "orange",
-    description: "Job title/name",
+    description: "Job title (full)",
+  },
+  {
+    code: "{JobAddress}",
+    example: "Lot 5 Wategois Street Claamvale",
+    color: "orange",
+    description: "Full job address",
+  },
+  {
+    code: "{LotNumber}",
+    example: "5",
+    color: "orange",
+    description: "Lot number",
+  },
+  {
+    code: "{StreetName}",
+    example: "Wategois Street",
+    color: "orange",
+    description: "Street name",
+  },
+  {
+    code: "{Suburb}",
+    example: "Claamvale",
+    color: "orange",
+    description: "Suburb",
+  },
+  {
+    code: "{ProjectName}",
+    example: "Wategors Estate",
+    color: "orange",
+    description: "Project name",
   },
   {
     code: "{CertType}",
@@ -225,9 +261,46 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
   },
   {
     code: "{Category}",
-    example: "Plans",
+    example: "Contract Drawings",
     color: "orange",
     description: "Document category",
+  },
+  {
+    code: "{CategoryCode}",
+    example: "ConD",
+    color: "orange",
+    description: "Category code (short)",
+  },
+];
+
+// =============================================================================
+// PLAN TYPE PLACEHOLDERS (Blue - specific to plans/drawings)
+// =============================================================================
+
+export const PLAN_PLACEHOLDERS: PlaceholderToken[] = [
+  {
+    code: "{Code}",
+    example: "01",
+    color: "blue",
+    description: "Plan type code (01, 02, 07, etc.)",
+  },
+  {
+    code: "{Name}",
+    example: "PERSPECTIVE",
+    color: "blue",
+    description: "Plan type name (short)",
+  },
+  {
+    code: "{Rev}",
+    example: "A",
+    color: "blue",
+    description: "Revision letter/number",
+  },
+  {
+    code: "{Variant}",
+    example: "a",
+    color: "blue",
+    description: "Variant suffix (a, b, c)",
   },
 ];
 
@@ -307,13 +380,14 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
 
 export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]> = {
   company: [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
-  job: [...JOB_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
-  document: [...DOCUMENT_PLACEHOLDERS],
+  job: [...JOB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
+  document: [...DOCUMENT_PLACEHOLDERS, ...PLAN_PLACEHOLDERS],
   sharepoint: SHAREPOINT_PLACEHOLDERS,
   all: [
     ...DOCUMENT_PLACEHOLDERS,
     ...COMPANY_PLACEHOLDERS,
     ...JOB_PLACEHOLDERS,
+    ...PLAN_PLACEHOLDERS,
     ...DATE_PLACEHOLDERS,
   ],
 };

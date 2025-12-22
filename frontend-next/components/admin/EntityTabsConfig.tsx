@@ -24,6 +24,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+// Plan configuration components (SSoT: Plans config moved from separate tab)
+import {
+  CategoriesSection as PlanCategoriesSection,
+  TypesSection as PlanTypesSection,
+  RevisionFormatsSection as PlanRevisionFormatsSection,
+} from "@/app/(app)/admin/system/components/PlansTab";
+import {
   Accordion,
   AccordionContent,
   AccordionItem,
@@ -173,6 +186,8 @@ export function EntityTabsConfig({
   const [activeGroup, setActiveGroup] = React.useState<string>("overview");
   const [showEntityTypesEditor, setShowEntityTypesEditor] = React.useState(false);
   const [newEntityType, setNewEntityType] = React.useState("");
+  // Plan configuration sheet (SSoT: Plans config integrated here)
+  const [configTab, setConfigTab] = React.useState<EntityTab | null>(null);
 
   // All document types for linking (SSoT)
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; display_name?: string }>>([]);
@@ -347,8 +362,15 @@ export function EntityTabsConfig({
     setIsCreateDialogOpen(true);
   };
 
-  // Open edit dialog
+  // Open edit dialog (or config sheet for special tabs)
   const openEditDialog = (tab: EntityTab) => {
+    // SSoT: Tabs with component_name have special configuration UI
+    // (e.g., plan-categories, plan-types, revision-formats)
+    if (tab.component_name) {
+      setConfigTab(tab);
+      return;
+    }
+
     setFormData({
       display_name: tab.display_name,
       description: tab.description || "",
@@ -775,6 +797,36 @@ export function EntityTabsConfig({
 
           {/* Actions */}
           <div className="flex items-center gap-1">
+            {/* Plan configuration buttons (only for Plans tab) */}
+            {tab.tab_key === "plans" && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setConfigTab({ ...tab, component_name: "PlanCategories" } as EntityTab)}
+                >
+                  Categories
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setConfigTab({ ...tab, component_name: "PlanTypes" } as EntityTab)}
+                >
+                  Types
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setConfigTab({ ...tab, component_name: "RevisionFormats" } as EntityTab)}
+                >
+                  Revisions
+                </Button>
+              </>
+            )}
+
             {/* Edit button */}
             <TooltipProvider>
               <Tooltip>
@@ -1407,6 +1459,23 @@ export function EntityTabsConfig({
           <span className="text-sm">Saving...</span>
         </div>
       )}
+
+      {/* Plan Configuration Sheet (SSoT: Plans config integrated from separate tab) */}
+      <Sheet open={!!configTab} onOpenChange={() => setConfigTab(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{configTab?.display_name} Configuration</SheetTitle>
+            <SheetDescription>
+              Configure {configTab?.display_name?.toLowerCase()} for the Plans document tab
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6">
+            {configTab?.component_name === "PlanCategories" && <PlanCategoriesSection />}
+            {configTab?.component_name === "PlanTypes" && <PlanTypesSection />}
+            {configTab?.component_name === "RevisionFormats" && <PlanRevisionFormatsSection />}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

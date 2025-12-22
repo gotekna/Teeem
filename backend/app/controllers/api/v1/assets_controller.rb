@@ -52,7 +52,7 @@ module Api
           success: true,
           assets: @assets.as_json(
             include: include_hash,
-            methods: [ :display_name, :needs_attention?, :insurance_expired?, :service_overdue? ]
+            methods: [ :display_name, :company_name, :company_code, :assigned_to_name, :needs_attention?, :insurance_expired?, :service_overdue? ]
           )
         }
       end

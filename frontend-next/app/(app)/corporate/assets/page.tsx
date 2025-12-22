@@ -64,14 +64,12 @@ export default function AssetsPage() {
         foundationIdNumeric={foundationId || 0}
         tableName="Assets"
         entries={assets}
-        // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         onEdit={handleEdit}
         onDelete={handleDeleteWithConfirm}
         onBulkDelete={handleBulkDeleteWithConfirm}
         onRowDoubleClick={(asset) => router.push(`/corporate/assets/${asset.id}`)}
         enableExport={true}
-        enableSchemaEditor={false} // Assets don't have a Foundation for schema editing
-        hideUpdateViewButton={true}
+        enableSchemaEditor={true}
         onColumnUpdate={refreshColumns}
         leftActions={
           <Button onClick={() => router.push("/corporate/assets/new")}>

@@ -211,7 +211,7 @@ export function PlansTab() {
   );
 }
 
-function CategoriesSection() {
+export function CategoriesSection() {
   const { toast } = useToast();
   const [categories, setCategories] = React.useState<PlanCategory[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -443,7 +443,7 @@ interface GlobalDefaults {
   long_name_template: string;
 }
 
-function TypesSection() {
+export function TypesSection() {
   const { toast } = useToast();
   const [types, setTypes] = React.useState<PlanType[]>([]);
   const [categories, setCategories] = React.useState<PlanCategory[]>([]);
@@ -1040,7 +1040,7 @@ function TypesSection() {
   );
 }
 
-function RevisionFormatsSection() {
+export function RevisionFormatsSection() {
   const { toast } = useToast();
   const [formats, setFormats] = React.useState<RevisionFormat[]>([]);
   const [loading, setLoading] = React.useState(true);

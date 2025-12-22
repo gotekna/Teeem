@@ -14,7 +14,7 @@ class AssetDepreciationProfile < ApplicationRecord
   validates :tax_method, inclusion: { in: TAX_METHODS }
   validates :residual_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :effective_life_years, numericality: { greater_than: 0 }, allow_nil: true
-  validates :division_43_rate, numericality: { in: [2.5, 4.0] }, if: :is_division_43?
+  validates :division_43_rate, inclusion: { in: [2.5, 4.0], message: "must be 2.5 or 4.0" }, if: :is_division_43?
 
   # Callbacks
   before_save :calculate_depreciation_rates
