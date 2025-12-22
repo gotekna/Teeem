@@ -17,6 +17,7 @@ interface UseEntityTabsOptions {
   scope: EntityTabScope;
   entityType?: string; // For filtering corporate_entity tabs by Company, Trust, etc.
   tabGroup?: TabGroup; // Filter by group
+  includeDisabled?: boolean; // Include disabled tabs (for admin views)
 }
 
 interface UseEntityTabsReturn {
@@ -36,7 +37,7 @@ interface UseEntityTabsReturn {
 }
 
 export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsReturn {
-  const { scope, entityType, tabGroup } = options;
+  const { scope, entityType, tabGroup, includeDisabled } = options;
   const [tabs, setTabs] = React.useState<EntityTab[]>([]);
   const [groups, setGroups] = React.useState<TabGroup[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -51,6 +52,7 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
       const params = new URLSearchParams({ scope });
       if (entityType) params.append("entity_type", entityType);
       if (tabGroup) params.append("tab_group", tabGroup);
+      if (includeDisabled) params.append("include_disabled", "true");
 
       const response = await api.get<EntityTabsResponse>(
         `/api/v1/entity_tabs?${params.toString()}`
@@ -68,7 +70,7 @@ export function useEntityTabs(options: UseEntityTabsOptions): UseEntityTabsRetur
     } finally {
       setLoading(false);
     }
-  }, [scope, entityType, tabGroup]);
+  }, [scope, entityType, tabGroup, includeDisabled]);
 
   React.useEffect(() => {
     fetchTabs();

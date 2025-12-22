@@ -279,11 +279,12 @@ export function DocumentTypesTab() {
 
   const loadAvailableFolders = async () => {
     try {
-      const response = await api.get<{ success: boolean; data: FolderOption[] }>(
-        "/api/v1/document_folders?hierarchy=true&active=true"
+      // SSoT: Use /api/v1/document_types/tabs (EntityTab-based folders)
+      const response = await api.get<{ success: boolean; tabs: FolderOption[] }>(
+        "/api/v1/document_types/tabs"
       );
-      if (response.success && response.data) {
-        setAvailableFolders(response.data);
+      if (response.success && response.tabs) {
+        setAvailableFolders(response.tabs);
       }
     } catch (error) {
       console.error("Failed to load available folders:", error);

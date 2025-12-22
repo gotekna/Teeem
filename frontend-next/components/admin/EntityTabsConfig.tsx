@@ -168,7 +168,7 @@ export function EntityTabsConfig({
     reorderTabs,
     toggleEnabled,
     refetch,
-  } = useEntityTabs({ scope });
+  } = useEntityTabs({ scope, includeDisabled: true });
 
   // Fetch entity types from API (SSoT)
   const {
