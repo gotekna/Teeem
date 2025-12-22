@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
@@ -44,6 +45,7 @@ interface BillStats {
 }
 
 export default function FinancePage() {
+  useSetLayoutMode("full-height");
   const [xeroStatus, setXeroStatus] = useState<XeroStatus | null>(null);
   const [billStats, setBillStats] = useState<BillStats | null>(null);
   const [loading, setLoading] = useState(true);
