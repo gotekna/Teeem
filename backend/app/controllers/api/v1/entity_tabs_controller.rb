@@ -159,6 +159,23 @@ module Api
         }
       end
 
+      # GET /api/v1/entity_tabs/document_type_counts
+      # Returns count of document types linked per scope
+      def document_type_counts
+        counts = EntityTab::SCOPES.each_with_object({}) do |scope, hash|
+          hash[scope] = EntityTabDocumentType
+            .joins(:entity_tab)
+            .where(entity_tabs: { scope: scope })
+            .distinct
+            .count(:document_type_id)
+        end
+
+        render json: {
+          success: true,
+          data: { counts: counts }
+        }
+      end
+
       private
 
       def set_entity_tab

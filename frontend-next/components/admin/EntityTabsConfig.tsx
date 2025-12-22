@@ -696,6 +696,11 @@ export function EntityTabsConfig({
               >
                 {tab.display_name}
               </span>
+              {tab.document_types && tab.document_types.length > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium bg-muted text-muted-foreground rounded">
+                  {tab.document_types.length}
+                </span>
+              )}
               <Badge variant="outline" className="text-xs">
                 {tab.tab_key}
               </Badge>

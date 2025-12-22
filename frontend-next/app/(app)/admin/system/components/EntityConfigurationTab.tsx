@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { Building2, Users, Briefcase, ArrowLeft, FileText } from "lucide-react";
 import Link from "next/link";
+import { api } from "@/lib/api";
 
 /**
  * EntityConfigurationTab - SSoT for ALL tab configuration
@@ -52,6 +53,24 @@ const scopes = [
 
 export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps) {
   const [activeScope, setActiveScope] = React.useState("corporate_entity");
+  const [scopeCounts, setScopeCounts] = React.useState<Record<string, number>>({});
+
+  // Fetch document type counts per scope
+  React.useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: { counts: Record<string, number> } }>(
+          "/api/v1/entity_tabs/document_type_counts"
+        );
+        if (response?.success) {
+          setScopeCounts(response.data.counts);
+        }
+      } catch (err) {
+        console.error("Failed to fetch scope counts:", err);
+      }
+    };
+    fetchCounts();
+  }, []);
 
   // Handle escape key to exit
   React.useEffect(() => {
@@ -91,6 +110,11 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
                   >
                     <Icon className="h-3.5 w-3.5 mr-1.5" />
                     {scope.label}
+                    {scopeCounts[scope.id] > 0 && (
+                      <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted rounded">
+                        {scopeCounts[scope.id]}
+                      </span>
+                    )}
                   </TabsTrigger>
                 );
               })}
