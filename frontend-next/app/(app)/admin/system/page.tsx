@@ -68,7 +68,7 @@ import { PerformanceTab } from "./components/PerformanceTab";
 import { DocumentTypesTab } from "./components/DocumentTypesTab";
 import { ContactTypesTab } from "./components/ContactTypesTab";
 // FoldersTabsConfigTab removed - use Entity Configuration > Corporate > Documents (SSoT)
-import { WarehouseTab } from "./components/WarehouseTab";
+// WarehouseTab removed - Document Types now in Entity Configuration (SSoT)
 import { BrandGuidelinesTab } from "./components/BrandGuidelinesTab";
 import { DocumentTemplatesTab } from "./components/DocumentTemplatesTab";
 import { EmailAccountsTab } from "./components/EmailAccountsTab";
@@ -100,7 +100,7 @@ const TIMEZONES = [
 
 const MAIN_TABS = [
   { id: "company", label: "Company", icon: Building2 },
-  { id: "warehouse", label: "Warehouse", icon: BarChart },
+  // Warehouse removed - Document Types now in Entity Configuration (SSoT)
   { id: "brand-guidelines", label: "Brand Guidelines", icon: Palette },
   { id: "contact-types", label: "Contacts", icon: Tag },
   { id: "components", label: "Components", icon: Star },
@@ -765,9 +765,7 @@ function SystemAdminPageContent() {
           <TabsContent value="company" className="overflow-auto">
             <CompanySettingsTab />
           </TabsContent>
-          <TabsContent value="warehouse" className="flex-1 min-h-0 overflow-auto">
-            <WarehouseTab />
-          </TabsContent>
+          {/* Warehouse removed - Document Types now in Entity Configuration (SSoT) */}
           <TabsContent value="brand-guidelines" className="flex-1 min-h-0 overflow-auto">
             <BrandGuidelinesTab />
           </TabsContent>
