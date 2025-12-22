@@ -689,9 +689,9 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
               {tab.has_sharepoint_folder && (
-                <Badge variant="outline" className="text-xs gap-1 text-muted-foreground font-normal max-w-[300px] truncate">
+                <Badge variant="outline" className="text-xs gap-1 text-muted-foreground font-normal">
                   <FolderOpen className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{tab.hierarchy_path || tab.display_name}</span>
+                  <span>{tab.hierarchy_path || tab.display_name}</span>
                 </Badge>
               )}
               {hasChildren && (
