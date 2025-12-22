@@ -7,11 +7,8 @@ import type { EntityTab } from "@/lib/types/entity-tabs";
 /**
  * SSoT: Adapter hook for Xero feature tabs
  *
- * Wraps useEntityTabs for xero scope and transforms
- * the response to match the format expected by the corporate pages.
- *
- * This enables migration from the old /api/v1/xero/tabs
- * to the unified /api/v1/entity_tabs?scope=xero
+ * Fetches from corporate_entity scope and returns children of the Xero tab.
+ * Xero is just another tab in corporate_entity, not a separate scope.
  */
 
 // Types matching what the corporate page expects for Xero tabs
@@ -83,11 +80,17 @@ export function useXeroEntityTabs(): UseXeroEntityTabsReturn {
     loading,
     error,
     refetch,
-  } = useEntityTabs({ scope: "xero" });
+  } = useEntityTabs({ scope: "corporate_entity" });
 
-  // Transform to XeroFeatureTab format (flattened with parent references)
+  // Find the Xero tab and get its children
+  // SSoT: Xero is a tab in corporate_entity scope with tab_key='xero'
   const tabs = React.useMemo(() => {
-    return flattenTabs(entityTabs);
+    const xeroTab = entityTabs.find((t) => t.tab_key === "xero");
+    if (!xeroTab?.children || xeroTab.children.length === 0) {
+      return [];
+    }
+    // Flatten Xero's children tree
+    return flattenTabs(xeroTab.children);
   }, [entityTabs]);
 
   // Root tabs (no parent)

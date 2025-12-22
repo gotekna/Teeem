@@ -4,14 +4,15 @@
 # - People (Contacts)
 # - Jobs
 # - Document Folders
-# - Xero Integration
+#
+# Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
 #
 # Replaces: CorporateEntityTab, DocumentFolder, JobTab, JobDocumentationTab,
 #           XeroFeatureTab, UserJobTabConfig
 #
 class EntityTab < ApplicationRecord
-  # Valid scopes
-  SCOPES = %w[corporate_entity people job document xero].freeze
+  # Valid scopes (xero tabs are children of corporate_entity/xero tab)
+  SCOPES = %w[corporate_entity people job document].freeze
 
   # Valid tab groups
   # - overview: Main features and data display
@@ -65,7 +66,7 @@ class EntityTab < ApplicationRecord
   scope :for_people, -> { for_scope('people') }
   scope :for_jobs, -> { for_scope('job') }
   scope :for_documents, -> { for_scope('document') }
-  scope :for_xero, -> { for_scope('xero') }
+  # Note: Xero tabs are children of corporate_entity/xero tab, not a separate scope
 
   scope :enabled, -> { where(enabled: true) }
   scope :disabled, -> { where(enabled: false) }

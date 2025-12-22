@@ -1,12 +1,30 @@
 class Asset < ApplicationRecord
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :assigned_user, class_name: "User", optional: true
+
+  # Existing associations
   has_one :asset_insurance, dependent: :destroy
   has_many :asset_service_histories, dependent: :destroy
   has_many :corporate_company_documents, dependent: :nullify
 
+  # New associations for Asset Register
+  has_one :depreciation_profile, class_name: "AssetDepreciationProfile", dependent: :destroy
+  has_many :depreciation_schedules, class_name: "AssetDepreciationSchedule", dependent: :destroy
+  has_one :disposal, class_name: "AssetDisposal", dependent: :destroy
+  has_many :odometer_readings, class_name: "AssetOdometerReading", dependent: :destroy
+  has_many :expenses, class_name: "AssetExpense", dependent: :destroy
+
   # Active Storage for photos
   has_many_attached :photos
+
+  # Asset type codes for asset number generation
+  ASSET_TYPE_CODES = {
+    "vehicle" => "VEH",
+    "equipment" => "EQP",
+    "property" => "PRO",
+    "other" => "OTH"
+  }.freeze
 
   # Validations
   validates :name, presence: true
@@ -15,6 +33,7 @@ class Asset < ApplicationRecord
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
+  validates :asset_number, uniqueness: true, allow_nil: true
 
   # Scopes
   scope :active, -> { where(status: "active") }
@@ -23,9 +42,15 @@ class Asset < ApplicationRecord
   scope :equipment, -> { where(asset_type: "equipment") }
   scope :property, -> { where(asset_type: "property") }
   scope :by_type, ->(type) { where(asset_type: type) }
+  scope :assigned_to, ->(user) { where(assigned_user_id: user.id) }
+  scope :unassigned, -> { where(assigned_user_id: nil) }
+  scope :with_depreciation, -> { joins(:depreciation_profile) }
+  scope :depreciable, -> { active.joins(:depreciation_profile) }
 
   # Callbacks
+  before_validation :generate_asset_number, on: :create
   after_create :create_activity
+  after_create :create_default_depreciation_profile
   after_update :create_update_activity
 
   # Instance methods
@@ -96,7 +121,131 @@ class Asset < ApplicationRecord
     corporate_company_documents.count
   end
 
+  # Asset number in format: ABC-VEH-001
+  def generate_asset_number
+    return if asset_number.present?
+
+    company_code = corporate_company&.code.presence || "XXX"
+    type_code = ASSET_TYPE_CODES[asset_type] || "OTH"
+
+    # Get next sequence number for this company + type combination
+    last_asset = Asset.where(company_id: company_id, asset_type: asset_type)
+                      .where.not(asset_number: nil)
+                      .order(asset_number: :desc)
+                      .first
+
+    if last_asset&.asset_number
+      # Extract sequence from last asset number
+      sequence = last_asset.asset_number.split("-").last.to_i + 1
+    else
+      sequence = 1
+    end
+
+    self.asset_number = "#{company_code}-#{type_code}-#{sequence.to_s.rjust(3, '0')}"
+  end
+
+  # Depreciation convenience methods
+  def current_book_wdv
+    depreciation_profile&.current_book_wdv || purchase_price || 0
+  end
+
+  def current_tax_wdv
+    depreciation_profile&.current_tax_wdv || purchase_price || 0
+  end
+
+  def total_book_depreciation
+    depreciation_schedules.sum(:book_depreciation)
+  end
+
+  def total_tax_depreciation
+    depreciation_schedules.sum(:tax_depreciation)
+  end
+
+  def disposed?
+    status == "disposed" && disposal.present?
+  end
+
+  # Total cost of ownership (maintenance + expenses)
+  def total_cost_of_ownership
+    total_maintenance_cost + expenses.sum(:amount)
+  end
+
+  # Total expenses by type
+  def expenses_by_type
+    expenses.group(:expense_type).sum(:amount)
+  end
+
+  # Last odometer reading
+  def last_odometer_reading
+    odometer_readings.order(reading_date: :desc).first
+  end
+
+  # Current odometer (from asset or last reading)
+  def current_odometer
+    odometer_reading || last_odometer_reading&.odometer_km
+  end
+
+  # Current hours (for equipment)
+  def current_hours
+    hours_reading || last_odometer_reading&.hours
+  end
+
+  # Is this a vehicle?
+  def vehicle?
+    asset_type == "vehicle"
+  end
+
+  # Is this a property?
+  def property?
+    asset_type == "property"
+  end
+
+  # Is this equipment?
+  def equipment?
+    asset_type == "equipment"
+  end
+
+  # Assigned user name
+  def assigned_to_name
+    assigned_user&.full_name
+  end
+
   private
+
+  # Create default depreciation profile when asset is created
+  def create_default_depreciation_profile
+    return unless purchase_price.present? && depreciation_profile.nil?
+
+    # Determine default method based on asset type
+    default_tax_method = if property?
+                           "division_43"
+    elsif purchase_price.to_f < 1000
+                           "low_value_pool"
+    else
+                           "diminishing_value"
+    end
+
+    create_depreciation_profile!(
+      depreciable_cost: purchase_price,
+      depreciation_start_date: purchase_date || Date.current,
+      book_method: "straight_line",
+      tax_method: default_tax_method,
+      effective_life_years: default_effective_life,
+      is_division_43: property?
+    )
+  rescue => e
+    Rails.logger.error "Failed to create default depreciation profile: #{e.message}"
+  end
+
+  # Default effective life based on asset type
+  def default_effective_life
+    case asset_type
+    when "vehicle" then 8.0
+    when "equipment" then 10.0
+    when "property" then 40.0
+    else 10.0
+    end
+  end
 
   def create_activity
     # Skip activity creation for bulk imports

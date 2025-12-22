@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_22_120000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_22_130006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -165,6 +165,105 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_120000) do
     t.index ["service_type"], name: "index_ai_service_configs_on_service_type", unique: true
   end
 
+  create_table "asset_depreciation_profiles", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.decimal "depreciable_cost", precision: 14, scale: 2, null: false
+    t.decimal "residual_value", precision: 14, scale: 2, default: "0.0"
+    t.string "book_method", default: "straight_line", null: false
+    t.string "tax_method", default: "diminishing_value", null: false
+    t.decimal "effective_life_years", precision: 5, scale: 2
+    t.decimal "book_rate", precision: 8, scale: 4
+    t.decimal "tax_rate", precision: 8, scale: 4
+    t.date "depreciation_start_date", null: false
+    t.boolean "in_low_value_pool", default: false
+    t.date "pool_entry_date"
+    t.boolean "is_division_43", default: false
+    t.decimal "division_43_rate", precision: 5, scale: 2
+    t.boolean "instant_writeoff_applied", default: false
+    t.date "instant_writeoff_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_asset_depreciation_profiles_on_asset_id", unique: true
+    t.index ["book_method"], name: "index_asset_depreciation_profiles_on_book_method"
+    t.index ["tax_method"], name: "index_asset_depreciation_profiles_on_tax_method"
+  end
+
+  create_table "asset_depreciation_schedules", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.string "financial_year", null: false
+    t.date "period_start", null: false
+    t.date "period_end", null: false
+    t.integer "days_held", null: false
+    t.integer "days_in_year", default: 365, null: false
+    t.decimal "book_opening_wdv", precision: 14, scale: 2
+    t.decimal "book_depreciation", precision: 14, scale: 2
+    t.decimal "book_closing_wdv", precision: 14, scale: 2
+    t.decimal "book_accumulated", precision: 14, scale: 2
+    t.decimal "tax_opening_wdv", precision: 14, scale: 2
+    t.decimal "tax_depreciation", precision: 14, scale: 2
+    t.decimal "tax_closing_wdv", precision: 14, scale: 2
+    t.decimal "tax_accumulated", precision: 14, scale: 2
+    t.string "book_method_applied"
+    t.string "tax_method_applied"
+    t.string "status", default: "draft"
+    t.datetime "finalized_at"
+    t.bigint "finalized_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id", "financial_year"], name: "idx_asset_dep_schedules_asset_fy", unique: true
+    t.index ["asset_id"], name: "index_asset_depreciation_schedules_on_asset_id"
+    t.index ["finalized_by_id"], name: "index_asset_depreciation_schedules_on_finalized_by_id"
+    t.index ["financial_year", "status"], name: "idx_asset_dep_schedules_fy_status"
+  end
+
+  create_table "asset_disposals", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.bigint "user_id", null: false
+    t.date "disposal_date", null: false
+    t.date "settlement_date"
+    t.string "disposal_type", null: false
+    t.decimal "sale_proceeds", precision: 14, scale: 2, default: "0.0"
+    t.decimal "disposal_costs", precision: 14, scale: 2, default: "0.0"
+    t.decimal "net_proceeds", precision: 14, scale: 2
+    t.decimal "book_wdv_at_disposal", precision: 14, scale: 2, null: false
+    t.decimal "tax_wdv_at_disposal", precision: 14, scale: 2, null: false
+    t.decimal "book_gain_loss", precision: 14, scale: 2, null: false
+    t.decimal "tax_gain_loss", precision: 14, scale: 2, null: false
+    t.decimal "balancing_adjustment", precision: 14, scale: 2
+    t.bigint "replacement_asset_id"
+    t.decimal "trade_in_value", precision: 14, scale: 2
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id"], name: "index_asset_disposals_on_asset_id", unique: true
+    t.index ["disposal_date"], name: "index_asset_disposals_on_disposal_date"
+    t.index ["disposal_type"], name: "index_asset_disposals_on_disposal_type"
+    t.index ["replacement_asset_id"], name: "index_asset_disposals_on_replacement_asset_id"
+    t.index ["user_id"], name: "index_asset_disposals_on_user_id"
+  end
+
+  create_table "asset_expenses", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.bigint "user_id"
+    t.bigint "financial_transaction_id"
+    t.date "expense_date", null: false
+    t.string "expense_type", null: false
+    t.decimal "amount", precision: 12, scale: 2, null: false
+    t.string "description"
+    t.string "vendor"
+    t.string "reference"
+    t.string "xero_invoice_id"
+    t.datetime "synced_to_xero_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id", "expense_date"], name: "idx_asset_expenses_asset_date"
+    t.index ["asset_id"], name: "index_asset_expenses_on_asset_id"
+    t.index ["expense_type"], name: "index_asset_expenses_on_expense_type"
+    t.index ["financial_transaction_id"], name: "index_asset_expenses_on_financial_transaction_id"
+    t.index ["user_id"], name: "index_asset_expenses_on_user_id"
+    t.index ["xero_invoice_id"], name: "index_asset_expenses_on_xero_invoice_id"
+  end
+
   create_table "asset_insurances", force: :cascade do |t|
     t.bigint "asset_id", null: false
     t.string "policy_number"
@@ -185,6 +284,22 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_120000) do
     t.index ["asset_id"], name: "index_asset_insurances_on_asset_id"
     t.index ["renewal_date"], name: "index_asset_insurances_on_renewal_date"
     t.index ["status"], name: "index_asset_insurances_on_status"
+  end
+
+  create_table "asset_odometer_readings", force: :cascade do |t|
+    t.bigint "asset_id", null: false
+    t.bigint "user_id"
+    t.date "reading_date", null: false
+    t.integer "odometer_km"
+    t.integer "hours"
+    t.string "reading_type", default: "manual"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["asset_id", "reading_date"], name: "idx_asset_odometer_asset_date"
+    t.index ["asset_id"], name: "index_asset_odometer_readings_on_asset_id"
+    t.index ["reading_type"], name: "index_asset_odometer_readings_on_reading_type"
+    t.index ["user_id"], name: "index_asset_odometer_readings_on_user_id"
   end
 
   create_table "asset_service_histories", force: :cascade do |t|
@@ -226,8 +341,55 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "abbreviation"
+    t.string "asset_number"
+    t.string "serial_number"
+    t.string "registration_number"
+    t.string "location"
+    t.bigint "assigned_user_id"
+    t.integer "odometer_reading"
+    t.integer "hours_reading"
+    t.date "last_reading_date"
+    t.string "address"
+    t.decimal "land_area_sqm", precision: 12, scale: 2
+    t.decimal "building_area_sqm", precision: 12, scale: 2
+    t.date "construction_date"
+    t.jsonb "metadata", default: {}
     t.index ["abbreviation"], name: "index_assets_on_abbreviation"
+    t.index ["asset_number"], name: "index_assets_on_asset_number", unique: true
+    t.index ["assigned_user_id"], name: "index_assets_on_assigned_user_id"
     t.index ["company_id"], name: "index_assets_on_company_id"
+    t.index ["registration_number"], name: "index_assets_on_registration_number"
+  end
+
+  create_table "ato_effective_life_categories", force: :cascade do |t|
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "parent_code"
+    t.text "description"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_ato_effective_life_categories_on_code", unique: true
+    t.index ["parent_code"], name: "index_ato_effective_life_categories_on_parent_code"
+  end
+
+  create_table "ato_effective_life_rates", force: :cascade do |t|
+    t.bigint "ato_effective_life_category_id", null: false
+    t.string "description", null: false
+    t.decimal "effective_life_years", precision: 5, scale: 2, null: false
+    t.decimal "straight_line_rate", precision: 8, scale: 4
+    t.decimal "diminishing_value_rate", precision: 8, scale: 4
+    t.date "effective_from", null: false
+    t.date "effective_until"
+    t.boolean "is_division_43", default: false
+    t.string "division_43_category"
+    t.decimal "division_43_rate", precision: 5, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ato_effective_life_category_id", "effective_from"], name: "idx_ato_rates_category_date"
+    t.index ["ato_effective_life_category_id"], name: "idx_on_ato_effective_life_category_id_f49e398fe7"
+    t.index ["description"], name: "index_ato_effective_life_rates_on_description"
+    t.index ["is_division_43"], name: "index_ato_effective_life_rates_on_is_division_43"
   end
 
   create_table "attachments", force: :cascade do |t|
@@ -5801,10 +5963,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_22_120000) do
   add_foreign_key "agent_definitions", "users", column: "last_run_by_id", on_delete: :nullify
   add_foreign_key "agent_definitions", "users", column: "updated_by_id"
   add_foreign_key "ai_processing_logs", "users", column: "corrected_by_id"
+  add_foreign_key "asset_depreciation_profiles", "assets"
+  add_foreign_key "asset_depreciation_schedules", "assets"
+  add_foreign_key "asset_depreciation_schedules", "users", column: "finalized_by_id"
+  add_foreign_key "asset_disposals", "assets"
+  add_foreign_key "asset_disposals", "assets", column: "replacement_asset_id"
+  add_foreign_key "asset_disposals", "users"
+  add_foreign_key "asset_expenses", "assets"
+  add_foreign_key "asset_expenses", "financial_transactions"
+  add_foreign_key "asset_expenses", "users"
   add_foreign_key "asset_insurances", "assets"
+  add_foreign_key "asset_odometer_readings", "assets"
+  add_foreign_key "asset_odometer_readings", "users"
   add_foreign_key "asset_service_histories", "assets"
   add_foreign_key "asset_service_histories", "users"
   add_foreign_key "assets", "corporate_companies", column: "company_id"
+  add_foreign_key "assets", "users", column: "assigned_user_id"
+  add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
   add_foreign_key "attachments", "organization_microsoft_app_credentials"
   add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"

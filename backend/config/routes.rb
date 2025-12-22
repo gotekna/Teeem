@@ -1959,15 +1959,41 @@ Rails.application.routes.draw do
       # Bank Accounts
       resources :bank_accounts
 
-      # Assets
+      # Assets (World-Class Asset Register)
       resources :assets do
         member do
+          # Service history
           get :service_history
           post :add_service
+
+          # Insurance
           get :insurance
           post :insurance, to: "assets#update_insurance"
           put :insurance, to: "assets#update_insurance"
+
+          # Documents
           get :documents
+
+          # Depreciation (Asset Register)
+          get :depreciation_profile
+          patch :depreciation_profile, to: "assets#update_depreciation_profile"
+          get :depreciation_schedule
+          post :calculate_depreciation
+          get :depreciation_forecast
+
+          # Disposal
+          post :dispose
+
+          # Expenses
+          get :expenses
+          post :expenses, to: "assets#add_expense"
+
+          # Odometer readings
+          get :odometer_readings
+          post :odometer_readings, to: "assets#add_odometer_reading"
+
+          # User assignment
+          patch :assign_user
         end
       end
 

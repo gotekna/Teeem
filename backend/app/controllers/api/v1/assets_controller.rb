@@ -1,8 +1,13 @@
 module Api
   module V1
     class AssetsController < ApplicationController
-      before_action :set_asset, only: [ :show, :update, :destroy, :service_history,
-                                        :add_service, :insurance, :update_insurance, :documents ]
+      before_action :set_asset, only: [
+        :show, :update, :destroy, :service_history, :add_service, :insurance,
+        :update_insurance, :documents, :depreciation_profile, :update_depreciation_profile,
+        :depreciation_schedule, :calculate_depreciation, :depreciation_forecast,
+        :dispose, :expenses, :add_expense, :odometer_readings, :add_odometer_reading,
+        :assign_user
+      ]
 
       # GET /api/v1/assets
       def index
@@ -230,6 +235,227 @@ module Api
         }
       end
 
+      # ==========================================
+      # DEPRECIATION ENDPOINTS
+      # ==========================================
+
+      # GET /api/v1/assets/:id/depreciation_profile
+      def depreciation_profile
+        profile = @asset.depreciation_profile
+
+        render json: {
+          success: true,
+          depreciation_profile: profile&.as_json(methods: [:current_book_wdv, :current_tax_wdv, :depreciable_amount])
+        }
+      end
+
+      # PATCH /api/v1/assets/:id/depreciation_profile
+      def update_depreciation_profile
+        profile = @asset.depreciation_profile || @asset.build_depreciation_profile
+
+        if profile.update(depreciation_profile_params)
+          render json: {
+            success: true,
+            message: "Depreciation profile updated",
+            depreciation_profile: profile.as_json(methods: [:current_book_wdv, :current_tax_wdv])
+          }
+        else
+          render json: {
+            success: false,
+            errors: profile.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/assets/:id/depreciation_schedule
+      def depreciation_schedule
+        schedules = @asset.depreciation_schedules.order(period_start: :asc)
+
+        render json: {
+          success: true,
+          depreciation_schedule: schedules.as_json,
+          summary: {
+            total_book_depreciation: schedules.sum(:book_depreciation),
+            total_tax_depreciation: schedules.sum(:tax_depreciation),
+            current_book_wdv: schedules.last&.book_closing_wdv,
+            current_tax_wdv: schedules.last&.tax_closing_wdv
+          }
+        }
+      end
+
+      # POST /api/v1/assets/:id/calculate_depreciation
+      def calculate_depreciation
+        financial_year = params[:financial_year] || AssetDepreciationSchedule.current_financial_year
+
+        service = AssetDepreciationService.new(@asset)
+
+        result = if params[:all_years]
+          service.calculate_all_years
+        else
+          service.calculate_for_year(financial_year)
+        end
+
+        if result[:success]
+          render json: {
+            success: true,
+            message: "Depreciation calculated",
+            **result
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error] || result[:errors]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/assets/:id/depreciation_forecast
+      def depreciation_forecast
+        years = (params[:years] || 10).to_i.clamp(1, 50)
+
+        service = AssetDepreciationService.new(@asset)
+        result = service.forecast(years)
+
+        if result[:success]
+          render json: {
+            success: true,
+            forecasts: result[:forecasts]
+          }
+        else
+          render json: {
+            success: false,
+            error: result[:error]
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/assets/:id/dispose
+      def dispose
+        disposal = @asset.build_disposal(disposal_params)
+        disposal.user = current_user
+
+        # Calculate WDV at disposal
+        disposal.book_wdv_at_disposal = @asset.current_book_wdv
+        disposal.tax_wdv_at_disposal = @asset.current_tax_wdv
+
+        if disposal.save
+          render json: {
+            success: true,
+            message: "Asset disposed successfully",
+            disposal: disposal.as_json
+          }
+        else
+          render json: {
+            success: false,
+            errors: disposal.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # ==========================================
+      # EXPENSE ENDPOINTS
+      # ==========================================
+
+      # GET /api/v1/assets/:id/expenses
+      def expenses
+        expenses = @asset.expenses.includes(:user).order(expense_date: :desc)
+
+        render json: {
+          success: true,
+          expenses: expenses.as_json(include: { user: { only: [:id, :full_name] } }),
+          totals: {
+            total: expenses.sum(:amount),
+            by_type: expenses.group(:expense_type).sum(:amount)
+          }
+        }
+      end
+
+      # POST /api/v1/assets/:id/expenses
+      def add_expense
+        expense = @asset.expenses.build(expense_params)
+        expense.user = current_user
+
+        expense.receipt.attach(params[:receipt]) if params[:receipt].present?
+
+        if expense.save
+          render json: {
+            success: true,
+            message: "Expense added",
+            expense: expense.as_json
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: expense.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # ==========================================
+      # ODOMETER ENDPOINTS
+      # ==========================================
+
+      # GET /api/v1/assets/:id/odometer_readings
+      def odometer_readings
+        readings = @asset.odometer_readings.includes(:user).order(reading_date: :desc)
+
+        render json: {
+          success: true,
+          odometer_readings: readings.as_json(
+            include: { user: { only: [:id, :full_name] } },
+            methods: [:display_value, :distance_since_last]
+          ),
+          current: {
+            odometer_km: @asset.current_odometer,
+            hours: @asset.current_hours,
+            last_reading_date: @asset.last_reading_date
+          }
+        }
+      end
+
+      # POST /api/v1/assets/:id/odometer_readings
+      def add_odometer_reading
+        reading = @asset.odometer_readings.build(odometer_reading_params)
+        reading.user = current_user
+
+        reading.photo.attach(params[:photo]) if params[:photo].present?
+
+        if reading.save
+          render json: {
+            success: true,
+            message: "Reading recorded",
+            odometer_reading: reading.as_json(methods: [:display_value])
+          }, status: :created
+        else
+          render json: {
+            success: false,
+            errors: reading.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # ==========================================
+      # USER ASSIGNMENT
+      # ==========================================
+
+      # PATCH /api/v1/assets/:id/assign_user
+      def assign_user
+        if @asset.update(assigned_user_id: params[:user_id])
+          render json: {
+            success: true,
+            message: params[:user_id].present? ? "Asset assigned" : "Asset unassigned",
+            asset: @asset.as_json(
+              include: { assigned_user: { only: [:id, :full_name, :email] } }
+            )
+          }
+        else
+          render json: {
+            success: false,
+            errors: @asset.errors.full_messages
+          }, status: :unprocessable_entity
+        end
+      end
+
       private
 
       def set_asset
@@ -259,6 +485,34 @@ module Api
           :policy_number, :insurer_name, :broker_name, :broker_contact_name,
           :broker_email, :broker_phone, :start_date, :renewal_date,
           :payment_frequency, :premium_amount, :coverage_amount, :excess_amount, :status
+        )
+      end
+
+      def depreciation_profile_params
+        params.require(:depreciation_profile).permit(
+          :depreciable_cost, :residual_value, :book_method, :tax_method,
+          :effective_life_years, :book_rate, :tax_rate, :depreciation_start_date,
+          :in_low_value_pool, :pool_entry_date, :is_division_43, :division_43_rate,
+          :instant_writeoff_applied, :instant_writeoff_date
+        )
+      end
+
+      def disposal_params
+        params.require(:disposal).permit(
+          :disposal_date, :settlement_date, :disposal_type, :sale_proceeds,
+          :disposal_costs, :notes, :replacement_asset_id, :trade_in_value
+        )
+      end
+
+      def expense_params
+        params.require(:expense).permit(
+          :expense_date, :expense_type, :amount, :description, :vendor, :reference
+        )
+      end
+
+      def odometer_reading_params
+        params.require(:odometer_reading).permit(
+          :reading_date, :odometer_km, :hours, :reading_type, :notes
         )
       end
     end

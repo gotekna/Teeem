@@ -115,7 +115,7 @@ import { useXeroEntityTabs } from "@/lib/hooks/useXeroEntityTabs";
 // =============================================================================
 // TAB CONFIGURATION
 // SSoT: GET /api/v1/entity_tabs?scope=corporate_entity (EntityTab model)
-// SSoT: GET /api/v1/entity_tabs?scope=xero (EntityTab model)
+// Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
 // Manage via: Admin > System > Entity Configuration
 // Phase 4 Migration Complete: Using useCorporateEntityTabs & useXeroEntityTabs hooks
 // =============================================================================

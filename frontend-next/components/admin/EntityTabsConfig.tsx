@@ -1267,7 +1267,7 @@ export function EntityTabsConfig({
                     className="h-7 text-xs"
                     onClick={() => {
                       // Map EntityTabScope to document type scope
-                      const docTypeScope = scope === 'corporate_entity' || scope === 'xero' ? 'company' : scope;
+                      const docTypeScope = scope === 'corporate_entity' ? 'company' : scope;
                       // Pass tab ID so it can be pre-selected as the folder
                       const tabId = editingTab?.id;
                       window.open(`/admin/system/document-types/new?scope=${docTypeScope}${tabId ? `&tab=${tabId}` : ''}`, '_blank');

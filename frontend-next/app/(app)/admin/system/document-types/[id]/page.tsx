@@ -174,29 +174,21 @@ export default function DocumentTypeDetailPage() {
         });
 
         // Fetch EntityTabs for the appropriate scope, documents group
+        // SSoT: Xero tabs are children of the Xero tab in corporate_entity scope
         const data = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=${entityTabScope}`);
         let allDocumentTabs: any[] = [];
 
         if (data.success && data.data?.tabs) {
-          // Filter to documents group only, and EXCLUDE "Xero" (SSoT: Xero comes from xero scope)
-          allDocumentTabs = data.data.tabs.filter((t: any) =>
-            t.tab_group === 'documents' && t.tab_key !== 'xero'
-          );
-        }
+          // Filter to documents group tabs (includes Xero with its children already nested)
+          allDocumentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
 
-        // For company-scoped document types, fetch xero tabs from xero scope (SSoT)
-        if (entityTabScope === "corporate_entity") {
-          const xeroData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/entity_tabs?scope=xero`);
-          if (xeroData.success && xeroData.data?.tabs && xeroData.data.tabs.length > 0) {
-            // Wrap xero tabs under a "Xero" parent for display hierarchy
-            const xeroWrapper = {
-              id: null, // No ID - just a display wrapper
-              display_name: "Xero",
-              tab_key: "xero",
-              children: xeroData.data.tabs
-            };
-            // Put Xero at top of dropdown
-            allDocumentTabs = [xeroWrapper, ...allDocumentTabs];
+          // Also include Xero (main group) for corporate_entity - it has sub-tabs for document selection
+          if (entityTabScope === "corporate_entity") {
+            const xeroTab = data.data.tabs.find((t: any) => t.tab_key === 'xero');
+            if (xeroTab) {
+              // Put Xero at top of dropdown
+              allDocumentTabs = [xeroTab, ...allDocumentTabs];
+            }
           }
         }
 
