@@ -4026,17 +4026,10 @@ export default function CompanyDetailPage() {
                     </Card>
                   ) : (
                     <div className="px-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-lg font-semibold">
-                          Xero Linked Contacts
-                          <Badge variant="secondary" className="ml-2">
-                            {xeroContacts.length}
-                          </Badge>
-                        </h3>
-                      </div>
                       <XeroContactsTable
                         contacts={xeroContacts}
                         onRowClick={(contact) => router.push(`/contacts/${contact.id}`)}
+                        onAddContact={() => router.push("/contacts/new")}
                       />
                     </div>
                   )}
