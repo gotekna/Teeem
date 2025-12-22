@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,6 +87,7 @@ interface PipelineResponse {
 }
 
 export default function LeadsPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "leads";

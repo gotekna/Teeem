@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Button } from "@/components/ui/button";
 import { EmailProposalsTab } from "@/components/leads/email-proposals-tab";
 import { ArrowLeft, Mail } from "lucide-react";
 
 export default function EmailLeadsPage() {
+  useSetLayoutMode("full-height");
   const router = useRouter();
   const [pendingCount, setPendingCount] = useState(0);
 

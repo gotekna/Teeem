@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,7 @@ function getMeetingDateLabel(dateStr: string): string {
 }
 
 export default function MeetingsPage() {
+  useSetLayoutMode("full-height");
   const [meetings, setMeetings] = React.useState<Meeting[]>([]);
   const [loading, setLoading] = React.useState(true);
 
