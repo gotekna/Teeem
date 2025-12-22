@@ -182,6 +182,25 @@ class SmTask < ApplicationRecord
     )
   end
 
+  # PO Timing helpers (for CheckPoTimingJob)
+  def has_purchase_order?
+    purchase_order_id.present?
+  end
+
+  # Check if materials will arrive on time
+  def materials_on_time?
+    return true unless has_purchase_order?
+    return true unless purchase_order.required_date.present? && start_date.present?
+    purchase_order.required_date <= start_date
+  end
+
+  # Get materials status for this task
+  def materials_status
+    return "no_po" unless has_purchase_order?
+    return "on_time" if materials_on_time?
+    "delayed"
+  end
+
   private
 
   def set_task_number

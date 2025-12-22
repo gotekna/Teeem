@@ -87,8 +87,18 @@ interface DocumentType {
   requires_filing?: boolean;
   retention_years?: number;
   active: boolean;
+  // OLD (deprecated) - keeping for backwards compatibility
   tabs?: string[];
   primary_tab?: string;
+  // NEW SSoT: EntityTab IDs
+  entity_tab_ids?: number[];
+  entity_tabs?: Array<{
+    id: number;
+    tab_key: string;
+    display_name: string;
+    hierarchy_path: string;
+    parent_id: number | null;
+  }>;
   scope?: string;
   file_extensions?: string[];
   target_folder?: string;
@@ -125,30 +135,39 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ name: string; children: string[] }>>([]); // Full hierarchy for Additional Tabs
-  const [xeroTabs, setXeroTabs] = React.useState<Array<{ name: string; key: string; children: Array<{ name: string; key: string }> }>>([]);
+  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number; name: string; tab_key?: string; children: Array<{ id?: number; name: string; tab_key?: string }> }>>([]); // SSoT: EntityTab hierarchy for Additional Tabs
+  const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
 
   const fileNameInputRef = React.useRef<HTMLInputElement>(null);
   const displayNameInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Fetch available folders from API (SSoT) - includes hierarchy for subtabs
+  // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
   React.useEffect(() => {
     const fetchFolders = async () => {
       try {
-        // Fetch with hierarchy=true to get parent folders with their children (subtabs)
-        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_folders?active=true&hierarchy=true");
-        if (data.success) {
+        // Fetch EntityTabs for corporate_entity scope, documents group
+        const data = await api.get<{ success: boolean; data: { tabs: any[] } }>("/api/v1/entity_tabs?scope=corporate_entity");
+        if (data.success && data.data?.tabs) {
+          // Filter to documents group only
+          const documentTabs = data.data.tabs.filter((t: any) => t.tab_group === 'documents');
+
           // Build folder hierarchy for the additional tabs selector
-          const hierarchy = data.data.map((f: any) => ({
-            name: f.name,
-            children: (f.children || []).map((c: any) => c.name)
+          const hierarchy = documentTabs.map((t: any) => ({
+            id: t.id,
+            name: t.display_name,
+            tab_key: t.tab_key,
+            children: (t.children || []).map((c: any) => ({
+              id: c.id,
+              name: c.display_name,
+              tab_key: c.tab_key
+            }))
           }));
           setFolderHierarchy(hierarchy);
 
-          // Extract root folder names only for Folder/Primary Tab dropdowns
-          const rootNames = data.data.map((f: any) => f.name).sort();
+          // Extract root tab names for Folder/Primary Tab dropdowns
+          const rootNames = documentTabs.map((t: any) => t.display_name).sort();
           setFolderOptions(rootNames);
         } else {
           // Fallback to hard-coded list if API fails
@@ -165,30 +184,24 @@ export default function DocumentTypeDetailPage() {
     fetchFolders();
   }, []);
 
-  // Fetch Xero feature tabs (SSoT for Xero subtabs)
+  // SSoT: Xero subtabs are now children of "Xero" tab in EntityTab system
+  // They're included in the main entity_tabs fetch above, so we extract them from folderHierarchy
   React.useEffect(() => {
-    const fetchXeroTabs = async () => {
-      try {
-        const data = await api.get<{ success: boolean; data: any[] }>("/api/v1/xero/tabs");
-        if (data.success) {
-          // Build hierarchy: root tabs (no parent) with their children
-          // API returns: id (tab_key), name (display_name), parent (parent_key)
-          const rootTabs = data.data.filter((t: any) => !t.parent);
-          const hierarchy = rootTabs.map((t: any) => ({
-            name: t.name,
-            key: t.id,
-            children: data.data
-              .filter((c: any) => c.parent === t.id)
-              .map((c: any) => ({ name: c.name, key: c.id }))
-          }));
-          setXeroTabs(hierarchy);
-        }
-      } catch (error) {
-        console.error("Failed to fetch Xero tabs:", error);
-      }
-    };
-    fetchXeroTabs();
-  }, []);
+    // Find Xero in the folder hierarchy and use its children as Xero tabs
+    const xeroFolder = folderHierarchy.find((f: any) => f.name === "Xero" || f.tab_key === "xero");
+    if (xeroFolder) {
+      setXeroTabs([{
+        name: xeroFolder.name,
+        key: xeroFolder.tab_key || "xero",
+        id: xeroFolder.id,
+        children: (xeroFolder.children || []).map((c: any) => ({
+          name: c.name,
+          key: c.tab_key,
+          id: c.id
+        }))
+      }]);
+    }
+  }, [folderHierarchy]);
 
   // Fetch all document types for navigation
   React.useEffect(() => {
@@ -1471,55 +1484,50 @@ export default function DocumentTypeDetailPage() {
                 options={(() => {
                   const opts: Array<{ value: string; label: string }> = [];
 
-                  // Add all folders from hierarchy
-                  const folders = folderHierarchy.length > 0 ? folderHierarchy : folderOptions.map(f => ({ name: f, children: [] }));
-
-                  folders.forEach(folder => {
-                    // Add the folder itself
-                    opts.push({
-                      value: folder.name,
-                      label: folder.name + (documentType.primary_tab === folder.name ? " ★" : ""),
-                    });
-
-                    // If this is XERO, add Xero feature tabs as subtabs
-                    // Store tab_key (e.g., "bank-statement") for system matching
-                    if (folder.name === "XERO" && xeroTabs.length > 0) {
-                      xeroTabs.forEach(xeroTab => {
-                        // Add main Xero tab - value is tab_key, label shows display name
-                        opts.push({
-                          value: xeroTab.key,  // e.g., "bank" or "profit-loss"
-                          label: `  └ ${xeroTab.name}` + (documentType.primary_tab === xeroTab.key ? " ★" : ""),
-                        });
-
-                        // Add sub-tabs - value is child tab_key
-                        xeroTab.children.forEach(child => {
-                          opts.push({
-                            value: child.key,  // e.g., "bank-statement"
-                            label: `      └ ${child.name}` + (documentType.primary_tab === child.key ? " ★" : ""),
-                          });
-                        });
-                      });
-                    } else {
-                      // Add any DocumentFolder children
-                      folder.children.forEach(child => {
-                        opts.push({
-                          value: `${folder.name} > ${child}`,
-                          label: `  └ ${child}` + (documentType.primary_tab === `${folder.name} > ${child}` ? " ★" : ""),
-                        });
+                  // SSoT: Build options from EntityTab hierarchy
+                  folderHierarchy.forEach((folder: any) => {
+                    // Add the folder itself (use ID as value)
+                    if (folder.id) {
+                      opts.push({
+                        value: folder.id.toString(),
+                        label: folder.name,
                       });
                     }
+
+                    // Add children (subtabs)
+                    (folder.children || []).forEach((child: any) => {
+                      if (child.id) {
+                        opts.push({
+                          value: child.id.toString(),
+                          label: `  └ ${child.name}`,
+                        });
+                      }
+                    });
                   });
 
                   return opts;
                 })()}
-                value={(documentType.tabs || []).map(tab => ({
-                  value: tab,
-                  label: tab + (documentType.primary_tab === tab ? " ★" : ""),
-                }))}
-                onChange={(options) => updateField("tabs", options.map(o => o.value))}
+                value={(documentType.entity_tab_ids || []).map(tabId => {
+                  // Find the tab in hierarchy to get label
+                  let label = `Tab ${tabId}`;
+                  for (const folder of folderHierarchy as any[]) {
+                    if (folder.id === tabId) {
+                      label = folder.name;
+                      break;
+                    }
+                    for (const child of (folder.children || []) as any[]) {
+                      if (child.id === tabId) {
+                        label = child.name;
+                        break;
+                      }
+                    }
+                  }
+                  return { value: tabId.toString(), label };
+                })}
+                onChange={(options) => updateField("entity_tab_ids", options.map(o => parseInt(o.value)))}
               />
               <p className="text-xs text-muted-foreground mt-1">
-                ★ indicates primary tab. Use "Folder &gt; Subtab" format for subtabs.
+                Select the tabs where documents of this type should be displayed.
               </p>
             </div>
           </CardContent>

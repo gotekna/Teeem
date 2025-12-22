@@ -127,14 +127,26 @@ module Api
           :target_folder,
           tabs: [],
           file_extensions: [],
-          folder_ids: []
+          folder_ids: [],
+          entity_tab_ids: []  # SSoT: New EntityTab IDs
         )
       end
 
       def serialize_document_type(document_type)
-        # Get folder data from join table
+        # Get folder data from join table (DEPRECATED - keeping for backwards compatibility)
         folder_assignments = document_type.document_type_folders.includes(:document_folder)
         primary_assignment = folder_assignments.find(&:is_primary)
+
+        # NEW SSoT: EntityTab data
+        entity_tabs_data = document_type.entity_tabs.ordered.map do |tab|
+          {
+            id: tab.id,
+            tab_key: tab.tab_key,
+            display_name: tab.display_name,
+            hierarchy_path: tab.hierarchy_path,
+            parent_id: tab.parent_id
+          }
+        end
 
         {
           id: document_type.id,
@@ -152,7 +164,7 @@ module Api
           # Legacy tabs array (for backwards compatibility)
           tabs: document_type.tabs || [],
           primary_tab: document_type.primary_tab,
-          # New folder lookup data
+          # DEPRECATED: Old folder lookup data (keeping for backwards compatibility)
           folder_ids: folder_assignments.map { |fa| fa.document_folder_id },
           folders: folder_assignments.map { |fa|
             {
@@ -165,6 +177,10 @@ module Api
           },
           primary_folder_id: primary_assignment&.document_folder_id,
           primary_folder_name: primary_assignment&.document_folder&.name,
+          # NEW SSoT: EntityTab data
+          entity_tab_ids: entity_tabs_data.map { |t| t[:id] },
+          entity_tabs: entity_tabs_data,
+          primary_entity_tab: entity_tabs_data.first,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
@@ -184,26 +200,47 @@ module Api
       end
 
       def all_available_tabs
-        # Get all folders from DocumentFolder table with hierarchy
-        DocumentFolder.active.root_folders.ordered.map do |folder|
+        # SSoT: Get all document tabs from EntityTab (replaces old DocumentFolder)
+        EntityTab.for_scope('corporate_entity')
+                 .for_group('documents')
+                 .enabled
+                 .root_tabs
+                 .ordered
+                 .includes(children: :children)
+                 .map do |tab|
           {
-            id: folder.id,
-            name: folder.name,
-            label: folder.name.titleize,
-            description: folder.description,
-            parent_id: folder.parent_id,
-            entity_types: folder.entity_types,
-            document_type_count: folder.document_types.count,
-            children: folder.children.active.ordered.map do |child|
+            id: tab.id,
+            name: tab.display_name,
+            tab_key: tab.tab_key,
+            label: tab.display_name,
+            description: tab.description,
+            parent_id: tab.parent_id,
+            entity_types: tab.entity_filters,
+            document_type_count: tab.document_types.count,
+            children: tab.children.enabled.ordered.map do |child|
               {
                 id: child.id,
-                name: child.name,
-                label: child.name.titleize,
+                name: child.display_name,
+                tab_key: child.tab_key,
+                label: child.display_name,
                 description: child.description,
                 parent_id: child.parent_id,
-                parent_name: folder.name,
-                entity_types: child.entity_types,
-                document_type_count: child.document_types.count
+                parent_name: tab.display_name,
+                entity_types: child.entity_filters,
+                document_type_count: child.document_types.count,
+                children: child.children.enabled.ordered.map do |grandchild|
+                  {
+                    id: grandchild.id,
+                    name: grandchild.display_name,
+                    tab_key: grandchild.tab_key,
+                    label: grandchild.display_name,
+                    description: grandchild.description,
+                    parent_id: grandchild.parent_id,
+                    parent_name: child.display_name,
+                    entity_types: grandchild.entity_filters,
+                    document_type_count: grandchild.document_types.count
+                  }
+                end
               }
             end
           }
