@@ -324,15 +324,25 @@ module Api
       end
 
       # GET /api/v1/jobs/:id/documentation_tabs
+      # SSoT: Now uses EntityTab (scope: 'job', tab_group: 'documents')
       def documentation_tabs
-        # Return hierarchical tabs - only root tabs, each with their children
-        @tabs = @job.job_documentation_tabs
-                            .root_tabs
-                            .active
+        # First check for job-specific tabs, fall back to global job document tabs
+        job_tabs = EntityTab.where(scope: 'job', job_id: @job.id, tab_group: 'documents')
+                            .where(parent_id: nil)
+                            .enabled
                             .ordered
                             .includes(:children)
 
-        render json: @tabs.map(&:as_nested_json)
+        # If no job-specific tabs, use global job document tabs
+        if job_tabs.empty?
+          job_tabs = EntityTab.where(scope: 'job', job_id: nil, tab_group: 'documents')
+                              .where(parent_id: nil)
+                              .enabled
+                              .ordered
+                              .includes(:children)
+        end
+
+        render json: job_tabs.map(&:as_nested_json)
       end
 
       # POST /api/v1/jobs/:id/import_xero_bills
@@ -520,8 +530,8 @@ module Api
             # Attachments
             secondary_job.attachments.update_all(attachable_id: @job.id) if secondary_job.respond_to?(:attachments)
 
-            # Job Documentation Tabs
-            secondary_job.job_documentation_tabs.update_all(job_id: @job.id) if secondary_job.respond_to?(:job_documentation_tabs)
+            # Job-specific EntityTabs (SSoT: replaces job_documentation_tabs)
+            EntityTab.where(scope: 'job', job_id: secondary_job.id).update_all(job_id: @job.id)
 
             # Fill in any blank fields on primary job from secondary job
             Job.column_names.each do |col|

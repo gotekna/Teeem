@@ -24,7 +24,6 @@ class Job < ApplicationRecord
   belongs_to :job_stage, optional: true
   has_many :chat_messages, dependent: :nullify
   has_many :emails, dependent: :nullify
-  has_many :job_documentation_tabs, dependent: :destroy
   has_many :document_tasks, dependent: :destroy
   has_many :job_contacts, dependent: :destroy
   has_many :contacts, through: :job_contacts
@@ -448,20 +447,6 @@ class Job < ApplicationRecord
   def at_least_lot_or_street_number
     if lot_number.blank? && street_number.blank?
       errors.add(:base, "Must have either lot number or street number")
-    end
-  end
-
-  # Create job-specific documentation tabs from global categories
-  def create_documentation_tabs_from_categories
-    DocumentationCategory.active.ordered.each do |category|
-      job_documentation_tabs.create!(
-        name: category.name,
-        icon: category.icon,
-        color: category.color,
-        description: category.description,
-        sequence_order: category.sequence_order,
-        is_active: true
-      )
     end
   end
 

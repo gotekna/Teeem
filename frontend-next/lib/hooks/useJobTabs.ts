@@ -15,6 +15,7 @@ interface UseJobTabsReturn {
   refetch: () => Promise<void>;
 }
 
+// SSoT: Now uses EntityTab API (replaces old job_tabs endpoint)
 export function useJobTabs(): UseJobTabsReturn {
   const [tabs, setTabs] = React.useState<JobTab[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -24,9 +25,34 @@ export function useJobTabs(): UseJobTabsReturn {
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get<JobTabsResponse>("/api/v1/job_tabs");
-      if (response?.success) {
-        setTabs(response.tabs);
+      // SSoT: Use EntityTab API with scope=job
+      const response = await api.get<{ success: boolean; data: { tabs: any[] } }>("/api/v1/entity_tabs?scope=job");
+      if (response?.success && response.data?.tabs) {
+        // Transform EntityTab format to JobTab format for backwards compatibility
+        const transformedTabs: JobTab[] = response.data.tabs.map((tab: any) => ({
+          id: tab.id,
+          name: tab.display_name,
+          slug: tab.tab_key,
+          icon: tab.icon_name || "file",
+          position: tab.order_position,
+          is_active: tab.enabled,
+          is_hidden: !tab.enabled,
+          parent_id: tab.parent_id,
+          has_children: (tab.children?.length || 0) > 0,
+          children: tab.children?.map((child: any) => ({
+            id: child.id,
+            name: child.display_name,
+            slug: child.tab_key,
+            icon: child.icon_name || "file",
+            position: child.order_position,
+            is_active: child.enabled,
+            is_hidden: !child.enabled,
+            parent_id: child.parent_id,
+            has_children: false,
+            children: [],
+          })) || [],
+        }));
+        setTabs(transformedTabs);
       }
     } catch (err) {
       setError("Failed to load tab configuration");
@@ -42,7 +68,11 @@ export function useJobTabs(): UseJobTabsReturn {
 
   const reorderTabs = async (items: JobTabReorderItem[]) => {
     try {
-      await api.patch("/api/v1/job_tabs/reorder", { tabs: items });
+      // SSoT: Use EntityTab reorder API
+      await api.post("/api/v1/entity_tabs/reorder", {
+        scope: "job",
+        tabs: items.map(item => ({ id: item.id, order_position: item.position }))
+      });
       await fetchTabs();
     } catch (err) {
       console.error("Failed to reorder tabs:", err);
@@ -52,7 +82,8 @@ export function useJobTabs(): UseJobTabsReturn {
 
   const toggleHidden = async (tabId: number) => {
     try {
-      await api.patch(`/api/v1/job_tabs/${tabId}/toggle_hidden`);
+      // SSoT: Use EntityTab toggle API
+      await api.post(`/api/v1/entity_tabs/${tabId}/toggle`);
       await fetchTabs();
     } catch (err) {
       console.error("Failed to toggle tab visibility:", err);
@@ -62,7 +93,10 @@ export function useJobTabs(): UseJobTabsReturn {
 
   const setParent = async (tabId: number, parentId: number | null) => {
     try {
-      await api.patch(`/api/v1/job_tabs/${tabId}/set_parent`, { parent_id: parentId });
+      // SSoT: Use EntityTab update API
+      await api.patch(`/api/v1/entity_tabs/${tabId}`, {
+        entity_tab: { parent_id: parentId }
+      });
       await fetchTabs();
     } catch (err) {
       console.error("Failed to set tab parent:", err);
@@ -71,15 +105,9 @@ export function useJobTabs(): UseJobTabsReturn {
   };
 
   const resetToDefaults = async () => {
-    try {
-      const response = await api.post<JobTabsResponse>("/api/v1/job_tabs/reset");
-      if (response?.success) {
-        setTabs(response.tabs);
-      }
-    } catch (err) {
-      console.error("Failed to reset tabs:", err);
-      throw err;
-    }
+    // Note: Reset functionality would need to be implemented in EntityTab if needed
+    console.warn("Reset to defaults not yet implemented for EntityTab");
+    await fetchTabs();
   };
 
   return {
