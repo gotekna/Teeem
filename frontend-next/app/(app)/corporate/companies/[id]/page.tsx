@@ -112,6 +112,7 @@ import {
 // SSoT: Using unified EntityTabs API (Phase 4 migration)
 import { useCorporateEntityTabs } from "@/lib/hooks/useCorporateEntityTabs";
 import { useXeroEntityTabs } from "@/lib/hooks/useXeroEntityTabs";
+import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
 // TAB CONFIGURATION
@@ -3444,6 +3445,7 @@ export default function CompanyDetailPage() {
     overviewTabs: entityOverviewTabs,
     documentTabs: documentFolderTabs,
     xeroSubTabs: xeroDocumentFolders,
+    mainTabs: entityMainTabs,
     loading: corporateTabsLoading,
   } = useCorporateEntityTabs(normalizedEntityType);
 
@@ -3827,20 +3829,43 @@ export default function CompanyDetailPage() {
       </Card>
 
       {/* Main Tabs - flex wrap for two rows */}
+      {/* SSoT: Main tabs (Overview) from API, document tabs from API */}
       <div className="border-b mb-4 mx-4 shrink-0">
         <div className="flex flex-wrap gap-1 pb-2">
-          <button
-            onClick={() => handleTabChange("overview")}
-            className={cn(
-              "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-              activeTab === "overview"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-            )}
-          >
-            <Building2 className="h-4 w-4 mr-2" />
-            Overview
-          </button>
+          {/* Main tabs from API (Overview, etc.) - SSoT: tab_group='main' */}
+          {entityMainTabs.map((tab) => {
+            const Icon = tab.icon ? getIcon(tab.icon) : Building2;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                className={cn(
+                  "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                  activeTab === tab.id
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                )}
+              >
+                <Icon className="h-4 w-4 mr-2" />
+                {tab.name}
+              </button>
+            );
+          })}
+          {/* Fallback Overview button if API hasn't loaded main tabs yet */}
+          {entityMainTabs.length === 0 && (
+            <button
+              onClick={() => handleTabChange("overview")}
+              className={cn(
+                "inline-flex items-center px-3 py-2 text-sm font-medium border-b-2 transition-colors",
+                activeTab === "overview"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              )}
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              Overview
+            </button>
+          )}
           {computedDocumentTabs.map((tab) => {
             const Icon = tab.icon;
             // Map tab id to count key (handle naming differences)

@@ -80,8 +80,10 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       } else {
         setError(response?.error || "Failed to load accounts");
       }
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: any) {
+      // Extract the actual error message from the API response
+      const errorMessage = err?.data?.error || err?.message || "Failed to load accounts";
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -114,8 +116,8 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
 
       // Reload data after sync
       await loadData();
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: any) {
+      setError(err?.data?.error || err?.message || "Failed to sync from Xero");
     } finally {
       setSyncing(false);
     }
@@ -160,8 +162,8 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
 
       // Reload data after standardization
       await loadData();
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (err: any) {
+      setError(err?.data?.error || err?.message || "Failed to standardize names");
     } finally {
       setStandardizing(false);
     }
@@ -260,12 +262,19 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
   }
 
   if (error && accounts.length === 0) {
+    const isNoConnection = error.toLowerCase().includes("no xero connection");
     return (
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-muted-foreground">
-            <XCircle className="h-8 w-8 mx-auto mb-2 text-red-500" />
-            <p>{error}</p>
+            <XCircle className={`h-8 w-8 mx-auto mb-2 ${isNoConnection ? "text-amber-500" : "text-red-500"}`} />
+            <p className="font-medium">{isNoConnection ? "Xero Not Connected" : error}</p>
+            {isNoConnection && (
+              <p className="text-sm mt-2">
+                This company doesn&apos;t have a Xero connection yet.<br />
+                Go to the <strong>Connection</strong> tab to connect Xero.
+              </p>
+            )}
             <Button variant="outline" size="sm" className="mt-4" onClick={loadData}>
               Try Again
             </Button>

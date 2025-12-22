@@ -80,16 +80,16 @@ const handleErrorResponse = async (response: Response, skipAuthRedirect = false)
 
   // Handle 401 Unauthorized - session expired
   if (response.status === 401) {
-    clearAuthToken();
-
     const error: ApiError = new Error('Session expired - please log in again');
     error.status = 401;
     error.data = errorData;
     error.isRetryable = false;
 
-    // Redirect to login page (client-side only) - unless skipAuthRedirect is set
+    // Only clear token and redirect if skipAuthRedirect is false
     // skipAuthRedirect is used for optional integrations like SharePoint that may not be connected
+    // In those cases, a 401 means "not connected" not "session expired"
     if (!skipAuthRedirect && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+      clearAuthToken();
       // Use setTimeout to allow the error to be thrown first
       setTimeout(() => {
         window.location.href = '/login?expired=true';

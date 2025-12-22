@@ -363,15 +363,9 @@ export function EntityTabsConfig({
     setIsCreateDialogOpen(true);
   };
 
-  // Open edit dialog (or config sheet for special tabs)
+  // Open edit dialog - always opens the edit dialog for tab settings
+  // (Special config sheets are accessed via dedicated buttons, not the edit action)
   const openEditDialog = (tab: EntityTab) => {
-    // SSoT: Tabs with component_name have special configuration UI
-    // (e.g., plan-categories, plan-types, revision-formats)
-    if (tab.component_name) {
-      setConfigTab(tab);
-      return;
-    }
-
     setFormData({
       display_name: tab.display_name,
       description: tab.description || "",
