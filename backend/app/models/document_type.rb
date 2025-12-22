@@ -29,6 +29,10 @@ class DocumentType < ApplicationRecord
     end
   end
 
+  # Backwards compatibility: folder_ids now maps to entity_tab_ids
+  alias_method :folder_ids=, :entity_tab_ids=
+  alias_method :folder_ids, :entity_tab_ids
+
   # Get EntityTab IDs
   def entity_tab_ids
     entity_tab_document_types.pluck(:entity_tab_id)

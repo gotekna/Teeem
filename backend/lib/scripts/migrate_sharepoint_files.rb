@@ -5,18 +5,22 @@
 puts "=== SharePoint File Migration ==="
 puts ""
 
-# Check for active credential
-credential = OrganizationOneDriveCredential.active_credential
+# Check for active credential (SSoT: MicrosoftCredential)
+credential = MicrosoftCredential.active.delegated_credentials.connected.first
 if credential.nil?
-  puts "ERROR: No active OneDrive credential found"
+  puts "ERROR: No active Microsoft credential found"
   exit 1
 end
 
 client = MicrosoftGraphClient.new
 
 # Constants
-# Fetch folder names from database (SSoT)
-PRIMARY_FOLDERS = DocumentFolder.active.ordered.pluck(:name).freeze
+# SSoT: Fetch folder names from EntityTab (replaces DocumentFolder)
+PRIMARY_FOLDERS = EntityTab.where(scope: 'corporate_entity', tab_group: 'documents')
+                           .where(parent_id: nil)
+                           .enabled
+                           .order(:order_position)
+                           .pluck(:display_name).freeze
 ASSETS_SUBFOLDERS = %w[Disposal Expenses Purchases Valuation].freeze
 NEEDS_REVIEW_FOLDER = "_NEEDS_REVIEW"
 

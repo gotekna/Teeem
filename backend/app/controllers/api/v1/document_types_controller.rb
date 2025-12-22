@@ -133,20 +133,19 @@ module Api
       end
 
       def serialize_document_type(document_type)
-        # Get folder data from join table (DEPRECATED - keeping for backwards compatibility)
-        folder_assignments = document_type.document_type_folders.includes(:document_folder)
-        primary_assignment = folder_assignments.find(&:is_primary)
-
-        # NEW SSoT: EntityTab data
+        # SSoT: EntityTab data (replaces deprecated document_type_folders)
         entity_tabs_data = document_type.entity_tabs.ordered.map do |tab|
           {
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
             hierarchy_path: tab.hierarchy_path,
-            parent_id: tab.parent_id
+            parent_id: tab.parent_id,
+            parent_name: tab.parent&.display_name
           }
         end
+
+        primary_tab_data = entity_tabs_data.first
 
         {
           id: document_type.id,
@@ -164,23 +163,23 @@ module Api
           # Legacy tabs array (for backwards compatibility)
           tabs: document_type.tabs || [],
           primary_tab: document_type.primary_tab,
-          # DEPRECATED: Old folder lookup data (keeping for backwards compatibility)
-          folder_ids: folder_assignments.map { |fa| fa.document_folder_id },
-          folders: folder_assignments.map { |fa|
+          # SSoT: EntityTab data (backwards compatible field names)
+          folder_ids: entity_tabs_data.map { |t| t[:id] },
+          folders: entity_tabs_data.map.with_index { |t, i|
             {
-              id: fa.document_folder.id,
-              name: fa.document_folder.name,
-              is_primary: fa.is_primary,
-              parent_id: fa.document_folder.parent_id,
-              parent_name: fa.document_folder.parent_name
+              id: t[:id],
+              name: t[:display_name],
+              is_primary: i == 0,
+              parent_id: t[:parent_id],
+              parent_name: t[:parent_name]
             }
           },
-          primary_folder_id: primary_assignment&.document_folder_id,
-          primary_folder_name: primary_assignment&.document_folder&.name,
-          # NEW SSoT: EntityTab data
+          primary_folder_id: primary_tab_data&.dig(:id),
+          primary_folder_name: primary_tab_data&.dig(:display_name),
+          # SSoT: EntityTab data (new field names)
           entity_tab_ids: entity_tabs_data.map { |t| t[:id] },
           entity_tabs: entity_tabs_data,
-          primary_entity_tab: entity_tabs_data.first,
+          primary_entity_tab: primary_tab_data,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           target_folder: document_type.target_folder,
