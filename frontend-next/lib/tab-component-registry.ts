@@ -92,6 +92,7 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
 
   // Extracted components (ready to use)
   "InformationTab": lazy(() => import("@/components/tabs/InformationTab")),
+  "CorporateTab": lazy(() => import("@/components/tabs/CorporateTab")),
   "ActivityTab": lazy(() => import("@/components/tabs/ActivityTab")),
   "DirectorsTab": lazy(() => import("@/components/tabs/DirectorsTab")),
   "TrustDeedTab": lazy(() => import("@/components/tabs/TrustDeedTab")),
@@ -107,7 +108,6 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "ConsolidationTab": lazy(() => import("@/components/tabs/ConsolidationTab")),
 
   // TODO: Extract remaining components from corporate page.tsx
-  // "CorporateTab": lazy(() => import("@/components/tabs/CorporateTab")),
   // "DataTab": lazy(() => import("@/components/tabs/DataTab")),
   // "DocumentsTab": lazy(() => import("@/components/tabs/DocumentsTab")),
 

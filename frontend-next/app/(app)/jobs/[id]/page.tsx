@@ -792,8 +792,8 @@ export default function JobDetailPage() {
     <div className="h-full flex flex-col overflow-auto">
       {/* Sticky header and tabs */}
       <div className="sticky top-0 z-10 bg-background">
-        {/* Header row */}
-        <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-4">
+        {/* Header row - no pt-X, layout mode provides top padding */}
+        <div className="px-3 pb-2 flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="mt-1">
             <ArrowLeft className="h-4 w-4" />

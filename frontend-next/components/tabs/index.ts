@@ -7,6 +7,7 @@
 
 // Overview tabs (extracted from corporate page)
 export { InformationTab } from "./InformationTab";
+export { CorporateTab } from "./CorporateTab";
 export { ActivityTab } from "./ActivityTab";
 export { DirectorsTab } from "./DirectorsTab";
 export { TrustDeedTab } from "./TrustDeedTab";
