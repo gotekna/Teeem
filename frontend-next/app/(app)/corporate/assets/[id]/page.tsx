@@ -852,9 +852,7 @@ export default function AssetDetailPage() {
                 });
 
                 try {
-                  await api.patch(`/api/v1/assets/${assetId}`, formData, {
-                    headers: { "Content-Type": "multipart/form-data" },
-                  });
+                  await api.patch(`/api/v1/assets/${assetId}`, formData);
                   loadAsset(); // Reload to get new photos
                 } catch (err) {
                   console.error("Failed to upload photos:", err);

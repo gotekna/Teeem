@@ -49,10 +49,12 @@ type PostOptions = RequestOptions;
 // Request deduplication cache
 const pendingRequests = new Map<string, Promise<unknown>>();
 
-const getAuthHeaders = (): HeadersInit => {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+const getAuthHeaders = (includeContentType = true): HeadersInit => {
+  const headers: Record<string, string> = {};
+
+  if (includeContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   // Add JWT token if available (client-side only)
   if (typeof window !== 'undefined') {
@@ -417,13 +419,14 @@ export const api = {
 
   async patch<T = unknown>(endpoint: string, data?: unknown, options: PostOptions = {}): Promise<T> {
     const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = options;
+    const isFormData = data instanceof FormData;
 
     const response = await withRetry(
       () => fetchWithTimeout(`${API_URL}${endpoint}`, {
         method: 'PATCH',
-        headers: getAuthHeaders(),
+        headers: getAuthHeaders(!isFormData), // Don't set Content-Type for FormData
         credentials: 'include',
-        body: JSON.stringify(data),
+        body: isFormData ? data : JSON.stringify(data),
       }, timeout),
       retries
     );
