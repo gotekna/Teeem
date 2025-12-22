@@ -6,26 +6,25 @@
  */
 
 // =============================================================================
-// Foundation Table IDs (DEPRECATED - Corporate uses Rails models, not Foundations)
+// Foundation Table IDs
 // =============================================================================
 
 /**
- * @deprecated Corporate entities use Rails models directly (CorporateCompany, Asset, etc.)
- * NOT the Foundation system. These IDs are kept for reference only.
+ * Foundation IDs for corporate entities.
  *
- * SSoT: Corporate module uses hardcoded columns in use-corporate-table.ts
- * The CorporateCompany, Asset, and Contact Rails models are the source of truth.
- *
- * Foundation IDs 353-360 were never created in the database.
- * Only COMPANY_DOCUMENT (357) exists as a Foundation.
+ * SSoT for columns is the Foundation API (Gold Standard Tables).
+ * Data comes from Rails models (CorporateCompany, Asset, Contact).
  */
 export const CORPORATE_TABLE_IDS = {
-  // These Foundation IDs DO NOT EXIST in database - do not use for API calls
-  COMPANIES: 353,           // Use CorporateCompany Rails model instead
-  COMPANY_ACTIVITY: 354,    // Use CorporateCompanyActivity Rails model instead
+  // Active Foundation IDs
+  ASSETS: 526,              // Assets Foundation - Gold Standard Table
+  COMPANY_DOCUMENT: 357,    // Company Documents Foundation
+
+  // Legacy IDs (do not use - these Foundations were never created)
+  COMPANIES: 353,           // Use CorporateCompany Rails model, no Foundation
+  COMPANY_ACTIVITY: 354,
   COMPANY_COMPLIANCE_ITEM: 355,
-  COMPANY_DIRECTOR: 356,    // Use CorporateCompanyDirector Rails model instead
-  COMPANY_DOCUMENT: 357,    // This one DOES exist as a Foundation
+  COMPANY_DIRECTOR: 356,
   COMPANY_SETTING: 358,
   COMPANY_XERO_ACCOUNT: 359,
   COMPANY_XERO_CONNECTION: 360,

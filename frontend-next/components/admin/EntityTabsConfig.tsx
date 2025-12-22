@@ -403,7 +403,8 @@ export function EntityTabsConfig({
           display_name: formData.display_name,
           description: formData.description,
           tab_group: formData.tab_group,
-          parent_id: formData.parent_id,
+          // Use null (not undefined) so JSON serialization includes it
+          parent_id: formData.parent_id ?? null,
           entity_filters: formData.entity_filters,
           enabled: formData.enabled,
           icon_name: formData.icon_name,

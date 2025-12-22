@@ -220,7 +220,70 @@ class Asset < ApplicationRecord
     corporate_company&.code
   end
 
+  # Photo URLs for frontend display
+  # Handles iPhone photos (typically 4032x3024, 3-4MB) by generating smaller thumbnails
+  def photo_urls
+    return [] unless photos.attached?
+
+    photos.map do |photo|
+      base_url = Rails.application.routes.url_helpers.rails_blob_url(photo, host: default_url_host)
+
+      # Generate thumbnail URL (400x400 for grid display)
+      thumb_url = begin
+        Rails.application.routes.url_helpers.rails_representation_url(
+          photo.variant(resize_to_limit: [400, 400]),
+          host: default_url_host
+        )
+      rescue => e
+        Rails.logger.warn "Thumbnail generation skipped for #{photo.filename}: #{e.message}"
+        base_url # Fall back to original if variant fails
+      end
+
+      {
+        id: photo.id,
+        filename: photo.filename.to_s,
+        url: base_url,
+        thumbnail_url: thumb_url,
+        content_type: photo.content_type,
+        byte_size: photo.byte_size,
+        created_at: photo.created_at
+      }
+    rescue => e
+      Rails.logger.error "Failed to generate photo URL: #{e.message}"
+      nil
+    end.compact
+  end
+
+  # First photo thumbnail for quick display on Details tab
+  # Uses 300x300 for fast loading while still looking crisp
+  def thumbnail_url
+    return nil unless photos.attached? && photos.first.present?
+
+    photo = photos.first
+    Rails.application.routes.url_helpers.rails_representation_url(
+      photo.variant(resize_to_limit: [300, 300]),
+      host: default_url_host
+    )
+  rescue => e
+    Rails.logger.warn "Thumbnail URL failed: #{e.message}"
+    # Fall back to original URL if variant generation fails
+    begin
+      Rails.application.routes.url_helpers.rails_blob_url(photo, host: default_url_host)
+    rescue
+      nil
+    end
+  end
+
+  # Photo count for display
+  def photos_count
+    photos.attached? ? photos.count : 0
+  end
+
   private
+
+  def default_url_host
+    Rails.env.production? ? "https://teeemlive-ce8e2660a615.herokuapp.com" : "http://localhost:3001"
+  end
 
   # Create default depreciation profile when asset is created
   def create_default_depreciation_profile

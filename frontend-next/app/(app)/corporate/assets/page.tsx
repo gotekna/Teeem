@@ -13,9 +13,8 @@ export default function AssetsPage() {
   useSetLayoutMode("full-height");
   const router = useRouter();
 
-  // Use the corporate table hook for assets
+  // Use the corporate table hook for assets (Gold Standard Table - Foundation ID 526)
   const {
-    columns,
     foundationId,
     entries: assets,
     isLoading,

@@ -68,7 +68,7 @@ module Api
                 methods: [ :days_until_renewal, :expired?, :expiring_soon? ]
               }
             },
-            methods: [ :display_name, :age_in_years, :total_maintenance_cost, :depreciation_amount ]
+            methods: [ :display_name, :age_in_years, :total_maintenance_cost, :depreciation_amount, :thumbnail_url, :photo_urls, :photos_count ]
           )
         }
       end

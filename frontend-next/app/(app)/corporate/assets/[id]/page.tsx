@@ -45,6 +45,9 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle,
+  Image,
+  Upload,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
@@ -52,6 +55,7 @@ import { format } from "date-fns";
 // Tab definitions - base tabs always shown
 const BASE_TABS = [
   { id: "details", name: "Details", icon: Package },
+  { id: "photos", name: "Photos", icon: Image },
   { id: "depreciation", name: "Depreciation", icon: TrendingDown },
   { id: "insurance", name: "Insurance", icon: Shield },
   { id: "service", name: "Service History", icon: Wrench },
@@ -63,6 +67,16 @@ const BASE_TABS = [
 const VEHICLE_TABS = [
   { id: "odometer", name: "Odometer", icon: Gauge },
 ];
+
+interface AssetPhoto {
+  id: number;
+  filename: string;
+  url: string;
+  thumbnail_url: string;
+  content_type: string;
+  byte_size: number;
+  created_at: string;
+}
 
 interface Asset {
   id: number;
@@ -88,6 +102,9 @@ interface Asset {
   depreciation_amount?: number;
   odometer_reading?: number;
   hours_reading?: number;
+  thumbnail_url?: string;
+  photo_urls?: AssetPhoto[];
+  photos_count?: number;
   assigned_user?: {
     id: number;
     full_name: string;
@@ -497,6 +514,34 @@ export default function AssetDetailPage() {
               <CardTitle className="text-lg">Basic Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Thumbnail Preview */}
+              {asset.thumbnail_url ? (
+                <div
+                  className="relative w-full h-48 rounded-lg overflow-hidden bg-muted cursor-pointer group"
+                  onClick={() => setActiveTab("photos")}
+                >
+                  <img
+                    src={asset.thumbnail_url}
+                    alt={asset.display_name || asset.name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="text-white text-sm flex items-center gap-2">
+                      <Image className="h-4 w-4" />
+                      {asset.photos_count || 1} photo{(asset.photos_count || 1) > 1 ? "s" : ""}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="w-full h-32 rounded-lg border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setActiveTab("photos")}
+                >
+                  <Camera className="h-8 w-8 text-muted-foreground/50" />
+                  <p className="text-sm text-muted-foreground">No photos yet</p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label>Asset Name</Label>
                 {isEditing ? (
@@ -776,6 +821,96 @@ export default function AssetDetailPage() {
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>No documents attached to this asset</p>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Photos Tab */}
+      {activeTab === "photos" && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-lg">
+              Photos {asset.photos_count ? `(${asset.photos_count})` : ""}
+            </CardTitle>
+            <Button size="sm" onClick={() => document.getElementById("photo-upload")?.click()}>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Photo
+            </Button>
+            <input
+              id="photo-upload"
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={async (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+
+                const formData = new FormData();
+                Array.from(files).forEach((file) => {
+                  formData.append("photos[]", file);
+                });
+
+                try {
+                  await api.patch(`/api/v1/assets/${assetId}`, formData, {
+                    headers: { "Content-Type": "multipart/form-data" },
+                  });
+                  loadAsset(); // Reload to get new photos
+                } catch (err) {
+                  console.error("Failed to upload photos:", err);
+                }
+                e.target.value = ""; // Reset input
+              }}
+            />
+          </CardHeader>
+          <CardContent>
+            {asset.photo_urls && asset.photo_urls.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {asset.photo_urls.map((photo) => (
+                  <div
+                    key={photo.id}
+                    className="relative group aspect-square rounded-lg overflow-hidden bg-muted"
+                  >
+                    <img
+                      src={photo.thumbnail_url || photo.url}
+                      alt={photo.filename}
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => window.open(photo.url, "_blank")}
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => window.open(photo.url, "_blank")}
+                      >
+                        View
+                      </Button>
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                      <p className="text-white text-xs truncate">{photo.filename}</p>
+                      <p className="text-white/70 text-xs">
+                        {(photo.byte_size / 1024).toFixed(0)} KB
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <Image className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                <p className="text-lg mb-2">No photos yet</p>
+                <p className="text-sm mb-4">
+                  Upload photos to help identify and document this asset
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => document.getElementById("photo-upload")?.click()}
+                >
+                  <Camera className="h-4 w-4 mr-2" />
+                  Add First Photo
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
