@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 import {
   Plus,
   FileText,
@@ -28,7 +28,6 @@ function formatCurrency(value: number): string {
 }
 
 export default function EstimatesPage() {
-  useSetLayoutMode("full-height");
   const router = useRouter();
 
   // Use foundation hook for TeeemTableView
@@ -81,7 +80,7 @@ export default function EstimatesPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         entries={records}
         foundationId="estimates"
@@ -94,6 +93,6 @@ export default function EstimatesPage() {
         leftActions={leftActions}
         hideFooter={true}
       />
-    </div>
+    </TablePage>
   );
 }

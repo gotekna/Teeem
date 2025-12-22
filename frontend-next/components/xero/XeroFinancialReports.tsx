@@ -265,3 +265,5 @@ function ReportTable({ rows }: { rows: XeroReportRow[] }) {
     </div>
   );
 }
+
+export default XeroProfitLossCard;

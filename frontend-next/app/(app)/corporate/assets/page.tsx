@@ -7,10 +7,9 @@ import { Plus, Loader2 } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useCorporateTable } from "@/hooks/use-corporate-table";
 import type { TableRow } from "@/components/table/types";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 
 export default function AssetsPage() {
-  useSetLayoutMode("full-height");
   const router = useRouter();
 
   // Use the corporate table hook for assets (Gold Standard Table - Foundation ID 526)
@@ -57,7 +56,7 @@ export default function AssetsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         foundationId="assets"
         foundationIdNumeric={foundationId || 0}
@@ -78,6 +77,6 @@ export default function AssetsPage() {
         }
         hideFooter={true}
       />
-    </div>
+    </TablePage>
   );
 }

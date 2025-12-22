@@ -47,7 +47,8 @@ import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
 import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+// Layout mode is handled by parent page wrapper (TabbedDetailPage)
+// This tab uses EdgeToEdgeTabContent for internal padding
 
 interface PlanTypeOption {
   id: number;
@@ -122,9 +123,6 @@ interface JobPlansTabProps {
 }
 
 export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
-  // Declare this tab needs edge-to-edge layout
-  useSetLayoutMode("edge-to-edge");
-
   const { toast } = useToast();
 
   // Plans tab always runs in fullscreen mode

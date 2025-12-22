@@ -432,3 +432,5 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
     </Card>
   );
 }
+
+export default XeroCompanyDocSyncCard;

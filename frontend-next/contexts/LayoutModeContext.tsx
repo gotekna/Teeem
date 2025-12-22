@@ -13,6 +13,27 @@ import * as React from "react";
  * - "full-height": Fills vertical space, keeps side padding, no page scroll
  * - "edge-to-edge": Fills everything, no padding, no page scroll
  * - "fullscreen": Hides sidebar, fills entire viewport (for Schedule Master)
+ *
+ * ============================================================================
+ * 🔴 CRITICAL: SSoT - ONLY PAGE COMPONENTS SHOULD CALL useSetLayoutMode!
+ * ============================================================================
+ *
+ * Tab components should NEVER call useSetLayoutMode directly.
+ * This causes the header to shift when switching between tabs.
+ *
+ * CORRECT: Use page wrappers (@/components/ui/page-wrappers):
+ *   - TablePage: For pages with TeeemTableView
+ *   - TabbedDetailPage: For detail pages with tabs
+ *   - ScrollablePage: For standard scrollable content
+ *   - FullscreenPage: For fullscreen layouts (e.g., Schedule Master)
+ *
+ * Tab content should use tab containers (@/components/ui/tab-containers):
+ *   - EdgeToEdgeTabContent: For full-width content (canvas, maps)
+ *   - FullHeightTabContent: For split views, chat interfaces
+ *   - ScrollableTabContent: For standard scrollable content
+ *   - TableTabContent: For tabs with TeeemTableView
+ *
+ * See: frontend-next/lib/component-registry.ts
  */
 
 export type LayoutMode = "padded" | "full-height" | "edge-to-edge" | "fullscreen";

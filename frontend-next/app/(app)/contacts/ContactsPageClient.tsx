@@ -1,4 +1,3 @@
- 
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -16,6 +15,7 @@ import { Plus, AlertTriangle, Table2, Network, Search } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { useViewMode } from "@/contexts/ViewModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableRow as TTableRow, TableColumn } from "@/components/table/types";
 import type { SearchMode } from "@/components/table/components/SearchInput";
 import {
@@ -662,7 +662,7 @@ export default function ContactsPageClient({
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       {/* TeeemTableView handles header, count, and table (SSoT) */}
         {currentView?.view_type === "relational" ? (
           showExplorer ? (
@@ -718,6 +718,6 @@ export default function ContactsPageClient({
         contactIds={xeroTransferIds}
         onSuccess={refresh}
       />
-    </div>
+    </TablePage>
   );
 }

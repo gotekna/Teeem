@@ -524,3 +524,5 @@ function formatCurrency(value: number): string {
   });
   return value < 0 ? `(${formatted})` : formatted;
 }
+
+export default XeroConsolidatedCard;

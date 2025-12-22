@@ -200,3 +200,5 @@ export function XeroGroupBalanceSheetCard({ companyId }: XeroGroupBalanceSheetCa
     </Card>
   );
 }
+
+export default XeroGroupBalanceSheetCard;

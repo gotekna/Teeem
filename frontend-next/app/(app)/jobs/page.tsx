@@ -12,6 +12,7 @@ import { getTableUIConfig } from "@/lib/table-ui-config";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus } from "lucide-react";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import { TablePage } from "@/components/ui/page-wrappers";
 
 // Metadata types for filter dropdowns
 interface JobStatus {
@@ -145,8 +146,7 @@ export default function JobsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-4">
-      {/* TeeemTableView handles header, count, and table (SSoT) */}
+    <TablePage>
       <TeeemTableView
         entries={records as TableRow[]}
         totalCount={totalCount}
@@ -174,6 +174,6 @@ export default function JobsPage() {
           </Button>
         }
       />
-    </div>
+    </TablePage>
   );
 }

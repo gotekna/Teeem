@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { api } from "@/lib/api";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 
 // Define columns for Users table
 import { TableColumn, TableRow } from "@/components/table/types";
@@ -94,7 +94,6 @@ interface User {
 }
 
 export default function UsersPage() {
-  useSetLayoutMode("full-height");
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -226,7 +225,7 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         category="users"
         foundationId="users"
@@ -259,6 +258,6 @@ export default function UsersPage() {
           });
         }}
       />
-    </div>
+    </TablePage>
   );
 }

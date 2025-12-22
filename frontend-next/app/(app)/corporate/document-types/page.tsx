@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 
 // Available folders/tabs
 const FOLDER_OPTIONS = [
@@ -70,7 +70,6 @@ interface DocumentType extends TableRow {
 }
 
 export default function DocumentTypesPage() {
-  useSetLayoutMode("full-height");
   const router = useRouter();
   const [loading, setLoading] = React.useState(true);
 
@@ -310,7 +309,7 @@ export default function DocumentTypesPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       {/* Add Form */}
       {showAddForm && (
         <Card className="mb-6">
@@ -421,6 +420,6 @@ export default function DocumentTypesPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </TablePage>
   );
 }

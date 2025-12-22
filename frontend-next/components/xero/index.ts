@@ -48,6 +48,8 @@ export { XeroPLStatementView } from './XeroPLStatementView';
 export { XeroBalanceSheetStatementView } from './XeroBalanceSheetStatementView';
 export { XeroBankAccountsCard } from './XeroBankAccountsCard';
 export { XeroConsolidatedCard } from './XeroConsolidatedCard';
+export { XeroInvoicesCard } from './XeroInvoicesCard';
+export { XeroBillsCard } from './XeroBillsCard';
 
 // Group Reports (side-by-side view for company groups)
 export { XeroGroupPLCard } from './XeroGroupPLCard';
@@ -58,3 +60,6 @@ export { XeroReportsPanel } from './XeroReportsPanel';
 
 // Company-specific Document Sync
 export { XeroCompanyDocSyncCard } from './XeroCompanyDocSyncCard';
+
+// Unified Tab Renderer (Phase 4 Migration)
+export { XeroTabRenderer } from './XeroTabRenderer';

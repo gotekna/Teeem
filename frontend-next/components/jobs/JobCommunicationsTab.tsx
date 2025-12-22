@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+// Layout mode is handled by parent page wrapper (TabbedDetailPage)
+// This tab uses FullHeightTabContent for internal padding
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -597,9 +598,6 @@ function SmsSection() {
 }
 
 export function JobCommunicationsTab({ jobId, jobTitle }: JobCommunicationsTabProps) {
-  // Use full-height layout mode
-  useSetLayoutMode("full-height");
-
   return (
     <div className="flex flex-col h-full">
       <Tabs defaultValue="messages" className="flex flex-col flex-1 min-h-0">

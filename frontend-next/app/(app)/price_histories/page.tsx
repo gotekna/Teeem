@@ -6,13 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 import { History, Download, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
 
 export default function PriceHistoriesPage() {
-  useSetLayoutMode("full-height");
   // Use foundation hook for TeeemTableView with server-side stats
   const { foundation, columns, records, originalRecords, totalCount, isLoading, refresh, serverSearch, isSearching } = useFoundationBySlug("price_histories");
 
@@ -63,7 +62,7 @@ export default function PriceHistoriesPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3 px-4 mb-4 shrink-0">
         <Card>
@@ -130,6 +129,6 @@ export default function PriceHistoriesPage() {
             serverSearchLoading={isSearching}
         hideFooter={true}
       />
-    </div>
+    </TablePage>
   );
 }

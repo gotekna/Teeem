@@ -210,3 +210,5 @@ export function XeroGroupPLCard({ companyId }: XeroGroupPLCardProps) {
     </Card>
   );
 }
+
+export default XeroGroupPLCard;

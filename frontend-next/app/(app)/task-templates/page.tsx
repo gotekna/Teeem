@@ -14,6 +14,7 @@ import {
   Layers,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { TablePage } from "@/components/ui/page-wrappers";
 
 // Foundation ID for Task Templates table
 
@@ -61,7 +62,7 @@ export default function TaskTemplatesPage() {
   );
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         entries={records}
         foundationId="task_templates"
@@ -73,6 +74,6 @@ export default function TaskTemplatesPage() {
         leftActions={leftActions}
         hideFooter={true}
       />
-    </div>
+    </TablePage>
   );
 }

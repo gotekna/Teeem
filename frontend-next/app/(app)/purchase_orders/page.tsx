@@ -14,6 +14,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableRow } from "@/components/table/types";
 
 // Use database table name instead of hardcoded foundation ID
@@ -80,7 +81,7 @@ export default function PurchaseOrdersPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <TeeemTableView
         entries={records}
         foundationId={foundationId ? String(foundationId) : ""}
@@ -92,6 +93,6 @@ export default function PurchaseOrdersPage() {
         onRowUpdate={handleRowUpdate}
         hideFooter={true}
       />
-    </div>
+    </TablePage>
   );
 }

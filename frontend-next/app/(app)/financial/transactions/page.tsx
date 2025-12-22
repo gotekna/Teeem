@@ -7,7 +7,7 @@ import TransactionForm from "@/components/financial/TransactionForm";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { TablePage } from "@/components/ui/page-wrappers";
 import type { TableColumn, TableRow } from "@/components/table/types";
 
 // Define columns for financial transactions table
@@ -136,7 +136,6 @@ interface Summary {
 }
 
 export default function FinancialTransactionsPage() {
-  useSetLayoutMode("full-height");
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTransactionForm, setShowTransactionForm] = useState(false);
@@ -309,7 +308,7 @@ export default function FinancialTransactionsPage() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-4">
+    <TablePage>
       <Tabs defaultValue="xero" className="flex flex-col h-full">
         <div className="px-4 shrink-0">
           <TabsList className="mb-4">
@@ -449,6 +448,6 @@ export default function FinancialTransactionsPage() {
         transaction={editingTransaction}
         type={transactionType}
       />
-    </div>
+    </TablePage>
   );
 }
