@@ -30,6 +30,7 @@ interface RequestOptions {
   timeout?: number;
   retries?: number;
   dedupe?: boolean;
+  skipAuthRedirect?: boolean; // Skip redirect to login on 401 (for optional integrations like SharePoint)
 }
 
 interface GetOptions extends RequestOptions {
@@ -72,7 +73,7 @@ const clearAuthToken = () => {
   }
 };
 
-const handleErrorResponse = async (response: Response): Promise<never> => {
+const handleErrorResponse = async (response: Response, skipAuthRedirect = false): Promise<never> => {
   const errorData = await response.json().catch(() => ({}));
 
   // Handle 401 Unauthorized - session expired
@@ -84,8 +85,9 @@ const handleErrorResponse = async (response: Response): Promise<never> => {
     error.data = errorData;
     error.isRetryable = false;
 
-    // Redirect to login page (client-side only)
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+    // Redirect to login page (client-side only) - unless skipAuthRedirect is set
+    // skipAuthRedirect is used for optional integrations like SharePoint that may not be connected
+    if (!skipAuthRedirect && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
       // Use setTimeout to allow the error to be thrown first
       setTimeout(() => {
         window.location.href = '/login?expired=true';
@@ -229,7 +231,7 @@ const getRequestKey = (method: string, url: string, body?: unknown): string => {
 
 export const api = {
   async get<T = unknown>(endpoint: string, options: GetOptions = {}): Promise<T> {
-    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, signal, ...restOptions } = options;
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, dedupe = true, signal, skipAuthRedirect = false, ...restOptions } = options;
 
     let url = `${API_URL}${endpoint}`;
 
@@ -265,7 +267,7 @@ export const api = {
       );
 
       if (!response.ok) {
-        await handleErrorResponse(response);
+        await handleErrorResponse(response, skipAuthRedirect);
       }
 
       // If onDownloadProgress callback is provided, use streaming to track progress
@@ -315,7 +317,7 @@ export const api = {
   },
 
   async post<T = unknown>(endpoint: string, data?: unknown, options: PostOptions = {}): Promise<T | null> {
-    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES } = options;
+    const { timeout = DEFAULT_TIMEOUT, retries = MAX_RETRIES, skipAuthRedirect = false } = options;
 
     const response = await withRetry(
       () => fetchWithTimeout(`${API_URL}${endpoint}`, {
@@ -328,7 +330,7 @@ export const api = {
     );
 
     if (!response.ok) {
-      await handleErrorResponse(response);
+      await handleErrorResponse(response, skipAuthRedirect);
     }
 
     // Handle 204 No Content responses

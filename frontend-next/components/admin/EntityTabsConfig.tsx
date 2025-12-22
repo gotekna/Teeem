@@ -1000,8 +1000,7 @@ export function EntityTabsConfig({
                       </div>
                     </div>
 
-                    {/* Folder Browser - disabled for now as it may cause auth issues */}
-                    {/* TODO: Re-enable when SharePoint connection is stable
+                    {/* Folder Browser */}
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Or browse SharePoint folders:</Label>
                       <SharePointFolderBrowser
@@ -1014,7 +1013,6 @@ export function EntityTabsConfig({
                         rootFolder=""
                       />
                     </div>
-                    */}
                   </div>
                 )}
               </div>
