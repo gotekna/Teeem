@@ -19,7 +19,8 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { FileText } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { FileText, ExternalLink } from "lucide-react";
 
 // Types
 interface BankTransaction {
@@ -126,6 +127,9 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Transaction detail sheet
+  const [selectedTransaction, setSelectedTransaction] = useState<BankTransaction | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -620,6 +624,11 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
               tableName="Xero Statement"
               viewOnly={true}
               enableExport={true}
+              onRowClick={(row) => {
+                // Find the original transaction from the transactions array
+                const txn = transactions.find(t => t.id === row.id);
+                if (txn) setSelectedTransaction(txn);
+              }}
             />
           </div>
         )}
@@ -706,6 +715,124 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
             </AccordionItem>
           </Accordion>
         )}
+
+        {/* Transaction Detail Sheet */}
+        <Sheet open={!!selectedTransaction} onOpenChange={(open) => !open && setSelectedTransaction(null)}>
+          <SheetContent className="sm:max-w-lg overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                {selectedTransaction?.transaction_type === "RECEIVE" ? (
+                  <ArrowDownLeft className="h-5 w-5 text-green-600" />
+                ) : (
+                  <ArrowUpRight className="h-5 w-5 text-red-600" />
+                )}
+                Transaction Details
+              </SheetTitle>
+            </SheetHeader>
+
+            {selectedTransaction && (
+              <div className="mt-6 space-y-6">
+                {/* Amount */}
+                <div className="text-center py-4 bg-muted/50 rounded-lg">
+                  <div className="text-3xl font-bold">
+                    <span className={selectedTransaction.transaction_type === "RECEIVE" ? "text-green-600" : "text-red-600"}>
+                      {selectedTransaction.transaction_type === "RECEIVE" ? "+" : "-"}
+                      {formatCurrency(selectedTransaction.total)}
+                    </span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {selectedTransaction.type_display || selectedTransaction.transaction_type}
+                  </div>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Date</div>
+                      <div className="font-medium">{formatDate(selectedTransaction.transaction_date)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Status</div>
+                      <Badge variant={selectedTransaction.is_reconciled ? "default" : "secondary"}>
+                        {selectedTransaction.is_reconciled ? "Reconciled" : "Pending"}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {selectedTransaction.contact_name && (
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Contact</div>
+                      <div className="font-medium">{selectedTransaction.contact_name}</div>
+                    </div>
+                  )}
+
+                  <div>
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Bank Account</div>
+                    <div className="font-medium">{selectedTransaction.bank_account_name}</div>
+                  </div>
+
+                  {selectedTransaction.description && (
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Description</div>
+                      <div className="font-medium">{selectedTransaction.description}</div>
+                    </div>
+                  )}
+
+                  {selectedTransaction.reference && (
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Reference</div>
+                      <div className="font-medium font-mono text-sm">{selectedTransaction.reference}</div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Financial Year</div>
+                      <div className="font-medium">{selectedTransaction.financial_year}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground uppercase tracking-wider">Currency</div>
+                      <div className="font-medium">{selectedTransaction.currency_code}</div>
+                    </div>
+                  </div>
+
+                  {selectedTransaction.has_attachments && (
+                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span className="text-sm text-blue-600 dark:text-blue-400">Has attachments in Xero</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Xero Link */}
+                {selectedTransaction.xero_id && (
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        // Open in Xero (generic URL - would need tenant-specific in production)
+                        window.open(`https://go.xero.com/Bank/BankRec.aspx`, "_blank");
+                      }}
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      View in Xero
+                    </Button>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className="pt-4 border-t text-xs text-muted-foreground">
+                  <div>Xero ID: {selectedTransaction.xero_id}</div>
+                  {selectedTransaction.last_synced_at && (
+                    <div>Last synced: {formatDate(selectedTransaction.last_synced_at)}</div>
+                  )}
+                </div>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
       </CardContent>
     </Card>
   );
