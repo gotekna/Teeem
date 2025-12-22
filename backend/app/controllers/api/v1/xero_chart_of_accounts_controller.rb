@@ -322,6 +322,42 @@ module Api
         render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
+      # GET /api/v1/xero_chart_of_accounts/company_accounts
+      # Returns per-company Xero accounts with consolidated_account_code mapping
+      def company_accounts
+        company = CorporateCompany.find(params[:company_id])
+        connection = company.corporate_company_xero_connection
+
+        unless connection
+          return render json: {
+            success: false,
+            error: "No Xero connection for this company"
+          }, status: :not_found
+        end
+
+        @accounts = connection.corporate_company_xero_accounts
+        @accounts = @accounts.where(status: "ACTIVE") unless params[:include_inactive] == "true"
+        @accounts = @accounts.order(:account_code)
+
+        # Get Foundation for TeeemTableView
+        foundation = Foundation.find_by(model_class: "CorporateCompanyXeroAccount")
+
+        render json: {
+          success: true,
+          data: @accounts.map { |a| serialize_company_account(a) },
+          meta: {
+            total: @accounts.count,
+            foundation_id: foundation&.id,
+            company_name: company.name,
+            xero_tenant_name: connection.xero_tenant_name,
+            mapped_count: @accounts.mapped.count,
+            unmapped_count: @accounts.unmapped.count
+          }
+        }
+      rescue ActiveRecord::RecordNotFound => e
+        render json: { success: false, error: e.message }, status: :not_found
+      end
+
       private
 
       # Fetch account codes from each company's Xero
@@ -382,42 +418,6 @@ module Api
           created_at: account.created_at,
           updated_at: account.updated_at
         }
-      end
-
-      # GET /api/v1/xero_chart_of_accounts/company_accounts
-      # Returns per-company Xero accounts with consolidated_account_code mapping
-      def company_accounts
-        company = CorporateCompany.find(params[:company_id])
-        connection = company.corporate_company_xero_connection
-
-        unless connection
-          return render json: {
-            success: false,
-            error: "No Xero connection for this company"
-          }, status: :not_found
-        end
-
-        @accounts = connection.corporate_company_xero_accounts
-        @accounts = @accounts.where(status: "ACTIVE") unless params[:include_inactive] == "true"
-        @accounts = @accounts.order(:account_code)
-
-        # Get Foundation for TeeemTableView
-        foundation = Foundation.find_by(model_class: "CorporateCompanyXeroAccount")
-
-        render json: {
-          success: true,
-          data: @accounts.map { |a| serialize_company_account(a) },
-          meta: {
-            total: @accounts.count,
-            foundation_id: foundation&.id,
-            company_name: company.name,
-            xero_tenant_name: connection.xero_tenant_name,
-            mapped_count: @accounts.mapped.count,
-            unmapped_count: @accounts.unmapped.count
-          }
-        }
-      rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
       end
 
       def serialize_company_account(account)
