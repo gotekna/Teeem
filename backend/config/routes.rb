@@ -1112,6 +1112,7 @@ Rails.application.routes.draw do
             get "/", action: :job_index
             get :gantt_data
             post :copy_from_template
+            post :import
           end
         end
       end

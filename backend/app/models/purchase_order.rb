@@ -19,6 +19,7 @@ class PurchaseOrder < ApplicationRecord
   has_many :payments, dependent: :destroy
   has_many :project_tasks, dependent: :nullify
   has_many :schedule_tasks, dependent: :nullify
+  has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
@@ -72,6 +73,7 @@ class PurchaseOrder < ApplicationRecord
   before_save :calculate_variances
   after_create :log_po_created
   after_save :update_job_profit
+  after_save :sync_supplier_to_sm_tasks
   after_destroy :update_job_profit
 
   # Scopes
@@ -355,6 +357,20 @@ class PurchaseOrder < ApplicationRecord
   # Update the job's live profit when this PO changes
   def update_job_profit
     job&.calculate_and_update_profit!
+  end
+
+  # Sync supplier changes to linked SmTasks (One Entity concept)
+  # When a PO's supplier changes, update all linked tasks to match
+  def sync_supplier_to_sm_tasks
+    return unless saved_change_to_supplier_id? && sm_tasks.any?
+
+    # Update all linked tasks with the new supplier
+    # This implements the "One Entity" rule - PO and Task share supplier
+    sm_tasks.update_all(supplier_id: supplier_id)
+
+    Rails.logger.info "[PO-Task Sync] Updated #{sm_tasks.count} task(s) with supplier_id=#{supplier_id} for PO #{purchase_order_number}"
+  rescue StandardError => e
+    Rails.logger.error "[PO-Task Sync] Failed to sync supplier for PO #{id}: #{e.message}"
   end
 
   # Activity logging

@@ -956,22 +956,65 @@ export function EntityTabsConfig({
                   <Label htmlFor="has_sharepoint">Has SharePoint Folder</Label>
                 </div>
                 {formData.has_sharepoint_folder && (
-                  <div className="space-y-2 pl-6">
-                    <Label>SharePoint Folder</Label>
-                    {formData.sharepoint_folder_path && (
-                      <div className="text-sm text-muted-foreground mb-2">
-                        Selected: <span className="font-mono">{formData.sharepoint_folder_path}</span>
+                  <div className="space-y-3 pl-6">
+                    {/* Path Template Input */}
+                    <div className="space-y-2">
+                      <Label>SharePoint Path Template</Label>
+                      <Input
+                        value={formData.sharepoint_folder_path || ""}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            sharepoint_folder_path: e.target.value,
+                          }))
+                        }
+                        placeholder="e.g., /Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/Xero"
+                        className="font-mono text-sm"
+                      />
+                    </div>
+
+                    {/* Placeholder Badges */}
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Click to insert placeholder:</Label>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { key: "{{CompanyGroup}}", label: "Company Group", example: "Tekna Group" },
+                          { key: "{{CompanyCode}}", label: "Company Code", example: "ABC123" },
+                          { key: "{{EntityName}}", label: "Entity Name", example: "ABC Pty Ltd" },
+                        ].map((placeholder) => (
+                          <Badge
+                            key={placeholder.key}
+                            variant="outline"
+                            className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                sharepoint_folder_path: (prev.sharepoint_folder_path || "") + placeholder.key,
+                              }));
+                            }}
+                          >
+                            {placeholder.key}
+                            <span className="ml-1 text-xs opacity-60">({placeholder.example})</span>
+                          </Badge>
+                        ))}
                       </div>
-                    )}
-                    <SharePointFolderBrowser
-                      onSelect={(folder, path) => {
-                        setFormData((prev) => ({
-                          ...prev,
-                          sharepoint_folder_path: path,
-                        }));
-                      }}
-                      rootFolder=""
-                    />
+                    </div>
+
+                    {/* Folder Browser - disabled for now as it may cause auth issues */}
+                    {/* TODO: Re-enable when SharePoint connection is stable
+                    <div className="space-y-2">
+                      <Label className="text-xs text-muted-foreground">Or browse SharePoint folders:</Label>
+                      <SharePointFolderBrowser
+                        onSelect={(folder, path) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            sharepoint_folder_path: path,
+                          }));
+                        }}
+                        rootFolder=""
+                      />
+                    </div>
+                    */}
                   </div>
                 )}
               </div>

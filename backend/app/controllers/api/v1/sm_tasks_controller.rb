@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTasksController < ApplicationController
-      before_action :set_job, only: [ :job_index, :create, :gantt_data, :copy_from_template ]
+      before_action :set_job, only: [ :job_index, :create, :gantt_data, :copy_from_template, :import ]
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
@@ -140,10 +140,64 @@ module Api
         end
       end
 
+      # POST /api/v1/constructions/:job_id/sm_tasks/import
+      # Import tasks from Excel/CSV file
+      #
+      # Params:
+      #   file: The uploaded file (required)
+      #   clear_existing: Whether to clear existing tasks first (optional, defaults to false)
+      #
+      def import
+        unless params[:file].present?
+          return render json: {
+            success: false,
+            error: "No file provided"
+          }, status: :unprocessable_entity
+        end
+
+        file = params[:file]
+        temp_file = save_temp_file(file)
+
+        begin
+          result = SmTaskImportService.new(@job, temp_file.path, {
+            user: current_user,
+            clear_existing: params[:clear_existing] == true || params[:clear_existing] == "true"
+          }).execute
+
+          if result[:success]
+            render json: {
+              success: true,
+              message: "Successfully imported #{result[:imported_count]} tasks",
+              imported_count: result[:imported_count],
+              dependencies_count: result[:dependencies_count],
+              summary: result[:summary],
+              warnings: result[:errors].any? ? result[:errors] : nil
+            }
+          else
+            render json: {
+              success: false,
+              errors: result[:errors]
+            }, status: :unprocessable_entity
+          end
+        rescue StandardError => e
+          Rails.logger.error("SmTask import error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+
+          render json: {
+            success: false,
+            error: "Import failed: #{e.message}"
+          }, status: :unprocessable_entity
+        ensure
+          temp_file.close
+          temp_file.unlink
+        end
+      end
+
       # GET /api/v1/constructions/:job_id/sm_tasks/gantt_data
       def gantt_data
         tasks = @job.sm_tasks.ordered.includes(
-          :hold_reason, :predecessor_dependencies, :successor_dependencies
+          :hold_reason, :predecessor_dependencies, :successor_dependencies,
+          :supplier, purchase_order: :supplier
         )
 
         render json: {
@@ -572,6 +626,14 @@ module Api
         )
       end
 
+      def save_temp_file(uploaded_file)
+        temp_file = Tempfile.new([ "sm_task_import", File.extname(uploaded_file.original_filename) ])
+        temp_file.binmode
+        temp_file.write(uploaded_file.read)
+        temp_file.rewind
+        temp_file
+      end
+
       def notify_task_assignment(task)
         # Only notify if assigned_user_id changed and there's a new assignee
         return unless task.saved_change_to_assigned_user_id?
@@ -679,7 +741,7 @@ module Api
       end
 
       def task_to_gantt_format(task)
-        {
+        json = {
           id: task.id,
           task_number: task.task_number,
           name: task.name,
@@ -693,8 +755,26 @@ module Api
           is_hold_task: task.is_hold_task,
           hold_reason: task.hold_reason&.name,
           color: task.color || task.hold_reason&.color,
-          parent_id: task.parent_task_id
+          parent_id: task.parent_task_id,
+          # PO-Task One Entity integration
+          purchase_order_id: task.purchase_order_id,
+          supplier_id: task.supplier_id,
+          supplier_name: task.supplier&.name
         }
+
+        # Include PO details when linked (One Entity concept)
+        if task.purchase_order.present?
+          json[:purchase_order] = {
+            id: task.purchase_order.id,
+            po_number: task.purchase_order.purchase_order_number,
+            status: task.purchase_order.status,
+            total: task.purchase_order.total,
+            supplier_name: task.purchase_order.supplier&.name,
+            required_date: task.purchase_order.required_date
+          }
+        end
+
+        json
       end
 
       def dependencies_to_gantt_format(task)

@@ -89,6 +89,7 @@ class SmTask < ApplicationRecord
   # Callbacks
   before_validation :set_task_number, on: :create
   before_validation :calculate_end_date, if: -> { start_date_changed? || duration_days_changed? }
+  before_save :sync_supplier_from_po, if: -> { purchase_order_id_changed? && purchase_order_id.present? }
 
   # Lock hierarchy check (Rule 9.22)
   # Priority: supplier_confirm > confirm > started > completed > manually_positioned
@@ -196,5 +197,18 @@ class SmTask < ApplicationRecord
     if end_date < start_date
       errors.add(:end_date, "must be on or after start date")
     end
+  end
+
+  # Sync supplier from PO when task is linked (One Entity concept)
+  # When a task is linked to a PO, inherit the supplier from the PO
+  def sync_supplier_from_po
+    return unless purchase_order.present?
+
+    # Inherit supplier from PO - this is the "One Entity" rule
+    self.supplier_id = purchase_order.supplier_id
+
+    Rails.logger.info "[PO-Task Sync] Task #{id || 'new'} linked to PO #{purchase_order.purchase_order_number}, inherited supplier_id=#{supplier_id}"
+  rescue StandardError => e
+    Rails.logger.error "[PO-Task Sync] Failed to sync supplier from PO for task #{id}: #{e.message}"
   end
 end
