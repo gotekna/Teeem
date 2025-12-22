@@ -800,16 +800,16 @@ export default function JobDetailPage() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight font-serif">{job.name}</h1>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <div className="flex items-center gap-2 mt-1 overflow-hidden">
               {/* Job Type - Status - Job Stage */}
-              <span className="text-sm text-muted-foreground">{job.job_type?.name || "No Type"}</span>
-              <span className="text-sm text-muted-foreground">-</span>
-              <span className="text-sm text-muted-foreground">{job.job_status?.name || "No Status"}</span>
-              <span className="text-sm text-muted-foreground">-</span>
-              <span className="text-sm text-muted-foreground">{job.job_stage?.name || job.stage || "No Stage"}</span>
+              <span className="text-sm text-muted-foreground shrink-0">{job.job_type?.name || "No Type"}</span>
+              <span className="text-sm text-muted-foreground shrink-0">-</span>
+              <span className="text-sm text-muted-foreground shrink-0">{job.job_status?.name || "No Status"}</span>
+              <span className="text-sm text-muted-foreground shrink-0">-</span>
+              <span className="text-sm text-muted-foreground shrink-0">{job.job_stage?.name || job.stage || "No Stage"}</span>
               {/* Dates */}
-              <span className="text-sm text-muted-foreground ml-2">·</span>
-              <span className="text-sm">
+              <span className="text-sm text-muted-foreground shrink-0">·</span>
+              <span className="text-sm shrink-0">
                 <span className="text-muted-foreground">Start:</span>{" "}
                 <span className="font-medium">
                   {job.start_date
@@ -820,8 +820,8 @@ export default function JobDetailPage() {
                     : "-"}
                 </span>
               </span>
-              <span className="text-sm text-muted-foreground">·</span>
-              <span className="text-sm">
+              <span className="text-sm text-muted-foreground shrink-0">·</span>
+              <span className="text-sm shrink-0">
                 <span className="text-muted-foreground">PC:</span>{" "}
                 <span className="font-medium">
                   {job.practical_completion_date
@@ -832,14 +832,14 @@ export default function JobDetailPage() {
                     : "-"}
                 </span>
               </span>
-              {/* Owners (clients) */}
+              {/* Owners (clients) - truncated to prevent layout shift */}
               {(() => {
                 const owners = job.contacts?.filter(c => c.role === "client") || [];
                 if (owners.length === 0) return null;
                 return (
                   <>
-                    <span className="text-sm text-muted-foreground">·</span>
-                    <span className="text-sm">
+                    <span className="text-sm text-muted-foreground shrink-0">·</span>
+                    <span className="text-sm truncate max-w-[300px]">
                       <span className="text-muted-foreground">Owner:</span>{" "}
                       {owners.map((o, idx) => (
                         <span key={o.contact_id}>
