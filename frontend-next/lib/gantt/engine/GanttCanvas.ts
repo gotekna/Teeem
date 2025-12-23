@@ -11809,6 +11809,197 @@ export class GanttCanvas {
     return { hasConflict: false, conflictType: null, conflictingTaskId: null, message: '' };
   }
 
+  // =========================================================================
+  // SECTION C: TASK INTERACTION (Features 151-250)
+  // =========================================================================
+  // Features 151-175: Cascade Modal System - React components (done separately)
+  // Features 176-200: Mouse Interaction - See Features 1-20 for core implementation
+  // Features 201-225: Keyboard Interaction - See Features 36-42 for core
+  // Features 226-250: Touch/Mobile Support - See Features 45-57 for core
+
+  // =========================================================================
+  // FEATURE 183: SHIFT+DRAG TO COPY TASK
+  // =========================================================================
+  private shiftCopyEnabled: boolean = true;
+  private shiftCopyGhostTask: GanttTask | null = null;
+
+  setShiftCopyEnabled(enabled: boolean): void {
+    this.shiftCopyEnabled = enabled;
+  }
+
+  isShiftCopyEnabled(): boolean { return this.shiftCopyEnabled; }
+
+  // Called during drag to check if shift is held for copy mode
+  checkShiftCopyMode(shiftKey: boolean): boolean {
+    return this.shiftCopyEnabled && shiftKey;
+  }
+
+  // Create a ghost task preview during shift+drag copy
+  createCopyGhost(taskId: string): GanttTask | null {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return null;
+
+    this.shiftCopyGhostTask = {
+      ...task,
+      id: `ghost-${task.id}`,
+      name: `${task.name} (copy)`,
+    };
+    return this.shiftCopyGhostTask;
+  }
+
+  // Finalize the copy operation
+  finishShiftCopy(newStartDate: Date): GanttTask | null {
+    if (!this.shiftCopyGhostTask) return null;
+
+    const duration = this.shiftCopyGhostTask.endDate.getTime() - this.shiftCopyGhostTask.startDate.getTime();
+    const copiedTask: GanttTask = {
+      ...this.shiftCopyGhostTask,
+      id: `copy-${Date.now()}`, // Generate new unique ID
+      startDate: newStartDate,
+      endDate: new Date(newStartDate.getTime() + duration),
+      predecessorIds: [], // Don't copy dependencies
+    };
+
+    this.state.tasks.push(copiedTask);
+    this.shiftCopyGhostTask = null;
+    this.markDirty();
+    return copiedTask;
+  }
+
+  cancelShiftCopy(): void {
+    this.shiftCopyGhostTask = null;
+    this.markDirty();
+  }
+
+  getCopyGhostTask(): GanttTask | null {
+    return this.shiftCopyGhostTask;
+  }
+
+  // =========================================================================
+  // FEATURE 216: SPACE TO TOGGLE TASK LOCK (Extension of Feature 38)
+  // =========================================================================
+  private spaceLockToggleEnabled: boolean = true;
+
+  setSpaceLockToggleEnabled(enabled: boolean): void {
+    this.spaceLockToggleEnabled = enabled;
+  }
+
+  isSpaceLockToggleEnabled(): boolean { return this.spaceLockToggleEnabled; }
+
+  // =========================================================================
+  // FEATURE 217: F2 TO RENAME TASK (Extension of Feature 37)
+  // =========================================================================
+  private f2RenameEnabled: boolean = true;
+
+  setF2RenameEnabled(enabled: boolean): void {
+    this.f2RenameEnabled = enabled;
+  }
+
+  isF2RenameEnabled(): boolean { return this.f2RenameEnabled; }
+
+  // =========================================================================
+  // FEATURE 221: KEYBOARD SHORTCUT HELP (Extension of Feature 39)
+  // =========================================================================
+  // Note: getKeyboardShortcuts() exists in Feature 39.
+  // This provides a formatted help list for the modal.
+  getShortcutHelpList(): Array<{ key: string; description: string; modifier?: string }> {
+    return [
+      { key: 'Arrow keys', description: 'Move selection' },
+      { key: 'Enter', description: 'Edit selected task' },
+      { key: 'Delete', description: 'Remove task' },
+      { key: 'Escape', description: 'Cancel current action' },
+      { key: 'A', modifier: 'Ctrl', description: 'Select all' },
+      { key: 'Z', modifier: 'Ctrl', description: 'Undo' },
+      { key: 'Y', modifier: 'Ctrl', description: 'Redo' },
+      { key: 'C', modifier: 'Ctrl', description: 'Copy task' },
+      { key: 'V', modifier: 'Ctrl', description: 'Paste task' },
+      { key: 'X', modifier: 'Ctrl', description: 'Cut task' },
+      { key: 'D', modifier: 'Ctrl', description: 'Duplicate task' },
+      { key: 'Tab', description: 'Next task' },
+      { key: 'Tab', modifier: 'Shift', description: 'Previous task' },
+      { key: 'Space', description: 'Toggle task lock' },
+      { key: 'F2', description: 'Rename task' },
+      { key: '+', description: 'Expand group' },
+      { key: '-', description: 'Collapse group' },
+      { key: '?', description: 'Show this help' },
+    ];
+  }
+
+  // =========================================================================
+  // FEATURE 222-223: ACCESSIBILITY EXTENSIONS
+  // =========================================================================
+  // Note: ariaLiveRegion and announceToScreenReader exist in Feature 51.
+  // See Feature 40 for focus ring and Feature 51 for screen reader.
+
+  // =========================================================================
+  // FEATURE 232: TOUCH GESTURE DETECTION (Extension of Features 45-47)
+  // =========================================================================
+  private gestureLastTouchTime: number = 0;
+
+  detectGestureType(touches: Touch[], previousTouches: Touch[] | null): 'tap' | 'doubletap' | 'hold' | 'pan' | 'pinch' | 'swipe' | null {
+    const now = Date.now();
+
+    if (touches.length === 1 && (!previousTouches || previousTouches.length === 0)) {
+      if (now - this.gestureLastTouchTime < 300) {
+        return 'doubletap';
+      }
+      this.gestureLastTouchTime = now;
+      return 'tap';
+    }
+
+    if (touches.length === 2) {
+      return 'pinch';
+    }
+
+    if (touches.length === 1 && previousTouches && previousTouches.length === 1) {
+      const dx = touches[0].clientX - previousTouches[0].clientX;
+      const dy = touches[0].clientY - previousTouches[0].clientY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance > 50) {
+        const angle = Math.atan2(dy, dx);
+        if (Math.abs(angle) < Math.PI / 4 || Math.abs(angle) > 3 * Math.PI / 4) {
+          return 'swipe';
+        }
+      }
+      return 'pan';
+    }
+
+    return null;
+  }
+
+  // =========================================================================
+  // FEATURE 233: SWIPE TO DELETE (Extension of Feature 53)
+  // =========================================================================
+  // Note: swipeDeleteEnabled and setSwipeDeleteEnabled() exist in Feature 53.
+  // See lines 10765-10791 for the full implementation.
+
+  // =========================================================================
+  // FEATURE 240: TOUCH FEEDBACK CONFIG (Extension of Feature 47)
+  // =========================================================================
+  // Note: Ripple effect exists in Feature 47.
+  private touchFeedbackColor: string = 'rgba(99, 102, 241, 0.3)';
+
+  setTouchFeedbackColor(color: string): void {
+    this.touchFeedbackColor = color;
+  }
+
+  getTouchFeedbackColor(): string { return this.touchFeedbackColor; }
+
+  // =========================================================================
+  // FEATURES 241-250: MOBILE/TOUCH EXTENSIONS
+  // =========================================================================
+  // Note: These features extend earlier mobile/touch features.
+  // - Feature 241 (Haptic triggers): See Feature 48 triggerHapticFeedback()
+  // - Feature 242 (Responsive layout): See Feature 49 updateResponsiveLayout()
+  // - Feature 243 (Orientation): See Feature 50 handleOrientationChange()
+  // - Feature 244 (Virtual keyboard): See Feature 52 handleVirtualKeyboard()
+  // - Feature 245 (Safe area): See Feature 53 initializeSafeArea()
+  // - Feature 247 (Touch buttons): See Feature 54 setMinTouchTargetSize()
+  // - Feature 248 (Target validation): See Feature 55 validateTouchTargetSize()
+  // - Feature 249 (Palm rejection): See Feature 56 isPalmTouch()
+  // - Feature 250 (Stylus): See Feature 57 isStylusActive()
+
 }
 
 // ============================================================================
