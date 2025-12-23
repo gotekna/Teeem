@@ -486,6 +486,7 @@ function CompaniesSubTab() {
 
   const [formData, setFormData] = React.useState({
     name: "",
+    code: "",
     abn: "",
     acn: "",
     company_group_id: "",
@@ -534,6 +535,7 @@ function CompaniesSubTab() {
   const handleOpenAddDialog = () => {
     setFormData({
       name: "",
+      code: "",
       abn: "",
       acn: "",
       company_group_id: "",
@@ -615,6 +617,7 @@ function CompaniesSubTab() {
   const handleOpenEditDialog = (company: Company) => {
     setFormData({
       name: company.name,
+      code: company.code || "",
       abn: company.abn || "",
       acn: company.acn || "",
       company_group_id: company.company_group_id?.toString() || "",
@@ -906,8 +909,8 @@ function CompaniesSubTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="col-span-2 space-y-2">
                 <Label htmlFor="name">Company Name *</Label>
                 <Input
                   id="name"
@@ -916,10 +919,21 @@ function CompaniesSubTab() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  placeholder="e.g., TEK"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="type">Type</Label>
                 <Input
                   id="type"
-                  placeholder="e.g., Builder, Developer"
+                  placeholder="e.g., Builder"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 />
