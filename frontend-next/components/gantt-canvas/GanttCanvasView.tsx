@@ -52,6 +52,7 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
+  closestCenter,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -302,17 +303,38 @@ export function GanttCanvasView({
   }, []);
 
   // Handle column reorder via drag-and-drop in header
+  // Must work with visibleColumns order since that's what user sees/drags
   const handleColumnDragEnd = React.useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    console.log('[Column Drag] DragEnd event:', { activeId: active.id, overId: over?.id });
 
+    if (!over || active.id === over.id) {
+      console.log('[Column Drag] No move - over is null or same column');
+      return;
+    }
+
+    // Get indices from visibleColumns (what user sees)
+    const oldVisibleIndex = visibleColumns.findIndex(col => col.id === active.id);
+    const newVisibleIndex = visibleColumns.findIndex(col => col.id === over.id);
+    console.log('[Column Drag] Indices:', { oldVisibleIndex, newVisibleIndex, visibleColumnsCount: visibleColumns.length });
+
+    if (oldVisibleIndex === -1 || newVisibleIndex === -1) {
+      console.log('[Column Drag] Invalid indices - column not found');
+      return;
+    }
+
+    // Create new order from visibleColumns then merge back hidden columns
+    const reorderedVisible = arrayMove([...visibleColumns], oldVisibleIndex, newVisibleIndex);
+    console.log('[Column Drag] Reordered:', reorderedVisible.map(c => c.id));
+
+    // Rebuild full columns: reordered visible + hidden columns at end
     setColumns(prev => {
-      const oldIndex = prev.findIndex(col => col.id === active.id);
-      const newIndex = prev.findIndex(col => col.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-      return arrayMove(prev, oldIndex, newIndex);
+      const hiddenCols = prev.filter(c => !c.visible && c.id !== 'name');
+      const newCols = [...reorderedVisible, ...hiddenCols];
+      console.log('[Column Drag] New columns:', newCols.map(c => c.id));
+      return newCols;
     });
-  }, []);
+  }, [visibleColumns]);
 
   // DnD sensors with delay to distinguish from resize
   const columnDragSensors = useSensors(

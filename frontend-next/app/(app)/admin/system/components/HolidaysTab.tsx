@@ -44,7 +44,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
-  Calendar,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -322,7 +322,7 @@ export function HolidaysTab() {
                     <TableCell className="font-medium">{holiday.name}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                         {format(new Date(holiday.date), "EEEE, MMMM d, yyyy")}
                       </div>
                     </TableCell>
