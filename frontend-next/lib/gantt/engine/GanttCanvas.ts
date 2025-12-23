@@ -11431,6 +11431,171 @@ export class GanttCanvas {
 
   getGradientDirection(): 'vertical' | 'horizontal' { return this.gradientDirection; }
 
+  // =========================================================================
+  // FEATURE 81: TASK BAR SHADOW
+  // =========================================================================
+  // Note: taskBarShadowEnabled exists in Feature 59. This provides additional shadow config.
+  private shadowColor: string = 'rgba(0, 0, 0, 0.15)';
+  private shadowBlur: number = 4;
+  private shadowOffsetX: number = 2;
+  private shadowOffsetY: number = 2;
+
+  setShadowStyle(options: { color?: string; blur?: number; offsetX?: number; offsetY?: number }): void {
+    if (options.color) this.shadowColor = options.color;
+    if (options.blur !== undefined) this.shadowBlur = options.blur;
+    if (options.offsetX !== undefined) this.shadowOffsetX = options.offsetX;
+    if (options.offsetY !== undefined) this.shadowOffsetY = options.offsetY;
+    this.markDirty();
+  }
+
+  getShadowStyle(): { color: string; blur: number; offsetX: number; offsetY: number } {
+    return {
+      color: this.shadowColor,
+      blur: this.shadowBlur,
+      offsetX: this.shadowOffsetX,
+      offsetY: this.shadowOffsetY
+    };
+  }
+
+  // =========================================================================
+  // FEATURE 82-100: TASK BAR RENDERING HELPERS
+  // =========================================================================
+  // Note: Core rendering (text, progress, resize handles, hover, selection,
+  // icons, opacity, indentation, summary bars) is in GanttRenderer.
+  // These provide configuration APIs.
+
+  private taskBarMinWidth: number = 20;
+  private progressBarHeight: number = 4;
+  // Note: resizeHandleWidth already exists as class property
+
+  setTaskBarMinWidth(width: number): void {
+    this.taskBarMinWidth = Math.max(10, width);
+    this.markDirty();
+  }
+
+  getTaskBarMinWidth(): number { return this.taskBarMinWidth; }
+
+  setProgressBarHeight(height: number): void {
+    this.progressBarHeight = Math.max(2, Math.min(20, height));
+    this.markDirty();
+  }
+
+  getProgressBarHeight(): number { return this.progressBarHeight; }
+
+  // Note: resizeHandleWidth getter/setter - property exists at class level
+
+  // =========================================================================
+  // FEATURE 101-106: DEPENDENCY LINE TYPES
+  // =========================================================================
+  // Note: FS, SS, FF, SF dependency types, bezier curves, and arrow heads
+  // are implemented in GanttRenderer. These provide configuration.
+
+  private dependencyLineWidth: number = 2;
+  private dependencyArrowSize: number = 8;
+
+  setDependencyLineWidth(width: number): void {
+    this.dependencyLineWidth = Math.max(1, Math.min(5, width));
+    this.markDirty();
+  }
+
+  getDependencyLineWidth(): number { return this.dependencyLineWidth; }
+
+  setDependencyArrowSize(size: number): void {
+    this.dependencyArrowSize = Math.max(4, Math.min(16, size));
+    this.markDirty();
+  }
+
+  getDependencyArrowSize(): number { return this.dependencyArrowSize; }
+
+  // =========================================================================
+  // FEATURE 107: DEPENDENCY LINE ROUTING (AVOID TASK BARS)
+  // =========================================================================
+  private dependencyRoutingEnabled: boolean = false;
+  private routingPadding: number = 10;
+
+  setDependencyRouting(enabled: boolean, padding?: number): void {
+    this.dependencyRoutingEnabled = enabled;
+    if (padding !== undefined) this.routingPadding = padding;
+    this.markDirty();
+  }
+
+  isDependencyRoutingEnabled(): boolean { return this.dependencyRoutingEnabled; }
+
+  calculateRoutedPath(fromTask: GanttTask, toTask: GanttTask, depType: string): { x: number; y: number }[] {
+    if (!this.dependencyRoutingEnabled) {
+      return this.calculateDependencyPath(fromTask, toTask, depType);
+    }
+
+    // Get basic path points
+    const basicPath = this.calculateDependencyPath(fromTask, toTask, depType);
+
+    // Find tasks that might obstruct the path
+    const obstructingTasks = this.state.tasks.filter(task => {
+      if (task.id === fromTask.id || task.id === toTask.id) return false;
+      // Check if task bar intersects with the path bounding box
+      const pathMinX = Math.min(...basicPath.map(p => p.x));
+      const pathMaxX = Math.max(...basicPath.map(p => p.x));
+      const pathMinY = Math.min(...basicPath.map(p => p.y));
+      const pathMaxY = Math.max(...basicPath.map(p => p.y));
+
+      const taskX = this.viewport.dateToX(task.startDate);
+      const taskEndX = this.viewport.dateToX(task.endDate);
+      const taskIndex = this.state.tasks.indexOf(task);
+      const taskY = this.viewport.rowToY(taskIndex);
+
+      return taskX < pathMaxX && taskEndX > pathMinX &&
+             taskY < pathMaxY && taskY + this.config.rowHeight > pathMinY;
+    });
+
+    if (obstructingTasks.length === 0) {
+      return basicPath;
+    }
+
+    // Route around obstructions by going above or below
+    const routedPath: { x: number; y: number }[] = [];
+    const start = basicPath[0];
+    const end = basicPath[basicPath.length - 1];
+
+    // Determine if we should route above or below
+    const midY = (start.y + end.y) / 2;
+    const obstacleYs = obstructingTasks.map(t => {
+      const idx = this.state.tasks.indexOf(t);
+      return this.viewport.rowToY(idx) + this.config.rowHeight / 2;
+    });
+    const avgObstacleY = obstacleYs.reduce((a, b) => a + b, 0) / obstacleYs.length;
+
+    const routeAbove = midY > avgObstacleY;
+    const routeY = routeAbove
+      ? Math.min(...obstacleYs) - this.routingPadding - this.config.rowHeight
+      : Math.max(...obstacleYs) + this.routingPadding + this.config.rowHeight;
+
+    routedPath.push(start);
+    routedPath.push({ x: start.x, y: routeY });
+    routedPath.push({ x: end.x, y: routeY });
+    routedPath.push(end);
+
+    return routedPath;
+  }
+
+  // =========================================================================
+  // FEATURE 108-110: DEPENDENCY LABELS AND COLORS
+  // =========================================================================
+  private showDependencyLag: boolean = true;
+  private showDependencyType: boolean = false;
+
+  setShowDependencyLag(show: boolean): void {
+    this.showDependencyLag = show;
+    this.markDirty();
+  }
+
+  setShowDependencyType(show: boolean): void {
+    this.showDependencyType = show;
+    this.markDirty();
+  }
+
+  isShowDependencyLag(): boolean { return this.showDependencyLag; }
+  isShowDependencyType(): boolean { return this.showDependencyType; }
+
 }
 
 // ============================================================================
