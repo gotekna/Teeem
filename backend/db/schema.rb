@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_072203) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_072204) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4103,6 +4103,45 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_072203) do
     t.index ["user_id"], name: "index_performance_requests_on_user_id"
   end
 
+  create_table "performance_slo_snapshots", force: :cascade do |t|
+    t.bigint "performance_slo_id", null: false
+    t.date "snapshot_date", null: false
+    t.integer "total_events", default: 0
+    t.integer "good_events", default: 0
+    t.integer "bad_events", default: 0
+    t.float "compliance_percent"
+    t.float "error_budget_remaining"
+    t.float "error_budget_consumed"
+    t.float "observed_value"
+    t.boolean "slo_met"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["performance_slo_id", "snapshot_date"], name: "idx_slo_snapshots_slo_date", unique: true
+    t.index ["performance_slo_id"], name: "index_performance_slo_snapshots_on_performance_slo_id"
+    t.index ["slo_met"], name: "index_performance_slo_snapshots_on_slo_met"
+    t.index ["snapshot_date"], name: "index_performance_slo_snapshots_on_snapshot_date"
+  end
+
+  create_table "performance_slos", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "sli_type", null: false
+    t.string "endpoint"
+    t.string "metric_name"
+    t.float "target_value", null: false
+    t.string "target_unit"
+    t.string "comparison", default: "lte"
+    t.float "error_budget_percent", default: 0.1
+    t.boolean "active", default: true
+    t.string "owner"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_performance_slos_on_active"
+    t.index ["endpoint"], name: "index_performance_slos_on_endpoint"
+    t.index ["sli_type"], name: "index_performance_slos_on_sli_type"
+  end
+
   create_table "performance_slow_queries", force: :cascade do |t|
     t.text "query_fingerprint", null: false
     t.integer "duration_ms", null: false
@@ -6456,6 +6495,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_072203) do
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "organizations"
   add_foreign_key "performance_requests", "users"
+  add_foreign_key "performance_slo_snapshots", "performance_slos"
   add_foreign_key "performance_slow_queries", "users"
   add_foreign_key "performance_vitals", "users"
   add_foreign_key "plan_category_plan_types", "plan_categories"

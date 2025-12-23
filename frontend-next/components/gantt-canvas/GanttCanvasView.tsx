@@ -29,12 +29,14 @@ import {
   ZoomOut,
   Calendar,
   Maximize2,
+  Minimize2,
   RefreshCw,
   Eye,
   PanelLeftClose,
   PanelLeft,
   Check,
   X,
+  Expand,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -104,6 +106,12 @@ interface GanttCanvasViewProps {
   templates?: TemplateOption[];
   /** Callback when template changes */
   onTemplateChange?: (templateId: number) => void;
+  /** Show fullscreen button in toolbar */
+  showFullscreenButton?: boolean;
+  /** External fullscreen state control */
+  isFullscreen?: boolean;
+  /** Callback when fullscreen is toggled */
+  onFullscreenChange?: (isFullscreen: boolean) => void;
   className?: string;
   onTaskClick?: (task: GanttTask) => void;
   onTaskDoubleClick?: (task: GanttTask) => void;
@@ -215,6 +223,9 @@ export function GanttCanvasView({
   showToolbar = true,
   templates,
   onTemplateChange,
+  showFullscreenButton = true,
+  isFullscreen: externalFullscreen,
+  onFullscreenChange,
   className,
   onTaskClick,
   onTaskDoubleClick,
@@ -234,6 +245,36 @@ export function GanttCanvasView({
   const [rows, setRows] = React.useState<SmTemplateRow[]>([]);
   const [showSidebar, setShowSidebar] = React.useState(true);
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
+  const [internalFullscreen, setInternalFullscreen] = React.useState(false);
+
+  // Fullscreen state - use external if provided, otherwise internal
+  const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
+  const toggleFullscreen = React.useCallback(() => {
+    const newValue = !isFullscreen;
+    if (onFullscreenChange) {
+      onFullscreenChange(newValue);
+    } else {
+      setInternalFullscreen(newValue);
+    }
+  }, [isFullscreen, onFullscreenChange]);
+
+  // Exit fullscreen on Escape key
+  React.useEffect(() => {
+    if (!isFullscreen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (onFullscreenChange) {
+          onFullscreenChange(false);
+        } else {
+          setInternalFullscreen(false);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isFullscreen, onFullscreenChange]);
 
   // Column configuration state - controls order and visibility
   const [columns, setColumns] = React.useState<ColumnConfig[]>(DEFAULT_COLUMNS);
@@ -741,8 +782,9 @@ export function GanttCanvasView({
     );
   }
 
-  return (
-    <div className={cn("flex flex-col h-full", className)}>
+  // Main Gantt content (used both inline and in fullscreen dialog)
+  const ganttContent = (
+    <div className={cn("flex flex-col h-full", isFullscreen ? "fixed inset-0 z-50 bg-background" : "", className)}>
       {/* Toolbar */}
       {showToolbar && (
         <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -783,6 +825,18 @@ export function GanttCanvasView({
           >
             {showSidebar ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
           </Button>
+
+          {/* Fullscreen Toggle */}
+          {showFullscreenButton && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            >
+              {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </Button>
+          )}
 
           {/* Column Visibility & Order */}
           <DropdownMenu>
@@ -1154,6 +1208,8 @@ export function GanttCanvasView({
       </Dialog>
     </div>
   );
+
+  return ganttContent;
 }
 
 export default GanttCanvasView;

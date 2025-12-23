@@ -173,6 +173,67 @@ module Api
         }
       end
 
+      # GET /api/v1/performance/slos
+      # List all SLOs with current status
+      def slos
+        slos = PerformanceSlo.active.includes(:snapshots)
+
+        render json: {
+          success: true,
+          data: slos.map { |slo| slo_to_json(slo) }
+        }
+      end
+
+      # GET /api/v1/performance/slos/:id
+      # Get SLO details with trend data
+      def show_slo
+        slo = PerformanceSlo.find(params[:id])
+        days = (params[:days] || 30).to_i.clamp(7, 90)
+
+        render json: {
+          success: true,
+          data: slo_to_json(slo).merge(
+            trend: slo.trend(days: days),
+            error_budget: slo.error_budget_for_period(days.days.ago, Time.current),
+            prediction: Performance::TrendPredictor.predict_slo_budget(slo)
+          )
+        }
+      end
+
+      # GET /api/v1/performance/predictions
+      # Get performance predictions
+      def predictions
+        endpoint = params[:endpoint]
+        days_history = (params[:days_history] || 14).to_i.clamp(7, 30)
+        days_ahead = (params[:days_ahead] || 7).to_i.clamp(1, 30)
+
+        latency_prediction = Performance::TrendPredictor.predict_latency(
+          endpoint: endpoint.presence,
+          days_history: days_history,
+          days_ahead: days_ahead
+        )
+
+        # Get SLO budget predictions
+        slo_predictions = PerformanceSlo.active.limit(5).filter_map do |slo|
+          prediction = Performance::TrendPredictor.predict_slo_budget(slo)
+          next unless prediction
+
+          {
+            slo_id: slo.id,
+            slo_name: slo.name,
+            prediction: prediction
+          }
+        end
+
+        render json: {
+          success: true,
+          data: {
+            latency: latency_prediction,
+            slo_budgets: slo_predictions
+          }
+        }
+      end
+
       private
 
       def parse_since_param
@@ -322,6 +383,28 @@ module Api
           detected_at: anomaly.detected_at.iso8601,
           resolved_at: anomaly.resolved_at&.iso8601,
           context: anomaly.context
+        }
+      end
+
+      def slo_to_json(slo)
+        latest_snapshot = slo.snapshots.order(snapshot_date: :desc).first
+
+        {
+          id: slo.id,
+          name: slo.name,
+          sli_type: slo.sli_type,
+          endpoint: slo.endpoint,
+          metric_name: slo.metric_name,
+          target: "#{slo.comparison_symbol} #{slo.target_value}#{slo.target_unit}",
+          target_value: slo.target_value,
+          error_budget_percent: slo.error_budget_percent,
+          owner: slo.owner,
+          description: slo.description,
+          status: latest_snapshot&.slo_met ? "met" : (latest_snapshot ? "violated" : "no_data"),
+          compliance_percent: latest_snapshot&.compliance_percent,
+          error_budget_remaining: latest_snapshot&.error_budget_remaining,
+          observed_value: latest_snapshot&.observed_value,
+          last_snapshot_date: latest_snapshot&.snapshot_date&.iso8601
         }
       end
     end

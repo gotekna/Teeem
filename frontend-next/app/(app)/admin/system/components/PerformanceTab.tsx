@@ -111,6 +111,22 @@ interface AnomalySummary {
   recent: Anomaly[];
 }
 
+interface SLO {
+  id: number;
+  name: string;
+  sli_type: string;
+  endpoint?: string;
+  metric_name?: string;
+  target: string;
+  target_value: number;
+  error_budget_percent: number;
+  status: "met" | "violated" | "no_data";
+  compliance_percent?: number;
+  error_budget_remaining?: number;
+  observed_value?: number;
+  last_snapshot_date?: string;
+}
+
 interface PerformanceData {
   success: boolean;
   data: {
@@ -149,10 +165,12 @@ export function PerformanceTab() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [period, setPeriod] = React.useState("24h");
   const [data, setData] = React.useState<PerformanceData | null>(null);
+  const [slos, setSlos] = React.useState<SLO[]>([]);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     loadPerformanceData();
+    loadSlos();
   }, [period]);
 
   const loadPerformanceData = async () => {
@@ -165,6 +183,18 @@ export function PerformanceTab() {
       setError("Failed to load performance data. The Performance Observatory may not be deployed yet.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSlos = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: SLO[] }>("/api/v1/performance/slos");
+      if (response.success) {
+        setSlos(response.data);
+      }
+    } catch (err) {
+      // SLOs are optional, don't show error
+      console.debug("SLOs not available:", err);
     }
   };
 
@@ -665,6 +695,95 @@ export function PerformanceTab() {
                   Data is sampled at 10% in production for minimal overhead.
                 </p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* SLO Status */}
+      {slos.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-muted-foreground" />
+              Service Level Objectives
+            </CardTitle>
+            <CardDescription>
+              SLO compliance and error budget status
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {slos.map((slo) => {
+                const budgetPercent = slo.error_budget_remaining ?? 100;
+                const budgetLow = budgetPercent < 30;
+
+                return (
+                  <div
+                    key={slo.id}
+                    className={cn(
+                      "p-4 rounded-lg border",
+                      slo.status === "met" && "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20",
+                      slo.status === "violated" && "border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20",
+                      slo.status === "no_data" && "border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50"
+                    )}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h4 className="font-medium text-sm">{slo.name}</h4>
+                        <p className="text-xs text-muted-foreground">Target: {slo.target}</p>
+                      </div>
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          "text-xs",
+                          slo.status === "met" && "bg-green-100 text-green-800",
+                          slo.status === "violated" && "bg-red-100 text-red-800",
+                          slo.status === "no_data" && "bg-gray-100 text-gray-600"
+                        )}
+                      >
+                        {slo.status === "met" ? "Met" : slo.status === "violated" ? "Violated" : "No Data"}
+                      </Badge>
+                    </div>
+
+                    {slo.observed_value !== undefined && (
+                      <p className="text-lg font-bold mb-2">
+                        {slo.sli_type === "error_rate" || slo.sli_type === "availability"
+                          ? `${slo.observed_value.toFixed(2)}%`
+                          : slo.metric_name === "CLS"
+                            ? slo.observed_value.toFixed(3)
+                            : `${Math.round(slo.observed_value)}ms`}
+                      </p>
+                    )}
+
+                    {/* Error Budget Bar */}
+                    <div className="mt-2">
+                      <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                        <span>Error Budget</span>
+                        <span className={budgetLow ? "text-red-600 font-medium" : ""}>
+                          {budgetPercent.toFixed(1)}% remaining
+                        </span>
+                      </div>
+                      <div className="h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all",
+                            budgetPercent > 50 ? "bg-green-500" :
+                            budgetPercent > 20 ? "bg-yellow-500" : "bg-red-500"
+                          )}
+                          style={{ width: `${Math.min(budgetPercent, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {slo.compliance_percent !== undefined && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {slo.compliance_percent.toFixed(1)}% compliance
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

@@ -45,9 +45,16 @@ cleanup_performance_data:
 # Views pre-aggregate metrics for fast dashboard queries
 # Anomaly detector uses z-score analysis to find issues
 refresh_performance_mv:
-  class: RefreshPerformanceMVJob
+  class: RefreshPerformanceMvJob
   queue: low
   schedule: every 5 minutes
+
+# Calculate SLO snapshots and error budgets daily
+# Runs at 1am to ensure previous day's data is complete
+calculate_slo_snapshots:
+  class: CalculateSloSnapshotsJob
+  queue: low
+  schedule: every day at 1:00 am
 
 # ============================================
 # TOKEN REFRESH (every 15 minutes)

@@ -770,7 +770,7 @@ export function ScheduleMasterTab() {
 
           {loadingRows !== ganttTemplateId && (
             <GanttCanvasView
-              templateId={ganttTemplateId}
+              templateId={ganttTemplateId ?? undefined}
               templates={templates}
               onTemplateChange={loadGanttRows}
               className="h-full"

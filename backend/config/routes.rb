@@ -159,6 +159,9 @@ Rails.application.routes.draw do
       post "performance/anomalies/:id/acknowledge", to: "performance#acknowledge_anomaly"
       post "performance/anomalies/:id/resolve", to: "performance#resolve_anomaly"
       post "performance/anomalies/:id/false_positive", to: "performance#mark_false_positive"
+      get "performance/slos", to: "performance#slos"  # SLO list with status
+      get "performance/slos/:id", to: "performance#show_slo"  # SLO details with trend
+      get "performance/predictions", to: "performance#predictions"  # Performance predictions
 
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"
