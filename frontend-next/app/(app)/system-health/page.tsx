@@ -536,15 +536,21 @@ export default function SystemHealthPage() {
         <InfrastructurePanel metrics={infrastructureMetrics} loading={refreshing} />
       </div>
 
-      {/* Leaderboard */}
-      <HealthLeaderboard
-        systemPoints={healthData.leaderboard?.system_points ?? 0}
-        humansPoints={healthData.leaderboard?.humans_points ?? 0}
-        entries={leaderboardEntries}
-        currentUserPoints={userKudos}
-        loading={refreshing}
-        timeframe="This Week"
-      />
+          {/* Leaderboard */}
+          <HealthLeaderboard
+            systemPoints={healthData.leaderboard?.system_points ?? 0}
+            humansPoints={healthData.leaderboard?.humans_points ?? 0}
+            entries={leaderboardEntries}
+            currentUserPoints={userKudos}
+            loading={refreshing}
+            timeframe="This Week"
+          />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <PerformanceTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

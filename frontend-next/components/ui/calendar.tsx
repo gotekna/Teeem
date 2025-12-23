@@ -203,11 +203,10 @@ function CalendarDayButton({
         "data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[range-start=true]:rounded-full",
         "data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-end=true]:rounded-full",
         "data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground data-[range-middle=true]:rounded-none",
-        defaultClassNames.day,
-        "!text-foreground", // Force text color after default styles
         className,
         "hover:bg-accent hover:text-accent-foreground hover:!rounded-full",
       )}
+      style={{ color: 'hsl(var(--foreground))' }}
       {...props}
     />
   );
