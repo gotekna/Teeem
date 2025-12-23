@@ -10,7 +10,7 @@
  * - Overlays
  */
 
-import type { GanttConfig, GanttTask, GanttDependency, ContextMenuItem } from './GanttCanvas';
+import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMenuItem } from './GanttCanvas';
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 
@@ -375,12 +375,29 @@ export class Renderer {
       }
 
       // Draw progress bar if applicable
-      if (task.progress !== undefined && task.progress > 0) {
-        const progressWidth = taskWidth * (task.progress / 100);
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      const hasProgress = task.progress !== undefined && task.progress > 0;
+      if (hasProgress) {
+        const progressWidth = taskWidth * (task.progress! / 100);
+
+        // Progress section - slightly darker/more saturated
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
         this.ctx.beginPath();
         this.ctx.roundRect(startX, barY, progressWidth, barHeight, 4);
         this.ctx.fill();
+
+        // Highlight strip at top of progress section
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        this.ctx.fillRect(startX + 2, barY + 2, Math.max(0, progressWidth - 4), 3);
+
+        // Separator line at edge of progress
+        if (task.progress! < 100 && progressWidth > 4) {
+          this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          this.ctx.moveTo(startX + progressWidth, barY + 2);
+          this.ctx.lineTo(startX + progressWidth, barY + barHeight - 2);
+          this.ctx.stroke();
+        }
       }
 
       // Draw lock icon if locked
@@ -388,19 +405,33 @@ export class Renderer {
         this.drawLockIcon(startX + 4, barY + barHeight / 2);
       }
 
+      // Calculate text positioning
+      const hasProgressLabel = hasProgress && taskWidth > 80;
+      const progressLabelWidth = hasProgressLabel ? 28 : 0; // Space for "100%"
+
       // Draw task name
       this.ctx.fillStyle = this.config.colors.taskBarText;
       this.ctx.font = '11px Inter, system-ui, sans-serif';
       this.ctx.textAlign = 'left';
       this.ctx.textBaseline = 'middle';
 
-      // Truncate text if needed
+      // Truncate text if needed (leave room for progress label)
       const textX = startX + (task.locked ? 20 : 8);
-      const maxTextWidth = taskWidth - (task.locked ? 28 : 16);
+      const maxTextWidth = taskWidth - (task.locked ? 28 : 16) - progressLabelWidth;
 
       if (maxTextWidth > 20) {
         const truncatedText = this.truncateText(task.name, maxTextWidth);
         this.ctx.fillText(truncatedText, textX, barY + barHeight / 2);
+      }
+
+      // Draw progress percentage label on the right side
+      if (hasProgressLabel) {
+        const progressText = `${Math.round(task.progress!)}%`;
+        this.ctx.font = 'bold 10px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'right';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.fillText(progressText, startX + taskWidth - 6, barY + barHeight / 2);
       }
 
       // Draw resize handles on hover (only for unlocked tasks)
@@ -411,6 +442,99 @@ export class Renderer {
       // Draw dependency connector dots on hover
       if (task.id === hoveredTaskId) {
         this.drawConnectorDots(startX, endX, barY, barHeight);
+      }
+    }
+  }
+
+  /**
+   * Draw baseline bars below task bars for schedule comparison
+   * Shows original planned dates vs current dates
+   */
+  drawBaselines(
+    tasks: GanttTask[],
+    baselines: Map<string, GanttBaseline>,
+    canvasHeight?: number
+  ): void {
+    if (baselines.size === 0) return;
+
+    const { rowHeight, headerHeight, taskBarHeight, taskBarPadding } = this.config;
+    const state = this.viewport.getState();
+
+    // Calculate visible row range for virtual scrolling
+    const visibleHeight = canvasHeight ?? 800;
+    const firstVisibleRow = Math.max(0, Math.floor(state.scrollY / rowHeight) - 1);
+    const lastVisibleRow = Math.min(
+      tasks.length - 1,
+      Math.ceil((state.scrollY + visibleHeight - headerHeight) / rowHeight) + 1
+    );
+
+    // Baseline bar is thinner and positioned below the main bar
+    const baselineHeight = 6;
+    const baselineOffset = taskBarPadding + taskBarHeight + 2;
+
+    for (let index = firstVisibleRow; index <= lastVisibleRow; index++) {
+      const task = tasks[index];
+      if (!task) continue;
+
+      const baseline = baselines.get(task.id);
+      if (!baseline) continue;
+
+      const y = this.viewport.rowToY(index);
+      const baselineStartX = this.viewport.dateToX(baseline.startDate);
+      const baselineEndX = this.viewport.dateToX(baseline.endDate);
+      const baselineWidth = Math.max(baselineEndX - baselineStartX, 10);
+
+      const baselineY = y + baselineOffset;
+
+      // Calculate variance for color coding
+      const msPerDay = 24 * 60 * 60 * 1000;
+      const startVariance = Math.round((task.startDate.getTime() - baseline.startDate.getTime()) / msPerDay);
+      const endVariance = Math.round((task.endDate.getTime() - baseline.endDate.getTime()) / msPerDay);
+
+      // Color based on variance:
+      // Gray = on schedule (within 1 day)
+      // Green = ahead of schedule
+      // Red = behind schedule
+      let baselineColor: string;
+      if (Math.abs(startVariance) <= 1 && Math.abs(endVariance) <= 1) {
+        baselineColor = this.config.darkMode ? '#4b5563' : '#9ca3af'; // Gray - on track
+      } else if (endVariance < -1) {
+        baselineColor = this.config.darkMode ? '#166534' : '#22c55e'; // Green - ahead
+      } else if (endVariance > 1) {
+        baselineColor = this.config.darkMode ? '#991b1b' : '#ef4444'; // Red - behind
+      } else {
+        baselineColor = this.config.darkMode ? '#4b5563' : '#9ca3af'; // Gray - mixed
+      }
+
+      // Draw baseline bar with pattern (diagonal stripes)
+      this.ctx.fillStyle = baselineColor;
+      this.ctx.globalAlpha = 0.6;
+      this.ctx.beginPath();
+      this.ctx.roundRect(baselineStartX, baselineY, baselineWidth, baselineHeight, 2);
+      this.ctx.fill();
+      this.ctx.globalAlpha = 1;
+
+      // Draw baseline border
+      this.ctx.strokeStyle = baselineColor;
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.roundRect(baselineStartX, baselineY, baselineWidth, baselineHeight, 2);
+      this.ctx.stroke();
+
+      // Draw variance indicator if significantly different
+      if (Math.abs(endVariance) > 1) {
+        const currentEndX = this.viewport.dateToX(task.endDate);
+        const varianceText = endVariance > 0 ? `+${endVariance}d` : `${endVariance}d`;
+
+        // Position text at the end of whichever bar is further right
+        const textX = Math.max(currentEndX, baselineEndX) + 4;
+        const textY = baselineY + baselineHeight / 2;
+
+        this.ctx.font = '9px Inter, system-ui, sans-serif';
+        this.ctx.fillStyle = endVariance > 0 ? '#ef4444' : '#22c55e';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(varianceText, textX, textY);
       }
     }
   }
@@ -738,7 +862,9 @@ export class Renderer {
     dependencies: GanttDependency[],
     highlightedTaskId: string | null = null,
     canvasHeight?: number,
-    criticalDependencyIds?: Set<string>
+    criticalDependencyIds?: Set<string>,
+    flashingDepIds?: Set<string>,
+    flashPhase?: number
   ): void {
     const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]));
 
@@ -820,6 +946,50 @@ export class Renderer {
       this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, color);
       colorIndex++;
     });
+
+    // Draw flashing dependencies with animation effect
+    if (flashingDepIds && flashingDepIds.size > 0 && flashPhase !== undefined) {
+      dependencies.forEach((dep) => {
+        if (!flashingDepIds.has(dep.id)) return;
+
+        const from = taskMap.get(dep.fromId);
+        const to = taskMap.get(dep.toId);
+        if (!from || !to) return;
+
+        const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
+        const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
+        const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
+
+        // Animated glow effect using flashPhase (0-1)
+        this.ctx.save();
+
+        // Outer glow - pulses with flashPhase
+        const glowOpacity = 0.3 + flashPhase * 0.5;
+        const glowWidth = 6 + flashPhase * 4;
+        this.ctx.strokeStyle = `rgba(251, 191, 36, ${glowOpacity})`; // amber glow
+        this.ctx.lineWidth = glowWidth;
+        this.ctx.lineCap = 'round';
+        this.ctx.shadowColor = '#fbbf24';
+        this.ctx.shadowBlur = 10 + flashPhase * 10;
+
+        // Draw glow path
+        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type);
+        this.ctx.stroke();
+
+        // Inner line - bright amber
+        this.ctx.shadowBlur = 0;
+        this.ctx.strokeStyle = '#f59e0b';
+        this.ctx.lineWidth = 2 + flashPhase;
+        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type);
+        this.ctx.stroke();
+
+        // Draw arrowhead
+        this.ctx.fillStyle = '#f59e0b';
+        this.drawDependencyArrowhead(toX, toY, dep.type, from.index < to.index);
+
+        this.ctx.restore();
+      });
+    }
   }
 
   private getDependencyEndpoints(
@@ -946,6 +1116,64 @@ export class Renderer {
     const size = 6;
 
     this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+    this.ctx.lineTo(
+      x - size * Math.cos(angle - Math.PI / 6),
+      y - size * Math.sin(angle - Math.PI / 6)
+    );
+    this.ctx.lineTo(
+      x - size * Math.cos(angle + Math.PI / 6),
+      y - size * Math.sin(angle + Math.PI / 6)
+    );
+    this.ctx.closePath();
+    this.ctx.fill();
+  }
+
+  /**
+   * Draw dependency path without styling (for use with custom stroke/fill)
+   */
+  private drawDependencyPath(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    type: string
+  ): void {
+    const controlOffset = 20;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(fromX, fromY);
+
+    if (Math.abs(toY - fromY) < 5) {
+      // Same row - draw straight line
+      this.ctx.lineTo(toX, toY);
+    } else {
+      // Different rows - draw bezier curve
+      this.ctx.bezierCurveTo(
+        fromX + controlOffset,
+        fromY,
+        toX - controlOffset,
+        toY,
+        toX,
+        toY
+      );
+    }
+  }
+
+  /**
+   * Draw arrowhead for dependency with custom fill (already applied)
+   */
+  private drawDependencyArrowhead(
+    x: number,
+    y: number,
+    type: string,
+    goingDown: boolean
+  ): void {
+    const size = 8; // Slightly larger for flashing
+    // Arrow points right for FS/SS, left for FF/SF
+    const angle = (type === 'FS' || type === 'SS') ? 0 : Math.PI;
+
     this.ctx.beginPath();
     this.ctx.moveTo(x, y);
     this.ctx.lineTo(

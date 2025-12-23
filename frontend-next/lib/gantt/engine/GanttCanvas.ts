@@ -48,6 +48,20 @@ export interface GanttTask {
   supplierName?: string;
 }
 
+/**
+ * Baseline data for schedule comparison
+ * Stores the original planned dates for a task
+ */
+export interface GanttBaseline {
+  taskId: string;
+  startDate: Date;
+  endDate: Date;
+  /** Name at time of baseline (optional, for reference) */
+  name?: string;
+  /** When this baseline was captured */
+  capturedAt?: Date;
+}
+
 export interface GanttDependency {
   id: string;
   fromId: string;
@@ -237,6 +251,15 @@ export class GanttCanvas {
   // Critical path state
   private criticalPathEnabled: boolean = false;
   private criticalPathResult: CriticalPathResult | null = null;
+
+  // Baseline comparison state
+  private baselineEnabled: boolean = false;
+  private baselineData: Map<string, GanttBaseline> = new Map();
+
+  // Dependency highlighting animation state
+  private highlightedDeps: Set<string> = new Set();
+  private highlightPhase: number = 0;
+  private highlightAnimationId: number | null = null;
 
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
@@ -588,6 +611,169 @@ export class GanttCanvas {
   }
 
   /**
+   * Enable or disable baseline comparison display
+   */
+  setBaselineEnabled(enabled: boolean): void {
+    this.baselineEnabled = enabled;
+    this.markDirty();
+  }
+
+  /**
+   * Toggle baseline comparison display
+   */
+  toggleBaseline(): void {
+    this.baselineEnabled = !this.baselineEnabled;
+    this.markDirty();
+  }
+
+  /**
+   * Check if baseline comparison is enabled
+   */
+  isBaselineEnabled(): boolean {
+    return this.baselineEnabled;
+  }
+
+  /**
+   * Set baseline data for comparison
+   * @param baselines Array of baseline records
+   */
+  setBaselines(baselines: GanttBaseline[]): void {
+    this.baselineData.clear();
+    baselines.forEach(b => {
+      this.baselineData.set(b.taskId, b);
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Capture current schedule as baseline
+   * Creates baseline records from current task dates
+   */
+  captureBaseline(): GanttBaseline[] {
+    const now = new Date();
+    const baselines: GanttBaseline[] = this.state.tasks.map(task => ({
+      taskId: task.id,
+      startDate: new Date(task.startDate),
+      endDate: new Date(task.endDate),
+      name: task.name,
+      capturedAt: now,
+    }));
+
+    this.setBaselines(baselines);
+    return baselines;
+  }
+
+  /**
+   * Clear all baseline data
+   */
+  clearBaselines(): void {
+    this.baselineData.clear();
+    this.markDirty();
+  }
+
+  /**
+   * Get baseline for a specific task
+   */
+  getBaseline(taskId: string): GanttBaseline | undefined {
+    return this.baselineData.get(taskId);
+  }
+
+  /**
+   * Get all baseline data
+   */
+  getAllBaselines(): GanttBaseline[] {
+    return Array.from(this.baselineData.values());
+  }
+
+  /**
+   * Calculate variance between current and baseline for a task
+   * Returns days difference (positive = delayed, negative = ahead)
+   */
+  getTaskVariance(taskId: string): { startVariance: number; endVariance: number; durationVariance: number } | null {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    const baseline = this.baselineData.get(taskId);
+
+    if (!task || !baseline) return null;
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const startVariance = Math.round((task.startDate.getTime() - baseline.startDate.getTime()) / msPerDay);
+    const endVariance = Math.round((task.endDate.getTime() - baseline.endDate.getTime()) / msPerDay);
+
+    const currentDuration = Math.round((task.endDate.getTime() - task.startDate.getTime()) / msPerDay);
+    const baselineDuration = Math.round((baseline.endDate.getTime() - baseline.startDate.getTime()) / msPerDay);
+    const durationVariance = currentDuration - baselineDuration;
+
+    return { startVariance, endVariance, durationVariance };
+  }
+
+  /**
+   * Start flashing animation for dependencies connected to a task
+   */
+  private startDependencyFlash(taskId: string): void {
+    // Stop any existing animation
+    this.stopDependencyFlash();
+
+    // Find all dependencies connected to this task
+    this.highlightedDeps.clear();
+    this.state.dependencies.forEach(dep => {
+      if (dep.fromId === taskId || dep.toId === taskId) {
+        this.highlightedDeps.add(dep.id);
+      }
+    });
+
+    if (this.highlightedDeps.size === 0) return;
+
+    // Start animation
+    this.highlightPhase = 0;
+    let frameCount = 0;
+    const totalFrames = 30; // ~0.5 second animation
+
+    const animate = () => {
+      frameCount++;
+      // Use sine wave for smooth pulsing
+      this.highlightPhase = Math.sin((frameCount / totalFrames) * Math.PI * 3) * 0.5 + 0.5;
+      this.markDirty();
+
+      if (frameCount < totalFrames) {
+        this.highlightAnimationId = requestAnimationFrame(animate);
+      } else {
+        // Animation complete - keep highlighted but stop pulsing
+        this.highlightPhase = 1;
+        this.highlightAnimationId = null;
+        this.markDirty();
+      }
+    };
+
+    this.highlightAnimationId = requestAnimationFrame(animate);
+  }
+
+  /**
+   * Stop dependency flashing animation
+   */
+  private stopDependencyFlash(): void {
+    if (this.highlightAnimationId !== null) {
+      cancelAnimationFrame(this.highlightAnimationId);
+      this.highlightAnimationId = null;
+    }
+    this.highlightedDeps.clear();
+    this.highlightPhase = 0;
+  }
+
+  /**
+   * Get current highlight phase for animation
+   */
+  getHighlightPhase(): number {
+    return this.highlightPhase;
+  }
+
+  /**
+   * Get currently highlighted dependency IDs
+   */
+  getHighlightedDeps(): Set<string> {
+    return this.highlightedDeps;
+  }
+
+  /**
    * Resize the canvas
    */
   resize(): void {
@@ -663,8 +849,22 @@ export class GanttCanvas {
     this.renderer.drawGrid(this.containerWidth, this.containerHeight, this.state.tasks.length, this.calendar);
     this.renderer.drawTimeScale(this.containerWidth);
     this.renderer.drawTodayMarker(this.containerHeight);
+
+    // Draw baselines first (below task bars)
+    if (this.baselineEnabled && this.baselineData.size > 0) {
+      this.renderer.drawBaselines(this.state.tasks, this.baselineData, this.containerHeight);
+    }
+
     this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
-    this.renderer.drawDependencies(this.state.tasks, this.state.dependencies, this.state.lastSelectedTaskId, this.containerHeight, criticalDeps);
+    this.renderer.drawDependencies(
+      this.state.tasks,
+      this.state.dependencies,
+      this.state.lastSelectedTaskId,
+      this.containerHeight,
+      criticalDeps,
+      this.highlightedDeps.size > 0 ? this.highlightedDeps : undefined,
+      this.highlightedDeps.size > 0 ? this.highlightPhase : undefined
+    );
 
     // Draw drag preview overlay
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {
@@ -900,6 +1100,11 @@ export class GanttCanvas {
       this.state.selectedTaskIds.clear();
       this.state.selectedTaskIds.add(taskId);
       this.state.lastSelectedTaskId = taskId;
+    }
+
+    // Start dependency flashing animation for the primary selected task
+    if (this.state.selectedTaskIds.has(taskId)) {
+      this.startDependencyFlash(taskId);
     }
   }
 
@@ -1494,6 +1699,15 @@ export class GanttCanvas {
           e.preventDefault();
           // C: Toggle critical path
           this.toggleCriticalPath();
+        }
+        break;
+
+      case 'b':
+      case 'B':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // B: Toggle baseline
+          this.toggleBaseline();
         }
         break;
     }
