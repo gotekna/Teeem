@@ -467,9 +467,9 @@ class XeroBankSyncService
     date_str = first_tx["Date"]
     return nil unless date_str.present?
 
-    # Xero returns dates in /Date(timestamp)/ format
-    if date_str.match?(/\/Date\((\d+)\)\//)
-      timestamp = date_str.match(/\/Date\((\d+)\)\//)[1].to_i / 1000
+    # Xero returns dates in /Date(timestamp+timezone)/ format, e.g., /Date(1654041600000+0000)/
+    if date_str.match?(%r{/Date\((\d+)[+-]?\d*\)/})
+      timestamp = date_str.match(%r{/Date\((\d+)[+-]?\d*\)/})[1].to_i / 1000
       Time.at(timestamp).to_date
     else
       Date.parse(date_str) rescue nil
