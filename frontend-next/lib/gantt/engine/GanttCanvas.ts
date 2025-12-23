@@ -15075,6 +15075,879 @@ ${this.getAutomatedTestResults()}
     this.recentDebugActions = [];
   }
 
+  // ============================================================================
+  // FEATURE 576-590: STATS & ANALYTICS
+  // Section K: Schedule statistics, charts, and reporting
+  // ============================================================================
+
+  // FEATURE 576: SCHEDULE STATS COMPONENT DATA
+  getScheduleStats(): {
+    totalTasks: number;
+    completedTasks: number;
+    inProgressTasks: number;
+    notStartedTasks: number;
+    onHoldTasks: number;
+    overdueTasks: number;
+    completionPercentage: number;
+  } {
+    const tasks = this.state.tasks;
+    const now = new Date();
+
+    let completed = 0;
+    let inProgress = 0;
+    let notStarted = 0;
+    let onHold = 0;
+    let overdue = 0;
+
+    for (const task of tasks) {
+      if (task.progress === 100) {
+        completed++;
+      } else if (task.progress && task.progress > 0) {
+        inProgress++;
+        if (new Date(task.endDate) < now) overdue++;
+      } else if (task.locked === 'started') {
+        inProgress++;
+      } else {
+        notStarted++;
+        if (new Date(task.endDate) < now) overdue++;
+      }
+    }
+
+    return {
+      totalTasks: tasks.length,
+      completedTasks: completed,
+      inProgressTasks: inProgress,
+      notStartedTasks: notStarted,
+      onHoldTasks: onHold,
+      overdueTasks: overdue,
+      completionPercentage: tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0,
+    };
+  }
+
+  // FEATURE 577: TOTAL TASKS COUNT
+  getTotalTaskCount(): number {
+    return this.state.tasks.length;
+  }
+
+  // FEATURE 578: MATCHED TO POS COUNT
+  getMatchedToPOsCount(): number {
+    return this.state.tasks.filter(t => t.supplierId && t.supplierId > 0).length;
+  }
+
+  // FEATURE 579: UNMATCHED COUNT
+  getUnmatchedCount(): number {
+    return this.state.tasks.filter(t => !t.supplierId || t.supplierId === 0).length;
+  }
+
+  // FEATURE 580: PROGRESS BAR DATA
+  getProgressBarData(): { matched: number; unmatched: number; percentage: number } {
+    const matched = this.getMatchedToPOsCount();
+    const total = this.getTotalTaskCount();
+    return {
+      matched,
+      unmatched: total - matched,
+      percentage: total > 0 ? Math.round((matched / total) * 100) : 0,
+    };
+  }
+
+  // FEATURE 581: COMPLETION PERCENTAGE CHART DATA
+  getCompletionChartData(): Array<{ label: string; value: number; color: string }> {
+    const stats = this.getScheduleStats();
+    return [
+      { label: 'Completed', value: stats.completedTasks, color: '#22c55e' },
+      { label: 'In Progress', value: stats.inProgressTasks, color: '#3b82f6' },
+      { label: 'Not Started', value: stats.notStartedTasks, color: '#9ca3af' },
+      { label: 'On Hold', value: stats.onHoldTasks, color: '#eab308' },
+    ];
+  }
+
+  // FEATURE 582: TASKS BY STATUS CHART DATA
+  getTasksByStatusData(): Array<{ status: string; count: number; percentage: number }> {
+    const stats = this.getScheduleStats();
+    const total = stats.totalTasks || 1;
+    return [
+      { status: 'Completed', count: stats.completedTasks, percentage: Math.round((stats.completedTasks / total) * 100) },
+      { status: 'In Progress', count: stats.inProgressTasks, percentage: Math.round((stats.inProgressTasks / total) * 100) },
+      { status: 'Not Started', count: stats.notStartedTasks, percentage: Math.round((stats.notStartedTasks / total) * 100) },
+      { status: 'Overdue', count: stats.overdueTasks, percentage: Math.round((stats.overdueTasks / total) * 100) },
+    ];
+  }
+
+  // FEATURE 583: TASKS BY SUPPLIER CHART DATA
+  getTasksBySupplierData(): Array<{ supplierName: string; supplierId: number; count: number }> {
+    const supplierMap = new Map<number, { name: string; count: number }>();
+
+    for (const task of this.state.tasks) {
+      if (task.supplierId) {
+        const existing = supplierMap.get(task.supplierId);
+        if (existing) {
+          existing.count++;
+        } else {
+          supplierMap.set(task.supplierId, { name: task.supplierName || `Supplier ${task.supplierId}`, count: 1 });
+        }
+      }
+    }
+
+    return Array.from(supplierMap.entries())
+      .map(([id, data]) => ({ supplierName: data.name, supplierId: id, count: data.count }))
+      .sort((a, b) => b.count - a.count);
+  }
+
+  // FEATURE 584: DURATION HISTOGRAM DATA
+  getDurationHistogramData(): Array<{ range: string; count: number }> {
+    const buckets = [
+      { range: '1 day', min: 0, max: 1, count: 0 },
+      { range: '2-3 days', min: 2, max: 3, count: 0 },
+      { range: '4-7 days', min: 4, max: 7, count: 0 },
+      { range: '1-2 weeks', min: 8, max: 14, count: 0 },
+      { range: '2-4 weeks', min: 15, max: 28, count: 0 },
+      { range: '1+ month', min: 29, max: Infinity, count: 0 },
+    ];
+
+    for (const task of this.state.tasks) {
+      const duration = this.getTaskDuration(task.id);
+      for (const bucket of buckets) {
+        if (duration >= bucket.min && duration <= bucket.max) {
+          bucket.count++;
+          break;
+        }
+      }
+    }
+
+    return buckets.map(b => ({ range: b.range, count: b.count }));
+  }
+
+  // FEATURE 585: TIMELINE COVERAGE DATA
+  getTimelineCoverageData(): { startDate: Date; endDate: Date; totalDays: number; workingDays: number } {
+    if (this.state.tasks.length === 0) {
+      const today = new Date();
+      return { startDate: today, endDate: today, totalDays: 0, workingDays: 0 };
+    }
+
+    let minDate = new Date(this.state.tasks[0].startDate);
+    let maxDate = new Date(this.state.tasks[0].endDate);
+
+    for (const task of this.state.tasks) {
+      const start = new Date(task.startDate);
+      const end = new Date(task.endDate);
+      if (start < minDate) minDate = start;
+      if (end > maxDate) maxDate = end;
+    }
+
+    const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24));
+    const workingDays = Math.round(totalDays * 5 / 7); // Approximate
+
+    return { startDate: minDate, endDate: maxDate, totalDays, workingDays };
+  }
+
+  // FEATURE 586: CRITICAL PATH SUMMARY
+  getCriticalPathSummary(): { taskCount: number; totalDuration: number; taskIds: string[] } {
+    // Critical path detection: tasks with no slack (latest finish = earliest finish)
+    // Simplified critical path - tasks at 0% progress or on-hold are considered critical
+    const criticalTasks = this.state.tasks.filter(t => t.progress === 0 || t.status === 'on-hold' || t.status === 'at-risk');
+    const totalDuration = criticalTasks.reduce((sum, t) => sum + this.getTaskDuration(t.id), 0);
+
+    return {
+      taskCount: criticalTasks.length,
+      totalDuration,
+      taskIds: criticalTasks.map(t => t.id),
+    };
+  }
+
+  // FEATURE 587: RESOURCE UTILIZATION DATA
+  getResourceUtilizationData(): Array<{ supplierId: number; supplierName: string; taskCount: number; totalDays: number }> {
+    const resourceMap = new Map<number, { name: string; tasks: number; days: number }>();
+
+    for (const task of this.state.tasks) {
+      if (task.supplierId) {
+        const existing = resourceMap.get(task.supplierId);
+        const duration = this.getTaskDuration(task.id);
+        if (existing) {
+          existing.tasks++;
+          existing.days += duration;
+        } else {
+          resourceMap.set(task.supplierId, {
+            name: task.supplierName || `Supplier ${task.supplierId}`,
+            tasks: 1,
+            days: duration,
+          });
+        }
+      }
+    }
+
+    return Array.from(resourceMap.entries())
+      .map(([id, data]) => ({
+        supplierId: id,
+        supplierName: data.name,
+        taskCount: data.tasks,
+        totalDays: data.days,
+      }))
+      .sort((a, b) => b.totalDays - a.totalDays);
+  }
+
+  // FEATURE 588: DELAY ANALYSIS
+  getDelayAnalysis(): { onTimeTasks: number; delayedTasks: number; averageDelayDays: number; mostDelayedTask: GanttTask | null } {
+    const now = new Date();
+    let onTime = 0;
+    let delayed = 0;
+    let totalDelay = 0;
+    let mostDelayed: GanttTask | null = null;
+    let maxDelay = 0;
+
+    for (const task of this.state.tasks) {
+      if (task.progress === 100) {
+        onTime++;
+      } else {
+        const endDate = new Date(task.endDate);
+        if (endDate < now) {
+          delayed++;
+          const delayDays = Math.ceil((now.getTime() - endDate.getTime()) / (1000 * 60 * 60 * 24));
+          totalDelay += delayDays;
+          if (delayDays > maxDelay) {
+            maxDelay = delayDays;
+            mostDelayed = task;
+          }
+        } else {
+          onTime++;
+        }
+      }
+    }
+
+    return {
+      onTimeTasks: onTime,
+      delayedTasks: delayed,
+      averageDelayDays: delayed > 0 ? Math.round(totalDelay / delayed) : 0,
+      mostDelayedTask: mostDelayed,
+    };
+  }
+
+  // FEATURE 589: TREND OVER TIME DATA
+  getTrendData(days: number = 30): Array<{ date: string; completed: number; total: number }> {
+    // Generate mock trend data based on current state
+    const trend: Array<{ date: string; completed: number; total: number }> = [];
+    const total = this.state.tasks.length;
+    const completed = this.state.tasks.filter(t => t.progress === 100).length;
+
+    for (let i = days; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      // Simulate gradual completion
+      const factor = (days - i) / days;
+      trend.push({
+        date: date.toISOString().split('T')[0],
+        completed: Math.round(completed * factor),
+        total,
+      });
+    }
+
+    return trend;
+  }
+
+  // FEATURE 590: EXPORT STATS TO PDF (Data preparation)
+  getStatsExportData(): {
+    generatedAt: string;
+    scheduleStats: { totalTasks: number; completedTasks: number; inProgressTasks: number; notStartedTasks: number; onHoldTasks: number; overdueTasks: number; completionPercentage: number };
+    progressData: { matched: number; unmatched: number; percentage: number };
+    supplierData: Array<{ supplierName: string; supplierId: number; count: number }>;
+    criticalPath: { taskCount: number; totalDuration: number; taskIds: string[] };
+    timeline: { startDate: Date; endDate: Date; totalDays: number; workingDays: number };
+  } {
+    return {
+      generatedAt: new Date().toISOString(),
+      scheduleStats: this.getScheduleStats(),
+      progressData: this.getProgressBarData(),
+      supplierData: this.getTasksBySupplierData(),
+      criticalPath: this.getCriticalPathSummary(),
+      timeline: this.getTimelineCoverageData(),
+    };
+  }
+
+  // ============================================================================
+  // FEATURE 591-605: HOLD STATES
+  // Section L: Task hold management and tracking
+  // ============================================================================
+
+  // FEATURE 591-599: HOLD STATE TYPES
+  private holdReasons = [
+    { id: 'whs_incident', label: 'WHS Incident', color: '#dc2626' },
+    { id: 'weather_delay', label: 'Weather Delay', color: '#f59e0b' },
+    { id: 'permit_delay', label: 'Permit Delay', color: '#8b5cf6' },
+    { id: 'client_request', label: 'Client Request', color: '#3b82f6' },
+    { id: 'material_delay', label: 'Material Delay', color: '#ec4899' },
+    { id: 'subcontractor_issue', label: 'Subcontractor Issue', color: '#14b8a6' },
+    { id: 'other', label: 'Other', color: '#6b7280' },
+  ];
+
+  getHoldReasons(): typeof this.holdReasons {
+    return [...this.holdReasons];
+  }
+
+  // FEATURE 591: HOLD STATE TOGGLE
+  setTaskOnHold(taskId: string, onHold: boolean, reason?: HoldReason, notes?: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (onHold) {
+      task.holdState = {
+        reason: reason || 'other',
+        notes: notes || '',
+        heldAt: new Date(),
+        heldBy: 'current_user', // Would come from auth context
+      };
+    } else {
+      delete task.holdState;
+    }
+
+    this.markDirty();
+    this.recordDebugAction(`Task ${taskId} hold state: ${onHold ? 'ON HOLD' : 'RESUMED'}`);
+  }
+
+  // FEATURE 592-599: HOLD REASON MANAGEMENT
+  // Note: isTaskOnHold() already exists at line ~1306 - uses task.status === 'on-hold'
+  // Note: getHoldState() already exists at line ~1314 - returns HoldState
+
+  // FEATURE 600: HOLD DATE TRACKING
+  // Note: getTasksOnHold() already exists at line ~1322 - filters by status === 'on-hold'
+
+  getTaskHoldInfoExtended(taskId: string): {
+    isOnHold: boolean;
+    reason: HoldReason | null;
+    notes: string | null;
+    heldAt: Date | null;
+    heldBy: string | null;
+  } | null {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task?.holdState) return null;
+
+    return {
+      isOnHold: task.status === 'on-hold',
+      reason: task.holdState.reason || null,
+      notes: task.holdState.notes || null,
+      heldAt: task.holdState.heldAt || null,
+      heldBy: task.holdState.heldBy || null,
+    };
+  }
+
+  // FEATURE 601: HELD BY USER TRACKING
+  getHoldsByUser(): Map<string, GanttTask[]> {
+    const byUser = new Map<string, GanttTask[]>();
+
+    for (const task of this.state.tasks) {
+      const taskWithHold = task as GanttTask & { holdState?: { isOnHold: boolean; heldBy: string } };
+      if (taskWithHold.holdState?.isOnHold && taskWithHold.holdState.heldBy) {
+        const existing = byUser.get(taskWithHold.holdState.heldBy) || [];
+        existing.push(task);
+        byUser.set(taskWithHold.holdState.heldBy, existing);
+      }
+    }
+
+    return byUser;
+  }
+
+  // FEATURE 602: HOLD NOTES
+  updateHoldNotes(taskId: string, notes: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId) as GanttTask & {
+      holdState?: { notes: string };
+    };
+    if (task?.holdState) {
+      task.holdState.notes = notes;
+      this.markDirty();
+    }
+  }
+
+  // FEATURE 603: HOLD INDICATOR ON TASK BAR
+  getHoldIndicatorData(taskId: string): { show: boolean; color: string; reason: string } | null {
+    const holdInfo = this.getTaskHoldInfoExtended(taskId);
+    if (!holdInfo?.isOnHold) return null;
+
+    const reasonConfig = this.holdReasons.find(r => r.id === holdInfo.reason);
+    return {
+      show: true,
+      color: reasonConfig?.color || '#6b7280',
+      reason: reasonConfig?.label || 'On Hold',
+    };
+  }
+
+  // FEATURE 604: HOLD BADGE DATA
+  getHoldBadgeData(): { count: number; reasons: Array<{ reason: string; count: number; color: string }> } {
+    const tasksOnHold = this.getTasksOnHold();
+    const reasonCounts = new Map<string, number>();
+
+    for (const task of tasksOnHold) {
+      const taskWithHold = task as GanttTask & { holdState?: { reason: string } };
+      const reason = taskWithHold.holdState?.reason || 'other';
+      reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+    }
+
+    const reasons = Array.from(reasonCounts.entries()).map(([reason, count]) => {
+      const config = this.holdReasons.find(r => r.id === reason);
+      return {
+        reason: config?.label || reason,
+        count,
+        color: config?.color || '#6b7280',
+      };
+    });
+
+    return { count: tasksOnHold.length, reasons };
+  }
+
+  // FEATURE 605: RESUME FROM HOLD
+  resumeTaskFromHold(taskId: string): void {
+    this.setTaskOnHold(taskId, false);
+    this.recordDebugAction(`Task ${taskId} resumed from hold`);
+  }
+
+  // ============================================================================
+  // FEATURE 606-620: WORKING DAYS CALENDAR
+  // Section M: Company calendar and working days configuration
+  // ============================================================================
+
+  // FEATURE 606: COMPANY WORKING DAYS CONFIG
+  private workingDaysConfig = {
+    monday: true,
+    tuesday: true,
+    wednesday: true,
+    thursday: true,
+    friday: true,
+    saturday: false,
+    sunday: false,
+  };
+
+  getWorkingDaysConfig(): typeof this.workingDaysConfig {
+    return { ...this.workingDaysConfig };
+  }
+
+  // FEATURE 607: WORKING DAY TOGGLE
+  setWorkingDay(day: keyof typeof this.workingDaysConfig, isWorking: boolean): void {
+    this.workingDaysConfig[day] = isWorking;
+    this.markDirty();
+  }
+
+  // FEATURE 608: PUBLIC HOLIDAYS
+  private publicHolidays: Array<{ date: string; name: string; region?: string }> = [];
+
+  setPublicHolidays(holidays: Array<{ date: string; name: string; region?: string }>): void {
+    this.publicHolidays = holidays;
+    this.markDirty();
+  }
+
+  getPublicHolidays(): typeof this.publicHolidays {
+    return [...this.publicHolidays];
+  }
+
+  // FEATURE 609: CUSTOM HOLIDAY MANAGEMENT
+  addCustomHoliday(date: string, name: string): void {
+    this.publicHolidays.push({ date, name, region: 'custom' });
+    this.markDirty();
+  }
+
+  removePublicHoliday(date: string): void {
+    this.publicHolidays = this.publicHolidays.filter(h => h.date !== date);
+    this.markDirty();
+  }
+
+  // FEATURE 610: REGIONAL HOLIDAY SELECTION
+  private selectedRegion: string = 'AU-QLD';
+
+  setHolidayRegion(region: string): void {
+    this.selectedRegion = region;
+    // Would trigger API call to load regional holidays
+  }
+
+  getHolidayRegion(): string {
+    return this.selectedRegion;
+  }
+
+  // FEATURE 611: HOLIDAY NAME DISPLAY
+  getHolidayName(date: Date): string | null {
+    const dateStr = date.toISOString().split('T')[0];
+    const holiday = this.publicHolidays.find(h => h.date === dateStr);
+    return holiday?.name || null;
+  }
+
+  // FEATURE 612: WEEKEND SHADING CONFIG
+  isWeekend(date: Date): boolean {
+    const day = date.getDay();
+    return (day === 0 && !this.workingDaysConfig.sunday) || (day === 6 && !this.workingDaysConfig.saturday);
+  }
+
+  // FEATURE 613: HOLIDAY SHADING CONFIG
+  isPublicHoliday(date: Date): boolean {
+    const dateStr = date.toISOString().split('T')[0];
+    return this.publicHolidays.some(h => h.date === dateStr);
+  }
+
+  // FEATURE 614: WORKING DAYS IN DURATION
+  calculateWorkingDays(startDate: Date, endDate: Date): number {
+    let count = 0;
+    const current = new Date(startDate);
+
+    while (current <= endDate) {
+      if (this.isCalendarWorkingDay(current)) {
+        count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    return count;
+  }
+
+  isCalendarWorkingDay(date: Date): boolean {
+    if (this.isPublicHoliday(date)) return false;
+
+    const dayNames: Array<keyof typeof this.workingDaysConfig> = [
+      'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'
+    ];
+    const dayName = dayNames[date.getDay()];
+    return this.workingDaysConfig[dayName];
+  }
+
+  // FEATURE 615: NON-WORKING DAY SKIP IN CASCADE
+  getNextWorkingDay(date: Date): Date {
+    const result = new Date(date);
+    while (!this.isCalendarWorkingDay(result)) {
+      result.setDate(result.getDate() + 1);
+    }
+    return result;
+  }
+
+  getPreviousWorkingDay(date: Date): Date {
+    const result = new Date(date);
+    while (!this.isCalendarWorkingDay(result)) {
+      result.setDate(result.getDate() - 1);
+    }
+    return result;
+  }
+
+  // FEATURE 616: CALENDAR OVERRIDE PER TASK (stored in task metadata)
+  setTaskCalendarOverride(taskId: string, override: Partial<{ monday: boolean; tuesday: boolean; wednesday: boolean; thursday: boolean; friday: boolean; saturday: boolean; sunday: boolean }> | null): void {
+    const task = this.state.tasks.find(t => t.id === taskId) as GanttTask & {
+      calendarOverride?: Partial<{ monday: boolean; tuesday: boolean; wednesday: boolean; thursday: boolean; friday: boolean; saturday: boolean; sunday: boolean }>;
+    };
+    if (task) {
+      if (override) {
+        task.calendarOverride = override;
+      } else {
+        delete task.calendarOverride;
+      }
+      this.markDirty();
+    }
+  }
+
+  // FEATURE 617: CALENDAR PREVIEW DATA
+  getCalendarPreviewData(year: number, month: number): Array<{
+    date: Date;
+    isWorking: boolean;
+    isHoliday: boolean;
+    holidayName: string | null;
+  }> {
+    const result: Array<{ date: Date; isWorking: boolean; isHoliday: boolean; holidayName: string | null }> = [];
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      result.push({
+        date,
+        isWorking: this.isCalendarWorkingDay(date),
+        isHoliday: this.isPublicHoliday(date),
+        holidayName: this.getHolidayName(date),
+      });
+    }
+
+    return result;
+  }
+
+  // FEATURE 618: CALENDAR IMPORT
+  importCalendar(data: { workingDays: { monday: boolean; tuesday: boolean; wednesday: boolean; thursday: boolean; friday: boolean; saturday: boolean; sunday: boolean }; holidays: Array<{ date: string; name: string; region?: string }> }): void {
+    this.workingDaysConfig = { ...data.workingDays };
+    this.publicHolidays = [...data.holidays];
+    this.markDirty();
+  }
+
+  // FEATURE 619: CALENDAR EXPORT
+  exportCalendar(): { workingDays: { monday: boolean; tuesday: boolean; wednesday: boolean; thursday: boolean; friday: boolean; saturday: boolean; sunday: boolean }; holidays: Array<{ date: string; name: string; region?: string }>; region: string } {
+    return {
+      workingDays: { ...this.workingDaysConfig },
+      holidays: [...this.publicHolidays],
+      region: this.selectedRegion,
+    };
+  }
+
+  // FEATURE 620: CALENDAR YEAR VIEW DATA
+  getCalendarYearView(year: number): Array<{
+    month: number;
+    monthName: string;
+    workingDays: number;
+    holidays: number;
+    weekends: number;
+  }> {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const result: Array<{ month: number; monthName: string; workingDays: number; holidays: number; weekends: number }> = [];
+
+    for (let month = 0; month < 12; month++) {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      let workingDays = 0;
+      let holidays = 0;
+      let weekends = 0;
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(year, month, day);
+        if (this.isPublicHoliday(date)) holidays++;
+        else if (this.isWeekend(date)) weekends++;
+        else if (this.isCalendarWorkingDay(date)) workingDays++;
+      }
+
+      result.push({
+        month,
+        monthName: monthNames[month],
+        workingDays,
+        holidays,
+        weekends,
+      });
+    }
+
+    return result;
+  }
+
+  // ============================================================================
+  // FEATURE 621-650: ENTERPRISE FEATURES
+  // Section N: Advanced features for enterprise deployments
+  // ============================================================================
+
+  // FEATURE 621: RESOURCE LEVELING (placeholder)
+  private resourceLevelingEnabled: boolean = false;
+
+  enableResourceLeveling(): void {
+    this.resourceLevelingEnabled = true;
+    this.recordDebugAction('Resource leveling enabled');
+  }
+
+  disableResourceLeveling(): void {
+    this.resourceLevelingEnabled = false;
+    this.recordDebugAction('Resource leveling disabled');
+  }
+
+  isResourceLevelingEnabled(): boolean {
+    return this.resourceLevelingEnabled;
+  }
+
+  // FEATURE 622: WHAT-IF SCENARIO MODELING
+  private scenarios: Map<string, { name: string; tasks: GanttTask[]; createdAt: string }> = new Map();
+
+  createScenario(name: string): string {
+    const id = `scenario_${Date.now()}`;
+    this.scenarios.set(id, {
+      name,
+      tasks: JSON.parse(JSON.stringify(this.state.tasks)),
+      createdAt: new Date().toISOString(),
+    });
+    return id;
+  }
+
+  loadScenario(scenarioId: string): boolean {
+    const scenario = this.scenarios.get(scenarioId);
+    if (!scenario) return false;
+
+    this.state.tasks = JSON.parse(JSON.stringify(scenario.tasks));
+    this.markDirty();
+    return true;
+  }
+
+  getScenarios(): Array<{ id: string; name: string; createdAt: string }> {
+    return Array.from(this.scenarios.entries()).map(([id, s]) => ({
+      id,
+      name: s.name,
+      createdAt: s.createdAt,
+    }));
+  }
+
+  deleteScenario(scenarioId: string): void {
+    this.scenarios.delete(scenarioId);
+  }
+
+  // FEATURE 623: AI SCHEDULING SUGGESTIONS (placeholder)
+  getAISchedulingSuggestions(): Array<{ taskId: string; suggestion: string; impact: string }> {
+    // Placeholder - would integrate with AI service
+    return [];
+  }
+
+  // FEATURE 624: MULTI-PROJECT VIEWS (placeholder)
+  private projectViews: Map<string, { projectId: string; name: string; taskIds: string[] }> = new Map();
+
+  createProjectView(projectId: string, name: string, taskIds: string[]): void {
+    this.projectViews.set(projectId, { projectId, name, taskIds });
+  }
+
+  getProjectViews(): Array<{ projectId: string; name: string; taskCount: number }> {
+    return Array.from(this.projectViews.values()).map(v => ({
+      projectId: v.projectId,
+      name: v.name,
+      taskCount: v.taskIds.length,
+    }));
+  }
+
+  // FEATURE 625: CROSS-PROJECT DEPENDENCIES (placeholder)
+  private crossProjectDependencies: Array<{ fromProjectId: string; fromTaskId: string; toProjectId: string; toTaskId: string }> = [];
+
+  addCrossProjectDependency(fromProject: string, fromTask: string, toProject: string, toTask: string): void {
+    this.crossProjectDependencies.push({
+      fromProjectId: fromProject,
+      fromTaskId: fromTask,
+      toProjectId: toProject,
+      toTaskId: toTask,
+    });
+  }
+
+  getCrossProjectDependencies(): typeof this.crossProjectDependencies {
+    return [...this.crossProjectDependencies];
+  }
+
+  // FEATURE 626: PORTFOLIO DASHBOARD DATA
+  getPortfolioDashboardData(): {
+    totalProjects: number;
+    totalTasks: number;
+    overallCompletion: number;
+    projectSummaries: Array<{ projectId: string; name: string; completion: number }>;
+  } {
+    const views = this.getProjectViews();
+    return {
+      totalProjects: views.length,
+      totalTasks: this.state.tasks.length,
+      overallCompletion: this.getScheduleStats().completionPercentage,
+      projectSummaries: views.map(v => ({
+        projectId: v.projectId,
+        name: v.name,
+        completion: 0, // Would calculate per-project
+      })),
+    };
+  }
+
+  // FEATURE 627-630: COST & BUDGET TRACKING (placeholder)
+  private costTrackingEnabled: boolean = false;
+
+  enableCostTracking(): void {
+    this.costTrackingEnabled = true;
+  }
+
+  getCostSummary(): { totalBudget: number; actualCost: number; variance: number } {
+    return { totalBudget: 0, actualCost: 0, variance: 0 };
+  }
+
+  // FEATURE 631-636: REAL-TIME COLLABORATION (placeholder)
+  private collaborationEnabled: boolean = false;
+  private activeCollaborators: Map<string, { name: string; cursor: { x: number; y: number }; color: string }> = new Map();
+
+  enableCollaboration(): void {
+    this.collaborationEnabled = true;
+  }
+
+  getActiveCollaborators(): Array<{ userId: string; name: string; cursor: { x: number; y: number }; color: string }> {
+    return Array.from(this.activeCollaborators.entries()).map(([userId, data]) => ({
+      userId,
+      ...data,
+    }));
+  }
+
+  updateCollaboratorCursor(userId: string, x: number, y: number): void {
+    const collaborator = this.activeCollaborators.get(userId);
+    if (collaborator) {
+      collaborator.cursor = { x, y };
+      this.markDirty();
+    }
+  }
+
+  // FEATURE 637-640: IMPORT/EXPORT FORMATS
+  exportToMSProject(): string {
+    // Placeholder - would generate MS Project XML
+    return '<Project></Project>';
+  }
+
+  // Note: exportToPDF() already exists at line ~4771 with full options support
+  // Note: exportToImage() already exists at line ~3853 with format/quality params
+
+  exportToSVG(): string {
+    // Placeholder - would generate SVG representation
+    return '<svg></svg>';
+  }
+
+  // FEATURE 641: PRINT LAYOUT
+  getPrintLayout(): { width: number; height: number; pages: number; orientation: 'portrait' | 'landscape' } {
+    const timeline = this.getTimelineCoverageData();
+    const width = timeline.totalDays * 20; // 20px per day
+    const height = this.state.tasks.length * this.config.rowHeight;
+    const pageWidth = 842; // A4 landscape
+    const pageHeight = 595;
+    const pages = Math.ceil(width / pageWidth) * Math.ceil(height / pageHeight);
+
+    return {
+      width,
+      height,
+      pages,
+      orientation: width > height ? 'landscape' : 'portrait',
+    };
+  }
+
+  // FEATURE 642-645: CUSTOMIZATION (placeholder)
+  private customReports: Map<string, { name: string; config: object }> = new Map();
+
+  createCustomReport(name: string, config: object): string {
+    const id = `report_${Date.now()}`;
+    this.customReports.set(id, { name, config });
+    return id;
+  }
+
+  getCustomReports(): Array<{ id: string; name: string }> {
+    return Array.from(this.customReports.entries()).map(([id, r]) => ({ id, name: r.name }));
+  }
+
+  // FEATURE 646-647: THEMING
+  private customTheme: object | null = null;
+
+  setCustomTheme(theme: object): void {
+    this.customTheme = theme;
+    this.markDirty();
+  }
+
+  getCustomTheme(): object | null {
+    return this.customTheme;
+  }
+
+  // FEATURE 648-649: API & WEBHOOKS
+  private webhooks: Array<{ url: string; events: string[] }> = [];
+
+  registerWebhook(url: string, events: string[]): void {
+    this.webhooks.push({ url, events });
+  }
+
+  getRegisteredWebhooks(): typeof this.webhooks {
+    return [...this.webhooks];
+  }
+
+  // FEATURE 650: AUDIT LOGGING
+  private auditLog: Array<{ timestamp: string; action: string; userId: string; details: object }> = [];
+  private maxAuditLogSize: number = 10000;
+
+  logAuditEvent(action: string, userId: string, details: object): void {
+    this.auditLog.push({
+      timestamp: new Date().toISOString(),
+      action,
+      userId,
+      details,
+    });
+
+    if (this.auditLog.length > this.maxAuditLogSize) {
+      this.auditLog = this.auditLog.slice(-this.maxAuditLogSize);
+    }
+  }
+
+  getAuditLog(limit: number = 100): typeof this.auditLog {
+    return this.auditLog.slice(-limit);
+  }
+
+  clearAuditLog(): void {
+    this.auditLog = [];
+  }
+
 }
 
 // ============================================================================
