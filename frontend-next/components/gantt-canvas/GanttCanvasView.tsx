@@ -31,6 +31,10 @@ import {
   Maximize2,
   RefreshCw,
   Eye,
+  PanelLeftClose,
+  PanelLeft,
+  Check,
+  X,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -81,6 +85,7 @@ export function GanttCanvasView({
 }: GanttCanvasViewProps) {
   // Refs
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const sidebarRef = React.useRef<HTMLDivElement>(null);
   const ganttRef = React.useRef<GanttCanvas | null>(null);
 
   // Determine if we're using static mode
@@ -90,6 +95,8 @@ export function GanttCanvasView({
   const [loading, setLoading] = React.useState(!isStaticMode);
   const [error, setError] = React.useState<string | null>(null);
   const [rows, setRows] = React.useState<SmTemplateRow[]>([]);
+  const [showSidebar, setShowSidebar] = React.useState(true);
+  const [tasks, setTasks] = React.useState<GanttTask[]>([]);
 
   // Column visibility state - controls what shows in task sidebar/tooltips
   const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({
@@ -139,12 +146,12 @@ export function GanttCanvasView({
     if (!containerRef.current || loading || error) return;
 
     // Get tasks and dependencies based on mode
-    let tasks: GanttTask[];
+    let taskList: GanttTask[];
     let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
 
     if (isStaticMode && staticTasks) {
       // Static mode - use provided data directly
-      tasks = staticTasks;
+      taskList = staticTasks;
       dependencies = (staticDependencies || []).map((d, i) => ({
         id: `dep-${i}`,
         fromId: d.fromId,
@@ -156,9 +163,12 @@ export function GanttCanvasView({
       // API mode - convert rows to tasks
       const projectStartDate = new Date();
       projectStartDate.setDate(projectStartDate.getDate() - 7);
-      tasks = convertRowsToTasks(rows, projectStartDate);
+      taskList = convertRowsToTasks(rows, projectStartDate);
       dependencies = convertToDependencies(rows);
     }
+
+    // Store tasks for sidebar
+    setTasks(taskList);
 
     // Create canvas instance
     const gantt = new GanttCanvas(containerRef.current, {
@@ -166,7 +176,7 @@ export function GanttCanvasView({
     });
 
     // Set data
-    gantt.setTasks(tasks);
+    gantt.setTasks(taskList);
     gantt.setDependencies(dependencies);
 
     // Set event handlers
@@ -224,6 +234,35 @@ export function GanttCanvasView({
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Sync sidebar scroll with canvas scroll
+  React.useEffect(() => {
+    if (!containerRef.current || !sidebarRef.current || !ganttRef.current) return;
+
+    let animationFrameId: number;
+    let lastScrollY = 0;
+
+    const syncScroll = () => {
+      if (ganttRef.current && sidebarRef.current) {
+        // Get scroll position from canvas engine
+        const gantt = ganttRef.current as unknown as { state: { viewportState: { scrollY: number } } };
+        const scrollY = gantt.state?.viewportState?.scrollY || 0;
+
+        // Only update if changed
+        if (scrollY !== lastScrollY) {
+          lastScrollY = scrollY;
+          sidebarRef.current.scrollTop = scrollY;
+        }
+      }
+      animationFrameId = requestAnimationFrame(syncScroll);
+    };
+
+    animationFrameId = requestAnimationFrame(syncScroll);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [tasks, showSidebar]);
 
   // Toolbar handlers
   const handleZoomIn = () => {
@@ -328,6 +367,16 @@ export function GanttCanvasView({
             </Button>
           )}
 
+          {/* Sidebar Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSidebar(!showSidebar)}
+            title={showSidebar ? "Hide Sidebar" : "Show Sidebar"}
+          >
+            {showSidebar ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
+          </Button>
+
           {/* Column Visibility */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -431,12 +480,111 @@ export function GanttCanvasView({
         </div>
       )}
 
-      {/* Canvas Container */}
-      <div
-        ref={containerRef}
-        className="flex-1 min-h-0 bg-background"
-        style={{ position: "relative" }}
-      />
+      {/* Main Content - Sidebar + Canvas */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Sidebar Table */}
+        {showSidebar && (
+          <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: 200, maxWidth: 600 }}>
+            {/* Sidebar Header */}
+            <div
+              className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
+              style={{ height: 60, minHeight: 60 }}
+            >
+              {visibleColumns.name && <div className="w-[140px] truncate px-1">Name</div>}
+              {visibleColumns.startDate && <div className="w-[80px] truncate px-1">Start</div>}
+              {visibleColumns.endDate && <div className="w-[80px] truncate px-1">End</div>}
+              {visibleColumns.duration && <div className="w-[50px] truncate px-1">Days</div>}
+              {visibleColumns.progress && <div className="w-[50px] truncate px-1">%</div>}
+              {visibleColumns.confirm && <div className="w-[40px] truncate px-1 text-center">✓</div>}
+              {visibleColumns.supplierConfirm && <div className="w-[40px] truncate px-1 text-center">S✓</div>}
+              {visibleColumns.supplier && <div className="w-[100px] truncate px-1">Supplier</div>}
+            </div>
+
+            {/* Sidebar Rows */}
+            <div
+              ref={sidebarRef}
+              className="flex-1 overflow-hidden"
+              style={{ overflowY: 'hidden' }}
+            >
+              <div style={{ height: tasks.length * 40 }}>
+                {tasks.map((task, index) => {
+                  const row = rows.find(r => String(r.id) === task.id);
+                  const startStr = task.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
+                  const endStr = task.endDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
+                  const duration = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                  return (
+                    <div
+                      key={task.id}
+                      className={cn(
+                        "flex items-center border-b text-xs hover:bg-muted/30",
+                        index % 2 === 0 ? "bg-background" : "bg-muted/10"
+                      )}
+                      style={{ height: 40 }}
+                    >
+                      {visibleColumns.name && (
+                        <div className="w-[140px] truncate px-2 font-medium" title={task.name}>
+                          {task.name}
+                        </div>
+                      )}
+                      {visibleColumns.startDate && (
+                        <div className="w-[80px] truncate px-1 text-muted-foreground">
+                          {startStr}
+                        </div>
+                      )}
+                      {visibleColumns.endDate && (
+                        <div className="w-[80px] truncate px-1 text-muted-foreground">
+                          {endStr}
+                        </div>
+                      )}
+                      {visibleColumns.duration && (
+                        <div className="w-[50px] truncate px-1 text-muted-foreground text-center">
+                          {duration}
+                        </div>
+                      )}
+                      {visibleColumns.progress && (
+                        <div className="w-[50px] truncate px-1 text-muted-foreground text-center">
+                          {task.progress || 0}%
+                        </div>
+                      )}
+                      {visibleColumns.confirm && (
+                        <div className="w-[40px] flex justify-center">
+                          {row?.require_supervisor_check ? (
+                            <Check className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <X className="h-3 w-3 text-muted-foreground/30" />
+                          )}
+                        </div>
+                      )}
+                      {visibleColumns.supplierConfirm && (
+                        <div className="w-[40px] flex justify-center">
+                          {row?.require_supplier_confirm ? (
+                            <Check className="h-3 w-3 text-blue-500" />
+                          ) : (
+                            <X className="h-3 w-3 text-muted-foreground/30" />
+                          )}
+                        </div>
+                      )}
+                      {visibleColumns.supplier && (
+                        <div className="w-[100px] truncate px-1 text-muted-foreground" title={task.supplierName || ''}>
+                          {task.supplierName || '-'}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Canvas Container */}
+        <div
+          ref={containerRef}
+          className="flex-1 min-h-0 bg-background"
+          style={{ position: "relative" }}
+        />
+      </div>
     </div>
   );
 }

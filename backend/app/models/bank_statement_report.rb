@@ -100,10 +100,8 @@ class BankStatementReport < ApplicationRecord
     result = service.generate
 
     if result[:success]
-      # Generate standard filename format: {CompanyCode} {Period} {BankCode} {AccountNum} FY{YY} {CompanyCode}.pdf
-      # e.g., "TH EOY WBC 702 733 FY24 TH.pdf" for end of year
-      # e.g., "TH Jul WBC 702 733 FY24 TH.pdf" for monthly
-      standard_filename = generate_standard_filename
+      # SSoT: Use DocumentType template if available, fallback to hardcoded format
+      standard_filename = generate_file_name || generate_standard_filename
 
       # Upload PDF to SharePoint
       sharepoint_result = upload_to_sharepoint(result[:pdf], standard_filename)
