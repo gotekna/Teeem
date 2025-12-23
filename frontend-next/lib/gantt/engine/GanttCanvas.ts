@@ -1210,9 +1210,11 @@ export class GanttCanvas {
 
   /**
    * Enable or disable critical path highlighting
+   * Delegates to CriticalPathManager
    */
   setCriticalPathEnabled(enabled: boolean): void {
     this.criticalPathEnabled = enabled;
+    this.criticalPathManager.setEnabled(enabled);
     if (enabled) {
       this.recalculateCriticalPath();
     } else {
@@ -1237,17 +1239,25 @@ export class GanttCanvas {
 
   /**
    * Get the current critical path result (for external analysis)
+   * Delegates to CriticalPathManager
    */
   getCriticalPathResult(): CriticalPathResult | null {
-    return this.criticalPathResult;
+    // Return manager result if available, fallback to local for backward compatibility
+    return this.criticalPathManager.getResult() || this.criticalPathResult;
   }
 
   /**
    * Recalculate the critical path
+   * Delegates to CriticalPathManager
    */
   recalculateCriticalPath(): void {
     if (this.criticalPathEnabled) {
-      this.criticalPathResult = calculateCriticalPath(this.state.tasks, this.state.dependencies);
+      // Delegate to manager (already has tasks and dependencies via setTasks/setDependencies)
+      this.criticalPathResult = this.criticalPathManager.calculate();
+      // Sync critical path tasks to FilterManager for criticalPathOnly filter
+      if (this.criticalPathResult) {
+        this.filterManager.setCriticalPathTasks(Array.from(this.criticalPathResult.criticalTasks));
+      }
       this.markDirty();
     }
   }
@@ -4040,62 +4050,44 @@ export class GanttCanvas {
 
   /**
    * Export canvas to image data URL
+   * Delegates to ExportManager
    * @param format - Image format ('png' | 'jpeg')
    * @param quality - JPEG quality (0-1)
    */
   exportToImage(format: 'png' | 'jpeg' = 'png', quality: number = 0.92): string {
-    return this.canvas.toDataURL(`image/${format}`, quality);
+    const result = this.exportManager.toImage(format, quality);
+    return result || '';
   }
 
   /**
    * Export canvas to Blob
+   * Delegates to ExportManager
    * @param format - Image format
    * @param quality - JPEG quality
    */
   async exportToBlob(format: 'png' | 'jpeg' = 'png', quality: number = 0.92): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      this.canvas.toBlob(
-        blob => {
-          if (blob) resolve(blob);
-          else reject(new Error('Failed to create blob'));
-        },
-        `image/${format}`,
-        quality
-      );
-    });
+    const result = await this.exportManager.toBlob(format, quality);
+    if (!result) throw new Error('Failed to create blob');
+    return result;
   }
 
   /**
    * Download canvas as image
+   * Delegates to ExportManager
    * @param filename - The filename (without extension)
    * @param format - Image format
    */
   downloadImage(filename: string = 'gantt-chart', format: 'png' | 'jpeg' = 'png'): void {
-    const dataUrl = this.exportToImage(format);
-    const link = document.createElement('a');
-    link.download = `${filename}.${format}`;
-    link.href = dataUrl;
-    link.click();
+    this.exportManager.downloadImage(filename, format);
   }
 
   /**
    * Export tasks data to JSON
+   * Delegates to ExportManager
    */
   exportToJSON(): string {
-    const data = {
-      tasks: this.state.tasks.map(t => ({
-        ...t,
-        startDate: t.startDate.toISOString(),
-        endDate: t.endDate.toISOString(),
-        holdState: t.holdState ? {
-          ...t.holdState,
-          heldAt: t.holdState.heldAt.toISOString(),
-        } : undefined,
-      })),
-      dependencies: this.state.dependencies,
-      exportedAt: new Date().toISOString(),
-    };
-    return JSON.stringify(data, null, 2);
+    const result = this.exportManager.toJSON();
+    return result || '{}';
   }
 
   /**
@@ -4130,38 +4122,19 @@ export class GanttCanvas {
 
   /**
    * Export tasks to CSV format
+   * Delegates to ExportManager
    */
   exportToCSV(): string {
-    const headers = ['ID', 'Name', 'Start Date', 'End Date', 'Duration (days)', 'Progress', 'Status', 'Locked', 'Predecessors'];
-    const rows = this.state.tasks.map(t => {
-      const duration = Math.ceil((t.endDate.getTime() - t.startDate.getTime()) / (24 * 60 * 60 * 1000));
-      return [
-        t.id,
-        `"${t.name.replace(/"/g, '""')}"`,
-        t.startDate.toISOString().split('T')[0],
-        t.endDate.toISOString().split('T')[0],
-        duration,
-        t.progress || 0,
-        t.status || 'not-started',
-        t.locked || '',
-        (t.predecessorIds || []).join(';'),
-      ].join(',');
-    });
-
-    return [headers.join(','), ...rows].join('\n');
+    const result = this.exportManager.toCSV();
+    return result || '';
   }
 
   /**
    * Download as CSV
+   * Delegates to ExportManager
    */
   downloadCSV(filename: string = 'gantt-tasks'): void {
-    const csv = this.exportToCSV();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    this.exportManager.downloadCSV(filename);
   }
 
   // ============================================================================
@@ -4945,104 +4918,18 @@ export class GanttCanvas {
 
   /**
    * Export to PDF (requires html2canvas + jspdf)
+   * Delegates to ExportManager
    */
   async exportToPDF(options: PDFExportOptions = {}): Promise<Blob | null> {
-    const {
-      filename = 'gantt-chart.pdf',
-      orientation = 'landscape',
-      pageSize = 'A4',
-      quality = 2,
-      includeTaskList = true,
-    } = options;
-
-    // Check if required libraries are available
-    if (typeof window === 'undefined') {
-      console.error('PDF export requires browser environment');
-      return null;
-    }
-
-    try {
-      // Dynamic imports for PDF libraries
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      // Create a temporary container for the canvas
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.appendChild(this.canvas.cloneNode(true) as HTMLCanvasElement);
-      document.body.appendChild(container);
-
-      // Capture canvas as image
-      const canvasImage = await html2canvas(container, { scale: quality });
-
-      // Create PDF
-      const pdf = new jsPDF({
-        orientation,
-        unit: 'mm',
-        format: pageSize,
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Add title
-      pdf.setFontSize(16);
-      pdf.text(options.title || 'Gantt Chart', pageWidth / 2, 15, { align: 'center' });
-
-      // Add chart image
-      const imgWidth = pageWidth - 20;
-      const imgHeight = (canvasImage.height * imgWidth) / canvasImage.width;
-      pdf.addImage(canvasImage.toDataURL('image/png'), 'PNG', 10, 25, imgWidth, Math.min(imgHeight, pageHeight - 50));
-
-      // Add task list on additional pages if requested
-      if (includeTaskList) {
-        pdf.addPage();
-        pdf.setFontSize(14);
-        pdf.text('Task List', 10, 15);
-
-        let y = 25;
-        pdf.setFontSize(10);
-
-        this.state.tasks.forEach((task, index) => {
-          if (y > pageHeight - 20) {
-            pdf.addPage();
-            y = 15;
-          }
-
-          const status = task.status || 'not-started';
-          const progress = task.progress || 0;
-          pdf.text(`${index + 1}. ${task.name} - ${status} (${progress}%)`, 10, y);
-          y += 7;
-        });
-      }
-
-      // Cleanup
-      document.body.removeChild(container);
-
-      // Return blob
-      return pdf.output('blob');
-
-    } catch (error) {
-      console.error('PDF export failed:', error);
-      console.info('PDF export requires html2canvas and jspdf packages. Install with: npm install html2canvas jspdf');
-      return null;
-    }
+    return this.exportManager.toPDF(options);
   }
 
   /**
    * Download PDF
+   * Delegates to ExportManager
    */
   async downloadPDF(options: PDFExportOptions = {}): Promise<void> {
-    const blob = await this.exportToPDF(options);
-    if (blob) {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = options.filename || 'gantt-chart.pdf';
-      link.click();
-      URL.revokeObjectURL(url);
-    }
+    await this.exportManager.downloadPDF(options);
   }
 
   /**
@@ -6927,8 +6814,10 @@ export class GanttCanvas {
 
   // =========================================================================
   // FEATURE 1: COMPREHENSIVE TASK FILTERING API
+  // Delegates to FilterManager (Day 7 Refactor)
   // =========================================================================
 
+  // Local state kept for backward compatibility with render code
   private activeFilter: TaskFilterConfig | null = null;
   private filteredTaskIds: Set<string> = new Set();
   private isFilterActive: boolean = false;
@@ -6936,171 +6825,82 @@ export class GanttCanvas {
   /**
    * Apply a comprehensive filter to the Gantt chart
    * Only matching tasks will be visible
+   * Delegates to FilterManager
    */
   applyFilter(filter: TaskFilterConfig): void {
     this.activeFilter = filter;
     this.isFilterActive = true;
-    this.recalculateFilteredTasks();
+    // Delegate to FilterManager
+    this.filterManager.setFilter(filter);
+    // Sync local state from manager
+    this.syncFilteredTaskIds();
     this.markDirty();
   }
 
   /**
    * Clear all filters and show all tasks
+   * Delegates to FilterManager
    */
   clearFilter(): void {
     this.activeFilter = null;
     this.isFilterActive = false;
     this.filteredTaskIds.clear();
+    // Delegate to FilterManager
+    this.filterManager.clearFilter();
     this.markDirty();
   }
 
   /**
    * Check if a filter is currently active
+   * Delegates to FilterManager
    */
   hasActiveFilter(): boolean {
-    return this.isFilterActive;
+    return this.filterManager.isFiltering();
   }
 
   /**
    * Get the current active filter
+   * Delegates to FilterManager
    */
   getActiveFilter(): TaskFilterConfig | null {
-    return this.activeFilter;
+    return this.filterManager.getFilter();
   }
 
   /**
-   * Recalculate which tasks match the filter
+   * Sync filteredTaskIds from FilterManager for backward compatibility
    */
-  private recalculateFilteredTasks(): void {
+  private syncFilteredTaskIds(): void {
     this.filteredTaskIds.clear();
-
-    if (!this.activeFilter) {
-      return;
-    }
-
-    const filter = this.activeFilter;
-
-    this.state.tasks.forEach(task => {
-      let matches = true;
-
-      // Filter by status
-      if (filter.status && filter.status.length > 0) {
-        const taskStatus = task.status || 'not-started';
-        if (!filter.status.includes(taskStatus)) {
-          matches = false;
-        }
-      }
-
-      // Filter by supplier IDs
-      if (matches && filter.supplierIds && filter.supplierIds.length > 0) {
-        if (!task.supplierId || !filter.supplierIds.includes(task.supplierId)) {
-          matches = false;
-        }
-      }
-
-      // Filter by date range (task must overlap with filter range)
-      if (matches && filter.dateRange) {
-        const filterStart = filter.dateRange.start;
-        const filterEnd = filter.dateRange.end;
-        const overlaps = task.startDate <= filterEnd && task.endDate >= filterStart;
-        if (!overlaps) {
-          matches = false;
-        }
-      }
-
-      // Filter by locked state
-      if (matches && filter.locked !== undefined) {
-        const isLocked = !!task.locked;
-        if (filter.locked !== isLocked) {
-          matches = false;
-        }
-      }
-
-      // Filter by progress range
-      if (matches && filter.progressRange) {
-        const progress = task.progress || 0;
-        if (progress < filter.progressRange.min || progress > filter.progressRange.max) {
-          matches = false;
-        }
-      }
-
-      // Filter by search text (name match)
-      if (matches && filter.searchText && filter.searchText.trim() !== '') {
-        const searchLower = filter.searchText.toLowerCase();
-        const nameMatches = task.name.toLowerCase().includes(searchLower);
-        const supplierMatches = task.supplierName?.toLowerCase().includes(searchLower) || false;
-        if (!nameMatches && !supplierMatches) {
-          matches = false;
-        }
-      }
-
-      // Filter by custom predicate
-      if (matches && filter.customPredicate) {
-        if (!filter.customPredicate(task)) {
-          matches = false;
-        }
-      }
-
-      // Filter by critical path
-      if (matches && filter.criticalPathOnly) {
-        if (!this.criticalPathResult?.criticalTasks.has(task.id)) {
-          matches = false;
-        }
-      }
-
-      // Filter by hold state
-      if (matches && filter.onHoldOnly) {
-        if (task.status !== 'on-hold') {
-          matches = false;
-        }
-      }
-
-      // Filter by broken dependencies
-      if (matches && filter.brokenDependenciesOnly) {
-        if (!task.brokenPredecessorIds || task.brokenPredecessorIds.length === 0) {
-          matches = false;
-        }
-      }
-
-      if (matches) {
-        this.filteredTaskIds.add(task.id);
-      }
-    });
+    const filtered = this.filterManager.getFilteredTasks();
+    filtered.forEach(task => this.filteredTaskIds.add(task.id));
   }
 
   /**
    * Get tasks that pass the current filter
+   * Delegates to FilterManager
    */
   getFilteredTasks(): GanttTask[] {
-    if (!this.isFilterActive) {
-      return [...this.state.tasks];
-    }
-    return this.state.tasks.filter(t => this.filteredTaskIds.has(t.id));
+    return this.filterManager.getFilteredTasks();
   }
 
   /**
    * Check if a specific task passes the current filter
+   * Delegates to FilterManager
    */
   taskPassesFilter(taskId: string): boolean {
-    if (!this.isFilterActive) {
+    if (!this.filterManager.isFiltering()) {
       return true;
     }
-    return this.filteredTaskIds.has(taskId);
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task ? this.filterManager.matchesFilter(task) : false;
   }
 
   /**
    * Get filter statistics
+   * Delegates to FilterManager
    */
   getFilterStats(): FilterStats {
-    const total = this.state.tasks.length;
-    const visible = this.isFilterActive ? this.filteredTaskIds.size : total;
-    const hidden = total - visible;
-    return {
-      total,
-      visible,
-      hidden,
-      percentage: total > 0 ? Math.round((visible / total) * 100) : 100
-    };
+    return this.filterManager.getStats();
   }
 
   // =========================================================================
@@ -16035,17 +15835,19 @@ ${this.getAutomatedTestResults()}
   }
 
   // FEATURE 637-640: IMPORT/EXPORT FORMATS
+  // Delegates to ExportManager
   exportToMSProject(): string {
-    // Placeholder - would generate MS Project XML
-    return '<Project></Project>';
+    const result = this.exportManager.toMSProjectXML();
+    return result || '<Project></Project>';
   }
 
-  // Note: exportToPDF() already exists at line ~4771 with full options support
-  // Note: exportToImage() already exists at line ~3853 with format/quality params
+  // Note: exportToPDF() already exists - delegates to ExportManager
+  // Note: exportToImage() already exists - delegates to ExportManager
 
+  // Delegates to ExportManager
   exportToSVG(): string {
-    // Placeholder - would generate SVG representation
-    return '<svg></svg>';
+    const result = this.exportManager.toSVG();
+    return result || '<svg></svg>';
   }
 
   // FEATURE 641: PRINT LAYOUT
