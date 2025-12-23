@@ -38,7 +38,6 @@ import {
   Trash2,
   ChevronsUpDown,
   Check,
-  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -95,9 +94,10 @@ interface Job {
   } | null;
 }
 
-interface ScheduleTemplateRow {
+interface SmTemplateRow {
   id: number;
   name: string;
+  task_number: number;
   sequence_order: number;
 }
 
@@ -168,8 +168,8 @@ export default function PurchaseOrderDetailPage() {
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
 
-  // Schedule template rows for description lookup
-  const [scheduleTemplateRows, setScheduleTemplateRows] = useState<ScheduleTemplateRow[]>([]);
+  // SM template rows for task/description lookup (from SM_templates)
+  const [smTemplateRows, setSmTemplateRows] = useState<SmTemplateRow[]>([]);
   const [loadingTemplateRows, setLoadingTemplateRows] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
 
@@ -294,15 +294,16 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Load schedule template rows for description lookup
-  const loadScheduleTemplateRows = async () => {
-    if (scheduleTemplateRows.length > 0) return;
+  // Load SM template rows for task/description lookup (from SM_templates)
+  const loadSmTemplateRows = async () => {
+    if (smTemplateRows.length > 0) return;
     try {
       setLoadingTemplateRows(true);
-      const response = await api.get<{ rows: ScheduleTemplateRow[] }>("/api/v1/schedule_templates/default");
-      setScheduleTemplateRows(response?.rows || []);
+      // Fetch the default SM template with its rows
+      const response = await api.get<{ sm_template: { rows: SmTemplateRow[] } }>("/api/v1/sm_templates/default");
+      setSmTemplateRows(response?.sm_template?.rows || []);
     } catch (err) {
-      console.error("Failed to load schedule template rows:", err);
+      console.error("Failed to load SM template rows:", err);
     } finally {
       setLoadingTemplateRows(false);
     }
@@ -585,7 +586,7 @@ export default function PurchaseOrderDetailPage() {
               open={descriptionOpen}
               onOpenChange={(open) => {
                 setDescriptionOpen(open);
-                if (open) loadScheduleTemplateRows();
+                if (open) loadSmTemplateRows();
               }}
             >
               <PopoverTrigger asChild>
@@ -612,7 +613,7 @@ export default function PurchaseOrderDetailPage() {
                   <CommandList>
                     <CommandEmpty>No task found.</CommandEmpty>
                     <CommandGroup>
-                      {scheduleTemplateRows.map((row) => (
+                      {smTemplateRows.map((row) => (
                         <CommandItem
                           key={row.id}
                           value={row.name}

@@ -5,11 +5,11 @@ module Api
         before_action :authenticate_api_key!
 
         # POST /api/v1/external/unreal_purchase_orders
-        # Creates a PO shell from a Task Template
+        # Creates a PO shell from an SM Template Row (Schedule Master task)
         #
         # Payload:
         #   {
-        #     "Task_ID": 10,           # TaskTemplate ID in TEEEM
+        #     "Task_ID": 10,           # SmTemplateRow ID in TEEEM
         #     "job_id": 30,            # Job ID in TEEEM
         #     "estimator_notes": "..." # Notes from Unreal estimator
         #   }
@@ -24,11 +24,11 @@ module Api
         #
         def create
           # Validate required params
-          task_template_id = params[:Task_ID] || params[:task_id]
+          sm_template_row_id = params[:Task_ID] || params[:task_id]
           job_id = params[:job_id]
           estimator_notes = params[:estimator_notes]
 
-          if task_template_id.blank?
+          if sm_template_row_id.blank?
             return render json: {
               success: false,
               error: "Task_ID is required"
@@ -42,12 +42,12 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          # Find the task template
-          task_template = TaskTemplate.find_by(id: task_template_id)
-          unless task_template
+          # Find the SM template row
+          sm_template_row = SmTemplateRow.find_by(id: sm_template_row_id)
+          unless sm_template_row
             return render json: {
               success: false,
-              error: "Task template not found with ID: #{task_template_id}"
+              error: "SM template row not found with ID: #{sm_template_row_id}"
             }, status: :not_found
           end
 
@@ -61,20 +61,21 @@ module Api
           end
 
           ActiveRecord::Base.transaction do
-            # Create the PO shell
+            # Create the PO shell using SM template row data
             purchase_order = PurchaseOrder.new(
               job_id: job.id,
-              description: task_template.name,
-              ted_task: task_template.category,
+              description: sm_template_row.name,
+              ted_task: sm_template_row.trade,
               special_instructions: estimator_notes,
               status: "draft",
               source: "unreal_engine",
-              unreal_task_template_id: task_template_id
+              unreal_task_template_id: sm_template_row_id,
+              supplier_id: sm_template_row.supplier_id
             )
 
             if purchase_order.save
               # Log the creation
-              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} for job #{job.id} from TaskTemplate #{task_template_id}"
+              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} for job #{job.id} from SmTemplateRow #{sm_template_row_id}"
 
               render json: {
                 success: true,
@@ -82,10 +83,11 @@ module Api
                 purchase_order_number: purchase_order.purchase_order_number,
                 job_id: job.id,
                 job_title: job.title,
-                task_template_name: task_template.name,
-                task_template_category: task_template.category,
+                task_name: sm_template_row.name,
+                task_trade: sm_template_row.trade,
+                supplier_id: sm_template_row.supplier_id,
                 status: purchase_order.status,
-                message: "Purchase order created successfully from template '#{task_template.name}'"
+                message: "Purchase order created successfully from SM template '#{sm_template_row.name}'"
               }, status: :created
             else
               render json: {
