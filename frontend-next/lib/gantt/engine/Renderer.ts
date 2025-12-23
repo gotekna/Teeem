@@ -1,0 +1,466 @@
+/**
+ * Renderer - Canvas Drawing Operations
+ *
+ * Handles all drawing operations for the Gantt chart:
+ * - Background and grid
+ * - Time scale headers
+ * - Task bars
+ * - Dependencies
+ * - Today marker
+ * - Overlays
+ */
+
+import type { GanttConfig, GanttTask, GanttDependency } from './GanttCanvas';
+import { Viewport } from './Viewport';
+
+// ============================================================================
+// Renderer Class
+// ============================================================================
+
+export class Renderer {
+  private ctx: CanvasRenderingContext2D;
+  private config: GanttConfig;
+  private viewport: Viewport;
+
+  constructor(ctx: CanvasRenderingContext2D, config: GanttConfig, viewport: Viewport) {
+    this.ctx = ctx;
+    this.config = config;
+    this.viewport = viewport;
+  }
+
+  /**
+   * Update config (e.g., when dark mode changes)
+   */
+  updateConfig(config: GanttConfig): void {
+    this.config = config;
+  }
+
+  // ============================================================================
+  // Drawing Methods
+  // ============================================================================
+
+  /**
+   * Draw background
+   */
+  drawBackground(width: number, height: number): void {
+    this.ctx.fillStyle = this.config.colors.background;
+    this.ctx.fillRect(0, 0, width, height);
+  }
+
+  /**
+   * Draw grid lines and weekend shading
+   */
+  drawGrid(width: number, height: number, totalRows: number): void {
+    const dayWidth = this.viewport.getDayWidth();
+    const state = this.viewport.getState();
+
+    // Calculate visible days
+    const startDayOffset = Math.floor(state.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
+
+    // Draw vertical grid lines (days) and weekend shading
+    for (let i = startDayOffset; i <= endDayOffset; i++) {
+      const x = i * dayWidth - state.scrollX;
+      const currentDate = new Date(state.startDate);
+      currentDate.setDate(currentDate.getDate() + i);
+      const dayOfWeek = currentDate.getDay();
+
+      // Weekend shading (Saturday = 6, Sunday = 0)
+      if (dayOfWeek === 0 || dayOfWeek === 6) {
+        this.ctx.fillStyle = this.config.colors.weekendBackground;
+        this.ctx.fillRect(x, this.config.headerHeight, dayWidth, height - this.config.headerHeight);
+      }
+
+      // Grid line
+      this.ctx.strokeStyle = this.config.colors.gridLines;
+      this.ctx.lineWidth = 0.5;
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, this.config.headerHeight);
+      this.ctx.lineTo(x, height);
+      this.ctx.stroke();
+    }
+
+    // Draw horizontal grid lines (rows)
+    for (let i = 0; i <= totalRows; i++) {
+      const y = this.viewport.rowToY(i);
+      if (y < this.config.headerHeight || y > height) continue;
+
+      this.ctx.strokeStyle = this.config.colors.gridLines;
+      this.ctx.lineWidth = 0.5;
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(width, y);
+      this.ctx.stroke();
+    }
+  }
+
+  /**
+   * Draw time scale header
+   */
+  drawTimeScale(width: number): void {
+    const dayWidth = this.viewport.getDayWidth();
+    const state = this.viewport.getState();
+
+    // Draw header background
+    this.ctx.fillStyle = this.config.colors.headerBackground;
+    this.ctx.fillRect(0, 0, width, this.config.headerHeight);
+
+    // Draw header bottom border
+    this.ctx.strokeStyle = this.config.colors.gridLines;
+    this.ctx.lineWidth = 1;
+    this.ctx.beginPath();
+    this.ctx.moveTo(0, this.config.headerHeight);
+    this.ctx.lineTo(width, this.config.headerHeight);
+    this.ctx.stroke();
+
+    // Calculate visible days
+    const startDayOffset = Math.floor(state.scrollX / dayWidth);
+    const endDayOffset = Math.ceil((state.scrollX + width) / dayWidth);
+
+    // Determine what level of detail to show based on zoom
+    const showDays = dayWidth >= 20;
+    const showMonthsOnly = dayWidth < 20;
+
+    if (showMonthsOnly) {
+      // Only show months
+      this.drawMonthHeaders(width, startDayOffset, endDayOffset);
+    } else {
+      // Show both months and days
+      this.drawMonthHeaders(width, startDayOffset, endDayOffset);
+      this.drawDayHeaders(width, startDayOffset, endDayOffset);
+    }
+  }
+
+  private drawMonthHeaders(width: number, startDayOffset: number, endDayOffset: number): void {
+    const dayWidth = this.viewport.getDayWidth();
+    const state = this.viewport.getState();
+
+    let currentMonth = -1;
+    let currentYear = -1;
+    let monthStartX = 0;
+
+    for (let i = startDayOffset; i <= endDayOffset + 1; i++) {
+      const currentDate = new Date(state.startDate);
+      currentDate.setDate(currentDate.getDate() + i);
+      const month = currentDate.getMonth();
+      const year = currentDate.getFullYear();
+
+      if (month !== currentMonth || year !== currentYear) {
+        // Draw previous month label
+        if (currentMonth !== -1) {
+          const x = i * dayWidth - state.scrollX;
+          const monthWidth = x - monthStartX;
+
+          if (monthWidth > 50) {
+            const monthDate = new Date(currentYear, currentMonth, 1);
+            const monthLabel = monthDate.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' });
+
+            this.ctx.fillStyle = this.config.colors.headerText;
+            this.ctx.font = 'bold 12px Inter, system-ui, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(monthLabel, monthStartX + monthWidth / 2, 15);
+          }
+
+          // Draw month separator
+          this.ctx.strokeStyle = this.config.colors.gridLines;
+          this.ctx.lineWidth = 1;
+          this.ctx.beginPath();
+          this.ctx.moveTo(x, 0);
+          this.ctx.lineTo(x, this.config.headerHeight / 2);
+          this.ctx.stroke();
+        }
+
+        currentMonth = month;
+        currentYear = year;
+        monthStartX = i * dayWidth - state.scrollX;
+      }
+    }
+  }
+
+  private drawDayHeaders(width: number, startDayOffset: number, endDayOffset: number): void {
+    const dayWidth = this.viewport.getDayWidth();
+    const state = this.viewport.getState();
+
+    for (let i = startDayOffset; i <= endDayOffset; i++) {
+      const x = i * dayWidth - state.scrollX;
+      const currentDate = new Date(state.startDate);
+      currentDate.setDate(currentDate.getDate() + i);
+      const dayOfWeek = currentDate.getDay();
+
+      // Only show day numbers if there's enough room
+      if (dayWidth >= 25) {
+        const dayLabel = currentDate.getDate().toString();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+        this.ctx.fillStyle = isWeekend ? '#9ca3af' : this.config.colors.headerText;
+        this.ctx.font = '11px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(dayLabel, x + dayWidth / 2, this.config.headerHeight - 15);
+      }
+    }
+  }
+
+  /**
+   * Draw today marker
+   */
+  drawTodayMarker(height: number): void {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const x = this.viewport.dateToX(today);
+
+    if (x < 0 || x > 10000) return; // Off screen
+
+    // Draw line
+    this.ctx.strokeStyle = this.config.colors.todayMarker;
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, this.config.headerHeight);
+    this.ctx.lineTo(x, height);
+    this.ctx.stroke();
+
+    // Draw triangle marker at top
+    this.ctx.fillStyle = this.config.colors.todayMarker;
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, this.config.headerHeight);
+    this.ctx.lineTo(x - 6, this.config.headerHeight - 10);
+    this.ctx.lineTo(x + 6, this.config.headerHeight - 10);
+    this.ctx.closePath();
+    this.ctx.fill();
+
+    // Draw "Today" label
+    this.ctx.fillStyle = this.config.colors.todayMarker;
+    this.ctx.font = 'bold 10px Inter, system-ui, sans-serif';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'bottom';
+    this.ctx.fillText('Today', x, this.config.headerHeight - 12);
+  }
+
+  /**
+   * Draw task bars
+   */
+  drawTaskBars(tasks: GanttTask[], selectedTaskId: string | null, hoveredTaskId: string | null): void {
+    const { taskBarHeight, taskBarPadding, rowHeight } = this.config;
+
+    tasks.forEach((task, index) => {
+      const y = this.viewport.rowToY(index);
+      const startX = this.viewport.dateToX(task.startDate);
+      const endX = this.viewport.dateToX(task.endDate);
+      const taskWidth = Math.max(endX - startX, 20); // Minimum width
+
+      // Row background for selection/hover
+      if (task.id === selectedTaskId) {
+        this.ctx.fillStyle = this.config.colors.selectedRow;
+        this.ctx.fillRect(0, y, 10000, rowHeight);
+      } else if (task.id === hoveredTaskId) {
+        this.ctx.fillStyle = this.config.colors.hoverRow;
+        this.ctx.fillRect(0, y, 10000, rowHeight);
+      }
+
+      // Calculate task bar position
+      const barY = y + taskBarPadding;
+      const barHeight = taskBarHeight;
+
+      // Get task color based on status
+      const taskColor = this.getTaskColor(task);
+
+      // Draw task bar shadow
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      this.ctx.beginPath();
+      this.ctx.roundRect(startX + 2, barY + 2, taskWidth, barHeight, 4);
+      this.ctx.fill();
+
+      // Draw task bar
+      this.ctx.fillStyle = taskColor;
+      this.ctx.beginPath();
+      this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
+      this.ctx.fill();
+
+      // Draw task bar border
+      this.ctx.strokeStyle = this.config.colors.taskBarBorder;
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
+      this.ctx.stroke();
+
+      // Draw progress bar if applicable
+      if (task.progress !== undefined && task.progress > 0) {
+        const progressWidth = taskWidth * (task.progress / 100);
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(startX, barY, progressWidth, barHeight, 4);
+        this.ctx.fill();
+      }
+
+      // Draw lock icon if locked
+      if (task.locked) {
+        this.drawLockIcon(startX + 4, barY + barHeight / 2);
+      }
+
+      // Draw task name
+      this.ctx.fillStyle = this.config.colors.taskBarText;
+      this.ctx.font = '11px Inter, system-ui, sans-serif';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'middle';
+
+      // Truncate text if needed
+      const textX = startX + (task.locked ? 20 : 8);
+      const maxTextWidth = taskWidth - (task.locked ? 28 : 16);
+
+      if (maxTextWidth > 20) {
+        const truncatedText = this.truncateText(task.name, maxTextWidth);
+        this.ctx.fillText(truncatedText, textX, barY + barHeight / 2);
+      }
+    });
+  }
+
+  /**
+   * Draw dependencies between tasks
+   */
+  drawDependencies(tasks: GanttTask[], dependencies: GanttDependency[]): void {
+    const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]));
+
+    dependencies.forEach((dep) => {
+      const from = taskMap.get(dep.fromId);
+      const to = taskMap.get(dep.toId);
+
+      if (!from || !to) return;
+
+      // Calculate positions based on dependency type
+      let fromX: number;
+      let toX: number;
+
+      switch (dep.type) {
+        case 'SS':
+          fromX = this.viewport.dateToX(from.task.startDate);
+          toX = this.viewport.dateToX(to.task.startDate);
+          break;
+        case 'FF':
+          fromX = this.viewport.dateToX(from.task.endDate);
+          toX = this.viewport.dateToX(to.task.endDate);
+          break;
+        case 'SF':
+          fromX = this.viewport.dateToX(from.task.startDate);
+          toX = this.viewport.dateToX(to.task.endDate);
+          break;
+        case 'FS':
+        default:
+          fromX = this.viewport.dateToX(from.task.endDate);
+          toX = this.viewport.dateToX(to.task.startDate);
+          break;
+      }
+
+      const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
+      const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
+
+      // Draw bezier curve
+      this.drawDependencyLine(fromX, fromY, toX, toY, dep.type);
+    });
+  }
+
+  // ============================================================================
+  // Private Helper Methods
+  // ============================================================================
+
+  private getTaskColor(task: GanttTask): string {
+    const { taskBar } = this.config.colors;
+
+    switch (task.status) {
+      case 'completed':
+        return taskBar.completed;
+      case 'in-progress':
+        return taskBar.inProgress;
+      case 'on-hold':
+        return taskBar.onHold;
+      case 'at-risk':
+        return taskBar.atRisk;
+      default:
+        return taskBar.notStarted;
+    }
+  }
+
+  private drawLockIcon(x: number, y: number): void {
+    const size = 10;
+
+    this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    this.ctx.lineWidth = 1.5;
+
+    // Lock body
+    this.ctx.beginPath();
+    this.ctx.rect(x, y - size / 4, size, size * 0.6);
+    this.ctx.fill();
+
+    // Lock shackle
+    this.ctx.beginPath();
+    this.ctx.arc(x + size / 2, y - size / 4, size / 3, Math.PI, 0);
+    this.ctx.stroke();
+  }
+
+  private drawDependencyLine(fromX: number, fromY: number, toX: number, toY: number, type: string): void {
+    const controlOffset = 20;
+
+    this.ctx.strokeStyle = '#6b7280';
+    this.ctx.lineWidth = 1.5;
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(fromX, fromY);
+
+    if (Math.abs(toY - fromY) < 5) {
+      // Same row - draw straight line
+      this.ctx.lineTo(toX, toY);
+    } else {
+      // Different rows - draw bezier curve
+      const midX = (fromX + toX) / 2;
+      this.ctx.bezierCurveTo(
+        fromX + controlOffset,
+        fromY,
+        toX - controlOffset,
+        toY,
+        toX,
+        toY
+      );
+    }
+
+    this.ctx.stroke();
+
+    // Draw arrow head
+    this.drawArrowHead(toX, toY, toX > fromX ? 0 : Math.PI);
+  }
+
+  private drawArrowHead(x: number, y: number, angle: number): void {
+    const size = 6;
+
+    this.ctx.fillStyle = '#6b7280';
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, y);
+    this.ctx.lineTo(
+      x - size * Math.cos(angle - Math.PI / 6),
+      y - size * Math.sin(angle - Math.PI / 6)
+    );
+    this.ctx.lineTo(
+      x - size * Math.cos(angle + Math.PI / 6),
+      y - size * Math.sin(angle + Math.PI / 6)
+    );
+    this.ctx.closePath();
+    this.ctx.fill();
+  }
+
+  private truncateText(text: string, maxWidth: number): string {
+    const ellipsis = '...';
+    let width = this.ctx.measureText(text).width;
+
+    if (width <= maxWidth) return text;
+
+    while (width > maxWidth && text.length > 0) {
+      text = text.slice(0, -1);
+      width = this.ctx.measureText(text + ellipsis).width;
+    }
+
+    return text + ellipsis;
+  }
+}
+
+export default Renderer;

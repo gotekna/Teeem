@@ -4854,8 +4854,8 @@ export default function TeeemTableView({
                 Add Record
               </Button>
             )}
-            {/* Edit Mode Toggle - enables inline cell editing */}
-            <EditModeToggle />
+            {/* Edit Mode Toggle - enables inline cell editing (hidden in viewOnly mode) */}
+            <EditModeToggle show={!viewOnly} />
             {leftActions}
             {/* Health Indicator Button - shows if table has health checks */}
             {foundationIdNumeric && (
