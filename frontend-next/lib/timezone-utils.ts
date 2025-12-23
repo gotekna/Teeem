@@ -1,8 +1,17 @@
 // Timezone utilities - Brisbane timezone
 const BRISBANE_TZ = 'Australia/Brisbane';
 
+export function getCompanyTimezone(): string {
+  return BRISBANE_TZ;
+}
+
 export function getTodayAsString(): string {
   return new Date().toLocaleDateString('en-CA', { timeZone: BRISBANE_TZ }); // YYYY-MM-DD format
+}
+
+// Alias for getTodayAsString
+export function getTodayInCompanyTimezone(): string {
+  return getTodayAsString();
 }
 
 export function getNowInCompanyTimezone(): Date {

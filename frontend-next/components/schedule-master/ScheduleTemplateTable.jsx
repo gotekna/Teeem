@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import TeeemTableView from '../documentation/TeeemTableView'
+import TeeemTableView from '@/components/table/TeeemTableView'
 import PredecessorEditor from './PredecessorEditor'
 import PriceBookItemsModal from './PriceBookItemsModal'
 import SupervisorChecklistModal from './SupervisorChecklistModal'

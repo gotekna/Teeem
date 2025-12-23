@@ -61,6 +61,7 @@
     "cmdk": "^1.1.1",
     "dagre": "^0.8.5",
     "date-fns": "^4.1.0",
+    "dhtmlx-gantt": "^9.1.1",
     "embla-carousel-react": "^8.6.0",
     "exceljs": "^4.4.0",
     "fabric": "^6.9.0",
@@ -91,7 +92,8 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",

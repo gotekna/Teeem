@@ -11,6 +11,7 @@ import {
   Check,
   X,
   Wand2,
+  AlertTriangle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -28,11 +29,13 @@ interface XeroAccountsCardProps {
 }
 
 /**
- * XeroAccountsCard - Shows Chart of Accounts with TeeemTableView (Foundation-backed)
+ * XeroAccountsCard - Shows Chart of Accounts with GROUP comparison
  *
  * Features:
- * - Full TeeemTableView with saved views, filters, column visibility
+ * - Shows all accounts from the company's GROUP (not just this company)
  * - Dynamic company columns showing which companies have each account
+ * - Highlights MISMATCHES where accounts are missing from some companies
+ * - Helps identify consolidation issues (e.g., lawyer expenses on different codes)
  * - Standardize bank account names across group
  * - Sync from Xero button
  */
@@ -40,6 +43,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
   const [accounts, setAccounts] = React.useState<TableRow[]>([]);
   const [companies, setCompanies] = React.useState<CompanyInfo[]>([]);
   const [foundationId, setFoundationId] = React.useState<number | null>(null);
+  const [groupName, setGroupName] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [standardizing, setStandardizing] = React.useState(false);
@@ -49,34 +53,45 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     error_count: number;
   } | null>(null);
   const [syncing, setSyncing] = React.useState(false);
+  const [showMismatchesOnly, setShowMismatchesOnly] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      // Fetch per-company accounts with consolidated_account_code
+      // Fetch GROUP accounts with company presence data
+      // This shows ALL accounts in the group with columns for each company
       const response = await api.get<{
         success: boolean;
         data: TableRow[];
+        companies: CompanyInfo[];
         meta: {
+          total: number;
           foundation_id: number;
-          company_name: string;
-          xero_tenant_name: string;
-          mapped_count: number;
-          unmapped_count: number;
+          company_group: string;
         };
         error?: string;
-      }>(`/api/v1/xero_chart_of_accounts/company_accounts?company_id=${companyId}`);
+      }>(`/api/v1/xero_chart_of_accounts/with_company_presence?company_id=${companyId}`);
 
       if (response?.success) {
-        setAccounts(response.data || []);
-        // Set companies from the single company (for UI compatibility)
-        setCompanies([{
-          id: Number(companyId),
-          name: response.meta?.company_name || '',
-          short_name: response.meta?.xero_tenant_name || ''
-        }]);
+        // Mark accounts that have mismatches (not present in ALL companies)
+        const companyIds = response.companies?.map(c => c.id) || [];
+        const enrichedAccounts = (response.data || []).map(account => {
+          // Check if this account exists in ALL companies
+          const presentInAll = companyIds.every(cId => account[`company_${cId}`] === true);
+          const presentCount = companyIds.filter(cId => account[`company_${cId}`] === true).length;
+          return {
+            ...account,
+            _has_mismatch: !presentInAll && presentCount > 0, // Exists in some but not all
+            _missing_from_all: presentCount === 0, // Not in any company (orphan in master)
+            _company_count: presentCount,
+          };
+        });
+
+        setAccounts(enrichedAccounts);
+        setCompanies(response.companies || []);
         setFoundationId(response.meta?.foundation_id || null);
+        setGroupName(response.meta?.company_group || null);
       } else {
         setError(response?.error || "Failed to load accounts");
       }
@@ -169,12 +184,50 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
     }
   };
 
-  // No extra columns needed - Foundation has all columns including consolidated_account_code
-  const extraColumns = React.useMemo<TableColumn[]>(() => [], []);
+  // Add dynamic company columns for each company in the group
+  const extraColumns = React.useMemo<TableColumn[]>(() => {
+    if (companies.length <= 1) return []; // No group columns needed for single company
 
-  // Custom cell renderer for status badges and mapped indicator
+    return companies.map(company => ({
+      key: `company_${company.id}`,
+      label: company.short_name || company.name.split(" ")[0],
+      filterType: "boolean" as const,
+      width: 80,
+      sortable: true,
+    }));
+  }, [companies]);
+
+  // Filter accounts if showing mismatches only
+  const displayedAccounts = React.useMemo(() => {
+    if (!showMismatchesOnly) return accounts;
+    return accounts.filter(a => a._has_mismatch === true);
+  }, [accounts, showMismatchesOnly]);
+
+  // Count mismatches for the toggle button
+  const mismatchCount = React.useMemo(() => {
+    return accounts.filter(a => a._has_mismatch === true).length;
+  }, [accounts]);
+
+  // Custom cell renderer for status badges, company presence, and mismatch highlighting
   const customCellRenderer = React.useCallback(
     (entry: TableRow, columnKey: string): React.ReactNode | null => {
+      // Company presence columns - show check/X with mismatch highlighting
+      if (columnKey.startsWith("company_")) {
+        const present = entry[columnKey] as boolean;
+        const hasMismatch = entry._has_mismatch as boolean;
+
+        if (present) {
+          return <Check className="h-4 w-4 text-green-600 mx-auto" />;
+        } else {
+          // Highlight missing with warning if this account exists in OTHER companies (mismatch)
+          return hasMismatch ? (
+            <X className="h-4 w-4 text-amber-500 mx-auto" />
+          ) : (
+            <X className="h-4 w-4 text-gray-300 dark:text-gray-600 mx-auto" />
+          );
+        }
+      }
+
       // Active status as colored badge
       if (columnKey === "active") {
         const active = entry[columnKey] as boolean;
@@ -194,6 +247,21 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         const type = entry[columnKey] as string;
         if (!type) return null;
         return <Badge variant="outline">{type}</Badge>;
+      }
+
+      // Account name - highlight if mismatch
+      if (columnKey === "account_name") {
+        const name = entry[columnKey] as string;
+        const hasMismatch = entry._has_mismatch as boolean;
+        if (hasMismatch) {
+          return (
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <span className="text-amber-700 dark:text-amber-400">{name}</span>
+            </div>
+          );
+        }
+        return null; // Use default rendering
       }
 
       // Mapped status - show check/X
@@ -225,6 +293,21 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
   // Left actions for the table header
   const leftActions = React.useMemo(() => (
     <div className="flex items-center gap-2">
+      {/* Mismatch filter toggle */}
+      {mismatchCount > 0 && (
+        <Button
+          variant={showMismatchesOnly ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowMismatchesOnly(!showMismatchesOnly)}
+          className={showMismatchesOnly ? "bg-amber-600 hover:bg-amber-700" : ""}
+          title="Show only accounts that are missing from some companies in the group"
+        >
+          <AlertTriangle className="h-4 w-4" />
+          <span className="ml-2">
+            {showMismatchesOnly ? `Showing ${mismatchCount} Mismatches` : `${mismatchCount} Mismatches`}
+          </span>
+        </Button>
+      )}
       <Button
         variant="outline"
         size="sm"
@@ -246,7 +329,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         <span className="ml-2">Sync from Xero</span>
       </Button>
     </div>
-  ), [loading, standardizing, syncing]);
+  ), [loading, standardizing, syncing, mismatchCount, showMismatchesOnly]);
 
   if (loading && accounts.length === 0) {
     return (
@@ -289,12 +372,20 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg font-medium">Xero Chart of Accounts</CardTitle>
+            <CardTitle className="text-lg font-medium">
+              Xero Chart of Accounts
+              {groupName && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  — {groupName} Group
+                </span>
+              )}
+            </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              {accounts.length} accounts from {companyName || "this company"}
-              {companies.length > 0 && (
-                <span className="ml-2 text-xs text-blue-600">
-                  ({companies.length} {companies.length === 1 ? "company" : "companies"} in group)
+              {displayedAccounts.length} accounts
+              {showMismatchesOnly && ` (filtered from ${accounts.length})`}
+              {companies.length > 1 && (
+                <span className="ml-2">
+                  across {companies.length} companies: {companies.map(c => c.short_name || c.name.split(" ")[0]).join(", ")}
                 </span>
               )}
             </p>
@@ -303,6 +394,23 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
       </CardHeader>
 
       <CardContent className="pt-0">
+        {/* Mismatch summary banner */}
+        {mismatchCount > 0 && !showMismatchesOnly && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <div>
+                <div className="font-medium text-amber-700 dark:text-amber-400">
+                  {mismatchCount} Account{mismatchCount !== 1 ? 's' : ''} Need Attention
+                </div>
+                <div className="text-sm text-amber-600 dark:text-amber-500">
+                  These accounts exist in some companies but not others. Click the Mismatches button to filter.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Standardize Result */}
         {standardizeResult && (
           <div className="mb-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
@@ -320,7 +428,7 @@ export function XeroAccountsCard({ companyId, companyName }: XeroAccountsCardPro
         {/* TeeemTableView with Foundation */}
         <div className="-mx-6">
           <TeeemTableView
-            entries={accounts}
+            entries={displayedAccounts}
             foundationIdNumeric={foundationId}
             tableName="Xero Accounts"
             onRefresh={loadData}
