@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableColumn, TableRow } from "@/components/table/types";
+import type { TableRow } from "@/components/table/types";
 
 interface BSReport {
   id: number;
@@ -169,19 +169,8 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
     loadReports();
   }, [companyId]);
 
-  // Define columns for TeeemTableView (no Foundation backing - explicit columns)
-  // display_name follows Entity Config: {DocTypeName} {MonthYearLong} = "Balance Sheet December 2025"
-  // financial_year is for searching/filtering all 12 months of a FY
-  const columns: TableColumn[] = [
-    { key: "display_name", label: "Display Name", width: 220, sortable: true },
-    { key: "financial_year", label: "FY", width: 80, sortable: true },
-    { key: "report_date", label: "As Of Date", width: 120, column_type: "date" },
-    { key: "total_assets", label: "Total Assets", width: 130, sortable: true, column_type: "currency", showSum: true },
-    { key: "total_liabilities", label: "Total Liabilities", width: 140, sortable: true, column_type: "currency", showSum: true },
-    { key: "net_assets", label: "Net Assets", width: 130, sortable: true, column_type: "currency", showSum: true },
-    { key: "status", label: "Status", width: 110, column_type: "badge" },
-    { key: "generated_at", label: "Generated", width: 130, column_type: "date" },
-  ];
+  // Use Foundation-backed table (ID 489: balance_sheet_reports)
+  // Columns are configured via Foundation API - no explicit columns needed
 
   // Sort reports by report_date descending (latest first)
   const sortedReports = [...reports].sort((a, b) => {
@@ -271,7 +260,7 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
           <div className="-mx-4">
             <TeeemTableView
               entries={tableRows}
-              columns={columns}
+              foundationIdNumeric={489}
               tableName="Balance Sheet Report Statements"
               onRowClick={handleRowClick}
               viewOnly={true}

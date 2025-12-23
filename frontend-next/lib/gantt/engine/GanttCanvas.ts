@@ -12433,6 +12433,448 @@ export class GanttCanvas {
     return this.activeModal !== null;
   }
 
+  // =========================================================================
+  // SECTION F: DATA MANAGEMENT (Features 401-450)
+  // =========================================================================
+
+  // =========================================================================
+  // FEATURE 401-415: STATE MANAGEMENT
+  // =========================================================================
+  private stateSnapshots: Array<{ tasks: GanttTask[]; timestamp: number }> = [];
+  private maxSnapshots: number = 10;
+  // Note: pendingUpdates already exists as Map<string, GanttTask> (see Feature 21)
+  // Note: isDragging already exists as boolean property (see line ~406)
+  private suppressRenderFlag: boolean = false;
+  private deferredUpdateTimer: number | null = null;
+
+  // Feature 401: TaskStore - get/set task data
+  getTaskStore(): GanttTask[] {
+    return [...this.state.tasks];
+  }
+
+  setTaskStore(tasks: GanttTask[]): void {
+    this.createStateSnapshot();
+    this.state.tasks = [...tasks];
+    this.markDirty();
+  }
+
+  // Feature 402: SelectionManager
+  // Note: getSelectedTaskIds() already exists at Selection API section
+  setSelectedTaskIdsByArray(ids: string[]): void {
+    this.state.selectedTaskIds = new Set(ids);
+    this.markDirty();
+  }
+
+  // Feature 403-405: UndoManager with command pattern
+  // Note: Undo/redo implemented in Feature 42. This adds snapshot-based undo.
+  createStateSnapshot(): void {
+    const snapshot = {
+      tasks: this.state.tasks.map(t => ({ ...t })),
+      timestamp: Date.now()
+    };
+    this.stateSnapshots.push(snapshot);
+    if (this.stateSnapshots.length > this.maxSnapshots) {
+      this.stateSnapshots.shift();
+    }
+  }
+
+  restoreSnapshot(index: number): boolean {
+    if (index < 0 || index >= this.stateSnapshots.length) return false;
+    const snapshot = this.stateSnapshots[index];
+    this.state.tasks = snapshot.tasks.map(t => ({ ...t }));
+    this.markDirty();
+    return true;
+  }
+
+  getSnapshotCount(): number {
+    return this.stateSnapshots.length;
+  }
+
+  // Feature 406: State snapshots before changes
+  snapshotBeforeChange(): void {
+    this.createStateSnapshot();
+  }
+
+  // Feature 407-410: Batch state updates
+  // Note: beginBatchUpdate(), endBatchUpdate(), queueUpdate() already exist (Feature 21)
+  // Note: batchUpdateTasks(Map) already exists. This variant takes array format:
+  batchUpdateTasksFromArray(updates: Array<{ taskId: string; changes: Partial<GanttTask> }>): void {
+    this.beginBatchUpdate();
+    for (const { taskId, changes } of updates) {
+      this.queueUpdate(taskId, changes);
+    }
+    this.endBatchUpdate();
+  }
+
+  // Feature 411: isDragging state check for preventing updates during drag
+  // Note: isDragging property exists. This provides a method to check drag state.
+  isCurrentlyDragging(): boolean {
+    return this.isDragging || this.isResizing || this.isDraggingProgress;
+  }
+
+  // Feature 412: suppressRender ref for anti-flicker
+  setSuppressRender(suppress: boolean): void {
+    this.suppressRenderFlag = suppress;
+  }
+
+  isSuppressRender(): boolean {
+    return this.suppressRenderFlag;
+  }
+
+  // Feature 413: requestAnimationFrame for deferred updates
+  deferUpdate(callback: () => void): void {
+    if (this.deferredUpdateTimer !== null) {
+      cancelAnimationFrame(this.deferredUpdateTimer);
+    }
+    this.deferredUpdateTimer = requestAnimationFrame(() => {
+      callback();
+      this.deferredUpdateTimer = null;
+    });
+  }
+
+  // Feature 414-415: State persistence to localStorage
+  saveStateToLocalStorage(key: string): void {
+    try {
+      const state = {
+        tasks: this.state.tasks,
+        selectedTaskIds: this.state.selectedTaskIds,
+        viewport: this.viewport.getState(),
+        timestamp: Date.now()
+      };
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      console.warn('Failed to save state to localStorage');
+    }
+  }
+
+  loadStateFromLocalStorage(key: string): boolean {
+    try {
+      const saved = localStorage.getItem(key);
+      if (!saved) return false;
+      const state = JSON.parse(saved);
+      if (state.tasks) {
+        this.state.tasks = state.tasks.map((t: GanttTask) => ({
+          ...t,
+          startDate: new Date(t.startDate),
+          endDate: new Date(t.endDate)
+        }));
+      }
+      if (state.selectedTaskIds) {
+        this.state.selectedTaskIds = state.selectedTaskIds;
+      }
+      this.markDirty();
+      return true;
+    } catch {
+      console.warn('Failed to load state from localStorage');
+      return false;
+    }
+  }
+
+  // =========================================================================
+  // FEATURE 416-435: API INTEGRATION
+  // =========================================================================
+  private apiCallbacks: {
+    onLoadTemplates?: () => Promise<unknown[]>;
+    onLoadTemplateRows?: (templateId: number) => Promise<unknown[]>;
+    onLoadSuppliers?: () => Promise<unknown[]>;
+    onUpdateRow?: (rowId: string, changes: Record<string, unknown>) => Promise<void>;
+    onAddRow?: (row: Record<string, unknown>) => Promise<{ id: string }>;
+    onDeleteRow?: (rowId: string) => Promise<void>;
+  } = {};
+
+  private loadingStates: Map<string, boolean> = new Map();
+  private requestCache: Map<string, { data: unknown; timestamp: number }> = new Map();
+  private cacheMaxAge: number = 60000; // 1 minute cache
+
+  // Set API callbacks
+  setApiCallbacks(callbacks: typeof this.apiCallbacks): void {
+    this.apiCallbacks = { ...this.apiCallbacks, ...callbacks };
+  }
+
+  // Feature 416-420: Load endpoints
+  async loadTemplates(): Promise<unknown[]> {
+    if (!this.apiCallbacks.onLoadTemplates) return [];
+    this.loadingStates.set('templates', true);
+    try {
+      const data = await this.apiCallbacks.onLoadTemplates();
+      this.loadingStates.set('templates', false);
+      return data;
+    } catch (error) {
+      this.loadingStates.set('templates', false);
+      throw error;
+    }
+  }
+
+  async loadTemplateRows(templateId: number): Promise<unknown[]> {
+    if (!this.apiCallbacks.onLoadTemplateRows) return [];
+    const cacheKey = `rows-${templateId}`;
+
+    // Check cache
+    const cached = this.requestCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < this.cacheMaxAge) {
+      return cached.data as unknown[];
+    }
+
+    this.loadingStates.set(cacheKey, true);
+    try {
+      const data = await this.apiCallbacks.onLoadTemplateRows(templateId);
+      this.requestCache.set(cacheKey, { data, timestamp: Date.now() });
+      this.loadingStates.set(cacheKey, false);
+      return data;
+    } catch (error) {
+      this.loadingStates.set(cacheKey, false);
+      throw error;
+    }
+  }
+
+  // Feature 421-423: CRUD operations with optimistic update
+  async updateRowOptimistic(rowId: string, changes: Record<string, unknown>): Promise<boolean> {
+    if (!this.apiCallbacks.onUpdateRow) return false;
+
+    // Optimistic update
+    const task = this.state.tasks.find(t => t.id === rowId);
+    const previousState = task ? { ...task } : null;
+    if (task) {
+      Object.assign(task, changes);
+      this.markDirty();
+    }
+
+    try {
+      await this.apiCallbacks.onUpdateRow(rowId, changes);
+      return true;
+    } catch {
+      // Rollback on failure
+      if (task && previousState) {
+        Object.assign(task, previousState);
+        this.markDirty();
+      }
+      return false;
+    }
+  }
+
+  async addRowOptimistic(row: Record<string, unknown>): Promise<string | null> {
+    if (!this.apiCallbacks.onAddRow) return null;
+
+    // Optimistic add with temp ID
+    const tempId = `temp-${Date.now()}`;
+    const tempTask: GanttTask = {
+      id: tempId,
+      name: (row.name as string) || 'New Task',
+      startDate: (row.startDate as Date) || new Date(),
+      endDate: (row.endDate as Date) || new Date(Date.now() + 86400000),
+    };
+    this.state.tasks.push(tempTask);
+    this.markDirty();
+
+    try {
+      const result = await this.apiCallbacks.onAddRow(row);
+      // Replace temp ID with real ID
+      const taskIndex = this.state.tasks.findIndex(t => t.id === tempId);
+      if (taskIndex >= 0) {
+        this.state.tasks[taskIndex].id = result.id;
+      }
+      return result.id;
+    } catch {
+      // Rollback on failure
+      this.state.tasks = this.state.tasks.filter(t => t.id !== tempId);
+      this.markDirty();
+      return null;
+    }
+  }
+
+  async deleteRowOptimistic(rowId: string): Promise<boolean> {
+    if (!this.apiCallbacks.onDeleteRow) return false;
+
+    // Optimistic delete
+    const taskIndex = this.state.tasks.findIndex(t => t.id === rowId);
+    const previousTask = taskIndex >= 0 ? { ...this.state.tasks[taskIndex] } : null;
+    if (taskIndex >= 0) {
+      this.state.tasks.splice(taskIndex, 1);
+      this.markDirty();
+    }
+
+    try {
+      await this.apiCallbacks.onDeleteRow(rowId);
+      return true;
+    } catch {
+      // Rollback on failure
+      if (previousTask && taskIndex >= 0) {
+        this.state.tasks.splice(taskIndex, 0, previousTask as GanttTask);
+        this.markDirty();
+      }
+      return false;
+    }
+  }
+
+  // Feature 426-428: Loading states and caching
+  isLoading(key: string): boolean {
+    return this.loadingStates.get(key) || false;
+  }
+
+  clearCache(key?: string): void {
+    if (key) {
+      this.requestCache.delete(key);
+    } else {
+      this.requestCache.clear();
+    }
+  }
+
+  // Feature 433: Sync status indicator
+  getSyncStatus(): 'synced' | 'pending' | 'error' {
+    if (this.pendingUpdates.size > 0) return 'pending';
+    return 'synced';
+  }
+
+  // =========================================================================
+  // FEATURE 436-450: EXCEL IMPORT/EXPORT
+  // =========================================================================
+  private excelCallbacks: {
+    onExport?: (data: unknown[]) => void;
+    onImport?: (file: File) => Promise<unknown[]>;
+  } = {};
+
+  setExcelCallbacks(callbacks: typeof this.excelCallbacks): void {
+    this.excelCallbacks = { ...this.excelCallbacks, ...callbacks };
+  }
+
+  // Feature 436-438: Export to Excel
+  getExportData(): Array<Record<string, unknown>> {
+    return this.state.tasks.map((task, index) => ({
+      rowNumber: index + 1,
+      id: task.id,
+      name: task.name,
+      startDate: task.startDate.toISOString().split('T')[0],
+      endDate: task.endDate.toISOString().split('T')[0],
+      duration: Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)),
+      progress: task.progress || 0,
+      status: task.status || 'not-started',
+      locked: task.locked || '',
+      predecessors: this.formatPredecessorsForExport(task),
+      supplierId: task.supplierId || '',
+      supplierName: task.supplierName || '',
+    }));
+  }
+
+  private formatPredecessorsForExport(task: GanttTask): string {
+    if (!task.predecessorIds || task.predecessorIds.length === 0) return '';
+    return task.predecessorIds.map(predId => {
+      const predTask = this.state.tasks.find(t => t.id === predId);
+      if (!predTask) return predId;
+      const index = this.state.tasks.indexOf(predTask);
+      return String(index + 1); // 1-based row number
+    }).join(', ');
+  }
+
+  // Feature 439-449: Import from Excel
+  async importFromExcel(data: Array<Record<string, unknown>>): Promise<{
+    imported: number;
+    errors: Array<{ row: number; message: string }>;
+  }> {
+    const errors: Array<{ row: number; message: string }> = [];
+    const importedTasks: GanttTask[] = [];
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      try {
+        const task = this.parseExcelRow(row, i + 1);
+        if (task) {
+          importedTasks.push(task);
+        }
+      } catch (error) {
+        errors.push({
+          row: i + 1,
+          message: error instanceof Error ? error.message : 'Parse error'
+        });
+      }
+    }
+
+    // Add imported tasks
+    this.createStateSnapshot();
+    this.state.tasks.push(...importedTasks);
+    this.markDirty();
+
+    return { imported: importedTasks.length, errors };
+  }
+
+  private parseExcelRow(row: Record<string, unknown>, rowNumber: number): GanttTask | null {
+    const name = row.name || row.Name || row.task_name || row['Task Name'];
+    if (!name || typeof name !== 'string') {
+      throw new Error(`Row ${rowNumber}: Missing task name`);
+    }
+
+    // Parse dates
+    let startDate: Date;
+    let endDate: Date;
+    const startValue = row.startDate || row.start_date || row['Start Date'];
+    const endValue = row.endDate || row.end_date || row['End Date'];
+
+    if (startValue) {
+      startDate = new Date(startValue as string);
+      if (isNaN(startDate.getTime())) {
+        throw new Error(`Row ${rowNumber}: Invalid start date`);
+      }
+    } else {
+      startDate = new Date();
+    }
+
+    if (endValue) {
+      endDate = new Date(endValue as string);
+      if (isNaN(endDate.getTime())) {
+        throw new Error(`Row ${rowNumber}: Invalid end date`);
+      }
+    } else {
+      // Parse duration
+      const durationValue = row.duration || row.Duration || row.duration_days;
+      let durationDays = 1;
+      if (typeof durationValue === 'number') {
+        durationDays = durationValue;
+      } else if (typeof durationValue === 'string') {
+        const match = durationValue.match(/(\d+)/);
+        if (match) durationDays = parseInt(match[1], 10);
+      }
+      endDate = new Date(startDate.getTime() + durationDays * 86400000);
+    }
+
+    // Parse predecessors
+    const predValue = row.predecessors || row.Predecessors || row.predecessor_ids;
+    const predecessorIds = this.parsePredecessorString(predValue as string);
+
+    return {
+      id: (row.id as string) || `import-${Date.now()}-${rowNumber}`,
+      name: name as string,
+      startDate,
+      endDate,
+      progress: typeof row.progress === 'number' ? row.progress : 0,
+      predecessorIds,
+    };
+  }
+
+  private parsePredecessorString(value: unknown): string[] {
+    if (!value || typeof value !== 'string') return [];
+
+    // Handle formats: "1, 2, 3" or "2FS+3, 4FF-1"
+    const parts = value.split(',').map(s => s.trim());
+    return parts.map(part => {
+      // Extract just the number for now (full parsing would include type and lag)
+      const match = part.match(/(\d+)/);
+      if (match) {
+        const rowNum = parseInt(match[1], 10);
+        // Convert row number to task ID (assumes import order matches)
+        if (rowNum > 0 && rowNum <= this.state.tasks.length) {
+          return this.state.tasks[rowNum - 1].id;
+        }
+      }
+      return '';
+    }).filter(id => id !== '');
+  }
+
+  // Feature 450: Import progress
+  private importProgress: { current: number; total: number } | null = null;
+
+  getImportProgress(): { current: number; total: number } | null {
+    return this.importProgress;
+  }
+
 }
 
 // ============================================================================

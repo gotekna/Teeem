@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableColumn, TableRow } from "@/components/table/types";
+import type { TableRow } from "@/components/table/types";
 
 interface BSReport {
   id: number;
@@ -153,19 +153,8 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
     loadReports();
   }, [companyId]);
 
-  // Define columns for TeeemTableView (no Foundation backing - explicit columns)
-  // display_name follows Entity Config: {BankCode} {MonthYearLong} = "NAB December 2025"
-  const columns: TableColumn[] = [
-    { key: "display_name", label: "Display Name", width: 220, sortable: true },
-    { key: "financial_year", label: "FY", width: 80, sortable: true },
-    { key: "period_end", label: "As Of Date", width: 120, column_type: "date" },
-    { key: "transaction_count", label: "Transactions", width: 110, sortable: true },
-    { key: "total_in", label: "Total In", width: 120, sortable: true, column_type: "currency", showSum: true },
-    { key: "total_out", label: "Total Out", width: 120, sortable: true, column_type: "currency", showSum: true },
-    { key: "net_change", label: "Net Change", width: 120, sortable: true, column_type: "currency", showSum: true },
-    { key: "status", label: "Status", width: 100, column_type: "badge" },
-    { key: "generated_at", label: "Generated", width: 130, column_type: "date" },
-  ];
+  // Use Foundation-backed table (ID 487: bank_statement_reports)
+  // Columns are configured via Foundation API - no explicit columns needed
 
   // Group reports by bank account
   const reportsByBank = React.useMemo(() => {
@@ -303,7 +292,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
               <TabsContent key={bankName} value={bankName} className="mt-0">
                 <TeeemTableView
                   entries={getTableRows(reportsByBank[bankName] || [])}
-                  columns={columns}
+                  foundationIdNumeric={487}
                   tableName={`${bankName} Statements`}
                   onRowClick={handleRowClick}
                   viewOnly={true}
