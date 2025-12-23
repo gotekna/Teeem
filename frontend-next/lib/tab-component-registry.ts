@@ -51,6 +51,7 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "XeroBankAccounts": lazy(() => import("@/components/xero/XeroBankAccountsCard")), // Alias
   "XeroBankStatement": lazy(() => import("@/components/corporate/XeroStatementView").then(m => ({ default: m.XeroStatementView }))), // Bank statement view
   "XeroStatementView": lazy(() => import("@/components/corporate/XeroStatementView").then(m => ({ default: m.XeroStatementView }))), // Alias
+  "XeroBankStatementReportView": lazy(() => import("@/components/xero/XeroBankStatementReportView")), // Bank statement PDF reports
 
   // Profit & Loss
   "XeroProfitLossMonthly": lazy(() => import("@/components/xero/XeroProfitLossMonthly")),
