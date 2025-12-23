@@ -102,7 +102,7 @@ class BalanceSheetReport < ApplicationRecord
       client = XeroApiClient.new
       result = client.get_balance_sheet(
         connection,
-        date: report_date || financial_year_end_date
+        as_at_date: period_end_date || report_date || financial_year_end_date
       )
 
       if result[:success]
