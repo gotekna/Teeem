@@ -5,6 +5,11 @@
 # Represents a single task in an SM template. When the template is
 # applied to a construction, these become sm_tasks with actual dates.
 #
+# Multi-Template Support:
+# - A row can belong to multiple templates via sm_template_ids (JSONB array)
+# - Use for_template(template_id) scope to filter by template
+# - Use add_to_template/remove_from_template to manage membership
+#
 class SmTemplateRow < ApplicationRecord
   # Role/group constants for internal work assignment
   ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze
@@ -13,7 +18,9 @@ class SmTemplateRow < ApplicationRecord
   DEPENDENCY_TYPES = %w[FS SS FF SF].freeze
 
   # Associations
-  belongs_to :sm_template
+  # Note: sm_template_id is deprecated, use sm_template_ids (JSONB array) instead
+  # Keeping belongs_to for backwards compatibility during migration
+  belongs_to :sm_template, optional: true
   belongs_to :parent_row, class_name: "SmTemplateRow", optional: true
   has_many :children, class_name: "SmTemplateRow", foreign_key: :parent_row_id, dependent: :nullify
 
@@ -32,7 +39,7 @@ class SmTemplateRow < ApplicationRecord
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
-  validates :task_number, presence: true, uniqueness: { scope: :sm_template_id }
+  validates :task_number, presence: true, uniqueness: true
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than: 0 }
   validates :cert_lag_days, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
@@ -51,6 +58,9 @@ class SmTemplateRow < ApplicationRecord
   scope :auto_included, -> { where(auto_include: true) }
   scope :manual_only, -> { where(auto_include: false) }
   scope :allow_duplicates, -> { where(allow_duplicates: true) }
+
+  # Multi-template scope - filter rows by template membership
+  scope :for_template, ->(template_id) { where("sm_template_ids @> ?", [template_id].to_json) }
 
   # Callbacks
   before_validation :set_task_number, on: :create
@@ -95,6 +105,35 @@ class SmTemplateRow < ApplicationRecord
     (start_entity_tab_ids || []) + (complete_entity_tab_ids || [])
   end
 
+  # Multi-template management methods
+
+  # Get all templates this row belongs to
+  def sm_templates
+    SmTemplate.where(id: sm_template_ids)
+  end
+
+  # Check if row belongs to a specific template
+  def in_template?(template_id)
+    (sm_template_ids || []).include?(template_id)
+  end
+
+  # Add row to a template
+  def add_to_template(template_id)
+    new_ids = ((sm_template_ids || []) + [template_id]).uniq
+    update!(sm_template_ids: new_ids)
+  end
+
+  # Remove row from a template
+  def remove_from_template(template_id)
+    new_ids = (sm_template_ids || []) - [template_id]
+    update!(sm_template_ids: new_ids)
+  end
+
+  # Get the first template (for backwards compatibility)
+  def primary_template
+    SmTemplate.find_by(id: sm_template_ids&.first)
+  end
+
   # Format predecessors as "2FS+3, 5SS" etc
   def predecessor_display
     return "None" if predecessor_task_ids.empty?
@@ -114,7 +153,8 @@ class SmTemplateRow < ApplicationRecord
   def set_task_number
     return if task_number.present?
 
-    max_number = SmTemplateRow.where(sm_template_id: sm_template_id).maximum(:task_number) || 0
+    # Task numbers are now globally unique (not per-template)
+    max_number = SmTemplateRow.maximum(:task_number) || 0
     self.task_number = max_number + 1
   end
 
@@ -172,7 +212,8 @@ class SmTemplateRow < ApplicationRecord
 
     return nil unless task_id
 
-    predecessor_row = sm_template.sm_template_rows.find_by(task_number: task_id)
+    # Task numbers are globally unique now, so we can find by task_number directly
+    predecessor_row = SmTemplateRow.find_by(task_number: task_id)
     task_name = predecessor_row&.name || "Task #{task_id}"
 
     dep_string = dep_type

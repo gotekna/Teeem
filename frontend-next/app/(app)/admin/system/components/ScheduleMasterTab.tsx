@@ -59,6 +59,8 @@ interface SmTemplateRow {
   supplier_name?: string;
   po_required: boolean;
   require_photo: boolean;
+  // Multi-template support
+  sm_template_ids: number[];
 }
 
 interface SmTemplate {

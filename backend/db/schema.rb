@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_020712) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3475,6 +3475,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_020712) do
     t.text "special_conditions"
     t.boolean "finance_approval_required"
     t.date "finance_approval_date"
+    t.decimal "external_sales_fee", precision: 15, scale: 2
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"

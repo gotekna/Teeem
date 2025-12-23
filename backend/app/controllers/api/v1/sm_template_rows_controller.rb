@@ -26,7 +26,8 @@ module Api
 
       # POST /api/v1/sm_templates/:sm_template_id/rows
       def create
-        @row = @template.sm_template_rows.new(row_params)
+        @row = SmTemplateRow.new(row_params)
+        @row.sm_template_ids = [@template.id]  # Add to this template
         @row.created_by = current_user
 
         # Auto-set sequence order if not provided
@@ -97,7 +98,8 @@ module Api
 
         ActiveRecord::Base.transaction do
           rows_data.each_with_index do |row_data, idx|
-            row = @template.sm_template_rows.new(bulk_row_params(row_data))
+            row = SmTemplateRow.new(bulk_row_params(row_data))
+            row.sm_template_ids = [@template.id]  # Add to this template
             row.created_by = current_user
 
             if row.save
@@ -238,6 +240,8 @@ module Api
           tags: row.tags,
           color: row.color,
           is_active: row.is_active,
+          # Multi-template support
+          sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields
           auto_include: row.auto_include,
           allow_duplicates: row.allow_duplicates,

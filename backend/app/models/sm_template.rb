@@ -5,9 +5,14 @@
 # Templates are reusable schedules that can be copied to constructions
 # as sm_tasks. Separate from old schedule_templates (DHTMLX system).
 #
+# Multi-Template Support:
+# - SmTemplateRows can belong to multiple templates via sm_template_ids (JSONB array)
+# - Use sm_template_rows method to get rows for this template
+# - A single row can be shared across templates (SSoT)
+#
 class SmTemplate < ApplicationRecord
   # Associations
-  has_many :sm_template_rows, dependent: :destroy
+  # Note: has_many is replaced with a method that queries by JSONB containment
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
 
@@ -22,6 +27,11 @@ class SmTemplate < ApplicationRecord
   # Callbacks
   before_save :ensure_single_default
 
+  # Get all rows for this template (via JSONB containment query)
+  def sm_template_rows
+    SmTemplateRow.for_template(id)
+  end
+
   # Get row count
   def row_count
     sm_template_rows.count
@@ -29,7 +39,7 @@ class SmTemplate < ApplicationRecord
 
   # Get active rows in sequence order
   def ordered_rows
-    sm_template_rows.where(is_active: true).order(:sequence_order)
+    sm_template_rows.active.in_sequence
   end
 
   # Copy template to a construction as sm_tasks

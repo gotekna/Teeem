@@ -111,6 +111,8 @@ interface SmTemplateRow {
   linked_po_task_name: string | null;
   require_supplier_confirm: boolean;
   is_master: boolean;
+  // Multi-template support
+  sm_template_ids: number[];
 }
 
 interface PlanType {
