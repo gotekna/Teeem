@@ -48,7 +48,23 @@ import {
   Image,
   Upload,
   Trash2,
+  MoreVertical,
+  Settings,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
 
@@ -243,6 +259,47 @@ export default function AssetDetailPage() {
   const [isEditing, setIsEditing] = React.useState(false);
   const [editedAsset, setEditedAsset] = React.useState<Partial<Asset>>({});
   const [showForecast, setShowForecast] = React.useState(false);
+
+  // Asset types management
+  const DEFAULT_ASSET_TYPES = ["vehicle", "equipment", "property", "other"];
+  const [assetTypes, setAssetTypes] = React.useState<string[]>(DEFAULT_ASSET_TYPES);
+  const [showTypesDialog, setShowTypesDialog] = React.useState(false);
+  const [newTypeName, setNewTypeName] = React.useState("");
+
+  // Load custom asset types from localStorage on mount
+  React.useEffect(() => {
+    const stored = localStorage.getItem("asset_types");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setAssetTypes(parsed);
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, []);
+
+  const handleAddType = () => {
+    if (!newTypeName.trim()) return;
+    const normalized = newTypeName.trim().toLowerCase().replace(/\s+/g, "_");
+    if (assetTypes.includes(normalized)) return;
+
+    const updated = [...assetTypes, normalized];
+    setAssetTypes(updated);
+    localStorage.setItem("asset_types", JSON.stringify(updated));
+    setNewTypeName("");
+  };
+
+  const handleRemoveType = (typeToRemove: string) => {
+    // Don't allow removing default types
+    if (DEFAULT_ASSET_TYPES.includes(typeToRemove)) return;
+
+    const updated = assetTypes.filter(t => t !== typeToRemove);
+    setAssetTypes(updated);
+    localStorage.setItem("asset_types", JSON.stringify(updated));
+  };
 
   // Compute tabs based on asset type
   const TABS = React.useMemo(() => {
@@ -557,7 +614,24 @@ export default function AssetDetailPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Type</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Type</Label>
+                  {isEditing && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setShowTypesDialog(true)}>
+                          <Settings className="h-4 w-4 mr-2" />
+                          Manage Types
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
                 {isEditing ? (
                   <Select
                     value={editedAsset.asset_type}
@@ -569,14 +643,15 @@ export default function AssetDetailPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="vehicle">Vehicle</SelectItem>
-                      <SelectItem value="equipment">Equipment</SelectItem>
-                      <SelectItem value="property">Property</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
+                      {assetTypes.map((type) => (
+                        <SelectItem key={type} value={type} className="capitalize">
+                          {type.replace(/_/g, " ")}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 ) : (
-                  <p className="text-sm capitalize">{asset.asset_type}</p>
+                  <p className="text-sm capitalize">{asset.asset_type?.replace(/_/g, " ")}</p>
                 )}
               </div>
 
@@ -1388,6 +1463,67 @@ export default function AssetDetailPage() {
           )}
         </div>
       )}
+
+      {/* Manage Asset Types Dialog */}
+      <Dialog open={showTypesDialog} onOpenChange={setShowTypesDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Asset Types</DialogTitle>
+            <DialogDescription>
+              Add or remove asset types. Default types cannot be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Add new type */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="New type name..."
+                value={newTypeName}
+                onChange={(e) => setNewTypeName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddType();
+                  }
+                }}
+              />
+              <Button onClick={handleAddType} disabled={!newTypeName.trim()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add
+              </Button>
+            </div>
+
+            {/* List of types */}
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {assetTypes.map((type) => (
+                <div
+                  key={type}
+                  className="flex items-center justify-between p-2 rounded border bg-muted/50"
+                >
+                  <span className="capitalize">{type.replace(/_/g, " ")}</span>
+                  {!DEFAULT_ASSET_TYPES.includes(type) ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      onClick={() => handleRemoveType(type)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">Default</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTypesDialog(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

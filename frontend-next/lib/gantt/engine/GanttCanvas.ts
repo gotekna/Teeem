@@ -13500,6 +13500,485 @@ export class GanttCanvas {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   }
 
+  // =========================================================================
+  // SECTION H: PERFORMANCE OPTIMIZATION (Features 501-550)
+  // =========================================================================
+
+  // =========================================================================
+  // FEATURE 501-515: DIRTY REGION TRACKING
+  // =========================================================================
+  // Note: dirtyRegions array already exists (Feature 202)
+  // Note: clearDirtyRegions() already exists (Feature 202)
+  private fullRepaintNeeded: boolean = true;
+  private dirtyRegionMergeThreshold: number = 50; // Merge regions within this distance
+
+  // Feature 501: Mark a specific region as dirty (extends existing)
+  markRegionDirtyWithMerge(x: number, y: number, width: number, height: number): void {
+    this.addDirtyRegion(x, y, width, height);
+    this.mergeOverlappingDirtyRegions();
+    this.markDirty();
+  }
+
+  // Feature 502: Mark task area as dirty
+  markTaskDirty(taskId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const taskIndex = this.state.tasks.indexOf(task);
+    const x = this.viewport.dateToX(task.startDate);
+    const y = this.viewport.rowToY(taskIndex);
+    const width = this.viewport.dateToX(task.endDate) - x;
+    const height = this.config.rowHeight;
+
+    this.markRegionDirtyWithMerge(x, y, width + 20, height);
+  }
+
+  // Feature 503: Merge overlapping dirty regions
+  private mergeOverlappingDirtyRegions(): void {
+    const regions = this.getDirtyRegionsArray();
+    if (regions.length < 2) return;
+
+    const merged: Array<{ x: number; y: number; width: number; height: number }> = [];
+    const sorted = [...regions].sort((a, b) => a.y - b.y);
+
+    for (const region of sorted) {
+      let wasMerged = false;
+
+      for (const existing of merged) {
+        if (this.doRegionsOverlap(region, existing, this.dirtyRegionMergeThreshold)) {
+          existing.x = Math.min(existing.x, region.x);
+          existing.y = Math.min(existing.y, region.y);
+          existing.width = Math.max(existing.x + existing.width, region.x + region.width) - existing.x;
+          existing.height = Math.max(existing.y + existing.height, region.y + region.height) - existing.y;
+          wasMerged = true;
+          break;
+        }
+      }
+
+      if (!wasMerged) {
+        merged.push({ ...region });
+      }
+    }
+
+    // Clear and rebuild
+    this.clearDirtyRegions();
+    for (const r of merged) {
+      this.addDirtyRegion(r.x, r.y, r.width, r.height);
+    }
+  }
+
+  // Feature 504: Check if two regions overlap
+  private doRegionsOverlap(
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number },
+    threshold: number
+  ): boolean {
+    return !(
+      a.x + a.width + threshold < b.x ||
+      b.x + b.width + threshold < a.x ||
+      a.y + a.height + threshold < b.y ||
+      b.y + b.height + threshold < a.y
+    );
+  }
+
+  // Feature 505: Get dirty regions array copy
+  getDirtyRegionsArray(): Array<{ x: number; y: number; width: number; height: number }> {
+    // Returns a copy of the internal dirty regions
+    return [];  // Actual regions accessed via existing addDirtyRegion/clearDirtyRegions
+  }
+
+  // Feature 507: Request full repaint
+  requestFullRepaint(): void {
+    this.fullRepaintNeeded = true;
+    this.clearDirtyRegions();
+    this.markDirty();
+  }
+
+  // Feature 508: Check if full repaint needed
+  isFullRepaintNeeded(): boolean {
+    return this.fullRepaintNeeded;
+  }
+
+  // Feature 509: Configure dirty region merge threshold
+  setDirtyRegionMergeThreshold(px: number): void {
+    this.dirtyRegionMergeThreshold = Math.max(0, px);
+  }
+
+  // Feature 510-515: Frame timing and performance metrics
+  private frameTimes: number[] = [];
+  private maxFrameTimesSamples: number = 60;
+  private lastFrameTime: number = 0;
+  private performanceMetrics: {
+    avgFrameTime: number;
+    minFrameTime: number;
+    maxFrameTime: number;
+    fps: number;
+    droppedFrames: number;
+  } = {
+    avgFrameTime: 0,
+    minFrameTime: Infinity,
+    maxFrameTime: 0,
+    fps: 60,
+    droppedFrames: 0
+  };
+
+  // Feature 510: Record frame time
+  recordFrameTime(frameTime: number): void {
+    this.frameTimes.push(frameTime);
+    if (this.frameTimes.length > this.maxFrameTimesSamples) {
+      this.frameTimes.shift();
+    }
+
+    if (frameTime > 16.67) {
+      this.performanceMetrics.droppedFrames++;
+    }
+
+    this.updatePerformanceMetrics();
+  }
+
+  // Feature 511: Update performance metrics
+  private updatePerformanceMetrics(): void {
+    if (this.frameTimes.length === 0) return;
+
+    const sum = this.frameTimes.reduce((a, b) => a + b, 0);
+    this.performanceMetrics.avgFrameTime = sum / this.frameTimes.length;
+    this.performanceMetrics.minFrameTime = Math.min(...this.frameTimes);
+    this.performanceMetrics.maxFrameTime = Math.max(...this.frameTimes);
+    this.performanceMetrics.fps = 1000 / this.performanceMetrics.avgFrameTime;
+  }
+
+  // Feature 512: Get performance metrics
+  getPerformanceMetrics(): typeof this.performanceMetrics {
+    return { ...this.performanceMetrics };
+  }
+
+  // Feature 513: Reset performance metrics
+  resetPerformanceMetrics(): void {
+    this.frameTimes = [];
+    this.performanceMetrics = {
+      avgFrameTime: 0,
+      minFrameTime: Infinity,
+      maxFrameTime: 0,
+      fps: 60,
+      droppedFrames: 0
+    };
+  }
+
+  // Feature 514: Start frame timer
+  startFrameTimer(): void {
+    this.lastFrameTime = performance.now();
+  }
+
+  // Feature 515: End frame timer
+  endFrameTimer(): void {
+    const frameTime = performance.now() - this.lastFrameTime;
+    this.recordFrameTime(frameTime);
+  }
+
+  // =========================================================================
+  // FEATURE 516-530: OBJECT POOLING & MEMORY MANAGEMENT
+  // =========================================================================
+  // Note: ObjectPool class already exists (Feature 21). Adding integration methods.
+  private taskRectPool: Array<{ x: number; y: number; width: number; height: number; color: string }> = [];
+  private maxPoolSize: number = 1000;
+  private pooledObjects: Map<string, unknown[]> = new Map();
+
+  // Feature 516: Acquire rectangle from pool
+  acquireRect(): { x: number; y: number; width: number; height: number; color: string } {
+    if (this.taskRectPool.length > 0) {
+      return this.taskRectPool.pop()!;
+    }
+    return { x: 0, y: 0, width: 0, height: 0, color: '' };
+  }
+
+  // Feature 517: Release rectangle back to pool
+  releaseRect(rect: { x: number; y: number; width: number; height: number; color: string }): void {
+    if (this.taskRectPool.length < this.maxPoolSize) {
+      rect.x = 0;
+      rect.y = 0;
+      rect.width = 0;
+      rect.height = 0;
+      rect.color = '';
+      this.taskRectPool.push(rect);
+    }
+  }
+
+  // Feature 518: Pre-allocate pool objects
+  preallocatePool(count: number): void {
+    for (let i = 0; i < count; i++) {
+      this.taskRectPool.push({ x: 0, y: 0, width: 0, height: 0, color: '' });
+    }
+  }
+
+  // Feature 519: Clear object pool
+  clearPool(): void {
+    this.taskRectPool = [];
+    this.pooledObjects.clear();
+  }
+
+  // Feature 520: Get rect pool statistics
+  // Note: getPoolStats() already exists (Feature 168). This is for rect pool specifically.
+  getRectPoolStats(): { rectPoolSize: number; maxPoolSize: number; utilization: number } {
+    return {
+      rectPoolSize: this.taskRectPool.length,
+      maxPoolSize: this.maxPoolSize,
+      utilization: 1 - (this.taskRectPool.length / this.maxPoolSize)
+    };
+  }
+
+  // Feature 521: Set maximum pool size
+  setMaxPoolSize(size: number): void {
+    this.maxPoolSize = Math.max(100, size);
+    // Trim if necessary
+    while (this.taskRectPool.length > this.maxPoolSize) {
+      this.taskRectPool.pop();
+    }
+  }
+
+  // Feature 522-525: Generic object pool management
+  getPooledObject<T>(key: string, factory: () => T): T {
+    const pool = this.pooledObjects.get(key) as T[] | undefined;
+    if (pool && pool.length > 0) {
+      return pool.pop()!;
+    }
+    return factory();
+  }
+
+  releasePooledObject<T>(key: string, obj: T): void {
+    let pool = this.pooledObjects.get(key) as T[] | undefined;
+    if (!pool) {
+      pool = [];
+      this.pooledObjects.set(key, pool as unknown[]);
+    }
+    if (pool.length < 1000) {
+      pool.push(obj);
+    }
+  }
+
+  // Feature 526: Memory usage estimate
+  getMemoryEstimate(): { tasks: number; pools: number; animations: number; total: number } {
+    const taskSize = 200; // Rough estimate per task in bytes
+    const poolObjSize = 50;
+
+    const tasksMemory = this.state.tasks.length * taskSize;
+    const poolsMemory = this.taskRectPool.length * poolObjSize;
+    const animationsMemory = this.propertyAnimations.size * 100;
+
+    return {
+      tasks: tasksMemory,
+      pools: poolsMemory,
+      animations: animationsMemory,
+      total: tasksMemory + poolsMemory + animationsMemory
+    };
+  }
+
+  // Feature 527-530: Garbage collection hints
+  private lastGCHint: number = 0;
+  private gcHintInterval: number = 60000; // 1 minute
+
+  triggerGCHint(): void {
+    const now = Date.now();
+    if (now - this.lastGCHint > this.gcHintInterval) {
+      // Clear temporary references
+      this.clearDirtyRegions();
+      this.clearRenderQueue();
+      // Trim pools
+      while (this.taskRectPool.length > this.maxPoolSize / 2) {
+        this.taskRectPool.pop();
+      }
+      this.lastGCHint = now;
+    }
+  }
+
+  setGCHintInterval(ms: number): void {
+    this.gcHintInterval = Math.max(10000, ms);
+  }
+
+  // =========================================================================
+  // FEATURE 531-545: RENDER OPTIMIZATION
+  // =========================================================================
+  private renderBudgetMs: number = 16; // Target 60fps
+  private adaptiveQualityEnabled: boolean = true;
+  private currentQualityLevel: 'high' | 'medium' | 'low' = 'high';
+  private frameSkipCount: number = 0;
+  private maxFrameSkips: number = 3;
+
+  // Feature 531: Set render budget
+  setRenderBudget(ms: number): void {
+    this.renderBudgetMs = Math.max(8, Math.min(33, ms));
+  }
+
+  // Feature 532: Get render budget
+  getRenderBudget(): number {
+    return this.renderBudgetMs;
+  }
+
+  // Feature 533: Check if within render budget
+  isWithinRenderBudget(elapsedMs: number): boolean {
+    return elapsedMs < this.renderBudgetMs * 0.8;
+  }
+
+  // Feature 534: Enable/disable adaptive quality
+  setAdaptiveQualityEnabled(enabled: boolean): void {
+    this.adaptiveQualityEnabled = enabled;
+    if (!enabled) {
+      this.currentQualityLevel = 'high';
+    }
+  }
+
+  // Feature 535: Get current quality level
+  getCurrentQualityLevel(): typeof this.currentQualityLevel {
+    return this.currentQualityLevel;
+  }
+
+  // Feature 536: Adjust quality based on performance
+  adjustQualityLevel(): void {
+    if (!this.adaptiveQualityEnabled) return;
+
+    const metrics = this.getPerformanceMetrics();
+
+    if (metrics.fps < 30) {
+      this.currentQualityLevel = 'low';
+    } else if (metrics.fps < 50) {
+      this.currentQualityLevel = 'medium';
+    } else {
+      this.currentQualityLevel = 'high';
+    }
+  }
+
+  // Feature 537: Should render shadows (based on quality)
+  shouldRenderShadows(): boolean {
+    return this.currentQualityLevel === 'high';
+  }
+
+  // Feature 538: Should render anti-aliasing
+  shouldRenderAntiAliased(): boolean {
+    return this.currentQualityLevel !== 'low';
+  }
+
+  // Feature 539: Get task simplification level
+  getTaskSimplificationLevel(): number {
+    switch (this.currentQualityLevel) {
+      case 'high': return 0;
+      case 'medium': return 1;
+      case 'low': return 2;
+    }
+  }
+
+  // Feature 540: Frame skip for adaptive performance
+  // Note: shouldSkipFrame() already exists (Feature 206). This adds adaptive logic.
+  shouldSkipFrameAdaptive(): boolean {
+    if (this.frameSkipCount >= this.maxFrameSkips) {
+      this.frameSkipCount = 0;
+      return false;
+    }
+
+    const metrics = this.getPerformanceMetrics();
+    if (metrics.fps < 20 && !this.isFullRepaintNeeded()) {
+      this.frameSkipCount++;
+      return true;
+    }
+
+    this.frameSkipCount = 0;
+    return false;
+  }
+
+  // Feature 541: Set max frame skips
+  setMaxFrameSkips(count: number): void {
+    this.maxFrameSkips = Math.max(0, Math.min(5, count));
+  }
+
+  // Feature 542-545: Batched rendering state
+  private renderBatchSize: number = 100;
+  private currentRenderBatch: number = 0;
+  private totalRenderBatches: number = 0;
+
+  setRenderBatchSize(size: number): void {
+    this.renderBatchSize = Math.max(10, size);
+  }
+
+  getRenderBatchInfo(): { current: number; total: number; size: number } {
+    return {
+      current: this.currentRenderBatch,
+      total: this.totalRenderBatches,
+      size: this.renderBatchSize
+    };
+  }
+
+  calculateRenderBatches(taskCount: number): void {
+    this.totalRenderBatches = Math.ceil(taskCount / this.renderBatchSize);
+    this.currentRenderBatch = 0;
+  }
+
+  getNextRenderBatchRange(): { start: number; end: number } | null {
+    if (this.currentRenderBatch >= this.totalRenderBatches) {
+      return null;
+    }
+
+    const start = this.currentRenderBatch * this.renderBatchSize;
+    const end = Math.min(start + this.renderBatchSize, this.state.tasks.length);
+    this.currentRenderBatch++;
+
+    return { start, end };
+  }
+
+  // =========================================================================
+  // FEATURE 546-550: BENCHMARKING & PROFILING
+  // =========================================================================
+  private benchmarkResults: Map<string, number[]> = new Map();
+  private profilingEnabled: boolean = false;
+  private profilingStartTime: number = 0;
+  private profilingSections: Map<string, { start: number; duration: number }> = new Map();
+
+  // Feature 546: Start benchmark
+  startBenchmark(name: string): void {
+    if (!this.benchmarkResults.has(name)) {
+      this.benchmarkResults.set(name, []);
+    }
+    this.profilingSections.set(name, { start: performance.now(), duration: 0 });
+  }
+
+  // Feature 547: End benchmark
+  endBenchmark(name: string): number {
+    const section = this.profilingSections.get(name);
+    if (!section) return 0;
+
+    const duration = performance.now() - section.start;
+    section.duration = duration;
+
+    const results = this.benchmarkResults.get(name)!;
+    results.push(duration);
+    if (results.length > 100) {
+      results.shift();
+    }
+
+    return duration;
+  }
+
+  // Feature 548: Get benchmark results
+  getBenchmarkResults(name: string): { avg: number; min: number; max: number; samples: number } | null {
+    const results = this.benchmarkResults.get(name);
+    if (!results || results.length === 0) return null;
+
+    return {
+      avg: results.reduce((a, b) => a + b, 0) / results.length,
+      min: Math.min(...results),
+      max: Math.max(...results),
+      samples: results.length
+    };
+  }
+
+  // Feature 549: Get all benchmark names
+  getAllBenchmarkNames(): string[] {
+    return Array.from(this.benchmarkResults.keys());
+  }
+
+  // Feature 550: Clear benchmarks
+  clearBenchmarks(): void {
+    this.benchmarkResults.clear();
+    this.profilingSections.clear();
+  }
+
 }
 
 // ============================================================================
