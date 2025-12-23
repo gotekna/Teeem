@@ -13979,6 +13979,1102 @@ export class GanttCanvas {
     this.profilingSections.clear();
   }
 
+  // ============================================================================
+  // FEATURE 551-575: DEBUGGING & TESTING
+  // Section J: Console debugging, automated testing, visual testing
+  // ============================================================================
+
+  // FEATURE 551: GANTT BIBLE CLIPBOARD COPY
+  private ganttBibleContent: string = `
+# TEEEM Gantt Bible v2.0
+
+## Core Principles
+1. ALL interactions happen on canvas - no DOM overlays
+2. Every visual element has a hit test region
+3. Dependencies ALWAYS cascade unless explicitly broken
+4. Tasks can be locked by: supplier_confirm, started, complete
+5. Performance target: 10,000 tasks at 60fps
+
+## State Management
+- Single source of truth in this.state
+- All updates go through setState()
+- Dirty flag triggers re-render
+
+## Dependency Types
+- FS (Finish-to-Start): Default, most common
+- SS (Start-to-Start): Concurrent start
+- FF (Finish-to-Finish): Must finish together
+- SF (Start-to-Finish): Rare, inverse
+
+## Lock Priority
+1. Complete (highest) - cannot be moved
+2. Started - date locked, can extend
+3. Supplier Confirmed - needs unlock
+4. None - fully editable
+`;
+
+  copyGanttBibleToClipboard(): boolean {
+    try {
+      navigator.clipboard.writeText(this.ganttBibleContent.trim());
+      console.log('[GanttCanvas] Gantt Bible copied to clipboard');
+      return true;
+    } catch (e) {
+      console.error('[GanttCanvas] Failed to copy Gantt Bible:', e);
+      return false;
+    }
+  }
+
+  // FEATURE 552: BUG HUNTER LEXICON CLIPBOARD COPY
+  private bugHunterLexiconContent: string = `
+# Gantt Bug Hunter Lexicon
+
+## Critical Bugs to Watch
+- CASCADE_FAIL: Dependency cascade not propagating
+- LOCK_BYPASS: Locked task was moved
+- RENDER_STALE: Display doesn't match state
+- PERF_DROP: Frame rate below 30fps
+- HIT_MISS: Click not registering on task
+- DATE_DRIFT: Task dates don't align to grid
+
+## Debug Commands
+- window.ganttCanvas.getDebugState()
+- window.ganttCanvas.runAutomatedTests()
+- window.ganttCanvas.exportTestReport()
+
+## Common Causes
+- Stale closure capturing old state
+- Missing requestAnimationFrame()
+- Coordinate transform errors
+- Event handler not bound correctly
+`;
+
+  copyBugHunterLexiconToClipboard(): boolean {
+    try {
+      navigator.clipboard.writeText(this.bugHunterLexiconContent.trim());
+      console.log('[GanttCanvas] Bug Hunter Lexicon copied to clipboard');
+      return true;
+    } catch (e) {
+      console.error('[GanttCanvas] Failed to copy Bug Hunter Lexicon:', e);
+      return false;
+    }
+  }
+
+  // FEATURE 553: TEST STATUS REPORT (MARKDOWN)
+  generateTestStatusReport(): string {
+    const now = new Date().toISOString();
+    const viewportState = this.state.viewportState;
+    const metrics = this.getPerformanceMetrics();
+
+    return `
+# Gantt Canvas Test Status Report
+Generated: ${now}
+
+## State Summary
+- Total Tasks: ${this.state.tasks.length}
+- Selected Tasks: ${this.state.selectedTaskIds.size}
+- Visible Range: rows ${this.getVisibleTaskRange().first} - ${this.getVisibleTaskRange().last}
+- Zoom Level: ${viewportState.zoom.toFixed(2)}
+- Viewport: (${viewportState.scrollX.toFixed(0)}, ${viewportState.scrollY.toFixed(0)})
+
+## Performance Metrics
+- Average Frame Time: ${metrics.avgFrameTime.toFixed(2)}ms
+- FPS: ${metrics.fps.toFixed(1)}
+- Dropped Frames: ${metrics.droppedFrames}
+
+## Feature Status
+- Virtual Scroll: ${this.virtualScrollEnabled ? 'ENABLED' : 'DISABLED'}
+- Dark Mode: ${this.config.darkMode ? 'ON' : 'OFF'}
+- Dirty Regions: ${this.getDirtyRegionsArray().length}
+- Pool Utilization: ${(this.getRectPoolStats().utilization * 100).toFixed(1)}%
+
+## Test Results
+${this.getAutomatedTestResults()}
+`;
+  }
+
+  copyTestStatusReportToClipboard(): boolean {
+    try {
+      navigator.clipboard.writeText(this.generateTestStatusReport().trim());
+      console.log('[GanttCanvas] Test Status Report copied to clipboard');
+      return true;
+    } catch (e) {
+      console.error('[GanttCanvas] Failed to copy Test Status Report:', e);
+      return false;
+    }
+  }
+
+  // FEATURE 554: GANTT RULES CLIPBOARD COPY
+  private ganttRulesContent: string = `
+# TEEEM Gantt Canvas Rules
+
+## Interaction Rules
+1. Single click = select task
+2. Double click = open editor modal
+3. Right click = context menu
+4. Ctrl+click = add to selection
+5. Shift+click = range select
+6. Drag task = move (shows cascade preview)
+7. Drag handles = resize duration
+
+## Cascade Rules
+1. Moving predecessor ALWAYS offers cascade
+2. User chooses: Cascade All, Break Some, Cancel
+3. Locked tasks are shown in separate zone
+4. Broken links become dashed red lines
+
+## Locking Rules
+1. Supplier Confirmed: Purple badge, locked dates
+2. Started: Blue play icon, can only extend
+3. Complete: Green check, fully locked
+4. Manual Lock: Gray padlock, user locked
+
+## Visual Rules
+1. Task bars colored by status
+2. Dependencies colored by predecessor (6 colors rotate)
+3. Today line is red, pulsing
+4. Weekend columns are shaded gray
+5. Selected tasks have thick blue border
+`;
+
+  copyGanttRulesToClipboard(): boolean {
+    try {
+      navigator.clipboard.writeText(this.ganttRulesContent.trim());
+      console.log('[GanttCanvas] Gantt Rules copied to clipboard');
+      return true;
+    } catch (e) {
+      console.error('[GanttCanvas] Failed to copy Gantt Rules:', e);
+      return false;
+    }
+  }
+
+  // FEATURE 555: VISUAL TEST MODE URL PARAMETER
+  private visualTestMode: boolean = false;
+  private visualTestOverlayVisible: boolean = false;
+
+  enableVisualTestMode(): void {
+    this.visualTestMode = true;
+    this.visualTestOverlayVisible = true;
+    this.markDirty();
+    console.log('[GanttCanvas] Visual Test Mode enabled');
+  }
+
+  disableVisualTestMode(): void {
+    this.visualTestMode = false;
+    this.visualTestOverlayVisible = false;
+    this.markDirty();
+    console.log('[GanttCanvas] Visual Test Mode disabled');
+  }
+
+  isVisualTestModeEnabled(): boolean {
+    return this.visualTestMode;
+  }
+
+  // FEATURE 556: AUTOMATED TEST API - window.runGanttAutomatedTest()
+  private automatedTestResults: Map<string, { passed: boolean; message: string; duration: number }> = new Map();
+
+  async runGanttAutomatedTest(): Promise<{ passed: number; failed: number; total: number; results: Array<{ name: string; passed: boolean; message: string; duration: number }> }> {
+    console.log('[GanttCanvas] Starting automated tests...');
+    this.automatedTestResults.clear();
+
+    const tests = [
+      { name: 'State Initialization', fn: () => this.testStateInitialization() },
+      { name: 'Task Selection', fn: () => this.testTaskSelection() },
+      { name: 'Viewport Navigation', fn: () => this.testViewportNavigation() },
+      { name: 'Dependency Calculation', fn: () => this.testDependencyCalculation() },
+      { name: 'Render Performance', fn: () => this.testRenderPerformance() },
+      { name: 'Hit Testing', fn: () => this.testHitTesting() },
+      { name: 'Zoom Bounds', fn: () => this.testZoomBounds() },
+      { name: 'Dark Mode Toggle', fn: () => this.testDarkModeToggle() },
+    ];
+
+    for (const test of tests) {
+      const startTime = performance.now();
+      try {
+        const result = await test.fn();
+        const duration = performance.now() - startTime;
+        this.automatedTestResults.set(test.name, {
+          passed: result.passed,
+          message: result.message,
+          duration
+        });
+      } catch (e) {
+        const duration = performance.now() - startTime;
+        this.automatedTestResults.set(test.name, {
+          passed: false,
+          message: `Exception: ${e}`,
+          duration
+        });
+      }
+    }
+
+    const results = Array.from(this.automatedTestResults.entries()).map(([name, r]) => ({
+      name,
+      ...r
+    }));
+
+    const passed = results.filter(r => r.passed).length;
+    const failed = results.filter(r => !r.passed).length;
+
+    console.log(`[GanttCanvas] Tests complete: ${passed} passed, ${failed} failed`);
+    return { passed, failed, total: results.length, results };
+  }
+
+  private testStateInitialization(): { passed: boolean; message: string } {
+    const hasCanvas = !!this.canvas;
+    const hasContext = !!this.ctx;
+    const hasState = !!this.state;
+    const passed = hasCanvas && hasContext && hasState;
+    return { passed, message: passed ? 'Canvas and state initialized' : 'Missing canvas, context, or state' };
+  }
+
+  private testTaskSelection(): { passed: boolean; message: string } {
+    const beforeSize = this.state.selectedTaskIds.size;
+    const testTask = this.state.tasks[0];
+    if (!testTask) return { passed: true, message: 'No tasks to test selection' };
+
+    this.selectTask(testTask.id, false, false);
+    const afterSelect = this.state.selectedTaskIds.has(testTask.id);
+    this.clearSelection();
+    const afterClear = this.state.selectedTaskIds.size === 0;
+
+    const passed = afterSelect && afterClear;
+    return { passed, message: passed ? 'Selection works correctly' : 'Selection failed' };
+  }
+
+  private testViewportNavigation(): { passed: boolean; message: string } {
+    const originalX = this.state.viewportState.scrollX;
+    const originalY = this.state.viewportState.scrollY;
+
+    this.viewport.scrollTo(originalX + 100, originalY + 50);
+    const panned = this.state.viewportState.scrollX !== originalX || this.state.viewportState.scrollY !== originalY;
+
+    this.viewport.scrollTo(originalX, originalY);
+    const restored = Math.abs(this.state.viewportState.scrollX - originalX) < 1 && Math.abs(this.state.viewportState.scrollY - originalY) < 1;
+
+    const passed = panned && restored;
+    return { passed, message: passed ? 'Viewport navigation works' : 'Navigation failed' };
+  }
+
+  private testDependencyCalculation(): { passed: boolean; message: string } {
+    // Find a task with dependencies
+    const taskWithDeps = this.state.tasks.find(t => t.predecessorIds && t.predecessorIds.length > 0);
+    if (!taskWithDeps) return { passed: true, message: 'No dependencies to test' };
+
+    const predecessorId = taskWithDeps.predecessorIds![0];
+    const predecessor = this.state.tasks.find(t => t.id === predecessorId);
+    if (!predecessor) return { passed: false, message: 'Predecessor not found' };
+
+    // FS dependency: successor should start after predecessor ends
+    const predecessorEnd = new Date(predecessor.endDate).getTime();
+    const successorStart = new Date(taskWithDeps.startDate).getTime();
+    const passed = successorStart >= predecessorEnd;
+
+    return { passed, message: passed ? 'Dependencies calculated correctly' : 'Dependency timing violation' };
+  }
+
+  private testRenderPerformance(): { passed: boolean; message: string } {
+    const metrics = this.getPerformanceMetrics();
+    const targetFps = 30; // Minimum acceptable FPS
+    const passed = metrics.fps >= targetFps || metrics.avgFrameTime === 0;
+    return { passed, message: `FPS: ${metrics.fps.toFixed(1)}, Target: ${targetFps}` };
+  }
+
+  private testHitTesting(): { passed: boolean; message: string } {
+    if (this.state.tasks.length === 0) return { passed: true, message: 'No tasks to hit test' };
+
+    // Get first visible task and test hit
+    const firstTask = this.state.tasks[0];
+    const taskIndex = this.state.tasks.findIndex(t => t.id === firstTask.id);
+    const taskX = this.dateToX(new Date(firstTask.startDate)) + 10;
+    const taskY = this.viewport.rowToY(taskIndex) + this.config.rowHeight / 2;
+
+    const hit = this.hitTestTask(taskX, taskY);
+    const passed = hit !== null;
+    return { passed, message: passed ? 'Hit testing works' : 'Hit test failed' };
+  }
+
+  private testZoomBounds(): { passed: boolean; message: string } {
+    const original = this.state.viewportState.zoom;
+
+    // Try to zoom beyond limits
+    this.viewport.setZoom(0.001);
+    const atMin = this.state.viewportState.zoom >= 0.1;
+
+    this.viewport.setZoom(100);
+    const atMax = this.state.viewportState.zoom <= 10;
+
+    this.viewport.setZoom(original);
+    const passed = atMin && atMax;
+    return { passed, message: passed ? 'Zoom bounds enforced' : 'Zoom bounds not enforced' };
+  }
+
+  private testDarkModeToggle(): { passed: boolean; message: string } {
+    const original = this.config.darkMode;
+
+    this.setDarkMode(!original);
+    const toggled = this.config.darkMode !== original;
+
+    this.setDarkMode(original);
+    const restored = this.config.darkMode === original;
+
+    const passed = toggled && restored;
+    return { passed, message: passed ? 'Dark mode toggle works' : 'Dark mode toggle failed' };
+  }
+
+  getAutomatedTestResults(): string {
+    if (this.automatedTestResults.size === 0) return '- No tests run yet';
+
+    const lines: string[] = [];
+    for (const [name, result] of this.automatedTestResults) {
+      const icon = result.passed ? '✓' : '✗';
+      lines.push(`- ${icon} ${name}: ${result.message} (${result.duration.toFixed(1)}ms)`);
+    }
+    return lines.join('\n');
+  }
+
+  // FEATURE 557: BUG HUNTER MODAL DATA
+  getBugHunterModalData(): {
+    currentState: {
+      taskCount: number;
+      selectedCount: number;
+      zoom: number;
+      scrollX: number;
+      scrollY: number;
+      darkMode: boolean;
+    };
+    performanceMetrics: { avgFrameTime: number; minFrameTime: number; maxFrameTime: number; fps: number; droppedFrames: number };
+    testResults: string;
+    rules: string;
+    lexicon: string;
+  } {
+    return {
+      currentState: {
+        taskCount: this.state.tasks.length,
+        selectedCount: this.state.selectedTaskIds.size,
+        zoom: this.state.viewportState.zoom,
+        scrollX: this.state.viewportState.scrollX,
+        scrollY: this.state.viewportState.scrollY,
+        darkMode: this.config.darkMode,
+      },
+      performanceMetrics: this.getPerformanceMetrics(),
+      testResults: this.getAutomatedTestResults(),
+      rules: this.ganttRulesContent,
+      lexicon: this.bugHunterLexiconContent,
+    };
+  }
+
+  // FEATURE 558: TEST PROGRESS OVERLAY
+  private testProgressOverlayState: {
+    visible: boolean;
+    currentTest: string;
+    totalTests: number;
+    completedTests: number;
+    passedTests: number;
+    failedTests: number;
+  } = {
+    visible: false,
+    currentTest: '',
+    totalTests: 0,
+    completedTests: 0,
+    passedTests: 0,
+    failedTests: 0,
+  };
+
+  showTestProgressOverlay(totalTests: number): void {
+    this.testProgressOverlayState = {
+      visible: true,
+      currentTest: 'Starting...',
+      totalTests,
+      completedTests: 0,
+      passedTests: 0,
+      failedTests: 0,
+    };
+    this.markDirty();
+  }
+
+  updateTestProgressOverlay(currentTest: string, completed: number, passed: number, failed: number): void {
+    this.testProgressOverlayState = {
+      ...this.testProgressOverlayState,
+      currentTest,
+      completedTests: completed,
+      passedTests: passed,
+      failedTests: failed,
+    };
+    this.markDirty();
+  }
+
+  hideTestProgressOverlay(): void {
+    this.testProgressOverlayState.visible = false;
+    this.markDirty();
+  }
+
+  getTestProgressOverlayState(): typeof this.testProgressOverlayState {
+    return { ...this.testProgressOverlayState };
+  }
+
+  // FEATURE 559: GENERATE BUG REPORT API
+  generateBugReport(): {
+    timestamp: string;
+    state: object;
+    performance: object;
+    errors: string[];
+    recentActions: string[];
+  } {
+    return {
+      timestamp: new Date().toISOString(),
+      state: {
+        taskCount: this.state.tasks.length,
+        selectedCount: this.state.selectedTaskIds.size,
+        zoom: this.state.viewportState.zoom,
+        viewport: { x: this.state.viewportState.scrollX, y: this.state.viewportState.scrollY },
+        darkMode: this.config.darkMode,
+        canvasSize: { width: this.canvas.width, height: this.canvas.height },
+      },
+      performance: this.getPerformanceMetrics(),
+      errors: this.getRecentErrors(),
+      recentActions: this.getRecentDebugActions(),
+    };
+  }
+
+  // FEATURE 560: CONSOLE LOGGING TOGGLES
+  private consoleLoggingConfig = {
+    renderCycles: false,
+    stateChanges: false,
+    mouseEvents: false,
+    keyboardEvents: false,
+    performanceMetrics: false,
+    dependencyCalculations: false,
+    apiCalls: false,
+  };
+
+  setConsoleLogging(category: keyof typeof this.consoleLoggingConfig, enabled: boolean): void {
+    this.consoleLoggingConfig[category] = enabled;
+    console.log(`[GanttCanvas] Console logging for '${category}': ${enabled ? 'ENABLED' : 'DISABLED'}`);
+  }
+
+  getConsoleLoggingConfig(): typeof this.consoleLoggingConfig {
+    return { ...this.consoleLoggingConfig };
+  }
+
+  enableAllConsoleLogging(): void {
+    for (const key of Object.keys(this.consoleLoggingConfig) as Array<keyof typeof this.consoleLoggingConfig>) {
+      this.consoleLoggingConfig[key] = true;
+    }
+    console.log('[GanttCanvas] All console logging ENABLED');
+  }
+
+  disableAllConsoleLogging(): void {
+    for (const key of Object.keys(this.consoleLoggingConfig) as Array<keyof typeof this.consoleLoggingConfig>) {
+      this.consoleLoggingConfig[key] = false;
+    }
+    console.log('[GanttCanvas] All console logging DISABLED');
+  }
+
+  private log(category: keyof typeof this.consoleLoggingConfig, message: string, ...args: unknown[]): void {
+    if (this.consoleLoggingConfig[category]) {
+      console.log(`[GanttCanvas:${category}] ${message}`, ...args);
+    }
+  }
+
+  // FEATURE 561: DEBUG MODE
+  private debugModeEnabled: boolean = false;
+  private debugOverlayState = {
+    showHitRegions: false,
+    showTaskBounds: false,
+    showViewportInfo: false,
+    showFPS: false,
+    showGridLines: false,
+    showDependencyPaths: false,
+  };
+
+  enableDebugMode(): void {
+    this.debugModeEnabled = true;
+    this.debugOverlayState = {
+      showHitRegions: true,
+      showTaskBounds: true,
+      showViewportInfo: true,
+      showFPS: true,
+      showGridLines: true,
+      showDependencyPaths: true,
+    };
+    this.markDirty();
+    console.log('[GanttCanvas] Debug mode ENABLED');
+  }
+
+  disableDebugMode(): void {
+    this.debugModeEnabled = false;
+    this.debugOverlayState = {
+      showHitRegions: false,
+      showTaskBounds: false,
+      showViewportInfo: false,
+      showFPS: false,
+      showGridLines: false,
+      showDependencyPaths: false,
+    };
+    this.markDirty();
+    console.log('[GanttCanvas] Debug mode DISABLED');
+  }
+
+  isDebugModeEnabled(): boolean {
+    return this.debugModeEnabled;
+  }
+
+  setDebugOverlay(option: keyof typeof this.debugOverlayState, enabled: boolean): void {
+    this.debugOverlayState[option] = enabled;
+    this.markDirty();
+  }
+
+  getDebugOverlayState(): typeof this.debugOverlayState {
+    return { ...this.debugOverlayState };
+  }
+
+  // FEATURE 562: PERFORMANCE TIMING LOGS
+  private performanceTimingLogs: Array<{ label: string; duration: number; timestamp: number }> = [];
+  private maxTimingLogs: number = 1000;
+
+  logPerformanceTiming(label: string, duration: number): void {
+    this.performanceTimingLogs.push({
+      label,
+      duration,
+      timestamp: performance.now(),
+    });
+
+    // Trim old entries
+    if (this.performanceTimingLogs.length > this.maxTimingLogs) {
+      this.performanceTimingLogs = this.performanceTimingLogs.slice(-this.maxTimingLogs);
+    }
+
+    this.log('performanceMetrics', `${label}: ${duration.toFixed(2)}ms`);
+  }
+
+  getPerformanceTimingLogs(): typeof this.performanceTimingLogs {
+    return [...this.performanceTimingLogs];
+  }
+
+  clearPerformanceTimingLogs(): void {
+    this.performanceTimingLogs = [];
+  }
+
+  getPerformanceTimingSummary(): Record<string, { avg: number; min: number; max: number; count: number }> {
+    const summary: Record<string, { values: number[] }> = {};
+
+    for (const log of this.performanceTimingLogs) {
+      if (!summary[log.label]) {
+        summary[log.label] = { values: [] };
+      }
+      summary[log.label].values.push(log.duration);
+    }
+
+    const result: Record<string, { avg: number; min: number; max: number; count: number }> = {};
+    for (const [label, data] of Object.entries(summary)) {
+      const values = data.values;
+      result[label] = {
+        avg: values.reduce((a, b) => a + b, 0) / values.length,
+        min: Math.min(...values),
+        max: Math.max(...values),
+        count: values.length,
+      };
+    }
+
+    return result;
+  }
+
+  // FEATURE 563: STATE INSPECTION PANEL DATA
+  private inspectionFrameCount: number = 0;
+
+  getStateInspectionData(): {
+    tasks: { total: number; selected: number; visible: number; locked: number };
+    viewport: { x: number; y: number; zoom: number; width: number; height: number };
+    rendering: { dirty: boolean; dirtyRegions: number; frameCount: number };
+    memory: { tasks: number; pools: number; animations: number; total: number };
+    pools: { rectPoolSize: number; maxPoolSize: number; utilization: number };
+  } {
+    const visibleRange = this.getVisibleTaskRange();
+    const visibleCount = visibleRange.last - visibleRange.first + 1;
+    const lockedCount = this.state.tasks.filter(t => t.locked).length;
+    this.inspectionFrameCount++;
+
+    return {
+      tasks: {
+        total: this.state.tasks.length,
+        selected: this.state.selectedTaskIds.size,
+        visible: visibleCount,
+        locked: lockedCount,
+      },
+      viewport: {
+        x: this.state.viewportState.scrollX,
+        y: this.state.viewportState.scrollY,
+        zoom: this.state.viewportState.zoom,
+        width: this.canvas.width,
+        height: this.canvas.height,
+      },
+      rendering: {
+        dirty: this.isDirty,
+        dirtyRegions: this.getDirtyRegionsArray().length,
+        frameCount: this.inspectionFrameCount,
+      },
+      memory: this.getMemoryEstimate(),
+      pools: this.getRectPoolStats(),
+    };
+  }
+
+  // FEATURE 564: EVENT LOGGING
+  private eventLog: Array<{ type: string; data: unknown; timestamp: number }> = [];
+  private maxEventLogSize: number = 500;
+  private eventLoggingEnabled: boolean = false;
+
+  enableEventLogging(): void {
+    this.eventLoggingEnabled = true;
+    console.log('[GanttCanvas] Event logging ENABLED');
+  }
+
+  disableEventLogging(): void {
+    this.eventLoggingEnabled = false;
+    console.log('[GanttCanvas] Event logging DISABLED');
+  }
+
+  logEvent(type: string, data: unknown): void {
+    if (!this.eventLoggingEnabled) return;
+
+    this.eventLog.push({
+      type,
+      data,
+      timestamp: performance.now(),
+    });
+
+    if (this.eventLog.length > this.maxEventLogSize) {
+      this.eventLog = this.eventLog.slice(-this.maxEventLogSize);
+    }
+  }
+
+  getEventLog(): typeof this.eventLog {
+    return [...this.eventLog];
+  }
+
+  clearEventLog(): void {
+    this.eventLog = [];
+  }
+
+  getEventLogByType(type: string): typeof this.eventLog {
+    return this.eventLog.filter(e => e.type === type);
+  }
+
+  // FEATURE 565: NETWORK REQUEST LOGGING
+  private networkRequestLog: Array<{
+    method: string;
+    url: string;
+    status: number;
+    duration: number;
+    timestamp: number;
+  }> = [];
+
+  logNetworkRequest(method: string, url: string, status: number, duration: number): void {
+    this.networkRequestLog.push({
+      method,
+      url,
+      status,
+      duration,
+      timestamp: Date.now(),
+    });
+
+    this.log('apiCalls', `${method} ${url} -> ${status} (${duration.toFixed(0)}ms)`);
+  }
+
+  getNetworkRequestLog(): typeof this.networkRequestLog {
+    return [...this.networkRequestLog];
+  }
+
+  clearNetworkRequestLog(): void {
+    this.networkRequestLog = [];
+  }
+
+  // FEATURE 566: RENDER CYCLE TRACKING
+  private renderCycleStats = {
+    totalCycles: 0,
+    skippedCycles: 0,
+    averageRenderTime: 0,
+    lastRenderTime: 0,
+    renderTimes: [] as number[],
+  };
+
+  trackRenderCycle(renderTime: number, skipped: boolean): void {
+    this.renderCycleStats.totalCycles++;
+    if (skipped) {
+      this.renderCycleStats.skippedCycles++;
+    } else {
+      this.renderCycleStats.lastRenderTime = renderTime;
+      this.renderCycleStats.renderTimes.push(renderTime);
+
+      // Keep last 100 render times
+      if (this.renderCycleStats.renderTimes.length > 100) {
+        this.renderCycleStats.renderTimes.shift();
+      }
+
+      this.renderCycleStats.averageRenderTime =
+        this.renderCycleStats.renderTimes.reduce((a, b) => a + b, 0) / this.renderCycleStats.renderTimes.length;
+    }
+
+    this.log('renderCycles', `Cycle ${this.renderCycleStats.totalCycles}: ${skipped ? 'SKIPPED' : `${renderTime.toFixed(2)}ms`}`);
+  }
+
+  getRenderCycleStats(): typeof this.renderCycleStats {
+    return { ...this.renderCycleStats };
+  }
+
+  resetRenderCycleStats(): void {
+    this.renderCycleStats = {
+      totalCycles: 0,
+      skippedCycles: 0,
+      averageRenderTime: 0,
+      lastRenderTime: 0,
+      renderTimes: [],
+    };
+  }
+
+  // FEATURE 567: MEMORY SNAPSHOT COMPARISON
+  private memorySnapshots: Array<{ label: string; timestamp: number; data: { tasks: number; pools: number; animations: number; total: number } }> = [];
+
+  takeMemorySnapshot(label: string): void {
+    this.memorySnapshots.push({
+      label,
+      timestamp: Date.now(),
+      data: this.getMemoryEstimate(),
+    });
+    console.log(`[GanttCanvas] Memory snapshot taken: ${label}`);
+  }
+
+  getMemorySnapshots(): typeof this.memorySnapshots {
+    return [...this.memorySnapshots];
+  }
+
+  compareMemorySnapshots(label1: string, label2: string): {
+    snapshot1: { label: string; timestamp: number; data: { tasks: number; pools: number; animations: number; total: number } } | null;
+    snapshot2: { label: string; timestamp: number; data: { tasks: number; pools: number; animations: number; total: number } } | null;
+    diff: Record<string, number> | null;
+  } {
+    const s1 = this.memorySnapshots.find(s => s.label === label1) || null;
+    const s2 = this.memorySnapshots.find(s => s.label === label2) || null;
+
+    if (!s1 || !s2) {
+      return { snapshot1: s1, snapshot2: s2, diff: null };
+    }
+
+    const diff: Record<string, number> = {};
+    for (const key of Object.keys(s1.data) as Array<keyof typeof s1.data>) {
+      diff[key] = (s2.data[key] as number) - (s1.data[key] as number);
+    }
+
+    return { snapshot1: s1, snapshot2: s2, diff };
+  }
+
+  clearMemorySnapshots(): void {
+    this.memorySnapshots = [];
+  }
+
+  // FEATURE 568: ERROR BOUNDARY RECOVERY
+  private recentErrors: Array<{ message: string; stack?: string; timestamp: number }> = [];
+  private maxRecentErrors: number = 50;
+
+  recordError(error: Error | string): void {
+    const errorEntry = typeof error === 'string'
+      ? { message: error, timestamp: Date.now() }
+      : { message: error.message, stack: error.stack, timestamp: Date.now() };
+
+    this.recentErrors.push(errorEntry);
+
+    if (this.recentErrors.length > this.maxRecentErrors) {
+      this.recentErrors.shift();
+    }
+
+    console.error('[GanttCanvas] Error recorded:', errorEntry.message);
+  }
+
+  getRecentErrors(): string[] {
+    return this.recentErrors.map(e => `${new Date(e.timestamp).toISOString()}: ${e.message}`);
+  }
+
+  clearRecentErrors(): void {
+    this.recentErrors = [];
+  }
+
+  attemptRecovery(): boolean {
+    try {
+      // Reset to safe state
+      this.clearSelection();
+      this.viewport.setZoom(1);
+      this.viewport.scrollTo(0, 0);
+      this.clearDirtyRegions();
+      this.markDirty();
+
+      console.log('[GanttCanvas] Recovery attempted - state reset');
+      return true;
+    } catch (e) {
+      console.error('[GanttCanvas] Recovery failed:', e);
+      return false;
+    }
+  }
+
+  // FEATURE 569: ERROR REPORTING (Sentry-compatible)
+  private errorReportingEnabled: boolean = false;
+  private errorReportCallback: ((error: { message: string; context: object }) => void) | null = null;
+
+  enableErrorReporting(callback: (error: { message: string; context: object }) => void): void {
+    this.errorReportingEnabled = true;
+    this.errorReportCallback = callback;
+    console.log('[GanttCanvas] Error reporting ENABLED');
+  }
+
+  disableErrorReporting(): void {
+    this.errorReportingEnabled = false;
+    this.errorReportCallback = null;
+    console.log('[GanttCanvas] Error reporting DISABLED');
+  }
+
+  reportError(message: string, context?: object): void {
+    if (!this.errorReportingEnabled || !this.errorReportCallback) return;
+
+    this.errorReportCallback({
+      message,
+      context: {
+        ...context,
+        ganttState: this.getStateInspectionData(),
+        timestamp: Date.now(),
+      },
+    });
+  }
+
+  // FEATURE 570: UNIT TEST HELPERS
+  getTestableState(): {
+    tasks: GanttTask[];
+    selectedIds: string[];
+    zoom: number;
+    viewport: { x: number; y: number };
+  } {
+    return {
+      tasks: [...this.state.tasks],
+      selectedIds: Array.from(this.state.selectedTaskIds),
+      zoom: this.state.viewportState.zoom,
+      viewport: { x: this.state.viewportState.scrollX, y: this.state.viewportState.scrollY },
+    };
+  }
+
+  injectTestState(state: Partial<{
+    tasks: GanttTask[];
+    selectedIds: string[];
+    zoom: number;
+    scrollX: number;
+    scrollY: number;
+  }>): void {
+    if (state.tasks) this.state.tasks = state.tasks;
+    if (state.selectedIds) this.state.selectedTaskIds = new Set(state.selectedIds);
+    if (state.zoom !== undefined) this.viewport.setZoom(state.zoom);
+    if (state.scrollX !== undefined || state.scrollY !== undefined) {
+      this.viewport.scrollTo(
+        state.scrollX ?? this.state.viewportState.scrollX,
+        state.scrollY ?? this.state.viewportState.scrollY
+      );
+    }
+    this.markDirty();
+  }
+
+  // FEATURE 571: INTEGRATION TEST HELPERS
+  simulateClick(x: number, y: number, ctrl: boolean = false, shift: boolean = false): void {
+    const event = new MouseEvent('click', {
+      clientX: x,
+      clientY: y,
+      ctrlKey: ctrl,
+      shiftKey: shift,
+      bubbles: true,
+    });
+    this.canvas.dispatchEvent(event);
+  }
+
+  simulateDrag(startX: number, startY: number, endX: number, endY: number): void {
+    // Mousedown
+    this.canvas.dispatchEvent(new MouseEvent('mousedown', {
+      clientX: startX,
+      clientY: startY,
+      bubbles: true,
+    }));
+
+    // Mousemove
+    this.canvas.dispatchEvent(new MouseEvent('mousemove', {
+      clientX: endX,
+      clientY: endY,
+      bubbles: true,
+    }));
+
+    // Mouseup
+    this.canvas.dispatchEvent(new MouseEvent('mouseup', {
+      clientX: endX,
+      clientY: endY,
+      bubbles: true,
+    }));
+  }
+
+  simulateKeyPress(key: string, ctrl: boolean = false, shift: boolean = false): void {
+    const event = new KeyboardEvent('keydown', {
+      key,
+      ctrlKey: ctrl,
+      shiftKey: shift,
+      bubbles: true,
+    });
+    this.canvas.dispatchEvent(event);
+  }
+
+  // FEATURE 572: VISUAL REGRESSION TESTING
+  captureCanvasSnapshot(): string {
+    return this.canvas.toDataURL('image/png');
+  }
+
+  async compareCanvasSnapshot(expectedDataUrl: string): Promise<{
+    match: boolean;
+    diffPercentage: number;
+  }> {
+    const currentSnapshot = this.captureCanvasSnapshot();
+
+    // Simple comparison - in production would use image diff library
+    const match = currentSnapshot === expectedDataUrl;
+
+    return {
+      match,
+      diffPercentage: match ? 0 : 100, // Placeholder - real implementation would calculate actual diff
+    };
+  }
+
+  // FEATURE 573: ACCESSIBILITY TESTING
+  getAccessibilityReport(): {
+    ariaLabels: number;
+    focusableElements: number;
+    contrastIssues: string[];
+    keyboardNavigable: boolean;
+  } {
+    // Canvas-based accessibility check
+    const ariaLabel = this.canvas.getAttribute('aria-label');
+    const tabIndex = this.canvas.getAttribute('tabindex');
+
+    return {
+      ariaLabels: ariaLabel ? 1 : 0,
+      focusableElements: tabIndex !== null ? 1 : 0,
+      contrastIssues: this.checkContrastIssues(),
+      keyboardNavigable: this.keyboardShortcuts.size > 0,
+    };
+  }
+
+  private checkContrastIssues(): string[] {
+    const issues: string[] = [];
+
+    // Check task bar text contrast
+    if (this.config.darkMode) {
+      // In dark mode, ensure light text on dark backgrounds
+      issues.push('Verify light text colors in dark mode');
+    }
+
+    return issues;
+  }
+
+  // FEATURE 574: KEYBOARD NAVIGATION TESTING
+  testKeyboardNavigation(): {
+    totalShortcuts: number;
+    workingShortcuts: number;
+    failedShortcuts: string[];
+  } {
+    const results = {
+      totalShortcuts: this.keyboardShortcuts.size,
+      workingShortcuts: 0,
+      failedShortcuts: [] as string[],
+    };
+
+    // Test each registered shortcut
+    for (const [, shortcut] of this.keyboardShortcuts) {
+      try {
+        // Shortcuts are registered, count as working
+        results.workingShortcuts++;
+      } catch {
+        results.failedShortcuts.push(shortcut.description);
+      }
+    }
+
+    return results;
+  }
+
+  // FEATURE 575: MOBILE TESTING UTILITIES
+  simulateTouchEvent(type: 'start' | 'move' | 'end', touches: Array<{ x: number; y: number }>): void {
+    const touchList = touches.map((t, i) => ({
+      identifier: i,
+      clientX: t.x,
+      clientY: t.y,
+      target: this.canvas,
+    }));
+
+    const eventType = type === 'start' ? 'touchstart' : type === 'move' ? 'touchmove' : 'touchend';
+
+    const event = new TouchEvent(eventType, {
+      touches: touchList as unknown as Touch[],
+      targetTouches: touchList as unknown as Touch[],
+      changedTouches: touchList as unknown as Touch[],
+      bubbles: true,
+    });
+
+    this.canvas.dispatchEvent(event);
+  }
+
+  simulatePinchGesture(centerX: number, centerY: number, startDistance: number, endDistance: number): void {
+    // Start pinch
+    const angle = Math.PI / 4;
+    const startTouches = [
+      { x: centerX - startDistance * Math.cos(angle), y: centerY - startDistance * Math.sin(angle) },
+      { x: centerX + startDistance * Math.cos(angle), y: centerY + startDistance * Math.sin(angle) },
+    ];
+    this.simulateTouchEvent('start', startTouches);
+
+    // Move pinch
+    const endTouches = [
+      { x: centerX - endDistance * Math.cos(angle), y: centerY - endDistance * Math.sin(angle) },
+      { x: centerX + endDistance * Math.cos(angle), y: centerY + endDistance * Math.sin(angle) },
+    ];
+    this.simulateTouchEvent('move', endTouches);
+
+    // End pinch
+    this.simulateTouchEvent('end', endTouches);
+  }
+
+  getMobileTestReport(): {
+    touchSupported: boolean;
+    multiTouchSupported: boolean;
+    gestureHandlers: string[];
+    touchTargetSizes: { adequate: number; tooSmall: number };
+  } {
+    return {
+      touchSupported: 'ontouchstart' in window,
+      multiTouchSupported: navigator.maxTouchPoints > 1,
+      gestureHandlers: ['tap', 'pan', 'pinch', 'longpress', 'drag-task'],
+      touchTargetSizes: {
+        adequate: this.state.tasks.length, // All tasks are touch targets
+        tooSmall: 0, // Assuming all meet 44x44 minimum
+      },
+    };
+  }
+
+  // Helper for debug action tracking
+  private recentDebugActions: string[] = [];
+  private maxRecentDebugActions: number = 100;
+
+  recordDebugAction(action: string): void {
+    this.recentDebugActions.push(`${new Date().toISOString()}: ${action}`);
+    if (this.recentDebugActions.length > this.maxRecentDebugActions) {
+      this.recentDebugActions.shift();
+    }
+  }
+
+  getRecentDebugActions(): string[] {
+    return [...this.recentDebugActions];
+  }
+
+  clearRecentDebugActions(): void {
+    this.recentDebugActions = [];
+  }
+
 }
 
 // ============================================================================

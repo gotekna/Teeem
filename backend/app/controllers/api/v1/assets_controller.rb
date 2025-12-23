@@ -364,8 +364,8 @@ module Api
           success: true,
           expenses: expenses.as_json(include: { user: { only: [:id, :full_name] } }),
           totals: {
-            total: expenses.sum(:amount),
-            by_type: expenses.group(:expense_type).sum(:amount)
+            total: @asset.expenses.sum(:amount),
+            by_type: @asset.expenses.group(:expense_type).sum(:amount)
           }
         }
       end
