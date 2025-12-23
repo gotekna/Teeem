@@ -97,8 +97,10 @@ export const COMPANY_PLACEHOLDERS: PlaceholderToken[] = [
     description: "Bank BSB number",
   },
   {
-    code: "{BankNumber}",
+    code: "{AccountNum}",
     example: "12345678",
+    longCode: "{AccountNumber}",
+    longExample: "12345678",
     color: "purple",
     description: "Bank account number",
   },
@@ -449,6 +451,9 @@ export function getLongToShortMap(): Record<string, string> {
 
 /**
  * Resolve placeholders in a template string with example values
+ *
+ * @param template - The template string with {placeholders}
+ * @param useLongVariants - If true, prefer long examples for all replacements
  */
 export function resolveWithExamples(
   template: string,
@@ -458,10 +463,13 @@ export function resolveWithExamples(
   const allPlaceholders = PLACEHOLDERS_BY_SCOPE.all;
 
   allPlaceholders.forEach((p) => {
-    if (useLongVariants && p.longCode && p.longExample) {
+    // Always replace long codes with long examples (if they exist in template)
+    if (p.longCode && p.longExample) {
       result = result.replace(new RegExp(escapeRegex(p.longCode), "g"), p.longExample);
     }
-    result = result.replace(new RegExp(escapeRegex(p.code), "g"), p.example);
+    // Replace short codes - use long example if useLongVariants is true
+    const exampleValue = useLongVariants && p.longExample ? p.longExample : p.example;
+    result = result.replace(new RegExp(escapeRegex(p.code), "g"), exampleValue);
   });
 
   return result;

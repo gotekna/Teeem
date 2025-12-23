@@ -108,7 +108,11 @@ module DocumentTemplatable
     # Bank Account Tokens
     # ====================
     result.gsub!('{BankCode}', context[:bank_code].to_s) if context[:bank_code].present?
-    result.gsub!('{AccountNumber}', context[:account_number].to_s) if context[:account_number].present?
+    # Support both {AccountNum} (short) and {AccountNumber} (long)
+    if context[:account_number].present?
+      result.gsub!('{AccountNum}', context[:account_number].to_s)
+      result.gsub!('{AccountNumber}', context[:account_number].to_s)
+    end
 
     # BSB - format as XXX-XXX if not already formatted
     if context[:bsb].present?
