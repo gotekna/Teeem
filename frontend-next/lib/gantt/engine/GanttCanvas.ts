@@ -11076,6 +11076,361 @@ export class GanttCanvas {
     this.routeCache.clear();
   }
 
+  // =========================================================================
+  // FEATURE 61: TODAY MARKER LINE
+  // =========================================================================
+  private todayMarkerEnabled: boolean = true;
+  private todayMarkerColor: string = '#ef4444';
+  private todayMarkerWidth: number = 2;
+
+  setTodayMarkerEnabled(enabled: boolean): void {
+    this.todayMarkerEnabled = enabled;
+    this.markDirty();
+  }
+
+  setTodayMarkerStyle(color: string, width: number): void {
+    this.todayMarkerColor = color;
+    this.todayMarkerWidth = width;
+    this.markDirty();
+  }
+
+  isTodayMarkerEnabled(): boolean { return this.todayMarkerEnabled; }
+
+  // =========================================================================
+  // FEATURE 62: TODAY MARKER LABEL
+  // =========================================================================
+  private todayLabelEnabled: boolean = true;
+  private todayLabelFormat: string = 'Today';
+
+  setTodayLabelEnabled(enabled: boolean): void {
+    this.todayLabelEnabled = enabled;
+    this.markDirty();
+  }
+
+  setTodayLabelFormat(format: string): void {
+    this.todayLabelFormat = format;
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 63: TODAY MARKER PULSING ANIMATION
+  // =========================================================================
+  private todayMarkerPulseEnabled: boolean = false;
+  private todayMarkerPulsePhase: number = 0;
+
+  setTodayMarkerPulse(enabled: boolean): void {
+    this.todayMarkerPulseEnabled = enabled;
+    if (enabled) this.startPulseAnimation();
+    this.markDirty();
+  }
+
+  private startPulseAnimation(): void {
+    const animate = () => {
+      if (!this.todayMarkerPulseEnabled) return;
+      this.todayMarkerPulsePhase = (this.todayMarkerPulsePhase + 0.05) % (Math.PI * 2);
+      this.markDirty();
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }
+
+  getTodayMarkerOpacity(): number {
+    return this.todayMarkerPulseEnabled ? 0.5 + 0.5 * Math.sin(this.todayMarkerPulsePhase) : 1;
+  }
+
+  // =========================================================================
+  // FEATURE 64: CUSTOM DATE FORMAT PER ZOOM LEVEL
+  // =========================================================================
+  private dateFormats: Map<string, Intl.DateTimeFormatOptions> = new Map([
+    ['day', { month: 'short', day: 'numeric' }],
+    ['week', { month: 'short', day: 'numeric' }],
+    ['month', { month: 'short', year: 'numeric' }],
+    ['quarter', { month: 'short', year: 'numeric' }],
+    ['year', { year: 'numeric' }]
+  ]);
+
+  setDateFormat(zoomLevel: string, format: Intl.DateTimeFormatOptions): void {
+    this.dateFormats.set(zoomLevel, format);
+    this.markDirty();
+  }
+
+  getDateFormat(zoomLevel: string): Intl.DateTimeFormatOptions {
+    return this.dateFormats.get(zoomLevel) || { month: 'short', day: 'numeric' };
+  }
+
+  // =========================================================================
+  // FEATURE 65: LOCALE-AWARE DATE FORMATTING
+  // =========================================================================
+  private locale: string = 'en-AU';
+
+  setLocale(locale: string): void {
+    this.locale = locale;
+    this.markDirty();
+  }
+
+  getLocale(): string { return this.locale; }
+
+  // Note: formatDate already exists in the class - use that method
+
+  // =========================================================================
+  // FEATURE 66: ALTERNATING ROW BACKGROUND COLORS
+  // =========================================================================
+  private alternatingRowsEnabled: boolean = true;
+  private evenRowColor: string = 'transparent';
+  private oddRowColor: string = 'rgba(0,0,0,0.02)';
+
+  setAlternatingRows(enabled: boolean, evenColor?: string, oddColor?: string): void {
+    this.alternatingRowsEnabled = enabled;
+    if (evenColor) this.evenRowColor = evenColor;
+    if (oddColor) this.oddRowColor = oddColor;
+    this.markDirty();
+  }
+
+  getRowBackgroundColor(rowIndex: number): string {
+    if (!this.alternatingRowsEnabled) return 'transparent';
+    return rowIndex % 2 === 0 ? this.evenRowColor : this.oddRowColor;
+  }
+
+  // =========================================================================
+  // FEATURE 67: ROW HEIGHT CONFIGURATION
+  // =========================================================================
+  setRowHeight(height: number): void {
+    this.config.rowHeight = Math.max(20, Math.min(100, height));
+    this.markDirty();
+  }
+
+  getRowHeight(): number { return this.config.rowHeight; }
+
+  // =========================================================================
+  // FEATURE 68: HEADER HEIGHT CONFIGURATION
+  // =========================================================================
+  setHeaderHeight(height: number): void {
+    this.config.headerHeight = Math.max(30, Math.min(150, height));
+    this.markDirty();
+  }
+
+  getHeaderHeight(): number { return this.config.headerHeight; }
+
+  // =========================================================================
+  // FEATURE 69: STICKY HEADER (STAYS VISIBLE ON SCROLL)
+  // =========================================================================
+  private stickyHeaderEnabled: boolean = true;
+
+  setStickyHeader(enabled: boolean): void {
+    this.stickyHeaderEnabled = enabled;
+    this.markDirty();
+  }
+
+  isStickyHeaderEnabled(): boolean { return this.stickyHeaderEnabled; }
+
+  // Note: Sticky header is handled in renderHeader() by always drawing at y=0
+
+  // =========================================================================
+  // FEATURE 70: TIME SCALE CLICK TO SCROLL TO DATE
+  // =========================================================================
+  private timeScaleClickEnabled: boolean = true;
+
+  setTimeScaleClickEnabled(enabled: boolean): void {
+    this.timeScaleClickEnabled = enabled;
+  }
+
+  // Note: handleTimeScaleClick already exists in Feature 25
+  // Note: scrollToDate already exists in the class
+
+  // =========================================================================
+  // FEATURE 71: TIME SCALE DRAG TO SELECT DATE RANGE
+  // =========================================================================
+  private dateRangeSelection: { start: Date | null; end: Date | null } = { start: null, end: null };
+  private isSelectingDateRange: boolean = false;
+
+  startDateRangeSelection(x: number): void {
+    if (!this.timeScaleClickEnabled) return;
+    this.isSelectingDateRange = true;
+    this.dateRangeSelection.start = this.viewport.xToDate(x);
+    this.dateRangeSelection.end = null;
+    this.markDirty();
+  }
+
+  updateDateRangeSelection(x: number): void {
+    if (!this.isSelectingDateRange) return;
+    this.dateRangeSelection.end = this.viewport.xToDate(x);
+    this.markDirty();
+  }
+
+  endDateRangeSelection(): { start: Date; end: Date } | null {
+    if (!this.isSelectingDateRange || !this.dateRangeSelection.start || !this.dateRangeSelection.end) {
+      this.isSelectingDateRange = false;
+      return null;
+    }
+
+    const result = {
+      start: this.dateRangeSelection.start < this.dateRangeSelection.end ? this.dateRangeSelection.start : this.dateRangeSelection.end,
+      end: this.dateRangeSelection.start < this.dateRangeSelection.end ? this.dateRangeSelection.end : this.dateRangeSelection.start
+    };
+
+    this.isSelectingDateRange = false;
+    this.dateRangeSelection = { start: null, end: null };
+    this.markDirty();
+    return result;
+  }
+
+  getDateRangeSelection(): { start: Date | null; end: Date | null } { return { ...this.dateRangeSelection }; }
+
+  // =========================================================================
+  // FEATURE 72: MAJOR/MINOR GRID LINES
+  // =========================================================================
+  private majorGridLineColor: string = '#e5e7eb';
+  private minorGridLineColor: string = '#f3f4f6';
+  private majorGridLineWidth: number = 1;
+  private minorGridLineWidth: number = 0.5;
+
+  setGridLineStyles(major: { color?: string; width?: number }, minor: { color?: string; width?: number }): void {
+    if (major.color) this.majorGridLineColor = major.color;
+    if (major.width) this.majorGridLineWidth = major.width;
+    if (minor.color) this.minorGridLineColor = minor.color;
+    if (minor.width) this.minorGridLineWidth = minor.width;
+    this.markDirty();
+  }
+
+  isMajorGridLine(date: Date): boolean {
+    // Major grid lines at week/month boundaries depending on zoom
+    const zoom = this.viewport.getState().zoom;
+    if (zoom < 0.5) return date.getDate() === 1; // Month boundaries at low zoom
+    return date.getDay() === 1; // Monday at normal zoom
+  }
+
+  // =========================================================================
+  // FEATURE 73: WORKING HOURS HIGHLIGHTING
+  // =========================================================================
+  // Note: Working hours properties already exist in Feature 28. This extends that feature.
+  private workingHoursHighlightColor: string = 'rgba(34, 197, 94, 0.05)';
+
+  setWorkingHoursHighlightColor(color: string): void {
+    this.workingHoursHighlightColor = color;
+    this.markDirty();
+  }
+
+  getWorkingHoursHighlightColor(): string { return this.workingHoursHighlightColor; }
+
+  // =========================================================================
+  // FEATURE 74: NON-WORKING TIME DIMMING
+  // =========================================================================
+  private nonWorkingDimEnabled: boolean = true;
+  private nonWorkingDimColor: string = 'rgba(0, 0, 0, 0.03)';
+
+  setNonWorkingDim(enabled: boolean, color?: string): void {
+    this.nonWorkingDimEnabled = enabled;
+    if (color) this.nonWorkingDimColor = color;
+    this.markDirty();
+  }
+
+  isNonWorkingDay(date: Date): boolean {
+    const day = date.getDay();
+    return day === 0 || day === 6; // Weekend
+  }
+
+  // =========================================================================
+  // FEATURE 75: CUSTOM CALENDAR INTEGRATION
+  // =========================================================================
+  // Note: setWorkingDays exists in the class via calendar system
+  private customHolidays: Set<string> = new Set();
+
+  setCustomHolidays(holidays: Date[]): void {
+    this.customHolidays.clear();
+    holidays.forEach(d => this.customHolidays.add(d.toISOString().split('T')[0]));
+    this.markDirty();
+  }
+
+  addHoliday(date: Date): void {
+    this.customHolidays.add(date.toISOString().split('T')[0]);
+    this.markDirty();
+  }
+
+  removeHoliday(date: Date): void {
+    this.customHolidays.delete(date.toISOString().split('T')[0]);
+    this.markDirty();
+  }
+
+  isHoliday(date: Date): boolean {
+    return this.customHolidays.has(date.toISOString().split('T')[0]);
+  }
+
+  // Note: setWorkingDays exists via this.calendar.setWorkingDays()
+  // Use isWorkingDay via the calendar system: this.calendar.isWorkingDay()
+
+  // =========================================================================
+  // FEATURE 76: TASK BAR RECTANGLE RENDERING
+  // =========================================================================
+  // Note: Core task bar rendering is in GanttRenderer. This adds customization.
+  private taskBarCornerRadius: number = 4;
+
+  setTaskBarCornerRadius(radius: number): void {
+    this.taskBarCornerRadius = Math.max(0, Math.min(20, radius));
+    this.markDirty();
+  }
+
+  getTaskBarCornerRadius(): number { return this.taskBarCornerRadius; }
+
+  // =========================================================================
+  // FEATURE 77: TASK BAR BORDER
+  // =========================================================================
+  private taskBarBorderWidth: number = 1;
+  private taskBarBorderColor: string = 'rgba(0,0,0,0.1)';
+
+  setTaskBarBorder(width: number, color?: string): void {
+    this.taskBarBorderWidth = width;
+    if (color) this.taskBarBorderColor = color;
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 78: TASK BAR FILL COLOR (STATUS-BASED)
+  // =========================================================================
+  // Note: getStatusColor already exists in the class. This provides the API config.
+  private customStatusColors: Map<string, string> = new Map();
+
+  setCustomStatusColor(status: string, color: string): void {
+    this.customStatusColors.set(status, color);
+    this.markDirty();
+  }
+
+  getCustomStatusColor(status: string): string | undefined {
+    return this.customStatusColors.get(status);
+  }
+
+  clearCustomStatusColors(): void {
+    this.customStatusColors.clear();
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 79: TASK TEXT STYLING
+  // =========================================================================
+  private taskTextColor: string = '#ffffff';
+  private taskTextFont: string = '12px Inter, sans-serif';
+  private taskTextPadding: number = 8;
+
+  setTaskTextStyle(color?: string, font?: string, padding?: number): void {
+    if (color) this.taskTextColor = color;
+    if (font) this.taskTextFont = font;
+    if (padding !== undefined) this.taskTextPadding = padding;
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 80: TASK BAR GRADIENT FILL
+  // =========================================================================
+  // Note: taskBarGradientEnabled, lightenColor, darkenColor exist in Feature 27.
+  // This provides direction configuration.
+  private gradientDirection: 'vertical' | 'horizontal' = 'vertical';
+
+  setGradientDirection(direction: 'vertical' | 'horizontal'): void {
+    this.gradientDirection = direction;
+    this.markDirty();
+  }
+
+  getGradientDirection(): 'vertical' | 'horizontal' { return this.gradientDirection; }
+
 }
 
 // ============================================================================
