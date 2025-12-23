@@ -143,6 +143,24 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "ContactCasesTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactCasesTab").then(m => ({ default: m.ContactCasesTab }))),
   "ContactEmailsTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactEmailsTab").then(m => ({ default: m.ContactEmailsTab }))),
   "ContactDirectorshipsTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactDirectorshipsTab").then(m => ({ default: m.ContactDirectorshipsTab }))),
+
+  // ============================================
+  // JOB COMPONENTS - /components/jobs/
+  // ============================================
+
+  // Job tab components (named exports)
+  "JobActivityTab": lazy(() => import("@/components/jobs/JobActivityTab").then(m => ({ default: m.JobActivityTab }))),
+  "JobBudgetTab": lazy(() => import("@/components/jobs/JobBudgetTab").then(m => ({ default: m.JobBudgetTab }))),
+  "JobClaimStagesTab": lazy(() => import("@/components/jobs/JobClaimStagesTab").then(m => ({ default: m.JobClaimStagesTab }))),
+  "JobCommunicationsTab": lazy(() => import("@/components/jobs/JobCommunicationsTab").then(m => ({ default: m.JobCommunicationsTab }))),
+  "JobContractTab": lazy(() => import("@/components/jobs/JobContractTab").then(m => ({ default: m.JobContractTab }))),
+  "JobDocumentsTab": lazy(() => import("@/components/jobs/JobDocumentsTab").then(m => ({ default: m.JobDocumentsTab }))),
+  "JobEstimatorTab": lazy(() => import("@/components/jobs/JobEstimatorTab").then(m => ({ default: m.JobEstimatorTab }))),
+  "JobPeopleTab": lazy(() => import("@/components/jobs/JobPeopleTab").then(m => ({ default: m.JobPeopleTab }))),
+  "JobPlansTab": lazy(() => import("@/components/jobs/JobPlansTab").then(m => ({ default: m.JobPlansTab }))),
+  "JobProfitTab": lazy(() => import("@/components/jobs/JobProfitTab").then(m => ({ default: m.JobProfitTab }))),
+  "JobPurchaseOrdersTab": lazy(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => ({ default: m.JobPurchaseOrdersTab }))),
+  "RainLogTab": lazy(() => import("@/components/jobs/RainLogTab").then(m => ({ default: m.RainLogTab }))),
 };
 
 /**

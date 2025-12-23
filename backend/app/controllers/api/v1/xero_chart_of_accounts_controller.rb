@@ -255,21 +255,12 @@ module Api
       end
 
       # GET /api/v1/xero_chart_of_accounts/with_company_presence
-      # Returns accounts enriched with company presence data for TeeemTableView
+      # Returns accounts aggregated from ALL companies in the group with presence columns
+      # This builds the view from per-company accounts (CorporateCompanyXeroAccount)
       # Required: company_id param to determine the company group
       def with_company_presence
         company = CorporateCompany.find(params[:company_id])
         group = company.corporate_group
-
-        # Get all accounts for this company's group (or global if no group)
-        @accounts = if group
-                      XeroChartOfAccount.for_group(group.id)
-                    else
-                      XeroChartOfAccount.global
-                    end
-
-        @accounts = @accounts.where(active: true) unless params[:include_inactive] == "true"
-        @accounts = @accounts.by_code
 
         # Get all companies in the group that have Xero connected
         companies_with_xero = if group
@@ -280,24 +271,62 @@ module Api
           [ company ].select { |c| c.corporate_company_xero_connection&.connected? }
         end
 
-        # Build map of which accounts exist in each company's Xero
-        company_accounts_map = build_company_accounts_map(companies_with_xero)
+        # Build map of account_code -> { account_data, company_ids }
+        # Aggregates all unique accounts from all companies in the group
+        accounts_map = {}
+        companies_with_xero.each do |c|
+          conn = c.corporate_company_xero_connection
+          next unless conn
+
+          scope = conn.corporate_company_xero_accounts
+          scope = scope.where(status: "ACTIVE") unless params[:include_inactive] == "true"
+
+          scope.each do |acct|
+            code = acct.account_code
+            if accounts_map[code]
+              # Account exists in another company - add this company to presence
+              accounts_map[code][:company_ids] << c.id
+            else
+              # First time seeing this account - store it
+              accounts_map[code] = {
+                account: acct,
+                company_ids: [ c.id ]
+              }
+            end
+          end
+        end
 
         # Get Foundation ID for TeeemTableView
-        foundation = Foundation.find_by(model_class: "XeroChartOfAccount")
+        foundation = Foundation.find_by(model_class: "CorporateCompanyXeroAccount")
 
-        # Enrich each account with company presence data
-        enriched_accounts = @accounts.map do |account|
-          base = serialize_account(account)
+        # Build enriched accounts with company presence columns
+        enriched_accounts = accounts_map.values.map do |entry|
+          acct = entry[:account]
+          base = {
+            id: acct.id,
+            account_code: acct.account_code,
+            account_name: acct.account_name,
+            display_name: acct.display_name,
+            account_type: acct.account_type,
+            account_class: acct.account_class,
+            tax_type: acct.tax_type,
+            description: acct.description,
+            status: acct.status,
+            active: acct.status == "ACTIVE",
+            consolidated_account_code: acct.consolidated_account_code,
+            mapped: acct.mapped?
+          }
 
           # Add company presence fields
           companies_with_xero.each do |c|
-            company_codes = company_accounts_map[c.id] || []
-            base["company_#{c.id}"] = company_codes.include?(account.account_code)
+            base["company_#{c.id}"] = entry[:company_ids].include?(c.id)
           end
 
           base
         end
+
+        # Sort by account code
+        enriched_accounts.sort_by! { |a| a[:account_code] || "" }
 
         render json: {
           success: true,
