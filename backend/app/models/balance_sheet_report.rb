@@ -224,8 +224,13 @@ class BalanceSheetReport < ApplicationRecord
 
   # Display name following DocumentType template: {DocTypeName} {PeriodLong} {FY}
   # Example: "Balance Sheet December 2025 FY2026"
+  # For legacy reports without period_end_date, just show "Balance Sheet FY2025"
   def display_name
-    "Balance Sheet #{period_label} #{financial_year}"
+    if period_end_date.present?
+      "Balance Sheet #{period_label} #{financial_year}"
+    else
+      "Balance Sheet #{financial_year}"
+    end
   end
 
   # Short period label for filenames

@@ -6563,6 +6563,1608 @@ export class GanttCanvas {
   setOnTasksDelete(callback: (taskIds: string[]) => void): void {
     this.onTasksDelete = callback;
   }
+
+  // =========================================================================
+  // FEATURE 1: COMPREHENSIVE TASK FILTERING API
+  // =========================================================================
+
+  private activeFilter: TaskFilterConfig | null = null;
+  private filteredTaskIds: Set<string> = new Set();
+  private isFilterActive: boolean = false;
+
+  /**
+   * Apply a comprehensive filter to the Gantt chart
+   * Only matching tasks will be visible
+   */
+  applyFilter(filter: TaskFilterConfig): void {
+    this.activeFilter = filter;
+    this.isFilterActive = true;
+    this.recalculateFilteredTasks();
+    this.markDirty();
+  }
+
+  /**
+   * Clear all filters and show all tasks
+   */
+  clearFilter(): void {
+    this.activeFilter = null;
+    this.isFilterActive = false;
+    this.filteredTaskIds.clear();
+    this.markDirty();
+  }
+
+  /**
+   * Check if a filter is currently active
+   */
+  hasActiveFilter(): boolean {
+    return this.isFilterActive;
+  }
+
+  /**
+   * Get the current active filter
+   */
+  getActiveFilter(): TaskFilterConfig | null {
+    return this.activeFilter;
+  }
+
+  /**
+   * Recalculate which tasks match the filter
+   */
+  private recalculateFilteredTasks(): void {
+    this.filteredTaskIds.clear();
+
+    if (!this.activeFilter) {
+      return;
+    }
+
+    const filter = this.activeFilter;
+
+    this.state.tasks.forEach(task => {
+      let matches = true;
+
+      // Filter by status
+      if (filter.status && filter.status.length > 0) {
+        const taskStatus = task.status || 'not-started';
+        if (!filter.status.includes(taskStatus)) {
+          matches = false;
+        }
+      }
+
+      // Filter by supplier IDs
+      if (matches && filter.supplierIds && filter.supplierIds.length > 0) {
+        if (!task.supplierId || !filter.supplierIds.includes(task.supplierId)) {
+          matches = false;
+        }
+      }
+
+      // Filter by date range (task must overlap with filter range)
+      if (matches && filter.dateRange) {
+        const filterStart = filter.dateRange.start;
+        const filterEnd = filter.dateRange.end;
+        const overlaps = task.startDate <= filterEnd && task.endDate >= filterStart;
+        if (!overlaps) {
+          matches = false;
+        }
+      }
+
+      // Filter by locked state
+      if (matches && filter.locked !== undefined) {
+        const isLocked = !!task.locked;
+        if (filter.locked !== isLocked) {
+          matches = false;
+        }
+      }
+
+      // Filter by progress range
+      if (matches && filter.progressRange) {
+        const progress = task.progress || 0;
+        if (progress < filter.progressRange.min || progress > filter.progressRange.max) {
+          matches = false;
+        }
+      }
+
+      // Filter by search text (name match)
+      if (matches && filter.searchText && filter.searchText.trim() !== '') {
+        const searchLower = filter.searchText.toLowerCase();
+        const nameMatches = task.name.toLowerCase().includes(searchLower);
+        const supplierMatches = task.supplierName?.toLowerCase().includes(searchLower) || false;
+        if (!nameMatches && !supplierMatches) {
+          matches = false;
+        }
+      }
+
+      // Filter by custom predicate
+      if (matches && filter.customPredicate) {
+        if (!filter.customPredicate(task)) {
+          matches = false;
+        }
+      }
+
+      // Filter by critical path
+      if (matches && filter.criticalPathOnly) {
+        if (!this.criticalPathResult?.criticalTasks.has(task.id)) {
+          matches = false;
+        }
+      }
+
+      // Filter by hold state
+      if (matches && filter.onHoldOnly) {
+        if (task.status !== 'on-hold') {
+          matches = false;
+        }
+      }
+
+      // Filter by broken dependencies
+      if (matches && filter.brokenDependenciesOnly) {
+        if (!task.brokenPredecessorIds || task.brokenPredecessorIds.length === 0) {
+          matches = false;
+        }
+      }
+
+      if (matches) {
+        this.filteredTaskIds.add(task.id);
+      }
+    });
+  }
+
+  /**
+   * Get tasks that pass the current filter
+   */
+  getFilteredTasks(): GanttTask[] {
+    if (!this.isFilterActive) {
+      return [...this.state.tasks];
+    }
+    return this.state.tasks.filter(t => this.filteredTaskIds.has(t.id));
+  }
+
+  /**
+   * Check if a specific task passes the current filter
+   */
+  taskPassesFilter(taskId: string): boolean {
+    if (!this.isFilterActive) {
+      return true;
+    }
+    return this.filteredTaskIds.has(taskId);
+  }
+
+  /**
+   * Get filter statistics
+   */
+  getFilterStats(): FilterStats {
+    const total = this.state.tasks.length;
+    const visible = this.isFilterActive ? this.filteredTaskIds.size : total;
+    const hidden = total - visible;
+    return {
+      total,
+      visible,
+      hidden,
+      percentage: total > 0 ? Math.round((visible / total) * 100) : 100
+    };
+  }
+
+  // =========================================================================
+  // FEATURE 2: MARQUEE/LASSO MULTI-TASK SELECTION
+  // =========================================================================
+
+  /**
+   * Start marquee selection
+   * Called internally by mouse handlers when dragging on empty space
+   */
+  startMarqueeSelection(x: number, y: number): void {
+    this.isMarqueeSelecting = true;
+    this.marqueeStartX = x;
+    this.marqueeStartY = y;
+    this.marqueeEndX = x;
+    this.marqueeEndY = y;
+    this.marqueeSelectedIds.clear();
+    this.canvas.style.cursor = 'crosshair';
+    this.markDirty();
+  }
+
+  /**
+   * Update marquee selection during drag
+   */
+  updateMarqueeSelection(x: number, y: number, additive: boolean = false): void {
+    if (!this.isMarqueeSelecting) return;
+
+    this.marqueeEndX = x;
+    this.marqueeEndY = y;
+
+    // Find tasks within the marquee
+    const tasksInMarquee = this.getTasksInMarquee(
+      this.marqueeStartX,
+      this.marqueeStartY,
+      this.marqueeEndX,
+      this.marqueeEndY
+    );
+
+    // Update selection
+    if (additive) {
+      // Additive mode: add marquee tasks to existing selection
+      tasksInMarquee.forEach(t => {
+        this.marqueeSelectedIds.add(t.id);
+      });
+    } else {
+      // Replace mode: only select marquee tasks
+      this.marqueeSelectedIds.clear();
+      tasksInMarquee.forEach(t => {
+        this.marqueeSelectedIds.add(t.id);
+      });
+    }
+
+    this.markDirty();
+  }
+
+  /**
+   * Complete marquee selection
+   */
+  completeMarqueeSelection(additive: boolean = false): void {
+    if (!this.isMarqueeSelecting) return;
+
+    // Apply marquee selection to actual selection
+    if (additive) {
+      // Add marquee selection to existing
+      this.marqueeSelectedIds.forEach(id => {
+        this.state.selectedTaskIds.add(id);
+      });
+    } else {
+      // Replace selection with marquee selection
+      this.state.selectedTaskIds = new Set(this.marqueeSelectedIds);
+    }
+
+    // Update last selected task
+    if (this.marqueeSelectedIds.size > 0) {
+      this.state.lastSelectedTaskId = Array.from(this.marqueeSelectedIds)[0];
+    }
+
+    // Notify selection change
+    this.onSelectionChange?.(this.getSelectedTaskIds());
+
+    // Reset marquee state
+    this.isMarqueeSelecting = false;
+    this.marqueeSelectedIds.clear();
+    this.canvas.style.cursor = 'default';
+    this.markDirty();
+  }
+
+  /**
+   * Cancel marquee selection
+   */
+  cancelMarqueeSelection(): void {
+    this.isMarqueeSelecting = false;
+    this.marqueeSelectedIds.clear();
+    this.canvas.style.cursor = 'default';
+    this.markDirty();
+  }
+
+  /**
+   * Check if marquee selection is in progress
+   */
+  isMarqueeActive(): boolean {
+    return this.isMarqueeSelecting;
+  }
+
+  /**
+   * Get current marquee bounds for rendering
+   */
+  getMarqueeBounds(): MarqueeBounds | null {
+    if (!this.isMarqueeSelecting) return null;
+    return {
+      x1: this.marqueeStartX,
+      y1: this.marqueeStartY,
+      x2: this.marqueeEndX,
+      y2: this.marqueeEndY,
+      selectedCount: this.marqueeSelectedIds.size
+    };
+  }
+
+  // =========================================================================
+  // FEATURE 3: ENHANCED CONTEXT MENU SYSTEM
+  // =========================================================================
+
+  private customContextMenuBuilder?: (task: GanttTask | null) => ContextMenuItem[];
+  private contextMenuTheme: ContextMenuTheme = {
+    backgroundColor: '#ffffff',
+    textColor: '#1f2937',
+    hoverBackgroundColor: '#f3f4f6',
+    borderColor: '#e5e7eb',
+    dividerColor: '#e5e7eb',
+    dangerColor: '#ef4444',
+    disabledColor: '#9ca3af',
+    shortcutColor: '#6b7280',
+    borderRadius: 8,
+    itemPadding: 8,
+    minWidth: 180,
+    maxWidth: 280,
+    shadowBlur: 16,
+    shadowColor: 'rgba(0, 0, 0, 0.15)'
+  };
+
+  /**
+   * Set a custom context menu builder function
+   * This allows complete control over menu items based on task and state
+   */
+  setContextMenuBuilder(builder: (task: GanttTask | null) => ContextMenuItem[]): void {
+    this.customContextMenuBuilder = builder;
+  }
+
+  /**
+   * Clear custom context menu builder (use default menu)
+   */
+  clearContextMenuBuilder(): void {
+    this.customContextMenuBuilder = undefined;
+  }
+
+  /**
+   * Update context menu theme
+   */
+  setContextMenuTheme(theme: Partial<ContextMenuTheme>): void {
+    this.contextMenuTheme = { ...this.contextMenuTheme, ...theme };
+  }
+
+  /**
+   * Get default context menu items for a task
+   */
+  getDefaultContextMenuItems(task: GanttTask | null): ContextMenuItem[] {
+    if (!task) {
+      // Background context menu (no task selected)
+      return [
+        {
+          id: 'add-task',
+          label: 'Add Task',
+          icon: 'plus',
+          shortcut: 'Ctrl+N',
+          action: () => this.onContextMenuAction?.('add-task', null)
+        },
+        { id: 'divider-1', type: 'divider' },
+        {
+          id: 'zoom-fit',
+          label: 'Zoom to Fit',
+          icon: 'maximize',
+          action: () => this.zoomToFit()
+        },
+        {
+          id: 'scroll-today',
+          label: 'Go to Today',
+          icon: 'calendar',
+          shortcut: 'T',
+          action: () => this.scrollToToday()
+        },
+        { id: 'divider-2', type: 'divider' },
+        {
+          id: 'select-all',
+          label: 'Select All',
+          shortcut: 'Ctrl+A',
+          action: () => this.selectAllTasks()
+        },
+        {
+          id: 'clear-selection',
+          label: 'Clear Selection',
+          shortcut: 'Esc',
+          action: () => this.clearSelection()
+        }
+      ];
+    }
+
+    // Task context menu
+    const items: ContextMenuItem[] = [
+      {
+        id: 'edit-task',
+        label: 'Edit Task',
+        icon: 'edit',
+        shortcut: 'Enter',
+        action: () => this.onTaskDoubleClick?.(task)
+      },
+      {
+        id: 'scroll-to-task',
+        label: 'Scroll to Task',
+        icon: 'target',
+        action: () => this.scrollToTask(task.id, false)
+      },
+      { id: 'divider-1', type: 'divider' }
+    ];
+
+    // Progress submenu
+    items.push({
+      id: 'set-progress-0',
+      label: 'Set Progress: 0%',
+      action: () => this.setProgress(task.id, 0)
+    });
+    items.push({
+      id: 'set-progress-50',
+      label: 'Set Progress: 50%',
+      action: () => this.setProgress(task.id, 50)
+    });
+    items.push({
+      id: 'set-progress-100',
+      label: 'Set Progress: 100%',
+      action: () => this.setProgress(task.id, 100)
+    });
+
+    items.push({ id: 'divider-2', type: 'divider' });
+
+    // Lock/unlock
+    if (task.locked) {
+      items.push({
+        id: 'unlock-task',
+        label: 'Unlock Task',
+        icon: 'unlock',
+        action: () => this.unlockTask(task.id)
+      });
+    } else {
+      items.push({
+        id: 'lock-task',
+        label: 'Lock Task',
+        icon: 'lock',
+        action: () => this.lockTask(task.id, 'manuallyPositioned')
+      });
+    }
+
+    // Copy/Cut/Duplicate
+    items.push({ id: 'divider-3', type: 'divider' });
+    items.push({
+      id: 'copy-task',
+      label: 'Copy',
+      icon: 'copy',
+      shortcut: 'Ctrl+C',
+      action: () => {
+        this.clipboardTask = task;
+        this.clipboardIsCut = false;
+      }
+    });
+    items.push({
+      id: 'cut-task',
+      label: 'Cut',
+      icon: 'scissors',
+      shortcut: 'Ctrl+X',
+      action: () => {
+        this.clipboardTask = task;
+        this.clipboardIsCut = true;
+      }
+    });
+    items.push({
+      id: 'duplicate-task',
+      label: 'Duplicate',
+      icon: 'copy-plus',
+      shortcut: 'Ctrl+D',
+      action: () => this.duplicateTask(task.id)
+    });
+
+    // Delete
+    items.push({ id: 'divider-4', type: 'divider' });
+    items.push({
+      id: 'delete-task',
+      label: 'Delete',
+      icon: 'trash',
+      shortcut: 'Delete',
+      danger: true,
+      action: () => this.deleteSelectedTasks()
+    });
+
+    return items;
+  }
+
+  /**
+   * Show context menu at position
+   */
+  showContextMenuAt(x: number, y: number, task: GanttTask | null): void {
+    // Build menu items
+    const items = this.customContextMenuBuilder
+      ? this.customContextMenuBuilder(task)
+      : this.getDefaultContextMenuItems(task);
+
+    this.contextMenuX = x;
+    this.contextMenuY = y;
+    this.contextMenuTask = task;
+    this.contextMenuItems = items;
+    this.contextMenuVisible = true;
+    this.contextMenuHoveredItem = null;
+    this.markDirty();
+  }
+
+  /**
+   * Get context menu theme (for custom rendering)
+   */
+  getContextMenuTheme(): ContextMenuTheme {
+    return { ...this.contextMenuTheme };
+  }
+
+  /**
+   * Add a custom action to the context menu
+   */
+  addContextMenuAction(item: ContextMenuItem, position: 'start' | 'end' | number = 'end'): void {
+    if (position === 'start') {
+      this.contextMenuItems.unshift(item);
+    } else if (position === 'end') {
+      this.contextMenuItems.push(item);
+    } else {
+      this.contextMenuItems.splice(position, 0, item);
+    }
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 4: BASELINE COMPARISON ENHANCEMENTS
+  // =========================================================================
+
+  /**
+   * Add or update a single baseline entry
+   */
+  setTaskBaseline(taskId: string, startDate: Date, endDate: Date, name?: string): void {
+    this.baselineData.set(taskId, {
+      taskId,
+      startDate,
+      endDate,
+      name,
+      capturedAt: new Date()
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Remove baseline for a task
+   */
+  removeTaskBaseline(taskId: string): boolean {
+    const had = this.baselineData.has(taskId);
+    this.baselineData.delete(taskId);
+    this.markDirty();
+    return had;
+  }
+
+  /**
+   * Get variance between current schedule and baseline (enhanced)
+   */
+  getScheduleVariance(taskId: string): ScheduleVariance | null {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    const baseline = this.baselineData.get(taskId);
+
+    if (!task || !baseline) return null;
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const startVarianceDays = Math.round(
+      (task.startDate.getTime() - baseline.startDate.getTime()) / msPerDay
+    );
+    const endVarianceDays = Math.round(
+      (task.endDate.getTime() - baseline.endDate.getTime()) / msPerDay
+    );
+
+    const plannedDuration = Math.round(
+      (baseline.endDate.getTime() - baseline.startDate.getTime()) / msPerDay
+    );
+    const currentDuration = Math.round(
+      (task.endDate.getTime() - task.startDate.getTime()) / msPerDay
+    );
+    const durationVariance = currentDuration - plannedDuration;
+
+    return {
+      taskId,
+      startVarianceDays,
+      endVarianceDays,
+      durationVariance,
+      isDelayed: endVarianceDays > 0,
+      isAhead: endVarianceDays < 0,
+      hasSlipped: startVarianceDays > 0 || endVarianceDays > 0
+    };
+  }
+
+  /**
+   * Get variance for all tasks
+   */
+  getAllVariances(): ScheduleVariance[] {
+    return this.state.tasks
+      .map(t => this.getScheduleVariance(t.id))
+      .filter((v): v is ScheduleVariance => v !== null);
+  }
+
+  /**
+   * Get tasks that have slipped from baseline
+   */
+  getSlippedTasks(): GanttTask[] {
+    return this.state.tasks.filter(task => {
+      const variance = this.getScheduleVariance(task.id);
+      return variance?.hasSlipped;
+    });
+  }
+
+  /**
+   * Get tasks that are ahead of baseline
+   */
+  getAheadTasks(): GanttTask[] {
+    return this.state.tasks.filter(task => {
+      const variance = this.getScheduleVariance(task.id);
+      return variance?.isAhead;
+    });
+  }
+
+  // =========================================================================
+  // FEATURE 5: AUTO-FIT ZOOM ENHANCEMENTS
+  // =========================================================================
+
+  /**
+   * Zoom to fit only selected tasks
+   */
+  zoomToSelection(padding: number = 3): void {
+    const selectedTasks = this.getSelectedTasks();
+    if (selectedTasks.length === 0) return;
+
+    // Find the date range of selected tasks
+    let minDate = new Date(Math.min(...selectedTasks.map(t => t.startDate.getTime())));
+    let maxDate = new Date(Math.max(...selectedTasks.map(t => t.endDate.getTime())));
+
+    // Add padding
+    minDate.setDate(minDate.getDate() - padding);
+    maxDate.setDate(maxDate.getDate() + padding);
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const totalDays = Math.ceil((maxDate.getTime() - minDate.getTime()) / msPerDay);
+
+    // Calculate required zoom level
+    const availableWidth = this.containerWidth - 150;
+    const requiredDayWidth = availableWidth / totalDays;
+
+    // Clamp zoom but allow wider zoom for small selections
+    const zoom = Math.max(
+      this.config.minDayWidth / this.config.dayWidth,
+      Math.min(2, requiredDayWidth / this.config.dayWidth) // Allow up to 2x for small selections
+    );
+
+    // Update viewport
+    this.viewport.setZoom(zoom);
+    this.state.viewportState.startDate = minDate;
+    this.viewport.setStartDate(minDate);
+
+    // Calculate vertical scroll to center selected tasks
+    const selectedIndices = selectedTasks.map(t => this.state.tasks.findIndex(st => st.id === t.id));
+    const minIndex = Math.min(...selectedIndices);
+    const maxIndex = Math.max(...selectedIndices);
+    const centerIndex = (minIndex + maxIndex) / 2;
+    const centerY = centerIndex * this.config.rowHeight;
+    const scrollY = Math.max(0, centerY - this.containerHeight / 2 + this.config.headerHeight);
+
+    this.viewport.scrollTo(0, scrollY);
+    this.markDirty();
+  }
+
+  /**
+   * Zoom to fit a specific date range
+   */
+  zoomToDateRange(startDate: Date, endDate: Date, padding: number = 3): void {
+    // Add padding
+    const adjustedStart = new Date(startDate);
+    adjustedStart.setDate(adjustedStart.getDate() - padding);
+    const adjustedEnd = new Date(endDate);
+    adjustedEnd.setDate(adjustedEnd.getDate() + padding);
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const totalDays = Math.ceil((adjustedEnd.getTime() - adjustedStart.getTime()) / msPerDay);
+
+    // Calculate required zoom level
+    const availableWidth = this.containerWidth - 150;
+    const requiredDayWidth = availableWidth / totalDays;
+
+    // Clamp zoom
+    const zoom = Math.max(
+      this.config.minDayWidth / this.config.dayWidth,
+      Math.min(this.config.maxDayWidth / this.config.dayWidth, requiredDayWidth / this.config.dayWidth)
+    );
+
+    // Update viewport
+    this.viewport.setZoom(zoom);
+    this.state.viewportState.startDate = adjustedStart;
+    this.viewport.setStartDate(adjustedStart);
+
+    // Scroll to start
+    this.viewport.scrollTo(0, this.state.viewportState.scrollY);
+    this.markDirty();
+  }
+
+  /**
+   * Get tasks visible in the current viewport
+   */
+  getVisibleTasksInViewport(): GanttTask[] {
+    const { start, end } = this.getVisibleDateRange();
+    const viewportState = this.viewport.getState();
+
+    // Calculate visible row range
+    const firstVisibleRow = Math.floor(viewportState.scrollY / this.config.rowHeight);
+    const visibleRowCount = Math.ceil(this.containerHeight / this.config.rowHeight);
+    const lastVisibleRow = firstVisibleRow + visibleRowCount;
+
+    return this.state.tasks.filter((task, index) => {
+      // Check if row is visible
+      if (index < firstVisibleRow || index > lastVisibleRow) {
+        return false;
+      }
+      // Check if task date range overlaps with visible range
+      return task.startDate <= end && task.endDate >= start;
+    });
+  }
+
+  /**
+   * Pan viewport to center on a specific date
+   */
+  centerOnDate(date: Date): void {
+    const x = this.viewport.dateToX(date);
+    const scrollX = x - this.containerWidth / 2;
+    this.viewport.scrollTo(scrollX, this.state.viewportState.scrollY);
+    this.markDirty();
+  }
+
+  /**
+   * Pan viewport to center on a specific task
+   */
+  centerOnTask(taskId: string): void {
+    const taskIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+
+    const task = this.state.tasks[taskIndex];
+
+    // Center horizontally on task midpoint
+    const taskMidDate = new Date(
+      (task.startDate.getTime() + task.endDate.getTime()) / 2
+    );
+    const x = this.viewport.dateToX(taskMidDate);
+    const scrollX = x - this.containerWidth / 2;
+
+    // Center vertically on task row
+    const y = taskIndex * this.config.rowHeight + this.config.headerHeight;
+    const scrollY = y - this.containerHeight / 2;
+
+    this.viewport.scrollTo(scrollX, Math.max(0, scrollY));
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 6: TASK TOOLTIP CUSTOMIZATION API
+  // =========================================================================
+
+  private tooltipConfig: TooltipConfig = {
+    enabled: true,
+    delay: 500,
+    maxWidth: 300,
+    showProgress: true,
+    showDates: true,
+    showDuration: true,
+    showDependencies: true,
+    showSupplier: true,
+    showStatus: true,
+    position: 'auto'
+  };
+
+  private customTooltipBuilder?: (task: GanttTask) => TooltipContent;
+  private tooltipVisible: boolean = false;
+  private tooltipTask: GanttTask | null = null;
+  private tooltipX: number = 0;
+  private tooltipY: number = 0;
+  private tooltipTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Configure tooltip behavior
+   */
+  setTooltipConfig(config: Partial<TooltipConfig>): void {
+    this.tooltipConfig = { ...this.tooltipConfig, ...config };
+  }
+
+  /**
+   * Get current tooltip configuration
+   */
+  getTooltipConfig(): TooltipConfig {
+    return { ...this.tooltipConfig };
+  }
+
+  /**
+   * Set a custom tooltip content builder
+   */
+  setTooltipBuilder(builder: (task: GanttTask) => TooltipContent): void {
+    this.customTooltipBuilder = builder;
+  }
+
+  /**
+   * Clear custom tooltip builder (use default)
+   */
+  clearTooltipBuilder(): void {
+    this.customTooltipBuilder = undefined;
+  }
+
+  /**
+   * Get tooltip content for a task
+   */
+  getTooltipContent(task: GanttTask): TooltipContent {
+    if (this.customTooltipBuilder) {
+      return this.customTooltipBuilder(task);
+    }
+
+    const config = this.tooltipConfig;
+    const lines: TooltipLine[] = [];
+
+    // Title line
+    lines.push({
+      type: 'title',
+      label: task.name,
+      bold: true
+    });
+
+    // Status
+    if (config.showStatus && task.status) {
+      lines.push({
+        type: 'status',
+        label: 'Status',
+        value: this.formatStatus(task.status),
+        color: this.getStatusColor(task.status)
+      });
+    }
+
+    // Progress
+    if (config.showProgress) {
+      lines.push({
+        type: 'progress',
+        label: 'Progress',
+        value: `${task.progress || 0}%`,
+        progress: task.progress || 0
+      });
+    }
+
+    // Dates
+    if (config.showDates) {
+      lines.push({
+        type: 'date',
+        label: 'Start',
+        value: this.formatDate(task.startDate)
+      });
+      lines.push({
+        type: 'date',
+        label: 'End',
+        value: this.formatDate(task.endDate)
+      });
+    }
+
+    // Duration
+    if (config.showDuration) {
+      const duration = this.getTaskDurationDays(task);
+      lines.push({
+        type: 'duration',
+        label: 'Duration',
+        value: `${duration} day${duration !== 1 ? 's' : ''}`
+      });
+    }
+
+    // Supplier
+    if (config.showSupplier && task.supplierName) {
+      lines.push({
+        type: 'supplier',
+        label: 'Supplier',
+        value: task.supplierName
+      });
+    }
+
+    // Dependencies
+    if (config.showDependencies) {
+      const predecessors = this.getPredecessors(task.id);
+      const successors = this.getSuccessors(task.id);
+      if (predecessors.length > 0 || successors.length > 0) {
+        lines.push({
+          type: 'dependencies',
+          label: 'Dependencies',
+          value: `${predecessors.length} pred, ${successors.length} succ`
+        });
+      }
+    }
+
+    // Lock state
+    if (task.locked) {
+      lines.push({
+        type: 'lock',
+        label: 'Locked',
+        value: this.formatLockType(task.locked),
+        icon: 'lock'
+      });
+    }
+
+    // Hold state
+    if (task.holdState) {
+      lines.push({
+        type: 'hold',
+        label: 'On Hold',
+        value: this.formatHoldReason(task.holdState.reason),
+        color: '#f59e0b'
+      });
+    }
+
+    return {
+      lines,
+      maxWidth: config.maxWidth
+    };
+  }
+
+  /**
+   * Show tooltip for a task
+   */
+  showTooltip(task: GanttTask, x: number, y: number): void {
+    if (!this.tooltipConfig.enabled) return;
+
+    // Clear any pending tooltip
+    if (this.tooltipTimeout) {
+      clearTimeout(this.tooltipTimeout);
+    }
+
+    // Delay showing tooltip
+    this.tooltipTimeout = setTimeout(() => {
+      this.tooltipVisible = true;
+      this.tooltipTask = task;
+      this.tooltipX = x;
+      this.tooltipY = y;
+      this.markDirty();
+    }, this.tooltipConfig.delay);
+  }
+
+  /**
+   * Hide tooltip
+   */
+  hideTooltip(): void {
+    if (this.tooltipTimeout) {
+      clearTimeout(this.tooltipTimeout);
+      this.tooltipTimeout = null;
+    }
+    if (this.tooltipVisible) {
+      this.tooltipVisible = false;
+      this.tooltipTask = null;
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Get current tooltip state
+   */
+  getTooltipState(): { visible: boolean; task: GanttTask | null; x: number; y: number } {
+    return {
+      visible: this.tooltipVisible,
+      task: this.tooltipTask,
+      x: this.tooltipX,
+      y: this.tooltipY
+    };
+  }
+
+  // Helper formatters for tooltip
+  private formatStatus(status: string): string {
+    const statusMap: Record<string, string> = {
+      'not-started': 'Not Started',
+      'in-progress': 'In Progress',
+      'completed': 'Completed',
+      'on-hold': 'On Hold',
+      'at-risk': 'At Risk'
+    };
+    return statusMap[status] || status;
+  }
+
+  private getStatusColor(status: string): string {
+    const colorMap: Record<string, string> = {
+      'not-started': '#9ca3af',
+      'in-progress': '#3b82f6',
+      'completed': '#22c55e',
+      'on-hold': '#f59e0b',
+      'at-risk': '#ef4444'
+    };
+    return colorMap[status] || '#6b7280';
+  }
+
+  private formatDate(date: Date): string {
+    return date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  private getTaskDurationDays(task: GanttTask): number {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / msPerDay) + 1;
+  }
+
+  private formatLockType(lockType: string): string {
+    const lockMap: Record<string, string> = {
+      'supplierConfirmed': 'Supplier Confirmed',
+      'started': 'Started',
+      'manuallyPositioned': 'Manually Positioned'
+    };
+    return lockMap[lockType] || lockType;
+  }
+
+  private formatHoldReason(reason: string): string {
+    const reasonMap: Record<string, string> = {
+      'whs_incident': 'WHS Incident',
+      'weather_delay': 'Weather Delay',
+      'permit_delay': 'Permit Delay',
+      'client_request': 'Client Request',
+      'material_delay': 'Material Delay',
+      'subcontractor_issue': 'Subcontractor Issue',
+      'other': 'Other'
+    };
+    return reasonMap[reason] || reason;
+  }
+
+  // =========================================================================
+  // FEATURE 7: ANIMATION/TRANSITION SYSTEM
+  // =========================================================================
+
+  private animations: Map<string, Animation> = new Map();
+  private animationEnabled: boolean = true;
+  private animationDuration: number = 300; // Default 300ms
+
+  /**
+   * Enable or disable animations
+   */
+  setAnimationEnabled(enabled: boolean): void {
+    this.animationEnabled = enabled;
+    if (!enabled) {
+      // Cancel all running animations
+      this.animations.clear();
+    }
+  }
+
+  /**
+   * Set default animation duration
+   */
+  setAnimationDuration(duration: number): void {
+    this.animationDuration = Math.max(0, Math.min(2000, duration));
+  }
+
+  /**
+   * Animate a task move
+   */
+  animateTaskMove(taskId: string, toStartDate: Date, onComplete?: () => void): void {
+    if (!this.animationEnabled) {
+      // Instant move
+      this.moveTaskToDate(taskId, toStartDate);
+      onComplete?.();
+      return;
+    }
+
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const fromX = this.viewport.dateToX(task.startDate);
+    const toX = this.viewport.dateToX(toStartDate);
+    const duration = task.endDate.getTime() - task.startDate.getTime();
+
+    this.startAnimation({
+      id: `move-${taskId}`,
+      type: 'move',
+      targetId: taskId,
+      startTime: performance.now(),
+      duration: this.animationDuration,
+      easing: 'easeOutCubic',
+      from: { x: fromX },
+      to: { x: toX },
+      onUpdate: (progress, values) => {
+        const currentX = values.x;
+        const currentDate = this.viewport.xToDate(currentX);
+        task.startDate = currentDate;
+        task.endDate = new Date(currentDate.getTime() + duration);
+        this.markDirty();
+      },
+      onComplete: () => {
+        task.startDate = toStartDate;
+        task.endDate = new Date(toStartDate.getTime() + duration);
+        this.markDirty();
+        onComplete?.();
+      }
+    });
+  }
+
+  /**
+   * Animate zoom level change
+   */
+  animateZoom(toZoom: number, centerX?: number, onComplete?: () => void): void {
+    if (!this.animationEnabled) {
+      this.viewport.setZoom(toZoom);
+      this.markDirty();
+      onComplete?.();
+      return;
+    }
+
+    const fromZoom = this.viewport.getState().zoom;
+
+    this.startAnimation({
+      id: 'zoom',
+      type: 'zoom',
+      startTime: performance.now(),
+      duration: this.animationDuration,
+      easing: 'easeOutCubic',
+      from: { zoom: fromZoom },
+      to: { zoom: toZoom },
+      onUpdate: (progress, values) => {
+        this.viewport.setZoom(values.zoom);
+        this.markDirty();
+      },
+      onComplete: () => {
+        this.viewport.setZoom(toZoom);
+        this.markDirty();
+        onComplete?.();
+      }
+    });
+  }
+
+  /**
+   * Animate scroll to position
+   */
+  animateScrollTo(scrollX: number, scrollY: number, onComplete?: () => void): void {
+    if (!this.animationEnabled) {
+      this.viewport.scrollTo(scrollX, scrollY);
+      this.markDirty();
+      onComplete?.();
+      return;
+    }
+
+    const state = this.viewport.getState();
+    const fromScrollX = state.scrollX;
+    const fromScrollY = state.scrollY;
+
+    this.startAnimation({
+      id: 'scroll',
+      type: 'scroll',
+      startTime: performance.now(),
+      duration: this.animationDuration,
+      easing: 'easeOutCubic',
+      from: { scrollX: fromScrollX, scrollY: fromScrollY },
+      to: { scrollX, scrollY },
+      onUpdate: (progress, values) => {
+        this.viewport.scrollTo(values.scrollX, values.scrollY);
+        this.markDirty();
+      },
+      onComplete: () => {
+        this.viewport.scrollTo(scrollX, scrollY);
+        this.markDirty();
+        onComplete?.();
+      }
+    });
+  }
+
+  /**
+   * Animate task highlight (pulse effect)
+   */
+  animateHighlight(taskId: string, color?: string): void {
+    if (!this.animationEnabled) return;
+
+    this.startAnimation({
+      id: `highlight-${taskId}`,
+      type: 'highlight',
+      targetId: taskId,
+      startTime: performance.now(),
+      duration: 600,
+      easing: 'easeInOutSine',
+      from: { opacity: 0 },
+      to: { opacity: 1 },
+      repeat: 2,
+      yoyo: true,
+      data: { color: color || '#3b82f6' },
+      onUpdate: (progress, values) => {
+        this.markDirty();
+      }
+    });
+  }
+
+  /**
+   * Start an animation
+   */
+  private startAnimation(animation: Animation): void {
+    // Cancel any existing animation with same ID
+    this.animations.delete(animation.id);
+    this.animations.set(animation.id, animation);
+    this.runAnimationFrame();
+  }
+
+  /**
+   * Cancel an animation
+   */
+  cancelAnimation(animationId: string): void {
+    this.animations.delete(animationId);
+  }
+
+  /**
+   * Run animation frame
+   */
+  private runAnimationFrame(): void {
+    if (this.animations.size === 0) return;
+
+    const now = performance.now();
+    const completed: string[] = [];
+
+    this.animations.forEach((anim, id) => {
+      const elapsed = now - anim.startTime;
+      let progress = Math.min(1, elapsed / anim.duration);
+
+      // Apply easing
+      progress = this.applyEasing(progress, anim.easing);
+
+      // Calculate current values
+      const values: Record<string, number> = {};
+      for (const key of Object.keys(anim.from)) {
+        const from = anim.from[key];
+        const to = anim.to[key];
+        values[key] = from + (to - from) * progress;
+      }
+
+      // Call update
+      anim.onUpdate?.(progress, values);
+
+      // Check if complete
+      if (elapsed >= anim.duration) {
+        if (anim.repeat && anim.repeat > 1) {
+          anim.repeat--;
+          anim.startTime = now;
+          if (anim.yoyo) {
+            // Swap from and to
+            const temp = anim.from;
+            anim.from = anim.to;
+            anim.to = temp;
+          }
+        } else {
+          anim.onComplete?.();
+          completed.push(id);
+        }
+      }
+    });
+
+    // Remove completed animations
+    completed.forEach(id => this.animations.delete(id));
+
+    // Continue animation loop if there are still animations
+    if (this.animations.size > 0) {
+      requestAnimationFrame(() => this.runAnimationFrame());
+    }
+  }
+
+  /**
+   * Apply easing function
+   */
+  private applyEasing(t: number, easing: string): number {
+    switch (easing) {
+      case 'linear':
+        return t;
+      case 'easeInQuad':
+        return t * t;
+      case 'easeOutQuad':
+        return t * (2 - t);
+      case 'easeInOutQuad':
+        return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      case 'easeInCubic':
+        return t * t * t;
+      case 'easeOutCubic':
+        return (--t) * t * t + 1;
+      case 'easeInOutCubic':
+        return t < 0.5 ? 4 * t * t * t : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+      case 'easeInOutSine':
+        return -(Math.cos(Math.PI * t) - 1) / 2;
+      case 'easeOutElastic':
+        const c4 = (2 * Math.PI) / 3;
+        return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+      case 'easeOutBounce':
+        const n1 = 7.5625;
+        const d1 = 2.75;
+        if (t < 1 / d1) {
+          return n1 * t * t;
+        } else if (t < 2 / d1) {
+          return n1 * (t -= 1.5 / d1) * t + 0.75;
+        } else if (t < 2.5 / d1) {
+          return n1 * (t -= 2.25 / d1) * t + 0.9375;
+        } else {
+          return n1 * (t -= 2.625 / d1) * t + 0.984375;
+        }
+      default:
+        return t;
+    }
+  }
+
+  /**
+   * Check if any animations are running
+   */
+  isAnimating(): boolean {
+    return this.animations.size > 0;
+  }
+
+  // =========================================================================
+  // FEATURE 8: TASK NOTES/COMMENTS SYSTEM
+  // =========================================================================
+
+  private taskNotes: Map<string, TaskNote[]> = new Map();
+  private noteIdCounter: number = 0;
+
+  /**
+   * Add a note to a task
+   */
+  addTaskNote(taskId: string, content: string, author?: string, type?: 'note' | 'comment' | 'warning' | 'info'): TaskNote {
+    const note: TaskNote = {
+      id: `note-${++this.noteIdCounter}`,
+      taskId,
+      content,
+      author: author || 'System',
+      createdAt: new Date(),
+      type: type || 'note'
+    };
+
+    const notes = this.taskNotes.get(taskId) || [];
+    notes.push(note);
+    this.taskNotes.set(taskId, notes);
+
+    return note;
+  }
+
+  /**
+   * Update a note
+   */
+  updateTaskNote(noteId: string, content: string): boolean {
+    for (const [taskId, notes] of this.taskNotes) {
+      const note = notes.find(n => n.id === noteId);
+      if (note) {
+        note.content = content;
+        note.updatedAt = new Date();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Delete a note
+   */
+  deleteTaskNote(noteId: string): boolean {
+    for (const [taskId, notes] of this.taskNotes) {
+      const index = notes.findIndex(n => n.id === noteId);
+      if (index !== -1) {
+        notes.splice(index, 1);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get notes for a task
+   */
+  getTaskNotes(taskId: string): TaskNote[] {
+    return this.taskNotes.get(taskId) || [];
+  }
+
+  /**
+   * Get all tasks with notes
+   */
+  getTasksWithNotes(): string[] {
+    return Array.from(this.taskNotes.keys()).filter(
+      taskId => (this.taskNotes.get(taskId)?.length || 0) > 0
+    );
+  }
+
+  /**
+   * Get note count for a task
+   */
+  getTaskNoteCount(taskId: string): number {
+    return this.taskNotes.get(taskId)?.length || 0;
+  }
+
+  /**
+   * Check if task has notes
+   */
+  taskHasNotes(taskId: string): boolean {
+    return (this.taskNotes.get(taskId)?.length || 0) > 0;
+  }
+
+  /**
+   * Clear all notes for a task
+   */
+  clearTaskNotes(taskId: string): void {
+    this.taskNotes.delete(taskId);
+  }
+
+  /**
+   * Import notes data
+   */
+  importNotes(notesData: Array<{ taskId: string; notes: TaskNote[] }>): void {
+    notesData.forEach(({ taskId, notes }) => {
+      this.taskNotes.set(taskId, notes);
+    });
+  }
+
+  /**
+   * Export all notes
+   */
+  exportNotes(): Array<{ taskId: string; notes: TaskNote[] }> {
+    const result: Array<{ taskId: string; notes: TaskNote[] }> = [];
+    this.taskNotes.forEach((notes, taskId) => {
+      result.push({ taskId, notes });
+    });
+    return result;
+  }
+
+  // =========================================================================
+  // FEATURE 9: MILESTONE SPECIAL RENDERING
+  // =========================================================================
+
+  private milestones: Set<string> = new Set();
+  private milestoneConfig: MilestoneConfig = {
+    shape: 'diamond',
+    size: 20,
+    color: '#6366f1',
+    showLabel: true,
+    labelPosition: 'right'
+  };
+
+  /**
+   * Mark a task as a milestone
+   */
+  setMilestone(taskId: string, isMilestone: boolean = true): void {
+    if (isMilestone) {
+      this.milestones.add(taskId);
+    } else {
+      this.milestones.delete(taskId);
+    }
+    this.markDirty();
+  }
+
+  /**
+   * Check if a task is a milestone
+   */
+  isMilestone(taskId: string): boolean {
+    return this.milestones.has(taskId);
+  }
+
+  /**
+   * Get all milestone tasks
+   */
+  getMilestones(): GanttTask[] {
+    return this.state.tasks.filter(t => this.milestones.has(t.id));
+  }
+
+  /**
+   * Configure milestone rendering
+   */
+  setMilestoneConfig(config: Partial<MilestoneConfig>): void {
+    this.milestoneConfig = { ...this.milestoneConfig, ...config };
+    this.markDirty();
+  }
+
+  /**
+   * Get milestone configuration
+   */
+  getMilestoneConfig(): MilestoneConfig {
+    return { ...this.milestoneConfig };
+  }
+
+  /**
+   * Auto-detect milestones (zero-duration tasks)
+   */
+  autoDetectMilestones(): void {
+    this.state.tasks.forEach(task => {
+      const duration = task.endDate.getTime() - task.startDate.getTime();
+      if (duration <= 24 * 60 * 60 * 1000) { // 1 day or less
+        this.milestones.add(task.id);
+      }
+    });
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 10: SUMMARY TASK (GROUP BAR) RENDERING
+  // =========================================================================
+
+  private summaryTasks: Set<string> = new Set();
+  private summaryConfig: SummaryTaskConfig = {
+    barHeight: 8,
+    barColor: '#6b7280',
+    endCaps: true,
+    showProgress: true,
+    progressColor: '#3b82f6',
+    showDateRange: true,
+    autoCalculateDates: true
+  };
+
+  /**
+   * Mark a task as a summary task (group header)
+   */
+  setSummaryTask(taskId: string, isSummary: boolean = true): void {
+    if (isSummary) {
+      this.summaryTasks.add(taskId);
+    } else {
+      this.summaryTasks.delete(taskId);
+    }
+    this.markDirty();
+  }
+
+  /**
+   * Check if a task is a summary task
+   */
+  isSummaryTask(taskId: string): boolean {
+    return this.summaryTasks.has(taskId);
+  }
+
+  /**
+   * Get all summary tasks
+   */
+  getSummaryTasks(): GanttTask[] {
+    return this.state.tasks.filter(t => this.summaryTasks.has(t.id));
+  }
+
+  /**
+   * Configure summary task rendering
+   */
+  setSummaryConfig(config: Partial<SummaryTaskConfig>): void {
+    this.summaryConfig = { ...this.summaryConfig, ...config };
+    this.markDirty();
+  }
+
+  /**
+   * Get summary task configuration
+   */
+  getSummaryConfig(): SummaryTaskConfig {
+    return { ...this.summaryConfig };
+  }
+
+  /**
+   * Update summary task dates based on children
+   * Automatically calculates start/end from child tasks
+   */
+  updateSummaryDates(summaryTaskId: string): void {
+    const children = this.getTaskChildren(summaryTaskId);
+    if (children.length === 0) return;
+
+    const childTasks = children
+      .map(id => this.state.tasks.find(t => t.id === id))
+      .filter((t): t is GanttTask => t !== undefined);
+
+    if (childTasks.length === 0) return;
+
+    const minStart = new Date(Math.min(...childTasks.map(t => t.startDate.getTime())));
+    const maxEnd = new Date(Math.max(...childTasks.map(t => t.endDate.getTime())));
+
+    const summaryTask = this.state.tasks.find(t => t.id === summaryTaskId);
+    if (summaryTask) {
+      summaryTask.startDate = minStart;
+      summaryTask.endDate = maxEnd;
+
+      // Calculate aggregate progress
+      if (childTasks.length > 0) {
+        const totalProgress = childTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+        summaryTask.progress = Math.round(totalProgress / childTasks.length);
+      }
+
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Update all summary task dates
+   */
+  updateAllSummaryDates(): void {
+    this.summaryTasks.forEach(taskId => {
+      this.updateSummaryDates(taskId);
+    });
+  }
+
+  /**
+   * Get summary task info
+   */
+  getSummaryInfo(taskId: string): SummaryTaskInfo | null {
+    if (!this.summaryTasks.has(taskId)) return null;
+
+    const children = this.getTaskChildren(taskId);
+    const childTasks = children
+      .map(id => this.state.tasks.find(t => t.id === id))
+      .filter((t): t is GanttTask => t !== undefined);
+
+    const completedCount = childTasks.filter(t => t.status === 'completed').length;
+    const inProgressCount = childTasks.filter(t => t.status === 'in-progress').length;
+    const totalProgress = childTasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+
+    return {
+      taskId,
+      childCount: children.length,
+      completedCount,
+      inProgressCount,
+      notStartedCount: children.length - completedCount - inProgressCount,
+      averageProgress: children.length > 0 ? Math.round(totalProgress / children.length) : 0,
+      minStart: childTasks.length > 0 ? new Date(Math.min(...childTasks.map(t => t.startDate.getTime()))) : undefined,
+      maxEnd: childTasks.length > 0 ? new Date(Math.max(...childTasks.map(t => t.endDate.getTime()))) : undefined
+    };
+  }
 }
 
 // ============================================================================
@@ -6748,6 +8350,103 @@ export interface TimelineMarker {
   icon?: string;
   showLabel?: boolean;
   description?: string;
+}
+
+// ============================================================================
+// Task Filtering Types
+// ============================================================================
+
+export interface TaskFilterConfig {
+  /** Filter by task status (multiple allowed) */
+  status?: Array<'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'at-risk'>;
+  /** Filter by supplier IDs */
+  supplierIds?: number[];
+  /** Filter by date range (tasks overlapping this range) */
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+  /** Filter by locked state */
+  locked?: boolean;
+  /** Filter by progress range (0-100) */
+  progressRange?: {
+    min: number;
+    max: number;
+  };
+  /** Search text (matches task name or supplier name) */
+  searchText?: string;
+  /** Custom filter predicate */
+  customPredicate?: (task: GanttTask) => boolean;
+  /** Only show critical path tasks */
+  criticalPathOnly?: boolean;
+  /** Only show tasks on hold */
+  onHoldOnly?: boolean;
+  /** Only show tasks with broken dependencies */
+  brokenDependenciesOnly?: boolean;
+}
+
+export interface FilterStats {
+  /** Total number of tasks */
+  total: number;
+  /** Number of visible tasks (passing filter) */
+  visible: number;
+  /** Number of hidden tasks (filtered out) */
+  hidden: number;
+  /** Percentage of visible tasks */
+  percentage: number;
+}
+
+// ============================================================================
+// Marquee Selection Types
+// ============================================================================
+
+export interface MarqueeBounds {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  selectedCount: number;
+}
+
+// ============================================================================
+// Context Menu Theme Types
+// ============================================================================
+
+export interface ContextMenuTheme {
+  backgroundColor: string;
+  textColor: string;
+  hoverBackgroundColor: string;
+  borderColor: string;
+  dividerColor: string;
+  dangerColor: string;
+  disabledColor: string;
+  shortcutColor: string;
+  borderRadius: number;
+  itemPadding: number;
+  minWidth: number;
+  maxWidth: number;
+  shadowBlur: number;
+  shadowColor: string;
+}
+
+// ============================================================================
+// Schedule Variance Types (Baseline Comparison)
+// ============================================================================
+
+export interface ScheduleVariance {
+  taskId: string;
+  /** Days difference in start date (positive = started later) */
+  startVarianceDays: number;
+  /** Days difference in end date (positive = ended later) */
+  endVarianceDays: number;
+  /** Change in duration (positive = longer) */
+  durationVariance: number;
+  /** True if task is delayed from baseline */
+  isDelayed: boolean;
+  /** True if task is ahead of baseline */
+  isAhead: boolean;
+  /** True if start or end has slipped from baseline */
+  hasSlipped: boolean;
 }
 
 // Default export
