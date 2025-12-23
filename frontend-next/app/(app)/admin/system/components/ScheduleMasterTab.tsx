@@ -37,7 +37,9 @@ import {
   Flag,
   Camera,
   Settings,
+  BarChart3,
 } from "lucide-react";
+import { GanttChart, type GanttFeature, type GanttGroup } from "@/components/ui/gantt";
 import { SMGanttTab } from "./SMGanttTab";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -127,6 +129,10 @@ export function ScheduleMasterTab() {
     name: "",
     description: "",
   });
+
+  // Gantt Preview state
+  const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
+  const [ganttRows, setGanttRows] = React.useState<SmTemplateRow[]>([]);
 
   // Task Templates state
   const [taskTemplates, setTaskTemplates] = React.useState<TaskTemplate[]>([]);
@@ -274,6 +280,122 @@ export function ScheduleMasterTab() {
     return rows.reduce((sum, row) => sum + row.duration_days, 0);
   };
 
+  // Gantt Preview functions
+  const loadGanttRows = async (templateId: number) => {
+    setGanttTemplateId(templateId);
+    setLoadingRows(templateId);
+    try {
+      const data = await api.get<{ success: boolean; rows: SmTemplateRow[] }>(
+        `/api/v1/sm_templates/${templateId}/rows`
+      );
+      setGanttRows(data.rows || []);
+    } catch (error) {
+      console.error("Failed to load gantt rows:", error);
+      setGanttRows([]);
+    } finally {
+      setLoadingRows(null);
+    }
+  };
+
+  const convertRowsToGanttFeatures = (rows: SmTemplateRow[]): GanttFeature[] => {
+    // Calculate start dates based on predecessors and durations
+    const baseDate = new Date();
+    baseDate.setHours(0, 0, 0, 0);
+
+    const rowMap = new Map<number, SmTemplateRow>();
+    const startDates = new Map<number, Date>();
+
+    rows.forEach(row => rowMap.set(row.id, row));
+
+    // Calculate start dates considering predecessors
+    const getStartDate = (row: SmTemplateRow): Date => {
+      if (startDates.has(row.id)) {
+        return startDates.get(row.id)!;
+      }
+
+      let maxEndDate = baseDate;
+
+      if (row.predecessor_ids && row.predecessor_ids.length > 0) {
+        row.predecessor_ids.forEach(pred => {
+          const predId = typeof pred === 'object' ? pred.id : pred;
+          const predRow = rowMap.get(predId);
+          if (predRow) {
+            const predStart = getStartDate(predRow);
+            const predEnd = new Date(predStart);
+            predEnd.setDate(predEnd.getDate() + predRow.duration_days);
+            if (predEnd > maxEndDate) {
+              maxEndDate = predEnd;
+            }
+          }
+        });
+      } else if (row.start_day_offset) {
+        maxEndDate = new Date(baseDate);
+        maxEndDate.setDate(maxEndDate.getDate() + row.start_day_offset);
+      }
+
+      startDates.set(row.id, maxEndDate);
+      return maxEndDate;
+    };
+
+    return rows.map(row => {
+      const startAt = getStartDate(row);
+      const endAt = new Date(startAt);
+      endAt.setDate(endAt.getDate() + Math.max(row.duration_days - 1, 0));
+
+      // Determine status based on row properties
+      const isHeader = ['SLAB', 'FRAME', 'ENCLOSED', 'FIXING', 'DRIVEWAY', 'LANDSCAPING', 'PRACTICAL COMPLETION'].includes(row.name.trim());
+
+      return {
+        id: String(row.id),
+        name: row.name,
+        startAt,
+        endAt,
+        status: {
+          id: isHeader ? 'milestone' : 'not-started',
+          name: isHeader ? 'Stage' : 'Not Started',
+          color: isHeader ? 'bg-amber-500 text-white' : 'bg-secondary text-secondary-foreground',
+        },
+        progress: 0,
+        dependencies: row.predecessor_ids?.map(p => String(typeof p === 'object' ? p.id : p)) || [],
+      };
+    });
+  };
+
+  const convertRowsToGanttGroups = (rows: SmTemplateRow[]): GanttGroup[] => {
+    // Group by stage
+    const stageHeaders = ['SLAB', 'FRAME', 'ENCLOSED', 'FIXING', 'DRIVEWAY', 'LANDSCAPING', 'PRACTICAL COMPLETION'];
+    const groups: GanttGroup[] = [];
+    let currentGroup: { name: string; rows: SmTemplateRow[] } = { name: 'Pre-Construction', rows: [] };
+
+    rows.forEach(row => {
+      if (stageHeaders.includes(row.name.trim())) {
+        // Save current group if it has rows
+        if (currentGroup.rows.length > 0) {
+          groups.push({
+            id: currentGroup.name.toLowerCase().replace(/\s+/g, '-'),
+            name: currentGroup.name,
+            features: convertRowsToGanttFeatures(currentGroup.rows),
+          });
+        }
+        // Start new group
+        currentGroup = { name: row.name, rows: [row] };
+      } else {
+        currentGroup.rows.push(row);
+      }
+    });
+
+    // Don't forget the last group
+    if (currentGroup.rows.length > 0) {
+      groups.push({
+        id: currentGroup.name.toLowerCase().replace(/\s+/g, '-'),
+        name: currentGroup.name,
+        features: convertRowsToGanttFeatures(currentGroup.rows),
+      });
+    }
+
+    return groups;
+  };
+
   // Task Templates functions
   const loadTaskTemplates = async () => {
     try {
@@ -405,6 +527,10 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="display-settings">
             <Settings className="h-4 w-4 mr-2" />
             Display Settings
+          </TabsTrigger>
+          <TabsTrigger value="gantt-preview">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Gantt Preview
           </TabsTrigger>
         </TabsList>
 
@@ -675,6 +801,81 @@ export function ScheduleMasterTab() {
 
         <TabsContent value="display-settings" className="mt-6">
           <SMGanttTab />
+        </TabsContent>
+
+        <TabsContent value="gantt-preview" className="mt-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Gantt Preview</h2>
+                <p className="text-sm text-muted-foreground">
+                  Preview schedule templates as a Gantt chart
+                </p>
+              </div>
+              <Select
+                value={ganttTemplateId ? String(ganttTemplateId) : ""}
+                onValueChange={(value) => loadGanttRows(parseInt(value))}
+              >
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Select a template to preview" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.name} ({template.row_count} tasks)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {loadingRows === ganttTemplateId && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            )}
+
+            {ganttTemplateId && ganttRows.length > 0 && loadingRows !== ganttTemplateId && (
+              <Card>
+                <CardContent className="p-0">
+                  <div className="h-[600px]">
+                    <GanttChart
+                      features={convertRowsToGanttFeatures(ganttRows)}
+                      showControls={true}
+                      showSidebar={true}
+                      showToday={true}
+                      showDependencies={true}
+                      title={templates.find(t => t.id === ganttTemplateId)?.name || "Template Preview"}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {ganttTemplateId && ganttRows.length === 0 && loadingRows !== ganttTemplateId && (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">No tasks in this template</h3>
+                  <p className="text-center max-w-md">
+                    Add tasks to this template to see the Gantt preview.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            {!ganttTemplateId && (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
+                  <h3 className="text-lg font-medium mb-2">Select a template</h3>
+                  <p className="text-center max-w-md">
+                    Choose a schedule template from the dropdown above to preview it as a Gantt chart.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 
