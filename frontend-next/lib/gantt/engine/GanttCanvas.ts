@@ -8346,96 +8346,15 @@ export class GanttCanvas {
   }
 
   // =========================================================================
-  // FEATURE 11: TASK GROUPING/HIERARCHY EXTENSIONS
+  // FEATURE 11: TASK INDENTATION EXTENSIONS
   // =========================================================================
-  // Extends the existing hierarchy system with expand/collapse and indentation
-  // Uses existing: taskParentMap, taskChildrenMap, setTaskParent, getTaskParent,
-  //                getTaskChildren, hasChildren, getTaskDepth (defined above)
+  // Adds indent/outdent operations for task hierarchy
+  // Uses existing: setTaskParent, getTaskParent, getTaskDepth (defined above)
 
-  private collapsedGroups: Set<string> = new Set();
   private indentWidth: number = 20;
 
   /**
-   * Toggle group expanded state
-   */
-  toggleGroup(taskId: string): void {
-    if (this.collapsedGroups.has(taskId)) {
-      this.collapsedGroups.delete(taskId);
-    } else {
-      this.collapsedGroups.add(taskId);
-    }
-    this.markDirty();
-  }
-
-  /**
-   * Expand a group
-   */
-  expandGroup(taskId: string): void {
-    this.collapsedGroups.delete(taskId);
-    this.markDirty();
-  }
-
-  /**
-   * Collapse a group
-   */
-  collapseGroup(taskId: string): void {
-    this.collapsedGroups.add(taskId);
-    this.markDirty();
-  }
-
-  /**
-   * Check if group is expanded
-   */
-  isGroupExpanded(taskId: string): boolean {
-    return !this.collapsedGroups.has(taskId);
-  }
-
-  /**
-   * Expand all groups
-   */
-  expandAllGroups(): void {
-    this.collapsedGroups.clear();
-    this.markDirty();
-  }
-
-  /**
-   * Collapse all groups
-   */
-  collapseAllGroups(): void {
-    // Collapse all tasks that have children
-    this.taskChildrenMap.forEach((children, taskId) => {
-      if (children.length > 0) {
-        this.collapsedGroups.add(taskId);
-      }
-    });
-    this.markDirty();
-  }
-
-  /**
-   * Check if task is visible (not hidden by collapsed parent)
-   */
-  isTaskVisibleInHierarchy(taskId: string): boolean {
-    let parentId = this.getTaskParent(taskId);
-
-    // Check if any ancestor is collapsed
-    while (parentId) {
-      if (this.collapsedGroups.has(parentId)) {
-        return false;
-      }
-      parentId = this.getTaskParent(parentId);
-    }
-    return true;
-  }
-
-  /**
-   * Get all visible tasks (respecting hierarchy collapse state)
-   */
-  getVisibleTasksInHierarchy(): GanttTask[] {
-    return this.state.tasks.filter(t => this.isTaskVisibleInHierarchy(t.id));
-  }
-
-  /**
-   * Get indent offset for a task based on its level
+   * Get indent offset for a task based on its depth level
    */
   getTaskIndent(taskId: string): number {
     return this.getTaskDepth(taskId) * this.indentWidth;
@@ -8473,85 +8392,35 @@ export class GanttCanvas {
   }
 
   // =========================================================================
-  // FEATURE 13: KEYBOARD NAVIGATION SYSTEM
+  // FEATURE 13: KEYBOARD NAVIGATION EXTENSIONS
   // =========================================================================
-  // Arrow keys, shortcuts for common actions
+  // Extends the existing keyboard system with task focus and navigation
+  // Uses existing: keyboardEnabled, keyboardShortcuts, registerKeyboardShortcut,
+  //                setKeyboardEnabled, processKeyboardShortcut (defined above)
 
-  private keyboardEnabled: boolean = true;
   private focusedTaskId: string | null = null;
-  private keyboardShortcuts: Map<string, KeyboardShortcut> = new Map();
 
   /**
-   * Enable/disable keyboard navigation
+   * Enhanced keyboard handler with navigation support
+   * Call this in addition to processKeyboardShortcut for navigation
    */
-  setKeyboardEnabled(enabled: boolean): void {
-    this.keyboardEnabled = enabled;
-  }
-
-  /**
-   * Register a keyboard shortcut
-   */
-  registerShortcut(shortcut: KeyboardShortcut): void {
-    const key = this.getShortcutKey(shortcut);
-    this.keyboardShortcuts.set(key, shortcut);
-  }
-
-  /**
-   * Unregister a keyboard shortcut
-   */
-  unregisterShortcut(key: string, modifiers?: ShortcutModifiers): void {
-    const shortcutKey = this.getShortcutKey({ key, modifiers, action: () => {} });
-    this.keyboardShortcuts.delete(shortcutKey);
-  }
-
-  /**
-   * Get shortcut key string for lookup
-   */
-  private getShortcutKey(shortcut: KeyboardShortcut): string {
-    const parts: string[] = [];
-    if (shortcut.modifiers?.ctrl) parts.push('ctrl');
-    if (shortcut.modifiers?.alt) parts.push('alt');
-    if (shortcut.modifiers?.shift) parts.push('shift');
-    if (shortcut.modifiers?.meta) parts.push('meta');
-    parts.push(shortcut.key.toLowerCase());
-    return parts.join('+');
-  }
-
-  /**
-   * Process keyboard event with custom shortcuts and navigation
-   * This is the enhanced keyboard handler that supports custom shortcuts
-   */
-  processKeyboardEvent(event: KeyboardEvent): boolean {
+  handleKeyboardNavigation(event: KeyboardEvent): boolean {
     if (!this.keyboardEnabled) return false;
 
-    // Check for registered shortcuts
-    const shortcutKey = this.getShortcutKey({
-      key: event.key,
-      modifiers: {
-        ctrl: event.ctrlKey,
-        alt: event.altKey,
-        shift: event.shiftKey,
-        meta: event.metaKey
-      },
-      action: () => {}
-    });
-
-    const shortcut = this.keyboardShortcuts.get(shortcutKey);
-    if (shortcut) {
-      event.preventDefault();
-      shortcut.action();
+    // First try existing shortcuts
+    if (this.processKeyboardShortcut(event)) {
       return true;
     }
 
     // Built-in navigation
     switch (event.key) {
       case 'ArrowUp':
-        this.navigateTask('up', event.shiftKey);
+        this.navigateToTask('up', event.shiftKey);
         event.preventDefault();
         return true;
 
       case 'ArrowDown':
-        this.navigateTask('down', event.shiftKey);
+        this.navigateToTask('down', event.shiftKey);
         event.preventDefault();
         return true;
 
@@ -8562,7 +8431,7 @@ export class GanttCanvas {
             this.outdentTask(this.focusedTaskId);
           }
         } else {
-          // Collapse or move to parent
+          // Collapse
           if (this.focusedTaskId && this.hasChildren(this.focusedTaskId)) {
             this.collapseGroup(this.focusedTaskId);
           }
@@ -8587,8 +8456,8 @@ export class GanttCanvas {
 
       case 'Enter':
         if (this.focusedTaskId) {
-          // Trigger edit
-          this.onTaskDoubleClick?.(this.focusedTaskId);
+          const task = this.getTask(this.focusedTaskId);
+          if (task) this.onTaskDoubleClick?.(task);
         }
         event.preventDefault();
         return true;
@@ -8596,8 +8465,8 @@ export class GanttCanvas {
       case 'Delete':
       case 'Backspace':
         if (this.focusedTaskId && !event.ctrlKey && !event.metaKey) {
-          // Delete task (if callback registered)
-          this.onTaskDelete?.(this.focusedTaskId);
+          const task = this.getTask(this.focusedTaskId);
+          if (task) this.onTaskDelete?.(task);
         }
         event.preventDefault();
         return true;
@@ -8611,7 +8480,6 @@ export class GanttCanvas {
 
       case 'a':
         if (event.ctrlKey || event.metaKey) {
-          // Select all
           this.selectAllTasks();
           event.preventDefault();
           return true;
@@ -8619,7 +8487,6 @@ export class GanttCanvas {
         break;
 
       case 'Home':
-        // Go to first task
         if (this.state.tasks.length > 0) {
           this.focusTask(this.state.tasks[0].id);
         }
@@ -8627,7 +8494,6 @@ export class GanttCanvas {
         return true;
 
       case 'End':
-        // Go to last task
         if (this.state.tasks.length > 0) {
           this.focusTask(this.state.tasks[this.state.tasks.length - 1].id);
         }
@@ -8635,7 +8501,6 @@ export class GanttCanvas {
         return true;
 
       case ' ':
-        // Toggle selection
         if (this.focusedTaskId) {
           this.toggleTaskSelection(this.focusedTaskId);
         }
@@ -8649,8 +8514,8 @@ export class GanttCanvas {
   /**
    * Navigate to adjacent task
    */
-  private navigateTask(direction: 'up' | 'down', extendSelection: boolean): void {
-    const visibleTasks = this.getVisibleTasksInHierarchy();
+  private navigateToTask(direction: 'up' | 'down', extendSelection: boolean): void {
+    const visibleTasks = this.getVisibleTasks();
     if (visibleTasks.length === 0) return;
 
     const currentIndex = this.focusedTaskId
@@ -8691,54 +8556,41 @@ export class GanttCanvas {
   }
 
   /**
-   * Get all registered shortcuts
+   * Register navigation-related shortcuts
    */
-  getRegisteredShortcuts(): KeyboardShortcut[] {
-    return Array.from(this.keyboardShortcuts.values());
-  }
-
-  /**
-   * Register default shortcuts
-   */
-  registerDefaultShortcuts(): void {
-    // Undo/Redo
-    this.registerShortcut({
+  registerNavigationShortcuts(): void {
+    this.registerKeyboardShortcut({
       key: 'z',
-      modifiers: { ctrl: true },
+      ctrl: true,
       action: () => this.undo(),
       description: 'Undo'
     });
-    this.registerShortcut({
+    this.registerKeyboardShortcut({
       key: 'y',
-      modifiers: { ctrl: true },
+      ctrl: true,
       action: () => this.redo(),
       description: 'Redo'
     });
-
-    // Zoom
-    this.registerShortcut({
+    this.registerKeyboardShortcut({
       key: '+',
-      modifiers: { ctrl: true },
+      ctrl: true,
       action: () => this.zoomIn(),
       description: 'Zoom in'
     });
-    this.registerShortcut({
+    this.registerKeyboardShortcut({
       key: '-',
-      modifiers: { ctrl: true },
+      ctrl: true,
       action: () => this.zoomOut(),
       description: 'Zoom out'
     });
-    this.registerShortcut({
+    this.registerKeyboardShortcut({
       key: '0',
-      modifiers: { ctrl: true },
+      ctrl: true,
       action: () => this.zoomToFit(),
       description: 'Zoom to fit'
     });
-
-    // Today
-    this.registerShortcut({
+    this.registerKeyboardShortcut({
       key: 't',
-      modifiers: {},
       action: () => this.scrollToToday(),
       description: 'Go to today'
     });
