@@ -39,11 +39,12 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SortableList, SortableItem } from "@/components/ui/dnd";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ============================================================================
 // Types
@@ -68,6 +69,30 @@ interface ApiResponse {
   success: boolean;
   rows: SmTemplateRow[];
 }
+
+/** Column configuration for sidebar table */
+interface ColumnConfig {
+  id: string;
+  label: string;
+  shortLabel?: string;
+  width: number;
+  visible: boolean;
+  align?: 'left' | 'center' | 'right';
+}
+
+/** Default column configuration */
+const DEFAULT_COLUMNS: ColumnConfig[] = [
+  { id: 'name', label: 'Name', width: 140, visible: true, align: 'left' },
+  { id: 'startDate', label: 'Start Date', shortLabel: 'Start', width: 80, visible: true, align: 'left' },
+  { id: 'endDate', label: 'End Date', shortLabel: 'End', width: 80, visible: true, align: 'left' },
+  { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
+  { id: 'progress', label: 'Progress', shortLabel: '%', width: 50, visible: true, align: 'center' },
+  { id: 'status', label: 'Status', width: 80, visible: true, align: 'left' },
+  { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
+  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 40, visible: false, align: 'center' },
+  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 40, visible: false, align: 'center' },
+  { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
+];
 
 // ============================================================================
 // Component
@@ -98,19 +123,25 @@ export function GanttCanvasView({
   const [showSidebar, setShowSidebar] = React.useState(true);
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
 
-  // Column visibility state - controls what shows in task sidebar/tooltips
-  const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({
-    name: true,
-    startDate: true,
-    endDate: true,
-    duration: true,
-    progress: true,
-    status: true,
-    supplier: true,
-    confirm: false,
-    supplierConfirm: false,
-    dependencies: true,
-  });
+  // Column configuration state - controls order and visibility
+  const [columns, setColumns] = React.useState<ColumnConfig[]>(DEFAULT_COLUMNS);
+
+  // Helper to get visible status by column id (for backwards compatibility)
+  const isColumnVisible = React.useCallback((columnId: string) => {
+    return columns.find(c => c.id === columnId)?.visible ?? false;
+  }, [columns]);
+
+  // Toggle column visibility
+  const toggleColumnVisibility = React.useCallback((columnId: string) => {
+    setColumns(prev => prev.map(col =>
+      col.id === columnId ? { ...col, visible: !col.visible } : col
+    ));
+  }, []);
+
+  // Handle column reorder
+  const handleColumnReorder = React.useCallback((newColumns: ColumnConfig[]) => {
+    setColumns(newColumns);
+  }, []);
 
   // Theme
   const { resolvedTheme } = useTheme();
@@ -221,21 +252,19 @@ export function GanttCanvasView({
   React.useEffect(() => {
     if (ganttRef.current) {
       // Update visible columns in engine
-      const cols = Object.entries(visibleColumns)
-        .filter(([, visible]) => visible)
-        .map(([col]) => col);
+      const cols = columns.filter(c => c.visible).map(c => c.id);
       ganttRef.current.setVisibleColumns(cols);
 
       // Update tooltip config to match
       ganttRef.current.setTooltipConfig({
-        showDates: visibleColumns.startDate || visibleColumns.endDate,
-        showDuration: visibleColumns.duration,
-        showProgress: visibleColumns.progress,
-        showDependencies: visibleColumns.dependencies,
-        showStatus: visibleColumns.status,
+        showDates: isColumnVisible('startDate') || isColumnVisible('endDate'),
+        showDuration: isColumnVisible('duration'),
+        showProgress: isColumnVisible('progress'),
+        showDependencies: isColumnVisible('dependencies'),
+        showStatus: isColumnVisible('status'),
       });
     }
-  }, [visibleColumns]);
+  }, [columns, isColumnVisible]);
 
   // Load data on mount
   React.useEffect(() => {
@@ -383,98 +412,47 @@ export function GanttCanvasView({
             {showSidebar ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
           </Button>
 
-          {/* Column Visibility */}
+          {/* Column Visibility & Order */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" title="Column Visibility">
+              <Button variant="ghost" size="icon" title="Column Visibility & Order">
                 <Eye className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.name}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, name: checked }))
-                }
-              >
-                Name
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.startDate}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, startDate: checked }))
-                }
-              >
-                Start Date
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.endDate}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, endDate: checked }))
-                }
-              >
-                End Date
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.duration}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, duration: checked }))
-                }
-              >
-                Duration
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.progress}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, progress: checked }))
-                }
-              >
-                Progress
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.status}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, status: checked }))
-                }
-              >
-                Status
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.supplier}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, supplier: checked }))
-                }
-              >
-                Supplier
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.confirm}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, confirm: checked }))
-                }
-              >
-                Confirm
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.supplierConfirm}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, supplierConfirm: checked }))
-                }
-              >
-                Supplier Confirm
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem
-                checked={visibleColumns.dependencies}
-                onCheckedChange={(checked) =>
-                  setVisibleColumns((prev) => ({ ...prev, dependencies: checked }))
-                }
-              >
-                Dependencies
-              </DropdownMenuCheckboxItem>
+              <div className="px-1 py-1">
+                <SortableList
+                  items={columns}
+                  onReorder={handleColumnReorder}
+                  className="space-y-0.5"
+                >
+                  {columns.map((col, index) => (
+                    <SortableItem
+                      key={col.id}
+                      id={col.id}
+                      variant="simple"
+                      showBadge={false}
+                      className="py-1"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`col-${col.id}`}
+                          checked={col.visible}
+                          onCheckedChange={() => toggleColumnVisibility(col.id)}
+                        />
+                        <label
+                          htmlFor={`col-${col.id}`}
+                          className="text-sm cursor-pointer select-none flex-1"
+                        >
+                          {col.label}
+                        </label>
+                      </div>
+                    </SortableItem>
+                  ))}
+                </SortableList>
+              </div>
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -496,14 +474,19 @@ export function GanttCanvasView({
               className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
               style={{ height: 60, minHeight: 60 }}
             >
-              {visibleColumns.name && <div className="w-[140px] truncate px-1">Name</div>}
-              {visibleColumns.startDate && <div className="w-[80px] truncate px-1">Start</div>}
-              {visibleColumns.endDate && <div className="w-[80px] truncate px-1">End</div>}
-              {visibleColumns.duration && <div className="w-[50px] truncate px-1">Days</div>}
-              {visibleColumns.progress && <div className="w-[50px] truncate px-1">%</div>}
-              {visibleColumns.confirm && <div className="w-[40px] truncate px-1 text-center">✓</div>}
-              {visibleColumns.supplierConfirm && <div className="w-[40px] truncate px-1 text-center">S✓</div>}
-              {visibleColumns.supplier && <div className="w-[100px] truncate px-1">Supplier</div>}
+              {columns.filter(c => c.visible).map(col => (
+                <div
+                  key={col.id}
+                  className={cn(
+                    "truncate px-1",
+                    col.align === 'center' && "text-center",
+                    col.align === 'right' && "text-right"
+                  )}
+                  style={{ width: col.width }}
+                >
+                  {col.shortLabel || col.label}
+                </div>
+              ))}
             </div>
 
             {/* Sidebar Rows */}

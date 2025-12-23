@@ -541,11 +541,9 @@ class BankTransactionReportService
       canvas.text(format_date_nab(txn.transaction_date), at: [ 50, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
-      desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
       canvas.text(desc_line1, at: [ 110, y ])
 
       if desc_line2.present?
-        desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.text(desc_line2, at: [ 115, y - 10 ])
       end
 
@@ -731,6 +729,31 @@ class BankTransactionReportService
     y -= 18
     canvas.font("Helvetica", size: 8)
 
+    # Handle empty transactions case
+    if transactions_with_balance.empty?
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("STATEMENT OPENING BALANCE", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
+      canvas.font("Helvetica", size: 8)
+      y -= 15
+
+      canvas.fill_color("666666")
+      canvas.text("No transactions during this period", at: [ 120, y ])
+      canvas.fill_color("000000")
+      y -= 15
+
+      canvas.stroke_color(BORDER_COLOR)
+      canvas.line(50, y + 10, 545, y + 10)
+      canvas.stroke
+
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("CLOSING BALANCE", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
+      return
+    end
+
     # Opening balance row
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
@@ -750,11 +773,9 @@ class BankTransactionReportService
       canvas.text(format_date_westpac(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
-      desc_line1 = desc_line1[0..42] + "..." if desc_line1.length > 45
       canvas.text(desc_line1, at: [ 120, y ])
 
       if desc_line2.present?
-        desc_line2 = desc_line2[0..42] + "..." if desc_line2.length > 45
         canvas.font("Helvetica", size: 7)
         canvas.text(desc_line2, at: [ 120, y - 9 ])
         canvas.font("Helvetica", size: 8)
@@ -924,6 +945,29 @@ class BankTransactionReportService
     y -= 18
     canvas.font("Helvetica", size: 8)
 
+    # Handle empty transactions case
+    if transactions_with_balance.empty?
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("Opening Balance", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
+      y -= 14
+
+      canvas.fill_color("666666")
+      canvas.text("No transactions during this period", at: [ 120, y ])
+      canvas.fill_color("000000")
+      y -= 14
+
+      canvas.stroke_color(BORDER_COLOR)
+      canvas.line(50, y + 10, 545, y + 10)
+      canvas.stroke
+
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("Closing Balance", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
+      return
+    end
+
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
       canvas.text(format_date_boq(first_txn.transaction_date), at: [ 55, y ])
@@ -940,11 +984,9 @@ class BankTransactionReportService
       canvas.text(format_date_boq(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
-      desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
       canvas.text(desc_line1, at: [ 120, y ])
 
       if desc_line2.present?
-        desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
         canvas.text(desc_line2, at: [ 120, y - 9 ])
         canvas.font("Helvetica", size: 8)
@@ -1142,6 +1184,31 @@ class BankTransactionReportService
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 8)
 
+    # Handle empty transactions case
+    if transactions_with_balance.empty?
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("Opening Balance", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 490, y ])
+      canvas.font("Helvetica", size: 8)
+      y -= 14
+
+      canvas.fill_color("666666")
+      canvas.text("No transactions during this period", at: [ 120, y ])
+      canvas.fill_color("000000")
+      y -= 14
+
+      canvas.stroke_color(BORDER_COLOR)
+      canvas.line(50, y + 10, 545, y + 10)
+      canvas.stroke
+
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("Closing Balance", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 490, y ])
+      return
+    end
+
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
       canvas.font("Helvetica", size: 8, variant: :bold)
@@ -1160,11 +1227,9 @@ class BankTransactionReportService
       canvas.text(format_date_commbank(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
-      desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
       canvas.text(desc_line1, at: [ 120, y ])
 
       if desc_line2.present?
-        desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
         canvas.fill_color("666666")
         canvas.text(desc_line2, at: [ 120, y - 9 ])
@@ -1364,6 +1429,31 @@ class BankTransactionReportService
     y -= 18
     canvas.font("Helvetica", size: 8)
 
+    # Handle empty transactions case
+    if transactions_with_balance.empty?
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("BALANCE BROUGHT FORWARD", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 490, y ])
+      canvas.font("Helvetica", size: 8)
+      y -= 14
+
+      canvas.fill_color("666666")
+      canvas.text("NO TRANSACTIONS DURING THIS PERIOD", at: [ 120, y ])
+      canvas.fill_color("000000")
+      y -= 14
+
+      canvas.stroke_color(BORDER_COLOR)
+      canvas.line(50, y + 10, 545, y + 10)
+      canvas.stroke
+
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 55, y ])
+      canvas.text("CLOSING BALANCE", at: [ 120, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 490, y ])
+      return
+    end
+
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
       canvas.font("Helvetica", size: 8, variant: :bold)
@@ -1382,11 +1472,9 @@ class BankTransactionReportService
       canvas.text(format_date_anz(txn.transaction_date), at: [ 55, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
-      desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
       canvas.text(desc_line1.upcase, at: [ 120, y ])
 
       if desc_line2.present?
-        desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
         canvas.text(desc_line2, at: [ 120, y - 9 ])
         canvas.font("Helvetica", size: 8)
@@ -1722,11 +1810,9 @@ class BankTransactionReportService
       canvas.text(format_date(txn.transaction_date), at: [ 60, y ])
 
       desc_line1, desc_line2 = build_two_line_description(txn)
-      desc_line1 = desc_line1[0..38] + "..." if desc_line1.length > 40
       canvas.text(desc_line1, at: [ 140, y ])
 
       if desc_line2.present?
-        desc_line2 = desc_line2[0..38] + "..." if desc_line2.length > 40
         canvas.font("Helvetica", size: 7)
         canvas.fill_color("666666")
         canvas.text(desc_line2, at: [ 140, y - 10 ])
@@ -1868,7 +1954,11 @@ class BankTransactionReportService
 
   # Build two-line description like real bank statements
   # Line 1: Transaction description (what happened)
-  # Line 2: Contact/payee name (who it was with)
+  # Line 2: Contact/payee name OR overflow from line 1
+  # Max 200 chars total, ~55 chars per line before wrapping
+  MAX_LINE_LENGTH = 55
+  MAX_TOTAL_LENGTH = 200
+
   def build_two_line_description(txn)
     line1 = nil
     line2 = nil
@@ -1900,6 +1990,21 @@ class BankTransactionReportService
     end
 
     line1 ||= "Bank Transaction"
+
+    # Truncate total to MAX_TOTAL_LENGTH
+    line1 = line1[0...MAX_TOTAL_LENGTH] if line1.length > MAX_TOTAL_LENGTH
+
+    # If line1 is long and no line2, wrap to two lines
+    if line1.length > MAX_LINE_LENGTH && line2.blank?
+      # Find a good break point (space) near MAX_LINE_LENGTH
+      break_point = line1.rindex(" ", MAX_LINE_LENGTH) || MAX_LINE_LENGTH
+      line2 = line1[break_point..].strip
+      line1 = line1[0...break_point].strip
+    end
+
+    # Truncate individual lines if still too long
+    line1 = line1[0...(MAX_LINE_LENGTH - 3)] + "..." if line1.length > MAX_LINE_LENGTH
+    line2 = line2[0...(MAX_LINE_LENGTH - 3)] + "..." if line2.present? && line2.length > MAX_LINE_LENGTH
 
     [ line1, line2 ]
   end

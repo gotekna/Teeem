@@ -2466,6 +2466,12 @@ export class GanttCanvas {
     this.renderer.drawTimeScale(this.containerWidth);
     this.renderer.drawTodayMarker(this.containerHeight);
 
+    // CLIP: Prevent task bars, baselines, and dependencies from rendering in header area
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(0, this.config.headerHeight, this.containerWidth, this.containerHeight - this.config.headerHeight);
+    this.ctx.clip();
+
     // Draw baselines first (below task bars)
     if (this.baselineEnabled && this.baselineData.size > 0) {
       this.renderer.drawBaselines(this.state.tasks, this.baselineData, this.containerHeight);
@@ -2516,6 +2522,9 @@ export class GanttCanvas {
         this.dependencyTargetTask
       );
     }
+
+    // RESTORE: End clipping region for task area
+    this.ctx.restore();
 
     // Draw selection count badge
     this.renderer.drawSelectionBadge(this.state.selectedTaskIds.size, this.containerWidth);
