@@ -502,6 +502,58 @@ export function GanttCanvasView({
                   const endStr = task.endDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
                   const duration = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
 
+                  // Render cell content based on column id
+                  const renderCell = (col: ColumnConfig) => {
+                    switch (col.id) {
+                      case 'name':
+                        return (
+                          <div className="truncate px-2 font-medium" title={task.name}>
+                            {task.name}
+                          </div>
+                        );
+                      case 'startDate':
+                        return <div className="truncate px-1 text-muted-foreground">{startStr}</div>;
+                      case 'endDate':
+                        return <div className="truncate px-1 text-muted-foreground">{endStr}</div>;
+                      case 'duration':
+                        return <div className="truncate px-1 text-muted-foreground text-center">{duration}</div>;
+                      case 'progress':
+                        return <div className="truncate px-1 text-muted-foreground text-center">{task.progress || 0}%</div>;
+                      case 'status':
+                        return <div className="truncate px-1 text-muted-foreground">{task.status || '-'}</div>;
+                      case 'confirm':
+                        return (
+                          <div className="flex justify-center">
+                            {row?.require_supervisor_check ? (
+                              <Check className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <X className="h-3 w-3 text-muted-foreground/30" />
+                            )}
+                          </div>
+                        );
+                      case 'supplierConfirm':
+                        return (
+                          <div className="flex justify-center">
+                            {row?.require_supplier_confirm ? (
+                              <Check className="h-3 w-3 text-blue-500" />
+                            ) : (
+                              <X className="h-3 w-3 text-muted-foreground/30" />
+                            )}
+                          </div>
+                        );
+                      case 'supplier':
+                        return (
+                          <div className="truncate px-1 text-muted-foreground" title={task.supplierName || ''}>
+                            {task.supplierName || '-'}
+                          </div>
+                        );
+                      case 'dependencies':
+                        return <div className="truncate px-1 text-muted-foreground">-</div>;
+                      default:
+                        return null;
+                    }
+                  };
+
                   return (
                     <div
                       key={task.id}
@@ -511,54 +563,11 @@ export function GanttCanvasView({
                       )}
                       style={{ height: 40 }}
                     >
-                      {visibleColumns.name && (
-                        <div className="w-[140px] truncate px-2 font-medium" title={task.name}>
-                          {task.name}
+                      {columns.filter(c => c.visible).map(col => (
+                        <div key={col.id} style={{ width: col.width }}>
+                          {renderCell(col)}
                         </div>
-                      )}
-                      {visibleColumns.startDate && (
-                        <div className="w-[80px] truncate px-1 text-muted-foreground">
-                          {startStr}
-                        </div>
-                      )}
-                      {visibleColumns.endDate && (
-                        <div className="w-[80px] truncate px-1 text-muted-foreground">
-                          {endStr}
-                        </div>
-                      )}
-                      {visibleColumns.duration && (
-                        <div className="w-[50px] truncate px-1 text-muted-foreground text-center">
-                          {duration}
-                        </div>
-                      )}
-                      {visibleColumns.progress && (
-                        <div className="w-[50px] truncate px-1 text-muted-foreground text-center">
-                          {task.progress || 0}%
-                        </div>
-                      )}
-                      {visibleColumns.confirm && (
-                        <div className="w-[40px] flex justify-center">
-                          {row?.require_supervisor_check ? (
-                            <Check className="h-3 w-3 text-green-500" />
-                          ) : (
-                            <X className="h-3 w-3 text-muted-foreground/30" />
-                          )}
-                        </div>
-                      )}
-                      {visibleColumns.supplierConfirm && (
-                        <div className="w-[40px] flex justify-center">
-                          {row?.require_supplier_confirm ? (
-                            <Check className="h-3 w-3 text-blue-500" />
-                          ) : (
-                            <X className="h-3 w-3 text-muted-foreground/30" />
-                          )}
-                        </div>
-                      )}
-                      {visibleColumns.supplier && (
-                        <div className="w-[100px] truncate px-1 text-muted-foreground" title={task.supplierName || ''}>
-                          {task.supplierName || '-'}
-                        </div>
-                      )}
+                      ))}
                     </div>
                   );
                 })}

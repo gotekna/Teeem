@@ -759,6 +759,9 @@ export class GanttCanvas {
     this.state.tasks = tasks;
     this.markDirty();
 
+    // Update viewport content height for scroll limiting
+    this.viewport.setContentHeight(tasks.length * this.config.rowHeight);
+
     // Update SelectionManager task order for range selection (Day 2 Refactor)
     this.selectionManager.updateTaskOrderFromTasks(tasks);
 

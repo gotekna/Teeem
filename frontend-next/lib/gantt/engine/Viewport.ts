@@ -42,10 +42,28 @@ export class Viewport {
   private state: ViewportState;
   private containerWidth: number = 0;
   private containerHeight: number = 0;
+  private contentHeight: number = 0; // Total height of all tasks
 
   constructor(config: GanttConfig, initialState: ViewportState) {
     this.config = config;
     this.state = { ...initialState };
+  }
+
+  /**
+   * Set the total content height (tasks.length * rowHeight)
+   */
+  setContentHeight(height: number): void {
+    this.contentHeight = height;
+  }
+
+  /**
+   * Get the maximum scroll Y value
+   */
+  private getMaxScrollY(): number {
+    if (this.contentHeight <= 0 || this.containerHeight <= 0) return Infinity;
+    const visibleHeight = this.containerHeight - this.config.headerHeight;
+    if (visibleHeight <= 0) return Infinity;
+    return Math.max(0, this.contentHeight - visibleHeight);
   }
 
   // ============================================================================
@@ -120,7 +138,8 @@ export class Viewport {
    */
   pan(deltaX: number, deltaY: number): void {
     this.state.scrollX = Math.max(0, this.state.scrollX - deltaX);
-    this.state.scrollY = Math.max(0, this.state.scrollY - deltaY);
+    const newScrollY = this.state.scrollY - deltaY;
+    this.state.scrollY = Math.max(0, Math.min(newScrollY, this.getMaxScrollY()));
   }
 
   /**
@@ -128,7 +147,7 @@ export class Viewport {
    */
   scrollTo(x: number, y: number): void {
     this.state.scrollX = Math.max(0, x);
-    this.state.scrollY = Math.max(0, y);
+    this.state.scrollY = Math.max(0, Math.min(y, this.getMaxScrollY()));
   }
 
   /**
