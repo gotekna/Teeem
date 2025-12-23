@@ -1430,7 +1430,7 @@ export class Renderer {
     this.ctx.font = '13px Inter, system-ui, sans-serif';
     let maxLabelWidth = 0;
     items.forEach(item => {
-      if (!item.separator) {
+      if (!item.separator && item.label) {
         const width = this.ctx.measureText(item.label).width;
         if (width > maxLabelWidth) maxLabelWidth = width;
       }
@@ -1512,11 +1512,13 @@ export class Renderer {
         }
 
         // Draw label
-        this.ctx.font = '13px Inter, system-ui, sans-serif';
-        this.ctx.fillStyle = item.disabled
-          ? (this.config.darkMode ? '#6b7280' : '#9ca3af')
-          : (this.config.darkMode ? '#e5e7eb' : '#374151');
-        this.ctx.fillText(item.label, textX, itemY + itemHeight / 2);
+        if (item.label) {
+          this.ctx.font = '13px Inter, system-ui, sans-serif';
+          this.ctx.fillStyle = item.disabled
+            ? (this.config.darkMode ? '#6b7280' : '#9ca3af')
+            : (this.config.darkMode ? '#e5e7eb' : '#374151');
+          this.ctx.fillText(item.label, textX, itemY + itemHeight / 2);
+        }
 
         itemY += itemHeight;
       }
@@ -1717,7 +1719,7 @@ export class Renderer {
     this.ctx.font = '13px Inter, system-ui, sans-serif';
     let maxLabelWidth = 0;
     items.forEach(item => {
-      if (!item.separator) {
+      if (!item.separator && item.label) {
         const width = this.ctx.measureText(item.label).width;
         if (width > maxLabelWidth) maxLabelWidth = width;
       }

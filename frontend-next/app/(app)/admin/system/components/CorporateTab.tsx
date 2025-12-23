@@ -89,6 +89,7 @@ const ENTITY_TYPES = [
 interface Company {
   id: number;
   name: string;
+  code?: string;
   abn: string;
   acn: string;
   company_group_id?: number;
@@ -778,6 +779,7 @@ function CompaniesSubTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
+                <TableHead>Code</TableHead>
                 <TableHead>ABN/ACN</TableHead>
                 <TableHead>Group</TableHead>
                 <TableHead>Status</TableHead>
@@ -788,7 +790,7 @@ function CompaniesSubTab() {
             <TableBody>
               {filteredCompanies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No companies found.
                   </TableCell>
                 </TableRow>
@@ -812,6 +814,9 @@ function CompaniesSubTab() {
                           )}
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-muted-foreground">
+                      {company.code || "-"}
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
