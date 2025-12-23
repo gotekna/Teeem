@@ -139,37 +139,36 @@ export function XeroTabRenderer({
   });
 
   // Filter to just Xero tabs (tabs with parent that has tab_key="xero")
+  // NOTE: Backend returns NESTED tabs (children inside parent.children array)
   const xeroTabs = React.useMemo(() => {
     // Find the Xero parent tab
     const xeroParent = tabs.find((t) => t.tab_key === "xero" && !t.parent_id);
     if (!xeroParent) return [];
 
-    // Find all children of Xero tab
-    return tabs.filter((t) => t.parent_id === xeroParent.id && t.enabled);
+    // Children are NESTED inside parent, not flat in the tabs array
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const children = (xeroParent as any).children || [];
+    return children.filter((t: EntityTab) => t.enabled);
   }, [tabs]);
 
   // Build hierarchy (L1 = direct children of xero, L2 = grandchildren)
+  // NOTE: Backend returns NESTED structure, so L2 tabs are in L1.children
   const { l1Tabs, l2Tabs, activeL1, activeL2 } = React.useMemo(() => {
-    // L1 tabs = tabs without parent OR tabs whose parent is xero
-    const l1 = xeroTabs.filter((t) => {
-      const isXeroChild = tabs.some(
-        (parent) => parent.id === t.parent_id && parent.tab_key === "xero"
-      );
-      return isXeroChild && !xeroTabs.some((sub) => sub.id === t.parent_id);
-    });
+    // L1 tabs = xeroTabs (direct children of Xero parent)
+    const l1 = xeroTabs;
 
-    // Find active L1
-    const currentL1 = l1.find((t) => t.tab_key === activeSubTab)
-      || l1.find((t) => activeSubTab.startsWith(t.tab_key))
+    // Find active L1 - match by tab_key or prefix
+    const currentL1 = l1.find((t: EntityTab) => t.tab_key === activeSubTab)
+      || l1.find((t: EntityTab) => activeSubTab.startsWith(t.tab_key))
       || l1[0] || null;
 
-    // L2 tabs = children of active L1
-    const l2 = currentL1
-      ? xeroTabs.filter((t) => t.parent_id === currentL1.id && t.enabled)
-      : [];
+    // L2 tabs = children NESTED inside active L1 tab
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const l2Children = currentL1 ? ((currentL1 as any).children || []) : [];
+    const l2 = l2Children.filter((t: EntityTab) => t.enabled);
 
     // Find active L2
-    const currentL2 = l2.find((t) => t.tab_key === activeSubTab) || l2[0] || null;
+    const currentL2 = l2.find((t: EntityTab) => t.tab_key === activeSubTab) || l2[0] || null;
 
     return {
       l1Tabs: l1,
@@ -177,7 +176,7 @@ export function XeroTabRenderer({
       activeL1: currentL1,
       activeL2: currentL2,
     };
-  }, [xeroTabs, tabs, activeSubTab]);
+  }, [xeroTabs, activeSubTab]);
 
   // Handle tab changes
   const handleL1Change = React.useCallback(
