@@ -163,10 +163,17 @@ export default function CompanyDetailPage() {
   });
 
   // Split tabs by group - SSoT: tab_group field from EntityTabs database
+  // Overview sub-tabs are children of the "overview" main tab
   const entityOverviewTabs = React.useMemo(() => {
-    return entityTabs
-      .filter((t) => t.tab_group === "overview")
-      .map((t) => ({ id: t.tab_key, name: t.display_name }));
+    // Find the Overview main tab and get its children
+    const overviewTab = entityTabs.find((t) => t.tab_key === "overview" && t.tab_group === "main");
+    if (!overviewTab?.children) return [];
+    return overviewTab.children
+      .filter((child: { tab_group?: string }) => child.tab_group === "overview")
+      .map((child: { tab_key: string; display_name: string }) => ({
+        id: child.tab_key,
+        name: child.display_name
+      }));
   }, [entityTabs]);
 
   const documentFolderTabs = React.useMemo(() => {
@@ -362,7 +369,12 @@ export default function CompanyDetailPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight font-serif">{company.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight font-serif">
+                {company.code && (
+                  <span className="text-muted-foreground font-mono text-lg mr-2">[{company.code}]</span>
+                )}
+                {company.name}
+              </h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {company.formatted_acn && (
                   <span className="text-sm text-muted-foreground">ACN: {company.formatted_acn}</span>
