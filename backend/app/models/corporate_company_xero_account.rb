@@ -1,6 +1,6 @@
 class CorporateCompanyXeroAccount < ApplicationRecord
   # Associations
-  belongs_to :company_xero_connection
+  belongs_to :company_xero_connection, class_name: "CorporateCompanyXeroConnection"
 
   # Validations
   validates :xero_account_id, presence: true, uniqueness: true
