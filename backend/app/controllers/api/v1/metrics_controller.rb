@@ -10,7 +10,7 @@ module Api
     #
     class MetricsController < ApplicationController
       # Skip authentication for metrics - we want to collect from all users
-      skip_before_action :authenticate_user!, only: [:create]
+      skip_before_action :authorize_request, only: [:create]
 
       # POST /api/v1/metrics
       # Receives batched metrics from frontend

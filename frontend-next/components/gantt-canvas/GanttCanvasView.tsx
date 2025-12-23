@@ -142,13 +142,6 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
     isDragging,
   } = useSortable({ id: column.id });
 
-  // Debug: log when dragging state changes
-  React.useEffect(() => {
-    if (isDragging) {
-      console.log('[Column Drag] isDragging TRUE for:', column.id, 'transform:', transform);
-    }
-  }, [isDragging, column.id, transform]);
-
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -167,14 +160,13 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
       {...attributes}
       {...listeners}
       className={cn(
-        "truncate px-1 relative group select-none border border-red-500",
+        "truncate px-1 relative group select-none",
         column.align === 'center' && "text-center",
         column.align === 'right' && "text-right",
         isDragging && "z-50 bg-blue-200 dark:bg-blue-800 shadow-lg rounded opacity-80 ring-2 ring-blue-500"
       )}
     >
       {column.shortLabel || column.label}
-      <span className="text-[8px] text-red-500 block">drag:{isDragging ? 'Y' : 'N'}</span>
       {/* Resize handle - stop propagation to prevent drag conflict */}
       <div
         className={cn(
@@ -322,33 +314,26 @@ export function GanttCanvasView({
   // Must work with visibleColumns order since that's what user sees/drags
   const handleColumnDragEnd = React.useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    console.log('[Column Drag] DragEnd event:', { activeId: active.id, overId: over?.id });
 
     if (!over || active.id === over.id) {
-      console.log('[Column Drag] No move - over is null or same column');
       return;
     }
 
     // Get indices from visibleColumns (what user sees)
     const oldVisibleIndex = visibleColumns.findIndex(col => col.id === active.id);
     const newVisibleIndex = visibleColumns.findIndex(col => col.id === over.id);
-    console.log('[Column Drag] Indices:', { oldVisibleIndex, newVisibleIndex, visibleColumnsCount: visibleColumns.length });
 
     if (oldVisibleIndex === -1 || newVisibleIndex === -1) {
-      console.log('[Column Drag] Invalid indices - column not found');
       return;
     }
 
     // Create new order from visibleColumns then merge back hidden columns
     const reorderedVisible = arrayMove([...visibleColumns], oldVisibleIndex, newVisibleIndex);
-    console.log('[Column Drag] Reordered:', reorderedVisible.map(c => c.id));
 
     // Rebuild full columns: reordered visible + hidden columns at end
     setColumns(prev => {
       const hiddenCols = prev.filter(c => !c.visible && c.id !== 'name');
-      const newCols = [...reorderedVisible, ...hiddenCols];
-      console.log('[Column Drag] New columns:', newCols.map(c => c.id));
-      return newCols;
+      return [...reorderedVisible, ...hiddenCols];
     });
   }, [visibleColumns]);
 
@@ -824,8 +809,6 @@ export function GanttCanvasView({
             <DndContext
               sensors={columnDragSensors}
               collisionDetection={closestCenter}
-              onDragStart={(e) => console.log('[Column Drag] DragStart:', e.active.id)}
-              onDragOver={(e) => console.log('[Column Drag] DragOver:', { activeId: e.active.id, overId: e.over?.id })}
               onDragEnd={handleColumnDragEnd}
             >
               <SortableContext
@@ -944,7 +927,7 @@ export function GanttCanvasView({
                       style={{ height: 40 }}
                     >
                       {visibleColumns.map(col => (
-                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="border border-red-500">
+                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">
                           {renderCell(col)}
                         </div>
                       ))}
