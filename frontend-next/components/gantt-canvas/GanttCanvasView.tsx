@@ -44,6 +44,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
+import {
+  DndContext,
+  DragOverlay,
+  type DragEndEvent,
+  type DragStartEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -103,6 +119,64 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 40, visible: false, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
 ];
+
+// ============================================================================
+// Sortable Column Header Component
+// ============================================================================
+
+interface SortableColumnHeaderProps {
+  column: ColumnConfig;
+  resizingColumn: string | null;
+  onResizeStart: (e: React.MouseEvent, columnId: string, currentWidth: number) => void;
+}
+
+function SortableColumnHeader({ column, resizingColumn, onResizeStart }: SortableColumnHeaderProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: column.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    width: column.width,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "truncate px-1 relative group select-none",
+        column.align === 'center' && "text-center",
+        column.align === 'right' && "text-right",
+        isDragging && "z-50 bg-background shadow-lg rounded"
+      )}
+    >
+      {column.shortLabel || column.label}
+      {/* Resize handle - stop propagation to prevent drag conflict */}
+      <div
+        className={cn(
+          "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize",
+          "hover:bg-primary/50 active:bg-primary",
+          resizingColumn === column.id && "bg-primary"
+        )}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          onResizeStart(e, column.id, column.width);
+        }}
+      />
+    </div>
+  );
+}
 
 // ============================================================================
 // Component
@@ -222,10 +296,32 @@ export function GanttCanvasView({
     ));
   }, []);
 
-  // Handle column reorder
+  // Handle column reorder from dropdown SortableList
   const handleColumnReorder = React.useCallback((newColumns: ColumnConfig[]) => {
     setColumns(newColumns);
   }, []);
+
+  // Handle column reorder via drag-and-drop in header
+  const handleColumnDragEnd = React.useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setColumns(prev => {
+      const oldIndex = prev.findIndex(col => col.id === active.id);
+      const newIndex = prev.findIndex(col => col.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  }, []);
+
+  // DnD sensors with delay to distinguish from resize
+  const columnDragSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // Must drag at least 5px to start
+      },
+    })
+  );
 
   // Column resize state
   const [resizingColumn, setResizingColumn] = React.useState<string | null>(null);
@@ -685,34 +781,30 @@ export function GanttCanvasView({
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
         <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 160, maxWidth: showSidebar ? 600 : 200 }}>
-            {/* Sidebar Header */}
-            <div
-              className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
-              style={{ height: 60, minHeight: 60 }}
+            {/* Sidebar Header - Draggable Columns */}
+            <DndContext
+              sensors={columnDragSensors}
+              onDragEnd={handleColumnDragEnd}
             >
-              {visibleColumns.map((col, colIndex) => (
+              <SortableContext
+                items={visibleColumns.map(c => c.id)}
+                strategy={horizontalListSortingStrategy}
+              >
                 <div
-                  key={col.id}
-                  className={cn(
-                    "truncate px-1 relative group",
-                    col.align === 'center' && "text-center",
-                    col.align === 'right' && "text-right"
-                  )}
-                  style={{ width: col.width }}
+                  className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
+                  style={{ height: 60, minHeight: 60 }}
                 >
-                  {col.shortLabel || col.label}
-                  {/* Resize handle */}
-                  <div
-                    className={cn(
-                      "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize",
-                      "hover:bg-primary/50 active:bg-primary",
-                      resizingColumn === col.id && "bg-primary"
-                    )}
-                    onMouseDown={(e) => handleResizeStart(e, col.id, col.width)}
-                  />
+                  {visibleColumns.map((col) => (
+                    <SortableColumnHeader
+                      key={col.id}
+                      column={col}
+                      resizingColumn={resizingColumn}
+                      onResizeStart={handleResizeStart}
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
 
             {/* Sidebar Rows */}
             <div
