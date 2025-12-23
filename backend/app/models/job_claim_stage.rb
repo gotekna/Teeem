@@ -34,11 +34,12 @@ class JobClaimStage < ApplicationRecord
 
   # Instance Methods
 
-  # Calculate expected amount based on percentage of contract value
+  # Calculate expected amount based on percentage of contract price
+  # SSoT: contract_price is THE ONE
   def calculate_expected_amount!
     return unless percentage.present? && job.present?
-    contract_value = job.contract_value.to_d
-    self.expected_amount = (contract_value * percentage / 100).round(2)
+    contract = job.contract_price.to_d
+    self.expected_amount = (contract * percentage / 100).round(2)
     save! if persisted?
   end
 

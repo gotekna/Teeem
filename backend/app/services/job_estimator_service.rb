@@ -49,7 +49,8 @@ class JobEstimatorService
     job_title = @job.title || "Untitled Job"
     job_type = @job.job_type&.name || "Unknown"
     job_status = @job.job_status&.name || "Unknown"
-    contract_value = @job.contract_value
+    # SSoT: contract_price is THE ONE
+    contract = @job.contract_price
     location = extract_location
     client_info = extract_client_info
     description = @job.description || @job.scope_of_work || ""
@@ -61,7 +62,7 @@ class JobEstimatorService
       - Title: #{job_title}
       - Type: #{job_type}
       - Status: #{job_status}
-      - Contract Value: #{contract_value ? "$#{contract_value}" : 'Not specified'}
+      - Contract Value: #{contract ? "$#{contract}" : 'Not specified'}
       - Location: #{location}
       - Client: #{client_info}
       - Description: #{description.present? ? description : 'No description provided'}

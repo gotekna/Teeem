@@ -44,8 +44,9 @@ module Api
                        .where("created_at > ?", 30.days.ago)
 
         # Calculate stats
-        total_pipeline_value = jobs.sum { |j| j.contract_value || 0 }
-        won_value = won_jobs.sum(:contract_value) || 0
+        # SSoT: contract_price is THE ONE
+        total_pipeline_value = jobs.sum { |j| j.contract_price || 0 }
+        won_value = won_jobs.sum(:contract_price) || 0
 
         render json: {
           success: true,
@@ -872,6 +873,7 @@ module Api
           :deposit,
           :prime_cost,
           :provisional_sums,
+          :external_sales_fee,
           :contract_date,
           # Build schedule
           :build_period,
@@ -930,7 +932,8 @@ module Api
           id: job.id,
           title: job.title,
           location: job.location,
-          contract_value: job.contract_value || 0,
+          # SSoT: contract_price is THE ONE
+          contract_value: job.contract_price || 0,
           job_type: job.job_type&.name,
           job_status: job.job_status&.name,
           job_stage: job.job_stage&.name,
