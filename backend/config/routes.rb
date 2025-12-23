@@ -146,6 +146,10 @@ Rails.application.routes.draw do
       get "health/pricebook/missing_items", to: "health#missing_items"
       get "pricebook/price_health_check", to: "pricebook_items#price_health_check"
 
+      # Performance Observatory - Metrics Ingestion
+      post "metrics", to: "metrics#create"              # Receive frontend Web Vitals
+      get "metrics/buffer_status", to: "metrics#buffer_status"  # Debug buffer status
+
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"
 

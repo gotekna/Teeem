@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/ui/sidebar";
 import { HeaderBar } from "@/components/layout/HeaderBar";
@@ -10,6 +10,7 @@ import { SidebarProvider, useSidebar } from "@/contexts/SidebarContext";
 import { ViewModeProvider } from "@/contexts/ViewModeContext";
 import { LayoutModeProvider, useLayoutMode } from "@/contexts/LayoutModeContext";
 import { Spinner } from "@/components/ui/spinner";
+import { initVitals } from "@/lib/performance/vitals";
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -17,6 +18,15 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { containerClassName, contentClassName, shouldHideSidebar } = useLayoutMode();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const vitalsInitialized = useRef(false);
+
+  // Initialize Performance Observatory Web Vitals collection
+  useEffect(() => {
+    if (!vitalsInitialized.current) {
+      initVitals();
+      vitalsInitialized.current = true;
+    }
+  }, []);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {

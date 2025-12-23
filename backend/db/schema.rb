@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_072202) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4056,6 +4056,64 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
     t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
   end
 
+  create_table "performance_requests", force: :cascade do |t|
+    t.string "endpoint", null: false
+    t.string "method", null: false
+    t.integer "duration_ms", null: false
+    t.integer "db_time_ms"
+    t.integer "view_time_ms"
+    t.integer "status_code"
+    t.bigint "user_id"
+    t.bigint "organization_id"
+    t.string "controller_action"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_performance_requests_on_created_at"
+    t.index ["endpoint", "created_at"], name: "index_performance_requests_on_endpoint_and_created_at"
+    t.index ["endpoint"], name: "index_performance_requests_on_endpoint"
+    t.index ["organization_id"], name: "index_performance_requests_on_organization_id"
+    t.index ["status_code"], name: "index_performance_requests_on_status_code", where: "(status_code >= 400)"
+    t.index ["user_id"], name: "index_performance_requests_on_user_id"
+  end
+
+  create_table "performance_slow_queries", force: :cascade do |t|
+    t.text "query_fingerprint", null: false
+    t.integer "duration_ms", null: false
+    t.string "table_name"
+    t.string "operation"
+    t.text "caller_location"
+    t.bigint "user_id"
+    t.string "endpoint"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_performance_slow_queries_on_created_at"
+    t.index ["duration_ms"], name: "index_performance_slow_queries_on_duration_ms"
+    t.index ["table_name", "created_at"], name: "index_performance_slow_queries_on_table_name_and_created_at"
+    t.index ["table_name"], name: "index_performance_slow_queries_on_table_name"
+    t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
+  end
+
+  create_table "performance_vitals", force: :cascade do |t|
+    t.string "metric_name", null: false
+    t.float "value", null: false
+    t.string "page_path"
+    t.string "session_id"
+    t.string "user_agent"
+    t.bigint "user_id"
+    t.string "rating"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_performance_vitals_on_created_at"
+    t.index ["metric_name", "created_at"], name: "index_performance_vitals_on_metric_name_and_created_at"
+    t.index ["metric_name"], name: "index_performance_vitals_on_metric_name"
+    t.index ["page_path"], name: "index_performance_vitals_on_page_path"
+    t.index ["rating"], name: "index_performance_vitals_on_rating"
+    t.index ["user_id"], name: "index_performance_vitals_on_user_id"
+  end
+
   create_table "permissions", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -6369,6 +6427,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
   add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "performance_requests", "organizations"
+  add_foreign_key "performance_requests", "users"
+  add_foreign_key "performance_slow_queries", "users"
+  add_foreign_key "performance_vitals", "users"
   add_foreign_key "plan_category_plan_types", "plan_categories"
   add_foreign_key "plan_category_plan_types", "plan_types"
   add_foreign_key "plan_folder_scans", "job_plans"

@@ -53,6 +53,8 @@ import {
   useSensors,
   PointerSensor,
   closestCenter,
+  rectIntersection,
+  pointerWithin,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -141,12 +143,22 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
     isDragging,
   } = useSortable({ id: column.id });
 
+  // Debug: log when dragging state changes
+  React.useEffect(() => {
+    if (isDragging) {
+      console.log('[Column Drag] isDragging TRUE for:', column.id, 'transform:', transform);
+    }
+  }, [isDragging, column.id, transform]);
+
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     width: column.width,
-    opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
+    minWidth: column.width,
+    flexShrink: 0,
+    height: '100%',
+    touchAction: 'none',
+    cursor: isDragging ? 'grabbing' : 'grab',
   };
 
   return (
@@ -156,13 +168,14 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
       {...attributes}
       {...listeners}
       className={cn(
-        "truncate px-1 relative group select-none",
+        "truncate px-1 relative group select-none border border-red-500",
         column.align === 'center' && "text-center",
         column.align === 'right' && "text-right",
-        isDragging && "z-50 bg-background shadow-lg rounded"
+        isDragging && "z-50 bg-blue-200 dark:bg-blue-800 shadow-lg rounded opacity-80 ring-2 ring-blue-500"
       )}
     >
       {column.shortLabel || column.label}
+      <span className="text-[8px] text-red-500 block">drag:{isDragging ? 'Y' : 'N'}</span>
       {/* Resize handle - stop propagation to prevent drag conflict */}
       <div
         className={cn(
@@ -173,6 +186,10 @@ function SortableColumnHeader({ column, resizingColumn, onResizeStart }: Sortabl
         onMouseDown={(e) => {
           e.stopPropagation();
           onResizeStart(e, column.id, column.width);
+        }}
+        onPointerDown={(e) => {
+          // Stop pointer events on resize handle to prevent drag
+          e.stopPropagation();
         }}
       />
     </div>
@@ -806,6 +823,9 @@ export function GanttCanvasView({
             {/* Sidebar Header - Draggable Columns */}
             <DndContext
               sensors={columnDragSensors}
+              collisionDetection={pointerWithin}
+              onDragStart={(e) => console.log('[Column Drag] DragStart:', e.active.id)}
+              onDragOver={(e) => console.log('[Column Drag] DragOver:', { activeId: e.active.id, overId: e.over?.id })}
               onDragEnd={handleColumnDragEnd}
             >
               <SortableContext
@@ -924,7 +944,7 @@ export function GanttCanvasView({
                       style={{ height: 40 }}
                     >
                       {visibleColumns.map(col => (
-                        <div key={col.id} style={{ width: col.width }}>
+                        <div key={col.id} style={{ width: col.width }} className="border border-red-500">
                           {renderCell(col)}
                         </div>
                       ))}
