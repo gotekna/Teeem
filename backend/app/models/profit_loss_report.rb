@@ -154,7 +154,7 @@ class ProfitLossReport < ApplicationRecord
     # Determine date range: from Xero connection to current month
     start_date = connection.created_at.to_date.beginning_of_month
     end_date = Date.current.end_of_month
-    company_code = company.short_code.presence || company.code.presence || company.name[0..3].upcase
+    company_code = company.code.presence || company.name[0..3].upcase
 
     created_count = 0
     skipped_count = 0
