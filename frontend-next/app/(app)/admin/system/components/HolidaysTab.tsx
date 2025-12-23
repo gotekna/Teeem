@@ -12,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Switch } from "@/components/ui/switch";
 import type { DateRange } from "react-day-picker";
 import {
@@ -90,7 +89,6 @@ export function HolidaysTab() {
   });
   const [multiDayMode, setMultiDayMode] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
-  const [calendarOpen, setCalendarOpen] = React.useState(false);
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear + i - 1);
 
@@ -416,36 +414,24 @@ export function HolidaysTab() {
             <div className="space-y-2">
               <Label>{multiDayMode && !editingHoliday ? "Date Range" : "Date"}</Label>
               {multiDayMode && !editingHoliday ? (
-                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start text-left font-normal"
-                    >
-                      <Calendar className="mr-2 h-4 w-4" />
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>
-                            {format(dateRange.from, "d MMM yyyy")} - {format(dateRange.to, "d MMM yyyy")}
-                          </>
-                        ) : (
-                          format(dateRange.from, "d MMM yyyy")
-                        )
-                      ) : (
-                        <span className="text-muted-foreground">Select date range</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="range"
-                      selected={dateRange}
-                      onSelect={setDateRange}
-                      numberOfMonths={2}
-                      defaultMonth={new Date()}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <>
+                  <DateRangePicker
+                    range={dateRange || { from: undefined, to: undefined }}
+                    onSelect={(range) => setDateRange(range)}
+                    placeholder={
+                      dateRange?.from
+                        ? dateRange.to
+                          ? `${format(dateRange.from, "d MMM yyyy")} - ${format(dateRange.to, "d MMM yyyy")}`
+                          : format(dateRange.from, "d MMM yyyy")
+                        : "Select date range"
+                    }
+                  />
+                  {dateRange?.from && dateRange?.to && (
+                    <p className="text-sm text-muted-foreground">
+                      {getDatesInRange(dateRange.from, dateRange.to).length} days selected
+                    </p>
+                  )}
+                </>
               ) : (
                 <Input
                   id="date"
@@ -453,11 +439,6 @@ export function HolidaysTab() {
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 />
-              )}
-              {multiDayMode && dateRange?.from && dateRange?.to && (
-                <p className="text-sm text-muted-foreground">
-                  {getDatesInRange(dateRange.from, dateRange.to).length} days selected
-                </p>
               )}
             </div>
 
