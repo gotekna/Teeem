@@ -27,7 +27,10 @@
 #  updated_at           :datetime         not null
 #
 class BalanceSheetReport < ApplicationRecord
+  include DocumentTemplatable
+
   belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :document_type, optional: true
 
   # Validations
   validates :company_name, presence: true
@@ -225,16 +228,42 @@ class BalanceSheetReport < ApplicationRecord
     financial_year
   end
 
-  # Display name following DocumentType template: {DocTypeName} {MonthYearLong}
-  # Example: "Balance Sheet December 2025"
-  # FY column is for searching (e.g., search "FY2026" to find all 12 months)
+  # Display name for table views - SSoT: Uses DocumentType template if available
+  # Template: {DocTypeName} {MonthYearLong} → "Balance Sheet December 2025"
+  # FY column is for searching (e.g., search "FY26" to find all 12 months)
   # For legacy reports without period_end_date, fallback to FY
   def display_name
-    if period_end_date.present?
-      "Balance Sheet #{period_label}"  # "Balance Sheet December 2025"
+    # SSoT: Use DocumentType template if linked
+    if document_type&.display_name.present?
+      expand_display_template(document_type.display_name)
+    elsif period_end_date.present?
+      "Balance Sheet #{period_label}"
     else
-      "Balance Sheet #{financial_year}"  # Legacy fallback
+      "Balance Sheet #{financial_year}"
     end
+  end
+
+  # Generate filename using DocumentType template (SSoT)
+  def generate_file_name
+    if document_type&.file_name.present?
+      expand_filename_template(document_type.file_name)
+    else
+      nil  # Let service use its existing logic
+    end
+  end
+
+  # Context for DocumentTemplatable concern
+  def template_context
+    {
+      company_code: company_code,
+      company_name: corporate_company&.name,
+      doc_type_name: document_type&.name || "Balance Sheet",
+      doc_type_code: document_type&.abbreviation || "BS",
+      financial_year: financial_year,
+      period: period,
+      period_end: period_end_date,
+      document_date: period_end_date
+    }
   end
 
   # Short period label for filenames

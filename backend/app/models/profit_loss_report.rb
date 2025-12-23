@@ -28,7 +28,10 @@
 #  updated_at           :datetime         not null
 #
 class ProfitLossReport < ApplicationRecord
+  include DocumentTemplatable
+
   belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :document_type, optional: true
 
   # Validations
   validates :company_name, presence: true
@@ -229,16 +232,42 @@ class ProfitLossReport < ApplicationRecord
     financial_year
   end
 
-  # Display name for table views - follows Entity Config: {DocTypeName} {MonthYearLong}
-  # Example: "Profit and Loss December 2025"
+  # Display name for table views - SSoT: Uses DocumentType template if available
+  # Template: {DocTypeName} {MonthYearLong} → "Profit and Loss December 2025"
   # FY column is for searching (e.g., search "FY26" to find all 12 months)
   # For legacy reports without period_end, fallback to FY
   def display_name
-    if period_end.present?
-      "Profit and Loss #{period_label}"  # "Profit and Loss December 2025"
+    # SSoT: Use DocumentType template if linked
+    if document_type&.display_name.present?
+      expand_display_template(document_type.display_name)
+    elsif period_end.present?
+      "Profit and Loss #{period_label}"
     else
-      "Profit and Loss #{financial_year}"  # "Profit and Loss FY24" for legacy reports
+      "Profit and Loss #{financial_year}"
     end
+  end
+
+  # Generate filename using DocumentType template (SSoT)
+  def generate_file_name
+    if document_type&.file_name.present?
+      expand_filename_template(document_type.file_name)
+    else
+      nil  # Let service use its existing logic
+    end
+  end
+
+  # Context for DocumentTemplatable concern
+  def template_context
+    {
+      company_code: company_code,
+      company_name: corporate_company&.name,
+      doc_type_name: document_type&.name || "Profit and Loss",
+      doc_type_code: document_type&.abbreviation || "P&L",
+      financial_year: financial_year,
+      period: period,
+      period_end: period_end,
+      document_date: period_end
+    }
   end
 
   # Short period label for filenames

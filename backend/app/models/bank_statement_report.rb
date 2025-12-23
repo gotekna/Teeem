@@ -7,8 +7,11 @@
 #   Warehousing/Bank Statements/Bank Produced/{bank_account_name}/{FY}/{filename}.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
+  include DocumentTemplatable
+
   belongs_to :corporate_company, foreign_key: "company_id", optional: true
   belongs_to :bank_account, primary_key: "xero_account_id", foreign_key: "bank_account_id", optional: true
+  belongs_to :document_type, optional: true
 
   # Bank code mapping for standardized naming
   BANK_CODES = {
@@ -159,16 +162,54 @@ class BankStatementReport < ApplicationRecord
     end
   end
 
-  # Display name for table views - follows Entity Config: {DocTypeName} {MonthYearLong}
-  # Example: "Bank Statement December 2025" or "NAB December 2025"
+  # Display name for table views - SSoT: Uses DocumentType template if available
+  # Template: {BankCode} {MonthYearLong} → "NAB December 2025"
   # For legacy reports without month, fallback to FY
   def display_name
-    bank_label = bank_code.presence || "Bank Statement"
-    if month.present? && year.present?
-      "#{bank_label} #{Date.new(year, month, 1).strftime('%B %Y')}"
+    # SSoT: Use DocumentType template if linked
+    if document_type&.display_name.present?
+      expand_display_template(document_type.display_name)
     else
-      "#{bank_label} #{financial_year}"
+      bank_label = bank_code.presence || "Bank Statement"
+      if month.present? && year.present?
+        "#{bank_label} #{Date.new(year, month, 1).strftime('%B %Y')}"
+      else
+        "#{bank_label} #{financial_year}"
+      end
     end
+  end
+
+  # Generate filename using DocumentType template (SSoT)
+  def generate_file_name
+    if document_type&.file_name.present?
+      expand_filename_template(document_type.file_name)
+    else
+      nil  # Let service use its existing logic
+    end
+  end
+
+  # Context for DocumentTemplatable concern
+  def template_context
+    # Derive period from month/year
+    period_str = if month.present?
+                   Date::ABBR_MONTHNAMES[month] + (year.present? ? year.to_s[-2..] : "")
+                 else
+                   "EOY"
+                 end
+
+    {
+      company_code: company_code,
+      company_name: corporate_company&.name,
+      doc_type_name: document_type&.name || "Bank Statement",
+      doc_type_code: document_type&.abbreviation || "BS",
+      financial_year: financial_year,
+      period: period_str,
+      period_end: period_end,
+      document_date: period_end || (month.present? && year.present? ? Date.new(year, month, 1).end_of_month : nil),
+      bank_code: bank_code,
+      account_number: account_number,
+      bsb: bank_account&.bsb
+    }
   end
 
   # ============================================

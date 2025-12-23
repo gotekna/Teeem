@@ -1,4 +1,6 @@
 class CorporateCompanyDocument < ApplicationRecord
+  include DocumentTemplatable
+
   # Associations
   belongs_to :corporate_company, foreign_key: "company_id", optional: true
 
@@ -231,42 +233,20 @@ class CorporateCompanyDocument < ApplicationRecord
     end
   end
 
-  # Expand DocumentType.display_name template with actual document values
-  def expand_display_template(template)
-    result = template.dup
-
-    # Financial year tokens
+  # Provide context for DocumentTemplatable concern
+  # SSoT: All template expansion uses the concern's expand_display_template method
+  def template_context
     fy = financial_years&.first || extract_fy_from_file_name
-    if fy
-      fy_short = fy.to_s[-2..-1] # "2025" -> "25"
-      result.gsub!('{YY}', fy_short)
-      result.gsub!('{FY}', "FY#{fy_short}")
-    end
-
-    # Company tokens
-    result.gsub!('{CompanyCode}', corporate_company&.code.to_s)
-    result.gsub!('{CompanyName}', corporate_company&.name.to_s)
-
-    # Date tokens
-    if document_date.present?
-      result.gsub!('{Date}', document_date.strftime('%d-%m-%Y'))
-    end
-
-    # Document type name (for generic templates)
-    result.gsub!('{DocTypeName}', document_type_record&.name.to_s)
-
-    # Signed status from file_name
-    if file_name&.match?(/\bUS\b|Unsigned/i)
-      result.gsub!('{Signed}', 'Unsigned')
-    elsif file_name&.match?(/\bS\b.*\b(CTR|TTR)\b|Signed/i)
-      result.gsub!('{Signed}', 'Signed')
-    end
-
-    # Clean up unreplaced tokens (remove them)
-    result.gsub!(/\s*\{[^}]+\}\s*/, ' ')
-
-    # Clean up extra spaces
-    result.gsub!(/\s+/, ' ').strip
+    {
+      company_code: corporate_company&.code,
+      company_name: corporate_company&.name,
+      doc_type_name: document_type_record&.name,
+      doc_type_code: document_type_record&.abbreviation,
+      financial_year: fy,
+      financial_years: financial_years,
+      document_date: document_date,
+      file_name: file_name
+    }
   end
 
   # Extract FY from file_name if not in financial_years
