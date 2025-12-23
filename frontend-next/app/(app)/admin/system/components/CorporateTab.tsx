@@ -61,6 +61,7 @@ import { cn } from "@/lib/utils";
 interface CompanyGroup {
   id: number;
   name: string;
+  code?: string;
   description?: string;
   default_registered_office?: string;
   default_principal_place?: string;
@@ -88,6 +89,7 @@ const ENTITY_TYPES = [
 interface Company {
   id: number;
   name: string;
+  code?: string;
   abn: string;
   acn: string;
   company_group_id?: number;
@@ -113,6 +115,7 @@ function GroupsSubTab() {
 
   const [formData, setFormData] = React.useState({
     name: "",
+    code: "",
     description: "",
     default_registered_office: "",
     default_principal_place: "",
@@ -141,6 +144,7 @@ function GroupsSubTab() {
   const resetForm = () => {
     setFormData({
       name: "",
+      code: "",
       description: "",
       default_registered_office: "",
       default_principal_place: "",
@@ -158,6 +162,7 @@ function GroupsSubTab() {
   const handleOpenEditDialog = (group: CompanyGroup) => {
     setFormData({
       name: group.name,
+      code: group.code || "",
       description: group.description || "",
       default_registered_office: group.default_registered_office || "",
       default_principal_place: group.default_principal_place || "",
@@ -258,6 +263,7 @@ function GroupsSubTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Group Name</TableHead>
+                <TableHead>CGC</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Companies</TableHead>
                 <TableHead>Default Accountant</TableHead>
@@ -275,6 +281,9 @@ function GroupsSubTab() {
                       </div>
                       <div className="font-medium">{group.name}</div>
                     </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {group.code || "-"}
                   </TableCell>
                   <TableCell className="text-muted-foreground max-w-[200px] truncate">
                     {group.description || "-"}
@@ -351,14 +360,27 @@ function GroupsSubTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="group-name">Name *</Label>
-              <Input
-                id="group-name"
-                placeholder="e.g., Smith Family Group"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 grid gap-2">
+                <Label htmlFor="group-name">Name *</Label>
+                <Input
+                  id="group-name"
+                  placeholder="e.g., Smith Family Group"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="group-code">Company Group Code (CGC)</Label>
+                <Input
+                  id="group-code"
+                  placeholder="e.g., SFG"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  className="font-mono"
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="group-description">Description</Label>
@@ -464,6 +486,7 @@ function CompaniesSubTab() {
 
   const [formData, setFormData] = React.useState({
     name: "",
+    code: "",
     abn: "",
     acn: "",
     company_group_id: "",
@@ -512,6 +535,7 @@ function CompaniesSubTab() {
   const handleOpenAddDialog = () => {
     setFormData({
       name: "",
+      code: "",
       abn: "",
       acn: "",
       company_group_id: "",
@@ -593,6 +617,7 @@ function CompaniesSubTab() {
   const handleOpenEditDialog = (company: Company) => {
     setFormData({
       name: company.name,
+      code: company.code || "",
       abn: company.abn || "",
       acn: company.acn || "",
       company_group_id: company.company_group_id?.toString() || "",
@@ -614,8 +639,14 @@ function CompaniesSubTab() {
 
     setSaving(true);
     try {
+      // Only send fields that exist on CorporateCompany model
       const payload = {
-        ...formData,
+        name: formData.name,
+        code: formData.code || undefined,
+        abn: formData.abn || undefined,
+        acn: formData.acn || undefined,
+        status: formData.status || undefined,
+        entity_type: formData.type || undefined,
         company_group_id: formData.company_group_id && formData.company_group_id !== "none" ? parseInt(formData.company_group_id) : null,
       };
 
@@ -757,6 +788,7 @@ function CompaniesSubTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Company</TableHead>
+                <TableHead>Code</TableHead>
                 <TableHead>ABN/ACN</TableHead>
                 <TableHead>Group</TableHead>
                 <TableHead>Status</TableHead>
@@ -767,7 +799,7 @@ function CompaniesSubTab() {
             <TableBody>
               {filteredCompanies.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     No companies found.
                   </TableCell>
                 </TableRow>
@@ -791,6 +823,9 @@ function CompaniesSubTab() {
                           )}
                         </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-muted-foreground">
+                      {company.code || "-"}
                     </TableCell>
                     <TableCell>
                       <div className="text-sm">
@@ -880,8 +915,8 @@ function CompaniesSubTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-4 gap-4">
+              <div className="col-span-2 space-y-2">
                 <Label htmlFor="name">Company Name *</Label>
                 <Input
                   id="name"
@@ -890,10 +925,21 @@ function CompaniesSubTab() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="code">Code</Label>
+                <Input
+                  id="code"
+                  placeholder="e.g., TEK"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="type">Type</Label>
                 <Input
                   id="type"
-                  placeholder="e.g., Builder, Developer"
+                  placeholder="e.g., Builder"
                   value={formData.type}
                   onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                 />

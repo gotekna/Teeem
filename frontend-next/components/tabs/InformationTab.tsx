@@ -33,9 +33,11 @@ export function InformationTab({ company }: InformationTabProps) {
               Code: <span className="font-mono">{company.code}</span>
             </p>
           )}
-          {company.corporate_group && (
+          {company.company_group && (
             <p className="text-xs text-muted-foreground mt-1">
-              Group: {company.corporate_group.name}{company.corporate_group.code ? ` [${company.corporate_group.code}]` : ''}
+              Group: {typeof company.company_group === 'string'
+                ? company.company_group
+                : company.company_group.name}
             </p>
           )}
           {company.previous_names && (

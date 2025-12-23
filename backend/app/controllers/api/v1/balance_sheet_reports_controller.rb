@@ -84,6 +84,29 @@ module Api
         render json: { success: false, error: "Report not found" }, status: :not_found
       end
 
+      # POST /api/v1/companies/:company_id/balance_sheet_reports/generate_historical
+      # Generate monthly Balance Sheet reports for all months since Xero connection
+      def generate_historical
+        result = BalanceSheetReport.generate_historical!(@company)
+
+        render json: {
+          success: result[:success],
+          data: @company.balance_sheet_reports.order(period_end_date: :desc, financial_year: :desc).map { |r| serialize_report(r) },
+          summary: {
+            created: result[:created],
+            skipped: result[:skipped],
+            errors: result[:errors]
+          },
+          message: result[:success] ? "Generated #{result[:created]} reports (#{result[:skipped]} already existed)" : result[:error]
+        }
+      rescue StandardError => e
+        Rails.logger.error("Historical Balance Sheet generation failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Generation failed: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # GET /api/v1/companies/:company_id/balance_sheet_reports/:id/download
       def download
         report = @company.balance_sheet_reports.find(params[:id])
@@ -108,10 +131,14 @@ module Api
       def serialize_report(report, include_url: false)
         data = {
           id: report.id,
+          display_name: report.display_name,            # "Balance Sheet December 2025 FY2026"
           company_id: report.company_id,
           company_name: report.company_name,
           company_code: report.company_code,
           financial_year: report.financial_year,
+          period: report.period,                        # "Jan25", "Feb25", etc.
+          period_end_date: report.period_end_date,      # Date for sorting
+          period_label: report.period_label,            # "January 2025" (human-readable)
           report_date: report.report_date,
           total_assets: report.total_assets&.to_f,
           total_liabilities: report.total_liabilities&.to_f,

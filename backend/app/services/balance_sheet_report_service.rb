@@ -16,7 +16,7 @@ class BalanceSheetReportService
 
   def initialize(balance_sheet_report)
     @report = balance_sheet_report
-    @company = @report.company
+    @company = @report.corporate_company
   end
 
   def generate
@@ -337,7 +337,14 @@ class BalanceSheetReportService
   def generate_filename
     code = @report.company_code.presence || "XX"
     fy_short = @report.financial_year.to_s.gsub(/FY?(\d{4})/) { "FY#{$1[-2..]}" }
-    "#{code} Balance Sheet #{fy_short}.pdf"
+
+    # Monthly reports include period (e.g., "Jan25")
+    if @report.period.present?
+      "#{code} BS #{@report.period} #{fy_short}.pdf"
+    else
+      # Legacy annual reports
+      "#{code} Balance Sheet #{fy_short}.pdf"
+    end
   end
 
   def format_date(date)

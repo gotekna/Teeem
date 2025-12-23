@@ -19,6 +19,8 @@ class PurchaseOrder < ApplicationRecord
   has_many :payments, dependent: :destroy
   # SSoT: SmTask is THE ONE task system
   has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
+  # Direct link to Schedule Master template row (THE marriage that can't be broken)
+  belongs_to :sm_template_row, class_name: "SmTemplateRow", optional: true
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy

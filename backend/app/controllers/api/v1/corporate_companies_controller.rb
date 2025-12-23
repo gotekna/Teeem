@@ -149,7 +149,12 @@ module Api
 
       # PATCH/PUT /api/v1/companies/:id
       def update
-        if @company.update(company_params)
+        # Convert empty strings to nil for ABN/ACN to avoid unique constraint issues
+        cleaned_params = company_params.to_h
+        cleaned_params[:abn] = nil if cleaned_params[:abn].blank?
+        cleaned_params[:acn] = nil if cleaned_params[:acn].blank?
+
+        if @company.update(cleaned_params)
           render json: {
             success: true,
             message: "Company updated successfully",
@@ -161,6 +166,13 @@ module Api
             errors: @company.errors.full_messages
           }, status: :unprocessable_entity
         end
+      rescue ActiveRecord::RecordNotUnique => e
+        # Handle duplicate ABN/ACN constraint violations
+        field = e.message.include?("abn") ? "ABN" : (e.message.include?("acn") ? "ACN" : "value")
+        render json: {
+          success: false,
+          error: "A company with this #{field} already exists"
+        }, status: :unprocessable_entity
       end
 
       # DELETE /api/v1/companies/:id

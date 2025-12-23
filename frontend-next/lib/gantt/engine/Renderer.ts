@@ -641,37 +641,65 @@ export class Renderer {
       this.ctx.fillText(truncatedText, newStartX + 8, barY + barHeight / 2);
     }
 
-    // Draw tooltip showing date change
+    // Draw enhanced drag tooltip
     const daysDiff = Math.round((newDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (daysDiff !== 0) {
-      const tooltipText = daysDiff > 0 ? `+${daysDiff} days` : `${daysDiff} days`;
-      const newDateStr = newDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
-      const fullText = `${newDateStr} (${tooltipText})`;
+    const newDateStr = newDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+    const originalDateStr = task.startDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+    const durationDays = Math.round((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-      const tooltipX = newStartX + taskWidth / 2;
-      const tooltipY = barY - 8;
-      const padding = 6;
-      const textWidth = this.ctx.measureText(fullText).width;
+    // Build tooltip lines
+    const lines: string[] = [];
+    lines.push(`📅 ${newDateStr}${daysDiff !== 0 ? ` (${daysDiff > 0 ? '+' : ''}${daysDiff}d)` : ''}`);
+    lines.push(`📆 Was: ${originalDateStr}`);
+    lines.push(`⏱️ Duration: ${durationDays}d`);
 
-      // Tooltip background
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      this.ctx.beginPath();
-      this.ctx.roundRect(
-        tooltipX - textWidth / 2 - padding,
-        tooltipY - 10 - padding,
-        textWidth + padding * 2,
-        16 + padding,
-        4
-      );
-      this.ctx.fill();
-
-      // Tooltip text
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(fullText, tooltipX, tooltipY - 2);
+    // Show predecessor warning if moving too early
+    if (task.predecessorIds && task.predecessorIds.length > 0) {
+      lines.push(`⬅️ Predecessors: ${task.predecessorIds.length}`);
     }
+
+    const tooltipX = newStartX + taskWidth / 2;
+    const tooltipY = barY - 12;
+    const padding = 8;
+    const lineHeight = 16;
+
+    // Calculate max width
+    this.ctx.font = '11px Inter, system-ui, sans-serif';
+    let maxWidth = 0;
+    lines.forEach(line => {
+      const w = this.ctx.measureText(line).width;
+      if (w > maxWidth) maxWidth = w;
+    });
+
+    const tooltipWidth = maxWidth + padding * 2;
+    const tooltipHeight = lines.length * lineHeight + padding * 2;
+
+    // Tooltip background
+    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    this.ctx.beginPath();
+    this.ctx.roundRect(
+      tooltipX - tooltipWidth / 2,
+      tooltipY - tooltipHeight,
+      tooltipWidth,
+      tooltipHeight,
+      6
+    );
+    this.ctx.fill();
+
+    // Draw tooltip lines
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    lines.forEach((line, i) => {
+      // First line is bold
+      if (i === 0) {
+        this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+      } else {
+        this.ctx.font = '11px Inter, system-ui, sans-serif';
+      }
+      const lineY = tooltipY - tooltipHeight + padding + lineHeight / 2 + (i * lineHeight);
+      this.ctx.fillText(line, tooltipX - tooltipWidth / 2 + padding, lineY);
+    });
   }
 
   /**
@@ -864,7 +892,8 @@ export class Renderer {
     canvasHeight?: number,
     criticalDependencyIds?: Set<string>,
     flashingDepIds?: Set<string>,
-    flashPhase?: number
+    flashPhase?: number,
+    brokenDepIds?: Set<string>
   ): void {
     const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]));
 
@@ -914,12 +943,18 @@ export class Renderer {
       const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
       const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
-      // Check if this dependency is on the critical path
-      const isCritical = criticalDependencyIds?.has(dep.id);
-      if (isCritical) {
-        this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, '#ef4444');
+      // Check if this is a broken dependency
+      const isBroken = brokenDepIds?.has(dep.id);
+      if (isBroken) {
+        this.drawBrokenDependencyLine(fromX, fromY, toX, toY, dep.type);
       } else {
-        this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false);
+        // Check if this dependency is on the critical path
+        const isCritical = criticalDependencyIds?.has(dep.id);
+        if (isCritical) {
+          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, '#ef4444');
+        } else {
+          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false);
+        }
       }
     });
 
@@ -1128,6 +1163,58 @@ export class Renderer {
     );
     this.ctx.closePath();
     this.ctx.fill();
+  }
+
+  /**
+   * Draw a broken dependency line with dashed red styling
+   */
+  private drawBrokenDependencyLine(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    type: string
+  ): void {
+    const controlOffset = 20;
+    const color = '#ef4444'; // Red for broken
+    const lineWidth = 2;
+
+    this.ctx.save();
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.setLineDash([6, 4]); // Dashed line pattern
+
+    this.ctx.beginPath();
+    this.ctx.moveTo(fromX, fromY);
+
+    if (Math.abs(toY - fromY) < 5) {
+      this.ctx.lineTo(toX, toY);
+    } else {
+      this.ctx.bezierCurveTo(
+        fromX + controlOffset,
+        fromY,
+        toX - controlOffset,
+        toY,
+        toX,
+        toY
+      );
+    }
+
+    this.ctx.stroke();
+    this.ctx.setLineDash([]); // Reset line dash
+
+    // Draw X mark instead of arrow to indicate broken
+    const xSize = 5;
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(toX - xSize, toY - xSize);
+    this.ctx.lineTo(toX + xSize, toY + xSize);
+    this.ctx.moveTo(toX + xSize, toY - xSize);
+    this.ctx.lineTo(toX - xSize, toY + xSize);
+    this.ctx.stroke();
+
+    this.ctx.restore();
   }
 
   /**
@@ -1343,7 +1430,7 @@ export class Renderer {
     this.ctx.font = '13px Inter, system-ui, sans-serif';
     let maxLabelWidth = 0;
     items.forEach(item => {
-      if (!item.separator) {
+      if (!item.separator && item.label) {
         const width = this.ctx.measureText(item.label).width;
         if (width > maxLabelWidth) maxLabelWidth = width;
       }
@@ -1425,11 +1512,13 @@ export class Renderer {
         }
 
         // Draw label
-        this.ctx.font = '13px Inter, system-ui, sans-serif';
-        this.ctx.fillStyle = item.disabled
-          ? (this.config.darkMode ? '#6b7280' : '#9ca3af')
-          : (this.config.darkMode ? '#e5e7eb' : '#374151');
-        this.ctx.fillText(item.label, textX, itemY + itemHeight / 2);
+        if (item.label) {
+          this.ctx.font = '13px Inter, system-ui, sans-serif';
+          this.ctx.fillStyle = item.disabled
+            ? (this.config.darkMode ? '#6b7280' : '#9ca3af')
+            : (this.config.darkMode ? '#e5e7eb' : '#374151');
+          this.ctx.fillText(item.label, textX, itemY + itemHeight / 2);
+        }
 
         itemY += itemHeight;
       }
@@ -1630,7 +1719,7 @@ export class Renderer {
     this.ctx.font = '13px Inter, system-ui, sans-serif';
     let maxLabelWidth = 0;
     items.forEach(item => {
-      if (!item.separator) {
+      if (!item.separator && item.label) {
         const width = this.ctx.measureText(item.label).width;
         if (width > maxLabelWidth) maxLabelWidth = width;
       }
@@ -1663,6 +1752,120 @@ export class Renderer {
     }
 
     return null;
+  }
+
+  // ============================================================================
+  // Marquee Selection
+  // ============================================================================
+
+  /**
+   * Draw marquee selection rectangle
+   */
+  drawMarqueeSelection(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    selectedCount: number
+  ): void {
+    // Normalize rectangle
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
+    // Draw semi-transparent fill
+    this.ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'; // Blue with low opacity
+    this.ctx.fillRect(left, top, width, height);
+
+    // Draw border
+    this.ctx.strokeStyle = '#3b82f6'; // Blue border
+    this.ctx.lineWidth = 1;
+    this.ctx.setLineDash([4, 2]); // Dashed line
+    this.ctx.strokeRect(left, top, width, height);
+    this.ctx.setLineDash([]); // Reset dash
+
+    // Draw selection count badge
+    if (selectedCount > 0) {
+      const badgeText = `${selectedCount} task${selectedCount !== 1 ? 's' : ''}`;
+      this.ctx.font = '12px system-ui, sans-serif';
+      const metrics = this.ctx.measureText(badgeText);
+      const badgeWidth = metrics.width + 12;
+      const badgeHeight = 20;
+      const badgeX = left + width / 2 - badgeWidth / 2;
+      const badgeY = top - badgeHeight - 4;
+
+      // Draw badge background
+      this.ctx.fillStyle = '#3b82f6';
+      this.ctx.beginPath();
+      this.ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 4);
+      this.ctx.fill();
+
+      // Draw badge text
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
+    }
+  }
+
+  // ============================================================================
+  // Progress Drag Preview
+  // ============================================================================
+
+  /**
+   * Draw progress drag preview on a task bar
+   */
+  drawProgressDragPreview(
+    task: GanttTask,
+    currentProgress: number,
+    taskIndex: number
+  ): void {
+    const state = this.viewport.getState();
+
+    // Calculate positions
+    const taskStartX = this.viewport.dateToX(task.startDate);
+    const taskEndX = this.viewport.dateToX(task.endDate);
+    const taskWidth = taskEndX - taskStartX;
+    const rowY = this.viewport.rowToY(taskIndex);
+    const barTop = rowY + (this.config.rowHeight - this.config.taskBarHeight) / 2;
+
+    // Draw the updated progress bar
+    const progressWidth = (taskWidth * currentProgress) / 100;
+
+    // Draw progress fill with highlight
+    this.ctx.fillStyle = 'rgba(34, 197, 94, 0.8)'; // Green with opacity
+    this.ctx.fillRect(taskStartX, barTop, progressWidth, this.config.taskBarHeight);
+
+    // Draw progress handle line
+    const handleX = taskStartX + progressWidth;
+    this.ctx.strokeStyle = '#16a34a'; // Darker green
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(handleX, barTop);
+    this.ctx.lineTo(handleX, barTop + this.config.taskBarHeight);
+    this.ctx.stroke();
+
+    // Draw progress percentage tooltip
+    const tooltipText = `${Math.round(currentProgress)}%`;
+    this.ctx.font = 'bold 11px system-ui, sans-serif';
+    const metrics = this.ctx.measureText(tooltipText);
+    const tooltipWidth = metrics.width + 8;
+    const tooltipHeight = 18;
+    const tooltipX = handleX - tooltipWidth / 2;
+    const tooltipY = barTop - tooltipHeight - 4;
+
+    // Draw tooltip background
+    this.ctx.fillStyle = '#1f2937';
+    this.ctx.beginPath();
+    this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
+    this.ctx.fill();
+
+    // Draw tooltip text
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(tooltipText, tooltipX + tooltipWidth / 2, tooltipY + tooltipHeight / 2);
   }
 }
 

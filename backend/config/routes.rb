@@ -1767,6 +1767,7 @@ Rails.application.routes.draw do
         resources :profit_loss_reports, only: [ :index, :show ] do
           collection do
             post :generate
+            post :generate_historical  # Generate all monthly reports since Xero connection
           end
           member do
             post :regenerate
@@ -1776,6 +1777,7 @@ Rails.application.routes.draw do
         resources :balance_sheet_reports, only: [ :index, :show ] do
           collection do
             post :generate
+            post :generate_historical  # Generate all monthly reports since Xero connection
           end
           member do
             post :regenerate

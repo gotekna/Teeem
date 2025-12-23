@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_130455) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -426,8 +426,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "period"
+    t.date "period_end_date"
     t.index ["company_code"], name: "index_balance_sheet_reports_on_company_code"
-    t.index ["company_id", "financial_year"], name: "idx_bs_reports_unique", unique: true
+    t.index ["company_id", "period_end_date"], name: "idx_bs_reports_company_period", unique: true, where: "(period_end_date IS NOT NULL)"
     t.index ["company_id"], name: "index_balance_sheet_reports_on_company_id"
     t.index ["financial_year"], name: "index_balance_sheet_reports_on_financial_year"
     t.index ["status"], name: "index_balance_sheet_reports_on_status"
@@ -1852,27 +1854,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"
   end
 
-  create_table "corporate_entity_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "documents"
-    t.string "entity_types", default: [], array: true
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "icon_name"
-    t.text "description"
-    t.string "component_name"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "has_sharepoint_folder", default: false
-    t.string "sharepoint_folder_path"
-    t.jsonb "sub_tabs", default: []
-    t.index ["enabled"], name: "index_corporate_entity_tabs_on_enabled"
-    t.index ["order_position"], name: "index_corporate_entity_tabs_on_order_position"
-    t.index ["tab_group"], name: "index_corporate_entity_tabs_on_tab_group"
-    t.index ["tab_key"], name: "index_corporate_entity_tabs_on_tab_key", unique: true
-  end
-
   create_table "corporate_groups", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -1883,6 +1864,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "code"
     t.index ["name"], name: "index_corporate_groups_on_name", unique: true
   end
 
@@ -2040,22 +2022,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["resolved_by_id"], name: "index_document_duplicate_reviews_on_resolved_by_id"
   end
 
-  create_table "document_folders", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.integer "order_position", default: 0, null: false
-    t.jsonb "entity_types", default: [], null: false
-    t.boolean "active", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "sharepoint_path"
-    t.integer "parent_id"
-    t.index ["entity_types"], name: "index_document_folders_on_entity_types", using: :gin
-    t.index ["name"], name: "index_document_folders_on_name", unique: true
-    t.index ["order_position"], name: "index_document_folders_on_order_position"
-    t.index ["parent_id"], name: "index_document_folders_on_parent_id"
-  end
-
   create_table "document_tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.string "category"
@@ -2097,17 +2063,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["category", "sort_order"], name: "index_document_templates_on_category_and_sort_order"
     t.index ["is_legal_format"], name: "index_document_templates_on_is_legal_format"
     t.index ["template_type"], name: "index_document_templates_on_template_type"
-  end
-
-  create_table "document_type_folders", force: :cascade do |t|
-    t.bigint "document_type_id", null: false
-    t.bigint "document_folder_id", null: false
-    t.boolean "is_primary", default: false, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["document_folder_id"], name: "index_document_type_folders_on_document_folder_id"
-    t.index ["document_type_id", "document_folder_id"], name: "idx_doc_type_folders_unique", unique: true
-    t.index ["document_type_id"], name: "index_document_type_folders_on_document_type_id"
   end
 
   create_table "document_types", force: :cascade do |t|
@@ -3165,24 +3120,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["user_id"], name: "index_job_contacts_on_user_id"
   end
 
-  create_table "job_documentation_tabs", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.string "name", null: false
-    t.string "icon"
-    t.string "color"
-    t.text "description"
-    t.integer "sequence_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "folder_path"
-    t.bigint "parent_id"
-    t.index ["job_id", "name", "parent_id"], name: "index_job_doc_tabs_on_job_name_parent", unique: true
-    t.index ["job_id", "sequence_order"], name: "index_job_documentation_tabs_on_job_id_and_sequence_order"
-    t.index ["job_id"], name: "index_job_documentation_tabs_on_job_id"
-    t.index ["parent_id"], name: "index_job_documentation_tabs_on_parent_id"
-  end
-
   create_table "job_documents", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "document_type_id"
@@ -3375,19 +3312,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["job_type_id", "job_status_id", "job_stage_id"], name: "index_job_status_stages_on_type_status_stage", unique: true
     t.index ["job_type_id"], name: "index_job_status_stages_on_job_type_id"
     t.index ["position"], name: "index_job_status_stages_on_position"
-  end
-
-  create_table "job_tabs", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "slug", null: false
-    t.string "icon", null: false
-    t.integer "position", default: 0, null: false
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["is_active"], name: "index_job_tabs_on_is_active"
-    t.index ["position"], name: "index_job_tabs_on_position"
-    t.index ["slug"], name: "index_job_tabs_on_slug", unique: true
   end
 
   create_table "job_type_statuses", force: :cascade do |t|
@@ -4351,8 +4275,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "period"
     t.index ["company_code"], name: "index_profit_loss_reports_on_company_code"
-    t.index ["company_id", "financial_year"], name: "idx_pl_reports_unique", unique: true
+    t.index ["company_id", "period_end"], name: "idx_pl_reports_company_period", unique: true, where: "(period_end IS NOT NULL)"
     t.index ["company_id"], name: "index_profit_loss_reports_on_company_id"
     t.index ["financial_year"], name: "index_profit_loss_reports_on_financial_year"
     t.index ["status"], name: "index_profit_loss_reports_on_status"
@@ -4479,6 +4404,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.bigint "last_bill_inbox_id"
     t.string "source"
     t.integer "unreal_task_template_id"
+    t.bigint "sm_template_row_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
@@ -4493,6 +4419,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["quote_response_id"], name: "index_purchase_orders_on_quote_response_id"
     t.index ["required_date"], name: "index_purchase_orders_on_required_date"
     t.index ["required_on_site_date"], name: "index_purchase_orders_on_required_on_site_date"
+    t.index ["sm_template_row_id"], name: "index_purchase_orders_on_sm_template_row_id"
     t.index ["status"], name: "index_purchase_orders_on_status"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["visible_to_supplier"], name: "index_purchase_orders_on_visible_to_supplier"
@@ -5388,21 +5315,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["name"], name: "index_user_groups_on_name", unique: true
   end
 
-  create_table "user_job_tab_configs", force: :cascade do |t|
-    t.bigint "user_id", null: false
-    t.bigint "job_tab_id", null: false
-    t.integer "position", default: 0, null: false
-    t.integer "parent_job_tab_id"
-    t.boolean "is_hidden", default: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["job_tab_id"], name: "index_user_job_tab_configs_on_job_tab_id"
-    t.index ["user_id", "job_tab_id"], name: "idx_user_job_tab_config_unique", unique: true
-    t.index ["user_id", "parent_job_tab_id"], name: "index_user_job_tab_configs_on_user_id_and_parent_job_tab_id"
-    t.index ["user_id", "position"], name: "index_user_job_tab_configs_on_user_id_and_position"
-    t.index ["user_id"], name: "index_user_job_tab_configs_on_user_id"
-  end
-
   create_table "user_microsoft_tokens", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.text "access_token"
@@ -6006,27 +5918,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
     t.index ["duplicate_group_id"], name: "index_xero_duplicate_items_on_duplicate_group_id"
   end
 
-  create_table "xero_feature_tabs", force: :cascade do |t|
-    t.string "tab_key", null: false
-    t.string "display_name", null: false
-    t.string "tab_group", default: "data"
-    t.integer "order_position", default: 0
-    t.boolean "enabled", default: true
-    t.string "component_name"
-    t.bigint "document_folder_id"
-    t.string "icon_name"
-    t.text "description"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "group_member", default: false, null: false
-    t.string "parent_key"
-    t.boolean "visible", default: true, null: false
-    t.index ["document_folder_id"], name: "index_xero_feature_tabs_on_document_folder_id"
-    t.index ["enabled"], name: "index_xero_feature_tabs_on_enabled"
-    t.index ["order_position"], name: "index_xero_feature_tabs_on_order_position"
-    t.index ["tab_key"], name: "index_xero_feature_tabs_on_tab_key", unique: true
-  end
-
   create_table "xero_health_events", force: :cascade do |t|
     t.bigint "xero_credential_id"
     t.string "event_type", null: false
@@ -6235,10 +6126,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
   add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "existing_document_id"
   add_foreign_key "document_duplicate_reviews", "corporate_company_documents", column: "new_document_id"
   add_foreign_key "document_duplicate_reviews", "users", column: "resolved_by_id"
-  add_foreign_key "document_folders", "document_folders", column: "parent_id"
   add_foreign_key "document_tasks", "jobs"
-  add_foreign_key "document_type_folders", "document_folders"
-  add_foreign_key "document_type_folders", "document_types"
   add_foreign_key "document_verification_feedbacks", "corporate_company_documents", column: "company_document_id"
   add_foreign_key "document_verification_feedbacks", "users"
   add_foreign_key "e_signature_certificates", "e_signature_requests"
@@ -6286,8 +6174,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
   add_foreign_key "job_contacts", "contacts"
   add_foreign_key "job_contacts", "jobs"
   add_foreign_key "job_contacts", "users"
-  add_foreign_key "job_documentation_tabs", "job_documentation_tabs", column: "parent_id", on_delete: :cascade
-  add_foreign_key "job_documentation_tabs", "jobs"
   add_foreign_key "job_documents", "document_types"
   add_foreign_key "job_documents", "document_types", column: "ai_suggested_type_id", on_delete: :nullify
   add_foreign_key "job_documents", "jobs"
@@ -6460,9 +6346,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
   add_foreign_key "tasks", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "updated_by_id", on_delete: :nullify
-  add_foreign_key "user_job_tab_configs", "job_tabs"
-  add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
-  add_foreign_key "user_job_tab_configs", "users"
   add_foreign_key "user_microsoft_tokens", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
@@ -6503,7 +6386,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_023638) do
   add_foreign_key "xero_chart_of_accounts", "corporate_groups", column: "company_group_id"
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
-  add_foreign_key "xero_feature_tabs", "document_folders"
   add_foreign_key "xero_health_events", "xero_credentials"
   add_foreign_key "xero_sync_events", "xero_credentials"
 end

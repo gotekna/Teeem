@@ -154,7 +154,7 @@ module Api
         params.require(:row).permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days, :start_day_offset,
-          :trade, :stage, :assigned_role, :cost_centre,
+          :trade, :stage, :category, :ts_identifier, :assigned_role, :cost_centre,
           :supplier_id, :checklist_id, :parent_row_id,
           :require_photo, :require_certificate, :require_supervisor_check,
           :po_required, :critical_po, :create_po_on_job_start,
@@ -212,6 +212,8 @@ module Api
           predecessor_display_names: row.predecessor_display_names,
           trade: row.trade,
           stage: row.stage,
+          category: row.category,
+          ts_identifier: row.ts_identifier,
           cost_centre: row.cost_centre,
           assigned_role: row.assigned_role,
           supplier_id: row.supplier_id,
