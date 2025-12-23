@@ -16111,7 +16111,7 @@ export interface PrintOptions {
   title?: string;
   includeHeader?: boolean;
   includeFooter?: boolean;
-  pageSize?: 'A4' | 'A3' | 'Letter' | 'Legal';
+  pageSize?: 'A4' | 'A3' | 'letter' | 'legal';
   orientation?: 'portrait' | 'landscape';
   showDependencies?: boolean;
   showProgress?: boolean;
