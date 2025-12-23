@@ -170,8 +170,11 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
   }, [companyId]);
 
   // Define columns for TeeemTableView (no Foundation backing - explicit columns)
+  // display_name follows Entity Config: {DocTypeName} {MonthYearLong} = "Balance Sheet December 2025"
+  // financial_year is for searching/filtering all 12 months of a FY
   const columns: TableColumn[] = [
-    { key: "display_name", label: "Display Name", width: 280, sortable: true },
+    { key: "display_name", label: "Display Name", width: 220, sortable: true },
+    { key: "financial_year", label: "FY", width: 80, sortable: true },
     { key: "report_date", label: "As Of Date", width: 120, column_type: "date" },
     { key: "total_assets", label: "Total Assets", width: 130, sortable: true, column_type: "currency", showSum: true },
     { key: "total_liabilities", label: "Total Liabilities", width: 140, sortable: true, column_type: "currency", showSum: true },
@@ -184,6 +187,7 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
   const tableRows: TableRow[] = reports.map((report) => ({
     id: report.id,
     display_name: report.display_name,
+    financial_year: report.financial_year,
     period_end_date: report.period_end_date,
     report_date: report.report_date,
     total_assets: report.total_assets,

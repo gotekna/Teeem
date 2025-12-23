@@ -147,6 +147,172 @@ export interface ContextMenuItem {
 }
 
 // ============================================================================
+// Feature 6: Tooltip Types
+// ============================================================================
+
+export interface TooltipConfig {
+  enabled: boolean;
+  delay: number;
+  maxWidth: number;
+  showProgress: boolean;
+  showDates: boolean;
+  showDuration: boolean;
+  showDependencies: boolean;
+  showSupplier: boolean;
+  showStatus: boolean;
+  position: 'auto' | 'top' | 'bottom' | 'left' | 'right';
+  customFields?: string[];
+}
+
+export interface TooltipLine {
+  label: string;
+  value: string;
+  color?: string;
+  bold?: boolean;
+}
+
+export interface TooltipContent {
+  title: string;
+  lines: TooltipLine[];
+  footer?: string;
+}
+
+// ============================================================================
+// Feature 7: Animation Types
+// ============================================================================
+
+export type EasingFunction =
+  | 'linear'
+  | 'easeInQuad'
+  | 'easeOutQuad'
+  | 'easeInOutQuad'
+  | 'easeOutCubic'
+  | 'easeInOutCubic'
+  | 'easeOutBounce'
+  | 'easeOutElastic'
+  | 'easeOutBack'
+  | 'spring';
+
+export interface Animation {
+  id: string;
+  startTime: number;
+  duration: number;
+  fromValue: number;
+  toValue: number;
+  easing: EasingFunction;
+  property: string;
+  targetId?: string;
+  onUpdate: (value: number) => void;
+  onComplete?: () => void;
+}
+
+// ============================================================================
+// Feature 8: Task Notes Types
+// ============================================================================
+
+export type TaskNoteType = 'note' | 'warning' | 'issue' | 'question';
+
+export interface TaskNote {
+  id: string;
+  taskId: string;
+  content: string;
+  author?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  type: TaskNoteType;
+}
+
+// ============================================================================
+// Feature 9: Milestone Types
+// ============================================================================
+
+export type MilestoneShape = 'diamond' | 'circle' | 'square' | 'triangle';
+export type MilestoneLabelPosition = 'top' | 'bottom' | 'left' | 'right';
+
+export interface MilestoneConfig {
+  shape: MilestoneShape;
+  size: number;
+  color: string;
+  showLabel: boolean;
+  labelPosition: MilestoneLabelPosition;
+}
+
+// ============================================================================
+// Feature 10: Summary Task Types
+// ============================================================================
+
+export interface SummaryTaskConfig {
+  barHeight: number;
+  barColor: string;
+  endCaps: boolean;
+  showProgress: boolean;
+  progressColor: string;
+}
+
+export interface SummaryTaskInfo {
+  taskId: string;
+  childTaskIds: string[];
+  calculatedStart: Date;
+  calculatedEnd: Date;
+  aggregatedProgress: number;
+}
+
+// ============================================================================
+// Additional Types for Features
+// ============================================================================
+
+export interface TaskFilterConfig {
+  status?: GanttTask['status'][];
+  suppliers?: number[];
+  dateRange?: { start: Date; end: Date };
+  progressRange?: { min: number; max: number };
+  locked?: boolean;
+  hasHold?: boolean;
+  hasDependencies?: boolean;
+  hasBrokenDependencies?: boolean;
+  searchTerm?: string;
+  customFilter?: (task: GanttTask) => boolean;
+}
+
+export interface FilterStats {
+  total: number;
+  visible: number;
+  hidden: number;
+  percentage: number;
+}
+
+export interface MarqueeBounds {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  selectedCount: number;
+}
+
+export interface ContextMenuTheme {
+  background: string;
+  text: string;
+  hoverBackground: string;
+  border: string;
+  dividerColor: string;
+  dangerText: string;
+  disabledText: string;
+  shadow: string;
+}
+
+export interface ScheduleVariance {
+  taskId: string;
+  taskName: string;
+  plannedStart: Date;
+  plannedEnd: Date;
+  actualStart: Date;
+  actualEnd: Date;
+  startVarianceDays: number;
+  endVarianceDays: number;
+  status: 'on-time' | 'ahead' | 'behind';
+}
+
+// ============================================================================
 // Default Configuration
 // ============================================================================
 
@@ -7547,13 +7713,7 @@ export class GanttCanvas {
     return colorMap[status] || '#6b7280';
   }
 
-  private formatDate(date: Date): string {
-    return date.toLocaleDateString('en-AU', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
-  }
+  // NOTE: formatDate is already defined above in the Print Styles section
 
   private getTaskDurationDays(task: GanttTask): number {
     const msPerDay = 24 * 60 * 60 * 1000;
