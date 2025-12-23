@@ -256,9 +256,10 @@ class BankStatementReport < ApplicationRecord
   end
 
   # Calculate fiscal year for a given date (Australian FY: July-June)
+  # Returns short format (FY24) to match WarehouseBankTransaction.financial_year
   def self.fiscal_year_for_date(date)
     year = date.month >= 7 ? date.year + 1 : date.year
-    "FY#{year}"
+    "FY#{year.to_s[-2..]}"
   end
 
   # Check if report needs regeneration (transactions updated since generation)
