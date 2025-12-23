@@ -18,11 +18,58 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Pricing calculation
-const calculateRate = (turnover: number): number => {
-  const discountSteps = Math.floor(turnover / 100000);
-  const rate = 2.2 - discountSteps * 0.05;
-  return Math.max(0.2, rate);
+// Pricing calculation - TIERED BRACKETS (like tax brackets)
+// First $1M: 2.2%
+// Each $100k after: rate drops by 0.05% (2.15%, 2.10%, 2.05%... floor 0.2%)
+const calculateAnnualCost = (turnover: number): {
+  cost: number;
+  effectiveRate: number;
+  tiers: Array<{ from: number; to: number; rate: number; amount: number }>;
+} => {
+  const BASE_RATE = 2.2;
+  const FIRST_MILLION = 1000000;
+  const BRACKET_SIZE = 100000;
+  const RATE_DROP = 0.05;
+  const FLOOR_RATE = 0.2;
+
+  const tiers: Array<{ from: number; to: number; rate: number; amount: number }> = [];
+
+  // First $1M at base rate
+  const firstMillionAmount = Math.min(turnover, FIRST_MILLION);
+  const firstMillionCost = firstMillionAmount * (BASE_RATE / 100);
+  tiers.push({ from: 0, to: firstMillionAmount, rate: BASE_RATE, amount: firstMillionCost });
+
+  if (turnover <= FIRST_MILLION) {
+    return { cost: firstMillionCost, effectiveRate: BASE_RATE, tiers };
+  }
+
+  // Calculate each $100k bracket after $1M
+  let totalCost = firstMillionCost;
+  let remaining = turnover - FIRST_MILLION;
+  let currentThreshold = FIRST_MILLION;
+  let bracketNumber = 1;
+
+  while (remaining > 0) {
+    const bracketAmount = Math.min(remaining, BRACKET_SIZE);
+    const bracketRate = Math.max(FLOOR_RATE, BASE_RATE - bracketNumber * RATE_DROP);
+    const bracketCost = bracketAmount * (bracketRate / 100);
+
+    tiers.push({
+      from: currentThreshold,
+      to: currentThreshold + bracketAmount,
+      rate: bracketRate,
+      amount: bracketCost,
+    });
+
+    totalCost += bracketCost;
+    remaining -= bracketAmount;
+    currentThreshold += bracketAmount;
+    bracketNumber++;
+  }
+
+  const effectiveRate = (totalCost / turnover) * 100;
+
+  return { cost: totalCost, effectiveRate, tiers };
 };
 
 const formatCurrency = (value: number): string => {
@@ -39,12 +86,11 @@ const formatPercentage = (value: number): string => {
 };
 
 export function CostTab() {
-  const [turnover, setTurnover] = React.useState<number>(500000);
-  const [inputValue, setInputValue] = React.useState<string>("500,000");
+  const [turnover, setTurnover] = React.useState<number>(1200000);
+  const [inputValue, setInputValue] = React.useState<string>("1,200,000");
 
-  // Calculate all values
-  const rate = calculateRate(turnover);
-  const annualCost = turnover * (rate / 100);
+  // Calculate all values using tiered brackets
+  const { cost: annualCost, effectiveRate, tiers } = calculateAnnualCost(turnover);
   const monthlyCost = annualCost / 12;
 
   // Revenue distribution
@@ -54,9 +100,7 @@ export function CostTab() {
 
   // Rate breakdown
   const baseRate = 2.2;
-  const discountSteps = Math.floor(turnover / 100000);
-  const discountAmount = discountSteps * 0.05;
-  const rateProgress = ((baseRate - rate) / (baseRate - 0.2)) * 100;
+  const rateProgress = ((baseRate - effectiveRate) / (baseRate - 0.2)) * 100;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const rawValue = e.target.value.replace(/[^0-9]/g, "");
@@ -111,7 +155,7 @@ export function CostTab() {
 
           {/* Quick Select Buttons */}
           <div className="flex flex-wrap gap-2">
-            {[100000, 250000, 500000, 1000000, 2000000, 5000000].map((value) => (
+            {[100000, 250000, 500000, 1000000, 2000000, 5000000, 10000000, 25000000, 50000000, 100000000].map((value) => (
               <button
                 key={value}
                 onClick={() => {
@@ -133,9 +177,9 @@ export function CostTab() {
           {/* Results Display */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4">
             <div className="bg-primary/10 dark:bg-primary/20 rounded-lg p-4 text-center">
-              <div className="text-sm text-muted-foreground mb-1">Your Rate</div>
+              <div className="text-sm text-muted-foreground mb-1">Effective Rate</div>
               <div className="text-3xl font-bold text-primary">
-                {formatPercentage(rate)}
+                {formatPercentage(effectiveRate)}
               </div>
             </div>
             <div className="bg-muted rounded-lg p-4 text-center">
@@ -150,30 +194,41 @@ export function CostTab() {
         </CardContent>
       </Card>
 
-      {/* Rate Breakdown */}
+      {/* Rate Breakdown - Tiered */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <TrendingDown className="h-5 w-5" />
-            Rate Breakdown
+            Rate Breakdown (Tiered)
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Base rate</span>
-              <span className="font-medium">2.20%</span>
+          {/* Tier breakdown table */}
+          <div className="space-y-1">
+            {tiers.map((tier, index) => (
+              <div
+                key={index}
+                className={cn(
+                  "flex justify-between text-sm py-1.5 px-2 rounded",
+                  index === 0 ? "bg-muted" : index % 2 === 0 ? "bg-muted/50" : ""
+                )}
+              >
+                <span className="text-muted-foreground">
+                  {index === 0
+                    ? `First ${formatCurrency(tier.to)}`
+                    : `${formatCurrency(tier.from)} - ${formatCurrency(tier.to)}`}
+                  <span className="ml-2 text-xs">@ {formatPercentage(tier.rate)}</span>
+                </span>
+                <span className="font-medium">{formatCurrency(tier.amount)}</span>
+              </div>
+            ))}
+            <div className="border-t pt-2 mt-2 flex justify-between font-semibold text-lg">
+              <span>Total Annual Cost</span>
+              <span className="text-primary">{formatCurrency(annualCost)}</span>
             </div>
-            <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
-              <span>
-                Volume discount ({discountSteps} x $100k = -
-                {formatPercentage(discountAmount)})
-              </span>
-              <span className="font-medium">-{formatPercentage(discountAmount)}</span>
-            </div>
-            <div className="border-t pt-2 flex justify-between font-semibold">
-              <span>Your rate</span>
-              <span className="text-primary">{formatPercentage(rate)}</span>
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Effective rate</span>
+              <span>{formatPercentage(effectiveRate)}</span>
             </div>
           </div>
 
@@ -183,9 +238,9 @@ export function CostTab() {
               <span>2.20% (base)</span>
               <span>0.20% (minimum)</span>
             </div>
-            <Progress value={rateProgress} className="h-3" />
+            <Progress value={Math.max(0, rateProgress)} className="h-3" />
             <p className="text-xs text-muted-foreground mt-2">
-              For every $100k in turnover, your rate drops by 0.05% (floor: 0.20%)
+              First $1M at 2.20%. Each $100k after drops by 0.05% (2.15%, 2.10%, 2.05%... floor: 0.20%)
             </p>
           </div>
         </CardContent>
@@ -347,12 +402,12 @@ export function CostTab() {
               <div className="space-y-2 text-sm">
                 <p>Refer 5 businesses @ $500k turnover each:</p>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Their annual fees:</span>
-                  <span className="font-medium">5 x $9,750 = $48,750</span>
+                  <span className="text-muted-foreground">Their annual fees (2.2% each):</span>
+                  <span className="font-medium">5 x $11,000 = $55,000</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Your 20% share:</span>
-                  <span className="font-bold text-primary">$9,750/year</span>
+                  <span className="font-bold text-primary">$11,000/year</span>
                 </div>
                 <p className="text-xs text-muted-foreground pt-2">
                   Passive income, every year, just for sharing something that works.
