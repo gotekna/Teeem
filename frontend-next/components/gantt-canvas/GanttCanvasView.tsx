@@ -448,11 +448,13 @@ export function GanttCanvasView({
   // Open dependency editor for a task
   const openDepEditor = React.useCallback((task: GanttTask) => {
     setDepEditorTask(task);
-    // Convert predecessorIds to PredecessorLink objects (default to FS, 0 lag)
-    const links: PredecessorLink[] = (task.predecessorIds || []).map(id => ({
-      predecessorId: id,
-      type: 'FS' as DependencyType,
-      lag: 0,
+    // Use full predecessor data from rowData if available (has type and lag)
+    // Otherwise fall back to just IDs with defaults
+    const apiPredecessors = task.rowData?.predecessor_ids || [];
+    const links: PredecessorLink[] = apiPredecessors.map(pred => ({
+      predecessorId: String(pred.id),
+      type: (pred.type || 'FS') as DependencyType,
+      lag: pred.lag || 0,
     }));
     setDepEditorLinks(links);
     setDepEditorOpen(true);
@@ -533,10 +535,30 @@ export function GanttCanvasView({
         row: { predecessor_ids: predecessorData }
       });
 
-      // Update local state
+      // Build display string for local state update (matches backend format: "2FS+3, 5SS")
+      const buildPredDisplay = (): string => {
+        if (validLinks.length === 0) return 'None';
+        return validLinks.map(link => {
+          const lag = link.lag || 0;
+          let result = `${link.predecessorId}${link.type || 'FS'}`;
+          if (lag > 0) result += `+${lag}`;
+          else if (lag < 0) result += `${lag}`;
+          return result;
+        }).join(', ');
+      };
+
+      // Update local state with both predecessorIds and display string
       setTasks(prev => prev.map(t =>
         t.id === depEditorTask.id
-          ? { ...t, predecessorIds: validLinks.map(l => l.predecessorId) }
+          ? {
+              ...t,
+              predecessorIds: validLinks.map(l => l.predecessorId),
+              rowData: t.rowData ? {
+                ...t.rowData,
+                predecessor_display: buildPredDisplay(),
+                predecessor_ids: predecessorData
+              } : undefined
+            }
           : t
       ));
 
@@ -1078,25 +1100,20 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'dependencies':
-                        // Show predecessor row numbers (e.g., "1, 3, 5")
-                        const deps = task.predecessorIds || [];
-                        // Find row numbers for predecessor IDs
-                        const depRowNums = deps.length > 0
-                          ? deps.map(predId => {
-                              const predIndex = tasks.findIndex(t => t.id === predId);
-                              return predIndex >= 0 ? predIndex + 1 : '?';
-                            }).join(', ')
-                          : '-';
+                        // Use pre-formatted predecessor_display from API (e.g., "2FS+0, 5SS")
+                        // Falls back to "None" if no dependencies
+                        const depDisplay = task.rowData?.predecessor_display || 'None';
+                        const hasDeps = depDisplay !== 'None';
                         return (
                           <button
-                            className="truncate px-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded cursor-pointer w-full text-left"
-                            title={`Click to edit dependencies: ${depRowNums}`}
+                            className="truncate px-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded cursor-pointer w-full text-left font-mono text-[11px]"
+                            title={hasDeps ? `Click to edit: ${depDisplay}` : 'Click to add dependencies'}
                             onClick={(e) => {
                               e.stopPropagation();
                               openDepEditor(task);
                             }}
                           >
-                            {depRowNums}
+                            {hasDeps ? depDisplay : '-'}
                           </button>
                         );
                       default:
