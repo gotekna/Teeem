@@ -38,6 +38,8 @@ import {
   AlertCircle,
   Bell,
   XCircle,
+  Target,
+  TrendingDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -127,6 +129,28 @@ interface SLO {
   last_snapshot_date?: string;
 }
 
+interface BudgetViolation {
+  metric: string;
+  target: number;
+  actual: number;
+  severity: "info" | "warning" | "critical";
+}
+
+interface BudgetEndpointViolation {
+  endpoint: string;
+  violations: BudgetViolation[];
+}
+
+interface BudgetCompliance {
+  compliance_percent: number;
+  passing: number;
+  failing: number;
+  total_endpoints: number;
+  no_data: number;
+  critical_violations: number;
+  top_violations: BudgetEndpointViolation[];
+}
+
 interface PerformanceData {
   success: boolean;
   data: {
@@ -166,11 +190,13 @@ export function PerformanceTab() {
   const [period, setPeriod] = React.useState("24h");
   const [data, setData] = React.useState<PerformanceData | null>(null);
   const [slos, setSlos] = React.useState<SLO[]>([]);
+  const [budgets, setBudgets] = React.useState<BudgetCompliance | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     loadPerformanceData();
     loadSlos();
+    loadBudgets();
   }, [period]);
 
   const loadPerformanceData = async () => {
@@ -198,9 +224,21 @@ export function PerformanceTab() {
     }
   };
 
+  const loadBudgets = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: BudgetCompliance }>(`/api/v1/performance/budgets?period=${period}`);
+      if (response.success) {
+        setBudgets(response.data);
+      }
+    } catch (err) {
+      // Budgets are optional, don't show error
+      console.debug("Budgets not available:", err);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadPerformanceData();
+    await Promise.all([loadPerformanceData(), loadSlos(), loadBudgets()]);
     setRefreshing(false);
     toast({ title: "Refreshed", description: "Performance data updated" });
   };
@@ -448,6 +486,119 @@ export function PerformanceTab() {
                 </div>
               ))}
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Budget Compliance */}
+      {budgets && budgets.total_endpoints > 0 && (
+        <Card className={cn(
+          "border",
+          budgets.compliance_percent >= 90
+            ? "border-green-200 dark:border-green-800"
+            : budgets.compliance_percent >= 70
+              ? "border-yellow-200 dark:border-yellow-800"
+              : "border-red-200 dark:border-red-800"
+        )}>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Target className="h-5 w-5 text-muted-foreground" />
+                Performance Budget Compliance
+              </CardTitle>
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-sm font-bold",
+                  budgets.compliance_percent >= 90 && "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
+                  budgets.compliance_percent >= 70 && budgets.compliance_percent < 90 && "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+                  budgets.compliance_percent < 70 && "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                )}
+              >
+                {budgets.compliance_percent.toFixed(0)}% Compliant
+              </Badge>
+            </div>
+            <CardDescription>
+              Endpoint performance vs. configured budgets from performance_budgets.yml
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Summary Stats */}
+            <div className="grid grid-cols-4 gap-4 mb-4">
+              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">{budgets.passing}</div>
+                <div className="text-xs text-muted-foreground">Passing</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">{budgets.failing}</div>
+                <div className="text-xs text-muted-foreground">Failing</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <div className="text-2xl font-bold text-red-700 dark:text-red-300">{budgets.critical_violations}</div>
+                <div className="text-xs text-muted-foreground">Critical</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <div className="text-2xl font-bold text-gray-500">{budgets.no_data}</div>
+                <div className="text-xs text-muted-foreground">No Data</div>
+              </div>
+            </div>
+
+            {/* Compliance Bar */}
+            <div className="mb-4">
+              <div className="h-3 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    budgets.compliance_percent >= 90 ? "bg-green-500" :
+                    budgets.compliance_percent >= 70 ? "bg-yellow-500" : "bg-red-500"
+                  )}
+                  style={{ width: `${budgets.compliance_percent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Top Violations */}
+            {budgets.top_violations.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium flex items-center gap-2">
+                  <TrendingDown className="h-4 w-4 text-red-500" />
+                  Top Budget Violations
+                </h4>
+                {budgets.top_violations.map((violation, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800"
+                  >
+                    <div className="font-mono text-sm mb-2 truncate">{violation.endpoint}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {violation.violations.map((v, vIdx) => (
+                        <Badge
+                          key={vIdx}
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            v.severity === "critical" && "border-red-500 text-red-700 dark:text-red-300",
+                            v.severity === "warning" && "border-yellow-500 text-yellow-700 dark:text-yellow-300",
+                            v.severity === "info" && "border-blue-500 text-blue-700 dark:text-blue-300"
+                          )}
+                        >
+                          {v.metric}: {typeof v.actual === 'number' ? v.actual.toFixed(0) : v.actual}
+                          {v.metric === 'error_rate' ? '%' : 'ms'} (target: {v.target}
+                          {v.metric === 'error_rate' ? '%' : 'ms'})
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {budgets.top_violations.length === 0 && budgets.failing === 0 && (
+              <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                <CheckCircle className="h-5 w-5" />
+                <span className="text-sm font-medium">All endpoints within budget targets</span>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

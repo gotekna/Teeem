@@ -1,0 +1,220 @@
+# ============================================
+# PERFORMANCE BUDGETS - Single Source of Truth
+# ============================================
+#
+# This file defines performance targets for all critical endpoints and pages.
+# Used by:
+# - BudgetValidator service (runtime compliance checking)
+# - Performance Auditor agent (CI/CD gates)
+# - Auto-generated documentation (TEEEM_DOCS)
+#
+# Structure:
+#   endpoints: API endpoint budgets (backend)
+#   pages: Frontend page budgets (Web Vitals)
+#   global: Application-wide defaults
+#
+# All times in milliseconds unless noted.
+#
+
+global:
+  # Default targets for any endpoint not explicitly configured
+  api:
+    p95_target_ms: 500
+    p99_target_ms: 1000
+    error_rate_max: 0.01  # 1%
+
+  # Default Web Vitals targets (Google's "Good" thresholds)
+  vitals:
+    lcp_target_ms: 2500      # Largest Contentful Paint
+    cls_target: 0.1          # Cumulative Layout Shift (unitless)
+    inp_target_ms: 200       # Interaction to Next Paint
+    ttfb_target_ms: 800      # Time to First Byte
+
+  # Error budget (monthly)
+  error_budget:
+    target_uptime: 99.9      # 99.9% = 43 min downtime/month allowed
+    budget_minutes: 43
+
+# ============================================
+# API ENDPOINT BUDGETS
+# ============================================
+# Critical endpoints with stricter targets
+
+endpoints:
+  # Foundation API (high-traffic table data)
+  "/api/v1/foundations/:id":
+    p95_target_ms: 200
+    p99_target_ms: 400
+    error_rate_max: 0.005
+    owner: foundation_team
+    description: "Core table data API - must be fast"
+
+  "/api/v1/foundations/:id/entries":
+    p95_target_ms: 300
+    p99_target_ms: 600
+    error_rate_max: 0.01
+    owner: foundation_team
+
+  # Jobs API
+  "/api/v1/jobs":
+    p95_target_ms: 400
+    p99_target_ms: 800
+    error_rate_max: 0.01
+    owner: jobs_team
+    description: "Job listing - frequently accessed"
+
+  "/api/v1/jobs/:id":
+    p95_target_ms: 200
+    p99_target_ms: 400
+    error_rate_max: 0.005
+    owner: jobs_team
+
+  # Contacts API
+  "/api/v1/contacts":
+    p95_target_ms: 300
+    p99_target_ms: 600
+    error_rate_max: 0.01
+    owner: contacts_team
+
+  # Schedule/Gantt
+  "/api/v1/jobs/:job_id/schedule_tasks":
+    p95_target_ms: 500
+    p99_target_ms: 1000
+    error_rate_max: 0.01
+    owner: schedule_team
+    description: "Gantt chart data - complex queries"
+
+  # Xero Integration
+  "/api/v1/xero/*":
+    p95_target_ms: 2000
+    p99_target_ms: 5000
+    error_rate_max: 0.05
+    owner: integrations_team
+    description: "External API - higher latency acceptable"
+
+  # SharePoint Integration
+  "/api/v1/sharepoint/*":
+    p95_target_ms: 3000
+    p99_target_ms: 8000
+    error_rate_max: 0.05
+    owner: integrations_team
+    description: "External API - higher latency acceptable"
+
+# ============================================
+# FRONTEND PAGE BUDGETS
+# ============================================
+# Critical pages with Web Vitals targets
+
+pages:
+  # Main dashboard
+  "/":
+    lcp_target_ms: 2000
+    cls_target: 0.05
+    inp_target_ms: 150
+    owner: frontend_team
+    description: "Landing page - first impression"
+
+  # Jobs list
+  "/jobs":
+    lcp_target_ms: 2500
+    cls_target: 0.1
+    inp_target_ms: 200
+    owner: jobs_team
+    description: "Primary workflow entry point"
+
+  # Job detail
+  "/jobs/:id":
+    lcp_target_ms: 2500
+    cls_target: 0.1
+    inp_target_ms: 200
+    owner: jobs_team
+
+  # Gantt chart
+  "/jobs/:id/gantt":
+    lcp_target_ms: 3000
+    cls_target: 0.1
+    inp_target_ms: 100
+    frame_budget_ms: 16  # 60fps for smooth scrolling
+    memory_budget_mb: 256
+    owner: schedule_team
+    description: "Complex visualization - stricter INP"
+
+  # Contacts
+  "/contacts":
+    lcp_target_ms: 2500
+    cls_target: 0.1
+    inp_target_ms: 200
+    owner: contacts_team
+
+  # Pricebook
+  "/pricebook":
+    lcp_target_ms: 3000
+    cls_target: 0.1
+    inp_target_ms: 200
+    owner: pricebook_team
+    description: "Large dataset - slightly relaxed LCP"
+
+  # Admin pages (less critical)
+  "/admin/*":
+    lcp_target_ms: 3500
+    cls_target: 0.15
+    inp_target_ms: 300
+    owner: admin_team
+    description: "Internal pages - relaxed targets"
+
+# ============================================
+# CRITICAL USER JOURNEYS
+# ============================================
+# End-to-end performance budgets for key workflows
+
+journeys:
+  create_job:
+    description: "Create a new job from start to success"
+    total_budget_ms: 3000
+    steps:
+      - name: "Open new job form"
+        budget_ms: 500
+      - name: "Fill form and submit"
+        budget_ms: 1500
+      - name: "Navigate to new job"
+        budget_ms: 1000
+
+  view_gantt:
+    description: "Load and interact with Gantt chart"
+    total_budget_ms: 4000
+    steps:
+      - name: "Initial render"
+        budget_ms: 2500
+      - name: "First interaction"
+        budget_ms: 200
+      - name: "Scroll/pan"
+        budget_ms: 16  # Per frame
+
+  sync_xero:
+    description: "Sync contact with Xero"
+    total_budget_ms: 10000
+    steps:
+      - name: "Initiate sync"
+        budget_ms: 500
+      - name: "Xero API call"
+        budget_ms: 8000
+      - name: "Update UI"
+        budget_ms: 1500
+
+# ============================================
+# ALERTING THRESHOLDS
+# ============================================
+# When to trigger alerts
+
+alerting:
+  # Warn when approaching budget
+  warning_threshold: 0.8  # 80% of budget
+
+  # Critical when exceeding budget
+  critical_threshold: 1.0  # 100% of budget
+
+  # Minimum samples before alerting
+  min_sample_size: 100
+
+  # Time window for evaluation
+  evaluation_window_minutes: 60

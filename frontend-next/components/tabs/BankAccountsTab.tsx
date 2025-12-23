@@ -14,6 +14,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { CorporateCompany } from "@/lib/types/corporate";
+import { toast } from "sonner";
 
 interface BankAccountsTabProps {
   company: CorporateCompany;
@@ -49,6 +50,10 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
   }, [effectiveCompanyId]);
 
   // Sync bank accounts from Xero
+  // - Renames Xero accounts to standardized format: {BANK_CODE} {BSB} {ACCOUNT_NUMBER}
+  // - Sets date_opened from first transaction in Xero
+  // - Sets status/date_closed based on Xero ARCHIVED status
+  // - Stores official bank account name from Xero
   const syncFromXero = React.useCallback(async () => {
     try {
       setSyncing(true);
@@ -57,20 +62,46 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
         success: boolean;
         auto_created_count?: number;
         auto_linked_count?: number;
+        renamed_count?: number;
+        updated_count?: number;
         error?: string;
       }>(`/api/v1/companies/${effectiveCompanyId}/xero/bank_accounts`);
 
       if (response.success) {
         // Reload local bank accounts to show synced data
         await loadData();
+
         const created = response.auto_created_count || 0;
         const linked = response.auto_linked_count || 0;
-        if (created > 0 || linked > 0) {
-          console.log(`[BankAccountsTab] Synced from Xero: ${created} created, ${linked} linked`);
+        const renamed = response.renamed_count || 0;
+        const updated = response.updated_count || 0;
+
+        // Build summary message
+        const changes: string[] = [];
+        if (created > 0) changes.push(`${created} created`);
+        if (linked > 0) changes.push(`${linked} linked`);
+        if (renamed > 0) changes.push(`${renamed} renamed in Xero`);
+        if (updated > 0) changes.push(`${updated} updated`);
+
+        if (changes.length > 0) {
+          toast.success(`Xero Sync Complete`, {
+            description: changes.join(", ")
+          });
+        } else {
+          toast.info("Xero Sync Complete", {
+            description: "All accounts already up to date"
+          });
         }
+      } else {
+        toast.error("Sync Failed", {
+          description: response.error || "Unknown error"
+        });
       }
     } catch (error) {
       console.error("Failed to sync from Xero:", error);
+      toast.error("Sync Failed", {
+        description: error instanceof Error ? error.message : "Unknown error"
+      });
     } finally {
       setSyncing(false);
     }

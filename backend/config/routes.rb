@@ -162,6 +162,8 @@ Rails.application.routes.draw do
       get "performance/slos", to: "performance#slos"  # SLO list with status
       get "performance/slos/:id", to: "performance#show_slo"  # SLO details with trend
       get "performance/predictions", to: "performance#predictions"  # Performance predictions
+      get "performance/budgets", to: "performance#budgets"  # Budget compliance summary
+      get "performance/budgets/:endpoint", to: "performance#show_budget", constraints: { endpoint: /.*/ }  # Budget for endpoint
 
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"

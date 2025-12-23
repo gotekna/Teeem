@@ -234,6 +234,60 @@ module Api
         }
       end
 
+      # GET /api/v1/performance/budgets
+      # Get budget compliance summary
+      def budgets
+        since = parse_since_param
+        summary = Performance::BudgetValidator.compliance_summary(since: since)
+
+        render json: {
+          success: true,
+          data: {
+            compliance_percent: summary[:compliance_percent],
+            passing: summary[:passing],
+            failing: summary[:failing],
+            total_endpoints: summary[:total_endpoints],
+            no_data: summary[:no_data],
+            critical_violations: summary[:critical_violations],
+            top_violations: summary[:top_violations].map do |v|
+              {
+                endpoint: v[:endpoint],
+                violations: v[:violations].map do |viol|
+                  {
+                    metric: viol[:metric],
+                    target: viol[:target],
+                    actual: viol[:actual],
+                    severity: viol[:severity]
+                  }
+                end
+              }
+            end
+          },
+          budgets: Performance::BudgetValidator.all_budgets,
+          period: { since: since.iso8601 }
+        }
+      end
+
+      # GET /api/v1/performance/budgets/:endpoint
+      # Get budget for specific endpoint
+      def show_budget
+        endpoint = params[:endpoint]
+        since = parse_since_param
+
+        budget = Performance::BudgetValidator.budget_for(endpoint)
+        validation = Performance::BudgetValidator.validate_endpoint(endpoint, since: since)
+
+        render json: {
+          success: true,
+          data: {
+            endpoint: endpoint,
+            budget: budget,
+            validation: validation
+          },
+          period: { since: since.iso8601 }
+        }
+      end
+
       private
 
       def parse_since_param
