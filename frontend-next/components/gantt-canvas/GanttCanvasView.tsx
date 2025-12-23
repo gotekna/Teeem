@@ -635,6 +635,17 @@ export function GanttCanvasView({
     }
   }, [isDarkMode]);
 
+  // Trigger resize when fullscreen changes
+  React.useEffect(() => {
+    if (ganttRef.current) {
+      // Small delay to allow CSS transition to complete
+      const timer = setTimeout(() => {
+        ganttRef.current?.resize();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isFullscreen]);
+
   // Update column visibility and tooltip config when columns change
   React.useEffect(() => {
     if (ganttRef.current) {

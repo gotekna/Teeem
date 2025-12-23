@@ -137,6 +137,7 @@ export function ScheduleMasterTab() {
   // Gantt Preview state
   const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
   const [ganttRows, setGanttRows] = React.useState<SmTemplateRow[]>([]);
+  const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
   const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
@@ -774,6 +775,8 @@ export function ScheduleMasterTab() {
               templates={templates}
               onTemplateChange={loadGanttRows}
               className="h-full"
+              isFullscreen={ganttFullscreen}
+              onFullscreenChange={setGanttFullscreen}
             />
           )}
         </TabsContent>
