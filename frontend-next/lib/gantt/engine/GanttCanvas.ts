@@ -70,8 +70,10 @@ export interface GanttColors {
 export interface GanttState {
   tasks: GanttTask[];
   dependencies: GanttDependency[];
-  selectedTaskId: string | null;
+  selectedTaskIds: Set<string>;
+  lastSelectedTaskId: string | null; // For shift+click range selection
   hoveredTaskId: string | null;
+  hoveredEdge: 'left' | 'right' | null; // For resize handle highlighting
   viewportState: ViewportState;
 }
 
@@ -167,12 +169,25 @@ export class GanttCanvas {
   private resizeCurrentEnd: Date | null = null;
   private resizeHandleWidth: number = 8; // pixels for edge detection
 
+  // Mouse position for tooltip
+  private mouseX: number = 0;
+  private mouseY: number = 0;
+
+  // Dependency creation state
+  private isCreatingDependency: boolean = false;
+  private dependencyFromTask: GanttTask | null = null;
+  private dependencyFromEdge: 'start' | 'end' | null = null;
+  private dependencyLineEndX: number = 0;
+  private dependencyLineEndY: number = 0;
+  private connectorRadius: number = 5;
+
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
   private onTaskDoubleClick?: (task: GanttTask) => void;
   private onTaskDrag?: (task: GanttTask, newStartDate: Date) => void;
   private onTaskDelete?: (task: GanttTask) => void;
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
+  private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -203,8 +218,10 @@ export class GanttCanvas {
     this.state = {
       tasks: [],
       dependencies: [],
-      selectedTaskId: null,
+      selectedTaskIds: new Set(),
+      lastSelectedTaskId: null,
       hoveredTaskId: null,
+      hoveredEdge: null,
       viewportState: {
         scrollX: 0,
         scrollY: 0,
@@ -340,6 +357,10 @@ export class GanttCanvas {
     this.onTaskResize = handler;
   }
 
+  onDependencyCreateHandler(handler: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void): void {
+    this.onDependencyCreate = handler;
+  }
+
   /**
    * Resize the canvas
    */
@@ -408,8 +429,8 @@ export class GanttCanvas {
     this.renderer.drawGrid(this.containerWidth, this.containerHeight, this.state.tasks.length);
     this.renderer.drawTimeScale(this.containerWidth);
     this.renderer.drawTodayMarker(this.containerHeight);
-    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskId, this.state.hoveredTaskId);
-    this.renderer.drawDependencies(this.state.tasks, this.state.dependencies);
+    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge);
+    this.renderer.drawDependencies(this.state.tasks, this.state.dependencies, this.state.lastSelectedTaskId);
 
     // Draw drag preview overlay
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {
@@ -429,6 +450,17 @@ export class GanttCanvas {
         this.state.tasks.indexOf(this.resizeTask),
         this.resizeEdge
       );
+    }
+
+    // Draw selection count badge
+    this.renderer.drawSelectionBadge(this.state.selectedTaskIds.size, this.containerWidth);
+
+    // Draw tooltip for hovered task (only when not dragging/resizing)
+    if (this.state.hoveredTaskId && !this.isDragging && !this.isResizing) {
+      const hoveredTask = this.state.tasks.find(t => t.id === this.state.hoveredTaskId);
+      if (hoveredTask) {
+        this.renderer.drawTooltip(hoveredTask, this.mouseX, this.mouseY, this.containerWidth);
+      }
     }
   }
 
@@ -473,7 +505,7 @@ export class GanttCanvas {
       this.resizeOriginalEnd = new Date(edgeHit.task.endDate);
       this.resizeCurrentStart = new Date(edgeHit.task.startDate);
       this.resizeCurrentEnd = new Date(edgeHit.task.endDate);
-      this.state.selectedTaskId = edgeHit.task.id;
+      this.selectTask(edgeHit.task.id, e.ctrlKey || e.metaKey, e.shiftKey);
       this.markDirty();
       return;
     }
@@ -486,10 +518,57 @@ export class GanttCanvas {
       this.dragStartX = e.offsetX;
       this.dragStartDate = new Date(task.startDate);
       this.dragCurrentDate = new Date(task.startDate);
-      this.state.selectedTaskId = task.id;
+      this.selectTask(task.id, e.ctrlKey || e.metaKey, e.shiftKey);
       this.markDirty();
+    } else if (!task) {
+      // Clicked on empty space - clear selection
+      if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+        this.state.selectedTaskIds.clear();
+        this.state.lastSelectedTaskId = null;
+        this.markDirty();
+      }
     }
   };
+
+  /**
+   * Handle task selection with modifier keys
+   */
+  private selectTask(taskId: string, ctrlKey: boolean, shiftKey: boolean): void {
+    if (shiftKey && this.state.lastSelectedTaskId) {
+      // Shift+click: range selection
+      const lastIndex = this.state.tasks.findIndex(t => t.id === this.state.lastSelectedTaskId);
+      const currentIndex = this.state.tasks.findIndex(t => t.id === taskId);
+
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const startIdx = Math.min(lastIndex, currentIndex);
+        const endIdx = Math.max(lastIndex, currentIndex);
+
+        // Add all tasks in range to selection
+        for (let i = startIdx; i <= endIdx; i++) {
+          this.state.selectedTaskIds.add(this.state.tasks[i].id);
+        }
+      }
+    } else if (ctrlKey) {
+      // Ctrl+click: toggle selection
+      if (this.state.selectedTaskIds.has(taskId)) {
+        this.state.selectedTaskIds.delete(taskId);
+        // Update lastSelectedTaskId if we just removed it
+        if (this.state.lastSelectedTaskId === taskId) {
+          this.state.lastSelectedTaskId = this.state.selectedTaskIds.size > 0
+            ? Array.from(this.state.selectedTaskIds)[this.state.selectedTaskIds.size - 1]
+            : null;
+        }
+      } else {
+        this.state.selectedTaskIds.add(taskId);
+        this.state.lastSelectedTaskId = taskId;
+      }
+    } else {
+      // Regular click: single selection
+      this.state.selectedTaskIds.clear();
+      this.state.selectedTaskIds.add(taskId);
+      this.state.lastSelectedTaskId = taskId;
+    }
+  }
 
   private handleMouseUp = (e: MouseEvent): void => {
     // Handle resize completion
@@ -561,6 +640,10 @@ export class GanttCanvas {
   };
 
   private handleMouseMove = (e: MouseEvent): void => {
+    // Track mouse position for tooltip
+    this.mouseX = e.offsetX;
+    this.mouseY = e.offsetY;
+
     // Handle resize in progress
     if (this.resizeTask && this.resizeOriginalStart && this.resizeOriginalEnd) {
       const deltaX = e.offsetX - this.resizeStartX;
@@ -640,18 +723,22 @@ export class GanttCanvas {
     // Normal hover handling - check for resize edges first
     const edgeHit = this.hitTestEdge(e.offsetX, e.offsetY);
     if (edgeHit) {
+      const stateChanged = this.state.hoveredTaskId !== edgeHit.task.id || this.state.hoveredEdge !== edgeHit.edge;
       this.state.hoveredTaskId = edgeHit.task.id;
+      this.state.hoveredEdge = edgeHit.edge;
       this.canvas.style.cursor = edgeHit.task.locked ? 'not-allowed' : 'ew-resize';
-      this.markDirty();
+      if (stateChanged) this.markDirty();
       return;
     }
 
     // Check for task hover
     const task = this.hitTest(e.offsetX, e.offsetY);
     const newHoveredId = task?.id || null;
+    const stateChanged = newHoveredId !== this.state.hoveredTaskId || this.state.hoveredEdge !== null;
 
-    if (newHoveredId !== this.state.hoveredTaskId) {
+    if (stateChanged) {
       this.state.hoveredTaskId = newHoveredId;
+      this.state.hoveredEdge = null;
       this.canvas.style.cursor = task ? (task.locked ? 'not-allowed' : 'grab') : 'default';
       this.markDirty();
     }
@@ -673,8 +760,9 @@ export class GanttCanvas {
       this.dragCurrentDate = null;
     }
 
-    if (this.state.hoveredTaskId) {
+    if (this.state.hoveredTaskId || this.state.hoveredEdge) {
       this.state.hoveredTaskId = null;
+      this.state.hoveredEdge = null;
       this.markDirty();
     }
   };
@@ -699,8 +787,9 @@ export class GanttCanvas {
   };
 
   private handleKeyDown = (e: KeyboardEvent): void => {
-    const selectedTask = this.state.selectedTaskId
-      ? this.state.tasks.find(t => t.id === this.state.selectedTaskId)
+    // Get the last selected task for keyboard operations
+    const selectedTask = this.state.lastSelectedTaskId
+      ? this.state.tasks.find(t => t.id === this.state.lastSelectedTaskId)
       : null;
     const selectedIndex = selectedTask
       ? this.state.tasks.indexOf(selectedTask)
@@ -709,36 +798,44 @@ export class GanttCanvas {
     switch (e.key) {
       case 'ArrowUp':
         e.preventDefault();
-        if (e.shiftKey && selectedTask && !selectedTask.locked) {
-          // Shift+Up: Move selection up in list (reorder - future feature)
-        } else {
-          // Select previous task
-          if (selectedIndex > 0) {
-            this.state.selectedTaskId = this.state.tasks[selectedIndex - 1].id;
-            this.scrollToTask(this.state.selectedTaskId);
-            this.markDirty();
+        if (selectedIndex > 0) {
+          const newTaskId = this.state.tasks[selectedIndex - 1].id;
+          if (e.shiftKey) {
+            // Shift+Up: Extend selection upward
+            this.state.selectedTaskIds.add(newTaskId);
+          } else {
+            // Regular Up: Move to previous task
+            this.state.selectedTaskIds.clear();
+            this.state.selectedTaskIds.add(newTaskId);
           }
+          this.state.lastSelectedTaskId = newTaskId;
+          this.scrollToTask(newTaskId);
+          this.markDirty();
         }
         break;
 
       case 'ArrowDown':
         e.preventDefault();
-        if (e.shiftKey && selectedTask && !selectedTask.locked) {
-          // Shift+Down: Move selection down in list (reorder - future feature)
-        } else {
-          // Select next task
-          if (selectedIndex < this.state.tasks.length - 1) {
-            this.state.selectedTaskId = this.state.tasks[selectedIndex + 1].id;
-            this.scrollToTask(this.state.selectedTaskId);
-            this.markDirty();
+        if (selectedIndex < this.state.tasks.length - 1) {
+          const newTaskId = this.state.tasks[selectedIndex + 1].id;
+          if (e.shiftKey) {
+            // Shift+Down: Extend selection downward
+            this.state.selectedTaskIds.add(newTaskId);
+          } else {
+            // Regular Down: Move to next task
+            this.state.selectedTaskIds.clear();
+            this.state.selectedTaskIds.add(newTaskId);
           }
+          this.state.lastSelectedTaskId = newTaskId;
+          this.scrollToTask(newTaskId);
+          this.markDirty();
         }
         break;
 
       case 'ArrowLeft':
         e.preventDefault();
         if (e.shiftKey && selectedTask && !selectedTask.locked) {
-          // Shift+Left: Move task earlier by 1 day
+          // Shift+Left: Move selected task(s) earlier by 1 day
           const newDate = new Date(selectedTask.startDate);
           newDate.setDate(newDate.getDate() - 1);
           const snappedDate = this.snapToWorkingDay(newDate, false);
@@ -753,7 +850,7 @@ export class GanttCanvas {
       case 'ArrowRight':
         e.preventDefault();
         if (e.shiftKey && selectedTask && !selectedTask.locked) {
-          // Shift+Right: Move task later by 1 day
+          // Shift+Right: Move selected task(s) later by 1 day
           const newDate = new Date(selectedTask.startDate);
           newDate.setDate(newDate.getDate() + 1);
           const snappedDate = this.snapToWorkingDay(newDate, true);
@@ -782,8 +879,21 @@ export class GanttCanvas {
 
       case 'Escape':
         e.preventDefault();
-        this.state.selectedTaskId = null;
+        this.state.selectedTaskIds.clear();
+        this.state.lastSelectedTaskId = null;
         this.markDirty();
+        break;
+
+      case 'a':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+A: Select all tasks
+          this.state.tasks.forEach(t => this.state.selectedTaskIds.add(t.id));
+          if (this.state.tasks.length > 0) {
+            this.state.lastSelectedTaskId = this.state.tasks[this.state.tasks.length - 1].id;
+          }
+          this.markDirty();
+        }
         break;
 
       case 'Home':
