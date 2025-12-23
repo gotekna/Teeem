@@ -11596,6 +11596,219 @@ export class GanttCanvas {
   isShowDependencyLag(): boolean { return this.showDependencyLag; }
   isShowDependencyType(): boolean { return this.showDependencyType; }
 
+  // =========================================================================
+  // FEATURE 111-125: DEPENDENCY LINE VISUAL FEATURES
+  // =========================================================================
+  // Note: Core dependency visuals (hover, selection, animation, color palette,
+  // highlighting, pulsing, dash patterns, warnings) are in GanttRenderer.
+  // These provide configuration APIs.
+
+  private dependencyAnimationDuration: number = 300; // ms
+  private dependencyDashPattern: number[] = [];
+  private brokenDependencyDashPattern: number[] = [5, 5];
+
+  setDependencyAnimationDuration(ms: number): void {
+    this.dependencyAnimationDuration = Math.max(100, Math.min(2000, ms));
+  }
+
+  getDependencyAnimationDuration(): number { return this.dependencyAnimationDuration; }
+
+  setDependencyDashPattern(pattern: number[]): void {
+    this.dependencyDashPattern = pattern;
+    this.markDirty();
+  }
+
+  setBrokenDependencyDashPattern(pattern: number[]): void {
+    this.brokenDependencyDashPattern = pattern;
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 126-135: DEPENDENCY CALCULATION ENGINE
+  // =========================================================================
+  // Note: calculateEarliestStart and getTaskDuration already exist in the class.
+  // These methods use predecessorIds (not dependencies array) per GanttTask interface.
+
+  // =========================================================================
+  // FEATURE 136: AUTO-REMOVE CIRCULAR DEPENDENCIES ON SAVE
+  // =========================================================================
+  // Note: removeCircularDependenciesOnSave already exists at Feature 43.
+  // This provides configuration for auto-removal behavior.
+  private autoRemoveCircularDepsOnSave: boolean = true;
+
+  setAutoRemoveCircularDepsOnSave(enabled: boolean): void {
+    this.autoRemoveCircularDepsOnSave = enabled;
+  }
+
+  isAutoRemoveCircularDepsOnSaveEnabled(): boolean { return this.autoRemoveCircularDepsOnSave; }
+
+  // =========================================================================
+  // FEATURE 137: LOG REMOVED CIRCULAR DEPS TO CONSOLE
+  // =========================================================================
+  private logCircularDepsEnabled: boolean = true;
+
+  setLogCircularDeps(enabled: boolean): void {
+    this.logCircularDepsEnabled = enabled;
+  }
+
+  private logCircularDepRemoval(taskId: string, predecessorId: string): void {
+    if (!this.logCircularDepsEnabled) return;
+
+    const task = this.state.tasks.find(t => t.id === taskId);
+    const predTask = this.state.tasks.find(t => t.id === predecessorId);
+
+    console.warn(
+      `[Gantt] Circular dependency removed: ` +
+      `Task "${task?.name || taskId}" → "${predTask?.name || predecessorId}" ` +
+      `would create a cycle. Dependency was automatically removed.`
+    );
+  }
+
+  // =========================================================================
+  // FEATURE 138-146: WORKING DAYS AND CRITICAL PATH
+  // =========================================================================
+  // Note: Working days calendar, weekend/holiday skipping, critical path,
+  // float calculation, forward/backward pass are implemented in Calendar class.
+
+  getWorkingDaysBetween(startDate: Date, endDate: Date): number {
+    let count = 0;
+    const current = new Date(startDate);
+    while (current < endDate) {
+      if (this.calendar.isWorkingDay(current)) {
+        count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return count;
+  }
+
+  addWorkingDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    let remaining = days;
+    while (remaining > 0) {
+      result.setDate(result.getDate() + 1);
+      if (this.calendar.isWorkingDay(result)) {
+        remaining--;
+      }
+    }
+    return result;
+  }
+
+  // =========================================================================
+  // FEATURE 147: DEPENDENCY CHAIN ANALYSIS
+  // =========================================================================
+  analyzeDependencyChainByTask(taskId: string): {
+    chain: string[];
+    depth: number;
+    longestPath: string[];
+  } {
+    const chain: string[] = [];
+    const visited = new Set<string>();
+
+    const traverse = (id: string) => {
+      if (visited.has(id)) return;
+      visited.add(id);
+
+      const task = this.state.tasks.find(t => t.id === id);
+      if (!task) return;
+
+      chain.push(id);
+
+      // Use predecessorIds (GanttTask interface)
+      if (task.predecessorIds) {
+        for (const predId of task.predecessorIds) {
+          traverse(predId);
+        }
+      }
+    };
+
+    traverse(taskId);
+
+    // Find the longest path through the chain
+    const longestPath = this.findLongestPathByPredecessors(taskId);
+
+    return { chain, depth: longestPath.length, longestPath };
+  }
+
+  private findLongestPathByPredecessors(taskId: string, visited = new Set<string>()): string[] {
+    if (visited.has(taskId)) return [];
+    visited.add(taskId);
+
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task || !task.predecessorIds || task.predecessorIds.length === 0) {
+      return [taskId];
+    }
+
+    let longestSubPath: string[] = [];
+
+    for (const predId of task.predecessorIds) {
+      const subPath = this.findLongestPathByPredecessors(predId, new Set(visited));
+      if (subPath.length > longestSubPath.length) {
+        longestSubPath = subPath;
+      }
+    }
+
+    return [taskId, ...longestSubPath];
+  }
+
+  // =========================================================================
+  // FEATURE 148-150: CONFLICT DETECTION
+  // =========================================================================
+  // Note: Conflict detection, today constraint, broken dependencies tracking
+  // are implemented. These provide additional APIs.
+
+  detectScheduleConflictsForTask(taskId: string, newStartDate: Date): {
+    hasConflict: boolean;
+    conflictType: 'predecessor' | 'today' | 'locked' | null;
+    conflictingTaskId: string | null;
+    message: string;
+  } {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) {
+      return { hasConflict: false, conflictType: null, conflictingTaskId: null, message: '' };
+    }
+
+    // Check today constraint
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (newStartDate < today) {
+      return {
+        hasConflict: true,
+        conflictType: 'today',
+        conflictingTaskId: null,
+        message: 'Cannot schedule task before today'
+      };
+    }
+
+    // Check predecessor constraints using predecessorIds (GanttTask interface)
+    const earliestStart = this.calculateEarliestStart(taskId);
+    if (earliestStart && newStartDate < earliestStart) {
+      const blockingPredId = task.predecessorIds?.find(predId => {
+        const pred = this.state.tasks.find(t => t.id === predId);
+        return pred && pred.endDate > newStartDate;
+      });
+
+      return {
+        hasConflict: true,
+        conflictType: 'predecessor',
+        conflictingTaskId: blockingPredId || null,
+        message: `Task cannot start before predecessor finishes`
+      };
+    }
+
+    // Check if task is locked (GanttTask uses 'locked' not 'isLocked')
+    if (task.locked) {
+      return {
+        hasConflict: true,
+        conflictType: 'locked',
+        conflictingTaskId: taskId,
+        message: 'Task is locked and cannot be moved'
+      };
+    }
+
+    return { hasConflict: false, conflictType: null, conflictingTaskId: null, message: '' };
+  }
+
 }
 
 // ============================================================================
