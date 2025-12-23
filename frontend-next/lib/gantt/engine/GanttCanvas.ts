@@ -136,9 +136,13 @@ export interface GanttState {
 
 export interface ContextMenuItem {
   id: string;
-  label: string;
+  label?: string;
   icon?: string;
+  shortcut?: string;
+  action?: () => void;
   disabled?: boolean;
+  danger?: boolean;
+  type?: 'divider';
   separator?: boolean;
 }
 
@@ -5322,118 +5326,10 @@ export class GanttCanvas {
   }
 
   // =========================================================================
-  // UNDO/REDO SYSTEM (Command Pattern)
+  // COMMAND CREATION HELPERS (for use with UndoManager)
   // =========================================================================
 
-  /**
-   * Command history for undo/redo
-   */
-  private commandHistory: Command[] = [];
-  private commandIndex: number = -1;
-  private maxHistorySize: number = 50;
-
-  /**
-   * Execute a command and add to history
-   */
-  executeCommand(command: Command): void {
-    // Execute the command
-    command.execute();
-
-    // Remove any redo history
-    this.commandHistory = this.commandHistory.slice(0, this.commandIndex + 1);
-
-    // Add command to history
-    this.commandHistory.push(command);
-    this.commandIndex++;
-
-    // Limit history size
-    if (this.commandHistory.length > this.maxHistorySize) {
-      this.commandHistory.shift();
-      this.commandIndex--;
-    }
-
-    // Notify listeners
-    if (this.options.onUndoStackChanged) {
-      this.options.onUndoStackChanged(this.canUndo(), this.canRedo());
-    }
-  }
-
-  /**
-   * Undo last command
-   */
-  undo(): boolean {
-    if (!this.canUndo()) return false;
-
-    const command = this.commandHistory[this.commandIndex];
-    command.undo();
-    this.commandIndex--;
-
-    this.announce('Undid: ' + command.description);
-
-    if (this.options.onUndoStackChanged) {
-      this.options.onUndoStackChanged(this.canUndo(), this.canRedo());
-    }
-
-    this.requestRender();
-    return true;
-  }
-
-  /**
-   * Redo last undone command
-   */
-  redo(): boolean {
-    if (!this.canRedo()) return false;
-
-    this.commandIndex++;
-    const command = this.commandHistory[this.commandIndex];
-    command.execute();
-
-    this.announce('Redid: ' + command.description);
-
-    if (this.options.onUndoStackChanged) {
-      this.options.onUndoStackChanged(this.canUndo(), this.canRedo());
-    }
-
-    this.requestRender();
-    return true;
-  }
-
-  /**
-   * Check if undo is available
-   */
-  canUndo(): boolean {
-    return this.commandIndex >= 0;
-  }
-
-  /**
-   * Check if redo is available
-   */
-  canRedo(): boolean {
-    return this.commandIndex < this.commandHistory.length - 1;
-  }
-
-  /**
-   * Clear command history
-   */
-  clearHistory(): void {
-    this.commandHistory = [];
-    this.commandIndex = -1;
-
-    if (this.options.onUndoStackChanged) {
-      this.options.onUndoStackChanged(false, false);
-    }
-  }
-
-  /**
-   * Get undo/redo stack info
-   */
-  getHistoryInfo(): { undoCount: number; redoCount: number; lastAction?: string } {
-    return {
-      undoCount: this.commandIndex + 1,
-      redoCount: this.commandHistory.length - this.commandIndex - 1,
-      lastAction: this.commandIndex >= 0 ? this.commandHistory[this.commandIndex].description : undefined,
-    };
-  }
+  // Note: The undo/redo system uses the UndoManager class (see undo(), redo(), canUndo(), canRedo() methods above)
 
   /**
    * Create a move task command
@@ -5448,6 +5344,8 @@ export class GanttCanvas {
     const newEndDate = new Date(newStartDate.getTime() + duration);
 
     return {
+      id: `move-${taskId}-${Date.now()}`,
+      timestamp: Date.now(),
       description: `Move ${task.name}`,
       execute: () => {
         const t = this.getTask(taskId);
@@ -5476,6 +5374,8 @@ export class GanttCanvas {
     const oldProgress = task.progress || 0;
 
     return {
+      id: `progress-${taskId}-${Date.now()}`,
+      timestamp: Date.now(),
       description: `Change progress of ${task.name}`,
       execute: () => {
         const t = this.getTask(taskId);
@@ -5499,6 +5399,8 @@ export class GanttCanvas {
     const index = this.getTaskIndex(taskId);
 
     return {
+      id: `delete-${taskId}-${Date.now()}`,
+      timestamp: Date.now(),
       description: `Delete ${task.name}`,
       execute: () => {
         const idx = this.state.tasks.findIndex(t => t.id === taskId);
@@ -5519,6 +5421,8 @@ export class GanttCanvas {
     const taskCopy = { ...task };
 
     return {
+      id: `add-${task.id}-${Date.now()}`,
+      timestamp: Date.now(),
       description: `Add ${task.name}`,
       execute: () => {
         this.state.tasks.push(taskCopy);
@@ -5537,16 +5441,7 @@ export class GanttCanvas {
 // Types for new APIs
 // ============================================================================
 
-export interface ContextMenuItem {
-  id: string;
-  label?: string;
-  icon?: string;
-  shortcut?: string;
-  action?: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-  type?: 'divider';
-}
+// Note: ContextMenuItem is defined at the top of the file
 
 export interface PrintOptions {
   title?: string;
