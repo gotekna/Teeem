@@ -63,7 +63,8 @@ module Api
             pending_compliance_items: { methods: [ :days_until_due ] },
             corporate_company_xero_connection: {},
             consolidation_parent: {},
-            contact: {} # Include contact with ABN verification fields
+            contact: {}, # Include contact with ABN verification fields
+            corporate_group: {} # Include company group for display
           },
           methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :sharepoint_folder_url, :has_consolidated_children? ]
           # Note: total_asset_value removed - depends on assets table
