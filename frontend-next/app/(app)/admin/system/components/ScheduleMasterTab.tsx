@@ -974,7 +974,7 @@ export function ScheduleMasterTab() {
           <div className="flex flex-col h-[calc(100vh-280px)] -mx-4">
             <TeeemTableView
               key={dataViewRefreshKey}
-              entries={dataViewRows as unknown as Record<string, unknown>[]}
+              entries={dataViewRows as unknown as { id: number; [key: string]: unknown }[]}
               foundationId="sm_template_rows"
               foundationIdNumeric={426}
               tableName={dataViewTemplateId

@@ -249,6 +249,10 @@ export class GanttCanvas {
   private marqueeEndY: number = 0;
   private marqueeSelectedIds: Set<string> = new Set();
 
+  // Clipboard for copy/paste
+  private clipboardTask: GanttTask | null = null;
+  private clipboardIsCut: boolean = false;
+
   // Mouse position for tooltip
   private mouseX: number = 0;
   private mouseY: number = 0;
@@ -2949,6 +2953,173 @@ export class GanttCanvas {
           this.zoomToMonth();
         }
         break;
+
+      case 'd':
+      case 'D':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+D: Duplicate selected task
+          if (selectedTask) {
+            const duplicate = this.duplicateTask(selectedTask.id);
+            if (duplicate) {
+              this.state.selectedTaskIds.clear();
+              this.state.selectedTaskIds.add(duplicate.id);
+              this.state.lastSelectedTaskId = duplicate.id;
+            }
+          }
+        }
+        break;
+
+      case 'n':
+      case 'N':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+N: Create new task
+          const newTask = this.createTask();
+          this.state.selectedTaskIds.clear();
+          this.state.selectedTaskIds.add(newTask.id);
+          this.state.lastSelectedTaskId = newTask.id;
+          this.scrollToTask(newTask.id);
+        }
+        break;
+
+      case 'Insert':
+        e.preventDefault();
+        // Insert: Create new task after selected
+        const insertIndex = selectedIndex >= 0 ? selectedIndex + 1 : this.state.tasks.length;
+        const insertedTask = this.createTask();
+        this.moveTaskToIndex(insertedTask.id, insertIndex);
+        this.state.selectedTaskIds.clear();
+        this.state.selectedTaskIds.add(insertedTask.id);
+        this.state.lastSelectedTaskId = insertedTask.id;
+        break;
+
+      case 's':
+      case 'S':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // S: Start selected task
+          if (selectedTask && selectedTask.status !== 'completed') {
+            this.startTask(selectedTask.id);
+          }
+        }
+        break;
+
+      case ' ':
+        e.preventDefault();
+        // Space: Toggle task completion / increment progress
+        if (selectedTask) {
+          if (selectedTask.status === 'completed') {
+            // If completed, reset to in-progress
+            this.setStatus(selectedTask.id, 'in-progress');
+            this.setProgress(selectedTask.id, 50);
+          } else {
+            // Increment progress by 25% or complete if >= 75%
+            const currentProgress = selectedTask.progress || 0;
+            if (currentProgress >= 75) {
+              this.completeTask(selectedTask.id);
+            } else {
+              this.setProgress(selectedTask.id, currentProgress + 25);
+            }
+          }
+        }
+        break;
+
+      case 'p':
+      case 'P':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // P: Increment progress by 10%
+          if (selectedTask) {
+            this.incrementProgress(selectedTask.id, 10);
+          }
+        }
+        break;
+
+      case 'h':
+      case 'H':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // H: Toggle hold on selected task
+          if (selectedTask) {
+            if (selectedTask.status === 'on-hold') {
+              this.resumeTask(selectedTask.id);
+            } else {
+              this.holdTask(selectedTask.id, 'other');
+            }
+          }
+        }
+        break;
+
+      case 't':
+      case 'T':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // T: Scroll to today
+          this.scrollToToday();
+        }
+        break;
+
+      case 'f':
+      case 'F':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // F: Fit all tasks in view (zoom to fit)
+          this.zoomToFit();
+        }
+        break;
+
+      case 'i':
+      case 'I':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // I: Invert selection
+          this.invertSelection();
+        }
+        break;
+
+      case 'c':
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl+C with selection - don't prevent default, allow copy
+          // But store the task for potential paste
+          if (selectedTask) {
+            this.clipboardTask = selectedTask;
+          }
+        }
+        break;
+
+      case 'x':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+X: Cut (copy and mark for deletion)
+          if (selectedTask) {
+            this.clipboardTask = selectedTask;
+            this.clipboardIsCut = true;
+          }
+        }
+        break;
+
+      case 'v':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+V: Paste task
+          if (this.clipboardTask) {
+            const pasted = this.duplicateTask(this.clipboardTask.id, 0);
+            if (pasted) {
+              this.state.selectedTaskIds.clear();
+              this.state.selectedTaskIds.add(pasted.id);
+              this.state.lastSelectedTaskId = pasted.id;
+
+              // If it was a cut operation, delete the original
+              if (this.clipboardIsCut) {
+                this.deleteTask(this.clipboardTask.id);
+                this.clipboardTask = null;
+                this.clipboardIsCut = false;
+              }
+            }
+          }
+        }
+        break;
     }
   };
 
@@ -3175,6 +3346,442 @@ export class GanttCanvas {
     this.onProgressChange?.(task, 100);
     this.onTaskUpdate?.(task);
     this.markDirty();
+  }
+
+  // ============================================================================
+  // Task CRUD API
+  // ============================================================================
+
+  /**
+   * Add a new task to the chart
+   * @param task - The task to add (id is required)
+   * @param index - Optional position to insert at (default: end)
+   * @returns The added task
+   */
+  addTask(task: GanttTask, index?: number): GanttTask {
+    // Validate required fields
+    if (!task.id || !task.name || !task.startDate || !task.endDate) {
+      throw new Error('Task must have id, name, startDate, and endDate');
+    }
+
+    // Ensure dates are Date objects
+    const newTask: GanttTask = {
+      ...task,
+      startDate: new Date(task.startDate),
+      endDate: new Date(task.endDate),
+      status: task.status || 'not-started',
+      progress: task.progress ?? 0,
+    };
+
+    if (typeof index === 'number' && index >= 0 && index <= this.state.tasks.length) {
+      this.state.tasks.splice(index, 0, newTask);
+    } else {
+      this.state.tasks.push(newTask);
+    }
+
+    this.onTaskUpdate?.(newTask);
+    this.markDirty();
+    return newTask;
+  }
+
+  /**
+   * Create a new task with default values
+   * @param overrides - Optional values to override defaults
+   * @returns The created task
+   */
+  createTask(overrides?: Partial<GanttTask>): GanttTask {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 1);
+
+    const task: GanttTask = {
+      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: 'New Task',
+      startDate: today,
+      endDate: endDate,
+      status: 'not-started',
+      progress: 0,
+      ...overrides,
+    };
+
+    return this.addTask(task);
+  }
+
+  /**
+   * Delete a task by ID
+   * @param taskId - The task ID to delete
+   * @returns true if task was deleted
+   */
+  deleteTask(taskId: string): boolean {
+    const index = this.state.tasks.findIndex(t => t.id === taskId);
+    if (index === -1) return false;
+
+    const task = this.state.tasks[index];
+
+    // Remove from tasks array
+    this.state.tasks.splice(index, 1);
+
+    // Remove from selection
+    this.state.selectedTaskIds.delete(taskId);
+    if (this.state.lastSelectedTaskId === taskId) {
+      this.state.lastSelectedTaskId = null;
+    }
+
+    // Remove dependencies involving this task
+    this.state.dependencies = this.state.dependencies.filter(
+      d => d.fromId !== taskId && d.toId !== taskId
+    );
+
+    // Update predecessor lists on other tasks
+    this.state.tasks.forEach(t => {
+      if (t.predecessorIds) {
+        t.predecessorIds = t.predecessorIds.filter(id => id !== taskId);
+      }
+      if (t.brokenPredecessorIds) {
+        t.brokenPredecessorIds = t.brokenPredecessorIds.filter(id => id !== taskId);
+      }
+    });
+
+    this.onTaskDelete?.(task);
+    this.markDirty();
+    return true;
+  }
+
+  /**
+   * Delete multiple tasks
+   * @param taskIds - Array of task IDs to delete
+   * @returns Number of tasks deleted
+   */
+  deleteTasks(taskIds: string[]): number {
+    let count = 0;
+    this.beginBatchUpdate();
+
+    taskIds.forEach(id => {
+      if (this.deleteTask(id)) count++;
+    });
+
+    this.endBatchUpdate();
+    return count;
+  }
+
+  /**
+   * Delete selected tasks
+   * @returns Number of tasks deleted
+   */
+  deleteSelectedTasks(): number {
+    const ids = this.getSelectedTaskIds();
+    return this.deleteTasks(ids);
+  }
+
+  /**
+   * Duplicate a task
+   * @param taskId - The task to duplicate
+   * @param offsetDays - Days to offset the duplicate (default: 1)
+   * @returns The duplicated task or null
+   */
+  duplicateTask(taskId: string, offsetDays: number = 1): GanttTask | null {
+    const original = this.state.tasks.find(t => t.id === taskId);
+    if (!original) return null;
+
+    const newStartDate = new Date(original.startDate);
+    newStartDate.setDate(newStartDate.getDate() + offsetDays);
+
+    const newEndDate = new Date(original.endDate);
+    newEndDate.setDate(newEndDate.getDate() + offsetDays);
+
+    const duplicate: GanttTask = {
+      ...original,
+      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: `${original.name} (Copy)`,
+      startDate: newStartDate,
+      endDate: newEndDate,
+      progress: 0,
+      status: 'not-started',
+      locked: undefined,
+      holdState: undefined,
+      predecessorIds: undefined,
+      brokenPredecessorIds: undefined,
+    };
+
+    const originalIndex = this.state.tasks.indexOf(original);
+    return this.addTask(duplicate, originalIndex + 1);
+  }
+
+  /**
+   * Move a task to a new position in the list
+   * @param taskId - The task to move
+   * @param newIndex - The new index position
+   */
+  moveTaskToIndex(taskId: string, newIndex: number): void {
+    const currentIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    if (currentIndex === -1) return;
+
+    const [task] = this.state.tasks.splice(currentIndex, 1);
+    const insertIndex = newIndex > currentIndex ? newIndex - 1 : newIndex;
+    this.state.tasks.splice(Math.max(0, Math.min(insertIndex, this.state.tasks.length)), 0, task);
+
+    this.markDirty();
+  }
+
+  /**
+   * Get task by ID
+   */
+  getTask(taskId: string): GanttTask | undefined {
+    return this.state.tasks.find(t => t.id === taskId);
+  }
+
+  /**
+   * Get task index
+   */
+  getTaskIndex(taskId: string): number {
+    return this.state.tasks.findIndex(t => t.id === taskId);
+  }
+
+  /**
+   * Get all tasks
+   */
+  getAllTasks(): GanttTask[] {
+    return [...this.state.tasks];
+  }
+
+  /**
+   * Get task count
+   */
+  getTaskCount(): number {
+    return this.state.tasks.length;
+  }
+
+  // ============================================================================
+  // Status Management API
+  // ============================================================================
+
+  /**
+   * Set task status
+   */
+  setStatus(taskId: string, status: GanttTask['status']): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const oldStatus = task.status;
+    task.status = status;
+
+    // Auto-update progress for completed tasks
+    if (status === 'completed' && (task.progress || 0) < 100) {
+      task.progress = 100;
+      this.onProgressChange?.(task, 100);
+    }
+
+    // Clear hold state if resuming
+    if (oldStatus === 'on-hold' && status !== 'on-hold') {
+      task.holdState = undefined;
+    }
+
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Get task status
+   */
+  getStatus(taskId: string): GanttTask['status'] | undefined {
+    return this.state.tasks.find(t => t.id === taskId)?.status;
+  }
+
+  /**
+   * Start a task (set to in-progress)
+   */
+  startTask(taskId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    task.status = 'in-progress';
+    task.locked = 'started';
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Mark task as at-risk
+   */
+  markAtRisk(taskId: string): void {
+    this.setStatus(taskId, 'at-risk');
+  }
+
+  /**
+   * Get tasks by status
+   */
+  getTasksByStatus(status: GanttTask['status']): GanttTask[] {
+    return this.state.tasks.filter(t => t.status === status);
+  }
+
+  /**
+   * Get status counts
+   */
+  getStatusCounts(): Record<string, number> {
+    const counts: Record<string, number> = {
+      'not-started': 0,
+      'in-progress': 0,
+      'completed': 0,
+      'on-hold': 0,
+      'at-risk': 0,
+    };
+
+    this.state.tasks.forEach(t => {
+      const status = t.status || 'not-started';
+      counts[status] = (counts[status] || 0) + 1;
+    });
+
+    return counts;
+  }
+
+  /**
+   * Get completion percentage
+   */
+  getCompletionPercentage(): number {
+    if (this.state.tasks.length === 0) return 0;
+    const completed = this.state.tasks.filter(t => t.status === 'completed').length;
+    return Math.round((completed / this.state.tasks.length) * 100);
+  }
+
+  /**
+   * Get average progress
+   */
+  getAverageProgress(): number {
+    if (this.state.tasks.length === 0) return 0;
+    const total = this.state.tasks.reduce((sum, t) => sum + (t.progress || 0), 0);
+    return Math.round(total / this.state.tasks.length);
+  }
+
+  // ============================================================================
+  // Export API
+  // ============================================================================
+
+  /**
+   * Export canvas to image data URL
+   * @param format - Image format ('png' | 'jpeg')
+   * @param quality - JPEG quality (0-1)
+   */
+  exportToImage(format: 'png' | 'jpeg' = 'png', quality: number = 0.92): string {
+    return this.canvas.toDataURL(`image/${format}`, quality);
+  }
+
+  /**
+   * Export canvas to Blob
+   * @param format - Image format
+   * @param quality - JPEG quality
+   */
+  async exportToBlob(format: 'png' | 'jpeg' = 'png', quality: number = 0.92): Promise<Blob> {
+    return new Promise((resolve, reject) => {
+      this.canvas.toBlob(
+        blob => {
+          if (blob) resolve(blob);
+          else reject(new Error('Failed to create blob'));
+        },
+        `image/${format}`,
+        quality
+      );
+    });
+  }
+
+  /**
+   * Download canvas as image
+   * @param filename - The filename (without extension)
+   * @param format - Image format
+   */
+  downloadImage(filename: string = 'gantt-chart', format: 'png' | 'jpeg' = 'png'): void {
+    const dataUrl = this.exportToImage(format);
+    const link = document.createElement('a');
+    link.download = `${filename}.${format}`;
+    link.href = dataUrl;
+    link.click();
+  }
+
+  /**
+   * Export tasks data to JSON
+   */
+  exportToJSON(): string {
+    const data = {
+      tasks: this.state.tasks.map(t => ({
+        ...t,
+        startDate: t.startDate.toISOString(),
+        endDate: t.endDate.toISOString(),
+        holdState: t.holdState ? {
+          ...t.holdState,
+          heldAt: t.holdState.heldAt.toISOString(),
+        } : undefined,
+      })),
+      dependencies: this.state.dependencies,
+      exportedAt: new Date().toISOString(),
+    };
+    return JSON.stringify(data, null, 2);
+  }
+
+  /**
+   * Import tasks data from JSON
+   */
+  importFromJSON(json: string): void {
+    try {
+      const data = JSON.parse(json);
+
+      if (data.tasks) {
+        this.state.tasks = data.tasks.map((t: Record<string, unknown>) => ({
+          ...t,
+          startDate: new Date(t.startDate as string),
+          endDate: new Date(t.endDate as string),
+          holdState: t.holdState ? {
+            ...(t.holdState as Record<string, unknown>),
+            heldAt: new Date((t.holdState as Record<string, unknown>).heldAt as string),
+          } : undefined,
+        }));
+      }
+
+      if (data.dependencies) {
+        this.state.dependencies = data.dependencies;
+      }
+
+      this.markDirty();
+    } catch (e) {
+      console.error('GanttCanvas: Failed to import JSON', e);
+      throw new Error('Invalid JSON format');
+    }
+  }
+
+  /**
+   * Export tasks to CSV format
+   */
+  exportToCSV(): string {
+    const headers = ['ID', 'Name', 'Start Date', 'End Date', 'Duration (days)', 'Progress', 'Status', 'Locked', 'Predecessors'];
+    const rows = this.state.tasks.map(t => {
+      const duration = Math.ceil((t.endDate.getTime() - t.startDate.getTime()) / (24 * 60 * 60 * 1000));
+      return [
+        t.id,
+        `"${t.name.replace(/"/g, '""')}"`,
+        t.startDate.toISOString().split('T')[0],
+        t.endDate.toISOString().split('T')[0],
+        duration,
+        t.progress || 0,
+        t.status || 'not-started',
+        t.locked || '',
+        (t.predecessorIds || []).join(';'),
+      ].join(',');
+    });
+
+    return [headers.join(','), ...rows].join('\n');
+  }
+
+  /**
+   * Download as CSV
+   */
+  downloadCSV(filename: string = 'gantt-tasks'): void {
+    const csv = this.exportToCSV();
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
   }
 
   // ============================================================================
