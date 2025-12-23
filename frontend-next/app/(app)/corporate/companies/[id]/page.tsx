@@ -169,8 +169,8 @@ export default function CompanyDetailPage() {
     const overviewTab = entityTabs.find((t) => t.tab_key === "overview" && t.tab_group === "main");
     if (!overviewTab?.children) return [];
     return overviewTab.children
-      .filter((child: { tab_group?: string }) => child.tab_group === "overview")
-      .map((child: { tab_key: string; display_name: string }) => ({
+      .filter((child) => child.tab_group === "overview")
+      .map((child) => ({
         id: child.tab_key,
         name: child.display_name
       }));
