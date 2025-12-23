@@ -207,7 +207,6 @@ module Api
           trade: row.trade,
           stage: row.stage,
           category: row.category,
-          ts_identifier: row.ts_identifier,
           assigned_role: row.assigned_role,
           supplier_id: row.supplier_id,
           supplier_name: row.supplier&.name,

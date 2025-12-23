@@ -30,14 +30,30 @@ import {
   Calendar,
   Maximize2,
   RefreshCw,
+  Eye,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface GanttCanvasViewProps {
-  templateId: number;
+  /** Template ID - loads data from API */
+  templateId?: number;
+  /** Static tasks - bypasses API, used for demos */
+  staticTasks?: GanttTask[];
+  /** Static dependencies - used with staticTasks */
+  staticDependencies?: Array<{ fromId: string; toId: string; type?: string }>;
+  /** Show toolbar */
+  showToolbar?: boolean;
   className?: string;
   onTaskClick?: (task: GanttTask) => void;
   onTaskDoubleClick?: (task: GanttTask) => void;
@@ -55,6 +71,9 @@ interface ApiResponse {
 
 export function GanttCanvasView({
   templateId,
+  staticTasks,
+  staticDependencies,
+  showToolbar = true,
   className,
   onTaskClick,
   onTaskDoubleClick,
@@ -64,17 +83,36 @@ export function GanttCanvasView({
   const containerRef = React.useRef<HTMLDivElement>(null);
   const ganttRef = React.useRef<GanttCanvas | null>(null);
 
+  // Determine if we're using static mode
+  const isStaticMode = Boolean(staticTasks);
+
   // State
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!isStaticMode);
   const [error, setError] = React.useState<string | null>(null);
   const [rows, setRows] = React.useState<SmTemplateRow[]>([]);
+
+  // Column visibility state - controls what shows in task sidebar/tooltips
+  const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({
+    name: true,
+    startDate: true,
+    endDate: true,
+    duration: true,
+    progress: true,
+    status: true,
+    supplier: true,
+    confirm: false,
+    supplierConfirm: false,
+    dependencies: true,
+  });
 
   // Theme
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
 
-  // Load data from API
+  // Load data from API (only when not using static mode)
   const loadData = React.useCallback(async () => {
+    if (isStaticMode || !templateId) return;
+
     try {
       setLoading(true);
       setError(null);
@@ -94,19 +132,33 @@ export function GanttCanvasView({
     } finally {
       setLoading(false);
     }
-  }, [templateId]);
+  }, [templateId, isStaticMode]);
 
   // Initialize canvas engine
   React.useEffect(() => {
     if (!containerRef.current || loading || error) return;
 
-    // Calculate project start date (today - 7 days for visibility)
-    const projectStartDate = new Date();
-    projectStartDate.setDate(projectStartDate.getDate() - 7);
+    // Get tasks and dependencies based on mode
+    let tasks: GanttTask[];
+    let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
 
-    // Convert rows to tasks and dependencies
-    const tasks = convertRowsToTasks(rows, projectStartDate);
-    const dependencies = convertToDependencies(rows);
+    if (isStaticMode && staticTasks) {
+      // Static mode - use provided data directly
+      tasks = staticTasks;
+      dependencies = (staticDependencies || []).map((d, i) => ({
+        id: `dep-${i}`,
+        fromId: d.fromId,
+        toId: d.toId,
+        type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
+        lag: 0,
+      }));
+    } else {
+      // API mode - convert rows to tasks
+      const projectStartDate = new Date();
+      projectStartDate.setDate(projectStartDate.getDate() - 7);
+      tasks = convertRowsToTasks(rows, projectStartDate);
+      dependencies = convertToDependencies(rows);
+    }
 
     // Create canvas instance
     const gantt = new GanttCanvas(containerRef.current, {
@@ -139,7 +191,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, onTaskDrag]);
+  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, onTaskDrag]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {
@@ -147,6 +199,26 @@ export function GanttCanvasView({
       ganttRef.current.setDarkMode(isDarkMode);
     }
   }, [isDarkMode]);
+
+  // Update column visibility and tooltip config when columns change
+  React.useEffect(() => {
+    if (ganttRef.current) {
+      // Update visible columns in engine
+      const cols = Object.entries(visibleColumns)
+        .filter(([, visible]) => visible)
+        .map(([col]) => col);
+      ganttRef.current.setVisibleColumns(cols);
+
+      // Update tooltip config to match
+      ganttRef.current.setTooltipConfig({
+        showDates: visibleColumns.startDate || visibleColumns.endDate,
+        showDuration: visibleColumns.duration,
+        showProgress: visibleColumns.progress,
+        showDependencies: visibleColumns.dependencies,
+        showStatus: visibleColumns.status,
+      });
+    }
+  }, [visibleColumns]);
 
   // Load data on mount
   React.useEffect(() => {
@@ -211,8 +283,9 @@ export function GanttCanvasView({
     );
   }
 
-  // Render empty state
-  if (rows.length === 0) {
+  // Render empty state (only for API mode)
+  const taskCount = isStaticMode ? (staticTasks?.length || 0) : rows.length;
+  if (!isStaticMode && rows.length === 0) {
     return (
       <div className={cn("flex items-center justify-center h-full min-h-[400px]", className)}>
         <div className="flex flex-col items-center gap-4">
@@ -225,39 +298,138 @@ export function GanttCanvasView({
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Toolbar */}
-      <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Zoom Out">
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={handleZoomIn} title="Zoom In">
-            <ZoomIn className="h-4 w-4" />
-          </Button>
+      {showToolbar && (
+        <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Zoom Out">
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleZoomIn} title="Zoom In">
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="w-px h-6 bg-border" />
+
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={handleScrollToToday} title="Go to Today">
+              <Calendar className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={handleZoomToFit} title="Zoom to Fit">
+              <Maximize2 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="w-px h-6 bg-border" />
+
+          {!isStaticMode && (
+            <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          )}
+
+          {/* Column Visibility */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" title="Column Visibility">
+                <Eye className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>Visible Columns</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.name}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, name: checked }))
+                }
+              >
+                Name
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.startDate}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, startDate: checked }))
+                }
+              >
+                Start Date
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.endDate}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, endDate: checked }))
+                }
+              >
+                End Date
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.duration}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, duration: checked }))
+                }
+              >
+                Duration
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.progress}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, progress: checked }))
+                }
+              >
+                Progress
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.status}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, status: checked }))
+                }
+              >
+                Status
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.supplier}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, supplier: checked }))
+                }
+              >
+                Supplier
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.confirm}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, confirm: checked }))
+                }
+              >
+                Confirm
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.supplierConfirm}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, supplierConfirm: checked }))
+                }
+              >
+                Supplier Confirm
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={visibleColumns.dependencies}
+                onCheckedChange={(checked) =>
+                  setVisibleColumns((prev) => ({ ...prev, dependencies: checked }))
+                }
+              >
+                Dependencies
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <div className="flex-1" />
+
+          <span className="text-sm text-muted-foreground">
+            {taskCount} tasks
+          </span>
         </div>
-
-        <div className="w-px h-6 bg-border" />
-
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" onClick={handleScrollToToday} title="Go to Today">
-            <Calendar className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={handleZoomToFit} title="Zoom to Fit">
-            <Maximize2 className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="w-px h-6 bg-border" />
-
-        <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh">
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-
-        <div className="flex-1" />
-
-        <span className="text-sm text-muted-foreground">
-          {rows.length} tasks
-        </span>
-      </div>
+      )}
 
       {/* Canvas Container */}
       <div

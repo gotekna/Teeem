@@ -2,16 +2,8 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import {
-  GanttChart,
-  defaultStatuses,
-  type GanttFeature,
-  type GanttGroup,
-  type GanttMarkerType,
-  type CascadeResolution,
-  type HoldState,
-  type LockType,
-} from "@/components/ui/gantt";
+import { GanttCanvasView } from "@/components/gantt-canvas/GanttCanvasView";
+import type { GanttTask } from "@/lib/gantt/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,7 +47,7 @@ interface SmTask {
   trade?: string;
   description?: string;
   locked: boolean;
-  lock_type?: LockType;
+  lock_type?: "position" | "dates" | "full";
   confirm: boolean;
   supplier_confirm: boolean;
   manually_positioned: boolean;
@@ -86,22 +78,23 @@ interface Job {
   stage: string;
 }
 
-function mapTaskToFeature(task: SmTask): GanttFeature {
-  // Map SmTask status to Gantt status
-  const statusMap: Record<string, typeof defaultStatuses[number]> = {
-    not_started: defaultStatuses[0],
-    started: defaultStatuses[1],  // SmTask uses "started" not "in_progress"
-    completed: defaultStatuses[2],
+function mapTaskToGanttTask(task: SmTask): GanttTask {
+  // Map SmTask status to Canvas Gantt status (uses hyphens)
+  const statusMap: Record<string, GanttTask["status"]> = {
+    not_started: "not-started",
+    started: "in-progress",
+    completed: "completed",
   };
 
   return {
     id: String(task.id),
     name: task.name,
-    startAt: parseISO(task.start_date),
-    endAt: parseISO(task.end_date),
-    status: statusMap[task.status] || defaultStatuses[0],
+    startDate: parseISO(task.start_date),
+    endDate: parseISO(task.end_date),
+    status: statusMap[task.status] || "not-started",
     progress: task.progress_percentage || 0,
-    lock: task.locked ? task.lock_type : undefined,
+    locked: task.locked ? "manuallyPositioned" : undefined,
+    predecessorIds: task.dependencies || [],
   };
 }
 
@@ -116,7 +109,6 @@ export default function ScheduleMasterPage() {
   const [tasksMeta, setTasksMeta] = React.useState<SmTasksResponse["meta"] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [activeView, setActiveView] = React.useState<"gantt" | "list">("gantt");
-  const [holdState] = React.useState<HoldState>({ isOnHold: false });
 
   // Import modal state
   const [importModalOpen, setImportModalOpen] = React.useState(false);
@@ -210,42 +202,20 @@ export default function ScheduleMasterPage() {
     }
   };
 
-  // Convert tasks to Gantt format
-  const { features, groups, markers } = React.useMemo(() => {
-    // Group tasks by trade if available
-    const tradeGroups = new Map<string, SmTask[]>();
-    const ungroupedTasks: SmTask[] = [];
+  // Convert tasks to Canvas Gantt format
+  const ganttTasks = React.useMemo(() => {
+    return tasks.map(mapTaskToGanttTask);
+  }, [tasks]);
 
+  // Build dependencies from task relationships
+  const ganttDependencies = React.useMemo(() => {
+    const deps: Array<{ fromId: string; toId: string; type?: string }> = [];
     tasks.forEach((task) => {
-      if (task.trade) {
-        const existing = tradeGroups.get(task.trade) || [];
-        tradeGroups.set(task.trade, [...existing, task]);
-      } else {
-        ungroupedTasks.push(task);
-      }
-    });
-
-    const features: GanttFeature[] = ungroupedTasks.map(mapTaskToFeature);
-
-    const groups: GanttGroup[] = Array.from(tradeGroups.entries()).map(([trade, tradeTasks]) => ({
-      id: trade,
-      name: trade,
-      features: tradeTasks.map(mapTaskToFeature),
-    }));
-
-    // Find key milestones for markers
-    const markers: GanttMarkerType[] = [];
-    const completionTask = tasks.find((t) => t.name.toLowerCase().includes("completion"));
-    if (completionTask) {
-      markers.push({
-        id: "completion",
-        date: parseISO(completionTask.end_date),
-        label: "Practical Completion",
-        color: "bg-green-500",
+      (task.dependencies || []).forEach((depId) => {
+        deps.push({ fromId: depId, toId: String(task.id), type: "FS" });
       });
-    }
-
-    return { features, groups, markers };
+    });
+    return deps;
   }, [tasks]);
 
   // Stats - use meta from API or calculate from tasks
@@ -271,45 +241,22 @@ export default function ScheduleMasterPage() {
     return { total, completed, inProgress: started, notStarted, holdCount, poLinked };
   }, [tasks, tasksMeta]);
 
-  const getAllFeatures = React.useCallback(() => {
-    const all: GanttFeature[] = [...features];
-    groups.forEach((g) => all.push(...g.features));
-    return all;
-  }, [features, groups]);
-
-  const findDependentTasks = React.useCallback(
-    (taskId: string, visited = new Set<string>()): string[] => {
-      if (visited.has(taskId)) return [];
-      visited.add(taskId);
-
-      const allFeatures = getAllFeatures();
-      const dependents: string[] = [];
-
-      allFeatures.forEach((f) => {
-        if (f.dependencies?.includes(taskId)) {
-          dependents.push(f.id);
-          dependents.push(...findDependentTasks(f.id, visited));
-        }
-      });
-
-      return dependents;
-    },
-    [getAllFeatures]
-  );
-
-  const handleFeatureUpdate = async (updatedFeature: GanttFeature) => {
-    const taskId = parseInt(updatedFeature.id);
+  // Handle task drag event from Canvas Gantt
+  const handleTaskDrag = async (task: GanttTask, newStartDate: Date) => {
+    const taskId = parseInt(task.id);
+    const duration = task.endDate.getTime() - task.startDate.getTime();
+    const newEndDate = new Date(newStartDate.getTime() + duration);
 
     // Update local state optimistically
     setTasks((prev) =>
-      prev.map((task) =>
-        task.id === taskId
+      prev.map((t) =>
+        t.id === taskId
           ? {
-              ...task,
-              start_date: updatedFeature.startAt.toISOString().split("T")[0],
-              end_date: updatedFeature.endAt.toISOString().split("T")[0],
+              ...t,
+              start_date: newStartDate.toISOString().split("T")[0],
+              end_date: newEndDate.toISOString().split("T")[0],
             }
-          : task
+          : t
       )
     );
 
@@ -317,89 +264,15 @@ export default function ScheduleMasterPage() {
     try {
       await api.patch(`/api/v1/sm_tasks/${taskId}`, {
         sm_task: {
-          start_date: updatedFeature.startAt.toISOString().split("T")[0],
-          end_date: updatedFeature.endAt.toISOString().split("T")[0],
+          start_date: newStartDate.toISOString().split("T")[0],
+          end_date: newEndDate.toISOString().split("T")[0],
         },
       });
     } catch (error) {
       console.error("Failed to update task:", error);
-      // TODO: Revert optimistic update on error
+      // Refetch to revert on error
+      refetchTasks();
     }
-  };
-
-  const handleCreateDependency = async (fromId: string, toId: string) => {
-    setTasks((prev) =>
-      prev.map((task) => {
-        if (String(task.id) === toId) {
-          const deps = task.dependencies || [];
-          if (!deps.includes(fromId)) {
-            return { ...task, dependencies: [...deps, fromId] };
-          }
-        }
-        return task;
-      })
-    );
-  };
-
-  const handleCascadeUpdate = (
-    sourceFeature: GanttFeature,
-    resolutions: CascadeResolution[]
-  ) => {
-    // Similar cascade logic as the demo page
-    const allFeatures = getAllFeatures();
-    const originalFeature = allFeatures.find((f) => f.id === sourceFeature.id);
-    if (!originalFeature) return;
-
-    const timeShift = sourceFeature.startAt.getTime() - originalFeature.startAt.getTime();
-
-    const tasksToMove = new Set<string>();
-    const tasksToUnlock = new Set<string>();
-
-    resolutions.forEach((res) => {
-      if (res?.action === "move") {
-        tasksToMove.add(res.featureId);
-      } else if (res?.action === "unlock-move") {
-        tasksToMove.add(res.featureId);
-        tasksToUnlock.add(res.featureId);
-      }
-    });
-
-    setTasks((prev) =>
-      prev.map((task) => {
-        const taskIdStr = String(task.id);
-        if (taskIdStr === sourceFeature.id) {
-          return {
-            ...task,
-            start_date: sourceFeature.startAt.toISOString(),
-            end_date: sourceFeature.endAt.toISOString(),
-          };
-        }
-
-        let updated = { ...task };
-
-        const resolution = resolutions.find((r) => r.featureId === taskIdStr);
-        if (resolution?.action === "unlink") {
-          updated.dependencies = (updated.dependencies || []).filter(
-            (depId) => depId !== sourceFeature.id
-          );
-        }
-
-        if (tasksToMove.has(taskIdStr) && timeShift !== 0) {
-          updated = {
-            ...updated,
-            start_date: new Date(parseISO(task.start_date).getTime() + timeShift).toISOString(),
-            end_date: new Date(parseISO(task.end_date).getTime() + timeShift).toISOString(),
-          };
-        }
-
-        if (tasksToUnlock.has(taskIdStr)) {
-          updated.locked = false;
-          updated.lock_type = undefined;
-        }
-
-        return updated;
-      })
-    );
   };
 
   if (loading) {
@@ -509,16 +382,11 @@ export default function ScheduleMasterPage() {
           <Card className="p-0 overflow-hidden">
             <div className="h-[600px]">
               {tasks.length > 0 ? (
-                <GanttChart
-                  features={features}
-                  groups={groups}
-                  markers={markers}
-                  defaultRange="daily"
-                  holdState={holdState}
-                  onFeatureUpdate={handleFeatureUpdate}
-                  onCreateDependency={handleCreateDependency}
-                  onCascadeUpdate={handleCascadeUpdate}
-                  getDependentTasks={findDependentTasks}
+                <GanttCanvasView
+                  staticTasks={ganttTasks}
+                  staticDependencies={ganttDependencies}
+                  showToolbar={true}
+                  onTaskDrag={handleTaskDrag}
                   className="h-full"
                 />
               ) : (
@@ -526,7 +394,7 @@ export default function ScheduleMasterPage() {
                   <Calendar className="h-12 w-12 mb-4" />
                   <p className="text-lg font-medium">No schedule tasks yet</p>
                   <p className="text-sm">Import a schedule or add tasks to get started.</p>
-                  <Button className="mt-4">
+                  <Button className="mt-4" onClick={() => setImportModalOpen(true)}>
                     <Upload className="h-4 w-4 mr-2" />
                     Import Schedule
                   </Button>
@@ -598,12 +466,18 @@ export default function ScheduleMasterPage() {
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
           Status:
         </span>
-        {defaultStatuses.map((status) => (
-          <div key={status.id} className="flex items-center gap-2">
-            <div className={`w-3 h-3 ${status.color.split(" ")[0]}`} />
-            <span className="text-[11px]">{status.name}</span>
-          </div>
-        ))}
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-gray-400" />
+          <span className="text-[11px]">Not Started</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-blue-500" />
+          <span className="text-[11px]">In Progress</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 bg-green-500" />
+          <span className="text-[11px]">Completed</span>
+        </div>
       </div>
 
       {/* Import Modal */}

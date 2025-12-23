@@ -13,11 +13,17 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 
-// Extracted Managers (Day 2-3 Refactor)
+// Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
 import { RenderCoordinator } from './managers/RenderCoordinator';
 import { DependencyManager } from './managers/DependencyManager';
+import { InteractionManager, DragEvent, ResizeEvent, ProgressEvent, DependencyDragEvent, MarqueeEvent } from './managers/InteractionManager';
 import { SpatialIndex, Rect as SpatialRect } from './spatial/SpatialIndex';
+import { ExportManager } from './managers/ExportManager';
+import { FilterManager, TaskFilterConfig as FilterConfig } from './managers/FilterManager';
+import { BaselineManager, BaselineSnapshot, TaskVariance } from './managers/BaselineManager';
+import { CriticalPathManager } from './managers/CriticalPathManager';
+import { CalendarManager } from './managers/CalendarManager';
 
 // Re-export Command type for external use
 export type { Command } from './UndoManager';
@@ -465,11 +471,17 @@ export class GanttCanvas {
   // Working days calendar
   private calendar: WorkingDaysCalendar;
 
-  // Extracted Managers (Day 2-3 Refactor)
+  // Extracted Managers (Day 2-7 Refactor)
   private selectionManager: SelectionManager;
   private renderCoordinator: RenderCoordinator;
   private dependencyManager: DependencyManager;
+  private interactionManager: InteractionManager;
   private spatialIndex: SpatialIndex;
+  private exportManager: ExportManager;
+  private filterManager: FilterManager;
+  private baselineManager: BaselineManager;
+  private criticalPathManager: CriticalPathManager;
+  private calendarManager: CalendarManager;
 
   // Context menu state
   private contextMenuVisible: boolean = false;
@@ -582,11 +594,33 @@ export class GanttCanvas {
     // Create working days calendar
     this.calendar = new WorkingDaysCalendar();
 
-    // Initialize extracted managers (Day 2-3 Refactor)
+    // Initialize extracted managers (Day 2-7 Refactor)
     this.selectionManager = new SelectionManager();
     this.renderCoordinator = new RenderCoordinator();
     this.dependencyManager = new DependencyManager();
+    this.interactionManager = new InteractionManager();
     this.spatialIndex = new SpatialIndex(50); // 50px cell size for grid-based hit testing
+    this.exportManager = new ExportManager();
+    this.filterManager = new FilterManager();
+    this.baselineManager = new BaselineManager();
+    this.criticalPathManager = new CriticalPathManager();
+    this.calendarManager = new CalendarManager();
+
+    // Wire InteractionManager dependencies (Day 7 Final Integration)
+    this.interactionManager.setCanvas(this.canvas);
+    this.interactionManager.setSpatialIndex(this.spatialIndex);
+    this.interactionManager.setSelectionManager(this.selectionManager);
+    this.interactionManager.setRenderCoordinator(this.renderCoordinator);
+    this.interactionManager.setTaskAccessors(
+      (id: string) => this.state.tasks.find(t => t.id === id),
+      () => this.state.tasks
+    );
+    this.interactionManager.setCoordinateConverters(
+      (x: number) => this.viewport.xToDate(x),
+      (date: Date) => this.viewport.dateToX(date),
+      (y: number) => Math.floor((y - this.config.headerHeight + this.state.viewportState.scrollY) / this.config.rowHeight),
+      (row: number) => this.config.headerHeight + row * this.config.rowHeight - this.state.viewportState.scrollY
+    );
 
     // Wire selection manager to emit events
     this.selectionManager.onChange((event: SelectionChangeEvent) => {
@@ -622,6 +656,88 @@ export class GanttCanvas {
       }
     });
 
+    // Wire InteractionManager event handlers (Day 7 Final Integration)
+    this.interactionManager.onDrag((event: DragEvent) => {
+      if (event.phase === 'end') {
+        // Apply the date change to the task
+        const task = this.state.tasks.find(t => t.id === event.task.id);
+        if (task) {
+          task.startDate = event.newStartDate;
+          task.endDate = event.newEndDate;
+          this.onTaskUpdate?.(task);
+          this.rebuildSpatialIndex();
+        }
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onResize((event: ResizeEvent) => {
+      if (event.phase === 'end') {
+        const task = this.state.tasks.find(t => t.id === event.task.id);
+        if (task) {
+          task.startDate = event.newStartDate;
+          task.endDate = event.newEndDate;
+          this.onTaskUpdate?.(task);
+          this.rebuildSpatialIndex();
+        }
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onProgressChange((event: ProgressEvent) => {
+      if (event.phase === 'end') {
+        const task = this.state.tasks.find(t => t.id === event.task.id);
+        if (task) {
+          task.progress = event.newProgress;
+          this.onTaskUpdate?.(task);
+        }
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onDependencyDrag((event: DependencyDragEvent) => {
+      if (event.phase === 'end' && event.toTask) {
+        // Create dependency via DependencyManager
+        this.dependencyManager.addDependency(event.fromTask.id, event.toTask.id, 'FS');
+        // Sync to state
+        this.state.dependencies = this.dependencyManager.getDependencies();
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onMarquee((event: MarqueeEvent) => {
+      // Selection is handled by InteractionManager using SelectionManager
+      this.markDirty();
+    });
+
+    // Wire new managers (Day 7 Refactor - Phase 2)
+    // ExportManager - needs canvas and tasks access
+    this.exportManager.setCanvas(this.canvas);
+    this.exportManager.setDataAccessors(
+      () => this.state.tasks,
+      () => this.state.dependencies
+    );
+
+    // FilterManager - wire change notifications
+    this.filterManager.onChange(() => {
+      this.markDirty();
+    });
+
+    // BaselineManager - wire change notifications
+    this.baselineManager.onChange(() => {
+      this.markDirty();
+    });
+
+    // CriticalPathManager - wire to render on changes
+    this.criticalPathManager.onChange(() => {
+      this.markDirty();
+    });
+
+    // CalendarManager - wire to render on changes
+    this.calendarManager.onChange(() => {
+      this.markDirty();
+    });
+
     // Set up canvas size
     this.resize();
 
@@ -648,6 +764,11 @@ export class GanttCanvas {
 
     // Update DependencyManager task map for validation (Day 3 Refactor)
     this.dependencyManager.setTasks(tasks);
+
+    // Update new managers (Day 7 Refactor - Phase 2)
+    this.filterManager.setTasks(tasks);
+    this.baselineManager.setTasks(tasks);
+    this.criticalPathManager.setTasks(tasks);
 
     // Rebuild spatial index for O(1) hit testing (Day 2 Refactor)
     this.rebuildSpatialIndex();
@@ -677,6 +798,9 @@ export class GanttCanvas {
 
     // Sync with DependencyManager (Day 3 Refactor)
     this.dependencyManager.setDependencies(dependencies);
+
+    // Update new managers (Day 7 Refactor - Phase 2)
+    this.criticalPathManager.setDependencies(dependencies);
 
     this.markDirty();
 
@@ -1086,9 +1210,11 @@ export class GanttCanvas {
 
   /**
    * Enable or disable critical path highlighting
+   * Delegates to CriticalPathManager
    */
   setCriticalPathEnabled(enabled: boolean): void {
     this.criticalPathEnabled = enabled;
+    this.criticalPathManager.setEnabled(enabled);
     if (enabled) {
       this.recalculateCriticalPath();
     } else {
@@ -1113,17 +1239,25 @@ export class GanttCanvas {
 
   /**
    * Get the current critical path result (for external analysis)
+   * Delegates to CriticalPathManager
    */
   getCriticalPathResult(): CriticalPathResult | null {
-    return this.criticalPathResult;
+    // Return manager result if available, fallback to local for backward compatibility
+    return this.criticalPathManager.getResult() || this.criticalPathResult;
   }
 
   /**
    * Recalculate the critical path
+   * Delegates to CriticalPathManager
    */
   recalculateCriticalPath(): void {
     if (this.criticalPathEnabled) {
-      this.criticalPathResult = calculateCriticalPath(this.state.tasks, this.state.dependencies);
+      // Delegate to manager (already has tasks and dependencies via setTasks/setDependencies)
+      this.criticalPathResult = this.criticalPathManager.calculate();
+      // Sync critical path tasks to FilterManager for criticalPathOnly filter
+      if (this.criticalPathResult) {
+        this.filterManager.setCriticalPathTasks(Array.from(this.criticalPathResult.criticalTasks));
+      }
       this.markDirty();
     }
   }
@@ -2058,6 +2192,7 @@ export class GanttCanvas {
     this.selectionManager.dispose();
     this.renderCoordinator.dispose();
     this.dependencyManager.dispose();
+    this.interactionManager.dispose();
     this.spatialIndex.clear();
   }
 
@@ -2120,16 +2255,30 @@ export class GanttCanvas {
   }
 
   /**
-   * Get the bounds of a task in canvas coordinates (Day 2 Refactor)
-   * Used for spatial indexing and hit testing
+   * Get the bounds of a task in world coordinates (Day 7 Optimization)
+   * World coordinates are scroll-independent for stable spatial indexing
    */
   private getTaskBounds(task: GanttTask, rowIndex: number): SpatialRect {
-    const x = this.viewport.dateToX(task.startDate);
-    const width = this.viewport.dateToX(task.endDate) - x;
-    const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding - this.state.viewportState.scrollY;
+    // Use world X (without scrollX offset applied by dateToX)
+    const screenX = this.viewport.dateToX(task.startDate);
+    const x = screenX + this.state.viewportState.scrollX;
+    const width = this.viewport.dateToX(task.endDate) - screenX;
+
+    // Use world Y (without scrollY offset)
+    const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding;
     const height = this.config.taskBarHeight;
 
     return { x, y, width, height };
+  }
+
+  /**
+   * Convert screen coordinates to world coordinates for spatial index queries
+   */
+  private screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+    return {
+      x: screenX + this.state.viewportState.scrollX,
+      y: screenY + this.state.viewportState.scrollY,
+    };
   }
 
   /**
@@ -3389,22 +3538,14 @@ export class GanttCanvas {
   }
 
   private hitTest(x: number, y: number): GanttTask | null {
-    // Account for header height
-    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
-    if (adjustedY < 0) return null;
+    // Convert screen coordinates to world coordinates (Day 7 Optimization)
+    const world = this.screenToWorld(x, y);
 
-    // Find which row was clicked
-    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
-    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
-
-    const task = this.state.tasks[rowIndex];
-
-    // Check if click is within the task bar
-    const taskStartX = this.viewport.dateToX(task.startDate);
-    const taskEndX = this.viewport.dateToX(task.endDate);
-
-    if (x >= taskStartX && x <= taskEndX) {
-      return task;
+    // Use SpatialIndex for O(1) hit testing
+    const hits = this.spatialIndex.queryPoint(world.x, world.y);
+    if (hits.length > 0) {
+      const taskId = hits[0];
+      return this.state.tasks.find(t => t.id === taskId) || null;
     }
 
     return null;
@@ -3521,33 +3662,27 @@ export class GanttCanvas {
 
   /**
    * Get tasks within a marquee rectangle
+   * Uses SpatialIndex for O(k) performance where k = tasks in rect (Day 7 Optimization)
    */
   private getTasksInMarquee(x1: number, y1: number, x2: number, y2: number): GanttTask[] {
+    // Convert screen coordinates to world coordinates
+    const world1 = this.screenToWorld(x1, y1);
+    const world2 = this.screenToWorld(x2, y2);
+
     // Normalize rectangle
-    const left = Math.min(x1, x2);
-    const right = Math.max(x1, x2);
-    const top = Math.min(y1, y2);
-    const bottom = Math.max(y1, y2);
+    const left = Math.min(world1.x, world2.x);
+    const right = Math.max(world1.x, world2.x);
+    const top = Math.min(world1.y, world2.y);
+    const bottom = Math.max(world1.y, world2.y);
 
-    const tasks: GanttTask[] = [];
+    // Use SpatialIndex for efficient rect query
+    const rect: SpatialRect = { x: left, y: top, width: right - left, height: bottom - top };
+    const taskIds = this.spatialIndex.queryRect(rect);
 
-    this.state.tasks.forEach((task, index) => {
-      const taskStartX = this.viewport.dateToX(task.startDate);
-      const taskEndX = this.viewport.dateToX(task.endDate);
-      const rowY = this.viewport.rowToY(index);
-      const taskTop = rowY + (this.config.rowHeight - this.config.taskBarHeight) / 2;
-      const taskBottom = taskTop + this.config.taskBarHeight;
-
-      // Check if task bar intersects with marquee
-      const intersectsX = taskStartX <= right && taskEndX >= left;
-      const intersectsY = taskTop <= bottom && taskBottom >= top;
-
-      if (intersectsX && intersectsY) {
-        tasks.push(task);
-      }
-    });
-
-    return tasks;
+    // Map IDs to tasks
+    return taskIds
+      .map(id => this.state.tasks.find(t => t.id === id))
+      .filter((t): t is GanttTask => t !== undefined);
   }
 
   // ============================================================================
@@ -3915,62 +4050,44 @@ export class GanttCanvas {
 
   /**
    * Export canvas to image data URL
+   * Delegates to ExportManager
    * @param format - Image format ('png' | 'jpeg')
    * @param quality - JPEG quality (0-1)
    */
   exportToImage(format: 'png' | 'jpeg' = 'png', quality: number = 0.92): string {
-    return this.canvas.toDataURL(`image/${format}`, quality);
+    const result = this.exportManager.toImage(format, quality);
+    return result || '';
   }
 
   /**
    * Export canvas to Blob
+   * Delegates to ExportManager
    * @param format - Image format
    * @param quality - JPEG quality
    */
   async exportToBlob(format: 'png' | 'jpeg' = 'png', quality: number = 0.92): Promise<Blob> {
-    return new Promise((resolve, reject) => {
-      this.canvas.toBlob(
-        blob => {
-          if (blob) resolve(blob);
-          else reject(new Error('Failed to create blob'));
-        },
-        `image/${format}`,
-        quality
-      );
-    });
+    const result = await this.exportManager.toBlob(format, quality);
+    if (!result) throw new Error('Failed to create blob');
+    return result;
   }
 
   /**
    * Download canvas as image
+   * Delegates to ExportManager
    * @param filename - The filename (without extension)
    * @param format - Image format
    */
   downloadImage(filename: string = 'gantt-chart', format: 'png' | 'jpeg' = 'png'): void {
-    const dataUrl = this.exportToImage(format);
-    const link = document.createElement('a');
-    link.download = `${filename}.${format}`;
-    link.href = dataUrl;
-    link.click();
+    this.exportManager.downloadImage(filename, format);
   }
 
   /**
    * Export tasks data to JSON
+   * Delegates to ExportManager
    */
   exportToJSON(): string {
-    const data = {
-      tasks: this.state.tasks.map(t => ({
-        ...t,
-        startDate: t.startDate.toISOString(),
-        endDate: t.endDate.toISOString(),
-        holdState: t.holdState ? {
-          ...t.holdState,
-          heldAt: t.holdState.heldAt.toISOString(),
-        } : undefined,
-      })),
-      dependencies: this.state.dependencies,
-      exportedAt: new Date().toISOString(),
-    };
-    return JSON.stringify(data, null, 2);
+    const result = this.exportManager.toJSON();
+    return result || '{}';
   }
 
   /**
@@ -4005,38 +4122,19 @@ export class GanttCanvas {
 
   /**
    * Export tasks to CSV format
+   * Delegates to ExportManager
    */
   exportToCSV(): string {
-    const headers = ['ID', 'Name', 'Start Date', 'End Date', 'Duration (days)', 'Progress', 'Status', 'Locked', 'Predecessors'];
-    const rows = this.state.tasks.map(t => {
-      const duration = Math.ceil((t.endDate.getTime() - t.startDate.getTime()) / (24 * 60 * 60 * 1000));
-      return [
-        t.id,
-        `"${t.name.replace(/"/g, '""')}"`,
-        t.startDate.toISOString().split('T')[0],
-        t.endDate.toISOString().split('T')[0],
-        duration,
-        t.progress || 0,
-        t.status || 'not-started',
-        t.locked || '',
-        (t.predecessorIds || []).join(';'),
-      ].join(',');
-    });
-
-    return [headers.join(','), ...rows].join('\n');
+    const result = this.exportManager.toCSV();
+    return result || '';
   }
 
   /**
    * Download as CSV
+   * Delegates to ExportManager
    */
   downloadCSV(filename: string = 'gantt-tasks'): void {
-    const csv = this.exportToCSV();
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    this.exportManager.downloadCSV(filename);
   }
 
   // ============================================================================
@@ -4820,104 +4918,18 @@ export class GanttCanvas {
 
   /**
    * Export to PDF (requires html2canvas + jspdf)
+   * Delegates to ExportManager
    */
   async exportToPDF(options: PDFExportOptions = {}): Promise<Blob | null> {
-    const {
-      filename = 'gantt-chart.pdf',
-      orientation = 'landscape',
-      pageSize = 'A4',
-      quality = 2,
-      includeTaskList = true,
-    } = options;
-
-    // Check if required libraries are available
-    if (typeof window === 'undefined') {
-      console.error('PDF export requires browser environment');
-      return null;
-    }
-
-    try {
-      // Dynamic imports for PDF libraries
-      const html2canvas = (await import('html2canvas')).default;
-      const { jsPDF } = await import('jspdf');
-
-      // Create a temporary container for the canvas
-      const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.appendChild(this.canvas.cloneNode(true) as HTMLCanvasElement);
-      document.body.appendChild(container);
-
-      // Capture canvas as image
-      const canvasImage = await html2canvas(container, { scale: quality });
-
-      // Create PDF
-      const pdf = new jsPDF({
-        orientation,
-        unit: 'mm',
-        format: pageSize,
-      });
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      // Add title
-      pdf.setFontSize(16);
-      pdf.text(options.title || 'Gantt Chart', pageWidth / 2, 15, { align: 'center' });
-
-      // Add chart image
-      const imgWidth = pageWidth - 20;
-      const imgHeight = (canvasImage.height * imgWidth) / canvasImage.width;
-      pdf.addImage(canvasImage.toDataURL('image/png'), 'PNG', 10, 25, imgWidth, Math.min(imgHeight, pageHeight - 50));
-
-      // Add task list on additional pages if requested
-      if (includeTaskList) {
-        pdf.addPage();
-        pdf.setFontSize(14);
-        pdf.text('Task List', 10, 15);
-
-        let y = 25;
-        pdf.setFontSize(10);
-
-        this.state.tasks.forEach((task, index) => {
-          if (y > pageHeight - 20) {
-            pdf.addPage();
-            y = 15;
-          }
-
-          const status = task.status || 'not-started';
-          const progress = task.progress || 0;
-          pdf.text(`${index + 1}. ${task.name} - ${status} (${progress}%)`, 10, y);
-          y += 7;
-        });
-      }
-
-      // Cleanup
-      document.body.removeChild(container);
-
-      // Return blob
-      return pdf.output('blob');
-
-    } catch (error) {
-      console.error('PDF export failed:', error);
-      console.info('PDF export requires html2canvas and jspdf packages. Install with: npm install html2canvas jspdf');
-      return null;
-    }
+    return this.exportManager.toPDF(options);
   }
 
   /**
    * Download PDF
+   * Delegates to ExportManager
    */
   async downloadPDF(options: PDFExportOptions = {}): Promise<void> {
-    const blob = await this.exportToPDF(options);
-    if (blob) {
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = options.filename || 'gantt-chart.pdf';
-      link.click();
-      URL.revokeObjectURL(url);
-    }
+    await this.exportManager.downloadPDF(options);
   }
 
   /**
@@ -6802,20 +6814,15 @@ export class GanttCanvas {
 
   // =========================================================================
   // FEATURE 1: COMPREHENSIVE TASK FILTERING API
+  // Fully delegated to FilterManager (Day 7 Refactor)
   // =========================================================================
-
-  private activeFilter: TaskFilterConfig | null = null;
-  private filteredTaskIds: Set<string> = new Set();
-  private isFilterActive: boolean = false;
 
   /**
    * Apply a comprehensive filter to the Gantt chart
    * Only matching tasks will be visible
    */
   applyFilter(filter: TaskFilterConfig): void {
-    this.activeFilter = filter;
-    this.isFilterActive = true;
-    this.recalculateFilteredTasks();
+    this.filterManager.setFilter(filter);
     this.markDirty();
   }
 
@@ -6823,9 +6830,7 @@ export class GanttCanvas {
    * Clear all filters and show all tasks
    */
   clearFilter(): void {
-    this.activeFilter = null;
-    this.isFilterActive = false;
-    this.filteredTaskIds.clear();
+    this.filterManager.clearFilter();
     this.markDirty();
   }
 
@@ -6833,149 +6838,39 @@ export class GanttCanvas {
    * Check if a filter is currently active
    */
   hasActiveFilter(): boolean {
-    return this.isFilterActive;
+    return this.filterManager.isFiltering();
   }
 
   /**
    * Get the current active filter
    */
   getActiveFilter(): TaskFilterConfig | null {
-    return this.activeFilter;
-  }
-
-  /**
-   * Recalculate which tasks match the filter
-   */
-  private recalculateFilteredTasks(): void {
-    this.filteredTaskIds.clear();
-
-    if (!this.activeFilter) {
-      return;
-    }
-
-    const filter = this.activeFilter;
-
-    this.state.tasks.forEach(task => {
-      let matches = true;
-
-      // Filter by status
-      if (filter.status && filter.status.length > 0) {
-        const taskStatus = task.status || 'not-started';
-        if (!filter.status.includes(taskStatus)) {
-          matches = false;
-        }
-      }
-
-      // Filter by supplier IDs
-      if (matches && filter.supplierIds && filter.supplierIds.length > 0) {
-        if (!task.supplierId || !filter.supplierIds.includes(task.supplierId)) {
-          matches = false;
-        }
-      }
-
-      // Filter by date range (task must overlap with filter range)
-      if (matches && filter.dateRange) {
-        const filterStart = filter.dateRange.start;
-        const filterEnd = filter.dateRange.end;
-        const overlaps = task.startDate <= filterEnd && task.endDate >= filterStart;
-        if (!overlaps) {
-          matches = false;
-        }
-      }
-
-      // Filter by locked state
-      if (matches && filter.locked !== undefined) {
-        const isLocked = !!task.locked;
-        if (filter.locked !== isLocked) {
-          matches = false;
-        }
-      }
-
-      // Filter by progress range
-      if (matches && filter.progressRange) {
-        const progress = task.progress || 0;
-        if (progress < filter.progressRange.min || progress > filter.progressRange.max) {
-          matches = false;
-        }
-      }
-
-      // Filter by search text (name match)
-      if (matches && filter.searchText && filter.searchText.trim() !== '') {
-        const searchLower = filter.searchText.toLowerCase();
-        const nameMatches = task.name.toLowerCase().includes(searchLower);
-        const supplierMatches = task.supplierName?.toLowerCase().includes(searchLower) || false;
-        if (!nameMatches && !supplierMatches) {
-          matches = false;
-        }
-      }
-
-      // Filter by custom predicate
-      if (matches && filter.customPredicate) {
-        if (!filter.customPredicate(task)) {
-          matches = false;
-        }
-      }
-
-      // Filter by critical path
-      if (matches && filter.criticalPathOnly) {
-        if (!this.criticalPathResult?.criticalTasks.has(task.id)) {
-          matches = false;
-        }
-      }
-
-      // Filter by hold state
-      if (matches && filter.onHoldOnly) {
-        if (task.status !== 'on-hold') {
-          matches = false;
-        }
-      }
-
-      // Filter by broken dependencies
-      if (matches && filter.brokenDependenciesOnly) {
-        if (!task.brokenPredecessorIds || task.brokenPredecessorIds.length === 0) {
-          matches = false;
-        }
-      }
-
-      if (matches) {
-        this.filteredTaskIds.add(task.id);
-      }
-    });
+    return this.filterManager.getFilter();
   }
 
   /**
    * Get tasks that pass the current filter
    */
   getFilteredTasks(): GanttTask[] {
-    if (!this.isFilterActive) {
-      return [...this.state.tasks];
-    }
-    return this.state.tasks.filter(t => this.filteredTaskIds.has(t.id));
+    return this.filterManager.getFilteredTasks();
   }
 
   /**
    * Check if a specific task passes the current filter
    */
   taskPassesFilter(taskId: string): boolean {
-    if (!this.isFilterActive) {
+    if (!this.filterManager.isFiltering()) {
       return true;
     }
-    return this.filteredTaskIds.has(taskId);
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task ? this.filterManager.matchesFilter(task) : false;
   }
 
   /**
    * Get filter statistics
    */
   getFilterStats(): FilterStats {
-    const total = this.state.tasks.length;
-    const visible = this.isFilterActive ? this.filteredTaskIds.size : total;
-    const hidden = total - visible;
-    return {
-      total,
-      visible,
-      hidden,
-      percentage: total > 0 ? Math.round((visible / total) * 100) : 100
-    };
+    return this.filterManager.getStats();
   }
 
   // =========================================================================
@@ -15910,17 +15805,19 @@ ${this.getAutomatedTestResults()}
   }
 
   // FEATURE 637-640: IMPORT/EXPORT FORMATS
+  // Delegates to ExportManager
   exportToMSProject(): string {
-    // Placeholder - would generate MS Project XML
-    return '<Project></Project>';
+    const result = this.exportManager.toMSProjectXML();
+    return result || '<Project></Project>';
   }
 
-  // Note: exportToPDF() already exists at line ~4771 with full options support
-  // Note: exportToImage() already exists at line ~3853 with format/quality params
+  // Note: exportToPDF() already exists - delegates to ExportManager
+  // Note: exportToImage() already exists - delegates to ExportManager
 
+  // Delegates to ExportManager
   exportToSVG(): string {
-    // Placeholder - would generate SVG representation
-    return '<svg></svg>';
+    const result = this.exportManager.toSVG();
+    return result || '<svg></svg>';
   }
 
   // FEATURE 641: PRINT LAYOUT
@@ -16184,7 +16081,7 @@ export interface PrintOptions {
   title?: string;
   includeHeader?: boolean;
   includeFooter?: boolean;
-  pageSize?: 'A4' | 'A3' | 'Letter' | 'Legal';
+  pageSize?: 'A4' | 'A3' | 'letter' | 'legal';
   orientation?: 'portrait' | 'landscape';
   showDependencies?: boolean;
   showProgress?: boolean;

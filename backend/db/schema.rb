@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -428,9 +428,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
     t.datetime "updated_at", null: false
     t.string "period"
     t.date "period_end_date"
+    t.bigint "document_type_id"
+    t.string "display_name"
     t.index ["company_code"], name: "index_balance_sheet_reports_on_company_code"
     t.index ["company_id", "period_end_date"], name: "idx_bs_reports_company_period", unique: true, where: "(period_end_date IS NOT NULL)"
     t.index ["company_id"], name: "index_balance_sheet_reports_on_company_id"
+    t.index ["document_type_id"], name: "index_balance_sheet_reports_on_document_type_id"
     t.index ["financial_year"], name: "index_balance_sheet_reports_on_financial_year"
     t.index ["status"], name: "index_balance_sheet_reports_on_status"
   end
@@ -488,10 +491,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
     t.string "account_number"
     t.string "company_code"
     t.bigint "company_id"
+    t.bigint "document_type_id"
+    t.string "display_name"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
     t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
     t.index ["company_id"], name: "index_bank_statement_reports_on_company_id"
+    t.index ["document_type_id"], name: "index_bank_statement_reports_on_document_type_id"
   end
 
   create_table "bank_statement_templates", force: :cascade do |t|
@@ -4358,9 +4364,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "period"
+    t.bigint "document_type_id"
+    t.string "display_name"
     t.index ["company_code"], name: "index_profit_loss_reports_on_company_code"
     t.index ["company_id", "period_end"], name: "idx_pl_reports_company_period", unique: true, where: "(period_end IS NOT NULL)"
     t.index ["company_id"], name: "index_profit_loss_reports_on_company_id"
+    t.index ["document_type_id"], name: "index_profit_loss_reports_on_document_type_id"
     t.index ["financial_year"], name: "index_profit_loss_reports_on_financial_year"
     t.index ["status"], name: "index_profit_loss_reports_on_status"
   end
@@ -6124,7 +6133,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
   add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
   add_foreign_key "attachments", "organization_microsoft_app_credentials"
   add_foreign_key "balance_sheet_reports", "corporate_companies", column: "company_id"
+  add_foreign_key "balance_sheet_reports", "document_types"
   add_foreign_key "bank_accounts", "corporate_companies", column: "company_id"
+  add_foreign_key "bank_statement_reports", "document_types"
   add_foreign_key "bank_transactions", "bank_accounts"
   add_foreign_key "bank_transactions", "corporate_companies", column: "company_id"
   add_foreign_key "batch_operations", "jobs"
@@ -6380,6 +6391,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
   add_foreign_key "pricebook", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
   add_foreign_key "pricebook", "pricebook_categories", column: "category_id"
   add_foreign_key "profit_loss_reports", "corporate_companies", column: "company_id"
+  add_foreign_key "profit_loss_reports", "document_types"
   add_foreign_key "projects", "jobs"
   add_foreign_key "projects", "users", column: "project_manager_id"
   add_foreign_key "purchase_order_documents", "document_tasks"

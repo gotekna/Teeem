@@ -52,9 +52,41 @@ export type {
   PersistenceConfig,
 } from './StateManager';
 
-// Feature managers (to be implemented)
-// export { ExportManager } from './ExportManager';
-// export { FilterManager } from './FilterManager';
-// export { BaselineManager } from './BaselineManager';
-// export { CriticalPathManager } from './CriticalPathManager';
-// export { CalendarManager } from './CalendarManager';
+// Export manager (Day 7)
+export { ExportManager } from './ExportManager';
+export type {
+  PDFExportOptions,
+  ImageExportOptions,
+  CSVExportOptions,
+  JSONExportData,
+  ExportEvent,
+} from './ExportManager';
+
+// Filter manager (Day 7)
+export { FilterManager } from './FilterManager';
+export type {
+  TaskFilterConfig,
+  FilterStats,
+  FilterChangeEvent,
+} from './FilterManager';
+
+// Baseline manager (Day 7)
+export { BaselineManager } from './BaselineManager';
+export type {
+  BaselineSnapshot,
+  TaskVariance,
+  BaselineChangeEvent,
+} from './BaselineManager';
+
+// Critical path manager (Day 7)
+export { CriticalPathManager } from './CriticalPathManager';
+export type {
+  CriticalPathChangeEvent,
+} from './CriticalPathManager';
+
+// Calendar manager (Day 7)
+export { CalendarManager } from './CalendarManager';
+export type {
+  CalendarChangeEvent,
+  ResourceCalendar,
+} from './CalendarManager';

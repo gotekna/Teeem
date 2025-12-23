@@ -28,7 +28,10 @@
 #  updated_at           :datetime         not null
 #
 class ProfitLossReport < ApplicationRecord
+  include DocumentTemplatable
+
   belongs_to :corporate_company, foreign_key: "company_id"
+  belongs_to :document_type, optional: true
 
   # Validations
   validates :company_name, presence: true
@@ -50,6 +53,9 @@ class ProfitLossReport < ApplicationRecord
   # Filter scopes
   scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :for_financial_year, ->(fy) { where(financial_year: fy) }
+
+  # Callbacks - persist computed display_name to DB column
+  before_save :persist_display_name
 
   # Status methods
   def pending?
@@ -229,16 +235,47 @@ class ProfitLossReport < ApplicationRecord
     financial_year
   end
 
-  # Display name for table views - follows Entity Config: {DocTypeName} {MonthYearLong}
-  # Example: "Profit & Loss December 2025"
-  # FY column is for searching (e.g., search "FY2026" to find all 12 months)
+  # Display name for table views - SSoT: Uses DocumentType template if available
+  # Template: {DocTypeName} {MonthYearLong} → "Profit and Loss December 2025"
+  # FY column is for searching (e.g., search "FY26" to find all 12 months)
   # For legacy reports without period_end, fallback to FY
   def display_name
-    if period_end.present?
-      "P&L #{period_label}"  # "P&L December 2025"
+    # Return persisted value if present, otherwise compute
+    self[:display_name].presence || computed_display_name
+  end
+
+  # Compute display name from template or fallback
+  def computed_display_name
+    if document_type&.display_name.present?
+      expand_display_template(document_type.display_name)
+    elsif period_end.present?
+      "Profit and Loss #{period_label}"
     else
-      "P&L #{financial_year}"  # "P&L FY2024" for legacy reports
+      "Profit and Loss #{financial_year}"
     end
+  end
+
+  # Generate filename using DocumentType template (SSoT)
+  def generate_file_name
+    if document_type&.file_name.present?
+      expand_filename_template(document_type.file_name)
+    else
+      nil  # Let service use its existing logic
+    end
+  end
+
+  # Context for DocumentTemplatable concern
+  def template_context
+    {
+      company_code: company_code,
+      company_name: corporate_company&.name,
+      doc_type_name: document_type&.name || "Profit and Loss",
+      doc_type_code: document_type&.abbreviation || "P&L",
+      financial_year: financial_year,
+      period: period,
+      period_end: period_end,
+      document_date: period_end
+    }
   end
 
   # Short period label for filenames
@@ -250,6 +287,11 @@ class ProfitLossReport < ApplicationRecord
   end
 
   private
+
+  # Persist computed display_name to DB column before save
+  def persist_display_name
+    self[:display_name] = computed_display_name
+  end
 
   def financial_year_start_date
     # Parse FY2024 -> July 1, 2023
