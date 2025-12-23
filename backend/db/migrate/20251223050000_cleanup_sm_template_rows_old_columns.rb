@@ -34,9 +34,9 @@ class CleanupSmTemplateRowsOldColumns < ActiveRecord::Migration[7.0]
     remove_column :sm_template_rows, :sm_template_id
     remove_column :sm_template_rows, :ts_identifier
 
-    # Add unique constraint on task_number if not already exists
-    unless index_exists?(:sm_template_rows, :task_number, unique: true)
-      add_index :sm_template_rows, :task_number, unique: true
+    # Add index on task_number for query performance (NOT unique - task_number can repeat across templates)
+    unless index_exists?(:sm_template_rows, :task_number)
+      add_index :sm_template_rows, :task_number
     end
   end
 

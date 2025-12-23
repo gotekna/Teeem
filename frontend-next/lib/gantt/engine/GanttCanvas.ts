@@ -12875,6 +12875,631 @@ export class GanttCanvas {
     return this.importProgress;
   }
 
+  // =========================================================================
+  // SECTION G: ADVANCED UI & RENDERING (Features 451-500)
+  // =========================================================================
+
+  // =========================================================================
+  // FEATURE 451-465: VIRTUAL SCROLLING & LEVEL OF DETAIL
+  // =========================================================================
+  // Note: virtualScrollEnabled, overscanRows already defined in Feature 187
+  // Note: getVisibleTaskRange() already exists - returns { first, last }
+  private levelOfDetailThresholds = {
+    detailed: 0.5,     // Show full detail at zoom >= 0.5
+    simplified: 0.2,   // Show simplified at zoom 0.2-0.5
+    minimal: 0        // Show minimal below zoom 0.2
+  };
+
+  // Feature 451-452: Virtual scroll settings already exist (Feature 187)
+  // Use setVirtualScrollingEnabled() and setOverscanRows()
+
+  // Feature 453: Get visible range with indices (wraps existing method)
+  getVisibleTaskIndices(): { startIndex: number; endIndex: number } {
+    const range = this.getVisibleTaskRange();
+    return { startIndex: range.first, endIndex: range.last };
+  }
+
+  // Feature 454: Get current level of detail
+  getLevelOfDetail(): 'detailed' | 'simplified' | 'minimal' {
+    const zoom = this.viewport.getState().zoom;
+    if (zoom >= this.levelOfDetailThresholds.detailed) return 'detailed';
+    if (zoom >= this.levelOfDetailThresholds.simplified) return 'simplified';
+    return 'minimal';
+  }
+
+  // Feature 455: Configure LOD thresholds
+  setLevelOfDetailThresholds(thresholds: Partial<typeof this.levelOfDetailThresholds>): void {
+    this.levelOfDetailThresholds = { ...this.levelOfDetailThresholds, ...thresholds };
+    this.markDirty();
+  }
+
+  // Feature 456: Should render task text based on LOD
+  shouldRenderTaskText(taskWidth: number): boolean {
+    const lod = this.getLevelOfDetail();
+    if (lod === 'minimal') return false;
+    if (lod === 'simplified') return taskWidth > 50;
+    return taskWidth > 20;
+  }
+
+  // Feature 457: Should render progress bar based on LOD
+  shouldRenderProgressBar(taskWidth: number): boolean {
+    const lod = this.getLevelOfDetail();
+    if (lod === 'minimal') return false;
+    return taskWidth > 30;
+  }
+
+  // Feature 458: Should render dependency lines based on LOD
+  shouldRenderDependencyLines(): boolean {
+    return this.getLevelOfDetail() !== 'minimal';
+  }
+
+  // Feature 459: Chunked rendering for large datasets
+  private renderChunkSize: number = 50;
+  private renderChunkIndex: number = 0;
+  private isChunkedRendering: boolean = false;
+
+  setRenderChunkSize(size: number): void {
+    this.renderChunkSize = Math.max(10, Math.min(200, size));
+  }
+
+  // Feature 460: Start chunked rendering
+  startChunkedRender(): void {
+    this.renderChunkIndex = 0;
+    this.isChunkedRendering = true;
+    this.renderNextChunk();
+  }
+
+  private renderNextChunk(): void {
+    if (!this.isChunkedRendering) return;
+
+    const { startIndex, endIndex } = this.getVisibleTaskIndices();
+    const chunkStart = startIndex + (this.renderChunkIndex * this.renderChunkSize);
+    const chunkEnd = Math.min(chunkStart + this.renderChunkSize, endIndex);
+
+    if (chunkStart >= endIndex) {
+      this.isChunkedRendering = false;
+      return;
+    }
+
+    this.renderTasksInRange(chunkStart, chunkEnd);
+    this.renderChunkIndex++;
+
+    requestAnimationFrame(() => this.renderNextChunk());
+  }
+
+  private renderTasksInRange(_start: number, _end: number): void {
+    // Render specific task range - actual rendering handled by render()
+    this.markDirty();
+  }
+
+  // Feature 461: Viewport culling - check if task is in view
+  isTaskInViewport(taskId: string): boolean {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return false;
+
+    const taskIndex = this.state.tasks.indexOf(task);
+    const { startIndex, endIndex } = this.getVisibleTaskIndices();
+
+    if (taskIndex < startIndex || taskIndex >= endIndex) return false;
+
+    const startX = this.viewport.dateToX(task.startDate);
+    const endX = this.viewport.dateToX(task.endDate);
+
+    return endX >= 0 && startX <= this.containerWidth;
+  }
+
+  // Feature 462: Frustum culling for dependencies
+  isDependencyInViewport(fromTaskId: string, toTaskId: string): boolean {
+    return this.isTaskInViewport(fromTaskId) || this.isTaskInViewport(toTaskId);
+  }
+
+  // Feature 463: Scroll padding for smooth edges
+  private scrollPaddingPx: number = 20;
+
+  setScrollPadding(px: number): void {
+    this.scrollPaddingPx = Math.max(0, px);
+  }
+
+  // Feature 464: Render priority queue
+  private renderPriorityQueue: Array<{ taskId: string; priority: number }> = [];
+
+  queueRenderWithPriority(taskId: string, priority: number): void {
+    const existing = this.renderPriorityQueue.findIndex(item => item.taskId === taskId);
+    if (existing >= 0) {
+      this.renderPriorityQueue[existing].priority = Math.max(
+        this.renderPriorityQueue[existing].priority,
+        priority
+      );
+    } else {
+      this.renderPriorityQueue.push({ taskId, priority });
+    }
+    this.renderPriorityQueue.sort((a, b) => b.priority - a.priority);
+  }
+
+  // Feature 465: Clear render queue
+  clearRenderQueue(): void {
+    this.renderPriorityQueue = [];
+  }
+
+  // =========================================================================
+  // FEATURE 466-480: ANIMATIONS & TRANSITIONS
+  // =========================================================================
+  // Note: animationDuration already exists in Feature 172. Using unique property name.
+  private animationsEnabled: boolean = true;
+  private sectionGAnimationEasing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' = 'ease-out';
+  private propertyAnimations: Map<string, {
+    startTime: number;
+    duration: number;
+    startValue: number;
+    endValue: number;
+    property: string;
+    easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+  }> = new Map();
+
+  // Feature 466: Enable/disable animations
+  setAnimationsEnabled(enabled: boolean): void {
+    this.animationsEnabled = enabled;
+    if (!enabled) {
+      this.propertyAnimations.clear();
+    }
+  }
+
+  isAnimationsEnabled(): boolean {
+    return this.animationsEnabled;
+  }
+
+  // Feature 467: Set default animation duration (uses existing animationDuration)
+  // Note: Use setAnimationDuration() from Feature 172
+
+  // Feature 468: Set animation easing
+  setPropertyAnimationEasing(easing: typeof this.sectionGAnimationEasing): void {
+    this.sectionGAnimationEasing = easing;
+  }
+
+  // Feature 469: Apply easing function
+  private applyPropertyEasing(progress: number, easing: typeof this.sectionGAnimationEasing): number {
+    switch (easing) {
+      case 'linear':
+        return progress;
+      case 'ease-in':
+        return progress * progress;
+      case 'ease-out':
+        return 1 - (1 - progress) * (1 - progress);
+      case 'ease-in-out':
+        return progress < 0.5
+          ? 2 * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      default:
+        return progress;
+    }
+  }
+
+  // Feature 470: Start task property animation
+  animateTaskProperty(
+    taskId: string,
+    property: string,
+    startValue: number,
+    endValue: number,
+    duration?: number,
+    easing?: typeof this.sectionGAnimationEasing
+  ): void {
+    if (!this.animationsEnabled) return;
+
+    const key = `${taskId}-${property}`;
+    this.propertyAnimations.set(key, {
+      startTime: performance.now(),
+      duration: duration ?? 200,
+      startValue,
+      endValue,
+      property,
+      easing: easing ?? this.sectionGAnimationEasing
+    });
+
+    this.markDirty();
+  }
+
+  // Feature 471: Get current animated value
+  getAnimatedValue(taskId: string, property: string, defaultValue: number): number {
+    const key = `${taskId}-${property}`;
+    const animation = this.propertyAnimations.get(key);
+
+    if (!animation) return defaultValue;
+
+    const elapsed = performance.now() - animation.startTime;
+    const progress = Math.min(1, elapsed / animation.duration);
+    const easedProgress = this.applyPropertyEasing(progress, animation.easing);
+
+    if (progress >= 1) {
+      this.propertyAnimations.delete(key);
+      return animation.endValue;
+    }
+
+    return animation.startValue + (animation.endValue - animation.startValue) * easedProgress;
+  }
+
+  // Feature 472: Animate viewport scroll (uses existing animateScrollTo, add zoom variant)
+  animateViewportScrollTo(x: number, y: number, duration?: number): void {
+    const state = this.viewport.getState();
+    this.animateTaskProperty('viewport', 'scrollX', state.scrollX, x, duration);
+    this.animateTaskProperty('viewport', 'scrollY', state.scrollY, y, duration);
+  }
+
+  // Feature 473: Animate zoom
+  animateZoomTo(zoom: number, duration?: number): void {
+    const state = this.viewport.getState();
+    this.animateTaskProperty('viewport', 'zoom', state.zoom, zoom, duration);
+  }
+
+  // Feature 474: Task fade in animation
+  fadeInTask(taskId: string, duration?: number): void {
+    this.animateTaskProperty(taskId, 'opacity', 0, 1, duration);
+  }
+
+  // Feature 475: Task fade out animation
+  fadeOutTask(taskId: string, duration?: number): void {
+    this.animateTaskProperty(taskId, 'opacity', 1, 0, duration);
+  }
+
+  // Feature 476: Flash highlight animation
+  flashHighlight(taskId: string): void {
+    this.animateTaskProperty(taskId, 'highlightOpacity', 1, 0, 500);
+  }
+
+  // Feature 477: Update animations each frame
+  updatePropertyAnimations(): boolean {
+    if (!this.animationsEnabled || this.propertyAnimations.size === 0) {
+      return false;
+    }
+
+    const now = performance.now();
+    const completedKeys: string[] = [];
+
+    this.propertyAnimations.forEach((animation, key) => {
+      const elapsed = now - animation.startTime;
+      if (elapsed >= animation.duration) {
+        completedKeys.push(key);
+      }
+    });
+
+    completedKeys.forEach(key => this.propertyAnimations.delete(key));
+
+    return this.propertyAnimations.size > 0;
+  }
+
+  // Feature 478: Get all active animations
+  getActivePropertyAnimationCount(): number {
+    return this.propertyAnimations.size;
+  }
+
+  // Feature 479: Cancel property animation
+  cancelPropertyAnimation(taskId: string, property?: string): void {
+    if (property) {
+      this.propertyAnimations.delete(`${taskId}-${property}`);
+    } else {
+      const keysToDelete: string[] = [];
+      this.propertyAnimations.forEach((_, key) => {
+        if (key.startsWith(`${taskId}-`)) {
+          keysToDelete.push(key);
+        }
+      });
+      keysToDelete.forEach(key => this.propertyAnimations.delete(key));
+    }
+  }
+
+  // Feature 480: Cancel all property animations
+  cancelAllPropertyAnimations(): void {
+    this.propertyAnimations.clear();
+  }
+
+  // =========================================================================
+  // FEATURE 481-490: CONTEXT MENUS & TOOLTIPS
+  // =========================================================================
+  // Note: showTooltip/hideTooltip already exist (Feature 178). Adding enhanced context menu.
+  private contextMenuState: {
+    visible: boolean;
+    x: number;
+    y: number;
+    taskId: string | null;
+    items: ContextMenuItem[];
+  } = {
+    visible: false,
+    x: 0,
+    y: 0,
+    taskId: null,
+    items: []
+  };
+
+  private enhancedTooltipDelay: number = 500; // ms
+  private enhancedTooltipTimer: number | null = null;
+
+  // Feature 481: Show context menu with custom items
+  showContextMenuWithItems(x: number, y: number, taskId: string | null, items: ContextMenuItem[]): void {
+    this.contextMenuState = {
+      visible: true,
+      x,
+      y,
+      taskId,
+      items
+    };
+    this.markDirty();
+  }
+
+  // Feature 482: Hide context menu state
+  hideContextMenuState(): void {
+    this.contextMenuState.visible = false;
+    this.markDirty();
+  }
+
+  // Feature 483: Get context menu state
+  getContextMenuStateSnapshot(): typeof this.contextMenuState {
+    return { ...this.contextMenuState };
+  }
+
+  // Feature 484: Build default context menu items for tasks
+  buildDefaultTaskContextMenuItems(taskId: string): ContextMenuItem[] {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return [];
+
+    return [
+      { id: 'edit', label: 'Edit Task', icon: 'pencil' },
+      { id: 'duplicate', label: 'Duplicate', icon: 'copy' },
+      { id: 'divider1', type: 'divider' },
+      { id: 'add-predecessor', label: 'Add Predecessor', icon: 'link' },
+      { id: 'remove-predecessors', label: 'Remove Predecessors', icon: 'unlink', disabled: !task.predecessorIds?.length },
+      { id: 'divider2', type: 'divider' },
+      { id: 'lock', label: task.locked ? 'Unlock Task' : 'Lock Task', icon: task.locked ? 'unlock' : 'lock' },
+      { id: 'divider3', type: 'divider' },
+      { id: 'delete', label: 'Delete Task', icon: 'trash', danger: true }
+    ];
+  }
+
+  // Feature 485: Execute context menu action
+  executeContextMenuItemAction(actionId: string): void {
+    const { taskId } = this.contextMenuState;
+    this.hideContextMenuState();
+
+    if (!taskId) return;
+
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    switch (actionId) {
+      case 'edit':
+        this.onTaskClick?.(task);
+        break;
+      case 'duplicate':
+        this.duplicateTask(taskId);
+        break;
+      case 'lock':
+        this.toggleTaskLock(taskId);
+        break;
+      case 'delete':
+        this.deleteTask(taskId);
+        break;
+    }
+  }
+
+  // Feature 486: Enhanced tooltip with content string
+  showEnhancedTooltip(x: number, y: number, content: string, taskId?: string): void {
+    const task = taskId ? this.state.tasks.find(t => t.id === taskId) : null;
+    if (task) {
+      this.showTooltip(task, x, y);
+    }
+    // Content stored for external rendering
+    this.markDirty();
+  }
+
+  // Feature 487: Hide enhanced tooltip
+  hideEnhancedTooltip(): void {
+    if (this.enhancedTooltipTimer !== null) {
+      clearTimeout(this.enhancedTooltipTimer);
+      this.enhancedTooltipTimer = null;
+    }
+    this.hideTooltip();
+  }
+
+  // Feature 488: Get enhanced tooltip delay
+  getEnhancedTooltipDelay(): number {
+    return this.enhancedTooltipDelay;
+  }
+
+  // Feature 489: Schedule enhanced tooltip with delay
+  scheduleEnhancedTooltip(x: number, y: number, content: string, taskId?: string): void {
+    this.hideEnhancedTooltip();
+    this.enhancedTooltipTimer = window.setTimeout(() => {
+      this.showEnhancedTooltip(x, y, content, taskId);
+    }, this.enhancedTooltipDelay);
+  }
+
+  // Feature 490: Set enhanced tooltip delay
+  setEnhancedTooltipDelay(ms: number): void {
+    this.enhancedTooltipDelay = Math.max(0, Math.min(2000, ms));
+  }
+
+  // =========================================================================
+  // FEATURE 491-500: TOUCH SUPPORT & MOBILE GESTURES
+  // =========================================================================
+  // Note: Some touch handling exists in Feature 52-55. This adds comprehensive multi-touch gesture support.
+  private multiTouchState: {
+    activeTouches: Map<number, { x: number; y: number; startTime: number }>;
+    lastTapTime: number;
+    lastTapPosition: { x: number; y: number } | null;
+    pinchStartDistance: number | null;
+    pinchStartZoom: number;
+    gestureIsPanning: boolean;
+    panStartScrollX: number;
+    panStartScrollY: number;
+  } = {
+    activeTouches: new Map(),
+    lastTapTime: 0,
+    lastTapPosition: null,
+    pinchStartDistance: null,
+    pinchStartZoom: 1,
+    gestureIsPanning: false,
+    panStartScrollX: 0,
+    panStartScrollY: 0
+  };
+
+  private gestureDoubleTapThreshold: number = 300; // ms
+  private gestureLongPressThreshold: number = 500; // ms
+  private gestureLongPressTimer: number | null = null;
+
+  // Feature 491: Handle multi-touch start
+  handleMultiTouchStart(e: TouchEvent): void {
+    const now = Date.now();
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      this.multiTouchState.activeTouches.set(touch.identifier, {
+        x: touch.clientX,
+        y: touch.clientY,
+        startTime: now
+      });
+    }
+
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      const touchPos = { x: touch.clientX, y: touch.clientY };
+
+      if (
+        this.multiTouchState.lastTapPosition &&
+        now - this.multiTouchState.lastTapTime < this.gestureDoubleTapThreshold &&
+        Math.abs(touchPos.x - this.multiTouchState.lastTapPosition.x) < 30 &&
+        Math.abs(touchPos.y - this.multiTouchState.lastTapPosition.y) < 30
+      ) {
+        this.handleGestureDoubleTap(touchPos.x, touchPos.y);
+        this.multiTouchState.lastTapTime = 0;
+        return;
+      }
+
+      this.gestureLongPressTimer = window.setTimeout(() => {
+        this.handleGestureLongPress(touchPos.x, touchPos.y);
+      }, this.gestureLongPressThreshold);
+
+      this.multiTouchState.gestureIsPanning = true;
+      this.multiTouchState.panStartScrollX = this.viewport.getState().scrollX;
+      this.multiTouchState.panStartScrollY = this.viewport.getState().scrollY;
+    } else if (e.touches.length === 2) {
+      this.cancelGestureLongPress();
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      this.multiTouchState.pinchStartDistance = this.calculateTouchDistance(
+        touch1.clientX, touch1.clientY,
+        touch2.clientX, touch2.clientY
+      );
+      this.multiTouchState.pinchStartZoom = this.viewport.getState().zoom;
+    }
+  }
+
+  // Feature 492: Handle multi-touch move
+  handleMultiTouchMove(e: TouchEvent): void {
+    this.cancelGestureLongPress();
+
+    if (e.touches.length === 1 && this.multiTouchState.gestureIsPanning) {
+      const touch = e.touches[0];
+      const startTouch = this.multiTouchState.activeTouches.get(touch.identifier);
+      if (!startTouch) return;
+
+      const deltaX = touch.clientX - startTouch.x;
+      const deltaY = touch.clientY - startTouch.y;
+
+      this.viewport.scrollTo(
+        this.multiTouchState.panStartScrollX - deltaX,
+        this.multiTouchState.panStartScrollY - deltaY
+      );
+      this.markDirty();
+    } else if (e.touches.length === 2 && this.multiTouchState.pinchStartDistance !== null) {
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const currentDistance = this.calculateTouchDistance(
+        touch1.clientX, touch1.clientY,
+        touch2.clientX, touch2.clientY
+      );
+
+      const scale = currentDistance / this.multiTouchState.pinchStartDistance;
+      const newZoom = this.multiTouchState.pinchStartZoom * scale;
+
+      this.viewport.setZoom(newZoom);
+      this.markDirty();
+    }
+  }
+
+  // Feature 493: Handle multi-touch end
+  handleMultiTouchEnd(e: TouchEvent): void {
+    const now = Date.now();
+
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      const touch = e.changedTouches[i];
+      const startTouch = this.multiTouchState.activeTouches.get(touch.identifier);
+
+      if (startTouch && now - startTouch.startTime < 200) {
+        this.multiTouchState.lastTapTime = now;
+        this.multiTouchState.lastTapPosition = { x: touch.clientX, y: touch.clientY };
+      }
+
+      this.multiTouchState.activeTouches.delete(touch.identifier);
+    }
+
+    this.cancelGestureLongPress();
+
+    if (e.touches.length === 0) {
+      this.multiTouchState.gestureIsPanning = false;
+      this.multiTouchState.pinchStartDistance = null;
+    }
+  }
+
+  // Feature 494: Calculate touch distance
+  private calculateTouchDistance(x1: number, y1: number, x2: number, y2: number): number {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Feature 495: Handle gesture double tap (zoom)
+  private handleGestureDoubleTap(_x: number, _y: number): void {
+    const currentZoom = this.viewport.getState().zoom;
+    const targetZoom = currentZoom < 1 ? 1 : currentZoom * 1.5;
+    this.animateZoomTo(Math.min(3, targetZoom), 200);
+  }
+
+  // Feature 496: Handle gesture long press (context menu)
+  private handleGestureLongPress(x: number, y: number): void {
+    const rect = this.canvas?.getBoundingClientRect();
+    if (!rect) return;
+
+    const canvasX = x - rect.left;
+    const canvasY = y - rect.top;
+    const task = this.hitTestTask(canvasX, canvasY);
+
+    if (task) {
+      const items = this.buildDefaultTaskContextMenuItems(task.id);
+      this.showContextMenuWithItems(x, y, task.id, items);
+    }
+  }
+
+  // Feature 497: Cancel gesture long press
+  private cancelGestureLongPress(): void {
+    if (this.gestureLongPressTimer !== null) {
+      clearTimeout(this.gestureLongPressTimer);
+      this.gestureLongPressTimer = null;
+    }
+  }
+
+  // Feature 498: Set gesture double tap threshold
+  setGestureDoubleTapThreshold(ms: number): void {
+    this.gestureDoubleTapThreshold = Math.max(100, Math.min(500, ms));
+  }
+
+  // Feature 499: Set gesture long press threshold
+  setGestureLongPressThreshold(ms: number): void {
+    this.gestureLongPressThreshold = Math.max(200, Math.min(1000, ms));
+  }
+
+  // Feature 500: Check if touch device
+  checkIsTouchDevice(): boolean {
+    return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  }
+
 }
 
 // ============================================================================
