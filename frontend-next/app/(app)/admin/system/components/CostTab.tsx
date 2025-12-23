@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 // Pricing calculation - TIERED BRACKETS (like tax brackets)
 // First $1M: 2.2%
-// Each $100k after: rate drops by 0.05% (2.15%, 2.10%, 2.05%... floor 0.2%)
+// Each $200k after: rate drops by 0.05% (2.15%, 2.10%, 2.05%... floor 0.2%)
 const calculateAnnualCost = (turnover: number): {
   cost: number;
   effectiveRate: number;
@@ -28,7 +28,7 @@ const calculateAnnualCost = (turnover: number): {
 } => {
   const BASE_RATE = 2.2;
   const FIRST_MILLION = 1000000;
-  const BRACKET_SIZE = 100000;
+  const BRACKET_SIZE = 200000;
   const RATE_DROP = 0.05;
   const FLOOR_RATE = 0.2;
 
@@ -95,8 +95,9 @@ export function CostTab() {
 
   // Revenue distribution
   const charityAmount = annualCost * 0.1;
-  const supportLineAmount = annualCost * 0.2;
-  const teeemAmount = annualCost * 0.7;
+  const supportLineAmount = annualCost * 0.1;
+  const uplineSupportAmount = annualCost * 0.1;
+  const teeemAmount = annualCost * 0.6;
 
   // Rate breakdown
   const baseRate = 2.2;
@@ -240,7 +241,7 @@ export function CostTab() {
             </div>
             <Progress value={Math.max(0, rateProgress)} className="h-3" />
             <p className="text-xs text-muted-foreground mt-2">
-              First $1M at 2.20%. Each $100k after drops by 0.05% (2.15%, 2.10%, 2.05%... floor: 0.20%)
+              First $1M at 2.20%. Each $200k after drops by 0.05% (2.15%, 2.10%, 2.05%... floor: 0.20%)
             </p>
           </div>
         </CardContent>
@@ -249,7 +250,7 @@ export function CostTab() {
       {/* Where Your Money Goes */}
       <div>
         <h3 className="text-lg font-semibold mb-4">Where Your Money Goes</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Charity Card */}
           <Card className="border-pink-200 dark:border-pink-800 bg-gradient-to-br from-pink-50 to-white dark:from-pink-950/20 dark:to-background">
             <CardHeader className="pb-2">
@@ -259,35 +260,51 @@ export function CostTab() {
                   10%
                 </Badge>
               </div>
-              <CardTitle className="text-lg">Making a Difference</CardTitle>
+              <CardTitle className="text-lg">Charity</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-2xl font-bold">{formatCurrency(charityAmount)}/yr</div>
-              <Badge className="bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700">
+              <Badge className="bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-700 text-xs">
                 <Sparkles className="h-3 w-3 mr-1" />
-                First 12 months: 100% to Joii
+                First 12mo: Joii
               </Badge>
-              <p className="text-sm text-muted-foreground">
-                After 12 months: 5% TEEEM picks, 5% Kudos winner chooses
-              </p>
             </CardContent>
           </Card>
 
-          {/* Support Line Card */}
+          {/* Your Support Line Card */}
           <Card className="border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <Users className="h-8 w-8 text-blue-500" />
                 <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                  20%
+                  10%
                 </Badge>
               </div>
-              <CardTitle className="text-lg">Your Support Line</CardTitle>
+              <CardTitle className="text-lg">Your Support</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-2xl font-bold">{formatCurrency(supportLineAmount)}/yr</div>
               <p className="text-sm text-muted-foreground">
-                Goes to the person who introduced you to TEEEM. Word of mouth is rewarded.
+                They support you
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Their Support Line Card */}
+          <Card className="border-purple-200 dark:border-purple-800 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <Users className="h-8 w-8 text-purple-500" />
+                <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300">
+                  10%
+                </Badge>
+              </div>
+              <CardTitle className="text-lg">Their Support</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="text-2xl font-bold">{formatCurrency(uplineSupportAmount)}/yr</div>
+              <p className="text-sm text-muted-foreground">
+                Your support has a support too
               </p>
             </CardContent>
           </Card>
@@ -297,14 +314,14 @@ export function CostTab() {
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <Building2 className="h-8 w-8 text-slate-500" />
-                <Badge variant="secondary">70%</Badge>
+                <Badge variant="secondary">60%</Badge>
               </div>
-              <CardTitle className="text-lg">Platform & Development</CardTitle>
+              <CardTitle className="text-lg">TEEEM</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="text-2xl font-bold">{formatCurrency(teeemAmount)}/yr</div>
               <p className="text-sm text-muted-foreground">
-                Keeps the lights on, servers running, and new features coming.
+                Platform & development
               </p>
             </CardContent>
           </Card>
@@ -366,12 +383,12 @@ export function CostTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gift className="h-5 w-5" />
-            Referral Program
+            Support Network
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-lg font-medium">
-            Earn 20% of every referral's fees — forever.
+            Earn 10% from everyone you support + 10% from everyone they support.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -380,19 +397,23 @@ export function CostTab() {
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
                   <span className="text-primary font-bold">•</span>
-                  <span>Eligibility: Generate $10k in total fees (yours + referrals)</span>
+                  <span>10% from people you directly support</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary font-bold">•</span>
-                  <span>Referral bonuses count towards the $10k threshold</span>
+                  <span>10% from people they support (two levels)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary font-bold">•</span>
-                  <span>No cap on earnings — the more you refer, the more you earn</span>
+                  <span>Eligibility: Generate $10k in total fees (yours + network)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary font-bold">•</span>
-                  <span>We believe the best way to grow is word of mouth</span>
+                  <span>Network bonuses count towards the $10k threshold</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary font-bold">•</span>
+                  <span>Word of mouth is the best way to grow — and it's rewarded</span>
                 </li>
               </ul>
             </div>
@@ -400,17 +421,25 @@ export function CostTab() {
             <div className="bg-muted rounded-lg p-4">
               <h4 className="font-semibold mb-3">Example</h4>
               <div className="space-y-2 text-sm">
-                <p>Refer 5 businesses @ $500k turnover each:</p>
+                <p>Support 5 businesses @ $500k turnover each:</p>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Their annual fees (2.2% each):</span>
                   <span className="font-medium">5 x $11,000 = $55,000</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Your 20% share:</span>
-                  <span className="font-bold text-primary">$11,000/year</span>
+                  <span className="text-muted-foreground">Your 10% share:</span>
+                  <span className="font-bold text-primary">$5,500/year</span>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="text-muted-foreground">If each supports 3 more:</span>
+                  <span className="font-medium">15 x $11,000 = $165,000</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Your 10% from level 2:</span>
+                  <span className="font-bold text-primary">$16,500/year</span>
                 </div>
                 <p className="text-xs text-muted-foreground pt-2">
-                  Passive income, every year, just for sharing something that works.
+                  Total: $22,000/year passive income from your support network.
                 </p>
               </div>
             </div>

@@ -13,6 +13,11 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 
+// Extracted Managers (Day 2 Refactor)
+import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
+import { RenderCoordinator } from './managers/RenderCoordinator';
+import { SpatialIndex, Rect as SpatialRect } from './spatial/SpatialIndex';
+
 // Re-export Command type for external use
 export type { Command } from './UndoManager';
 export {
@@ -459,6 +464,11 @@ export class GanttCanvas {
   // Working days calendar
   private calendar: WorkingDaysCalendar;
 
+  // Extracted Managers (Day 2 Refactor)
+  private selectionManager: SelectionManager;
+  private renderCoordinator: RenderCoordinator;
+  private spatialIndex: SpatialIndex;
+
   // Context menu state
   private contextMenuVisible: boolean = false;
   private contextMenuX: number = 0;
@@ -570,6 +580,29 @@ export class GanttCanvas {
     // Create working days calendar
     this.calendar = new WorkingDaysCalendar();
 
+    // Initialize extracted managers (Day 2 Refactor)
+    this.selectionManager = new SelectionManager();
+    this.renderCoordinator = new RenderCoordinator();
+    this.spatialIndex = new SpatialIndex(50); // 50px cell size for grid-based hit testing
+
+    // Wire selection manager to emit events
+    this.selectionManager.onChange((event: SelectionChangeEvent) => {
+      // Sync with legacy state for backward compatibility during refactor
+      this.state.selectedTaskIds = event.selected;
+      this.state.lastSelectedTaskId = this.selectionManager.getLastSelected();
+
+      // Notify external handlers
+      this.onSelectionChange?.(Array.from(event.selected));
+
+      // Mark canvas dirty for re-render
+      this.markDirty();
+    });
+
+    // Wire render coordinator
+    this.renderCoordinator.onRender(() => {
+      this.render();
+    });
+
     // Set up canvas size
     this.resize();
 
@@ -590,6 +623,12 @@ export class GanttCanvas {
   setTasks(tasks: GanttTask[]): void {
     this.state.tasks = tasks;
     this.markDirty();
+
+    // Update SelectionManager task order for range selection (Day 2 Refactor)
+    this.selectionManager.updateTaskOrderFromTasks(tasks);
+
+    // Rebuild spatial index for O(1) hit testing (Day 2 Refactor)
+    this.rebuildSpatialIndex();
 
     // Auto-calculate date range from tasks
     if (tasks.length > 0) {
@@ -2035,6 +2074,33 @@ export class GanttCanvas {
   }
 
   /**
+   * Rebuild spatial index for O(1) hit testing (Day 2 Refactor)
+   * Called when tasks are set or when layout changes
+   */
+  private rebuildSpatialIndex(): void {
+    this.spatialIndex.clear();
+
+    for (let i = 0; i < this.state.tasks.length; i++) {
+      const task = this.state.tasks[i];
+      const bounds = this.getTaskBounds(task, i);
+      this.spatialIndex.insert(task.id, bounds);
+    }
+  }
+
+  /**
+   * Get the bounds of a task in canvas coordinates (Day 2 Refactor)
+   * Used for spatial indexing and hit testing
+   */
+  private getTaskBounds(task: GanttTask, rowIndex: number): SpatialRect {
+    const x = this.viewport.dateToX(task.startDate);
+    const width = this.viewport.dateToX(task.endDate) - x;
+    const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding - this.state.viewportState.scrollY;
+    const height = this.config.taskBarHeight;
+
+    return { x, y, width, height };
+  }
+
+  /**
    * Queue a task update for batching
    * Deduplicates updates to the same task
    */
@@ -2425,56 +2491,26 @@ export class GanttCanvas {
       this.selectTask(task.id, e.ctrlKey || e.metaKey, e.shiftKey);
       this.markDirty();
     } else if (!task) {
-      // Clicked on empty space - clear selection
+      // Clicked on empty space - clear selection (Day 2 Refactor: use SelectionManager)
       if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        this.state.selectedTaskIds.clear();
-        this.state.lastSelectedTaskId = null;
-        this.markDirty();
+        this.selectionManager.clear();
       }
     }
   };
 
   /**
    * Handle task selection with modifier keys
+   * Now delegates to SelectionManager (Day 2 Refactor)
    */
   private selectTask(taskId: string, ctrlKey: boolean, shiftKey: boolean): void {
-    if (shiftKey && this.state.lastSelectedTaskId) {
-      // Shift+click: range selection
-      const lastIndex = this.state.tasks.findIndex(t => t.id === this.state.lastSelectedTaskId);
-      const currentIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    // Determine modifier key state
+    const modifier = shiftKey ? 'shift' : ctrlKey ? 'ctrl' : 'none';
 
-      if (lastIndex !== -1 && currentIndex !== -1) {
-        const startIdx = Math.min(lastIndex, currentIndex);
-        const endIdx = Math.max(lastIndex, currentIndex);
-
-        // Add all tasks in range to selection
-        for (let i = startIdx; i <= endIdx; i++) {
-          this.state.selectedTaskIds.add(this.state.tasks[i].id);
-        }
-      }
-    } else if (ctrlKey) {
-      // Ctrl+click: toggle selection
-      if (this.state.selectedTaskIds.has(taskId)) {
-        this.state.selectedTaskIds.delete(taskId);
-        // Update lastSelectedTaskId if we just removed it
-        if (this.state.lastSelectedTaskId === taskId) {
-          this.state.lastSelectedTaskId = this.state.selectedTaskIds.size > 0
-            ? Array.from(this.state.selectedTaskIds)[this.state.selectedTaskIds.size - 1]
-            : null;
-        }
-      } else {
-        this.state.selectedTaskIds.add(taskId);
-        this.state.lastSelectedTaskId = taskId;
-      }
-    } else {
-      // Regular click: single selection
-      this.state.selectedTaskIds.clear();
-      this.state.selectedTaskIds.add(taskId);
-      this.state.lastSelectedTaskId = taskId;
-    }
+    // Delegate to SelectionManager
+    this.selectionManager.handleClick(taskId, modifier);
 
     // Start dependency flashing animation for the primary selected task
-    if (this.state.selectedTaskIds.has(taskId)) {
+    if (this.selectionManager.isSelected(taskId)) {
       this.startDependencyFlash(taskId);
     }
   }
@@ -3972,77 +4008,62 @@ export class GanttCanvas {
   }
 
   // ============================================================================
-  // Selection API
+  // Selection API (Day 2 Refactor: Delegated to SelectionManager)
   // ============================================================================
 
   /**
    * Get all selected task IDs
    */
   getSelectedTaskIds(): string[] {
-    return Array.from(this.state.selectedTaskIds);
+    return this.selectionManager.getSelectedArray();
   }
 
   /**
    * Get all selected tasks
    */
   getSelectedTasks(): GanttTask[] {
-    return this.state.tasks.filter(t => this.state.selectedTaskIds.has(t.id));
+    const selectedIds = this.selectionManager.getSelected();
+    return this.state.tasks.filter(t => selectedIds.has(t.id));
   }
 
   /**
    * Select tasks by IDs
    */
   selectTasks(taskIds: string[], addToSelection: boolean = false): void {
-    if (!addToSelection) {
-      this.state.selectedTaskIds.clear();
+    // Filter to only valid task IDs
+    const validIds = taskIds.filter(id => this.state.tasks.some(t => t.id === id));
+
+    if (addToSelection) {
+      this.selectionManager.addMultiple(validIds);
+    } else {
+      this.selectionManager.selectMultiple(validIds, 'api');
     }
-
-    taskIds.forEach(id => {
-      if (this.state.tasks.some(t => t.id === id)) {
-        this.state.selectedTaskIds.add(id);
-      }
-    });
-
-    if (taskIds.length > 0) {
-      this.state.lastSelectedTaskId = taskIds[taskIds.length - 1];
-    }
-
-    this.onSelectionChange?.(this.getSelectedTaskIds());
-    this.markDirty();
   }
 
   /**
    * Select all tasks
    */
   selectAllTasks(): void {
-    this.state.tasks.forEach(t => this.state.selectedTaskIds.add(t.id));
-    this.onSelectionChange?.(this.getSelectedTaskIds());
-    this.markDirty();
+    const allIds = this.state.tasks.map(t => t.id);
+    this.selectionManager.selectMultiple(allIds, 'api');
   }
 
   /**
    * Clear selection
    */
   clearSelection(): void {
-    this.state.selectedTaskIds.clear();
-    this.state.lastSelectedTaskId = null;
-    this.onSelectionChange?.([]);
-    this.markDirty();
+    this.selectionManager.clear();
   }
 
   /**
    * Invert selection
    */
   invertSelection(): void {
-    const newSelection = new Set<string>();
-    this.state.tasks.forEach(t => {
-      if (!this.state.selectedTaskIds.has(t.id)) {
-        newSelection.add(t.id);
-      }
-    });
-    this.state.selectedTaskIds = newSelection;
-    this.onSelectionChange?.(this.getSelectedTaskIds());
-    this.markDirty();
+    const currentSelected = this.selectionManager.getSelected();
+    const invertedIds = this.state.tasks
+      .filter(t => !currentSelected.has(t.id))
+      .map(t => t.id);
+    this.selectionManager.selectMultiple(invertedIds, 'api');
   }
 
   // ============================================================================
