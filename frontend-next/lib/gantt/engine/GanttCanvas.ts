@@ -13,12 +13,17 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 
-// Extracted Managers (Day 2-3 Refactor)
+// Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
 import { RenderCoordinator } from './managers/RenderCoordinator';
 import { DependencyManager } from './managers/DependencyManager';
 import { InteractionManager, DragEvent, ResizeEvent, ProgressEvent, DependencyDragEvent, MarqueeEvent } from './managers/InteractionManager';
 import { SpatialIndex, Rect as SpatialRect } from './spatial/SpatialIndex';
+import { ExportManager } from './managers/ExportManager';
+import { FilterManager, TaskFilterConfig as FilterConfig } from './managers/FilterManager';
+import { BaselineManager, BaselineSnapshot, TaskVariance } from './managers/BaselineManager';
+import { CriticalPathManager } from './managers/CriticalPathManager';
+import { CalendarManager } from './managers/CalendarManager';
 
 // Re-export Command type for external use
 export type { Command } from './UndoManager';
@@ -466,12 +471,17 @@ export class GanttCanvas {
   // Working days calendar
   private calendar: WorkingDaysCalendar;
 
-  // Extracted Managers (Day 2-3 Refactor)
+  // Extracted Managers (Day 2-7 Refactor)
   private selectionManager: SelectionManager;
   private renderCoordinator: RenderCoordinator;
   private dependencyManager: DependencyManager;
   private interactionManager: InteractionManager;
   private spatialIndex: SpatialIndex;
+  private exportManager: ExportManager;
+  private filterManager: FilterManager;
+  private baselineManager: BaselineManager;
+  private criticalPathManager: CriticalPathManager;
+  private calendarManager: CalendarManager;
 
   // Context menu state
   private contextMenuVisible: boolean = false;
@@ -584,12 +594,17 @@ export class GanttCanvas {
     // Create working days calendar
     this.calendar = new WorkingDaysCalendar();
 
-    // Initialize extracted managers (Day 2-3 Refactor)
+    // Initialize extracted managers (Day 2-7 Refactor)
     this.selectionManager = new SelectionManager();
     this.renderCoordinator = new RenderCoordinator();
     this.dependencyManager = new DependencyManager();
     this.interactionManager = new InteractionManager();
     this.spatialIndex = new SpatialIndex(50); // 50px cell size for grid-based hit testing
+    this.exportManager = new ExportManager();
+    this.filterManager = new FilterManager();
+    this.baselineManager = new BaselineManager();
+    this.criticalPathManager = new CriticalPathManager();
+    this.calendarManager = new CalendarManager();
 
     // Wire InteractionManager dependencies (Day 7 Final Integration)
     this.interactionManager.setCanvas(this.canvas);
@@ -695,6 +710,34 @@ export class GanttCanvas {
       this.markDirty();
     });
 
+    // Wire new managers (Day 7 Refactor - Phase 2)
+    // ExportManager - needs canvas and tasks access
+    this.exportManager.setCanvas(this.canvas);
+    this.exportManager.setDataAccessors(
+      () => this.state.tasks,
+      () => this.state.dependencies
+    );
+
+    // FilterManager - wire change notifications
+    this.filterManager.onChange(() => {
+      this.markDirty();
+    });
+
+    // BaselineManager - wire change notifications
+    this.baselineManager.onChange(() => {
+      this.markDirty();
+    });
+
+    // CriticalPathManager - wire to render on changes
+    this.criticalPathManager.onChange(() => {
+      this.markDirty();
+    });
+
+    // CalendarManager - wire to render on changes
+    this.calendarManager.onChange(() => {
+      this.markDirty();
+    });
+
     // Set up canvas size
     this.resize();
 
@@ -721,6 +764,11 @@ export class GanttCanvas {
 
     // Update DependencyManager task map for validation (Day 3 Refactor)
     this.dependencyManager.setTasks(tasks);
+
+    // Update new managers (Day 7 Refactor - Phase 2)
+    this.filterManager.setTasks(tasks);
+    this.baselineManager.setTasks(tasks);
+    this.criticalPathManager.setTasks(tasks);
 
     // Rebuild spatial index for O(1) hit testing (Day 2 Refactor)
     this.rebuildSpatialIndex();
@@ -750,6 +798,9 @@ export class GanttCanvas {
 
     // Sync with DependencyManager (Day 3 Refactor)
     this.dependencyManager.setDependencies(dependencies);
+
+    // Update new managers (Day 7 Refactor - Phase 2)
+    this.criticalPathManager.setDependencies(dependencies);
 
     this.markDirty();
 
