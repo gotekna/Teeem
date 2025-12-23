@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_130453) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_130454) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1864,6 +1864,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130453) do
     t.boolean "active", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "code"
     t.index ["name"], name: "index_corporate_groups_on_name", unique: true
   end
 

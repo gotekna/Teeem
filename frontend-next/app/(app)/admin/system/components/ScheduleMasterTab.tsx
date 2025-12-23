@@ -38,7 +38,9 @@ import {
   Camera,
   Settings,
   BarChart3,
+  Table,
 } from "lucide-react";
+import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttChart, type GanttFeature, type GanttGroup } from "@/components/ui/gantt";
 import { GanttCanvasView } from "@/components/gantt-canvas";
 import { SMGanttTab } from "./SMGanttTab";
@@ -136,6 +138,12 @@ export function ScheduleMasterTab() {
   const [ganttRows, setGanttRows] = React.useState<SmTemplateRow[]>([]);
   const [ganttViewMode, setGanttViewMode] = React.useState<"canvas" | "react">("canvas");
 
+  // Data View state
+  const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
+  const [dataViewRows, setDataViewRows] = React.useState<SmTemplateRow[]>([]);
+  const [dataViewLoading, setDataViewLoading] = React.useState(false);
+  const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
+
   // Task Templates state
   const [taskTemplates, setTaskTemplates] = React.useState<TaskTemplate[]>([]);
   const [taskTemplatesLoading, setTaskTemplatesLoading] = React.useState(true);
@@ -175,6 +183,16 @@ export function ScheduleMasterTab() {
         );
         if (scheduleMasterLive) {
           loadGanttRows(scheduleMasterLive.id);
+        }
+      }
+
+      // Auto-select template with "LIVE" in name for Data View
+      if (!dataViewTemplateId && loadedTemplates.length > 0) {
+        const liveTemplate = loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('live') && !t.name.toLowerCase().includes('copy')
+        );
+        if (liveTemplate) {
+          loadDataViewRows(liveTemplate.id);
         }
       }
     } catch (error) {
@@ -292,6 +310,27 @@ export function ScheduleMasterTab() {
 
   const getTotalDuration = (rows: SmTemplateRow[]) => {
     return rows.reduce((sum, row) => sum + row.duration_days, 0);
+  };
+
+  // Data View functions
+  const loadDataViewRows = async (templateId: number | null) => {
+    setDataViewTemplateId(templateId);
+    if (!templateId) {
+      setDataViewRows([]);
+      return;
+    }
+    setDataViewLoading(true);
+    try {
+      const data = await api.get<{ success: boolean; rows: SmTemplateRow[] }>(
+        `/api/v1/sm_templates/${templateId}/rows`
+      );
+      setDataViewRows(data.rows || []);
+    } catch (error) {
+      console.error("Failed to load data view rows:", error);
+      setDataViewRows([]);
+    } finally {
+      setDataViewLoading(false);
+    }
   };
 
   // Gantt Preview functions
@@ -545,6 +584,10 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="gantt-preview">
             <BarChart3 className="h-4 w-4 mr-2" />
             Gantt Preview
+          </TabsTrigger>
+          <TabsTrigger value="data-view">
+            <Table className="h-4 w-4 mr-2" />
+            Data View
           </TabsTrigger>
         </TabsList>
 
@@ -922,6 +965,64 @@ export function ScheduleMasterTab() {
                   </p>
                 </CardContent>
               </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Data View Tab - Full TeeemTableView */}
+        <TabsContent value="data-view" className="mt-6">
+          <div className="flex flex-col h-[calc(100vh-280px)] -mx-4">
+            <TeeemTableView
+              key={dataViewRefreshKey}
+              entries={dataViewRows as unknown as Record<string, unknown>[]}
+              foundationId="sm_template_rows"
+              foundationIdNumeric={426}
+              tableName={dataViewTemplateId
+                ? templates.find(t => t.id === dataViewTemplateId)?.name || "Schedule Template Rows"
+                : "Schedule Template Rows"
+              }
+              onRefresh={() => {
+                if (dataViewTemplateId) {
+                  loadDataViewRows(dataViewTemplateId);
+                }
+                setDataViewRefreshKey(prev => prev + 1);
+              }}
+              enableExport={true}
+              leftActions={
+                <Select
+                  value={dataViewTemplateId ? String(dataViewTemplateId) : ""}
+                  onValueChange={(value) => {
+                    if (value) {
+                      loadDataViewRows(parseInt(value));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-[280px]">
+                    <SelectValue placeholder="Select a template to view..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={String(template.id)}>
+                        {template.name} ({template.row_count} rows)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              }
+            />
+            {!dataViewTemplateId && (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Table className="h-12 w-12 mb-4 opacity-50" />
+                <h3 className="text-lg font-medium mb-2">Select a template</h3>
+                <p className="text-center max-w-md">
+                  Choose a schedule template from the dropdown above to view its rows.
+                </p>
+              </div>
+            )}
+            {dataViewLoading && (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
             )}
           </div>
         </TabsContent>

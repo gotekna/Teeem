@@ -61,6 +61,7 @@ import { cn } from "@/lib/utils";
 interface CompanyGroup {
   id: number;
   name: string;
+  code?: string;
   description?: string;
   default_registered_office?: string;
   default_principal_place?: string;
@@ -113,6 +114,7 @@ function GroupsSubTab() {
 
   const [formData, setFormData] = React.useState({
     name: "",
+    code: "",
     description: "",
     default_registered_office: "",
     default_principal_place: "",
@@ -141,6 +143,7 @@ function GroupsSubTab() {
   const resetForm = () => {
     setFormData({
       name: "",
+      code: "",
       description: "",
       default_registered_office: "",
       default_principal_place: "",
@@ -158,6 +161,7 @@ function GroupsSubTab() {
   const handleOpenEditDialog = (group: CompanyGroup) => {
     setFormData({
       name: group.name,
+      code: group.code || "",
       description: group.description || "",
       default_registered_office: group.default_registered_office || "",
       default_principal_place: group.default_principal_place || "",
@@ -258,6 +262,7 @@ function GroupsSubTab() {
             <TableHeader>
               <TableRow>
                 <TableHead>Group Name</TableHead>
+                <TableHead>CGC</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Companies</TableHead>
                 <TableHead>Default Accountant</TableHead>
@@ -275,6 +280,9 @@ function GroupsSubTab() {
                       </div>
                       <div className="font-medium">{group.name}</div>
                     </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">
+                    {group.code || "-"}
                   </TableCell>
                   <TableCell className="text-muted-foreground max-w-[200px] truncate">
                     {group.description || "-"}
@@ -351,14 +359,27 @@ function GroupsSubTab() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="group-name">Name *</Label>
-              <Input
-                id="group-name"
-                placeholder="e.g., Smith Family Group"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 grid gap-2">
+                <Label htmlFor="group-name">Name *</Label>
+                <Input
+                  id="group-name"
+                  placeholder="e.g., Smith Family Group"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="group-code">Company Group Code (CGC)</Label>
+                <Input
+                  id="group-code"
+                  placeholder="e.g., SFG"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                  maxLength={10}
+                  className="font-mono"
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="group-description">Description</Label>

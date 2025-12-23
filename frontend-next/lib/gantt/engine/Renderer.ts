@@ -1751,6 +1751,120 @@ export class Renderer {
 
     return null;
   }
+
+  // ============================================================================
+  // Marquee Selection
+  // ============================================================================
+
+  /**
+   * Draw marquee selection rectangle
+   */
+  drawMarqueeSelection(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    selectedCount: number
+  ): void {
+    // Normalize rectangle
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
+    // Draw semi-transparent fill
+    this.ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'; // Blue with low opacity
+    this.ctx.fillRect(left, top, width, height);
+
+    // Draw border
+    this.ctx.strokeStyle = '#3b82f6'; // Blue border
+    this.ctx.lineWidth = 1;
+    this.ctx.setLineDash([4, 2]); // Dashed line
+    this.ctx.strokeRect(left, top, width, height);
+    this.ctx.setLineDash([]); // Reset dash
+
+    // Draw selection count badge
+    if (selectedCount > 0) {
+      const badgeText = `${selectedCount} task${selectedCount !== 1 ? 's' : ''}`;
+      this.ctx.font = '12px system-ui, sans-serif';
+      const metrics = this.ctx.measureText(badgeText);
+      const badgeWidth = metrics.width + 12;
+      const badgeHeight = 20;
+      const badgeX = left + width / 2 - badgeWidth / 2;
+      const badgeY = top - badgeHeight - 4;
+
+      // Draw badge background
+      this.ctx.fillStyle = '#3b82f6';
+      this.ctx.beginPath();
+      this.ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 4);
+      this.ctx.fill();
+
+      // Draw badge text
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2);
+    }
+  }
+
+  // ============================================================================
+  // Progress Drag Preview
+  // ============================================================================
+
+  /**
+   * Draw progress drag preview on a task bar
+   */
+  drawProgressDragPreview(
+    task: GanttTask,
+    currentProgress: number,
+    taskIndex: number
+  ): void {
+    const state = this.viewport.getState();
+
+    // Calculate positions
+    const taskStartX = this.viewport.dateToX(task.startDate);
+    const taskEndX = this.viewport.dateToX(task.endDate);
+    const taskWidth = taskEndX - taskStartX;
+    const rowY = this.viewport.rowToY(taskIndex);
+    const barTop = rowY + (this.config.rowHeight - this.config.taskBarHeight) / 2;
+
+    // Draw the updated progress bar
+    const progressWidth = (taskWidth * currentProgress) / 100;
+
+    // Draw progress fill with highlight
+    this.ctx.fillStyle = 'rgba(34, 197, 94, 0.8)'; // Green with opacity
+    this.ctx.fillRect(taskStartX, barTop, progressWidth, this.config.taskBarHeight);
+
+    // Draw progress handle line
+    const handleX = taskStartX + progressWidth;
+    this.ctx.strokeStyle = '#16a34a'; // Darker green
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(handleX, barTop);
+    this.ctx.lineTo(handleX, barTop + this.config.taskBarHeight);
+    this.ctx.stroke();
+
+    // Draw progress percentage tooltip
+    const tooltipText = `${Math.round(currentProgress)}%`;
+    this.ctx.font = 'bold 11px system-ui, sans-serif';
+    const metrics = this.ctx.measureText(tooltipText);
+    const tooltipWidth = metrics.width + 8;
+    const tooltipHeight = 18;
+    const tooltipX = handleX - tooltipWidth / 2;
+    const tooltipY = barTop - tooltipHeight - 4;
+
+    // Draw tooltip background
+    this.ctx.fillStyle = '#1f2937';
+    this.ctx.beginPath();
+    this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
+    this.ctx.fill();
+
+    // Draw tooltip text
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(tooltipText, tooltipX + tooltipWidth / 2, tooltipY + tooltipHeight / 2);
+  }
 }
 
 export default Renderer;

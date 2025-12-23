@@ -35,6 +35,24 @@ export { calculateCriticalPath, getCriticalPathSummary } from './CriticalPath';
 // Types
 // ============================================================================
 
+/** Hold reason types for paused jobs */
+export type HoldReason =
+  | 'whs_incident'
+  | 'weather_delay'
+  | 'permit_delay'
+  | 'client_request'
+  | 'material_delay'
+  | 'subcontractor_issue'
+  | 'other';
+
+/** Hold state information for paused tasks */
+export interface HoldState {
+  reason: HoldReason;
+  notes?: string;
+  heldAt: Date;
+  heldBy?: string;
+}
+
 export interface GanttTask {
   id: string;
   name: string;
@@ -48,6 +66,8 @@ export interface GanttTask {
   brokenPredecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
+  /** Hold state for paused tasks */
+  holdState?: HoldState;
 }
 
 /**
@@ -214,6 +234,21 @@ export class GanttCanvas {
   private resizeCurrentEnd: Date | null = null;
   private resizeHandleWidth: number = 8; // pixels for edge detection
 
+  // Progress drag state
+  private isDraggingProgress: boolean = false;
+  private progressDragTask: GanttTask | null = null;
+  private progressDragStartX: number = 0;
+  private progressDragOriginal: number = 0;
+  private progressDragCurrent: number = 0;
+
+  // Marquee selection state
+  private isMarqueeSelecting: boolean = false;
+  private marqueeStartX: number = 0;
+  private marqueeStartY: number = 0;
+  private marqueeEndX: number = 0;
+  private marqueeEndY: number = 0;
+  private marqueeSelectedIds: Set<string> = new Set();
+
   // Mouse position for tooltip
   private mouseX: number = 0;
   private mouseY: number = 0;
@@ -263,6 +298,18 @@ export class GanttCanvas {
   private highlightPhase: number = 0;
   private highlightAnimationId: number | null = null;
 
+  // Performance: Anti-flicker render suppression
+  // When true, markDirty() calls are ignored to prevent flickering during drag operations
+  private suppressRender: boolean = false;
+  private pendingUpdates: Map<string, GanttTask> = new Map(); // Deduplicate updates
+  private cascadeInProgress: boolean = false; // Prevent cascade loops
+
+  // Performance: Debounced state persistence
+  private statePersistenceKey: string = 'gantt-canvas-state';
+  private statePersistenceDebounceMs: number = 1000;
+  private statePersistenceTimeout: ReturnType<typeof setTimeout> | null = null;
+  private statePersistenceEnabled: boolean = false;
+
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
   private onTaskDoubleClick?: (task: GanttTask) => void;
@@ -273,6 +320,8 @@ export class GanttCanvas {
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
   private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
   private onTaskUpdate?: (task: GanttTask) => void;
+  private onProgressChange?: (task: GanttTask, newProgress: number) => void;
+  private onSelectionChange?: (selectedTaskIds: string[]) => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -390,21 +439,6 @@ export class GanttCanvas {
   }
 
   /**
-   * Scroll to a specific task
-   */
-  scrollToTask(taskId: string): void {
-    const task = this.state.tasks.find(t => t.id === taskId);
-    if (!task) return;
-
-    const taskIndex = this.state.tasks.indexOf(task);
-    const y = taskIndex * this.config.rowHeight;
-    const x = this.viewport.dateToX(task.startDate);
-
-    this.viewport.scrollTo(x - 100, y - 100);
-    this.markDirty();
-  }
-
-  /**
    * Scroll to today
    */
   scrollToToday(): void {
@@ -412,6 +446,76 @@ export class GanttCanvas {
     const x = this.viewport.dateToX(today);
     this.viewport.scrollTo(x - this.containerWidth / 2, this.state.viewportState.scrollY);
     this.markDirty();
+  }
+
+  /**
+   * Scroll to a specific date
+   * @param date - The date to scroll to
+   * @param center - If true, center the date in the viewport
+   */
+  scrollToDate(date: Date, center: boolean = true): void {
+    const x = this.viewport.dateToX(date);
+    const scrollX = center ? x - this.containerWidth / 2 : x;
+    this.viewport.scrollTo(scrollX, this.state.viewportState.scrollY);
+    this.markDirty();
+  }
+
+  /**
+   * Scroll to a specific task
+   * @param taskId - The task ID to scroll to
+   * @param select - If true, also select the task
+   */
+  scrollToTask(taskId: string, select: boolean = false): void {
+    const taskIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+
+    const task = this.state.tasks[taskIndex];
+
+    // Calculate scroll position to center the task
+    const x = this.viewport.dateToX(task.startDate);
+    const y = this.viewport.rowToY(taskIndex);
+
+    // Scroll to center the task both horizontally and vertically
+    this.viewport.scrollTo(
+      x - this.containerWidth / 3,
+      y - this.containerHeight / 2 + this.config.headerHeight
+    );
+
+    // Optionally select the task
+    if (select) {
+      this.state.selectedTaskIds.clear();
+      this.state.selectedTaskIds.add(taskId);
+      this.state.lastSelectedTaskId = taskId;
+      this.startDependencyFlash(taskId);
+    }
+
+    this.markDirty();
+  }
+
+  /**
+   * Get the currently visible date range
+   */
+  getVisibleDateRange(): { start: Date; end: Date } {
+    const startX = this.state.viewportState.scrollX;
+    const endX = startX + this.containerWidth;
+    return {
+      start: this.viewport.xToDate(startX),
+      end: this.viewport.xToDate(endX),
+    };
+  }
+
+  /**
+   * Get the currently visible task indices
+   */
+  getVisibleTaskRange(): { first: number; last: number } {
+    const scrollY = this.state.viewportState.scrollY;
+    const viewHeight = this.containerHeight - this.config.headerHeight;
+    const first = Math.floor(scrollY / this.config.rowHeight);
+    const last = Math.ceil((scrollY + viewHeight) / this.config.rowHeight);
+    return {
+      first: Math.max(0, first),
+      last: Math.min(this.state.tasks.length - 1, last),
+    };
   }
 
   /**
@@ -495,6 +599,88 @@ export class GanttCanvas {
     }
   }
 
+  // ============================================================================
+  // Batch Updates (Anti-Flicker)
+  // ============================================================================
+
+  /**
+   * Apply batch updates to multiple tasks with anti-flicker protection
+   * Use this for cascade operations where many tasks change at once
+   *
+   * @param updates - Map of task ID to updated task data
+   * @param triggerCallbacks - Whether to call onTaskUpdate for each task (default: true)
+   */
+  batchUpdateTasks(
+    updates: Map<string, Partial<GanttTask>>,
+    triggerCallbacks: boolean = true
+  ): void {
+    if (updates.size === 0) return;
+
+    // Prevent cascade loops
+    if (this.cascadeInProgress) {
+      console.warn('GanttCanvas: Ignoring nested batch update to prevent cascade loop');
+      return;
+    }
+
+    this.cascadeInProgress = true;
+    this.beginRenderSuppression();
+
+    try {
+      updates.forEach((update, taskId) => {
+        const index = this.state.tasks.findIndex(t => t.id === taskId);
+        if (index === -1) return;
+
+        const task = this.state.tasks[index];
+        const updatedTask = { ...task, ...update };
+        this.state.tasks[index] = updatedTask;
+
+        if (triggerCallbacks) {
+          this.onTaskUpdate?.(updatedTask);
+        }
+      });
+
+      this.debouncedPersistState();
+    } finally {
+      this.cascadeInProgress = false;
+      this.endRenderSuppression();
+    }
+  }
+
+  /**
+   * Begin a batch update session (for external code)
+   * Call endBatchUpdate() when done to trigger a single re-render
+   */
+  beginBatchUpdate(): void {
+    this.beginRenderSuppression();
+  }
+
+  /**
+   * End a batch update session and trigger re-render
+   */
+  endBatchUpdate(): void {
+    this.applyPendingUpdates();
+    this.endRenderSuppression();
+  }
+
+  /**
+   * Update a single task during a batch session
+   * Updates are queued and applied when endBatchUpdate() is called
+   */
+  queueUpdate(taskId: string, update: Partial<GanttTask>): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const existingUpdate = this.pendingUpdates.get(taskId) || task;
+    this.pendingUpdates.set(taskId, { ...existingUpdate, ...update });
+  }
+
+  /**
+   * Check if a cascade operation is currently in progress
+   */
+  isCascadeInProgress(): boolean {
+    return this.cascadeInProgress;
+  }
+
   /**
    * Set event handlers
    */
@@ -530,6 +716,14 @@ export class GanttCanvas {
 
   onTaskUpdateHandler(handler: (task: GanttTask) => void): void {
     this.onTaskUpdate = handler;
+  }
+
+  onProgressChangeHandler(handler: (task: GanttTask, newProgress: number) => void): void {
+    this.onProgressChange = handler;
+  }
+
+  onSelectionChangeHandler(handler: (selectedTaskIds: string[]) => void): void {
+    this.onSelectionChange = handler;
   }
 
   /**
@@ -872,6 +1066,211 @@ export class GanttCanvas {
       }
     });
     this.markDirty();
+  }
+
+  // ============================================================================
+  // Hold State Management
+  // ============================================================================
+
+  /**
+   * Put a task on hold with a reason
+   * @param taskId - The task to put on hold
+   * @param reason - The reason for holding
+   * @param notes - Optional notes about the hold
+   * @param heldBy - Optional name of who placed the hold
+   */
+  holdTask(taskId: string, reason: HoldReason, notes?: string, heldBy?: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    task.status = 'on-hold';
+    task.holdState = {
+      reason,
+      notes,
+      heldAt: new Date(),
+      heldBy,
+    };
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Resume a task from hold
+   * @param taskId - The task to resume
+   * @param newStatus - The status to set after resuming (default: 'in-progress')
+   */
+  resumeTask(taskId: string, newStatus: 'not-started' | 'in-progress' = 'in-progress'): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task || task.status !== 'on-hold') return;
+
+    task.status = newStatus;
+    task.holdState = undefined;
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Check if a task is on hold
+   */
+  isTaskOnHold(taskId: string): boolean {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task?.status === 'on-hold';
+  }
+
+  /**
+   * Get the hold state for a task
+   */
+  getHoldState(taskId: string): HoldState | undefined {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task?.holdState;
+  }
+
+  /**
+   * Get all tasks currently on hold
+   */
+  getTasksOnHold(): GanttTask[] {
+    return this.state.tasks.filter(t => t.status === 'on-hold');
+  }
+
+  /**
+   * Get tasks on hold by reason
+   */
+  getTasksOnHoldByReason(reason: HoldReason): GanttTask[] {
+    return this.state.tasks.filter(t => t.status === 'on-hold' && t.holdState?.reason === reason);
+  }
+
+  /**
+   * Get hold reason display name
+   */
+  static getHoldReasonDisplayName(reason: HoldReason): string {
+    const displayNames: Record<HoldReason, string> = {
+      'whs_incident': 'WHS Incident',
+      'weather_delay': 'Weather Delay',
+      'permit_delay': 'Permit Delay',
+      'client_request': 'Client Request',
+      'material_delay': 'Material Delay',
+      'subcontractor_issue': 'Subcontractor Issue',
+      'other': 'Other',
+    };
+    return displayNames[reason] || reason;
+  }
+
+  // ============================================================================
+  // Today Constraint Detection
+  // ============================================================================
+
+  /**
+   * Check if moving a task to a date would violate the "today constraint"
+   * (i.e., trying to schedule a task to start before today)
+   * @param taskId - The task to check
+   * @param proposedStartDate - The proposed new start date
+   * @returns true if the date is before today
+   */
+  wouldViolateTodayConstraint(taskId: string, proposedStartDate: Date): boolean {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const proposed = new Date(proposedStartDate);
+    proposed.setHours(0, 0, 0, 0);
+
+    return proposed < today;
+  }
+
+  /**
+   * Check if a task currently violates the today constraint
+   * (is scheduled to start before today but hasn't started)
+   */
+  violatesTodayConstraint(taskId: string): boolean {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return false;
+
+    // Already started or completed tasks don't violate
+    if (task.status === 'in-progress' || task.status === 'completed') {
+      return false;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const taskStart = new Date(task.startDate);
+    taskStart.setHours(0, 0, 0, 0);
+
+    return taskStart < today;
+  }
+
+  /**
+   * Get all tasks that violate the today constraint
+   * (scheduled before today but not started)
+   */
+  getTasksViolatingTodayConstraint(): GanttTask[] {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return this.state.tasks.filter(task => {
+      if (task.status === 'in-progress' || task.status === 'completed') {
+        return false;
+      }
+
+      const taskStart = new Date(task.startDate);
+      taskStart.setHours(0, 0, 0, 0);
+
+      return taskStart < today;
+    });
+  }
+
+  /**
+   * Check if moving a task would cause any predecessor constraint violations
+   * @param taskId - The task to check
+   * @param proposedStartDate - The proposed new start date
+   * @returns Object with violation details
+   */
+  checkMoveConstraints(taskId: string, proposedStartDate: Date): {
+    violatesToday: boolean;
+    violatesPredecessors: { predecessorId: string; predecessorEndDate: Date }[];
+    canMove: boolean;
+  } {
+    const result = {
+      violatesToday: this.wouldViolateTodayConstraint(taskId, proposedStartDate),
+      violatesPredecessors: [] as { predecessorId: string; predecessorEndDate: Date }[],
+      canMove: true,
+    };
+
+    // Check predecessor constraints
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (task && task.predecessorIds) {
+      const proposed = new Date(proposedStartDate);
+      proposed.setHours(0, 0, 0, 0);
+
+      for (const predId of task.predecessorIds) {
+        const predecessor = this.state.tasks.find(t => t.id === predId);
+        if (!predecessor) continue;
+
+        // Get the dependency to check lag
+        const dep = this.state.dependencies.find(
+          d => d.fromId === predId && d.toId === taskId
+        );
+        const lag = dep?.lag || 0;
+
+        // For FS dependencies, successor can't start before predecessor ends + lag
+        if (!dep || dep.type === 'FS') {
+          const predEnd = new Date(predecessor.endDate);
+          predEnd.setHours(0, 0, 0, 0);
+
+          const minStart = new Date(predEnd);
+          minStart.setDate(minStart.getDate() + 1 + lag);
+
+          if (proposed < minStart) {
+            result.violatesPredecessors.push({
+              predecessorId: predId,
+              predecessorEndDate: predEnd,
+            });
+          }
+        }
+      }
+    }
+
+    result.canMove = !result.violatesToday && result.violatesPredecessors.length === 0;
+    return result;
   }
 
   // ============================================================================
@@ -1404,8 +1803,190 @@ export class GanttCanvas {
   // Private Methods
   // ============================================================================
 
+  /**
+   * Mark the canvas as dirty (needs re-render)
+   * Respects suppressRender flag to prevent flickering during drag operations
+   */
   private markDirty(): void {
+    // Anti-flicker: Skip marking dirty if render is suppressed
+    if (this.suppressRender) {
+      return;
+    }
     this.isDirty = true;
+  }
+
+  /**
+   * Force a re-render even when suppressRender is active
+   * Use sparingly - only for critical visual updates during drag
+   */
+  private forceRender(): void {
+    this.isDirty = true;
+  }
+
+  /**
+   * Begin render suppression for drag/cascade operations
+   * Prevents flickering by batching visual updates
+   */
+  private beginRenderSuppression(): void {
+    this.suppressRender = true;
+  }
+
+  /**
+   * End render suppression and trigger a single re-render
+   * Uses requestAnimationFrame for smooth deferred update
+   */
+  private endRenderSuppression(): void {
+    this.suppressRender = false;
+    // Use RAF to ensure we render after all pending updates are applied
+    requestAnimationFrame(() => {
+      this.isDirty = true;
+    });
+  }
+
+  /**
+   * Queue a task update for batching
+   * Deduplicates updates to the same task
+   */
+  private queueTaskUpdate(task: GanttTask): void {
+    this.pendingUpdates.set(task.id, { ...task });
+  }
+
+  /**
+   * Apply all pending updates and clear the queue
+   */
+  private applyPendingUpdates(): void {
+    if (this.pendingUpdates.size === 0) return;
+
+    this.pendingUpdates.forEach((updatedTask, taskId) => {
+      const index = this.state.tasks.findIndex(t => t.id === taskId);
+      if (index !== -1) {
+        this.state.tasks[index] = updatedTask;
+        this.onTaskUpdate?.(updatedTask);
+      }
+    });
+
+    this.pendingUpdates.clear();
+    this.debouncedPersistState();
+  }
+
+  // ============================================================================
+  // State Persistence (Debounced)
+  // ============================================================================
+
+  /**
+   * Enable state persistence to localStorage
+   */
+  enableStatePersistence(key?: string, debounceMs?: number): void {
+    this.statePersistenceEnabled = true;
+    if (key) this.statePersistenceKey = key;
+    if (debounceMs) this.statePersistenceDebounceMs = debounceMs;
+  }
+
+  /**
+   * Disable state persistence
+   */
+  disableStatePersistence(): void {
+    this.statePersistenceEnabled = false;
+    if (this.statePersistenceTimeout) {
+      clearTimeout(this.statePersistenceTimeout);
+      this.statePersistenceTimeout = null;
+    }
+  }
+
+  /**
+   * Debounced state persistence to localStorage
+   * Prevents excessive writes during rapid updates
+   */
+  private debouncedPersistState(): void {
+    if (!this.statePersistenceEnabled) return;
+
+    // Clear any pending save
+    if (this.statePersistenceTimeout) {
+      clearTimeout(this.statePersistenceTimeout);
+    }
+
+    // Schedule new save
+    this.statePersistenceTimeout = setTimeout(() => {
+      this.persistState();
+      this.statePersistenceTimeout = null;
+    }, this.statePersistenceDebounceMs);
+  }
+
+  /**
+   * Immediately persist state to localStorage
+   */
+  private persistState(): void {
+    if (!this.statePersistenceEnabled) return;
+
+    try {
+      const stateToSave = {
+        viewportState: this.state.viewportState,
+        selectedTaskIds: Array.from(this.state.selectedTaskIds),
+        minimapVisible: this.minimapVisible,
+        criticalPathEnabled: this.criticalPathEnabled,
+        baselineEnabled: this.baselineEnabled,
+      };
+      localStorage.setItem(this.statePersistenceKey, JSON.stringify(stateToSave));
+    } catch (e) {
+      console.warn('GanttCanvas: Failed to persist state', e);
+    }
+  }
+
+  /**
+   * Restore state from localStorage
+   */
+  restoreState(): boolean {
+    if (!this.statePersistenceEnabled) return false;
+
+    try {
+      const saved = localStorage.getItem(this.statePersistenceKey);
+      if (!saved) return false;
+
+      const parsed = JSON.parse(saved);
+
+      if (parsed.viewportState) {
+        this.viewport.scrollTo(parsed.viewportState.scrollX, parsed.viewportState.scrollY);
+        if (parsed.viewportState.zoom) {
+          this.viewport.setZoom(parsed.viewportState.zoom);
+        }
+      }
+
+      if (parsed.selectedTaskIds) {
+        this.state.selectedTaskIds = new Set(parsed.selectedTaskIds);
+      }
+
+      if (typeof parsed.minimapVisible === 'boolean') {
+        this.minimapVisible = parsed.minimapVisible;
+      }
+
+      if (typeof parsed.criticalPathEnabled === 'boolean') {
+        this.criticalPathEnabled = parsed.criticalPathEnabled;
+        if (this.criticalPathEnabled) {
+          this.recalculateCriticalPath();
+        }
+      }
+
+      if (typeof parsed.baselineEnabled === 'boolean') {
+        this.baselineEnabled = parsed.baselineEnabled;
+      }
+
+      this.markDirty();
+      return true;
+    } catch (e) {
+      console.warn('GanttCanvas: Failed to restore state', e);
+      return false;
+    }
+  }
+
+  /**
+   * Clear persisted state
+   */
+  clearPersistedState(): void {
+    try {
+      localStorage.removeItem(this.statePersistenceKey);
+    } catch (e) {
+      console.warn('GanttCanvas: Failed to clear persisted state', e);
+    }
   }
 
   private startRenderLoop(): void {
@@ -1934,6 +2515,8 @@ export class GanttCanvas {
       if (!this.isDragging && Math.abs(deltaX) > this.dragThreshold) {
         this.isDragging = true;
         this.canvas.style.cursor = 'grabbing';
+        // Anti-flicker: We DON'T suppress during drag preview - we want smooth visual feedback
+        // Suppression is used during cascade calculations when many tasks update at once
       }
 
       if (this.isDragging) {
@@ -2472,6 +3055,200 @@ export class GanttCanvas {
     }
 
     return null;
+  }
+
+  /**
+   * Hit test for progress bar (for dragging progress)
+   * Returns the task and x position within the progress bar
+   */
+  private hitTestProgressBar(x: number, y: number): { task: GanttTask; progressX: number } | null {
+    // Account for header height
+    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    if (adjustedY < 0) return null;
+
+    // Find which row was clicked
+    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
+    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
+
+    const task = this.state.tasks[rowIndex];
+
+    // Calculate task bar bounds
+    const taskStartX = this.viewport.dateToX(task.startDate);
+    const taskEndX = this.viewport.dateToX(task.endDate);
+    const taskWidth = taskEndX - taskStartX;
+
+    // Check if click is within the task bar horizontally
+    if (x < taskStartX || x > taskEndX) return null;
+
+    // Check if click is in the bottom third of the row (where progress bar would be)
+    const rowY = this.viewport.rowToY(rowIndex);
+    const barTop = rowY + (this.config.rowHeight - this.config.taskBarHeight) / 2;
+    const barBottom = barTop + this.config.taskBarHeight;
+
+    if (y < barTop || y > barBottom) return null;
+
+    // Calculate relative position within task bar (0 to 1)
+    const progressX = (x - taskStartX) / taskWidth;
+
+    return { task, progressX };
+  }
+
+  /**
+   * Get tasks within a marquee rectangle
+   */
+  private getTasksInMarquee(x1: number, y1: number, x2: number, y2: number): GanttTask[] {
+    // Normalize rectangle
+    const left = Math.min(x1, x2);
+    const right = Math.max(x1, x2);
+    const top = Math.min(y1, y2);
+    const bottom = Math.max(y1, y2);
+
+    const tasks: GanttTask[] = [];
+
+    this.state.tasks.forEach((task, index) => {
+      const taskStartX = this.viewport.dateToX(task.startDate);
+      const taskEndX = this.viewport.dateToX(task.endDate);
+      const rowY = this.viewport.rowToY(index);
+      const taskTop = rowY + (this.config.rowHeight - this.config.taskBarHeight) / 2;
+      const taskBottom = taskTop + this.config.taskBarHeight;
+
+      // Check if task bar intersects with marquee
+      const intersectsX = taskStartX <= right && taskEndX >= left;
+      const intersectsY = taskTop <= bottom && taskBottom >= top;
+
+      if (intersectsX && intersectsY) {
+        tasks.push(task);
+      }
+    });
+
+    return tasks;
+  }
+
+  // ============================================================================
+  // Progress API
+  // ============================================================================
+
+  /**
+   * Set progress for a task
+   * @param taskId - The task ID
+   * @param progress - Progress value between 0 and 100
+   */
+  setProgress(taskId: string, progress: number): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const clampedProgress = Math.max(0, Math.min(100, progress));
+    task.progress = clampedProgress;
+    this.onProgressChange?.(task, clampedProgress);
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Get progress for a task
+   */
+  getProgress(taskId: string): number {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task?.progress ?? 0;
+  }
+
+  /**
+   * Increment progress for a task
+   */
+  incrementProgress(taskId: string, amount: number = 10): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    const newProgress = Math.min(100, (task.progress || 0) + amount);
+    this.setProgress(taskId, newProgress);
+  }
+
+  /**
+   * Complete a task (set progress to 100%)
+   */
+  completeTask(taskId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    task.progress = 100;
+    task.status = 'completed';
+    this.onProgressChange?.(task, 100);
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  // ============================================================================
+  // Selection API
+  // ============================================================================
+
+  /**
+   * Get all selected task IDs
+   */
+  getSelectedTaskIds(): string[] {
+    return Array.from(this.state.selectedTaskIds);
+  }
+
+  /**
+   * Get all selected tasks
+   */
+  getSelectedTasks(): GanttTask[] {
+    return this.state.tasks.filter(t => this.state.selectedTaskIds.has(t.id));
+  }
+
+  /**
+   * Select tasks by IDs
+   */
+  selectTasks(taskIds: string[], addToSelection: boolean = false): void {
+    if (!addToSelection) {
+      this.state.selectedTaskIds.clear();
+    }
+
+    taskIds.forEach(id => {
+      if (this.state.tasks.some(t => t.id === id)) {
+        this.state.selectedTaskIds.add(id);
+      }
+    });
+
+    if (taskIds.length > 0) {
+      this.state.lastSelectedTaskId = taskIds[taskIds.length - 1];
+    }
+
+    this.onSelectionChange?.(this.getSelectedTaskIds());
+    this.markDirty();
+  }
+
+  /**
+   * Select all tasks
+   */
+  selectAllTasks(): void {
+    this.state.tasks.forEach(t => this.state.selectedTaskIds.add(t.id));
+    this.onSelectionChange?.(this.getSelectedTaskIds());
+    this.markDirty();
+  }
+
+  /**
+   * Clear selection
+   */
+  clearSelection(): void {
+    this.state.selectedTaskIds.clear();
+    this.state.lastSelectedTaskId = null;
+    this.onSelectionChange?.([]);
+    this.markDirty();
+  }
+
+  /**
+   * Invert selection
+   */
+  invertSelection(): void {
+    const newSelection = new Set<string>();
+    this.state.tasks.forEach(t => {
+      if (!this.state.selectedTaskIds.has(t.id)) {
+        newSelection.add(t.id);
+      }
+    });
+    this.state.selectedTaskIds = newSelection;
+    this.onSelectionChange?.(this.getSelectedTaskIds());
+    this.markDirty();
   }
 }
 

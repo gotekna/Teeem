@@ -160,6 +160,7 @@ module Api
       def company_group_params
         params.require(:company_group).permit(
           :name,
+          :code,
           :description,
           :default_registered_office,
           :default_principal_place,
@@ -173,6 +174,7 @@ module Api
         data = {
           id: group.id,
           name: group.name,
+          code: group.code,
           description: group.description,
           default_registered_office: group.default_registered_office,
           default_principal_place: group.default_principal_place,
