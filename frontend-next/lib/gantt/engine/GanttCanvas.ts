@@ -9626,6 +9626,1456 @@ export class GanttCanvas {
     this.ctx.setLineDash([]);
   }
 
+  // =========================================================================
+  // FEATURE 12: TASK RESIZE (DURATION CHANGE)
+  // =========================================================================
+  private resizeState: {
+    isResizing: boolean;
+    taskId: string | null;
+    edge: 'left' | 'right' | null;
+    originalStartDate: Date | null;
+    originalEndDate: Date | null;
+    startX: number;
+  } = { isResizing: false, taskId: null, edge: null, originalStartDate: null, originalEndDate: null, startX: 0 };
+
+  startTaskResize(taskId: string, edge: 'left' | 'right', startX: number): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task || this.isTaskLocked(taskId)) return;
+
+    this.resizeState = {
+      isResizing: true,
+      taskId,
+      edge,
+      originalStartDate: new Date(task.startDate),
+      originalEndDate: new Date(task.endDate),
+      startX
+    };
+    this.markDirty();
+  }
+
+  updateTaskResize(currentX: number): void {
+    if (!this.resizeState.isResizing || !this.resizeState.taskId) return;
+
+    const task = this.state.tasks.find(t => t.id ===this.resizeState.taskId);
+    if (!task) return;
+
+    const deltaX = currentX - this.resizeState.startX;
+    const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.viewport.getState().zoom));
+
+    if (this.resizeState.edge === 'left' && this.resizeState.originalStartDate) {
+      const newStart = new Date(this.resizeState.originalStartDate);
+      newStart.setDate(newStart.getDate() + daysDelta);
+      if (newStart < task.endDate) {
+        task.startDate = newStart;
+      }
+    } else if (this.resizeState.edge === 'right' && this.resizeState.originalEndDate) {
+      const newEnd = new Date(this.resizeState.originalEndDate);
+      newEnd.setDate(newEnd.getDate() + daysDelta);
+      if (newEnd > task.startDate) {
+        task.endDate = newEnd;
+      }
+    }
+
+    this.markDirty();
+  }
+
+  endTaskResize(): { taskId: string; oldStart: Date; oldEnd: Date; newStart: Date; newEnd: Date } | null {
+    if (!this.resizeState.isResizing || !this.resizeState.taskId) return null;
+
+    const task = this.state.tasks.find(t => t.id ===this.resizeState.taskId);
+    const result = task && this.resizeState.originalStartDate && this.resizeState.originalEndDate ? {
+      taskId: this.resizeState.taskId,
+      oldStart: this.resizeState.originalStartDate,
+      oldEnd: this.resizeState.originalEndDate,
+      newStart: task.startDate,
+      newEnd: task.endDate
+    } : null;
+
+    this.resizeState = { isResizing: false, taskId: null, edge: null, originalStartDate: null, originalEndDate: null, startX: 0 };
+    this.markDirty();
+    return result;
+  }
+
+  isResizingTask(): boolean { return this.resizeState.isResizing; }
+  getResizingTaskId(): string | null { return this.resizeState.taskId; }
+
+  // =========================================================================
+  // FEATURE 16: LINK/DEPENDENCY CREATION BY DRAG
+  // =========================================================================
+  private linkCreationState: {
+    isCreating: boolean;
+    fromTaskId: string | null;
+    fromEdge: 'start' | 'end';
+    currentX: number;
+    currentY: number;
+  } = { isCreating: false, fromTaskId: null, fromEdge: 'end', currentX: 0, currentY: 0 };
+
+  startLinkCreation(taskId: string, edge: 'start' | 'end'): void {
+    this.linkCreationState = {
+      isCreating: true,
+      fromTaskId: taskId,
+      fromEdge: edge,
+      currentX: 0,
+      currentY: 0
+    };
+    this.markDirty();
+  }
+
+  updateLinkCreation(x: number, y: number): void {
+    if (!this.linkCreationState.isCreating) return;
+    this.linkCreationState.currentX = x;
+    this.linkCreationState.currentY = y;
+    this.markDirty();
+  }
+
+  completeLinkCreation(toTaskId: string, toEdge: 'start' | 'end'): GanttDependency | null {
+    if (!this.linkCreationState.isCreating || !this.linkCreationState.fromTaskId) return null;
+
+    const fromEdge = this.linkCreationState.fromEdge;
+    let depType: 'FS' | 'SS' | 'FF' | 'SF';
+
+    if (fromEdge === 'end' && toEdge === 'start') depType = 'FS';
+    else if (fromEdge === 'start' && toEdge === 'start') depType = 'SS';
+    else if (fromEdge === 'end' && toEdge === 'end') depType = 'FF';
+    else depType = 'SF';
+
+    // Check for circular dependency
+    if (this.wouldCreateCircularDependency(this.linkCreationState.fromTaskId, toTaskId)) {
+      this.cancelLinkCreation();
+      return null;
+    }
+
+    const newDep: GanttDependency = {
+      id: `dep-${Date.now()}`,
+      fromId: this.linkCreationState.fromTaskId,
+      toId: toTaskId,
+      type: depType,
+      lag: 0
+    };
+
+    this.state.dependencies.push(newDep);
+    this.cancelLinkCreation();
+    return newDep;
+  }
+
+  cancelLinkCreation(): void {
+    this.linkCreationState = { isCreating: false, fromTaskId: null, fromEdge: 'end', currentX: 0, currentY: 0 };
+    this.markDirty();
+  }
+
+  isCreatingLink(): boolean { return this.linkCreationState.isCreating; }
+
+  renderLinkCreationLine(): void {
+    if (!this.linkCreationState.isCreating || !this.linkCreationState.fromTaskId) return;
+
+    const fromTask = this.state.tasks.find(t => t.id ===this.linkCreationState.fromTaskId);
+    if (!fromTask) return;
+
+    const taskIndex = this.state.tasks.findIndex(t => t.id === fromTask.id);
+    const fromX = this.linkCreationState.fromEdge === 'end'
+      ? this.dateToX(fromTask.endDate)
+      : this.dateToX(fromTask.startDate);
+    const fromY = this.viewport.rowToY(taskIndex) + this.config.rowHeight / 2;
+
+    this.ctx.beginPath();
+    this.ctx.strokeStyle = '#6366f1';
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([5, 5]);
+    this.ctx.moveTo(fromX, fromY);
+    this.ctx.lineTo(this.linkCreationState.currentX, this.linkCreationState.currentY);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+  }
+
+  // =========================================================================
+  // FEATURE 17: VIRTUAL SCROLLING EXTENSIONS
+  // =========================================================================
+  // Note: Core getVisibleTaskRange/getVisibleTasks defined earlier. These are extensions.
+  private virtualScrollEnabled: boolean = true;
+  private overscanRows: number = 5;
+  private overscanDays: number = 7;
+
+  setVirtualScrollEnabled(enabled: boolean): void {
+    this.virtualScrollEnabled = enabled;
+    this.markDirty();
+  }
+
+  setOverscan(rows: number, days: number): void {
+    this.overscanRows = Math.max(0, rows);
+    this.overscanDays = Math.max(0, days);
+    this.markDirty();
+  }
+
+  getExtendedVisibleDateRange(): { startDate: Date; endDate: Date } {
+    const state = this.viewport.getState();
+    const dayWidth = this.config.dayWidth * state.zoom;
+
+    const startDays = Math.floor(state.scrollX / dayWidth) - this.overscanDays;
+    const endDays = Math.ceil((state.scrollX + this.containerWidth) / dayWidth) + this.overscanDays;
+
+    const projectStart = this.getProjectStartDate() || new Date();
+    const startDate = new Date(projectStart);
+    startDate.setDate(startDate.getDate() + startDays);
+
+    const endDate = new Date(projectStart);
+    endDate.setDate(endDate.getDate() + endDays);
+
+    return { startDate, endDate };
+  }
+
+  // =========================================================================
+  // FEATURE 18: MINIMAP NAVIGATION
+  // =========================================================================
+  private minimapEnabled: boolean = false;
+  private minimapWidth: number = 200;
+  private minimapHeight: number = 100;
+  private minimapPosition: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' = 'bottom-right';
+  private isMinimapDragging: boolean = false;
+
+  setMinimapEnabled(enabled: boolean): void {
+    this.minimapEnabled = enabled;
+    this.markDirty();
+  }
+
+  setMinimapSize(width: number, height: number): void {
+    this.minimapWidth = Math.max(100, width);
+    this.minimapHeight = Math.max(50, height);
+    this.markDirty();
+  }
+
+  setMinimapPosition(position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'): void {
+    this.minimapPosition = position;
+    this.markDirty();
+  }
+
+  getMinimapBounds(): { x: number; y: number; width: number; height: number } {
+    const padding = 10;
+    let x: number, y: number;
+
+    switch (this.minimapPosition) {
+      case 'top-left':
+        x = padding;
+        y = this.config.headerHeight + padding;
+        break;
+      case 'top-right':
+        x = this.containerWidth - this.minimapWidth - padding;
+        y = this.config.headerHeight + padding;
+        break;
+      case 'bottom-left':
+        x = padding;
+        y = this.containerHeight - this.minimapHeight - padding;
+        break;
+      case 'bottom-right':
+      default:
+        x = this.containerWidth - this.minimapWidth - padding;
+        y = this.containerHeight - this.minimapHeight - padding;
+        break;
+    }
+
+    return { x, y, width: this.minimapWidth, height: this.minimapHeight };
+  }
+
+  renderMinimap(): void {
+    if (!this.minimapEnabled || this.state.tasks.length === 0) return;
+
+    const bounds = this.getMinimapBounds();
+    const ctx = this.ctx;
+
+    // Background
+    ctx.fillStyle = this.config.darkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+    ctx.fillRect(bounds.x, bounds.y, bounds.width, bounds.height);
+    ctx.strokeStyle = this.config.darkMode ? '#444' : '#ccc';
+    ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
+
+    // Calculate scale
+    const projectStart = this.getProjectStartDate() || new Date();
+    const projectEnd = this.getProjectEndDate() || new Date();
+    const totalDays = Math.max(1, (projectEnd.getTime() - projectStart.getTime()) / (24 * 60 * 60 * 1000));
+    const totalRows = this.state.tasks.length;
+
+    const scaleX = bounds.width / totalDays;
+    const scaleY = bounds.height / totalRows;
+
+    // Draw tasks
+    ctx.fillStyle = this.config.darkMode ? '#6366f1' : '#4f46e5';
+    this.state.tasks.forEach((task, index) => {
+      const taskStartDays = (task.startDate.getTime() - projectStart.getTime()) / (24 * 60 * 60 * 1000);
+      const taskDuration = (task.endDate.getTime() - task.startDate.getTime()) / (24 * 60 * 60 * 1000);
+
+      const x = bounds.x + taskStartDays * scaleX;
+      const y = bounds.y + index * scaleY;
+      const w = Math.max(2, taskDuration * scaleX);
+      const h = Math.max(1, scaleY * 0.8);
+
+      ctx.fillRect(x, y, w, h);
+    });
+
+    // Draw viewport rectangle
+    const state = this.viewport.getState();
+    const dayWidth = this.config.dayWidth * state.zoom;
+    const viewStartDays = state.scrollX / dayWidth;
+    const viewDays = this.containerWidth / dayWidth;
+    const viewStartRow = state.scrollY / this.config.rowHeight;
+    const viewRows = (this.containerHeight - this.config.headerHeight) / this.config.rowHeight;
+
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(
+      bounds.x + viewStartDays * scaleX,
+      bounds.y + viewStartRow * scaleY,
+      viewDays * scaleX,
+      viewRows * scaleY
+    );
+  }
+
+  handleMinimapClick(x: number, y: number): boolean {
+    if (!this.minimapEnabled) return false;
+
+    const bounds = this.getMinimapBounds();
+    if (x < bounds.x || x > bounds.x + bounds.width ||
+        y < bounds.y || y > bounds.y + bounds.height) return false;
+
+    this.navigateFromMinimap(x, y);
+    return true;
+  }
+
+  private navigateFromMinimap(clickX: number, clickY: number): void {
+    const bounds = this.getMinimapBounds();
+    const projectStart = this.getProjectStartDate() || new Date();
+    const projectEnd = this.getProjectEndDate() || new Date();
+    const totalDays = (projectEnd.getTime() - projectStart.getTime()) / (24 * 60 * 60 * 1000);
+    const totalRows = this.state.tasks.length;
+
+    const relX = (clickX - bounds.x) / bounds.width;
+    const relY = (clickY - bounds.y) / bounds.height;
+
+    const state = this.viewport.getState();
+    const dayWidth = this.config.dayWidth * state.zoom;
+
+    const newScrollX = relX * totalDays * dayWidth - this.containerWidth / 2;
+    const newScrollY = relY * totalRows * this.config.rowHeight - (this.containerHeight - this.config.headerHeight) / 2;
+
+    this.viewport.scrollTo(Math.max(0, newScrollX), Math.max(0, newScrollY));
+    this.markDirty();
+  }
+
+  private getProjectEndDate(): Date | null {
+    if (this.state.tasks.length === 0) return null;
+    let latest = this.state.tasks[0].endDate;
+    this.state.tasks.forEach(task => {
+      if (task.endDate > latest) latest = task.endDate;
+    });
+    return latest;
+  }
+
+  // =========================================================================
+  // FEATURE 19: BASELINE COMPARISON VISUALIZATION EXTENSIONS
+  // =========================================================================
+  // Note: Core baseline methods defined earlier. These are rendering extensions.
+  private baselineRenderOpacity: number = 0.4;
+  private baselineRenderColor: string = '#9ca3af';
+
+  setBaselineRenderStyle(opacity: number, color: string): void {
+    this.baselineRenderOpacity = Math.max(0, Math.min(1, opacity));
+    this.baselineRenderColor = color;
+    this.markDirty();
+  }
+
+  renderBaselineBar(task: GanttTask, taskIndex: number): void {
+    const baseline = this.getBaseline(task.id);
+    if (!baseline) return;
+
+    const x = this.dateToX(baseline.startDate);
+    const y = this.viewport.rowToY(taskIndex) + this.config.rowHeight - 8;
+    const width = this.dateToX(baseline.endDate) - x;
+    const height = 4;
+
+    this.ctx.globalAlpha = this.baselineRenderOpacity;
+    this.ctx.fillStyle = this.baselineRenderColor;
+    this.ctx.fillRect(x, y, width, height);
+    this.ctx.globalAlpha = 1;
+  }
+
+  calculateBaselineVariance(taskId: string): { startVariance: number; endVariance: number; durationVariance: number } | null {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    const baseline = this.getBaseline(taskId);
+    if (!task || !baseline) return null;
+
+    const oneDay = 24 * 60 * 60 * 1000;
+    const startVariance = Math.round((task.startDate.getTime() - baseline.startDate.getTime()) / oneDay);
+    const endVariance = Math.round((task.endDate.getTime() - baseline.endDate.getTime()) / oneDay);
+    const actualDuration = Math.round((task.endDate.getTime() - task.startDate.getTime()) / oneDay);
+    const baselineDuration = Math.round((baseline.endDate.getTime() - baseline.startDate.getTime()) / oneDay);
+
+    return { startVariance, endVariance, durationVariance: actualDuration - baselineDuration };
+  }
+
+  // =========================================================================
+  // FEATURE 20: CRITICAL PATH VISUALIZATION
+  // =========================================================================
+  private criticalPathVisible: boolean = false;
+  private criticalPathTaskIds: Set<string> = new Set();
+  private criticalPathColor: string = '#ef4444';
+
+  setCriticalPathVisible(visible: boolean): void {
+    this.criticalPathVisible = visible;
+    if (visible) this.calculateCriticalPath();
+    this.markDirty();
+  }
+
+  calculateCriticalPath(): void {
+    this.criticalPathTaskIds.clear();
+
+    if (this.state.tasks.length === 0) return;
+
+    // Find project end date
+    const projectEnd = this.getProjectEndDate();
+    if (!projectEnd) return;
+
+    // Find tasks that end at project end (critical end tasks)
+    const endTasks = this.state.tasks.filter(t =>
+      Math.abs(t.endDate.getTime() - projectEnd.getTime()) < 24 * 60 * 60 * 1000
+    );
+
+    // Trace back from end tasks through predecessors
+    const visited = new Set<string>();
+    const queue = endTasks.map(t => t.id);
+
+    while (queue.length > 0) {
+      const taskId = queue.shift()!;
+      if (visited.has(taskId)) continue;
+      visited.add(taskId);
+
+      this.criticalPathTaskIds.add(taskId);
+
+      // Find predecessors
+      const task = this.state.tasks.find(t => t.id === taskId);
+      if (task?.predecessorIds) {
+        task.predecessorIds.forEach(predId => {
+          if (!visited.has(predId)) queue.push(predId);
+        });
+      }
+    }
+  }
+
+  isOnCriticalPath(taskId: string): boolean {
+    return this.criticalPathTaskIds.has(taskId);
+  }
+
+  getCriticalPathTaskIds(): string[] {
+    return Array.from(this.criticalPathTaskIds);
+  }
+
+  setCriticalPathColor(color: string): void {
+    this.criticalPathColor = color;
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 26: EXTENDED TIME SCALE VIEWS (QUARTER/YEAR)
+  // =========================================================================
+  private currentTimeScale: 'day' | 'week' | 'month' | 'quarter' | 'year' = 'day';
+
+  setTimeScale(scale: 'day' | 'week' | 'month' | 'quarter' | 'year'): void {
+    this.currentTimeScale = scale;
+    this.markDirty();
+  }
+
+  getTimeScale(): string { return this.currentTimeScale; }
+
+  getTimeScaleLabel(date: Date): string {
+    switch (this.currentTimeScale) {
+      case 'year': return date.getFullYear().toString();
+      case 'quarter': return `Q${Math.floor(date.getMonth() / 3) + 1} ${date.getFullYear()}`;
+      case 'month': return date.toLocaleDateString('en-AU', { month: 'short', year: 'numeric' });
+      case 'week': return `W${this.getWeekNumber(date)}`;
+      default: return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+    }
+  }
+
+  private getWeekNumber(date: Date): number {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  }
+
+  // =========================================================================
+  // FEATURE 27: TASK BAR VISUAL ENHANCEMENTS (GRADIENTS/SHADOWS)
+  // =========================================================================
+  private taskBarGradientEnabled: boolean = false;
+  private taskBarShadowEnabled: boolean = false;
+
+  setTaskBarGradientEnabled(enabled: boolean): void {
+    this.taskBarGradientEnabled = enabled;
+    this.markDirty();
+  }
+
+  setTaskBarShadowEnabled(enabled: boolean): void {
+    this.taskBarShadowEnabled = enabled;
+    this.markDirty();
+  }
+
+  createTaskBarGradient(ctx: CanvasRenderingContext2D, x: number, y: number, height: number, baseColor: string): CanvasGradient {
+    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+    gradient.addColorStop(0, this.lightenColor(baseColor, 20));
+    gradient.addColorStop(0.5, baseColor);
+    gradient.addColorStop(1, this.darkenColor(baseColor, 20));
+    return gradient;
+  }
+
+  private lightenColor(color: string, percent: number): string {
+    const num = parseInt(color.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = Math.min(255, (num >> 16) + amt);
+    const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+    const B = Math.min(255, (num & 0x0000FF) + amt);
+    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+  }
+
+  private darkenColor(color: string, percent: number): string {
+    const num = parseInt(color.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = Math.max(0, (num >> 16) - amt);
+    const G = Math.max(0, ((num >> 8) & 0x00FF) - amt);
+    const B = Math.max(0, (num & 0x0000FF) - amt);
+    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+  }
+
+  applyTaskBarShadowEffect(ctx: CanvasRenderingContext2D): void {
+    if (this.taskBarShadowEnabled) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+    }
+  }
+
+  clearTaskBarShadowEffect(ctx: CanvasRenderingContext2D): void {
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+
+  // =========================================================================
+  // FEATURE 28: WORKING HOURS HIGHLIGHTING
+  // =========================================================================
+  private workingHoursEnabled: boolean = false;
+  private workingHoursStart: number = 7;
+  private workingHoursEnd: number = 17;
+
+  setWorkingHoursHighlighting(enabled: boolean, startHour?: number, endHour?: number): void {
+    this.workingHoursEnabled = enabled;
+    if (startHour !== undefined) this.workingHoursStart = startHour;
+    if (endHour !== undefined) this.workingHoursEnd = endHour;
+    this.markDirty();
+  }
+
+  isWorkingHour(hour: number): boolean {
+    return hour >= this.workingHoursStart && hour < this.workingHoursEnd;
+  }
+
+  // =========================================================================
+  // FEATURE 29: SHIFT+DRAG TO COPY TASK
+  // =========================================================================
+  private copyDragState: { isCopying: boolean; sourceTaskId: string | null; ghostTask: GanttTask | null } =
+    { isCopying: false, sourceTaskId: null, ghostTask: null };
+
+  startCopyDrag(taskId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    this.copyDragState = {
+      isCopying: true,
+      sourceTaskId: taskId,
+      ghostTask: { ...task, id: `copy-${Date.now()}`, name: `${task.name} (Copy)` }
+    };
+    this.markDirty();
+  }
+
+  updateCopyDrag(newStartDate: Date): void {
+    if (!this.copyDragState.isCopying || !this.copyDragState.ghostTask) return;
+
+    const duration = this.copyDragState.ghostTask.endDate.getTime() - this.copyDragState.ghostTask.startDate.getTime();
+    this.copyDragState.ghostTask.startDate = newStartDate;
+    this.copyDragState.ghostTask.endDate = new Date(newStartDate.getTime() + duration);
+    this.markDirty();
+  }
+
+  completeCopyDrag(): GanttTask | null {
+    if (!this.copyDragState.isCopying || !this.copyDragState.ghostTask) return null;
+
+    const newTask = { ...this.copyDragState.ghostTask };
+    this.state.tasks.push(newTask);
+    this.copyDragState = { isCopying: false, sourceTaskId: null, ghostTask: null };
+    this.markDirty();
+    return newTask;
+  }
+
+  cancelCopyDrag(): void {
+    this.copyDragState = { isCopying: false, sourceTaskId: null, ghostTask: null };
+    this.markDirty();
+  }
+
+  isCopyDragging(): boolean { return this.copyDragState.isCopying; }
+
+  // =========================================================================
+  // FEATURE 30: GESTURE RECOGNITION
+  // =========================================================================
+  private gestureState: { touches: Touch[]; lastGesture: string | null; gestureStartTime: number } =
+    { touches: [], lastGesture: null, gestureStartTime: 0 };
+  private gestureCallbacks: Map<string, (data: any) => void> = new Map();
+
+  registerGestureCallback(gesture: string, callback: (data: any) => void): void {
+    this.gestureCallbacks.set(gesture, callback);
+  }
+
+  recognizeGesture(touches: Touch[]): string | null {
+    if (touches.length === 2) {
+      const dx = Math.abs(touches[0].clientX - touches[1].clientX);
+      const dy = Math.abs(touches[0].clientY - touches[1].clientY);
+      if (dx > 50 || dy > 50) return 'pinch';
+    }
+    if (touches.length === 3) return 'three-finger-swipe';
+    return null;
+  }
+
+  handleGesture(gesture: string, data: any): void {
+    const callback = this.gestureCallbacks.get(gesture);
+    if (callback) callback(data);
+  }
+
+  // =========================================================================
+  // FEATURE 31: RAF THROTTLING FOR POWER SAVING
+  // =========================================================================
+  private rafThrottleEnabled: boolean = true;
+  private lastRenderTime: number = 0;
+  private minFrameInterval: number = 16;
+  private idleThrottleMultiplier: number = 4;
+  private isUserInteracting: boolean = false;
+
+  setRAFThrottling(enabled: boolean, minFrameInterval?: number): void {
+    this.rafThrottleEnabled = enabled;
+    if (minFrameInterval) this.minFrameInterval = minFrameInterval;
+  }
+
+  setUserInteracting(interacting: boolean): void {
+    this.isUserInteracting = interacting;
+    if (interacting) this.markDirty();
+  }
+
+  shouldSkipFrame(): boolean {
+    if (!this.rafThrottleEnabled) return false;
+
+    const now = performance.now();
+    const interval = this.isUserInteracting ? this.minFrameInterval : this.minFrameInterval * this.idleThrottleMultiplier;
+
+    if (now - this.lastRenderTime < interval) return true;
+    this.lastRenderTime = now;
+    return false;
+  }
+
+  // =========================================================================
+  // FEATURE 32: CLIPPING REGION OPTIMIZATION
+  // =========================================================================
+  private clippingEnabled: boolean = true;
+  private dirtyRegions: Array<{ x: number; y: number; width: number; height: number }> = [];
+
+  setClippingEnabled(enabled: boolean): void {
+    this.clippingEnabled = enabled;
+  }
+
+  addDirtyRegion(x: number, y: number, width: number, height: number): void {
+    this.dirtyRegions.push({ x, y, width, height });
+  }
+
+  clearDirtyRegions(): void {
+    this.dirtyRegions = [];
+  }
+
+  applyClipping(ctx: CanvasRenderingContext2D): void {
+    if (!this.clippingEnabled || this.dirtyRegions.length === 0) return;
+
+    ctx.save();
+    ctx.beginPath();
+    this.dirtyRegions.forEach(r => ctx.rect(r.x, r.y, r.width, r.height));
+    ctx.clip();
+  }
+
+  // =========================================================================
+  // FEATURE 33: Z-INDEX LAYER MANAGEMENT
+  // =========================================================================
+  private layers: Map<string, { zIndex: number; visible: boolean }> = new Map([
+    ['background', { zIndex: 0, visible: true }],
+    ['grid', { zIndex: 10, visible: true }],
+    ['tasks', { zIndex: 20, visible: true }],
+    ['dependencies', { zIndex: 30, visible: true }],
+    ['overlays', { zIndex: 40, visible: true }],
+    ['ui', { zIndex: 50, visible: true }]
+  ]);
+
+  setLayerZIndex(layerName: string, zIndex: number): void {
+    const layer = this.layers.get(layerName);
+    if (layer) layer.zIndex = zIndex;
+    this.markDirty();
+  }
+
+  setLayerVisible(layerName: string, visible: boolean): void {
+    const layer = this.layers.get(layerName);
+    if (layer) layer.visible = visible;
+    this.markDirty();
+  }
+
+  getLayerOrder(): string[] {
+    return Array.from(this.layers.entries())
+      .filter(([_, layer]) => layer.visible)
+      .sort((a, b) => a[1].zIndex - b[1].zIndex)
+      .map(([name]) => name);
+  }
+
+  // =========================================================================
+  // FEATURE 34: PRESERVE POSITION ON RESIZE
+  // =========================================================================
+  private preservePositionOnResize: boolean = true;
+  private anchorTaskId: string | null = null;
+  private anchorPosition: { x: number; y: number } | null = null;
+
+  setPreservePositionOnResize(enabled: boolean): void {
+    this.preservePositionOnResize = enabled;
+  }
+
+  captureAnchorPosition(): void {
+    const visibleTasks = this.getVisibleTasks();
+    if (visibleTasks.length > 0) {
+      const centerTask = visibleTasks[Math.floor(visibleTasks.length / 2)];
+      this.anchorTaskId = centerTask.id;
+      this.anchorPosition = {
+        x: this.dateToX(centerTask.startDate),
+        y: this.viewport.rowToY(this.state.tasks.findIndex(t => t.id === centerTask.id))
+      };
+    }
+  }
+
+  restoreAnchorPosition(): void {
+    if (!this.preservePositionOnResize || !this.anchorTaskId || !this.anchorPosition) return;
+
+    const task = this.state.tasks.find(t => t.id ===this.anchorTaskId);
+    if (!task) return;
+
+    const taskIndex = this.state.tasks.findIndex(t => t.id === this.anchorTaskId);
+    const newX = this.dateToX(task.startDate);
+    const newY = this.viewport.rowToY(taskIndex);
+
+    const deltaX = newX - this.anchorPosition.x;
+    const deltaY = newY - this.anchorPosition.y;
+
+    this.viewport.pan(-deltaX, -deltaY);
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 35: DEPENDENCY LINE ROUTING
+  // =========================================================================
+  private lineRoutingEnabled: boolean = true;
+  private routingAlgorithm: 'direct' | 'orthogonal' | 'bezier' = 'bezier';
+
+  setLineRoutingEnabled(enabled: boolean): void {
+    this.lineRoutingEnabled = enabled;
+    this.markDirty();
+  }
+
+  setRoutingAlgorithm(algorithm: 'direct' | 'orthogonal' | 'bezier'): void {
+    this.routingAlgorithm = algorithm;
+    this.markDirty();
+  }
+
+  calculateDependencyPath(fromTask: GanttTask, toTask: GanttTask, depType: string): { x: number; y: number }[] {
+    const fromIndex = this.state.tasks.findIndex(t => t.id === fromTask.id);
+    const toIndex = this.state.tasks.findIndex(t => t.id === toTask.id);
+
+    const fromX = depType.startsWith('S') ? this.dateToX(fromTask.startDate) : this.dateToX(fromTask.endDate);
+    const toX = depType.endsWith('S') ? this.dateToX(toTask.startDate) : this.dateToX(toTask.endDate);
+    const fromY = this.viewport.rowToY(fromIndex) + this.config.rowHeight / 2;
+    const toY = this.viewport.rowToY(toIndex) + this.config.rowHeight / 2;
+
+    if (this.routingAlgorithm === 'direct') {
+      return [{ x: fromX, y: fromY }, { x: toX, y: toY }];
+    }
+
+    // Orthogonal routing
+    const midX = (fromX + toX) / 2;
+    return [
+      { x: fromX, y: fromY },
+      { x: midX, y: fromY },
+      { x: midX, y: toY },
+      { x: toX, y: toY }
+    ];
+  }
+
+  // =========================================================================
+  // FEATURE 36: DEPENDENCY CHAIN ANALYSIS
+  // =========================================================================
+  getDependencyChain(taskId: string, direction: 'predecessors' | 'successors'): string[] {
+    const chain: string[] = [];
+    const visited = new Set<string>();
+    const queue = [taskId];
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+
+      if (currentId !== taskId) chain.push(currentId);
+
+      if (direction === 'predecessors') {
+        const task = this.state.tasks.find(t => t.id ===currentId);
+        if (task?.predecessorIds) queue.push(...task.predecessorIds);
+      } else {
+        const successors = this.state.dependencies
+          .filter(d => d.fromId === currentId)
+          .map(d => d.toId);
+        queue.push(...successors);
+      }
+    }
+
+    return chain;
+  }
+
+  getFullDependencyTree(taskId: string): { predecessors: string[]; successors: string[] } {
+    return {
+      predecessors: this.getDependencyChain(taskId, 'predecessors'),
+      successors: this.getDependencyChain(taskId, 'successors')
+    };
+  }
+
+  // =========================================================================
+  // FEATURE 37: F2 TO RENAME TASK
+  // =========================================================================
+  private renameState: { isRenaming: boolean; taskId: string | null; inputElement: HTMLInputElement | null } =
+    { isRenaming: false, taskId: null, inputElement: null };
+
+  startTaskRename(taskId?: string): void {
+    const targetId = taskId || this.getSelectedTaskIds()[0];
+    if (!targetId) return;
+
+    const task = this.state.tasks.find(t => t.id ===targetId);
+    if (!task) return;
+
+    const taskIndex = this.state.tasks.findIndex(t => t.id === targetId);
+    const x = this.dateToX(task.startDate);
+    const y = this.viewport.rowToY(taskIndex);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = task.name;
+    input.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:200px;height:${this.config.rowHeight}px;z-index:1000;`;
+
+    input.addEventListener('blur', () => this.completeTaskRename());
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.completeTaskRename();
+      if (e.key === 'Escape') this.cancelTaskRename();
+    });
+
+    this.canvas.parentElement?.appendChild(input);
+    input.focus();
+    input.select();
+
+    this.renameState = { isRenaming: true, taskId: targetId, inputElement: input };
+  }
+
+  completeTaskRename(): void {
+    if (!this.renameState.isRenaming || !this.renameState.taskId || !this.renameState.inputElement) return;
+
+    const task = this.state.tasks.find(t => t.id ===this.renameState.taskId);
+    if (task) task.name = this.renameState.inputElement.value;
+
+    this.cleanupRename();
+    this.markDirty();
+  }
+
+  cancelTaskRename(): void {
+    this.cleanupRename();
+  }
+
+  private cleanupRename(): void {
+    if (this.renameState.inputElement?.parentElement) {
+      this.renameState.inputElement.parentElement.removeChild(this.renameState.inputElement);
+    }
+    this.renameState = { isRenaming: false, taskId: null, inputElement: null };
+  }
+
+  isRenamingTask(): boolean { return this.renameState.isRenaming; }
+
+  // =========================================================================
+  // FEATURE 38: SPACE TO TOGGLE TASK LOCK
+  // =========================================================================
+  toggleSelectedTaskLock(): void {
+    const selectedIds = this.getSelectedTaskIds();
+    selectedIds.forEach(id => {
+      const task = this.state.tasks.find(t => t.id ===id);
+      if (task) {
+        task.locked = task.locked ? undefined : 'manuallyPositioned';
+      }
+    });
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // FEATURE 39: KEYBOARD SHORTCUT HELP MODAL
+  // =========================================================================
+  private shortcutHelpVisible: boolean = false;
+
+  toggleShortcutHelp(): void {
+    this.shortcutHelpVisible = !this.shortcutHelpVisible;
+    this.markDirty();
+  }
+
+  getKeyboardShortcutsForHelpModal(): Array<{ key: string; description: string; category: string }> {
+    return [
+      { key: 'Arrow Keys', description: 'Move selection', category: 'Navigation' },
+      { key: 'Ctrl+A', description: 'Select all tasks', category: 'Selection' },
+      { key: 'Delete', description: 'Delete selected tasks', category: 'Editing' },
+      { key: 'Ctrl+Z', description: 'Undo', category: 'History' },
+      { key: 'Ctrl+Y', description: 'Redo', category: 'History' },
+      { key: 'Ctrl+C', description: 'Copy task', category: 'Clipboard' },
+      { key: 'Ctrl+V', description: 'Paste task', category: 'Clipboard' },
+      { key: 'F2', description: 'Rename task', category: 'Editing' },
+      { key: 'Space', description: 'Toggle task lock', category: 'Editing' },
+      { key: '?', description: 'Show this help', category: 'Help' },
+      { key: 'Escape', description: 'Cancel current action', category: 'General' }
+    ];
+  }
+
+  renderShortcutHelp(): void {
+    if (!this.shortcutHelpVisible) return;
+
+    const ctx = this.ctx;
+    const shortcuts = this.getKeyboardShortcutsForHelpModal();
+    const modalWidth = 400;
+    const modalHeight = shortcuts.length * 25 + 60;
+    const x = (this.containerWidth - modalWidth) / 2;
+    const y = (this.containerHeight - modalHeight) / 2;
+
+    // Background
+    ctx.fillStyle = this.config.darkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+    ctx.fillRect(x, y, modalWidth, modalHeight);
+    ctx.strokeStyle = this.config.darkMode ? '#444' : '#ccc';
+    ctx.strokeRect(x, y, modalWidth, modalHeight);
+
+    // Title
+    ctx.fillStyle = this.config.darkMode ? '#fff' : '#000';
+    ctx.font = 'bold 16px system-ui';
+    ctx.fillText('Keyboard Shortcuts', x + 20, y + 30);
+
+    // Shortcuts
+    ctx.font = '13px system-ui';
+    shortcuts.forEach((shortcut, i) => {
+      const rowY = y + 55 + i * 25;
+      ctx.fillStyle = this.config.darkMode ? '#a0a0a0' : '#666';
+      ctx.fillText(shortcut.key, x + 20, rowY);
+      ctx.fillStyle = this.config.darkMode ? '#fff' : '#000';
+      ctx.fillText(shortcut.description, x + 150, rowY);
+    });
+  }
+
+  isShortcutHelpVisible(): boolean { return this.shortcutHelpVisible; }
+
+  // =========================================================================
+  // FEATURE 40: FOCUS RING FOR ACCESSIBILITY
+  // =========================================================================
+  private focusRingVisible: boolean = true;
+  private focusRingColor: string = '#6366f1';
+  private focusRingWidth: number = 3;
+
+  // Note: focusTask and getFocusedTaskId exist at Feature 14
+
+  setFocusRingStyle(color: string, width: number): void {
+    this.focusRingColor = color;
+    this.focusRingWidth = width;
+    this.markDirty();
+  }
+
+  setFocusRingVisible(visible: boolean): void {
+    this.focusRingVisible = visible;
+    this.markDirty();
+  }
+
+  renderFocusRing(task: GanttTask, taskIndex: number): void {
+    if (!this.focusRingVisible || task.id !== this.focusedTaskId) return;
+
+    const x = this.dateToX(task.startDate) - this.focusRingWidth;
+    const y = this.viewport.rowToY(taskIndex) - this.focusRingWidth;
+    const width = this.dateToX(task.endDate) - this.dateToX(task.startDate) + this.focusRingWidth * 2;
+    const height = this.config.taskBarHeight + this.focusRingWidth * 2;
+
+    this.ctx.strokeStyle = this.focusRingColor;
+    this.ctx.lineWidth = this.focusRingWidth;
+    this.ctx.setLineDash([4, 2]);
+    this.ctx.strokeRect(x, y, width, height);
+    this.ctx.setLineDash([]);
+  }
+
+  moveFocus(direction: 'up' | 'down' | 'next' | 'prev'): void {
+    const currentIndex = this.focusedTaskId
+      ? this.state.tasks.findIndex(t => t.id === this.focusedTaskId)
+      : -1;
+
+    let newIndex: number;
+    switch (direction) {
+      case 'up':
+      case 'prev':
+        newIndex = currentIndex > 0 ? currentIndex - 1 : this.state.tasks.length - 1;
+        break;
+      case 'down':
+      case 'next':
+        newIndex = currentIndex < this.state.tasks.length - 1 ? currentIndex + 1 : 0;
+        break;
+    }
+
+    if (this.state.tasks[newIndex]) {
+      this.focusTask(this.state.tasks[newIndex].id);
+    }
+  }
+
+  // =========================================================================
+  // FEATURE 41: DOUBLE BUFFERING FOR SMOOTH ANIMATION
+  // =========================================================================
+  private offscreenCanvas: HTMLCanvasElement | null = null;
+  private offscreenCtx: CanvasRenderingContext2D | null = null;
+  private doubleBufferingEnabled: boolean = false;
+
+  initializeDoubleBuffering(): void {
+    this.offscreenCanvas = document.createElement('canvas');
+    this.offscreenCanvas.width = this.canvas.width;
+    this.offscreenCanvas.height = this.canvas.height;
+    this.offscreenCtx = this.offscreenCanvas.getContext('2d');
+    this.doubleBufferingEnabled = true;
+  }
+
+  setDoubleBufferingEnabled(enabled: boolean): void {
+    this.doubleBufferingEnabled = enabled;
+    if (enabled && !this.offscreenCanvas) this.initializeDoubleBuffering();
+  }
+
+  getRenderContext(): CanvasRenderingContext2D {
+    return this.doubleBufferingEnabled && this.offscreenCtx ? this.offscreenCtx : this.ctx;
+  }
+
+  flipBuffer(): void {
+    if (!this.doubleBufferingEnabled || !this.offscreenCanvas) return;
+    this.ctx.drawImage(this.offscreenCanvas, 0, 0);
+  }
+
+  resizeOffscreenCanvas(): void {
+    if (!this.offscreenCanvas) return;
+    this.offscreenCanvas.width = this.canvas.width;
+    this.offscreenCanvas.height = this.canvas.height;
+  }
+
+  // =========================================================================
+  // FEATURE 42: WEBGL FALLBACK FOR COMPLEX SCENES
+  // =========================================================================
+  private webglEnabled: boolean = false;
+  private webglCanvas: HTMLCanvasElement | null = null;
+  private webglContext: WebGLRenderingContext | null = null;
+  private webglTaskThreshold: number = 500;
+
+  initializeWebGL(): boolean {
+    try {
+      this.webglCanvas = document.createElement('canvas');
+      this.webglContext = this.webglCanvas.getContext('webgl');
+      this.webglEnabled = this.webglContext !== null;
+      return this.webglEnabled;
+    } catch {
+      this.webglEnabled = false;
+      return false;
+    }
+  }
+
+  setWebGLEnabled(enabled: boolean): void {
+    if (enabled && !this.webglContext) this.initializeWebGL();
+    this.webglEnabled = enabled && this.webglContext !== null;
+  }
+
+  shouldUseWebGL(): boolean {
+    return this.webglEnabled && this.state.tasks.length > this.webglTaskThreshold;
+  }
+
+  setWebGLTaskThreshold(threshold: number): void {
+    this.webglTaskThreshold = threshold;
+  }
+
+  // =========================================================================
+  // FEATURE 43: AUTO-REMOVE CIRCULAR DEPENDENCIES ON SAVE
+  // =========================================================================
+  removeCircularDependenciesOnSave(): Array<{ from: string; to: string; type: string }> {
+    const removed: Array<{ from: string; to: string; type: string }> = [];
+
+    this.state.dependencies = this.state.dependencies.filter(dep => {
+      if (this.wouldCreateCircularDependency(dep.fromId, dep.toId)) {
+        removed.push({ from: dep.fromId, to: dep.toId, type: dep.type });
+        return false;
+      }
+      return true;
+    });
+
+    if (removed.length > 0) {
+      console.warn('[GanttCanvas] Removed circular dependencies:', removed);
+      this.markDirty();
+    }
+
+    return removed;
+  }
+
+  // =========================================================================
+  // FEATURE 44: CIRCULAR DEPENDENCY LOGGING
+  // =========================================================================
+  private circularDepLoggingEnabled: boolean = true;
+
+  setCircularDependencyLogging(enabled: boolean): void {
+    this.circularDepLoggingEnabled = enabled;
+  }
+
+  logCircularDependencyAttempt(fromId: string, toId: string): void {
+    if (!this.circularDepLoggingEnabled) return;
+    console.warn(`[GanttCanvas] Circular dependency blocked: ${fromId} → ${toId}`);
+  }
+
+  // =========================================================================
+  // FEATURE 45: ENHANCED TOUCH GESTURE RECOGNITION
+  // =========================================================================
+  private touchGestureState: { startTouches: Touch[]; currentGesture: string | null } =
+    { startTouches: [], currentGesture: null };
+
+  detectTouchGesture(touches: TouchList): 'tap' | 'double-tap' | 'long-press' | 'swipe-left' | 'swipe-right' | 'pinch' | 'rotate' | null {
+    if (touches.length === 1) {
+      // Single touch gestures handled elsewhere
+      return 'tap';
+    }
+    if (touches.length === 2) {
+      return 'pinch';
+    }
+    return null;
+  }
+
+  // =========================================================================
+  // FEATURE 46: SWIPE TO DELETE TASK
+  // =========================================================================
+  private swipeDeleteEnabled: boolean = true;
+  private swipeDeleteThreshold: number = 150;
+  private swipeState: { taskId: string | null; startX: number; currentX: number } =
+    { taskId: null, startX: 0, currentX: 0 };
+
+  setSwipeDeleteEnabled(enabled: boolean): void {
+    this.swipeDeleteEnabled = enabled;
+  }
+
+  startSwipe(taskId: string, startX: number): void {
+    if (!this.swipeDeleteEnabled) return;
+    this.swipeState = { taskId, startX, currentX: startX };
+  }
+
+  updateSwipe(currentX: number): void {
+    this.swipeState.currentX = currentX;
+    this.markDirty();
+  }
+
+  completeSwipe(): string | null {
+    const swipeDistance = this.swipeState.currentX - this.swipeState.startX;
+    const taskId = this.swipeState.taskId;
+
+    this.swipeState = { taskId: null, startX: 0, currentX: 0 };
+
+    if (Math.abs(swipeDistance) > this.swipeDeleteThreshold && taskId) {
+      this.deleteTask(taskId);
+      return taskId;
+    }
+
+    this.markDirty();
+    return null;
+  }
+
+  // =========================================================================
+  // FEATURE 47: TOUCH FEEDBACK VISUAL (RIPPLE)
+  // =========================================================================
+  private ripples: Array<{ x: number; y: number; radius: number; opacity: number; startTime: number }> = [];
+  private rippleMaxRadius: number = 50;
+  private rippleDuration: number = 400;
+
+  createRipple(x: number, y: number): void {
+    this.ripples.push({ x, y, radius: 0, opacity: 0.5, startTime: performance.now() });
+    this.markDirty();
+  }
+
+  updateRipples(): void {
+    const now = performance.now();
+    this.ripples = this.ripples.filter(ripple => {
+      const elapsed = now - ripple.startTime;
+      if (elapsed > this.rippleDuration) return false;
+
+      const progress = elapsed / this.rippleDuration;
+      ripple.radius = this.rippleMaxRadius * progress;
+      ripple.opacity = 0.5 * (1 - progress);
+      return true;
+    });
+  }
+
+  renderRipples(): void {
+    this.ripples.forEach(ripple => {
+      this.ctx.beginPath();
+      this.ctx.arc(ripple.x, ripple.y, ripple.radius, 0, Math.PI * 2);
+      this.ctx.fillStyle = `rgba(99, 102, 241, ${ripple.opacity})`;
+      this.ctx.fill();
+    });
+  }
+
+  // =========================================================================
+  // FEATURE 48: HAPTIC FEEDBACK TRIGGERS
+  // =========================================================================
+  private hapticEnabled: boolean = true;
+
+  setHapticEnabled(enabled: boolean): void {
+    this.hapticEnabled = enabled;
+  }
+
+  triggerHapticFeedback(intensity: 'light' | 'medium' | 'heavy'): void {
+    if (!this.hapticEnabled || !navigator.vibrate) return;
+
+    const durations = { light: 10, medium: 25, heavy: 50 };
+    navigator.vibrate(durations[intensity]);
+  }
+
+  hapticOnAction(action: 'select' | 'drag-start' | 'drag-end' | 'delete' | 'error' | 'success'): void {
+    const intensities: Record<string, 'light' | 'medium' | 'heavy'> = {
+      'select': 'light',
+      'drag-start': 'light',
+      'drag-end': 'medium',
+      'delete': 'heavy',
+      'error': 'heavy',
+      'success': 'medium'
+    };
+    this.triggerHapticFeedback(intensities[action] || 'light');
+  }
+
+  // =========================================================================
+  // FEATURE 49: RESPONSIVE LAYOUT FOR MOBILE
+  // =========================================================================
+  private currentBreakpoint: 'mobile' | 'tablet' | 'desktop' = 'desktop';
+  private breakpoints = { mobile: 640, tablet: 1024 };
+
+  updateResponsiveLayout(): void {
+    const width = this.containerWidth;
+    if (width < this.breakpoints.mobile) this.currentBreakpoint = 'mobile';
+    else if (width < this.breakpoints.tablet) this.currentBreakpoint = 'tablet';
+    else this.currentBreakpoint = 'desktop';
+    this.markDirty();
+  }
+
+  getBreakpoint(): string { return this.currentBreakpoint; }
+  isMobileView(): boolean { return this.currentBreakpoint === 'mobile'; }
+  isTabletView(): boolean { return this.currentBreakpoint === 'tablet'; }
+
+  getResponsiveRowHeight(): number {
+    const heights = { mobile: 50, tablet: 40, desktop: this.config.rowHeight };
+    return heights[this.currentBreakpoint];
+  }
+
+  // =========================================================================
+  // FEATURE 50: PORTRAIT/LANDSCAPE ORIENTATION SUPPORT
+  // =========================================================================
+  private currentOrientation: 'portrait' | 'landscape' = 'landscape';
+  private orientationCallbacks: ((o: 'portrait' | 'landscape') => void)[] = [];
+
+  initializeOrientationDetection(): void {
+    this.detectOrientation();
+    window.addEventListener('orientationchange', () => setTimeout(() => this.detectOrientation(), 100));
+    window.addEventListener('resize', () => this.detectOrientation());
+  }
+
+  private detectOrientation(): void {
+    const newO: 'portrait' | 'landscape' = window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+    if (newO !== this.currentOrientation) {
+      this.currentOrientation = newO;
+      this.orientationCallbacks.forEach(cb => cb(newO));
+      this.markDirty();
+    }
+  }
+
+  onOrientationChange(cb: (o: 'portrait' | 'landscape') => void): () => void {
+    this.orientationCallbacks.push(cb);
+    return () => { const i = this.orientationCallbacks.indexOf(cb); if (i !== -1) this.orientationCallbacks.splice(i, 1); };
+  }
+
+  getOrientation(): 'portrait' | 'landscape' { return this.currentOrientation; }
+  isPortrait(): boolean { return this.currentOrientation === 'portrait'; }
+  isLandscape(): boolean { return this.currentOrientation === 'landscape'; }
+
+  // =========================================================================
+  // FEATURE 51: SCREEN READER ANNOUNCEMENTS
+  // =========================================================================
+  private screenReaderElement: HTMLElement | null = null;
+
+  initializeScreenReaderSupport(): void {
+    this.screenReaderElement = document.createElement('div');
+    this.screenReaderElement.setAttribute('role', 'status');
+    this.screenReaderElement.setAttribute('aria-live', 'polite');
+    this.screenReaderElement.setAttribute('aria-atomic', 'true');
+    this.screenReaderElement.style.cssText = 'position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;';
+    document.body.appendChild(this.screenReaderElement);
+  }
+
+  announceToScreenReader(message: string, priority: 'polite' | 'assertive' = 'polite'): void {
+    if (!this.screenReaderElement) return;
+    this.screenReaderElement.setAttribute('aria-live', priority);
+    this.screenReaderElement.textContent = '';
+    setTimeout(() => { if (this.screenReaderElement) this.screenReaderElement.textContent = message; }, 100);
+  }
+
+  // =========================================================================
+  // FEATURE 52: VIRTUAL KEYBOARD AWARENESS
+  // =========================================================================
+  private virtualKeyboardHeight: number = 0;
+  private virtualKeyboardVisible: boolean = false;
+
+  initializeVirtualKeyboardDetection(): void {
+    if ('visualViewport' in window && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.handleVirtualKeyboardChange());
+    }
+  }
+
+  private handleVirtualKeyboardChange(): void {
+    if (!window.visualViewport) return;
+    const heightDiff = window.innerHeight - window.visualViewport.height;
+    this.virtualKeyboardVisible = heightDiff > 150;
+    this.virtualKeyboardHeight = this.virtualKeyboardVisible ? heightDiff : 0;
+    this.markDirty();
+  }
+
+  isVirtualKeyboardVisible(): boolean { return this.virtualKeyboardVisible; }
+  getVirtualKeyboardHeight(): number { return this.virtualKeyboardHeight; }
+
+  // =========================================================================
+  // FEATURE 53: SAFE AREA INSETS
+  // =========================================================================
+  private safeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+  updateSafeAreaInsets(): void {
+    const style = getComputedStyle(document.documentElement);
+    this.safeAreaInsets = {
+      top: parseInt(style.getPropertyValue('--sat') || '0'),
+      right: parseInt(style.getPropertyValue('--sar') || '0'),
+      bottom: parseInt(style.getPropertyValue('--sab') || '0'),
+      left: parseInt(style.getPropertyValue('--sal') || '0')
+    };
+  }
+
+  getSafeAreaInsets(): { top: number; right: number; bottom: number; left: number } {
+    return { ...this.safeAreaInsets };
+  }
+
+  // =========================================================================
+  // FEATURE 54: TOUCH-FRIENDLY BUTTONS
+  // =========================================================================
+  private touchButtonSize: number = 44;
+
+  setTouchButtonSize(size: number): void {
+    this.touchButtonSize = Math.max(44, size);
+  }
+
+  getTouchButtonSize(): number { return this.touchButtonSize; }
+
+  // =========================================================================
+  // FEATURE 55: ACCESSIBLE TOUCH TARGETS
+  // =========================================================================
+  expandTouchTarget(bounds: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } {
+    const minSize = 44;
+    let { x, y, width, height } = bounds;
+    if (width < minSize) { x -= (minSize - width) / 2; width = minSize; }
+    if (height < minSize) { y -= (minSize - height) / 2; height = minSize; }
+    return { x, y, width, height };
+  }
+
+  // =========================================================================
+  // FEATURE 56: PALM REJECTION
+  // =========================================================================
+  private palmRejectionEnabled: boolean = true;
+
+  setPalmRejectionEnabled(enabled: boolean): void {
+    this.palmRejectionEnabled = enabled;
+  }
+
+  isPalmTouch(touch: Touch): boolean {
+    if (!this.palmRejectionEnabled) return false;
+    if ('radiusX' in touch && 'radiusY' in touch) {
+      const area = Math.PI * (touch as any).radiusX * (touch as any).radiusY;
+      if (area > 50) return true;
+    }
+    return false;
+  }
+
+  // =========================================================================
+  // FEATURE 57: STYLUS/PEN SUPPORT
+  // =========================================================================
+  private currentPointerType: 'mouse' | 'touch' | 'pen' = 'mouse';
+  private penPressure: number = 0;
+
+  handlePointerEvent(e: PointerEvent): void {
+    this.currentPointerType = e.pointerType as 'mouse' | 'touch' | 'pen';
+    this.penPressure = e.pressure;
+  }
+
+  getPointerType(): string { return this.currentPointerType; }
+  getPenPressure(): number { return this.penPressure; }
+  isStylusActive(): boolean { return this.currentPointerType === 'pen'; }
+
+  // =========================================================================
+  // FEATURE 58: TASK BAR GRADIENT FILL (ADVANCED)
+  // =========================================================================
+  private gradientCache: Map<string, CanvasGradient> = new Map();
+
+  getCachedGradient(ctx: CanvasRenderingContext2D, key: string, x: number, y: number, height: number, color: string): CanvasGradient {
+    if (!this.gradientCache.has(key)) {
+      this.gradientCache.set(key, this.createTaskBarGradient(ctx, x, y, height, color));
+    }
+    return this.gradientCache.get(key)!;
+  }
+
+  clearGradientCache(): void {
+    this.gradientCache.clear();
+  }
+
+  // =========================================================================
+  // FEATURE 59: TASK BAR SHADOW (ADVANCED)
+  // =========================================================================
+  private shadowCache: Map<string, ImageData> = new Map();
+
+  applyShadowWithCache(ctx: CanvasRenderingContext2D, taskId: string): void {
+    if (this.taskBarShadowEnabled) {
+      ctx.shadowColor = 'rgba(0,0,0,0.25)';
+      ctx.shadowBlur = 6;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+    }
+  }
+
+  // =========================================================================
+  // FEATURE 60: DEPENDENCY LINE ROUTING (ADVANCED)
+  // =========================================================================
+  private routeCache: Map<string, { x: number; y: number }[]> = new Map();
+
+  getCachedRoute(depId: string, fromTask: GanttTask, toTask: GanttTask, depType: string): { x: number; y: number }[] {
+    const cacheKey = `${depId}-${fromTask.startDate.getTime()}-${toTask.startDate.getTime()}`;
+    if (!this.routeCache.has(cacheKey)) {
+      this.routeCache.set(cacheKey, this.calculateDependencyPath(fromTask, toTask, depType));
+    }
+    return this.routeCache.get(cacheKey)!;
+  }
+
+  invalidateRouteCache(): void {
+    this.routeCache.clear();
+  }
+
 }
 
 // ============================================================================
