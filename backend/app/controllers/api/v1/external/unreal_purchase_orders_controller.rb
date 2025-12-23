@@ -2,6 +2,7 @@ module Api
   module V1
     module External
       class UnrealPurchaseOrdersController < ApplicationController
+        skip_before_action :authorize_request
         before_action :authenticate_api_key!
 
         # POST /api/v1/external/unreal_purchase_orders
