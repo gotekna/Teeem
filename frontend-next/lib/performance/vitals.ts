@@ -19,7 +19,8 @@
 import { onCLS, onLCP, onINP, onTTFB, type Metric } from "web-vitals";
 
 // Configuration
-const METRICS_ENDPOINT = "/api/v1/metrics";
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://teeemlive-ce8e2660a615.herokuapp.com').trim();
+const METRICS_ENDPOINT = `${API_URL}/api/v1/metrics`;
 const BATCH_SIZE = 5; // Send after collecting this many metrics
 const FLUSH_INTERVAL_MS = 30000; // Flush every 30 seconds regardless
 

@@ -521,11 +521,16 @@ export function GanttCanvasView({
     }
 
     try {
-      const predecessorIdsNumeric = predecessorIds.map(id => parseInt(id, 10));
+      // Build predecessor_ids in the format backend expects: [{id, type, lag}]
+      const predecessorData = validLinks.map(link => ({
+        id: parseInt(link.predecessorId, 10),
+        type: link.type || 'FS',
+        lag: link.lag || 0
+      }));
 
       // Call API to update dependencies
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
-        predecessor_ids: predecessorIdsNumeric
+        row: { predecessor_ids: predecessorData }
       });
 
       // Update local state

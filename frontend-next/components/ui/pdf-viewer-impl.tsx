@@ -39,6 +39,8 @@ export function PDFViewerImpl({
   const [isCached, setIsCached] = React.useState(false);
   const [pageCount, setPageCount] = React.useState<number>(1);
   const [currentPage, setCurrentPage] = React.useState<number>(1);
+  const [displayedPage, setDisplayedPage] = React.useState<number>(1);
+  const [isPageTransitioning, setIsPageTransitioning] = React.useState(false);
   const [containerKey, setContainerKey] = React.useState<number>(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
@@ -72,6 +74,8 @@ export function PDFViewerImpl({
       setLoadError(null);
       setIsCached(false);
       setCurrentPage(1);
+      setDisplayedPage(1);
+      setIsPageTransitioning(false);
       setPageCount(1);
 
       try {
@@ -259,18 +263,29 @@ export function PDFViewerImpl({
     );
   }
 
-  // Page navigation handlers
+  // Page navigation handlers with crossfade transition
   const goToPage = (page: number) => {
-    if (page >= 1 && page <= pageCount) {
+    if (page >= 1 && page <= pageCount && page !== currentPage && !isPageTransitioning) {
+      setIsPageTransitioning(true);
       setCurrentPage(page);
     }
   };
 
+  // Handle new page iframe load - complete the crossfade
+  const handleNewPageLoad = React.useCallback(() => {
+    // Small delay to ensure iframe has rendered content
+    setTimeout(() => {
+      setDisplayedPage(currentPage);
+      setIsPageTransitioning(false);
+    }, 50);
+  }, [currentPage]);
+
   const prevPage = () => goToPage(currentPage - 1);
   const nextPage = () => goToPage(currentPage + 1);
 
-  // Build iframe URL with page-fit zoom and hidden toolbar for max PDF size
-  const iframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&zoom=page-fit&toolbar=0&navpanes=0` : "";
+  // Build iframe URLs with page-fit zoom and hidden toolbar for max PDF size
+  const displayedIframeSrc = blobUrl ? `${blobUrl}#page=${displayedPage}&zoom=page-fit&toolbar=0&navpanes=0` : "";
+  const newPageIframeSrc = blobUrl ? `${blobUrl}#page=${currentPage}&zoom=page-fit&toolbar=0&navpanes=0` : "";
 
   // Success state - iframe with native PDF viewer
   return (
@@ -309,14 +324,26 @@ export function PDFViewerImpl({
         </div>
       )}
 
-      {/* iframe uses browser's native PDF viewer */}
-      {/* Key includes currentPage to force remount on page navigation - blob URLs don't respond to hash changes */}
+      {/* Crossfade PDF page navigation - two stacked iframes */}
+      {/* Base iframe: shows currently displayed page */}
       <iframe
-        key={`${containerKey}-${currentPage}`}
-        src={iframeSrc}
-        className="w-full h-full border-0"
+        key={`${containerKey}-displayed-${displayedPage}`}
+        src={displayedIframeSrc}
+        className="absolute inset-0 w-full h-full border-0"
         title="PDF Viewer"
       />
+
+      {/* Transition iframe: loads new page on top, fades in when ready */}
+      {isPageTransitioning && currentPage !== displayedPage && (
+        <iframe
+          key={`${containerKey}-loading-${currentPage}`}
+          src={newPageIframeSrc}
+          className="absolute inset-0 w-full h-full border-0 transition-opacity duration-150 ease-in-out opacity-100"
+          style={{ backgroundColor: 'var(--background)' }}
+          title="PDF Viewer Loading"
+          onLoad={handleNewPageLoad}
+        />
+      )}
 
       {/* Note: highlights prop is ignored in iframe mode.
           For highlights support, use the react-pdf based viewer. */}
