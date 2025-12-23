@@ -3,22 +3,13 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   Loader2,
   RefreshCw,
-  Download,
   FileText,
   Plus,
-  CheckCircle,
-  AlertCircle,
-  Clock,
-  TrendingUp,
-  TrendingDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 
@@ -28,6 +19,8 @@ interface PLReport {
   company_name: string;
   company_code: string;
   financial_year: string;
+  period: string | null;           // "Jan25", "Feb25", etc.
+  period_label: string | null;     // "January 2025" (human-readable)
   report_date: string | null;
   period_start: string | null;
   period_end: string | null;
@@ -121,6 +114,34 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
     }
   };
 
+  const generateHistorical = async () => {
+    try {
+      setGenerating("historical");
+      const response = await api.post<{
+        success: boolean;
+        data: PLReport[];
+        summary: { created: number; skipped: number; errors: Array<{ period: string; error: string }> };
+        message?: string;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/profit_loss_reports/generate_historical`);
+
+      if (response?.success) {
+        setReports(response.data);
+        // Show success message
+        if (response.message) {
+          console.log(response.message);
+        }
+      } else {
+        setError(response?.error || "Failed to generate historical reports");
+      }
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      setError(axiosError?.response?.data?.error || "Failed to generate historical reports");
+    } finally {
+      setGenerating(null);
+    }
+  };
+
   const downloadReport = async (report: PLReport) => {
     if (!report.download_url) {
       // Need to fetch the full report to get download URL
@@ -147,85 +168,10 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
     loadReports();
   }, [companyId]);
 
-  const formatCurrency = (amount: number | null) => {
-    if (amount === null) return "—";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "—";
-    try {
-      return format(new Date(dateStr), "d MMM yyyy");
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return "";
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} KB`;
-    return `${(kb / 1024).toFixed(1)} MB`;
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "completed":
-        return (
-          <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        );
-      case "generating":
-        return (
-          <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Generating
-          </Badge>
-        );
-      case "pending":
-        return (
-          <Badge variant="secondary">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        );
-      case "failed":
-        return (
-          <Badge className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Failed
-          </Badge>
-        );
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
-
-  // Generate available FYs (current and past 3 years)
-  const getAvailableFYs = () => {
-    const today = new Date();
-    const currentFY = today.getMonth() >= 6 ? today.getFullYear() + 1 : today.getFullYear();
-    const fys = [];
-    for (let i = 0; i < 4; i++) {
-      fys.push(`FY${currentFY - i}`);
-    }
-    return fys;
-  };
-
-  const existingFYs = reports.map((r) => r.financial_year);
-  const missingFYs = getAvailableFYs().filter((fy) => !existingFYs.includes(fy));
-
   // Define columns for TeeemTableView (no Foundation backing - explicit columns)
   const columns: TableColumn[] = [
-    { key: "financial_year", label: "Financial Year", width: 120, sortable: true },
-    { key: "period", label: "Period", width: 180 },
+    { key: "period_label", label: "Period", width: 130, sortable: true },
+    { key: "financial_year", label: "FY", width: 80, sortable: true },
     { key: "total_revenue", label: "Revenue", width: 120, sortable: true, column_type: "currency", showSum: true },
     { key: "total_expenses", label: "Expenses", width: 120, sortable: true, column_type: "currency", showSum: true },
     { key: "net_profit", label: "Net Profit", width: 130, sortable: true, column_type: "currency", showSum: true },
@@ -236,10 +182,11 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
   // Transform reports to table rows
   const tableRows: TableRow[] = reports.map((report) => ({
     id: report.id,
+    period_label: report.period_label || report.financial_year,  // Fallback to FY for legacy reports
     financial_year: report.financial_year,
-    period: report.period_start && report.period_end
-      ? `${formatDate(report.period_start)} - ${formatDate(report.period_end)}`
-      : "—",
+    period: report.period,
+    period_start: report.period_start,
+    period_end: report.period_end,
     total_revenue: report.total_revenue,
     total_expenses: report.total_expenses,
     net_profit: report.net_profit,
@@ -274,20 +221,18 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {missingFYs.length > 0 && (
-              <Button
-                onClick={() => generateReport(missingFYs[0])}
-                disabled={generating !== null}
-                size="sm"
-              >
-                {generating ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-2" />
-                )}
-                Generate {missingFYs[0]}
-              </Button>
-            )}
+            <Button
+              onClick={generateHistorical}
+              disabled={generating !== null}
+              size="sm"
+            >
+              {generating === "historical" ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              Generate All Historical
+            </Button>
             <Button onClick={loadReports} disabled={loading} size="sm" variant="outline">
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -325,30 +270,6 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
           </div>
         )}
 
-        {/* Generate additional FYs */}
-        {reports.length > 0 && missingFYs.length > 1 && (
-          <div className="mt-4 pt-4 border-t">
-            <p className="text-sm text-muted-foreground mb-2">Generate additional reports:</p>
-            <div className="flex flex-wrap gap-2">
-              {missingFYs.slice(1).map((fy) => (
-                <Button
-                  key={fy}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => generateReport(fy)}
-                  disabled={generating !== null}
-                >
-                  {generating === fy ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Plus className="h-4 w-4 mr-2" />
-                  )}
-                  {fy}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

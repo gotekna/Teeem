@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_015208) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_130453) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -426,8 +426,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_015208) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "period"
+    t.date "period_end_date"
     t.index ["company_code"], name: "index_balance_sheet_reports_on_company_code"
-    t.index ["company_id", "financial_year"], name: "idx_bs_reports_unique", unique: true
+    t.index ["company_id", "period_end_date"], name: "idx_bs_reports_company_period", unique: true, where: "(period_end_date IS NOT NULL)"
     t.index ["company_id"], name: "index_balance_sheet_reports_on_company_id"
     t.index ["financial_year"], name: "index_balance_sheet_reports_on_financial_year"
     t.index ["status"], name: "index_balance_sheet_reports_on_status"
@@ -4271,8 +4273,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_015208) do
     t.text "error_message"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "period"
     t.index ["company_code"], name: "index_profit_loss_reports_on_company_code"
-    t.index ["company_id", "financial_year"], name: "idx_pl_reports_unique", unique: true
+    t.index ["company_id", "period_end"], name: "idx_pl_reports_company_period", unique: true, where: "(period_end IS NOT NULL)"
     t.index ["company_id"], name: "index_profit_loss_reports_on_company_id"
     t.index ["financial_year"], name: "index_profit_loss_reports_on_financial_year"
     t.index ["status"], name: "index_profit_loss_reports_on_status"

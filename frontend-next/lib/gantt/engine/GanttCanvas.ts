@@ -44,6 +44,8 @@ export interface GanttTask {
   status?: 'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'at-risk';
   locked?: 'supplierConfirmed' | 'started' | 'manuallyPositioned';
   predecessorIds?: string[];
+  /** IDs of broken dependencies (predecessor moved/deleted but link preserved) */
+  brokenPredecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
 }
@@ -270,6 +272,7 @@ export class GanttCanvas {
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
   private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
+  private onTaskUpdate?: (task: GanttTask) => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -431,6 +434,67 @@ export class GanttCanvas {
     this.markDirty();
   }
 
+  // ============================================================================
+  // Zoom Presets (Day/Week/Month views)
+  // ============================================================================
+
+  /**
+   * Zoom preset: Day view (one day fills ~40px)
+   * Shows detailed day-by-day view
+   */
+  zoomToDay(): void {
+    this.viewport.setZoom(1.0);
+    this.markDirty();
+  }
+
+  /**
+   * Zoom preset: Week view (one week fills ~40px)
+   * Shows weekly overview with day labels
+   */
+  zoomToWeek(): void {
+    this.viewport.setZoom(0.15);
+    this.markDirty();
+  }
+
+  /**
+   * Zoom preset: Month view (one month fills ~100px)
+   * Shows monthly overview
+   */
+  zoomToMonth(): void {
+    this.viewport.setZoom(0.05);
+    this.markDirty();
+  }
+
+  /**
+   * Get current zoom level name
+   */
+  getZoomLevel(): 'day' | 'week' | 'month' | 'custom' {
+    const zoom = this.state.viewportState.zoom;
+    if (zoom >= 0.8) return 'day';
+    if (zoom >= 0.1 && zoom < 0.25) return 'week';
+    if (zoom < 0.1) return 'month';
+    return 'custom';
+  }
+
+  /**
+   * Cycle through zoom presets: Day → Week → Month → Day
+   */
+  cycleZoomLevel(): void {
+    const current = this.getZoomLevel();
+    switch (current) {
+      case 'day':
+        this.zoomToWeek();
+        break;
+      case 'week':
+        this.zoomToMonth();
+        break;
+      case 'month':
+      case 'custom':
+        this.zoomToDay();
+        break;
+    }
+  }
+
   /**
    * Set event handlers
    */
@@ -462,6 +526,10 @@ export class GanttCanvas {
     this.onUndoStateChange = handler;
     // Immediately call with current state
     handler(this.undoManager.canUndo(), this.undoManager.canRedo());
+  }
+
+  onTaskUpdateHandler(handler: (task: GanttTask) => void): void {
+    this.onTaskUpdate = handler;
   }
 
   /**
@@ -706,6 +774,535 @@ export class GanttCanvas {
     return { startVariance, endVariance, durationVariance };
   }
 
+  // ============================================================================
+  // Task Locking API
+  // ============================================================================
+
+  /**
+   * Lock a task with specified lock type
+   * @param taskId - The task ID to lock
+   * @param lockType - Type of lock (default: 'manuallyPositioned')
+   */
+  lockTask(taskId: string, lockType: 'supplierConfirmed' | 'started' | 'manuallyPositioned' = 'manuallyPositioned'): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (task) {
+      task.locked = lockType;
+      this.markDirty();
+      this.onTaskUpdate?.(task);
+    }
+  }
+
+  /**
+   * Unlock a task
+   * @param taskId - The task ID to unlock
+   */
+  unlockTask(taskId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (task && task.locked) {
+      task.locked = undefined;
+      this.markDirty();
+      this.onTaskUpdate?.(task);
+    }
+  }
+
+  /**
+   * Toggle lock status of a task
+   * @param taskId - The task ID to toggle
+   * @returns The new lock state (locked type or undefined if unlocked)
+   */
+  toggleTaskLock(taskId: string): 'supplierConfirmed' | 'started' | 'manuallyPositioned' | undefined {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (task) {
+      if (task.locked) {
+        task.locked = undefined;
+      } else {
+        task.locked = 'manuallyPositioned';
+      }
+      this.markDirty();
+      this.onTaskUpdate?.(task);
+      return task.locked;
+    }
+    return undefined;
+  }
+
+  /**
+   * Check if a task is locked
+   * @param taskId - The task ID to check
+   */
+  isTaskLocked(taskId: string): boolean {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return !!task?.locked;
+  }
+
+  /**
+   * Get the lock type of a task
+   * @param taskId - The task ID to check
+   */
+  getTaskLockType(taskId: string): 'supplierConfirmed' | 'started' | 'manuallyPositioned' | undefined {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task?.locked;
+  }
+
+  /**
+   * Lock multiple tasks at once
+   * @param taskIds - Array of task IDs to lock
+   * @param lockType - Type of lock to apply
+   */
+  lockTasks(taskIds: string[], lockType: 'supplierConfirmed' | 'started' | 'manuallyPositioned' = 'manuallyPositioned'): void {
+    taskIds.forEach(taskId => {
+      const task = this.state.tasks.find(t => t.id === taskId);
+      if (task) {
+        task.locked = lockType;
+        this.onTaskUpdate?.(task);
+      }
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Unlock multiple tasks at once
+   * @param taskIds - Array of task IDs to unlock
+   */
+  unlockTasks(taskIds: string[]): void {
+    taskIds.forEach(taskId => {
+      const task = this.state.tasks.find(t => t.id === taskId);
+      if (task && task.locked) {
+        task.locked = undefined;
+        this.onTaskUpdate?.(task);
+      }
+    });
+    this.markDirty();
+  }
+
+  // ============================================================================
+  // Dependency Management & Circular Detection
+  // ============================================================================
+
+  /**
+   * Check if adding a dependency would create a circular reference
+   * Uses depth-first search to detect cycles
+   * @param fromId - Source task ID
+   * @param toId - Target task ID
+   * @returns true if adding this dependency would create a cycle
+   */
+  wouldCreateCircularDependency(fromId: string, toId: string): boolean {
+    // Direct cycle: A → A
+    if (fromId === toId) return true;
+
+    // Build successor map for efficient traversal
+    const successorMap = new Map<string, string[]>();
+    this.state.dependencies.forEach(dep => {
+      const existing = successorMap.get(dep.fromId) || [];
+      existing.push(dep.toId);
+      successorMap.set(dep.fromId, existing);
+    });
+
+    // Add the proposed dependency temporarily
+    const existingSuccessors = successorMap.get(fromId) || [];
+    successorMap.set(fromId, [...existingSuccessors, toId]);
+
+    // DFS to detect if we can reach fromId starting from toId
+    const visited = new Set<string>();
+    const stack = [toId];
+
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === fromId) return true; // Cycle detected!
+
+      if (visited.has(current)) continue;
+      visited.add(current);
+
+      const successors = successorMap.get(current) || [];
+      for (const successor of successors) {
+        if (!visited.has(successor)) {
+          stack.push(successor);
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Find all circular dependencies in the current dependency graph
+   * @returns Array of cycle paths, each as an array of task IDs
+   */
+  findCircularDependencies(): string[][] {
+    const cycles: string[][] = [];
+
+    // Build successor map
+    const successorMap = new Map<string, string[]>();
+    this.state.dependencies.forEach(dep => {
+      const existing = successorMap.get(dep.fromId) || [];
+      existing.push(dep.toId);
+      successorMap.set(dep.fromId, existing);
+    });
+
+    // Track visited nodes and current path
+    const visited = new Set<string>();
+    const recStack = new Set<string>();
+    const path: string[] = [];
+
+    const dfs = (taskId: string): void => {
+      visited.add(taskId);
+      recStack.add(taskId);
+      path.push(taskId);
+
+      const successors = successorMap.get(taskId) || [];
+      for (const successor of successors) {
+        if (!visited.has(successor)) {
+          dfs(successor);
+        } else if (recStack.has(successor)) {
+          // Found a cycle - extract the cycle from path
+          const cycleStart = path.indexOf(successor);
+          if (cycleStart !== -1) {
+            cycles.push([...path.slice(cycleStart), successor]);
+          }
+        }
+      }
+
+      path.pop();
+      recStack.delete(taskId);
+    };
+
+    // Run DFS from all task IDs that have dependencies
+    const allTaskIds = new Set<string>();
+    this.state.dependencies.forEach(dep => {
+      allTaskIds.add(dep.fromId);
+      allTaskIds.add(dep.toId);
+    });
+
+    allTaskIds.forEach(taskId => {
+      if (!visited.has(taskId)) {
+        dfs(taskId);
+      }
+    });
+
+    return cycles;
+  }
+
+  /**
+   * Add a dependency with circular dependency prevention
+   * @param fromId - Source task ID
+   * @param toId - Target task ID
+   * @param type - Dependency type (FS, SS, FF, SF)
+   * @param lag - Optional lag in days
+   * @returns The new dependency if created, or null if it would cause a cycle
+   */
+  addDependency(
+    fromId: string,
+    toId: string,
+    type: 'FS' | 'SS' | 'FF' | 'SF' = 'FS',
+    lag: number = 0
+  ): GanttDependency | null {
+    // Check for circular dependency
+    if (this.wouldCreateCircularDependency(fromId, toId)) {
+      console.warn(`Circular dependency prevented: ${fromId} → ${toId}`);
+      return null;
+    }
+
+    // Check if dependency already exists
+    const existingDep = this.state.dependencies.find(
+      d => d.fromId === fromId && d.toId === toId
+    );
+    if (existingDep) {
+      console.warn(`Dependency already exists: ${fromId} → ${toId}`);
+      return existingDep;
+    }
+
+    // Create and add the dependency
+    const newDep: GanttDependency = {
+      id: `dep-${fromId}-${toId}-${Date.now()}`,
+      fromId,
+      toId,
+      type,
+      lag,
+    };
+
+    this.state.dependencies.push(newDep);
+    this.markDirty();
+
+    // Recalculate critical path if enabled
+    if (this.criticalPathEnabled) {
+      this.recalculateCriticalPath();
+    }
+
+    // Notify external handler
+    this.onDependencyCreate?.(fromId, toId, type);
+
+    return newDep;
+  }
+
+  /**
+   * Remove a dependency by ID
+   * @param dependencyId - The dependency ID to remove
+   * @returns true if removed, false if not found
+   */
+  removeDependency(dependencyId: string): boolean {
+    const index = this.state.dependencies.findIndex(d => d.id === dependencyId);
+    if (index === -1) return false;
+
+    this.state.dependencies.splice(index, 1);
+    this.markDirty();
+
+    // Recalculate critical path if enabled
+    if (this.criticalPathEnabled) {
+      this.recalculateCriticalPath();
+    }
+
+    return true;
+  }
+
+  /**
+   * Remove a dependency between two tasks
+   * @param fromId - Source task ID
+   * @param toId - Target task ID
+   * @returns true if removed, false if not found
+   */
+  removeDependencyBetween(fromId: string, toId: string): boolean {
+    const dep = this.state.dependencies.find(d => d.fromId === fromId && d.toId === toId);
+    if (!dep) return false;
+    return this.removeDependency(dep.id);
+  }
+
+  /**
+   * Get all predecessors (dependencies pointing TO a task)
+   * @param taskId - The task ID
+   */
+  getPredecessors(taskId: string): GanttDependency[] {
+    return this.state.dependencies.filter(d => d.toId === taskId);
+  }
+
+  /**
+   * Get all successors (dependencies pointing FROM a task)
+   * @param taskId - The task ID
+   */
+  getSuccessors(taskId: string): GanttDependency[] {
+    return this.state.dependencies.filter(d => d.fromId === taskId);
+  }
+
+  /**
+   * Validate all dependencies and remove any circular ones
+   * @returns Array of removed circular dependency IDs
+   */
+  removeCircularDependencies(): string[] {
+    const removedIds: string[] = [];
+    const cycles = this.findCircularDependencies();
+
+    if (cycles.length === 0) return removedIds;
+
+    console.warn(`Found ${cycles.length} circular dependencies, removing...`);
+
+    // For each cycle, remove the last dependency (the one that closes the loop)
+    cycles.forEach(cycle => {
+      if (cycle.length < 2) return;
+
+      // Find the dependency that closes this cycle
+      const lastTaskId = cycle[cycle.length - 2];
+      const cycleCloser = cycle[cycle.length - 1];
+
+      const dep = this.state.dependencies.find(
+        d => d.fromId === lastTaskId && d.toId === cycleCloser
+      );
+
+      if (dep && !removedIds.includes(dep.id)) {
+        console.log(`Removing circular dependency: ${dep.fromId} → ${dep.toId}`);
+        this.removeDependency(dep.id);
+        removedIds.push(dep.id);
+      }
+    });
+
+    return removedIds;
+  }
+
+  // ============================================================================
+  // Broken Dependencies Management
+  // ============================================================================
+
+  /**
+   * Check if a task has broken predecessor dependencies
+   * A dependency is broken when the predecessor doesn't exist or dates conflict
+   */
+  hasBrokenDependencies(taskId: string): boolean {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return !!(task?.brokenPredecessorIds && task.brokenPredecessorIds.length > 0);
+  }
+
+  /**
+   * Get all broken dependencies for a task
+   */
+  getBrokenDependencies(taskId: string): string[] {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    return task?.brokenPredecessorIds || [];
+  }
+
+  /**
+   * Mark a dependency as broken (preserve the link but flag it)
+   * @param taskId - The task with the broken predecessor
+   * @param predecessorId - The ID of the broken predecessor
+   */
+  markDependencyAsBroken(taskId: string, predecessorId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    if (!task.brokenPredecessorIds) {
+      task.brokenPredecessorIds = [];
+    }
+
+    if (!task.brokenPredecessorIds.includes(predecessorId)) {
+      task.brokenPredecessorIds.push(predecessorId);
+      this.markDirty();
+      this.onTaskUpdate?.(task);
+    }
+  }
+
+  /**
+   * Restore a broken dependency (remove from broken list)
+   * @param taskId - The task with the broken predecessor
+   * @param predecessorId - The ID of the predecessor to restore
+   */
+  restoreBrokenDependency(taskId: string, predecessorId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task || !task.brokenPredecessorIds) return;
+
+    const index = task.brokenPredecessorIds.indexOf(predecessorId);
+    if (index !== -1) {
+      task.brokenPredecessorIds.splice(index, 1);
+      if (task.brokenPredecessorIds.length === 0) {
+        task.brokenPredecessorIds = undefined;
+      }
+      this.markDirty();
+      this.onTaskUpdate?.(task);
+    }
+  }
+
+  /**
+   * Restore all broken dependencies for a task
+   * @param taskId - The task to restore dependencies for
+   */
+  restoreAllBrokenDependencies(taskId: string): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task || !task.brokenPredecessorIds) return;
+
+    task.brokenPredecessorIds = undefined;
+    this.markDirty();
+    this.onTaskUpdate?.(task);
+  }
+
+  /**
+   * Check all dependencies for validity and mark broken ones
+   * A dependency is considered broken if:
+   * - The predecessor task doesn't exist
+   * - The successor starts before the predecessor ends (for FS type)
+   */
+  validateDependencies(): { taskId: string; brokenPredecessorId: string; reason: string }[] {
+    const broken: { taskId: string; brokenPredecessorId: string; reason: string }[] = [];
+    const taskMap = new Map(this.state.tasks.map(t => [t.id, t]));
+
+    this.state.dependencies.forEach(dep => {
+      const fromTask = taskMap.get(dep.fromId);
+      const toTask = taskMap.get(dep.toId);
+
+      if (!fromTask) {
+        // Predecessor doesn't exist
+        broken.push({
+          taskId: dep.toId,
+          brokenPredecessorId: dep.fromId,
+          reason: 'Predecessor task does not exist',
+        });
+        return;
+      }
+
+      if (!toTask) {
+        // Successor doesn't exist (orphan dependency)
+        return;
+      }
+
+      // Check date constraint violations based on dependency type
+      const lag = dep.lag || 0;
+      let isViolated = false;
+      let reason = '';
+
+      switch (dep.type) {
+        case 'FS': // Finish-to-Start: successor must start after predecessor ends
+          const minStartDate = new Date(fromTask.endDate);
+          minStartDate.setDate(minStartDate.getDate() + lag + 1);
+          if (toTask.startDate < minStartDate) {
+            isViolated = true;
+            reason = `Starts before predecessor finishes (needs +${Math.ceil((minStartDate.getTime() - toTask.startDate.getTime()) / (24*60*60*1000))} days)`;
+          }
+          break;
+
+        case 'SS': // Start-to-Start: successor must start after predecessor starts
+          const minSSStart = new Date(fromTask.startDate);
+          minSSStart.setDate(minSSStart.getDate() + lag);
+          if (toTask.startDate < minSSStart) {
+            isViolated = true;
+            reason = `Starts before predecessor starts`;
+          }
+          break;
+
+        case 'FF': // Finish-to-Finish: successor must finish after predecessor finishes
+          const minFFEnd = new Date(fromTask.endDate);
+          minFFEnd.setDate(minFFEnd.getDate() + lag);
+          if (toTask.endDate < minFFEnd) {
+            isViolated = true;
+            reason = `Finishes before predecessor finishes`;
+          }
+          break;
+
+        case 'SF': // Start-to-Finish: successor must finish after predecessor starts
+          const minSFEnd = new Date(fromTask.startDate);
+          minSFEnd.setDate(minSFEnd.getDate() + lag);
+          if (toTask.endDate < minSFEnd) {
+            isViolated = true;
+            reason = `Finishes before predecessor starts`;
+          }
+          break;
+      }
+
+      if (isViolated) {
+        broken.push({
+          taskId: toTask.id,
+          brokenPredecessorId: fromTask.id,
+          reason,
+        });
+      }
+    });
+
+    return broken;
+  }
+
+  /**
+   * Get all tasks with broken dependencies
+   */
+  getTasksWithBrokenDependencies(): GanttTask[] {
+    return this.state.tasks.filter(t => t.brokenPredecessorIds && t.brokenPredecessorIds.length > 0);
+  }
+
+  /**
+   * Get IDs of broken dependencies (for rendering)
+   */
+  getBrokenDependencyIds(): Set<string> {
+    const brokenIds = new Set<string>();
+
+    this.state.tasks.forEach(task => {
+      if (task.brokenPredecessorIds) {
+        task.brokenPredecessorIds.forEach(predId => {
+          // Find the dependency between predId and this task
+          const dep = this.state.dependencies.find(
+            d => d.fromId === predId && d.toId === task.id
+          );
+          if (dep) {
+            brokenIds.add(dep.id);
+          }
+        });
+      }
+    });
+
+    return brokenIds;
+  }
+
   /**
    * Start flashing animation for dependencies connected to a task
    */
@@ -856,6 +1453,7 @@ export class GanttCanvas {
     }
 
     this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
+    const brokenDeps = this.getBrokenDependencyIds();
     this.renderer.drawDependencies(
       this.state.tasks,
       this.state.dependencies,
@@ -863,7 +1461,8 @@ export class GanttCanvas {
       this.containerHeight,
       criticalDeps,
       this.highlightedDeps.size > 0 ? this.highlightedDeps : undefined,
-      this.highlightedDeps.size > 0 ? this.highlightPhase : undefined
+      this.highlightedDeps.size > 0 ? this.highlightPhase : undefined,
+      brokenDeps.size > 0 ? brokenDeps : undefined
     );
 
     // Draw drag preview overlay
@@ -1502,6 +2101,16 @@ export class GanttCanvas {
       case 'delete':
         if (task) this.onTaskDelete?.(task);
         break;
+      case 'lock':
+        if (task) {
+          // Toggle lock status
+          const wasLocked = !!task.locked;
+          task.locked = wasLocked ? undefined : 'manuallyPositioned';
+          this.markDirty();
+          // Notify external handler of lock change
+          this.onTaskUpdate?.(task);
+        }
+        break;
       case 'zoom-fit':
         this.zoomToFit();
         break;
@@ -1708,6 +2317,53 @@ export class GanttCanvas {
           e.preventDefault();
           // B: Toggle baseline
           this.toggleBaseline();
+        }
+        break;
+
+      case 'l':
+      case 'L':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // L: Toggle lock on selected task
+          if (selectedTask) {
+            const wasLocked = !!selectedTask.locked;
+            selectedTask.locked = wasLocked ? undefined : 'manuallyPositioned';
+            this.markDirty();
+            this.onTaskUpdate?.(selectedTask);
+          }
+        }
+        break;
+
+      case 'v':
+      case 'V':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // V: Cycle zoom level (Day → Week → Month)
+          this.cycleZoomLevel();
+        }
+        break;
+
+      case '1':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // 1: Day view
+          this.zoomToDay();
+        }
+        break;
+
+      case '2':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // 2: Week view
+          this.zoomToWeek();
+        }
+        break;
+
+      case '3':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // 3: Month view
+          this.zoomToMonth();
         }
         break;
     }

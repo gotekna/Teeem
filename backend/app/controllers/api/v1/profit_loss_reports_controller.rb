@@ -85,6 +85,29 @@ module Api
         render json: { success: false, error: "Report not found" }, status: :not_found
       end
 
+      # POST /api/v1/companies/:company_id/profit_loss_reports/generate_historical
+      # Generate monthly P&L reports for all months since Xero connection
+      def generate_historical
+        result = ProfitLossReport.generate_historical!(@company)
+
+        render json: {
+          success: result[:success],
+          data: @company.profit_loss_reports.order(period_end: :desc, financial_year: :desc).map { |r| serialize_report(r) },
+          summary: {
+            created: result[:created],
+            skipped: result[:skipped],
+            errors: result[:errors]
+          },
+          message: result[:success] ? "Generated #{result[:created]} reports (#{result[:skipped]} already existed)" : result[:error]
+        }
+      rescue StandardError => e
+        Rails.logger.error("Historical P&L generation failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Generation failed: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # GET /api/v1/companies/:company_id/profit_loss_reports/:id/download
       def download
         report = @company.profit_loss_reports.find(params[:id])
@@ -113,6 +136,8 @@ module Api
           company_name: report.company_name,
           company_code: report.company_code,
           financial_year: report.financial_year,
+          period: report.period,                        # "Jan25", "Feb25", etc.
+          period_label: report.period_label,            # "January 2025" (human-readable)
           report_date: report.report_date,
           period_start: report.period_start,
           period_end: report.period_end,

@@ -301,7 +301,14 @@ class ProfitLossReportService
   def generate_filename
     code = @report.company_code.presence || "XX"
     fy_short = @report.financial_year.to_s.gsub(/FY?(\d{4})/) { "FY#{$1[-2..]}" }
-    "#{code} P&L #{fy_short}.pdf"
+
+    # Monthly reports include period (e.g., "Jan25")
+    if @report.period.present?
+      "#{code} PL #{@report.period} #{fy_short}.pdf"
+    else
+      # Legacy annual reports
+      "#{code} P&L #{fy_short}.pdf"
+    end
   end
 
   def format_date(date)

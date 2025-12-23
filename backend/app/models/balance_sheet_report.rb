@@ -10,6 +10,8 @@
 #  company_code         :string
 #  financial_year       :string           not null
 #  report_date          :date
+#  period               :string           # "Jan25", "Feb25", etc.
+#  period_end_date      :date             # Last day of month (e.g., 2025-01-31)
 #  total_assets         :decimal(15, 2)   default(0.0)
 #  total_liabilities    :decimal(15, 2)   default(0.0)
 #  net_assets           :decimal(15, 2)   default(0.0)
@@ -30,7 +32,13 @@ class BalanceSheetReport < ApplicationRecord
   # Validations
   validates :company_name, presence: true
   validates :financial_year, presence: true
-  validates :company_id, uniqueness: { scope: :financial_year, message: "already has a Balance Sheet for this financial year" }
+  # Uniqueness: one report per company per month (period_end_date)
+  # NULL period_end_date allowed for legacy annual reports
+  validates :company_id, uniqueness: {
+    scope: :period_end_date,
+    message: "already has a Balance Sheet for this period",
+    if: -> { period_end_date.present? }
+  }
 
   # Status scopes
   scope :pending, -> { where(status: "pending") }
@@ -126,6 +134,100 @@ class BalanceSheetReport < ApplicationRecord
       Rails.logger.error("Balance Sheet report generation failed: #{e.message}")
       mark_failed!(e.message)
     end
+  end
+
+  # ============================================
+  # CLASS METHODS: Historical Report Generation
+  # ============================================
+
+  # Generate monthly Balance Sheet reports for all months since Xero connection
+  # Creates one report per month, from connection date to current month
+  def self.generate_historical!(company)
+    connection = company.company_xero_connection
+    unless connection&.connected?
+      Rails.logger.info("[BalanceSheetReport] Company #{company.id} not connected to Xero - skipping historical generation")
+      return { success: false, error: "Company is not connected to Xero", created: 0 }
+    end
+
+    # Determine date range: from Xero connection to current month
+    start_date = connection.created_at.to_date.beginning_of_month
+    end_date = Date.current.end_of_month
+    company_code = company.short_code.presence || company.code.presence || company.name[0..3].upcase
+
+    created_count = 0
+    skipped_count = 0
+    errors = []
+
+    # Generate for each month
+    current_date = start_date
+    while current_date <= end_date
+      period_end = current_date.end_of_month
+
+      # Skip if report already exists for this period
+      if exists?(company_id: company.id, period_end_date: period_end)
+        skipped_count += 1
+        current_date = current_date.next_month
+        next
+      end
+
+      begin
+        report = create!(
+          company_id: company.id,
+          company_name: company.name,
+          company_code: company_code,
+          financial_year: fiscal_year_for_date(period_end),
+          period: period_end.strftime("%b%y"),          # "Jan25", "Feb25", etc.
+          period_end_date: period_end,
+          report_date: period_end,
+          status: "pending"
+        )
+
+        # Generate the report (async-safe: could be moved to a job)
+        report.generate!
+        created_count += 1
+
+        Rails.logger.info("[BalanceSheetReport] Generated #{report.period} for company #{company.id}")
+      rescue StandardError => e
+        errors << { period: period_end.strftime("%b%y"), error: e.message }
+        Rails.logger.error("[BalanceSheetReport] Failed to generate #{period_end.strftime('%b%y')}: #{e.message}")
+      end
+
+      current_date = current_date.next_month
+    end
+
+    {
+      success: errors.empty?,
+      created: created_count,
+      skipped: skipped_count,
+      errors: errors
+    }
+  end
+
+  # Calculate fiscal year for a given date (Australian FY: July-June)
+  # June 30, 2024 -> "FY2024"
+  # July 1, 2024 -> "FY2025"
+  def self.fiscal_year_for_date(date)
+    year = date.month >= 7 ? date.year + 1 : date.year
+    "FY#{year}"
+  end
+
+  # ============================================
+  # INSTANCE METHODS: Period Helpers
+  # ============================================
+
+  # Human-readable period label
+  # Returns "Jan 2025" or falls back to financial year
+  def period_label
+    return period_end_date.strftime("%B %Y") if period_end_date.present?
+    financial_year
+  end
+
+  # Short period label for filenames
+  # Returns "Jan25" or falls back to FY abbreviation
+  def period_short
+    return period if period.present?
+    return period_end_date.strftime("%b%y") if period_end_date.present?
+    financial_year.to_s.gsub(/FY?(\d{4})/) { "FY#{$1[-2..]}" }
   end
 
   private

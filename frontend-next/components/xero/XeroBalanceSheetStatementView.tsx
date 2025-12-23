@@ -10,7 +10,6 @@ import {
   Plus,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import { format } from "date-fns";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 
@@ -20,6 +19,9 @@ interface BSReport {
   company_name: string;
   company_code: string;
   financial_year: string;
+  period: string | null;           // "Jan25", "Feb25", etc.
+  period_end_date: string | null;  // Date for sorting
+  period_label: string | null;     // "January 2025" (human-readable)
   report_date: string | null;
   total_assets: number | null;
   total_liabilities: number | null;
@@ -111,6 +113,35 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
     }
   };
 
+  const generateHistorical = async () => {
+    try {
+      setGenerating("historical");
+      const response = await api.post<{
+        success: boolean;
+        data: BSReport[];
+        summary: { created: number; skipped: number; errors: Array<{ period: string; error: string }> };
+        message?: string;
+        error?: string;
+      }>(`/api/v1/companies/${companyId}/balance_sheet_reports/generate_historical`);
+
+      if (response?.success) {
+        setReports(response.data);
+        // Show success message
+        if (response.message) {
+          // Could use a toast here, but for now just log
+          console.log(response.message);
+        }
+      } else {
+        setError(response?.error || "Failed to generate historical reports");
+      }
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      setError(axiosError?.response?.data?.error || "Failed to generate historical reports");
+    } finally {
+      setGenerating(null);
+    }
+  };
+
   const downloadReport = async (report: BSReport) => {
     if (!report.download_url) {
       // Need to fetch the full report to get download URL
@@ -137,32 +168,10 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
     loadReports();
   }, [companyId]);
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "—";
-    try {
-      return format(new Date(dateStr), "d MMM yyyy");
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Generate available FYs (current and past 3 years)
-  const getAvailableFYs = () => {
-    const today = new Date();
-    const currentFY = today.getMonth() >= 6 ? today.getFullYear() + 1 : today.getFullYear();
-    const fys = [];
-    for (let i = 0; i < 4; i++) {
-      fys.push(`FY${currentFY - i}`);
-    }
-    return fys;
-  };
-
-  const existingFYs = reports.map((r) => r.financial_year);
-  const missingFYs = getAvailableFYs().filter((fy) => !existingFYs.includes(fy));
-
   // Define columns for TeeemTableView (no Foundation backing - explicit columns)
   const columns: TableColumn[] = [
-    { key: "financial_year", label: "Financial Year", width: 120, sortable: true },
+    { key: "period_label", label: "Period", width: 130, sortable: true },
+    { key: "financial_year", label: "FY", width: 80, sortable: true },
     { key: "report_date", label: "As Of Date", width: 120, column_type: "date" },
     { key: "total_assets", label: "Total Assets", width: 130, sortable: true, column_type: "currency", showSum: true },
     { key: "total_liabilities", label: "Total Liabilities", width: 140, sortable: true, column_type: "currency", showSum: true },
@@ -174,7 +183,10 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
   // Transform reports to table rows
   const tableRows: TableRow[] = reports.map((report) => ({
     id: report.id,
+    period_label: report.period_label || report.financial_year,  // Fallback to FY for legacy reports
     financial_year: report.financial_year,
+    period: report.period,
+    period_end_date: report.period_end_date,
     report_date: report.report_date,
     total_assets: report.total_assets,
     total_liabilities: report.total_liabilities,
@@ -210,20 +222,18 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
             )}
           </div>
           <div className="flex items-center gap-2">
-            {missingFYs.length > 0 && (
-              <Button
-                onClick={() => generateReport(missingFYs[0])}
-                disabled={generating !== null}
-                size="sm"
-              >
-                {generating ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-2" />
-                )}
-                Generate {missingFYs[0]}
-              </Button>
-            )}
+            <Button
+              onClick={generateHistorical}
+              disabled={generating !== null}
+              size="sm"
+            >
+              {generating === "historical" ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
+              Generate All Historical
+            </Button>
             <Button onClick={loadReports} disabled={loading} size="sm" variant="outline">
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -261,30 +271,6 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
           </div>
         )}
 
-        {/* Generate additional FYs */}
-        {reports.length > 0 && missingFYs.length > 1 && (
-          <div className="mt-4 pt-4 border-t">
-            <p className="text-sm text-muted-foreground mb-2">Generate additional reports:</p>
-            <div className="flex flex-wrap gap-2">
-              {missingFYs.slice(1).map((fy) => (
-                <Button
-                  key={fy}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => generateReport(fy)}
-                  disabled={generating !== null}
-                >
-                  {generating === fy ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Plus className="h-4 w-4 mr-2" />
-                  )}
-                  {fy}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
