@@ -165,16 +165,20 @@ export interface TooltipConfig {
 }
 
 export interface TooltipLine {
+  type?: string;
   label: string;
-  value: string;
+  value?: string;
   color?: string;
   bold?: boolean;
+  progress?: number;
+  icon?: string;
 }
 
 export interface TooltipContent {
-  title: string;
+  title?: string;
   lines: TooltipLine[];
   footer?: string;
+  maxWidth?: number;
 }
 
 // ============================================================================
@@ -191,26 +195,30 @@ export type EasingFunction =
   | 'easeOutBounce'
   | 'easeOutElastic'
   | 'easeOutBack'
+  | 'easeInOutSine'
   | 'spring';
 
 export interface Animation {
   id: string;
+  type?: string;
+  targetId?: string;
   startTime: number;
   duration: number;
-  fromValue: number;
-  toValue: number;
   easing: EasingFunction;
-  property: string;
-  targetId?: string;
-  onUpdate: (value: number) => void;
+  from: Record<string, number>;
+  to: Record<string, number>;
+  onUpdate?: (progress: number, values: Record<string, number>) => void;
   onComplete?: () => void;
+  repeat?: number;
+  yoyo?: boolean;
+  data?: Record<string, unknown>;
 }
 
 // ============================================================================
 // Feature 8: Task Notes Types
 // ============================================================================
 
-export type TaskNoteType = 'note' | 'warning' | 'issue' | 'question';
+export type TaskNoteType = 'note' | 'warning' | 'issue' | 'question' | 'info' | 'comment';
 
 export interface TaskNote {
   id: string;
@@ -247,14 +255,19 @@ export interface SummaryTaskConfig {
   endCaps: boolean;
   showProgress: boolean;
   progressColor: string;
+  showDateRange: boolean;
+  autoCalculateDates: boolean;
 }
 
 export interface SummaryTaskInfo {
   taskId: string;
-  childTaskIds: string[];
-  calculatedStart: Date;
-  calculatedEnd: Date;
-  aggregatedProgress: number;
+  childCount: number;
+  completedCount: number;
+  inProgressCount: number;
+  notStartedCount: number;
+  averageProgress: number;
+  minStart?: Date;
+  maxEnd?: Date;
 }
 
 // ============================================================================
@@ -290,26 +303,30 @@ export interface MarqueeBounds {
 }
 
 export interface ContextMenuTheme {
-  background: string;
-  text: string;
-  hoverBackground: string;
-  border: string;
+  backgroundColor: string;
+  textColor: string;
+  hoverBackgroundColor: string;
+  borderColor: string;
   dividerColor: string;
-  dangerText: string;
-  disabledText: string;
-  shadow: string;
+  dangerColor: string;
+  disabledColor: string;
+  shortcutColor: string;
+  borderRadius: number;
+  itemPadding: number;
+  minWidth: number;
+  maxWidth: number;
+  shadowBlur: number;
+  shadowColor: string;
 }
 
 export interface ScheduleVariance {
   taskId: string;
-  taskName: string;
-  plannedStart: Date;
-  plannedEnd: Date;
-  actualStart: Date;
-  actualEnd: Date;
   startVarianceDays: number;
   endVarianceDays: number;
-  status: 'on-time' | 'ahead' | 'behind';
+  durationVariance: number;
+  isDelayed: boolean;
+  isAhead: boolean;
+  hasSlipped: boolean;
 }
 
 // ============================================================================
@@ -7774,7 +7791,7 @@ export class GanttCanvas {
   animateTaskMove(taskId: string, toStartDate: Date, onComplete?: () => void): void {
     if (!this.animationEnabled) {
       // Instant move
-      this.moveTaskToDate(taskId, toStartDate);
+      this.moveTask(taskId, toStartDate);
       onComplete?.();
       return;
     }
@@ -8033,12 +8050,14 @@ export class GanttCanvas {
    * Add a note to a task
    */
   addTaskNote(taskId: string, content: string, author?: string, type?: 'note' | 'comment' | 'warning' | 'info'): TaskNote {
+    const now = new Date();
     const note: TaskNote = {
       id: `note-${++this.noteIdCounter}`,
       taskId,
       content,
       author: author || 'System',
-      createdAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
       type: type || 'note'
     };
 
@@ -8510,103 +8529,6 @@ export interface TimelineMarker {
   icon?: string;
   showLabel?: boolean;
   description?: string;
-}
-
-// ============================================================================
-// Task Filtering Types
-// ============================================================================
-
-export interface TaskFilterConfig {
-  /** Filter by task status (multiple allowed) */
-  status?: Array<'not-started' | 'in-progress' | 'completed' | 'on-hold' | 'at-risk'>;
-  /** Filter by supplier IDs */
-  supplierIds?: number[];
-  /** Filter by date range (tasks overlapping this range) */
-  dateRange?: {
-    start: Date;
-    end: Date;
-  };
-  /** Filter by locked state */
-  locked?: boolean;
-  /** Filter by progress range (0-100) */
-  progressRange?: {
-    min: number;
-    max: number;
-  };
-  /** Search text (matches task name or supplier name) */
-  searchText?: string;
-  /** Custom filter predicate */
-  customPredicate?: (task: GanttTask) => boolean;
-  /** Only show critical path tasks */
-  criticalPathOnly?: boolean;
-  /** Only show tasks on hold */
-  onHoldOnly?: boolean;
-  /** Only show tasks with broken dependencies */
-  brokenDependenciesOnly?: boolean;
-}
-
-export interface FilterStats {
-  /** Total number of tasks */
-  total: number;
-  /** Number of visible tasks (passing filter) */
-  visible: number;
-  /** Number of hidden tasks (filtered out) */
-  hidden: number;
-  /** Percentage of visible tasks */
-  percentage: number;
-}
-
-// ============================================================================
-// Marquee Selection Types
-// ============================================================================
-
-export interface MarqueeBounds {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  selectedCount: number;
-}
-
-// ============================================================================
-// Context Menu Theme Types
-// ============================================================================
-
-export interface ContextMenuTheme {
-  backgroundColor: string;
-  textColor: string;
-  hoverBackgroundColor: string;
-  borderColor: string;
-  dividerColor: string;
-  dangerColor: string;
-  disabledColor: string;
-  shortcutColor: string;
-  borderRadius: number;
-  itemPadding: number;
-  minWidth: number;
-  maxWidth: number;
-  shadowBlur: number;
-  shadowColor: string;
-}
-
-// ============================================================================
-// Schedule Variance Types (Baseline Comparison)
-// ============================================================================
-
-export interface ScheduleVariance {
-  taskId: string;
-  /** Days difference in start date (positive = started later) */
-  startVarianceDays: number;
-  /** Days difference in end date (positive = ended later) */
-  endVarianceDays: number;
-  /** Change in duration (positive = longer) */
-  durationVariance: number;
-  /** True if task is delayed from baseline */
-  isDelayed: boolean;
-  /** True if task is ahead of baseline */
-  isAhead: boolean;
-  /** True if start or end has slipped from baseline */
-  hasSlipped: boolean;
 }
 
 // Default export
