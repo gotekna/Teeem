@@ -310,8 +310,9 @@ export function PDFViewerImpl({
       )}
 
       {/* iframe uses browser's native PDF viewer */}
+      {/* Key includes currentPage to force remount on page navigation - blob URLs don't respond to hash changes */}
       <iframe
-        key={containerKey}
+        key={`${containerKey}-${currentPage}`}
         src={iframeSrc}
         className="w-full h-full border-0"
         title="PDF Viewer"
