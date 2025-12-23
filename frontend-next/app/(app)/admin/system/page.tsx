@@ -43,6 +43,7 @@ import {
   Brain,
   Activity,
   Settings2,
+  Receipt,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -81,6 +82,7 @@ import { EntityConfigurationTab } from "./components/EntityConfigurationTab";
 import { PdfFieldsTab } from "./components/PdfFieldsTab";
 import { AiProcessingTab } from "./components/AiProcessingTab";
 import { XeroHealthTab } from "./components/XeroHealthTab";
+import { CostTab } from "./components/CostTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 const TIMEZONES = [
@@ -112,6 +114,7 @@ const MAIN_TABS = [
   { id: "meeting-types", label: "Meeting Types", icon: Calendar },
   { id: "whs", label: "WHS", icon: ShieldCheck },
   { id: "financial", label: "Financial", icon: Banknote },
+  { id: "cost", label: "Cost", icon: Receipt },
   { id: "pricebook", label: "Price Book", icon: DollarSign },
   { id: "supervisor-checklist", label: "Supervisor Checklist", icon: ClipboardCheck },
   { id: "user-manual", label: "User Manual", icon: BookOpen },
@@ -833,6 +836,9 @@ function SystemAdminPageContent() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          <TabsContent value="cost" className="flex-1 min-h-0 overflow-auto">
+            <CostTab />
           </TabsContent>
           <TabsContent value="pricebook" className="flex-1 min-h-0 overflow-auto">
             <PlaceholderTab title="Price Book" description="Price book configuration" />
