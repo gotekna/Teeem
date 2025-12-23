@@ -26,13 +26,50 @@
 #   {Year}            - Year 2-digit (e.g., "26")
 #   {YearLong}        - Year 4-digit (e.g., "2026")
 #   {Date}            - Document date formatted (e.g., "31-12-2025")
+#   {Day}             - Day of month (e.g., "09")
+#   {DayLong}         - Day with suffix (e.g., "9th")
+#   {DDMMYYYY}        - Date AU short (e.g., "09-10-2025")
+#   {DateAU}          - Date AU long (e.g., "9 October 2025")
 #   {Signed}          - Signed/Unsigned status
 #   {MonthYearLong}   - Month and year (e.g., "December 2025")
 #   {MonthYear}       - Month and year short (e.g., "Dec25")
 #   {Period}          - Period code (e.g., "Jan25", "Feb25", "EOY")
+#   {PeriodLong}      - Period long (e.g., "January 2025")
 #   {BankCode}        - Bank code (e.g., "NAB", "WBC")
 #   {AccountNumber}   - Bank account number
 #   {BSB}             - BSB formatted (e.g., "084-435")
+#   {AssetCode}       - Asset code (e.g., "PROP1")
+#   {AssetName}       - Asset name (e.g., "123 Main Street")
+#   {CompanyGroup}    - Company group name
+#   {LoanID}          - Loan ID (e.g., "L001")
+#   {LoanName}        - Loan name
+#   {LenderCode}      - Lender code
+#   {LenderName}      - Lender name
+#   {PersonCode}      - Person code (e.g., "RH")
+#   {PersonName}      - Person name
+#   {JobCode}         - Job code (e.g., "EB2401")
+#   {JobName}         - Job name
+#   {JobTitle}        - Job title
+#   {JobAddress}      - Job address
+#   {LotNumber}       - Lot number
+#   {StreetName}      - Street name
+#   {Suburb}          - Suburb
+#   {ProjectName}     - Project name
+#   {Category}        - Category name
+#   {CategoryCode}    - Category code
+#   {CertType}        - Certificate type
+#   {Consultant}      - Consultant name
+#   {Code}            - Generic code
+#   {Name}            - Generic name
+#   {Rev}             - Revision
+#   {Variant}         - Variant
+#   {Number}          - Sequential number
+#   {Description}     - Description
+#   {Folder}          - Folder name
+#   {EX}              - Expiry short
+#   {Expiry}          - Expiry long
+#   {YYYYMMDD}        - ISO date (e.g., "2025-10-09")
+#   {DateISO}         - ISO date alias
 #
 module DocumentTemplatable
   extend ActiveSupport::Concern
@@ -89,6 +126,21 @@ module DocumentTemplatable
       doc_date = doc_date.to_date if doc_date.respond_to?(:to_date)
       result.gsub!('{Date}', doc_date.strftime('%d-%m-%Y'))
 
+      # Day tokens
+      day_num = doc_date.day
+      day_suffix = case day_num
+                   when 1, 21, 31 then "st"
+                   when 2, 22 then "nd"
+                   when 3, 23 then "rd"
+                   else "th"
+                   end
+      result.gsub!('{Day}', doc_date.strftime('%d'))                   # "09"
+      result.gsub!('{DayLong}', "#{day_num}#{day_suffix}")             # "9th"
+
+      # Date format variants
+      result.gsub!('{DDMMYYYY}', doc_date.strftime('%d-%m-%Y'))        # "09-10-2025"
+      result.gsub!('{DateAU}', "#{day_num} #{doc_date.strftime('%B %Y')}")  # "9 October 2025"
+
       # Month/Year tokens (for period-based reports)
       result.gsub!('{MonthYearLong}', doc_date.strftime('%B %Y'))      # "December 2025"
       result.gsub!('{MonthYear}', doc_date.strftime('%b%y'))           # "Dec25"
@@ -99,9 +151,13 @@ module DocumentTemplatable
     # =============
     if context[:period].present?
       result.gsub!('{Period}', context[:period].to_s)
-    elsif doc_date.present?
+      # PeriodLong: expand "Jan25" to "January 2025"
+      result.gsub!('{PeriodLong}', context[:period_long].to_s) if context[:period_long].present?
+    end
+    if doc_date.present?
       # Fall back to generating period from date
       result.gsub!('{Period}', doc_date.strftime('%b%y'))
+      result.gsub!('{PeriodLong}', doc_date.strftime('%B %Y'))
     end
 
     # ====================
@@ -133,6 +189,79 @@ module DocumentTemplatable
       elsif file_name.match?(/\bS\b.*\b(CTR|TTR)\b|Signed/i)
         result.gsub!('{Signed}', 'Signed')
       end
+    end
+
+    # =============
+    # Asset Tokens
+    # =============
+    result.gsub!('{AssetCode}', context[:asset_code].to_s) if context[:asset_code].present?
+    result.gsub!('{AssetName}', context[:asset_name].to_s) if context[:asset_name].present?
+
+    # =============
+    # Company Group
+    # =============
+    result.gsub!('{CompanyGroup}', context[:company_group].to_s) if context[:company_group].present?
+
+    # =============
+    # Loan Tokens
+    # =============
+    result.gsub!('{LoanID}', context[:loan_id].to_s) if context[:loan_id].present?
+    result.gsub!('{LoanName}', context[:loan_name].to_s) if context[:loan_name].present?
+    result.gsub!('{LenderCode}', context[:lender_code].to_s) if context[:lender_code].present?
+    result.gsub!('{LenderName}', context[:lender_name].to_s) if context[:lender_name].present?
+
+    # =============
+    # Person Tokens
+    # =============
+    result.gsub!('{PersonCode}', context[:person_code].to_s) if context[:person_code].present?
+    result.gsub!('{PersonName}', context[:person_name].to_s) if context[:person_name].present?
+
+    # =============
+    # Job Tokens
+    # =============
+    result.gsub!('{JobCode}', context[:job_code].to_s) if context[:job_code].present?
+    result.gsub!('{JobName}', context[:job_name].to_s) if context[:job_name].present?
+    result.gsub!('{JobTitle}', context[:job_title].to_s) if context[:job_title].present?
+    result.gsub!('{JobAddress}', context[:job_address].to_s) if context[:job_address].present?
+    result.gsub!('{LotNumber}', context[:lot_number].to_s) if context[:lot_number].present?
+    result.gsub!('{StreetName}', context[:street_name].to_s) if context[:street_name].present?
+    result.gsub!('{Suburb}', context[:suburb].to_s) if context[:suburb].present?
+    result.gsub!('{ProjectName}', context[:project_name].to_s) if context[:project_name].present?
+
+    # =============
+    # Category Tokens
+    # =============
+    result.gsub!('{Category}', context[:category].to_s) if context[:category].present?
+    result.gsub!('{CategoryCode}', context[:category_code].to_s) if context[:category_code].present?
+    result.gsub!('{CertType}', context[:cert_type].to_s) if context[:cert_type].present?
+    result.gsub!('{Consultant}', context[:consultant].to_s) if context[:consultant].present?
+
+    # =============
+    # Generic Tokens
+    # =============
+    result.gsub!('{Code}', context[:code].to_s) if context[:code].present?
+    result.gsub!('{Name}', context[:name].to_s) if context[:name].present?
+    result.gsub!('{Rev}', context[:rev].to_s) if context[:rev].present?
+    result.gsub!('{Variant}', context[:variant].to_s) if context[:variant].present?
+    result.gsub!('{Number}', context[:number].to_s) if context[:number].present?
+    result.gsub!('{Description}', context[:description].to_s) if context[:description].present?
+    result.gsub!('{Folder}', context[:folder].to_s) if context[:folder].present?
+
+    # =============
+    # Expiry Tokens
+    # =============
+    if context[:expiry_date].present?
+      exp_date = context[:expiry_date].to_date
+      result.gsub!('{EX}', "EX #{exp_date.strftime('%d/%m/%y')}")
+      result.gsub!('{Expiry}', "Expiry #{exp_date.day} #{exp_date.strftime('%B %Y')}")
+    end
+
+    # =============
+    # ISO Date Tokens
+    # =============
+    if doc_date.present?
+      result.gsub!('{YYYYMMDD}', doc_date.strftime('%Y-%m-%d'))
+      result.gsub!('{DateISO}', doc_date.strftime('%Y-%m-%d'))
     end
 
     # ================================
