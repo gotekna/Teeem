@@ -295,7 +295,11 @@ class XeroBankSyncService
     # Update status if account is archived in Xero
     if is_closed && local_account.status != "closed"
       changes[:status] = "closed"
-      changes[:date_closed] = Date.today unless local_account.date_closed.present?
+      # Use last transaction date as close date (when bank feed stopped)
+      unless local_account.date_closed.present?
+        last_tx_date = fetch_last_transaction_date(xero_account["AccountID"])
+        changes[:date_closed] = last_tx_date || Date.today
+      end
     elsif !is_closed && local_account.status == "closed"
       # Account was re-opened in Xero
       changes[:status] = "active"
@@ -448,12 +452,13 @@ class XeroBankSyncService
     }[bank_code] || bank_code
   end
 
-  # Fetch first transaction date from Xero for a bank account
-  def fetch_first_transaction_date(xero_account_id)
+  # Fetch first or last transaction date from Xero for a bank account
+  # order: :asc for first (date_opened), :desc for last (date_closed)
+  def fetch_transaction_date(xero_account_id, order: :asc)
     client = XeroApiClient.new
     response = make_xero_request(client, "BankTransactions", {
       where: "BankAccount.AccountID==Guid(\"#{xero_account_id}\")",
-      order: "Date ASC",
+      order: order == :desc ? "Date DESC" : "Date ASC",
       page: 1
     })
 
@@ -462,9 +467,9 @@ class XeroBankSyncService
     transactions = response[:data]["BankTransactions"] || []
     return nil if transactions.empty?
 
-    # Parse the first transaction date
-    first_tx = transactions.first
-    date_str = first_tx["Date"]
+    # Parse the transaction date
+    tx = transactions.first
+    date_str = tx["Date"]
     return nil unless date_str.present?
 
     # Xero returns dates in /Date(timestamp+timezone)/ format, e.g., /Date(1654041600000+0000)/
@@ -475,8 +480,18 @@ class XeroBankSyncService
       Date.parse(date_str) rescue nil
     end
   rescue StandardError => e
-    Rails.logger.warn("[XeroBankSync] Failed to fetch first transaction date: #{e.message}")
+    Rails.logger.warn("[XeroBankSync] Failed to fetch transaction date: #{e.message}")
     nil
+  end
+
+  # Fetch first transaction date (for date_opened)
+  def fetch_first_transaction_date(xero_account_id)
+    fetch_transaction_date(xero_account_id, order: :asc)
+  end
+
+  # Fetch last transaction date (for date_closed when account is archived)
+  def fetch_last_transaction_date(xero_account_id)
+    fetch_transaction_date(xero_account_id, order: :desc)
   end
 
   # Extract bank institution name from Xero account name

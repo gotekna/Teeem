@@ -1,20 +1,32 @@
 # frozen_string_literal: true
 
 module Performance
-  # Zero-Impact Request Buffer
-  # Collects performance metrics in memory and flushes them asynchronously
-  # Ensures request handling is never blocked by metric collection
+  # Self-Flushing Request Buffer for Heroku
   #
-  # Thread-safe implementation using Concurrent::Array
+  # Collects performance metrics in memory and flushes them INLINE on the web dyno.
+  # This is required because Heroku web and worker dynos have separate memory spaces.
+  #
+  # Flush triggers:
+  # - Buffer reaches 50 items (batch efficiency)
+  # - 30 seconds since last flush (time-based guarantee)
+  # - Buffer reaches MAX_BUFFER_SIZE (safety limit)
+  #
+  # Thread-safe implementation using Concurrent::Array and Mutex
   #
   # Usage:
   #   Performance::Buffer.push_request(data)
   #   Performance::Buffer.push_vital(data)
-  #   Performance::Buffer.flush!  # Called by scheduled job
+  #   Performance::Buffer.flush!  # Manual flush (also called inline)
   #
   class Buffer
+    # Flush when buffer reaches this size (balance between batching and memory)
+    FLUSH_THRESHOLD = 50
+
     # Maximum buffer size before forced flush (safety limit)
     MAX_BUFFER_SIZE = 1000
+
+    # Flush if this many seconds have passed since last flush
+    FLUSH_INTERVAL_SECONDS = 30
 
     # Sampling rate (0.0 to 1.0) - capture this percentage of requests
     # 0.1 = 10% of requests are sampled
@@ -36,14 +48,28 @@ module Performance
         @slow_query_buffer ||= Concurrent::Array.new
       end
 
+      # Mutex to prevent concurrent flushes
+      def flush_mutex
+        @flush_mutex ||= Mutex.new
+      end
+
+      # Track last flush time
+      def last_flush_time
+        @last_flush_time ||= Time.current
+      end
+
+      def last_flush_time=(time)
+        @last_flush_time = time
+      end
+
       # Push a request timing to the buffer
-      # Returns immediately - never blocks the request
+      # May trigger inline flush if thresholds met
       def push_request(data)
         return unless should_sample?
         return if request_buffer.length >= MAX_BUFFER_SIZE
 
         request_buffer << data.merge(sampled_at: Time.current)
-        async_flush_if_full
+        maybe_flush_inline
       end
 
       # Push a web vital to the buffer (always capture vitals)
@@ -51,7 +77,7 @@ module Performance
         return if vital_buffer.length >= MAX_BUFFER_SIZE
 
         vital_buffer << data.merge(received_at: Time.current)
-        async_flush_if_full
+        maybe_flush_inline
       end
 
       # Push a slow query to the buffer (always capture slow queries)
@@ -59,7 +85,7 @@ module Performance
         return if slow_query_buffer.length >= MAX_BUFFER_SIZE
 
         slow_query_buffer << data.merge(captured_at: Time.current)
-        async_flush_if_full
+        maybe_flush_inline
       end
 
       # Flush all buffers to database
@@ -172,7 +198,9 @@ module Performance
           vitals: vital_buffer.length,
           slow_queries: slow_query_buffer.length,
           sample_rate: SAMPLE_RATE,
-          max_size: MAX_BUFFER_SIZE
+          flush_threshold: FLUSH_THRESHOLD,
+          max_size: MAX_BUFFER_SIZE,
+          seconds_since_flush: (Time.current - last_flush_time).round(1)
         }
       end
 
@@ -181,6 +209,7 @@ module Performance
         request_buffer.clear
         vital_buffer.clear
         slow_query_buffer.clear
+        self.last_flush_time = Time.current
       end
 
       private
@@ -190,13 +219,34 @@ module Performance
         rand < SAMPLE_RATE
       end
 
-      # Trigger async flush if any buffer is getting full
-      def async_flush_if_full
+      # Check if we should flush inline (called after each push)
+      # Flushes if:
+      # - Buffer size >= FLUSH_THRESHOLD (50 items)
+      # - OR time since last flush >= FLUSH_INTERVAL_SECONDS (30s)
+      # - OR buffer is nearly full (safety)
+      def maybe_flush_inline
         total = request_buffer.length + vital_buffer.length + slow_query_buffer.length
-        return unless total >= MAX_BUFFER_SIZE * 0.8
+        time_since_flush = Time.current - last_flush_time
 
-        # Enqueue flush job if buffers are 80% full
-        FlushPerformanceBufferJob.perform_later
+        should_flush = total >= FLUSH_THRESHOLD ||
+                       time_since_flush >= FLUSH_INTERVAL_SECONDS ||
+                       total >= MAX_BUFFER_SIZE * 0.8
+
+        return unless should_flush
+
+        # Use non-blocking try_lock to avoid blocking requests
+        # If another thread is flushing, skip this flush
+        return unless flush_mutex.try_lock
+
+        begin
+          flush!
+          self.last_flush_time = Time.current
+        ensure
+          flush_mutex.unlock
+        end
+      rescue => e
+        # Never crash the request due to flush errors
+        Rails.logger.error "[Performance::Buffer] Inline flush error: #{e.message}"
       end
     end
   end

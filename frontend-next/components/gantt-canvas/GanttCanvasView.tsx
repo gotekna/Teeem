@@ -541,8 +541,17 @@ export function GanttCanvasView({
       ));
 
       setDepEditorOpen(false);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to save dependencies:', err);
+
+      // Extract error message from API response
+      const axiosError = err as { response?: { data?: { errors?: string[]; error?: string } }; message?: string };
+      const errorMessage = axiosError?.response?.data?.errors?.join(', ')
+        || axiosError?.response?.data?.error
+        || axiosError?.message
+        || 'Unknown error occurred';
+
+      alert(`Failed to save dependencies: ${errorMessage}`);
     }
   }, [depEditorTask, depEditorLinks, templateId]);
 
