@@ -639,8 +639,14 @@ function CompaniesSubTab() {
 
     setSaving(true);
     try {
+      // Only send fields that exist on CorporateCompany model
       const payload = {
-        ...formData,
+        name: formData.name,
+        code: formData.code || undefined,
+        abn: formData.abn || undefined,
+        acn: formData.acn || undefined,
+        status: formData.status || undefined,
+        entity_type: formData.type || undefined,
         company_group_id: formData.company_group_id && formData.company_group_id !== "none" ? parseInt(formData.company_group_id) : null,
       };
 

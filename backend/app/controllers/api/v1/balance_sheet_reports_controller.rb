@@ -131,6 +131,7 @@ module Api
       def serialize_report(report, include_url: false)
         data = {
           id: report.id,
+          display_name: report.display_name,            # "Balance Sheet December 2025 FY2026"
           company_id: report.company_id,
           company_name: report.company_name,
           company_code: report.company_code,

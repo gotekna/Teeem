@@ -15,6 +15,7 @@ import type { TableColumn, TableRow } from "@/components/table/types";
 
 interface BSReport {
   id: number;
+  display_name: string;              // "Balance Sheet December 2025 FY2026"
   company_id: number;
   company_name: string;
   company_code: string;
@@ -170,8 +171,7 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
 
   // Define columns for TeeemTableView (no Foundation backing - explicit columns)
   const columns: TableColumn[] = [
-    { key: "period_label", label: "Period", width: 130, sortable: true },
-    { key: "financial_year", label: "FY", width: 80, sortable: true },
+    { key: "display_name", label: "Display Name", width: 280, sortable: true },
     { key: "report_date", label: "As Of Date", width: 120, column_type: "date" },
     { key: "total_assets", label: "Total Assets", width: 130, sortable: true, column_type: "currency", showSum: true },
     { key: "total_liabilities", label: "Total Liabilities", width: 140, sortable: true, column_type: "currency", showSum: true },
@@ -183,9 +183,7 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
   // Transform reports to table rows
   const tableRows: TableRow[] = reports.map((report) => ({
     id: report.id,
-    period_label: report.period_label || report.financial_year,  // Fallback to FY for legacy reports
-    financial_year: report.financial_year,
-    period: report.period,
+    display_name: report.display_name,
     period_end_date: report.period_end_date,
     report_date: report.report_date,
     total_assets: report.total_assets,

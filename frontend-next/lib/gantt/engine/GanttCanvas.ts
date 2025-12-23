@@ -5116,11 +5116,1528 @@ export class GanttCanvas {
       },
     };
   }
+
+  // =========================================================================
+  // TOUCH/MOBILE GESTURE SUPPORT
+  // =========================================================================
+
+  /**
+   * Touch state tracking
+   */
+  private touchState: TouchState = {
+    isActive: false,
+    startTime: 0,
+    startX: 0,
+    startY: 0,
+    lastX: 0,
+    lastY: 0,
+    touches: [],
+    gesture: null,
+    pinchStartDistance: 0,
+    pinchStartZoom: 1,
+    velocityX: 0,
+    velocityY: 0,
+    lastMoveTime: 0,
+  };
+
+  private touchLongPressTimer: ReturnType<typeof setTimeout> | null = null;
+  private touchMomentumAnimationId: number | null = null;
+
+  /**
+   * Initialize touch event listeners
+   */
+  initializeTouchEvents(): void {
+    this.canvas.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+    this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+    this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+    this.canvas.addEventListener('touchcancel', this.handleTouchCancel.bind(this), { passive: false });
+  }
+
+  /**
+   * Handle touch start
+   */
+  private handleTouchStart(e: TouchEvent): void {
+    e.preventDefault();
+
+    const touches = Array.from(e.touches);
+    const now = Date.now();
+
+    this.touchState.isActive = true;
+    this.touchState.startTime = now;
+    this.touchState.touches = touches.map(t => ({ x: t.clientX, y: t.clientY }));
+
+    if (touches.length === 1) {
+      // Single finger touch
+      const touch = touches[0];
+      const rect = this.canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+
+      this.touchState.startX = x;
+      this.touchState.startY = y;
+      this.touchState.lastX = x;
+      this.touchState.lastY = y;
+      this.touchState.gesture = 'tap';
+
+      // Start long press timer for context menu
+      this.touchLongPressTimer = setTimeout(() => {
+        if (this.touchState.gesture === 'tap') {
+          this.touchState.gesture = 'longpress';
+          // Trigger context menu at touch location
+          const task = this.hitTestTask(x, y);
+          if (task) {
+            this.showContextMenuForTask(task, touch.clientX, touch.clientY);
+          }
+        }
+      }, 500);
+
+    } else if (touches.length === 2) {
+      // Two finger pinch/pan
+      this.cancelLongPress();
+      this.touchState.gesture = 'pinch';
+      this.touchState.pinchStartDistance = this.getTouchDistance(touches[0], touches[1]);
+      this.touchState.pinchStartZoom = this.viewport.getState().zoom;
+    }
+
+    // Stop any ongoing momentum
+    this.stopMomentumScroll();
+  }
+
+  /**
+   * Handle touch move
+   */
+  private handleTouchMove(e: TouchEvent): void {
+    e.preventDefault();
+
+    const touches = Array.from(e.touches);
+    const now = Date.now();
+
+    if (touches.length === 1 && this.touchState.gesture !== 'longpress') {
+      const touch = touches[0];
+      const rect = this.canvas.getBoundingClientRect();
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+
+      const deltaX = x - this.touchState.lastX;
+      const deltaY = y - this.touchState.lastY;
+      const totalDeltaX = x - this.touchState.startX;
+      const totalDeltaY = y - this.touchState.startY;
+
+      // Check if moved enough to be a drag
+      if (Math.abs(totalDeltaX) > 10 || Math.abs(totalDeltaY) > 10) {
+        this.cancelLongPress();
+
+        if (this.touchState.gesture === 'tap') {
+          // Check if touching a task
+          const task = this.hitTestTask(this.touchState.startX, this.touchState.startY);
+          if (task && !task.locked) {
+            this.touchState.gesture = 'drag-task';
+            this.startTaskDrag(task, this.touchState.startX, this.touchState.startY);
+          } else {
+            this.touchState.gesture = 'pan';
+          }
+        }
+
+        if (this.touchState.gesture === 'pan') {
+          this.viewport.pan(-deltaX, -deltaY);
+          this.markDirty();
+        } else if (this.touchState.gesture === 'drag-task') {
+          this.updateTaskDrag(x, y);
+        }
+
+        // Track velocity for momentum
+        const timeDelta = now - this.touchState.lastMoveTime;
+        if (timeDelta > 0) {
+          this.touchState.velocityX = deltaX / timeDelta * 16; // normalize to ~60fps
+          this.touchState.velocityY = deltaY / timeDelta * 16;
+        }
+      }
+
+      this.touchState.lastX = x;
+      this.touchState.lastY = y;
+      this.touchState.lastMoveTime = now;
+
+    } else if (touches.length === 2) {
+      // Pinch zoom with center preservation
+      const distance = this.getTouchDistance(touches[0], touches[1]);
+      const scale = distance / this.touchState.pinchStartDistance;
+      const newZoom = this.touchState.pinchStartZoom * scale;
+
+      // Calculate center point for zoom
+      const centerX = (touches[0].clientX + touches[1].clientX) / 2;
+      const centerY = (touches[0].clientY + touches[1].clientY) / 2;
+      const rect = this.canvas.getBoundingClientRect();
+      const localX = centerX - rect.left;
+
+      // Preserve the date at the center point during zoom
+      const oldZoom = this.viewport.getState().zoom;
+      const dateAtCenter = this.viewport.xToDate(localX);
+
+      this.viewport.setZoom(newZoom);
+
+      // Adjust scroll to keep the same date at the center
+      const newX = this.viewport.dateToX(dateAtCenter);
+      const scrollAdjust = newX - localX;
+      this.viewport.pan(scrollAdjust, 0);
+
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Handle touch end
+   */
+  private handleTouchEnd(e: TouchEvent): void {
+    e.preventDefault();
+
+    this.cancelLongPress();
+
+    const gesture = this.touchState.gesture;
+    const duration = Date.now() - this.touchState.startTime;
+
+    if (gesture === 'tap' && duration < 300) {
+      // Quick tap - select task
+      const task = this.hitTestTask(this.touchState.startX, this.touchState.startY);
+      if (task) {
+        this.selectTask(task.id, false, false);
+        this.announceTaskSelection(task.id);
+      } else {
+        this.clearSelection();
+      }
+
+      // Check for double tap
+      if (this.lastTapTime && Date.now() - this.lastTapTime < 300) {
+        // Double tap - edit task or zoom
+        const task = this.hitTestTask(this.touchState.startX, this.touchState.startY);
+        if (task) {
+          this.onTaskDoubleClick?.(task);
+        } else {
+          // Double tap on empty space - zoom in at tap point
+          const tapX = this.touchState.startX;
+          const dateAtTap = this.viewport.xToDate(tapX);
+          const newZoom = this.viewport.getState().zoom * 1.5;
+
+          this.viewport.setZoom(newZoom);
+
+          // Adjust scroll to keep the same date at the tap point
+          const newX = this.viewport.dateToX(dateAtTap);
+          this.viewport.pan(newX - tapX, 0);
+
+          this.markDirty();
+        }
+      }
+      this.lastTapTime = Date.now();
+
+    } else if (gesture === 'drag-task') {
+      this.endTaskDrag();
+
+    } else if (gesture === 'pan') {
+      // Start momentum scroll if velocity is high enough
+      const velocity = Math.sqrt(
+        this.touchState.velocityX ** 2 +
+        this.touchState.velocityY ** 2
+      );
+      if (velocity > 2) {
+        this.startMomentumScroll();
+      }
+    }
+
+    this.resetTouchState();
+  }
+
+  /**
+   * Handle touch cancel
+   */
+  private handleTouchCancel(e: TouchEvent): void {
+    e.preventDefault();
+    this.cancelLongPress();
+
+    if (this.touchState.gesture === 'drag-task') {
+      this.cancelTaskDrag();
+    }
+
+    this.resetTouchState();
+  }
+
+  private lastTapTime: number = 0;
+
+  /**
+   * Get distance between two touches
+   */
+  private getTouchDistance(t1: Touch, t2: Touch): number {
+    const dx = t2.clientX - t1.clientX;
+    const dy = t2.clientY - t1.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Cancel long press timer
+   */
+  private cancelLongPress(): void {
+    if (this.touchLongPressTimer) {
+      clearTimeout(this.touchLongPressTimer);
+      this.touchLongPressTimer = null;
+    }
+  }
+
+  /**
+   * Reset touch state
+   */
+  private resetTouchState(): void {
+    this.touchState = {
+      isActive: false,
+      startTime: 0,
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+      lastY: 0,
+      touches: [],
+      gesture: null,
+      pinchStartDistance: 0,
+      pinchStartZoom: 1,
+      velocityX: 0,
+      velocityY: 0,
+      lastMoveTime: 0,
+    };
+  }
+
+  /**
+   * Start momentum scroll animation
+   */
+  private startMomentumScroll(): void {
+    const friction = 0.95;
+    let velocityX = this.touchState.velocityX;
+    let velocityY = this.touchState.velocityY;
+
+    const animate = () => {
+      if (Math.abs(velocityX) < 0.1 && Math.abs(velocityY) < 0.1) {
+        this.touchMomentumAnimationId = null;
+        return;
+      }
+
+      this.viewport.pan(-velocityX, -velocityY);
+      this.markDirty();
+
+      velocityX *= friction;
+      velocityY *= friction;
+
+      this.touchMomentumAnimationId = requestAnimationFrame(animate);
+    };
+
+    this.touchMomentumAnimationId = requestAnimationFrame(animate);
+  }
+
+  /**
+   * Stop momentum scroll
+   */
+  private stopMomentumScroll(): void {
+    if (this.touchMomentumAnimationId) {
+      cancelAnimationFrame(this.touchMomentumAnimationId);
+      this.touchMomentumAnimationId = null;
+    }
+  }
+
+  /**
+   * Show context menu for a task (touch)
+   */
+  private showContextMenuForTask(task: GanttTask, screenX: number, screenY: number): void {
+    // Vibrate for haptic feedback if supported
+    if (navigator.vibrate) {
+      navigator.vibrate(50);
+    }
+
+    // Set context menu state
+    this.contextMenuVisible = true;
+    this.contextMenuX = screenX;
+    this.contextMenuY = screenY;
+    this.contextMenuTask = task;
+
+    // Build menu items for task
+    this.contextMenuItems = [
+      { id: 'edit', label: 'Edit Task' },
+      { id: 'start', label: task.status === 'in-progress' ? 'Mark Not Started' : 'Start Task' },
+      { id: 'complete', label: 'Mark Complete' },
+      { id: 'separator1', label: '', separator: true },
+      { id: 'lock', label: task.locked ? 'Unlock' : 'Lock Position' },
+      { id: 'hold', label: this.isTaskOnHold(task.id) ? 'Resume' : 'Put On Hold' },
+      { id: 'separator2', label: '', separator: true },
+      { id: 'delete', label: 'Delete Task' },
+    ];
+
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // DRAG TOOLTIP API
+  // =========================================================================
+
+  /**
+   * Drag tooltip state
+   */
+  private dragTooltip: DragTooltipState = {
+    visible: false,
+    x: 0,
+    y: 0,
+    task: null,
+    originalDate: null,
+    newDate: null,
+    duration: 0,
+    predecessorCount: 0,
+    successorCount: 0,
+  };
+
+  /**
+   * Show drag tooltip
+   */
+  showDragTooltip(task: GanttTask, x: number, y: number, newStartDate: Date): void {
+    const predecessors = task.predecessorIds?.length || 0;
+    const successors = this.getSuccessors(task.id).length;
+    const duration = this.getTaskDuration(task.id);
+
+    this.dragTooltip = {
+      visible: true,
+      x: x + 20,
+      y: y - 60,
+      task,
+      originalDate: task.startDate,
+      newDate: newStartDate,
+      duration,
+      predecessorCount: predecessors,
+      successorCount: successors,
+    };
+
+    this.markDirty();
+  }
+
+  /**
+   * Update drag tooltip position
+   */
+  updateDragTooltip(x: number, y: number, newStartDate: Date): void {
+    if (!this.dragTooltip.visible) return;
+
+    this.dragTooltip.x = x + 20;
+    this.dragTooltip.y = y - 60;
+    this.dragTooltip.newDate = newStartDate;
+
+    this.markDirty();
+  }
+
+  /**
+   * Hide drag tooltip
+   */
+  hideDragTooltip(): void {
+    this.dragTooltip.visible = false;
+    this.markDirty();
+  }
+
+  /**
+   * Get drag tooltip state for rendering
+   */
+  getDragTooltipState(): DragTooltipState {
+    return { ...this.dragTooltip };
+  }
+
+  // =========================================================================
+  // TASK GROUPING & COLLAPSE API
+  // =========================================================================
+
+  /**
+   * Collapsed groups state (set of parent task IDs that are collapsed)
+   */
+  private collapsedGroups: Set<string> = new Set();
+
+  /**
+   * Toggle group collapsed state
+   */
+  toggleGroupCollapsed(parentTaskId: string): void {
+    if (this.collapsedGroups.has(parentTaskId)) {
+      this.collapsedGroups.delete(parentTaskId);
+      this.announceAction(`Expanded group`);
+    } else {
+      this.collapsedGroups.add(parentTaskId);
+      this.announceAction(`Collapsed group`);
+    }
+    this.markDirty();
+  }
+
+  /**
+   * Collapse a group
+   */
+  collapseGroup(parentTaskId: string): void {
+    if (!this.collapsedGroups.has(parentTaskId)) {
+      this.collapsedGroups.add(parentTaskId);
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Expand a group
+   */
+  expandGroup(parentTaskId: string): void {
+    if (this.collapsedGroups.has(parentTaskId)) {
+      this.collapsedGroups.delete(parentTaskId);
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Collapse all groups
+   */
+  collapseAllGroups(): void {
+    this.getRootTasks().forEach(task => {
+      if (this.hasChildren(task.id)) {
+        this.collapsedGroups.add(task.id);
+      }
+    });
+    this.announceAction('Collapsed all groups');
+    this.markDirty();
+  }
+
+  /**
+   * Expand all groups
+   */
+  expandAllGroups(): void {
+    this.collapsedGroups.clear();
+    this.announceAction('Expanded all groups');
+    this.markDirty();
+  }
+
+  /**
+   * Check if group is collapsed
+   */
+  isGroupCollapsed(parentTaskId: string): boolean {
+    return this.collapsedGroups.has(parentTaskId);
+  }
+
+  /**
+   * Get visible tasks (respecting collapsed groups)
+   */
+  getVisibleTasks(): GanttTask[] {
+    const visible: GanttTask[] = [];
+    const hiddenByParent = new Set<string>();
+
+    // First pass: identify all hidden tasks
+    this.state.tasks.forEach(task => {
+      const ancestorIds = this.getTaskAncestors(task.id);
+      for (const ancestorId of ancestorIds) {
+        if (this.collapsedGroups.has(ancestorId)) {
+          hiddenByParent.add(task.id);
+          break;
+        }
+      }
+    });
+
+    // Second pass: collect visible tasks
+    this.state.tasks.forEach(task => {
+      if (!hiddenByParent.has(task.id)) {
+        visible.push(task);
+      }
+    });
+
+    return visible;
+  }
+
+  /**
+   * Get collapsed group count
+   */
+  getCollapsedGroupCount(): number {
+    return this.collapsedGroups.size;
+  }
+
+  /**
+   * Get hidden task count (tasks inside collapsed groups)
+   */
+  getHiddenTaskCount(): number {
+    let hidden = 0;
+    this.collapsedGroups.forEach(parentId => {
+      hidden += this.getTaskDescendants(parentId).length;
+    });
+    return hidden;
+  }
+
+  // =========================================================================
+  // ZOOM PRESETS & TOOLBAR API
+  // =========================================================================
+
+  /**
+   * Predefined zoom levels
+   */
+  private zoomPresets: ZoomPreset[] = [
+    { id: 'day', label: 'Day', daysVisible: 7, zoom: 3 },
+    { id: 'week', label: 'Week', daysVisible: 14, zoom: 1.5 },
+    { id: 'month', label: 'Month', daysVisible: 30, zoom: 0.7 },
+    { id: 'quarter', label: 'Quarter', daysVisible: 90, zoom: 0.25 },
+    { id: 'year', label: 'Year', daysVisible: 365, zoom: 0.07 },
+  ];
+
+  private currentZoomPreset: string = 'month';
+
+  /**
+   * Get all zoom presets
+   */
+  getZoomPresets(): ZoomPreset[] {
+    return [...this.zoomPresets];
+  }
+
+  /**
+   * Get current zoom preset ID
+   */
+  getCurrentZoomPreset(): string {
+    return this.currentZoomPreset;
+  }
+
+  /**
+   * Apply a zoom preset
+   */
+  applyZoomPreset(presetId: string): void {
+    const preset = this.zoomPresets.find(p => p.id === presetId);
+    if (!preset) return;
+
+    this.currentZoomPreset = presetId;
+    this.viewport.setZoom(preset.zoom);
+    this.markDirty();
+
+    this.announceAction(`Zoom: ${preset.label} view`);
+  }
+
+  /**
+   * Zoom in one level
+   */
+  zoomInOneLevel(): void {
+    const currentIndex = this.zoomPresets.findIndex(p => p.id === this.currentZoomPreset);
+    if (currentIndex > 0) {
+      this.applyZoomPreset(this.zoomPresets[currentIndex - 1].id);
+    }
+  }
+
+  /**
+   * Zoom out one level
+   */
+  zoomOutOneLevel(): void {
+    const currentIndex = this.zoomPresets.findIndex(p => p.id === this.currentZoomPreset);
+    if (currentIndex < this.zoomPresets.length - 1) {
+      this.applyZoomPreset(this.zoomPresets[currentIndex + 1].id);
+    }
+  }
+
+  /**
+   * Add a custom zoom preset
+   */
+  addZoomPreset(preset: ZoomPreset): void {
+    // Insert in order by daysVisible
+    const index = this.zoomPresets.findIndex(p => p.daysVisible > preset.daysVisible);
+    if (index === -1) {
+      this.zoomPresets.push(preset);
+    } else {
+      this.zoomPresets.splice(index, 0, preset);
+    }
+  }
+
+  /**
+   * Remove a custom zoom preset
+   */
+  removeZoomPreset(presetId: string): void {
+    const index = this.zoomPresets.findIndex(p => p.id === presetId);
+    if (index !== -1) {
+      this.zoomPresets.splice(index, 1);
+      if (this.currentZoomPreset === presetId) {
+        this.currentZoomPreset = 'month';
+      }
+    }
+  }
+
+  /**
+   * Get toolbar state for React rendering
+   */
+  getToolbarState(): ToolbarState {
+    return {
+      zoomPresets: this.getZoomPresets(),
+      currentZoomPreset: this.currentZoomPreset,
+      canZoomIn: this.zoomPresets.findIndex(p => p.id === this.currentZoomPreset) > 0,
+      canZoomOut: this.zoomPresets.findIndex(p => p.id === this.currentZoomPreset) < this.zoomPresets.length - 1,
+      canUndo: this.canUndo(),
+      canRedo: this.canRedo(),
+      selectedTaskCount: this.state.selectedTaskIds.size,
+      totalTaskCount: this.state.tasks.length,
+      visibleTaskCount: this.getVisibleTasks().length,
+      collapsedGroupCount: this.getCollapsedGroupCount(),
+      criticalPathEnabled: this.criticalPathEnabled,
+      baselineEnabled: this.baselineEnabled,
+      minimapVisible: this.minimapVisible,
+    };
+  }
+
+  // =========================================================================
+  // SNAP-TO-GRID CONFIGURATION
+  // =========================================================================
+
+  /**
+   * Snap configuration
+   */
+  private snapConfig: SnapConfig = {
+    enabled: true,
+    snapToDay: true,
+    snapToWorkingDay: true,
+    snapToWeekStart: false,
+    snapToMonthStart: false,
+    snapThresholdPixels: 10,
+    showSnapGuides: true,
+  };
+
+  /**
+   * Get snap configuration
+   */
+  getSnapConfig(): SnapConfig {
+    return { ...this.snapConfig };
+  }
+
+  /**
+   * Set snap configuration
+   */
+  setSnapConfig(config: Partial<SnapConfig>): void {
+    this.snapConfig = { ...this.snapConfig, ...config };
+  }
+
+  /**
+   * Toggle snap to grid
+   */
+  toggleSnap(): void {
+    this.snapConfig.enabled = !this.snapConfig.enabled;
+    this.announceAction(this.snapConfig.enabled ? 'Snap enabled' : 'Snap disabled');
+  }
+
+  /**
+   * Snap a date based on current configuration
+   */
+  snapDate(date: Date): Date {
+    if (!this.snapConfig.enabled) {
+      return date;
+    }
+
+    let snapped = new Date(date);
+
+    // Snap to month start first (largest unit)
+    if (this.snapConfig.snapToMonthStart) {
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+      const daysToStart = Math.abs(date.getDate() - 1);
+      const daysToEnd = Math.abs(monthEnd.getDate() - date.getDate());
+      if (daysToStart <= 3) {
+        snapped = monthStart;
+      } else if (daysToEnd <= 3) {
+        snapped = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+      }
+    }
+
+    // Snap to week start
+    if (this.snapConfig.snapToWeekStart && !this.snapConfig.snapToMonthStart) {
+      const dayOfWeek = date.getDay();
+      const monday = new Date(date);
+      monday.setDate(date.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+      if (Math.abs(date.getTime() - monday.getTime()) <= 2 * 24 * 60 * 60 * 1000) {
+        snapped = monday;
+      }
+    }
+
+    // Snap to working day
+    if (this.snapConfig.snapToWorkingDay) {
+      snapped = this.calendar.snapToWorkingDay(snapped, true);
+    }
+
+    // Snap to day boundary
+    if (this.snapConfig.snapToDay) {
+      snapped.setHours(0, 0, 0, 0);
+    }
+
+    return snapped;
+  }
+
+  /**
+   * Check if a position should snap
+   */
+  shouldSnap(pixelDistance: number): boolean {
+    return this.snapConfig.enabled &&
+           Math.abs(pixelDistance) <= this.snapConfig.snapThresholdPixels;
+  }
+
+  /**
+   * Get snap guides for current drag operation
+   */
+  getSnapGuides(draggedTask: GanttTask, proposedDate: Date): SnapGuide[] {
+    if (!this.snapConfig.showSnapGuides) return [];
+
+    const guides: SnapGuide[] = [];
+    const proposedX = this.dateToX(proposedDate);
+
+    // Add snap guide for today
+    const todayX = this.dateToX(new Date());
+    if (this.shouldSnap(Math.abs(proposedX - todayX))) {
+      guides.push({ type: 'today', x: todayX, label: 'Today' });
+    }
+
+    // Add snap guides for other task starts/ends
+    this.state.tasks.forEach(task => {
+      if (task.id === draggedTask.id) return;
+
+      const startX = this.dateToX(task.startDate);
+      const endX = this.dateToX(task.endDate);
+
+      if (this.shouldSnap(Math.abs(proposedX - startX))) {
+        guides.push({ type: 'task-start', x: startX, label: task.name, taskId: task.id });
+      }
+
+      if (this.shouldSnap(Math.abs(proposedX - endX))) {
+        guides.push({ type: 'task-end', x: endX, label: task.name, taskId: task.id });
+      }
+    });
+
+    return guides;
+  }
+
+  /**
+   * Convert date to X coordinate
+   */
+  private dateToX(date: Date): number {
+    return this.viewport.dateToX(date);
+  }
+
+  // =========================================================================
+  // HELPER: Task drag operations (used by touch)
+  // =========================================================================
+
+  private startTaskDrag(task: GanttTask, x: number, y: number): void {
+    this.dragTask = task;
+    this.isDragging = true;
+    this.dragStartX = x;
+    this.dragStartDate = new Date(task.startDate);
+    this.showDragTooltip(task, x, y, task.startDate);
+  }
+
+  private updateTaskDrag(x: number, y: number): void {
+    if (!this.dragTask || !this.dragStartDate) return;
+
+    const task = this.dragTask;
+
+    const deltaX = x - this.dragStartX;
+    const deltaDays = Math.round(deltaX / this.viewport.getDayWidth());
+    const newDate = new Date(this.dragStartDate);
+    newDate.setDate(newDate.getDate() + deltaDays);
+
+    const snappedDate = this.snapDate(newDate);
+    this.updateDragTooltip(x, y, snappedDate);
+
+    // Preview position (don't actually move yet)
+    this.markDirty();
+  }
+
+  private endTaskDrag(): void {
+    if (!this.dragTask || !this.dragStartDate) return;
+
+    const task = this.dragTask;
+    if (task && this.dragTooltip.newDate) {
+      const duration = task.endDate.getTime() - task.startDate.getTime();
+      task.startDate = new Date(this.dragTooltip.newDate);
+      task.endDate = new Date(task.startDate.getTime() + duration);
+
+      this.onTaskDrag?.(task, task.startDate);
+    }
+
+    this.hideDragTooltip();
+    this.isDragging = false;
+    this.dragTask = null;
+    this.dragStartDate = null;
+  }
+
+  private cancelTaskDrag(): void {
+    this.hideDragTooltip();
+    this.isDragging = false;
+    this.dragTask = null;
+    this.dragStartDate = null;
+    this.markDirty();
+  }
+
+  private hitTestTask(x: number, y: number): GanttTask | null {
+    // Use the existing hit test logic from mouse handler
+    const result = this.performHitTest(x, y);
+    if (result.type === 'task' && result.taskId) {
+      return this.getTask(result.taskId) || null;
+    }
+    return null;
+  }
+
+  private performHitTest(x: number, y: number): { type: 'task' | 'dependency' | 'empty'; taskId?: string } {
+    // Check each visible task
+    const rowHeight = 36;
+    const headerHeight = 50;
+    const taskBarHeight = 24;
+
+    const scrollY = this.viewport.getState().scrollY;
+    const visibleTasks = this.getVisibleTasks();
+
+    for (let i = 0; i < visibleTasks.length; i++) {
+      const task = visibleTasks[i];
+      const taskY = headerHeight + i * rowHeight - scrollY + (rowHeight - taskBarHeight) / 2;
+
+      const taskStartX = this.dateToX(task.startDate);
+      const taskEndX = this.dateToX(task.endDate);
+
+      if (x >= taskStartX && x <= taskEndX && y >= taskY && y <= taskY + taskBarHeight) {
+        return { type: 'task', taskId: task.id };
+      }
+    }
+
+    return { type: 'empty' };
+  }
+
+  // =========================================================================
+  // UNDO COMMAND HELPERS - Extensions to existing UndoManager
+  // =========================================================================
+
+  /**
+   * Create a task move command (helper for undo/redo)
+   */
+  createMoveTaskCommand(taskId: string, newStartDate: Date): Command {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+
+    const originalStart = new Date(task.startDate);
+    const originalEnd = new Date(task.endDate);
+    const duration = originalEnd.getTime() - originalStart.getTime();
+    const newEndDate = new Date(newStartDate.getTime() + duration);
+
+    return {
+      id: `move-${taskId}-${Date.now()}`,
+      description: `Move "${task.name}" to ${newStartDate.toLocaleDateString()}`,
+      timestamp: Date.now(),
+      execute: () => {
+        const t = this.getTask(taskId);
+        if (t) {
+          t.startDate = new Date(newStartDate);
+          t.endDate = new Date(newEndDate);
+        }
+      },
+      undo: () => {
+        const t = this.getTask(taskId);
+        if (t) {
+          t.startDate = new Date(originalStart);
+          t.endDate = new Date(originalEnd);
+        }
+      }
+    };
+  }
+
+  /**
+   * Create a task resize command (helper for undo/redo)
+   */
+  createResizeTaskCommand(taskId: string, newStart: Date, newEnd: Date): Command {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+
+    const originalStart = new Date(task.startDate);
+    const originalEnd = new Date(task.endDate);
+
+    return {
+      id: `resize-${taskId}-${Date.now()}`,
+      description: `Resize "${task.name}"`,
+      timestamp: Date.now(),
+      execute: () => {
+        const t = this.getTask(taskId);
+        if (t) {
+          t.startDate = new Date(newStart);
+          t.endDate = new Date(newEnd);
+        }
+      },
+      undo: () => {
+        const t = this.getTask(taskId);
+        if (t) {
+          t.startDate = new Date(originalStart);
+          t.endDate = new Date(originalEnd);
+        }
+      }
+    };
+  }
+
+  // =========================================================================
+  // PROGRESS BAR OVERLAY - Visual task progress
+  // =========================================================================
+
+  private showProgressBars: boolean = true;
+
+  /**
+   * Set task progress (0-100)
+   */
+  setTaskProgress(taskId: string, progress: number): void {
+    const task = this.getTask(taskId);
+    if (task) {
+      task.progress = Math.max(0, Math.min(100, progress));
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Get task progress
+   */
+  getTaskProgress(taskId: string): number {
+    const task = this.getTask(taskId);
+    return task?.progress ?? 0;
+  }
+
+  /**
+   * Toggle progress bar visibility
+   */
+  toggleProgressBars(): void {
+    this.showProgressBars = !this.showProgressBars;
+    this.markDirty();
+  }
+
+  /**
+   * Set progress bar visibility
+   */
+  setShowProgressBars(show: boolean): void {
+    this.showProgressBars = show;
+    this.markDirty();
+  }
+
+  /**
+   * Get progress bar visibility
+   */
+  isShowingProgressBars(): boolean {
+    return this.showProgressBars;
+  }
+
+  /**
+   * Calculate overall project progress
+   */
+  calculateProjectProgress(): { completed: number; total: number; percentage: number } {
+    const tasks = this.state.tasks;
+    const total = tasks.length;
+
+    if (total === 0) {
+      return { completed: 0, total: 0, percentage: 0 };
+    }
+
+    let weightedProgress = 0;
+    tasks.forEach(task => {
+      // Weight by task duration
+      const duration = Math.max(1, this.getDurationDays(task));
+      weightedProgress += (task.progress || 0) * duration;
+    });
+
+    const totalDuration = tasks.reduce((sum, task) => sum + Math.max(1, this.getDurationDays(task)), 0);
+    const percentage = Math.round(weightedProgress / totalDuration);
+
+    const completed = tasks.filter(t => (t.progress || 0) >= 100).length;
+
+    return { completed, total, percentage };
+  }
+
+  private getDurationDays(task: GanttTask): number {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / msPerDay);
+  }
+
+  // =========================================================================
+  // ENHANCED KEYBOARD SHORTCUTS
+  // =========================================================================
+
+  private keyboardShortcuts: Map<string, KeyboardShortcut> = new Map();
+  private keyboardEnabled: boolean = true;
+
+  /**
+   * Initialize default keyboard shortcuts
+   */
+  initializeDefaultKeyboardShortcuts(): void {
+    this.registerKeyboardShortcut({
+      key: 'z',
+      ctrl: true,
+      description: 'Undo',
+      action: () => this.undo()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'y',
+      ctrl: true,
+      description: 'Redo',
+      action: () => this.redo()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'z',
+      ctrl: true,
+      shift: true,
+      description: 'Redo (alternative)',
+      action: () => this.redo()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'a',
+      ctrl: true,
+      description: 'Select all tasks',
+      action: () => this.selectAllTasks()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'Escape',
+      description: 'Clear selection',
+      action: () => this.clearSelection()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'Delete',
+      description: 'Delete selected tasks',
+      action: () => this.deleteSelectedTasks()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'ArrowLeft',
+      description: 'Move selected task earlier',
+      action: () => this.nudgeSelectedTasks(-1)
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'ArrowRight',
+      description: 'Move selected task later',
+      action: () => this.nudgeSelectedTasks(1)
+    });
+
+    this.registerKeyboardShortcut({
+      key: '0',
+      ctrl: true,
+      description: 'Reset zoom',
+      action: () => this.applyZoomPreset('month')
+    });
+
+    this.registerKeyboardShortcut({
+      key: '+',
+      ctrl: true,
+      description: 'Zoom in',
+      action: () => this.zoomInOneLevel()
+    });
+
+    this.registerKeyboardShortcut({
+      key: '-',
+      ctrl: true,
+      description: 'Zoom out',
+      action: () => this.zoomOutOneLevel()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'f',
+      description: 'Zoom to fit all tasks',
+      action: () => this.zoomToFit()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 't',
+      description: 'Scroll to today',
+      action: () => this.scrollToToday()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'c',
+      description: 'Toggle critical path',
+      action: () => this.toggleCriticalPath()
+    });
+
+    this.registerKeyboardShortcut({
+      key: 'p',
+      description: 'Toggle progress bars',
+      action: () => this.toggleProgressBars()
+    });
+  }
+
+  /**
+   * Register a keyboard shortcut
+   */
+  registerKeyboardShortcut(shortcut: KeyboardShortcut): void {
+    const key = this.getShortcutKey(shortcut);
+    this.keyboardShortcuts.set(key, shortcut);
+  }
+
+  /**
+   * Unregister a keyboard shortcut
+   */
+  unregisterKeyboardShortcut(shortcut: Omit<KeyboardShortcut, 'action' | 'description'>): void {
+    const key = this.getShortcutKey(shortcut as KeyboardShortcut);
+    this.keyboardShortcuts.delete(key);
+  }
+
+  /**
+   * Get all registered shortcuts
+   */
+  getKeyboardShortcuts(): KeyboardShortcut[] {
+    return Array.from(this.keyboardShortcuts.values());
+  }
+
+  /**
+   * Enable/disable keyboard shortcuts
+   */
+  setKeyboardEnabled(enabled: boolean): void {
+    this.keyboardEnabled = enabled;
+  }
+
+  /**
+   * Process keyboard shortcut (called from handleKeyDown or externally)
+   */
+  processKeyboardShortcut(e: KeyboardEvent): boolean {
+    if (!this.keyboardEnabled) return false;
+
+    // Don't handle if focus is in an input
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return false;
+    }
+
+    const key = this.getEventShortcutKey(e);
+    const shortcut = this.keyboardShortcuts.get(key);
+
+    if (shortcut) {
+      e.preventDefault();
+      shortcut.action();
+      return true;
+    }
+
+    return false;
+  }
+
+  private getShortcutKey(shortcut: KeyboardShortcut): string {
+    const parts: string[] = [];
+    if (shortcut.ctrl) parts.push('ctrl');
+    if (shortcut.alt) parts.push('alt');
+    if (shortcut.shift) parts.push('shift');
+    if (shortcut.meta) parts.push('meta');
+    parts.push(shortcut.key.toLowerCase());
+    return parts.join('+');
+  }
+
+  private getEventShortcutKey(e: KeyboardEvent): string {
+    const parts: string[] = [];
+    if (e.ctrlKey || e.metaKey) parts.push('ctrl');
+    if (e.altKey) parts.push('alt');
+    if (e.shiftKey) parts.push('shift');
+    parts.push(e.key.toLowerCase());
+    return parts.join('+');
+  }
+
+  /**
+   * Nudge selected tasks by days
+   */
+  private nudgeSelectedTasks(days: number): void {
+    const selectedIds = this.getSelectedTaskIds();
+    if (selectedIds.length === 0) return;
+
+    selectedIds.forEach(taskId => {
+      const task = this.getTask(taskId);
+      if (task && !task.locked) {
+        const duration = task.endDate.getTime() - task.startDate.getTime();
+        task.startDate = new Date(task.startDate.getTime() + days * 24 * 60 * 60 * 1000);
+        task.endDate = new Date(task.startDate.getTime() + duration);
+      }
+    });
+
+    this.markDirty();
+  }
+
+  // =========================================================================
+  // EXPORT API - Export to PNG/JSON
+  // =========================================================================
+
+  /**
+   * Export the Gantt chart to PNG
+   */
+  async exportToPNG(options: ExportPNGOptions = {}): Promise<Blob> {
+    const {
+      width = this.canvas.width,
+      height = this.canvas.height,
+      backgroundColor = '#ffffff',
+      scale = 1
+    } = options;
+
+    // Create export canvas
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = width * scale;
+    exportCanvas.height = height * scale;
+
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) throw new Error('Could not create export context');
+
+    // Fill background
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+    // Scale for DPI
+    ctx.scale(scale, scale);
+
+    // Draw current canvas content
+    ctx.drawImage(this.canvas, 0, 0);
+
+    // Convert to blob
+    return new Promise((resolve, reject) => {
+      exportCanvas.toBlob(blob => {
+        if (blob) resolve(blob);
+        else reject(new Error('Failed to create blob'));
+      }, 'image/png');
+    });
+  }
+
+  /**
+   * Export full Gantt data to JSON with options
+   */
+  exportGanttData(options: ExportJSONOptions = {}): ExportedGanttData {
+    const {
+      includeDependencies = true,
+      includeProgress = true
+    } = options;
+
+    return {
+      exportedAt: new Date().toISOString(),
+      tasks: this.state.tasks.map(task => ({
+        id: task.id,
+        name: task.name,
+        startDate: task.startDate.toISOString(),
+        endDate: task.endDate.toISOString(),
+        progress: includeProgress ? task.progress : undefined,
+        locked: task.locked,
+        supplierId: task.supplierId,
+        supplierName: task.supplierName
+      })),
+      dependencies: includeDependencies ? this.state.dependencies.map(dep => ({
+        id: dep.id,
+        fromId: dep.fromId,
+        toId: dep.toId,
+        type: dep.type,
+        lag: dep.lag
+      })) : undefined,
+      projectStart: this.state.tasks.length > 0
+        ? new Date(Math.min(...this.state.tasks.map(t => t.startDate.getTime()))).toISOString()
+        : new Date().toISOString(),
+      projectEnd: this.state.tasks.length > 0
+        ? new Date(Math.max(...this.state.tasks.map(t => t.endDate.getTime()))).toISOString()
+        : new Date().toISOString()
+    };
+  }
+
+  /**
+   * Download exported PNG
+   */
+  async downloadPNG(filename: string = 'gantt-chart.png', options?: ExportPNGOptions): Promise<void> {
+    const blob = await this.exportToPNG(options);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /**
+   * Download exported JSON
+   */
+  downloadGanttJSON(filename: string = 'gantt-data.json', options?: ExportJSONOptions): void {
+    const data = this.exportGanttData(options);
+    const pretty = options?.pretty !== false;
+    const json = pretty ? JSON.stringify(data, null, 2) : JSON.stringify(data);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // =========================================================================
+  // TIMELINE MARKERS - Milestones, Deadlines, Custom Markers
+  // =========================================================================
+
+  private timelineMarkers: TimelineMarker[] = [];
+
+  /**
+   * Add a timeline marker
+   */
+  addTimelineMarker(marker: Omit<TimelineMarker, 'id'>): string {
+    const id = `marker-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    this.timelineMarkers.push({ ...marker, id });
+    this.markDirty();
+    return id;
+  }
+
+  /**
+   * Remove a timeline marker
+   */
+  removeTimelineMarker(markerId: string): boolean {
+    const index = this.timelineMarkers.findIndex(m => m.id === markerId);
+    if (index !== -1) {
+      this.timelineMarkers.splice(index, 1);
+      this.markDirty();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Update a timeline marker
+   */
+  updateTimelineMarker(markerId: string, updates: Partial<TimelineMarker>): boolean {
+    const marker = this.timelineMarkers.find(m => m.id === markerId);
+    if (marker) {
+      Object.assign(marker, updates);
+      this.markDirty();
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get all timeline markers
+   */
+  getTimelineMarkers(): TimelineMarker[] {
+    return [...this.timelineMarkers];
+  }
+
+  /**
+   * Get markers in date range
+   */
+  getMarkersInRange(startDate: Date, endDate: Date): TimelineMarker[] {
+    return this.timelineMarkers.filter(m =>
+      m.date >= startDate && m.date <= endDate
+    );
+  }
+
+  /**
+   * Clear all timeline markers
+   */
+  clearTimelineMarkers(): void {
+    this.timelineMarkers = [];
+    this.markDirty();
+  }
+
+  /**
+   * Add milestone marker (convenience method)
+   */
+  addMilestone(name: string, date: Date, color?: string): string {
+    return this.addTimelineMarker({
+      type: 'milestone',
+      name,
+      date,
+      color: color || '#4F46E5',
+      showLabel: true
+    });
+  }
+
+  /**
+   * Add deadline marker (convenience method)
+   */
+  addDeadline(name: string, date: Date, color?: string): string {
+    return this.addTimelineMarker({
+      type: 'deadline',
+      name,
+      date,
+      color: color || '#EF4444',
+      showLabel: true
+    });
+  }
+
+  /**
+   * Add event marker (convenience method)
+   */
+  addEvent(name: string, date: Date, color?: string): string {
+    return this.addTimelineMarker({
+      type: 'event',
+      name,
+      date,
+      color: color || '#10B981',
+      showLabel: true
+    });
+  }
+
+  // =========================================================================
+  // EVENT CALLBACKS
+  // =========================================================================
+
+  private onTasksDelete?: (taskIds: string[]) => void;
+
+  /**
+   * Set callback for task deletion
+   */
+  setOnTasksDelete(callback: (taskIds: string[]) => void): void {
+    this.onTasksDelete = callback;
+  }
 }
 
 // ============================================================================
 // Types for new APIs
 // ============================================================================
+
+export interface TouchState {
+  isActive: boolean;
+  startTime: number;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  touches: { x: number; y: number }[];
+  gesture: 'tap' | 'pan' | 'pinch' | 'drag-task' | 'longpress' | null;
+  pinchStartDistance: number;
+  pinchStartZoom: number;
+  velocityX: number;
+  velocityY: number;
+  lastMoveTime: number;
+}
+
+export interface DragTooltipState {
+  visible: boolean;
+  x: number;
+  y: number;
+  task: GanttTask | null;
+  originalDate: Date | null;
+  newDate: Date | null;
+  duration: number;
+  predecessorCount: number;
+  successorCount: number;
+}
+
+export interface ZoomPreset {
+  id: string;
+  label: string;
+  daysVisible: number;
+  zoom: number;
+}
+
+export interface ToolbarState {
+  zoomPresets: ZoomPreset[];
+  currentZoomPreset: string;
+  canZoomIn: boolean;
+  canZoomOut: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  selectedTaskCount: number;
+  totalTaskCount: number;
+  visibleTaskCount: number;
+  collapsedGroupCount: number;
+  criticalPathEnabled: boolean;
+  baselineEnabled: boolean;
+  minimapVisible: boolean;
+}
+
+export interface SnapConfig {
+  enabled: boolean;
+  snapToDay: boolean;
+  snapToWorkingDay: boolean;
+  snapToWeekStart: boolean;
+  snapToMonthStart: boolean;
+  snapThresholdPixels: number;
+  showSnapGuides: boolean;
+}
+
+export interface SnapGuide {
+  type: 'today' | 'task-start' | 'task-end' | 'week-start' | 'month-start';
+  x: number;
+  label: string;
+  taskId?: string;
+}
+
+// Note: ContextMenuItem is defined at the top of the file
 
 // Note: ContextMenuItem is defined at the top of the file
 
@@ -5153,7 +6670,85 @@ export interface Resource {
   availability?: number; // percentage (0-100)
 }
 
-// Note: Command interface is imported from './UndoManager'
+// ============================================================================
+// Undo/Redo Types
+// ============================================================================
+
+export interface UndoCommand {
+  type: string;
+  description: string;
+  execute: () => void;
+  undo: () => void;
+}
+
+// ============================================================================
+// Keyboard Shortcut Types
+// ============================================================================
+
+export interface KeyboardShortcut {
+  key: string;
+  ctrl?: boolean;
+  alt?: boolean;
+  shift?: boolean;
+  meta?: boolean;
+  description: string;
+  action: () => void;
+}
+
+// ============================================================================
+// Export Types
+// ============================================================================
+
+export interface ExportPNGOptions {
+  width?: number;
+  height?: number;
+  backgroundColor?: string;
+  scale?: number;
+}
+
+export interface ExportJSONOptions {
+  includeDependencies?: boolean;
+  includeProgress?: boolean;
+  pretty?: boolean;
+}
+
+export interface ExportedGanttData {
+  exportedAt: string;
+  tasks: Array<{
+    id: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    progress?: number;
+    locked?: 'supplierConfirmed' | 'started' | 'manuallyPositioned';
+    supplierId?: number;
+    supplierName?: string;
+  }>;
+  dependencies?: Array<{
+    id: string;
+    fromId: string;
+    toId: string;
+    type: string;
+    lag?: number;
+  }>;
+  projectStart: string;
+  projectEnd: string;
+}
+
+// ============================================================================
+// Timeline Marker Types
+// ============================================================================
+
+export interface TimelineMarker {
+  id: string;
+  type: 'milestone' | 'deadline' | 'event' | 'custom';
+  name: string;
+  date: Date;
+  color?: string;
+  icon?: string;
+  showLabel?: boolean;
+  description?: string;
+}
 
 // Default export
 export default GanttCanvas;

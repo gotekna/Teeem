@@ -222,6 +222,12 @@ class BalanceSheetReport < ApplicationRecord
     financial_year
   end
 
+  # Display name following DocumentType template: {DocTypeName} {PeriodLong} {FY}
+  # Example: "Balance Sheet December 2025 FY2026"
+  def display_name
+    "Balance Sheet #{period_label} #{financial_year}"
+  end
+
   # Short period label for filenames
   # Returns "Jan25" or falls back to FY abbreviation
   def period_short

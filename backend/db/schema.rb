@@ -3341,7 +3341,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130454) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "name"
-    t.decimal "contract_value", precision: 15, scale: 2
+    t.decimal "contract_value", precision: 15, scale: 2, comment: "DEPRECATED: Use contract_price instead. See TEEEM_DOCS/SSOT_CONTRACT_VALUE_MIGRATION.md"
     t.decimal "live_profit", precision: 15, scale: 2
     t.decimal "profit_percentage", precision: 10, scale: 2
     t.string "certifier_job_no"
@@ -3399,6 +3399,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130454) do
     t.text "special_conditions"
     t.boolean "finance_approval_required"
     t.date "finance_approval_date"
+    t.decimal "external_sales_fee", precision: 15, scale: 2
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -4401,6 +4402,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130454) do
     t.decimal "total_paid_via_ap", precision: 15, scale: 2, default: "0.0"
     t.decimal "remaining_to_pay", precision: 15, scale: 2, default: "0.0"
     t.bigint "last_bill_inbox_id"
+    t.string "source"
+    t.integer "unreal_task_template_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"
