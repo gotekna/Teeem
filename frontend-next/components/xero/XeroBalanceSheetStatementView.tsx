@@ -183,8 +183,15 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
     { key: "generated_at", label: "Generated", width: 130, column_type: "date" },
   ];
 
+  // Sort reports by report_date descending (latest first)
+  const sortedReports = [...reports].sort((a, b) => {
+    const dateA = a.report_date ? new Date(a.report_date).getTime() : 0;
+    const dateB = b.report_date ? new Date(b.report_date).getTime() : 0;
+    return dateB - dateA; // Descending (latest first)
+  });
+
   // Transform reports to table rows
-  const tableRows: TableRow[] = reports.map((report) => ({
+  const tableRows: TableRow[] = sortedReports.map((report) => ({
     id: report.id,
     display_name: report.display_name,
     financial_year: report.financial_year,

@@ -8928,11 +8928,810 @@ export class GanttCanvas {
     return result;
   }
 
+  // =========================================================================
+  // FEATURE 21: OBJECT POOLING SYSTEM
+  // =========================================================================
+  // Memory-efficient object pooling for render objects to reduce GC pressure
+
+  private objectPools: Map<string, ObjectPool<any>> = new Map();
+
+  /**
+   * Get or create an object pool for a specific type
+   */
+  private getPool<T>(type: string, factory: () => T, reset: (obj: T) => void, initialSize: number = 100): ObjectPool<T> {
+    if (!this.objectPools.has(type)) {
+      this.objectPools.set(type, new ObjectPool(factory, reset, initialSize));
+    }
+    return this.objectPools.get(type) as ObjectPool<T>;
+  }
+
+  /**
+   * Get a pooled render rectangle
+   */
+  private acquireRenderRect(): RenderRect {
+    const pool = this.getPool<RenderRect>(
+      'renderRect',
+      () => ({ x: 0, y: 0, width: 0, height: 0, color: '', borderColor: '', borderWidth: 0, radius: 0 }),
+      (rect) => { rect.x = 0; rect.y = 0; rect.width = 0; rect.height = 0; rect.color = ''; rect.borderColor = ''; rect.borderWidth = 0; rect.radius = 0; }
+    );
+    return pool.acquire();
+  }
+
+  /**
+   * Release a render rectangle back to the pool
+   */
+  private releaseRenderRect(rect: RenderRect): void {
+    const pool = this.objectPools.get('renderRect') as ObjectPool<RenderRect>;
+    if (pool) pool.release(rect);
+  }
+
+  /**
+   * Get a pooled render line
+   */
+  private acquireRenderLine(): RenderLine {
+    const pool = this.getPool<RenderLine>(
+      'renderLine',
+      () => ({ x1: 0, y1: 0, x2: 0, y2: 0, color: '', width: 1, dash: [] }),
+      (line) => { line.x1 = 0; line.y1 = 0; line.x2 = 0; line.y2 = 0; line.color = ''; line.width = 1; line.dash = []; }
+    );
+    return pool.acquire();
+  }
+
+  /**
+   * Release a render line back to the pool
+   */
+  private releaseRenderLine(line: RenderLine): void {
+    const pool = this.objectPools.get('renderLine') as ObjectPool<RenderLine>;
+    if (pool) pool.release(line);
+  }
+
+  /**
+   * Get a pooled render text
+   */
+  private acquireRenderText(): RenderText {
+    const pool = this.getPool<RenderText>(
+      'renderText',
+      () => ({ x: 0, y: 0, text: '', color: '', font: '', align: 'left' as CanvasTextAlign, baseline: 'top' as CanvasTextBaseline, maxWidth: undefined }),
+      (t) => { t.x = 0; t.y = 0; t.text = ''; t.color = ''; t.font = ''; t.align = 'left'; t.baseline = 'top'; t.maxWidth = undefined; }
+    );
+    return pool.acquire();
+  }
+
+  /**
+   * Release a render text back to the pool
+   */
+  private releaseRenderText(text: RenderText): void {
+    const pool = this.objectPools.get('renderText') as ObjectPool<RenderText>;
+    if (pool) pool.release(text);
+  }
+
+  /**
+   * Clear all object pools (call on destroy)
+   */
+  private clearObjectPools(): void {
+    this.objectPools.forEach(pool => pool.clear());
+    this.objectPools.clear();
+  }
+
+  /**
+   * Get pool statistics for debugging
+   */
+  getPoolStats(): { type: string; size: number; available: number; acquired: number }[] {
+    const stats: { type: string; size: number; available: number; acquired: number }[] = [];
+    this.objectPools.forEach((pool, type) => {
+      const poolStats = pool.getStats();
+      stats.push({ type, ...poolStats });
+    });
+    return stats;
+  }
+
+  // =========================================================================
+  // FEATURE 22: RENDER BATCHING SYSTEM
+  // =========================================================================
+  // Batch multiple draw calls for improved performance
+
+  private renderBatch: RenderBatch = {
+    rects: [],
+    lines: [],
+    texts: [],
+    paths: [],
+    isCollecting: false
+  };
+
+  /**
+   * Begin collecting render operations for batching
+   */
+  beginBatch(): void {
+    this.renderBatch.isCollecting = true;
+    this.renderBatch.rects = [];
+    this.renderBatch.lines = [];
+    this.renderBatch.texts = [];
+    this.renderBatch.paths = [];
+  }
+
+  /**
+   * End batch collection and execute all render operations
+   */
+  endBatch(): void {
+    if (!this.renderBatch.isCollecting) return;
+
+    this.renderBatch.isCollecting = false;
+
+    // Sort operations by z-index if needed
+    // Execute all batched operations in optimal order
+    this.executeBatchedRects();
+    this.executeBatchedLines();
+    this.executeBatchedPaths();
+    this.executeBatchedTexts();
+  }
+
+  /**
+   * Add a rectangle to the batch
+   */
+  private batchRect(x: number, y: number, width: number, height: number, color: string, options?: { borderColor?: string; borderWidth?: number; radius?: number; zIndex?: number }): void {
+    if (this.renderBatch.isCollecting) {
+      this.renderBatch.rects.push({
+        x, y, width, height, color,
+        borderColor: options?.borderColor || '',
+        borderWidth: options?.borderWidth || 0,
+        radius: options?.radius || 0,
+        zIndex: options?.zIndex || 0
+      });
+    } else {
+      // Immediate draw if not batching
+      this.ctx.fillStyle = color;
+      if (options?.radius) {
+        this.roundRect(x, y, width, height, options.radius);
+        this.ctx.fill();
+      } else {
+        this.ctx.fillRect(x, y, width, height);
+      }
+      if (options?.borderColor && options?.borderWidth) {
+        this.ctx.strokeStyle = options.borderColor;
+        this.ctx.lineWidth = options.borderWidth;
+        this.ctx.strokeRect(x, y, width, height);
+      }
+    }
+  }
+
+  /**
+   * Add a line to the batch
+   */
+  private batchLine(x1: number, y1: number, x2: number, y2: number, color: string, width: number = 1, dash: number[] = []): void {
+    if (this.renderBatch.isCollecting) {
+      this.renderBatch.lines.push({ x1, y1, x2, y2, color, width, dash, zIndex: 0 });
+    } else {
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = width;
+      this.ctx.setLineDash(dash);
+      this.ctx.moveTo(x1, y1);
+      this.ctx.lineTo(x2, y2);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+    }
+  }
+
+  /**
+   * Add text to the batch
+   */
+  private batchText(x: number, y: number, text: string, color: string, font: string, options?: { align?: CanvasTextAlign; baseline?: CanvasTextBaseline; maxWidth?: number }): void {
+    if (this.renderBatch.isCollecting) {
+      this.renderBatch.texts.push({
+        x, y, text, color, font,
+        align: options?.align || 'left',
+        baseline: options?.baseline || 'top',
+        maxWidth: options?.maxWidth,
+        zIndex: 10 // Text always on top
+      });
+    } else {
+      this.ctx.fillStyle = color;
+      this.ctx.font = font;
+      this.ctx.textAlign = options?.align || 'left';
+      this.ctx.textBaseline = options?.baseline || 'top';
+      if (options?.maxWidth) {
+        this.ctx.fillText(text, x, y, options.maxWidth);
+      } else {
+        this.ctx.fillText(text, x, y);
+      }
+    }
+  }
+
+  /**
+   * Execute batched rectangle operations
+   */
+  private executeBatchedRects(): void {
+    // Group by color for fewer state changes
+    const byColor = new Map<string, typeof this.renderBatch.rects>();
+    this.renderBatch.rects.forEach(rect => {
+      const key = `${rect.color}|${rect.borderColor}|${rect.borderWidth}|${rect.radius}`;
+      if (!byColor.has(key)) byColor.set(key, []);
+      byColor.get(key)!.push(rect);
+    });
+
+    byColor.forEach((rects, key) => {
+      const [color, borderColor, borderWidth, radius] = key.split('|');
+      this.ctx.fillStyle = color;
+
+      rects.forEach(rect => {
+        if (parseFloat(radius) > 0) {
+          this.roundRect(rect.x, rect.y, rect.width, rect.height, parseFloat(radius));
+          this.ctx.fill();
+        } else {
+          this.ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+        }
+
+        if (borderColor && parseFloat(borderWidth) > 0) {
+          this.ctx.strokeStyle = borderColor;
+          this.ctx.lineWidth = parseFloat(borderWidth);
+          this.ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        }
+      });
+    });
+  }
+
+  /**
+   * Execute batched line operations
+   */
+  private executeBatchedLines(): void {
+    const byStyle = new Map<string, typeof this.renderBatch.lines>();
+    this.renderBatch.lines.forEach(line => {
+      const key = `${line.color}|${line.width}|${line.dash.join(',')}`;
+      if (!byStyle.has(key)) byStyle.set(key, []);
+      byStyle.get(key)!.push(line);
+    });
+
+    byStyle.forEach((lines, key) => {
+      const [color, width, dashStr] = key.split('|');
+      const dash = dashStr ? dashStr.split(',').map(Number) : [];
+
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = parseFloat(width);
+      this.ctx.setLineDash(dash);
+
+      lines.forEach(line => {
+        this.ctx.moveTo(line.x1, line.y1);
+        this.ctx.lineTo(line.x2, line.y2);
+      });
+
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+    });
+  }
+
+  /**
+   * Execute batched path operations
+   */
+  private executeBatchedPaths(): void {
+    // Paths are complex - execute individually for now
+    this.renderBatch.paths.forEach(path => {
+      this.ctx.beginPath();
+      this.ctx.strokeStyle = path.color;
+      this.ctx.lineWidth = path.width;
+      this.ctx.setLineDash(path.dash);
+
+      const points = path.points;
+      if (points.length > 0) {
+        this.ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          this.ctx.lineTo(points[i].x, points[i].y);
+        }
+      }
+
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+    });
+  }
+
+  /**
+   * Execute batched text operations
+   */
+  private executeBatchedTexts(): void {
+    const byStyle = new Map<string, typeof this.renderBatch.texts>();
+    this.renderBatch.texts.forEach(text => {
+      const key = `${text.color}|${text.font}|${text.align}|${text.baseline}`;
+      if (!byStyle.has(key)) byStyle.set(key, []);
+      byStyle.get(key)!.push(text);
+    });
+
+    byStyle.forEach((texts, key) => {
+      const [color, font, align, baseline] = key.split('|');
+
+      this.ctx.fillStyle = color;
+      this.ctx.font = font;
+      this.ctx.textAlign = align as CanvasTextAlign;
+      this.ctx.textBaseline = baseline as CanvasTextBaseline;
+
+      texts.forEach(text => {
+        if (text.maxWidth) {
+          this.ctx.fillText(text.text, text.x, text.y, text.maxWidth);
+        } else {
+          this.ctx.fillText(text.text, text.x, text.y);
+        }
+      });
+    });
+  }
+
+  /**
+   * Helper to draw rounded rectangles
+   */
+  private roundRect(x: number, y: number, width: number, height: number, radius: number): void {
+    this.ctx.beginPath();
+    this.ctx.moveTo(x + radius, y);
+    this.ctx.lineTo(x + width - radius, y);
+    this.ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    this.ctx.lineTo(x + width, y + height - radius);
+    this.ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    this.ctx.lineTo(x + radius, y + height);
+    this.ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    this.ctx.lineTo(x, y + radius);
+    this.ctx.quadraticCurveTo(x, y, x + radius, y);
+    this.ctx.closePath();
+  }
+
+  // =========================================================================
+  // FEATURE 23: VISIBILITY API INTEGRATION
+  // =========================================================================
+  // Pause rendering when tab is not visible to save resources
+
+  private isPageVisible: boolean = true;
+  private visibilityChangeHandler: (() => void) | null = null;
+  private wasAnimatingBeforeHidden: boolean = false;
+
+  /**
+   * Initialize visibility API listeners
+   */
+  private initVisibilityAPI(): void {
+    if (typeof document === 'undefined') return;
+
+    this.visibilityChangeHandler = () => {
+      const wasVisible = this.isPageVisible;
+      this.isPageVisible = !document.hidden;
+
+      if (!this.isPageVisible && wasVisible) {
+        // Page became hidden - pause animations
+        this.wasAnimatingBeforeHidden = this.animationFrameId !== null;
+        this.pauseRendering();
+        this.onVisibilityChange?.(false);
+      } else if (this.isPageVisible && !wasVisible) {
+        // Page became visible - resume if was animating
+        if (this.wasAnimatingBeforeHidden) {
+          this.resumeRendering();
+        }
+        this.markDirty(); // Force redraw
+        this.onVisibilityChange?.(true);
+      }
+    };
+
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+  }
+
+  /**
+   * Cleanup visibility API listeners
+   */
+  private cleanupVisibilityAPI(): void {
+    if (this.visibilityChangeHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
+    }
+  }
+
+  /**
+   * Pause rendering (for when tab is hidden)
+   */
+  private pauseRendering(): void {
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+
+  /**
+   * Resume rendering
+   */
+  private resumeRendering(): void {
+    if (this.animationFrameId === null) {
+      this.startRenderLoop();
+    }
+  }
+
+  /**
+   * Check if page is currently visible
+   */
+  isVisible(): boolean {
+    return this.isPageVisible;
+  }
+
+  /**
+   * Callback for visibility changes
+   */
+  private onVisibilityChange?: (visible: boolean) => void;
+
+  /**
+   * Set visibility change callback
+   */
+  setVisibilityChangeCallback(callback: (visible: boolean) => void): void {
+    this.onVisibilityChange = callback;
+  }
+
+  // =========================================================================
+  // FEATURE 24: DOUBLE-CLICK ZOOM
+  // =========================================================================
+  // Double-click to zoom in, shift+double-click to zoom out
+
+  private lastClickTime: number = 0;
+  private lastClickX: number = 0;
+  private lastClickY: number = 0;
+  private doubleClickThreshold: number = 300; // ms
+  private doubleClickDistance: number = 5; // pixels
+
+  /**
+   * Handle potential double-click for zoom
+   */
+  private handleDoubleClickZoom(x: number, y: number, shiftKey: boolean): boolean {
+    const now = Date.now();
+    const timeDiff = now - this.lastClickTime;
+    const dx = Math.abs(x - this.lastClickX);
+    const dy = Math.abs(y - this.lastClickY);
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (timeDiff < this.doubleClickThreshold && distance < this.doubleClickDistance) {
+      // This is a double-click!
+      const zoomFactor = shiftKey ? 0.5 : 2; // Zoom out if shift, zoom in otherwise
+      this.zoomAtPoint(x, y, zoomFactor);
+
+      // Reset click tracking
+      this.lastClickTime = 0;
+      return true;
+    }
+
+    // Record this click for potential double-click detection
+    this.lastClickTime = now;
+    this.lastClickX = x;
+    this.lastClickY = y;
+    return false;
+  }
+
+  /**
+   * Zoom at a specific point (keeps that point stationary)
+   */
+  zoomAtPoint(screenX: number, screenY: number, factor: number): void {
+    const state = this.viewport.getState();
+
+    // Convert screen position to world position before zoom
+    const worldX = screenX / state.zoom + state.scrollX;
+    const worldY = screenY / state.zoom + state.scrollY;
+
+    // Apply zoom
+    const newZoom = Math.max(this.config.minDayWidth / this.config.dayWidth,
+                             Math.min(this.config.maxDayWidth / this.config.dayWidth,
+                                      state.zoom * factor));
+
+    // Calculate new scroll to keep world point under cursor
+    const newScrollX = worldX - screenX / newZoom;
+    const newScrollY = worldY - screenY / newZoom;
+
+    this.viewport.setZoom(newZoom);
+    this.viewport.scrollTo(newScrollX, newScrollY);
+    this.markDirty();
+  }
+
+  /**
+   * Animated zoom at point
+   */
+  animatedZoomAtPoint(screenX: number, screenY: number, factor: number, duration: number = 300): void {
+    const state = this.viewport.getState();
+    const targetZoom = Math.max(this.config.minDayWidth / this.config.dayWidth,
+                                Math.min(this.config.maxDayWidth / this.config.dayWidth,
+                                         state.zoom * factor));
+
+    // Convert screen position to world position
+    const worldX = screenX / state.zoom + state.scrollX;
+    const worldY = screenY / state.zoom + state.scrollY;
+
+    const startZoom = state.zoom;
+    const startScrollX = state.scrollX;
+    const startScrollY = state.scrollY;
+
+    // Target scroll to keep point stationary
+    const targetScrollX = worldX - screenX / targetZoom;
+    const targetScrollY = worldY - screenY / targetZoom;
+
+    // Use internal animation implementation
+    const startTime = performance.now();
+    const animate = () => {
+      const elapsed = performance.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress = this.easeOutCubic(progress);
+
+      const currentZoom = startZoom + (targetZoom - startZoom) * easedProgress;
+      const currentScrollX = startScrollX + (targetScrollX - startScrollX) * easedProgress;
+      const currentScrollY = startScrollY + (targetScrollY - startScrollY) * easedProgress;
+
+      this.viewport.setZoom(currentZoom);
+      this.viewport.scrollTo(currentScrollX, currentScrollY);
+      this.markDirty();
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+    requestAnimationFrame(animate);
+  }
+
+  /**
+   * Ease out cubic function
+   */
+  private easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  // =========================================================================
+  // FEATURE 25: TIME SCALE CLICK INTERACTION
+  // =========================================================================
+  // Click on time scale to scroll to date, drag to select date range
+
+  private isTimeScaleDragging: boolean = false;
+  private timeScaleDragStart: Date | null = null;
+  private timeScaleDragEnd: Date | null = null;
+  private timeScaleSelectionCallback?: (startDate: Date, endDate: Date) => void;
+
+  /**
+   * Check if click is in the time scale header area
+   */
+  private isInTimeScaleArea(y: number): boolean {
+    return y < this.config.headerHeight;
+  }
+
+  /**
+   * Handle click on time scale
+   */
+  private handleTimeScaleClick(x: number): void {
+    const date = this.xToDate(x);
+    if (date) {
+      this.scrollToDate(date, true); // Animated scroll
+    }
+  }
+
+  /**
+   * Start time scale drag selection
+   */
+  private startTimeScaleDrag(x: number): void {
+    this.isTimeScaleDragging = true;
+    this.timeScaleDragStart = this.xToDate(x);
+    this.timeScaleDragEnd = this.timeScaleDragStart;
+    this.markDirty();
+  }
+
+  /**
+   * Update time scale drag selection
+   */
+  private updateTimeScaleDrag(x: number): void {
+    if (!this.isTimeScaleDragging) return;
+    this.timeScaleDragEnd = this.xToDate(x);
+    this.markDirty();
+  }
+
+  /**
+   * End time scale drag selection
+   */
+  private endTimeScaleDrag(): void {
+    if (!this.isTimeScaleDragging) return;
+
+    this.isTimeScaleDragging = false;
+
+    if (this.timeScaleDragStart && this.timeScaleDragEnd && this.timeScaleSelectionCallback) {
+      // Ensure start is before end
+      const start = this.timeScaleDragStart < this.timeScaleDragEnd
+        ? this.timeScaleDragStart
+        : this.timeScaleDragEnd;
+      const end = this.timeScaleDragStart < this.timeScaleDragEnd
+        ? this.timeScaleDragEnd
+        : this.timeScaleDragStart;
+
+      this.timeScaleSelectionCallback(start, end);
+    }
+
+    this.timeScaleDragStart = null;
+    this.timeScaleDragEnd = null;
+    this.markDirty();
+  }
+
+  /**
+   * Get the current time scale selection range
+   */
+  getTimeScaleSelection(): { start: Date; end: Date } | null {
+    if (!this.timeScaleDragStart || !this.timeScaleDragEnd) return null;
+
+    const start = this.timeScaleDragStart < this.timeScaleDragEnd
+      ? this.timeScaleDragStart
+      : this.timeScaleDragEnd;
+    const end = this.timeScaleDragStart < this.timeScaleDragEnd
+      ? this.timeScaleDragEnd
+      : this.timeScaleDragStart;
+
+    return { start, end };
+  }
+
+  /**
+   * Set callback for time scale selection
+   */
+  setTimeScaleSelectionCallback(callback: (startDate: Date, endDate: Date) => void): void {
+    this.timeScaleSelectionCallback = callback;
+  }
+
+  /**
+   * Convert x coordinate to date
+   */
+  private xToDate(x: number): Date | null {
+    const state = this.viewport.getState();
+    const dayWidth = this.config.dayWidth * state.zoom;
+
+    // Calculate days from start
+    const daysFromStart = (x + state.scrollX * state.zoom) / dayWidth;
+
+    // Get project start date
+    const startDate = this.getProjectStartDate();
+    if (!startDate) return null;
+
+    const result = new Date(startDate);
+    result.setDate(result.getDate() + Math.floor(daysFromStart));
+    return result;
+  }
+
+  /**
+   * Get the earliest task start date
+   */
+  private getProjectStartDate(): Date | null {
+    if (this.state.tasks.length === 0) return new Date();
+
+    let earliest = this.state.tasks[0].startDate;
+    this.state.tasks.forEach(task => {
+      if (task.startDate < earliest) earliest = task.startDate;
+    });
+    return earliest;
+  }
+
+  /**
+   * Render time scale selection overlay
+   */
+  private renderTimeScaleSelection(): void {
+    if (!this.isTimeScaleDragging || !this.timeScaleDragStart || !this.timeScaleDragEnd) return;
+
+    const startX = this.dateToX(this.timeScaleDragStart);
+    const endX = this.dateToX(this.timeScaleDragEnd);
+
+    const x = Math.min(startX, endX);
+    const width = Math.abs(endX - startX);
+
+    // Draw selection overlay
+    this.ctx.fillStyle = this.config.darkMode
+      ? 'rgba(99, 102, 241, 0.3)'
+      : 'rgba(99, 102, 241, 0.2)';
+    this.ctx.fillRect(x, 0, width, this.containerHeight);
+
+    // Draw selection borders
+    this.ctx.strokeStyle = this.config.darkMode
+      ? 'rgba(99, 102, 241, 0.8)'
+      : 'rgba(99, 102, 241, 0.6)';
+    this.ctx.lineWidth = 2;
+    this.ctx.setLineDash([5, 5]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(x, 0);
+    this.ctx.lineTo(x, this.containerHeight);
+    this.ctx.moveTo(x + width, 0);
+    this.ctx.lineTo(x + width, this.containerHeight);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+  }
+
 }
 
 // ============================================================================
 // Types for new APIs
 // ============================================================================
+
+// Feature 21: Object Pool Types
+export class ObjectPool<T> {
+  private pool: T[] = [];
+  private inUse: Set<T> = new Set();
+  private factory: () => T;
+  private reset: (obj: T) => void;
+
+  constructor(factory: () => T, reset: (obj: T) => void, initialSize: number = 100) {
+    this.factory = factory;
+    this.reset = reset;
+
+    // Pre-allocate objects
+    for (let i = 0; i < initialSize; i++) {
+      this.pool.push(factory());
+    }
+  }
+
+  acquire(): T {
+    let obj: T;
+    if (this.pool.length > 0) {
+      obj = this.pool.pop()!;
+    } else {
+      obj = this.factory();
+    }
+    this.inUse.add(obj);
+    return obj;
+  }
+
+  release(obj: T): void {
+    if (this.inUse.has(obj)) {
+      this.inUse.delete(obj);
+      this.reset(obj);
+      this.pool.push(obj);
+    }
+  }
+
+  clear(): void {
+    this.pool = [];
+    this.inUse.clear();
+  }
+
+  getStats(): { size: number; available: number; acquired: number } {
+    return {
+      size: this.pool.length + this.inUse.size,
+      available: this.pool.length,
+      acquired: this.inUse.size
+    };
+  }
+}
+
+export interface RenderRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  borderColor: string;
+  borderWidth: number;
+  radius: number;
+  zIndex?: number;
+}
+
+export interface RenderLine {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  color: string;
+  width: number;
+  dash: number[];
+  zIndex?: number;
+}
+
+export interface RenderText {
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  font: string;
+  align: CanvasTextAlign;
+  baseline: CanvasTextBaseline;
+  maxWidth?: number;
+  zIndex?: number;
+}
+
+export interface RenderPath {
+  points: { x: number; y: number }[];
+  color: string;
+  width: number;
+  dash: number[];
+  zIndex?: number;
+}
+
+export interface RenderBatch {
+  rects: RenderRect[];
+  lines: RenderLine[];
+  texts: RenderText[];
+  paths: RenderPath[];
+  isCollecting: boolean;
+}
 
 export interface TouchState {
   isActive: boolean;
