@@ -8346,112 +8346,14 @@ export class GanttCanvas {
   }
 
   // =========================================================================
-  // FEATURE 11: TASK GROUPING/HIERARCHY SYSTEM
+  // FEATURE 11: TASK GROUPING/HIERARCHY EXTENSIONS
   // =========================================================================
-  // Enables parent-child relationships between tasks with expand/collapse
+  // Extends the existing hierarchy system with expand/collapse and indentation
+  // Uses existing: taskParentMap, taskChildrenMap, setTaskParent, getTaskParent,
+  //                getTaskChildren, hasChildren, getTaskDepth (defined above)
 
-  private taskHierarchy: Map<string, TaskHierarchyNode> = new Map();
   private collapsedGroups: Set<string> = new Set();
   private indentWidth: number = 20;
-
-  /**
-   * Set a task as a child of another task
-   */
-  setTaskParent(childId: string, parentId: string | null): void {
-    const child = this.state.tasks.find(t => t.id === childId);
-    if (!child) return;
-
-    // Remove from current parent if exists
-    this.taskHierarchy.forEach((node, id) => {
-      const childIndex = node.childIds.indexOf(childId);
-      if (childIndex !== -1) {
-        node.childIds.splice(childIndex, 1);
-      }
-    });
-
-    if (parentId === null) {
-      // Make it a root task
-      this.taskHierarchy.delete(childId);
-    } else {
-      // Add to new parent
-      let parentNode = this.taskHierarchy.get(parentId);
-      if (!parentNode) {
-        parentNode = { parentId: null, childIds: [], level: 0, expanded: true };
-        this.taskHierarchy.set(parentId, parentNode);
-      }
-      if (!parentNode.childIds.includes(childId)) {
-        parentNode.childIds.push(childId);
-      }
-
-      // Create/update child node
-      const parentLevel = this.getTaskLevel(parentId);
-      let childNode = this.taskHierarchy.get(childId);
-      if (!childNode) {
-        childNode = { parentId, childIds: [], level: parentLevel + 1, expanded: true };
-        this.taskHierarchy.set(childId, childNode);
-      } else {
-        childNode.parentId = parentId;
-        childNode.level = parentLevel + 1;
-      }
-
-      // Update descendant levels
-      this.updateDescendantLevels(childId);
-    }
-
-    this.markDirty();
-  }
-
-  /**
-   * Get the nesting level of a task (0 = root)
-   */
-  getTaskLevel(taskId: string): number {
-    const node = this.taskHierarchy.get(taskId);
-    if (!node || !node.parentId) return 0;
-    return this.getTaskLevel(node.parentId) + 1;
-  }
-
-  /**
-   * Update levels for all descendants
-   */
-  private updateDescendantLevels(taskId: string): void {
-    const node = this.taskHierarchy.get(taskId);
-    if (!node) return;
-
-    const currentLevel = this.getTaskLevel(taskId);
-    node.level = currentLevel;
-
-    node.childIds.forEach(childId => {
-      const childNode = this.taskHierarchy.get(childId);
-      if (childNode) {
-        childNode.level = currentLevel + 1;
-        this.updateDescendantLevels(childId);
-      }
-    });
-  }
-
-  /**
-   * Get parent task ID
-   */
-  getTaskParent(taskId: string): string | null {
-    const node = this.taskHierarchy.get(taskId);
-    return node?.parentId || null;
-  }
-
-  /**
-   * Get child task IDs
-   */
-  getTaskChildren(taskId: string): string[] {
-    const node = this.taskHierarchy.get(taskId);
-    return node?.childIds || [];
-  }
-
-  /**
-   * Check if task has children
-   */
-  hasChildren(taskId: string): boolean {
-    const node = this.taskHierarchy.get(taskId);
-    return node ? node.childIds.length > 0 : false;
-  }
 
   /**
    * Toggle group expanded state
@@ -8500,8 +8402,9 @@ export class GanttCanvas {
    * Collapse all groups
    */
   collapseAllGroups(): void {
-    this.taskHierarchy.forEach((node, taskId) => {
-      if (node.childIds.length > 0) {
+    // Collapse all tasks that have children
+    this.taskChildrenMap.forEach((children, taskId) => {
+      if (children.length > 0) {
         this.collapsedGroups.add(taskId);
       }
     });
@@ -8512,17 +8415,14 @@ export class GanttCanvas {
    * Check if task is visible (not hidden by collapsed parent)
    */
   isTaskVisibleInHierarchy(taskId: string): boolean {
-    const node = this.taskHierarchy.get(taskId);
-    if (!node || !node.parentId) return true;
+    let parentId = this.getTaskParent(taskId);
 
     // Check if any ancestor is collapsed
-    let parentId: string | null = node.parentId;
     while (parentId) {
       if (this.collapsedGroups.has(parentId)) {
         return false;
       }
-      const parentNode = this.taskHierarchy.get(parentId);
-      parentId = parentNode?.parentId || null;
+      parentId = this.getTaskParent(parentId);
     }
     return true;
   }
@@ -8538,7 +8438,7 @@ export class GanttCanvas {
    * Get indent offset for a task based on its level
    */
   getTaskIndent(taskId: string): number {
-    return this.getTaskLevel(taskId) * this.indentWidth;
+    return this.getTaskDepth(taskId) * this.indentWidth;
   }
 
   /**
@@ -8549,8 +8449,8 @@ export class GanttCanvas {
     if (taskIndex <= 0) return false;
 
     const previousTask = this.state.tasks[taskIndex - 1];
-    const currentLevel = this.getTaskLevel(taskId);
-    const previousLevel = this.getTaskLevel(previousTask.id);
+    const currentLevel = this.getTaskDepth(taskId);
+    const previousLevel = this.getTaskDepth(previousTask.id);
 
     // Can only indent if previous task is at same level or one level up
     if (previousLevel <= currentLevel) {
@@ -8564,189 +8464,12 @@ export class GanttCanvas {
    * Outdent a task (move to parent's level)
    */
   outdentTask(taskId: string): boolean {
-    const node = this.taskHierarchy.get(taskId);
-    if (!node?.parentId) return false;
+    const parentId = this.getTaskParent(taskId);
+    if (!parentId) return false;
 
-    const grandparentId = this.getTaskParent(node.parentId);
+    const grandparentId = this.getTaskParent(parentId);
     this.setTaskParent(taskId, grandparentId);
     return true;
-  }
-
-  // =========================================================================
-  // FEATURE 12: RESOURCE ASSIGNMENT SYSTEM
-  // =========================================================================
-  // Tracks resource allocation to tasks
-
-  private resources: Map<string, Resource> = new Map();
-  private taskResources: Map<string, TaskResourceAssignment[]> = new Map();
-
-  /**
-   * Add a resource to the pool
-   */
-  addResource(resource: Resource): void {
-    this.resources.set(resource.id, resource);
-  }
-
-  /**
-   * Remove a resource from the pool
-   */
-  removeResource(resourceId: string): void {
-    this.resources.delete(resourceId);
-    // Remove from all task assignments
-    this.taskResources.forEach((assignments, taskId) => {
-      const filtered = assignments.filter(a => a.resourceId !== resourceId);
-      this.taskResources.set(taskId, filtered);
-    });
-  }
-
-  /**
-   * Get a resource by ID
-   */
-  getResource(resourceId: string): Resource | undefined {
-    return this.resources.get(resourceId);
-  }
-
-  /**
-   * Get all resources
-   */
-  getAllResources(): Resource[] {
-    return Array.from(this.resources.values());
-  }
-
-  /**
-   * Assign a resource to a task
-   */
-  assignResourceToTask(
-    taskId: string,
-    resourceId: string,
-    allocation: number = 100,
-    role?: string
-  ): void {
-    const task = this.state.tasks.find(t => t.id === taskId);
-    const resource = this.resources.get(resourceId);
-    if (!task || !resource) return;
-
-    const assignments = this.taskResources.get(taskId) || [];
-
-    // Check if already assigned
-    const existing = assignments.find(a => a.resourceId === resourceId);
-    if (existing) {
-      existing.allocation = allocation;
-      existing.role = role;
-    } else {
-      assignments.push({
-        resourceId,
-        taskId,
-        allocation,
-        role
-      });
-    }
-
-    this.taskResources.set(taskId, assignments);
-    this.markDirty();
-  }
-
-  /**
-   * Remove resource assignment from task
-   */
-  unassignResourceFromTask(taskId: string, resourceId: string): void {
-    const assignments = this.taskResources.get(taskId);
-    if (!assignments) return;
-
-    const filtered = assignments.filter(a => a.resourceId !== resourceId);
-    this.taskResources.set(taskId, filtered);
-    this.markDirty();
-  }
-
-  /**
-   * Get resources assigned to a task
-   */
-  getTaskResources(taskId: string): TaskResourceAssignment[] {
-    return this.taskResources.get(taskId) || [];
-  }
-
-  /**
-   * Get tasks assigned to a resource
-   */
-  getResourceTasks(resourceId: string): GanttTask[] {
-    const taskIds: string[] = [];
-    this.taskResources.forEach((assignments, taskId) => {
-      if (assignments.some(a => a.resourceId === resourceId)) {
-        taskIds.push(taskId);
-      }
-    });
-    return this.state.tasks.filter(t => taskIds.includes(t.id));
-  }
-
-  /**
-   * Calculate resource allocation for a date range
-   */
-  getResourceAllocation(resourceId: string, startDate: Date, endDate: Date): ResourceAllocation {
-    const tasks = this.getResourceTasks(resourceId);
-    const resource = this.resources.get(resourceId);
-
-    if (!resource) {
-      return {
-        resourceId,
-        totalAllocation: 0,
-        dailyAllocation: new Map(),
-        overallocatedDays: [],
-        availableCapacity: 0
-      };
-    }
-
-    const dailyAllocation = new Map<string, number>();
-    const overallocatedDays: Date[] = [];
-
-    const current = new Date(startDate);
-    while (current <= endDate) {
-      const dateKey = current.toISOString().split('T')[0];
-      let dayAllocation = 0;
-
-      tasks.forEach(task => {
-        if (task.startDate <= current && task.endDate >= current) {
-          const assignment = this.taskResources.get(task.id)?.find(
-            a => a.resourceId === resourceId
-          );
-          if (assignment) {
-            dayAllocation += assignment.allocation;
-          }
-        }
-      });
-
-      dailyAllocation.set(dateKey, dayAllocation);
-      if (dayAllocation > (resource.capacity || 100)) {
-        overallocatedDays.push(new Date(current));
-      }
-
-      current.setDate(current.getDate() + 1);
-    }
-
-    const allocations = Array.from(dailyAllocation.values());
-    const totalAllocation = allocations.length > 0
-      ? allocations.reduce((a, b) => a + b, 0) / allocations.length
-      : 0;
-
-    return {
-      resourceId,
-      totalAllocation,
-      dailyAllocation,
-      overallocatedDays,
-      availableCapacity: (resource.capacity || 100) - totalAllocation
-    };
-  }
-
-  /**
-   * Check if resource is overallocated on any day
-   */
-  isResourceOverallocated(resourceId: string): boolean {
-    const projectDates = this.getVisibleDateRange();
-    const allocation = this.getResourceAllocation(
-      resourceId,
-      projectDates.start,
-      projectDates.end
-    );
-    return allocation.overallocatedDays.length > 0;
   }
 
   // =========================================================================
