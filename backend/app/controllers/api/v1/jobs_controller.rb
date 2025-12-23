@@ -873,6 +873,7 @@ module Api
           :deposit,
           :prime_cost,
           :provisional_sums,
+          :external_sales_fee,
           :contract_date,
           # Build schedule
           :build_period,

@@ -27,6 +27,7 @@ interface Job {
   contract_price?: number;
   prime_cost?: number;
   provisional_sums?: number;
+  external_sales_fee?: number;
   prime_cost_details?: string;
   provisional_sums_details?: string;
   has_special_conditions?: boolean;
@@ -177,6 +178,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
     contract_price: job.contract_price?.toString() || "",
     prime_cost: job.prime_cost?.toString() || "",
     provisional_sums: job.provisional_sums?.toString() || "",
+    external_sales_fee: job.external_sales_fee?.toString() || "",
     prime_cost_details: job.prime_cost_details || "",
     provisional_sums_details: job.provisional_sums_details || "",
     has_special_conditions: job.has_special_conditions ?? false,
@@ -205,6 +207,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
         contract_price: job.contract_price?.toString() || "",
         prime_cost: job.prime_cost?.toString() || "",
         provisional_sums: job.provisional_sums?.toString() || "",
+        external_sales_fee: job.external_sales_fee?.toString() || "",
         prime_cost_details: job.prime_cost_details || "",
         provisional_sums_details: job.provisional_sums_details || "",
         has_special_conditions: job.has_special_conditions ?? false,
@@ -253,6 +256,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
           contract_price: form.contract_price ? parseFloat(form.contract_price) : null,
           prime_cost: form.prime_cost ? parseFloat(form.prime_cost) : null,
           provisional_sums: form.provisional_sums ? parseFloat(form.provisional_sums) : null,
+          external_sales_fee: form.external_sales_fee ? parseFloat(form.external_sales_fee) : null,
           prime_cost_details: form.prime_cost_details || null,
           provisional_sums_details: form.provisional_sums_details || null,
           has_special_conditions: form.has_special_conditions,
@@ -290,6 +294,7 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
       contract_price: job.contract_price?.toString() || "",
       prime_cost: job.prime_cost?.toString() || "",
       provisional_sums: job.provisional_sums?.toString() || "",
+      external_sales_fee: job.external_sales_fee?.toString() || "",
       prime_cost_details: job.prime_cost_details || "",
       provisional_sums_details: job.provisional_sums_details || "",
       has_special_conditions: job.has_special_conditions ?? false,
@@ -758,6 +763,26 @@ export function JobContractTab({ job, onUpdate }: JobContractTabProps) {
                     <p className="text-xs text-muted-foreground whitespace-pre-wrap">{job.provisional_sums_details}</p>
                   )}
                 </>
+              )}
+            </div>
+
+            {/* External Sales Fee */}
+            <div className="space-y-2">
+              <Label>External Sales Fee</Label>
+              {isEditing ? (
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    value={form.external_sales_fee}
+                    onChange={(e) => setForm({ ...form, external_sales_fee: e.target.value })}
+                    className="pl-7"
+                    placeholder="0.00"
+                    step="0.01"
+                  />
+                </div>
+              ) : (
+                <p className="text-sm py-2">{job.external_sales_fee ? formatCurrency(job.external_sales_fee) : "-"}</p>
               )}
             </div>
 

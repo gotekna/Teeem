@@ -226,6 +226,74 @@ module Api
           }, status: :internal_server_error
         end
 
+        # POST /api/v1/external/unreal_line_items
+        # Adds a single line item to a PO using item_code lookup
+        #
+        # Payload:
+        #   {
+        #     "job_id": 10,           # Job ID in TEEEM (optional validation)
+        #     "item_code": "WCC",     # PricebookItem.item_code to look up
+        #     "qty": 50,              # Quantity
+        #     "po_ID": 123,           # PurchaseOrder.id in TEEEM
+        #     "est_status": 1         # Estimator status (passed through)
+        #   }
+        #
+        def create_line_item
+          item_code = params[:item_code]
+          quantity = params[:qty] || 1
+          po_id = params[:po_ID]
+
+          if item_code.blank?
+            return render json: { success: false, error: "item_code is required" }, status: :unprocessable_entity
+          end
+
+          if po_id.blank?
+            return render json: { success: false, error: "po_ID is required" }, status: :unprocessable_entity
+          end
+
+          purchase_order = PurchaseOrder.find_by(id: po_id)
+          unless purchase_order
+            return render json: { success: false, error: "Purchase order not found with ID: #{po_id}" }, status: :not_found
+          end
+
+          pricebook_item = PricebookItem.find_by(item_code: item_code)
+          unless pricebook_item
+            return render json: { success: false, error: "Pricebook item not found with code: #{item_code}" }, status: :not_found
+          end
+
+          line_item = purchase_order.line_items.create!(
+            pricebook_item_id: pricebook_item.id,
+            description: pricebook_item.item_name,
+            quantity: quantity.to_i,
+            unit_price: pricebook_item.current_price || 0,
+            gst_code: pricebook_item.gst_code || "GST",
+            line_number: purchase_order.line_items.count + 1
+          )
+
+          if purchase_order.supplier_id.nil? && pricebook_item.default_supplier_id.present?
+            purchase_order.update!(supplier_id: pricebook_item.default_supplier_id)
+          end
+
+          purchase_order.reload
+
+          render json: {
+            success: true,
+            line_item_id: line_item.id,
+            purchase_order_id: purchase_order.id,
+            item_code: pricebook_item.item_code,
+            qty: line_item.quantity,
+            unit_price: line_item.unit_price.to_f,
+            line_total: (line_item.quantity * line_item.unit_price).to_f,
+            est_status: params[:est_status]
+          }, status: :created
+
+        rescue ActiveRecord::RecordInvalid => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue => e
+          Rails.logger.error "[Unreal Line Item] Error: #{e.message}"
+          render json: { success: false, error: e.message }, status: :internal_server_error
+        end
+
         # GET /api/v1/external/unreal_jobs/:id
         # Get job details including contract price for Unreal
         #
