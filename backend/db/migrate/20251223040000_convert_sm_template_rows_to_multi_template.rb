@@ -32,7 +32,7 @@ class ConvertSmTemplateRowsToMultiTemplate < ActiveRecord::Migration[7.0]
 
     # Step 4: Drop old unique constraint (sm_template_id, task_number) (idempotent)
     # This constraint no longer makes sense with multi-template
-    if index_exists?(:sm_template_rows, name: "index_sm_template_rows_on_sm_template_id_and_task_number")
+    if index_exists?(:sm_template_rows, [:sm_template_id, :task_number])
       remove_index :sm_template_rows, name: "index_sm_template_rows_on_sm_template_id_and_task_number"
     end
 
