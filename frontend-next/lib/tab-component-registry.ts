@@ -68,7 +68,7 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   // Group Reports (consolidated across companies)
   "XeroGroupPLCard": lazy(() => import("@/components/xero/XeroGroupPLCard")),
   "XeroGroupBalanceSheetCard": lazy(() => import("@/components/xero/XeroGroupBalanceSheetCard")),
-  // Note: XeroGroupAccountsCard is referenced in EntityTabs but component doesn't exist yet
+  "XeroGroupAccountsCard": lazy(() => import("@/components/xero/XeroAccountsCard")), // XeroAccountsCard shows group view
 
   // Contacts
   "XeroContactsTable": lazy(() => import("@/components/xero/XeroContactsTable")),
