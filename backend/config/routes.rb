@@ -155,6 +155,10 @@ Rails.application.routes.draw do
       get "performance/endpoints", to: "performance#endpoints"  # Endpoint stats
       get "performance/vitals", to: "performance#vitals"        # Web Vitals summary
       get "performance/slow_queries", to: "performance#slow_queries"  # Slow query analysis
+      get "performance/anomalies", to: "performance#anomalies"  # Detected anomalies
+      post "performance/anomalies/:id/acknowledge", to: "performance#acknowledge_anomaly"
+      post "performance/anomalies/:id/resolve", to: "performance#resolve_anomaly"
+      post "performance/anomalies/:id/false_positive", to: "performance#mark_false_positive"
 
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"

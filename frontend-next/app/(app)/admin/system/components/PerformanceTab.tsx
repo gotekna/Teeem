@@ -36,6 +36,8 @@ import {
   Timer,
   BarChart3,
   AlertCircle,
+  Bell,
+  XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -86,6 +88,29 @@ interface TrendPoint {
   error_count: number;
 }
 
+interface Anomaly {
+  id: number;
+  anomaly_type: string;
+  severity: "info" | "warning" | "critical";
+  status: string;
+  endpoint?: string;
+  metric_name?: string;
+  table_name?: string;
+  observed_value: number;
+  expected_value?: number;
+  z_score?: number;
+  description: string;
+  detected_at: string;
+  context?: Record<string, unknown>;
+}
+
+interface AnomalySummary {
+  total: number;
+  open: number;
+  critical: number;
+  recent: Anomaly[];
+}
+
 interface PerformanceData {
   success: boolean;
   data: {
@@ -94,6 +119,7 @@ interface PerformanceData {
     top_endpoints: TopEndpoint[];
     slow_queries: SlowQuerySummary[];
     trends: TrendPoint[];
+    anomalies: AnomalySummary;
   };
   period: {
     since: string;
@@ -224,6 +250,7 @@ export function PerformanceTab() {
   const topEndpoints = data?.data.top_endpoints || [];
   const slowQueries = data?.data.slow_queries || [];
   const trends = data?.data.trends || [];
+  const anomalies = data?.data.anomalies;
 
   return (
     <div className="space-y-6">
@@ -324,6 +351,75 @@ export function PerformanceTab() {
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {/* Anomalies Alert */}
+      {anomalies && anomalies.open > 0 && (
+        <Card className={cn(
+          "border-2",
+          anomalies.critical > 0
+            ? "border-red-500 dark:border-red-600 bg-red-50 dark:bg-red-900/20"
+            : "border-yellow-500 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
+        )}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Bell className={cn(
+                  "h-5 w-5",
+                  anomalies.critical > 0 ? "text-red-600" : "text-yellow-600"
+                )} />
+                Active Anomalies
+              </CardTitle>
+              <div className="flex gap-2">
+                {anomalies.critical > 0 && (
+                  <Badge variant="destructive">{anomalies.critical} Critical</Badge>
+                )}
+                <Badge variant="secondary">{anomalies.open} Open</Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {anomalies.recent.map((anomaly) => (
+                <div
+                  key={anomaly.id}
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg",
+                    anomaly.severity === "critical" && "bg-red-100 dark:bg-red-900/30",
+                    anomaly.severity === "warning" && "bg-yellow-100 dark:bg-yellow-900/30",
+                    anomaly.severity === "info" && "bg-blue-100 dark:bg-blue-900/30"
+                  )}
+                >
+                  {anomaly.severity === "critical" && (
+                    <XCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  )}
+                  {anomaly.severity === "warning" && (
+                    <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5 flex-shrink-0" />
+                  )}
+                  {anomaly.severity === "info" && (
+                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge variant="outline" className="text-xs capitalize">
+                        {anomaly.anomaly_type.replace(/_/g, " ")}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(anomaly.detected_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-sm font-medium">{anomaly.description}</p>
+                    {anomaly.z_score && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {anomaly.z_score.toFixed(1)} standard deviations from baseline
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Web Vitals */}

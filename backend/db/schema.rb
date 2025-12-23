@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_072202) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_072203) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4056,6 +4056,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_072202) do
     t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
   end
 
+  create_table "performance_anomalies", force: :cascade do |t|
+    t.string "anomaly_type", null: false
+    t.string "severity", null: false
+    t.string "endpoint"
+    t.string "metric_name"
+    t.string "table_name"
+    t.float "observed_value", null: false
+    t.float "expected_value"
+    t.float "threshold"
+    t.float "z_score"
+    t.string "status", default: "open"
+    t.text "description"
+    t.jsonb "context", default: {}
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.bigint "acknowledged_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_id"], name: "index_performance_anomalies_on_acknowledged_by_id"
+    t.index ["anomaly_type"], name: "index_performance_anomalies_on_anomaly_type"
+    t.index ["detected_at"], name: "index_performance_anomalies_on_detected_at"
+    t.index ["endpoint", "detected_at"], name: "index_performance_anomalies_on_endpoint_and_detected_at"
+    t.index ["severity"], name: "index_performance_anomalies_on_severity"
+    t.index ["status"], name: "index_performance_anomalies_on_status"
+  end
+
   create_table "performance_requests", force: :cascade do |t|
     t.string "endpoint", null: false
     t.string "method", null: false
@@ -6427,6 +6453,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_072202) do
   add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
   add_foreign_key "performance_requests", "organizations"
   add_foreign_key "performance_requests", "users"
   add_foreign_key "performance_slow_queries", "users"

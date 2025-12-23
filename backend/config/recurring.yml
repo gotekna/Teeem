@@ -41,6 +41,14 @@ cleanup_performance_data:
   queue: low
   schedule: every day at 4:00 am
 
+# Refresh materialized views and run anomaly detection
+# Views pre-aggregate metrics for fast dashboard queries
+# Anomaly detector uses z-score analysis to find issues
+refresh_performance_mv:
+  class: RefreshPerformanceMVJob
+  queue: low
+  schedule: every 5 minutes
+
 # ============================================
 # TOKEN REFRESH (every 15 minutes)
 # Proactively refresh OAuth tokens before expiry

@@ -72,11 +72,24 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { initCompanySettings, getTodayInCompanyTimezone } from "@/lib/stores/company-settings-store";
 
 // ============================================================================
 // Types
 // ============================================================================
+
+interface TemplateOption {
+  id: number;
+  name: string;
+  row_count: number;
+}
 
 interface GanttCanvasViewProps {
   /** Template ID - loads data from API */
@@ -87,6 +100,10 @@ interface GanttCanvasViewProps {
   staticDependencies?: Array<{ fromId: string; toId: string; type?: string }>;
   /** Show toolbar */
   showToolbar?: boolean;
+  /** Templates for selector dropdown */
+  templates?: TemplateOption[];
+  /** Callback when template changes */
+  onTemplateChange?: (templateId: number) => void;
   className?: string;
   onTaskClick?: (task: GanttTask) => void;
   onTaskDoubleClick?: (task: GanttTask) => void;
@@ -196,6 +213,8 @@ export function GanttCanvasView({
   staticTasks,
   staticDependencies,
   showToolbar = true,
+  templates,
+  onTemplateChange,
   className,
   onTaskClick,
   onTaskDoubleClick,
@@ -688,9 +707,35 @@ export function GanttCanvasView({
   const taskCount = isStaticMode ? (staticTasks?.length || 0) : rows.length;
   if (!isStaticMode && rows.length === 0) {
     return (
-      <div className={cn("flex items-center justify-center h-full min-h-[400px]", className)}>
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-muted-foreground">No tasks in this template</p>
+      <div className={cn("flex flex-col h-full", className)}>
+        {/* Toolbar with template selector */}
+        {showToolbar && (
+          <div className="flex items-center gap-2 p-2 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="flex-1" />
+            {templates && templates.length > 0 && onTemplateChange && (
+              <Select
+                value={templateId ? String(templateId) : ""}
+                onValueChange={(value) => onTemplateChange(parseInt(value))}
+              >
+                <SelectTrigger className="w-[280px] h-8">
+                  <SelectValue placeholder="Select a template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map((template) => (
+                    <SelectItem key={template.id} value={String(template.id)}>
+                      {template.name} ({template.row_count} tasks)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <span className="text-sm text-muted-foreground">0 tasks</span>
+          </div>
+        )}
+        <div className="flex items-center justify-center flex-1">
+          <p className="text-sm text-muted-foreground">
+            {templateId ? "No tasks in this template" : "Select a template to preview"}
+          </p>
         </div>
       </div>
     );
@@ -794,6 +839,25 @@ export function GanttCanvasView({
           </DropdownMenu>
 
           <div className="flex-1" />
+
+          {/* Template Selector */}
+          {templates && templates.length > 0 && onTemplateChange && (
+            <Select
+              value={templateId ? String(templateId) : ""}
+              onValueChange={(value) => onTemplateChange(parseInt(value))}
+            >
+              <SelectTrigger className="w-[280px] h-8">
+                <SelectValue placeholder="Select a template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map((template) => (
+                  <SelectItem key={template.id} value={String(template.id)}>
+                    {template.name} ({template.row_count} tasks)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           <span className="text-sm text-muted-foreground">
             {taskCount} tasks

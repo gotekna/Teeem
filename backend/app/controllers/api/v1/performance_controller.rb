@@ -9,6 +9,9 @@ module Api
     # GET /api/v1/performance/endpoints - Endpoint-level stats
     # GET /api/v1/performance/vitals - Web Vitals summary
     # GET /api/v1/performance/slow_queries - Slow query analysis
+    # GET /api/v1/performance/anomalies - Detected anomalies
+    # POST /api/v1/performance/anomalies/:id/acknowledge - Acknowledge anomaly
+    # POST /api/v1/performance/anomalies/:id/resolve - Resolve anomaly
     #
     class PerformanceController < ApplicationController
       # GET /api/v1/performance
@@ -23,7 +26,8 @@ module Api
             web_vitals: build_vitals_summary(since),
             top_endpoints: build_top_endpoints(since),
             slow_queries: build_slow_queries_summary(since),
-            trends: build_trends(since)
+            trends: build_trends(since),
+            anomalies: build_anomalies_summary(since)
           },
           period: {
             since: since.iso8601,
@@ -115,6 +119,57 @@ module Api
             }
           end,
           period: { since: since.iso8601 }
+        }
+      end
+
+      # GET /api/v1/performance/anomalies
+      # List detected anomalies
+      def anomalies
+        since = parse_since_param
+        status_filter = params[:status] # open, acknowledged, resolved, all
+
+        anomalies = PerformanceAnomaly.where("detected_at > ?", since)
+        anomalies = anomalies.where(status: status_filter) if status_filter.present? && status_filter != "all"
+        anomalies = anomalies.order(detected_at: :desc).limit(50)
+
+        render json: {
+          success: true,
+          data: anomalies.map { |a| anomaly_to_json(a) },
+          summary: PerformanceAnomaly.summary(since: since),
+          period: { since: since.iso8601 }
+        }
+      end
+
+      # POST /api/v1/performance/anomalies/:id/acknowledge
+      def acknowledge_anomaly
+        anomaly = PerformanceAnomaly.find(params[:id])
+        anomaly.acknowledge!(current_user)
+
+        render json: {
+          success: true,
+          data: anomaly_to_json(anomaly)
+        }
+      end
+
+      # POST /api/v1/performance/anomalies/:id/resolve
+      def resolve_anomaly
+        anomaly = PerformanceAnomaly.find(params[:id])
+        anomaly.resolve!
+
+        render json: {
+          success: true,
+          data: anomaly_to_json(anomaly)
+        }
+      end
+
+      # POST /api/v1/performance/anomalies/:id/false_positive
+      def mark_false_positive
+        anomaly = PerformanceAnomaly.find(params[:id])
+        anomaly.mark_false_positive!
+
+        render json: {
+          success: true,
+          data: anomaly_to_json(anomaly)
         }
       end
 
@@ -238,6 +293,36 @@ module Api
         return fingerprint if fingerprint.length <= max_length
 
         "#{fingerprint[0...max_length]}..."
+      end
+
+      def build_anomalies_summary(since)
+        anomalies = PerformanceAnomaly.where("detected_at > ?", since)
+
+        {
+          total: anomalies.count,
+          open: anomalies.open.count,
+          critical: anomalies.critical.count,
+          recent: anomalies.open.order(detected_at: :desc).limit(5).map { |a| anomaly_to_json(a) }
+        }
+      end
+
+      def anomaly_to_json(anomaly)
+        {
+          id: anomaly.id,
+          anomaly_type: anomaly.anomaly_type,
+          severity: anomaly.severity,
+          status: anomaly.status,
+          endpoint: anomaly.endpoint,
+          metric_name: anomaly.metric_name,
+          table_name: anomaly.table_name,
+          observed_value: anomaly.observed_value,
+          expected_value: anomaly.expected_value,
+          z_score: anomaly.z_score&.round(2),
+          description: anomaly.to_description,
+          detected_at: anomaly.detected_at.iso8601,
+          resolved_at: anomaly.resolved_at&.iso8601,
+          context: anomaly.context
+        }
       end
     end
   end
