@@ -190,6 +190,13 @@ export function GanttCanvasView({
       gantt.onTaskDragHandler(onTaskDrag);
     }
 
+    // Register scroll sync callback
+    gantt.onScrollHandler((scrollX, scrollY) => {
+      if (sidebarRef.current) {
+        sidebarRef.current.scrollTop = scrollY;
+      }
+    });
+
     // Scroll to today
     gantt.scrollToToday();
 
@@ -244,9 +251,8 @@ export function GanttCanvasView({
 
     const syncScroll = () => {
       if (ganttRef.current && sidebarRef.current) {
-        // Get scroll position from canvas engine
-        const gantt = ganttRef.current as unknown as { state: { viewportState: { scrollY: number } } };
-        const scrollY = gantt.state?.viewportState?.scrollY || 0;
+        // Get scroll position from canvas engine using public API
+        const { scrollY } = ganttRef.current.getScrollPosition();
 
         // Only update if changed
         if (scrollY !== lastScrollY) {

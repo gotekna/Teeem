@@ -88,7 +88,8 @@ class BankTransactionReportService
 
   def generate
     transactions = fetch_transactions
-    return { success: false, error: "No transactions found" } if transactions.empty?
+    # Bank statements MUST generate even with zero transactions
+    # They show opening/closing balance which is required for ATO compliance
 
     pdf_content = build_pdf(transactions)
 
@@ -139,16 +140,38 @@ class BankTransactionReportService
   def build_pdf(transactions)
     doc = HexaPDF::Document.new
 
-    # Get account info
-    bank_account_name = transactions.first&.bank_account_name || "Unknown Account"
-    bank_code = transactions.first&.bank_account_code || ""
+    # Get account info - prefer BankAccount record (SSoT), fallback to first transaction
+    if @bank_account_record.present?
+      bank_account_name = @bank_account_record.institution_name || @bank_account_record.account_name || "Unknown Account"
+      bank_code = @bank_account_record.bank_code || ""
+    else
+      bank_account_name = transactions.first&.bank_account_name || @sample_account_name || "Unknown Account"
+      bank_code = transactions.first&.bank_account_code || ""
+    end
 
     # Detect bank branding from account name
     @branding = detect_bank_branding(bank_account_name)
 
-    # Calculate period
-    first_date = transactions.map(&:transaction_date).min
-    last_date = transactions.map(&:transaction_date).max
+    # Calculate period - use explicit dates if provided, otherwise from transactions
+    if @start_date.present? && @end_date.present?
+      first_date = @start_date
+      last_date = @end_date
+    elsif @month.present? && @financial_year.present?
+      # Calculate from financial year and month
+      fy_year = @financial_year.to_s.gsub(/\D/, "").to_i
+      fy_year = 2000 + fy_year if fy_year < 100  # Handle FY24 → 2024
+      # Australian FY: July-June, so month 7-12 is in year-1, month 1-6 is in FY year
+      year = @month >= 7 ? fy_year - 1 : fy_year
+      first_date = Date.new(year, @month, 1)
+      last_date = first_date.end_of_month
+    elsif transactions.any?
+      first_date = transactions.map(&:transaction_date).min
+      last_date = transactions.map(&:transaction_date).max
+    else
+      # Fallback to current date if no transactions and no explicit period
+      first_date = Date.current.beginning_of_month
+      last_date = Date.current.end_of_month
+    end
 
     # Calculate totals with running balance
     total_debits = BigDecimal("0")
@@ -170,8 +193,14 @@ class BankTransactionReportService
     closing_balance = running_balance
 
     # Generate pages (fewer per page since each has 2-line description)
+    # Always generate at least one page, even with zero transactions
     transactions_per_page = 22
-    pages_data = transactions_with_balance.each_slice(transactions_per_page).to_a
+    if transactions_with_balance.any?
+      pages_data = transactions_with_balance.each_slice(transactions_per_page).to_a
+    else
+      # Empty transactions - generate one page with just summary
+      pages_data = [[]]
+    end
     total_pages = pages_data.length
 
     pages_data.each_with_index do |page_transactions, page_idx|
@@ -476,6 +505,25 @@ class BankTransactionReportService
 
     y -= 18
     canvas.font("Helvetica", size: 8)
+
+    # Handle empty transactions case
+    if transactions_with_balance.empty?
+      canvas.text("-", at: [ 50, y ])
+      canvas.text("Brought forward", at: [ 110, y ])
+      draw_right_aligned_text(canvas, format_currency_cr_dr(@opening_balance), balance_col_right, y)
+      y -= 14
+
+      canvas.fill_color("666666")
+      canvas.text("No transactions during this period", at: [ 110, y ])
+      canvas.fill_color("000000")
+      y -= 14
+
+      canvas.text("-", at: [ 50, y ])
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("Closing balance", at: [ 110, y ])
+      draw_right_aligned_text(canvas, format_currency_cr_dr(@opening_balance), balance_col_right, y)
+      return
+    end
 
     if is_first_page && transactions_with_balance.any?
       first_txn = transactions_with_balance.first[:txn]
@@ -1611,6 +1659,37 @@ class BankTransactionReportService
     y -= 22
     canvas.fill_color("000000")
     canvas.font("Helvetica", size: 8)
+
+    # Handle empty transactions case
+    if transactions_with_balance.empty?
+      # Opening balance row
+      canvas.fill_color("666666")
+      canvas.font("Helvetica", size: 8, variant: :italic)
+      canvas.text("-", at: [ 60, y ])
+      canvas.text("Opening Balance", at: [ 140, y ])
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
+      y -= 20
+
+      # No transactions message
+      canvas.fill_color("999999")
+      canvas.font("Helvetica", size: 9, variant: :italic)
+      canvas.text("No transactions during this period", at: [ 140, y ])
+      y -= 20
+
+      # Closing balance row (same as opening)
+      canvas.stroke_color("D1D5DB")
+      canvas.line_width(1)
+      canvas.line(50, y + 12, 545, y + 12)
+      canvas.stroke
+
+      canvas.fill_color("000000")
+      canvas.font("Helvetica", size: 8, variant: :bold)
+      canvas.text("-", at: [ 60, y ])
+      canvas.text("Closing Balance", at: [ 140, y ])
+      canvas.font("Helvetica", size: 9, variant: :bold)
+      canvas.text(format_currency(@opening_balance), at: [ 485, y ])
+      return
+    end
 
     # Opening balance row
     if is_first_page && transactions_with_balance.any?

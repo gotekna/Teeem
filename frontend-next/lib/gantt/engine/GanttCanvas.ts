@@ -2550,6 +2550,9 @@ export class GanttCanvas {
     } else {
       this.minimapBounds = null;
     }
+
+    // Notify scroll listeners if scroll position changed
+    this.notifyScrollListeners();
   }
 
   private setupEventListeners(): void {
@@ -11158,6 +11161,39 @@ export class GanttCanvas {
   }
 
   getHeaderHeight(): number { return this.config.headerHeight; }
+
+  // =========================================================================
+  // FEATURE 68b: SCROLL POSITION ACCESS
+  // =========================================================================
+  /** Get current scroll position */
+  getScrollPosition(): { scrollX: number; scrollY: number } {
+    const state = this.viewport.getState();
+    return {
+      scrollX: state.scrollX,
+      scrollY: state.scrollY,
+    };
+  }
+
+  /** Callback for scroll events */
+  private scrollCallback: ((scrollX: number, scrollY: number) => void) | null = null;
+  private lastNotifiedScrollY: number = 0;
+
+  /** Register a callback to be notified when scroll position changes */
+  onScrollHandler(callback: (scrollX: number, scrollY: number) => void): void {
+    this.scrollCallback = callback;
+  }
+
+  /** Internal method to notify scroll listeners - call this in render loop */
+  private notifyScrollListeners(): void {
+    if (this.scrollCallback) {
+      const state = this.viewport.getState();
+      // Only notify if scrollY changed (for sidebar sync)
+      if (state.scrollY !== this.lastNotifiedScrollY) {
+        this.lastNotifiedScrollY = state.scrollY;
+        this.scrollCallback(state.scrollX, state.scrollY);
+      }
+    }
+  }
 
   // =========================================================================
   // FEATURE 69: STICKY HEADER (STAYS VISIBLE ON SCROLL)

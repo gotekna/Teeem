@@ -42,8 +42,26 @@ class BankStatementReport < ApplicationRecord
   scope :monthly, -> { where(report_type: "monthly") }
   scope :annual, -> { where(report_type: "annual") }
 
-  # Callbacks - persist computed display_name to DB column
+  # Callbacks
+  before_validation :auto_assign_document_type, on: :create
   before_save :persist_display_name
+
+  # Auto-select the correct DocumentType based on report_type and context
+  # SSoT: DocumentType.primary_tab and tabs determine which template to use
+  def self.document_type_for(report_type:)
+    case report_type
+    when "monthly"
+      # Monthly Xero bank statement → primary_tab: XERO, tabs includes bank-statement
+      DocumentType.find_by(primary_tab: "XERO", name: "X Bank Statement")
+    when "annual"
+      # Annual/EOY report - not yet implemented
+      Rails.logger.warn("[BankStatementReport] Annual reports not yet supported for auto DocumentType selection")
+      nil
+    else
+      Rails.logger.warn("[BankStatementReport] Unknown report_type: #{report_type}")
+      nil
+    end
+  end
 
   # Detect bank code from account name
   def self.detect_bank_code(account_name)
@@ -203,6 +221,11 @@ class BankStatementReport < ApplicationRecord
                    "EOY"
                  end
 
+    # Get clean BSB and account number from linked BankAccount (SSoT)
+    # Don't use report's account_number field as it may have BSB mixed in
+    linked_bsb = bank_account&.bsb
+    linked_account_num = bank_account&.account_number
+
     {
       company_code: company_code,
       company_name: corporate_company&.name,
@@ -213,7 +236,7 @@ class BankStatementReport < ApplicationRecord
       period_end: period_end,
       document_date: period_end || (month.present? && year.present? ? Date.new(year, month, 1).end_of_month : nil),
       bank_code: bank_code,
-      account_number: account_number,
+      account_number: linked_account_num,
       bsb: bank_account&.bsb
     }
   end
@@ -325,6 +348,14 @@ class BankStatementReport < ApplicationRecord
   end
 
   private
+
+  # Auto-assign DocumentType based on report_type
+  # Called on create to ensure correct template is used
+  def auto_assign_document_type
+    return if document_type_id.present? # Don't override if already set
+
+    self.document_type = self.class.document_type_for(report_type: report_type || "monthly")
+  end
 
   # Persist computed display_name to DB column before save
   def persist_display_name
