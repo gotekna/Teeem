@@ -370,9 +370,6 @@ export default function CompanyDetailPage() {
             </Button>
             <div>
               <h1 className="text-2xl font-bold tracking-tight font-serif">
-                {company.code && (
-                  <span className="text-muted-foreground font-mono text-lg mr-2">[{company.code}]</span>
-                )}
                 {company.name}
               </h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
