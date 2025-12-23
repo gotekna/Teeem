@@ -1,7 +1,7 @@
 /**
  * Performance Observatory - Web Vitals Reporter
  *
- * Collects Core Web Vitals (LCP, FID, CLS, INP, TTFB) and sends them
+ * Collects Core Web Vitals (LCP, CLS, INP, TTFB) and sends them
  * to the backend for storage and analysis.
  *
  * Features:
@@ -49,8 +49,8 @@ export function initVitals(): void {
   if (typeof window === "undefined") return;
 
   // Register handlers for each Core Web Vital
+  // Note: FID was deprecated in web-vitals v4, replaced by INP
   onCLS(handleMetric);
-  onFID(handleMetric);
   onLCP(handleMetric);
   onINP(handleMetric);
   onTTFB(handleMetric);

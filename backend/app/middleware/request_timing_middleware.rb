@@ -39,6 +39,9 @@ class RequestTimingMiddleware
     path = env["PATH_INFO"]
     return @app.call(env) if should_exclude?(path)
 
+    # Set thread-local context for SQL instrumentation
+    Thread.current[:performance_current_endpoint] = path
+
     # Capture timing with high-precision monotonic clock
     start_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -57,6 +60,10 @@ class RequestTimingMiddleware
     # If timing fails, don't crash the request
     Rails.logger.error "[RequestTimingMiddleware] Error: #{e.message}"
     raise
+  ensure
+    # Clean up thread-local context
+    Thread.current[:performance_current_endpoint] = nil
+    Thread.current[:performance_current_user_id] = nil
   end
 
   private
@@ -85,6 +92,9 @@ class RequestTimingMiddleware
     # Get user context
     user_id = env["warden"]&.user&.id
     organization_id = extract_organization_id(env)
+
+    # Update thread-local for SQL instrumentation (if user became available mid-request)
+    Thread.current[:performance_current_user_id] = user_id if user_id
 
     # Build timing data
     data = {

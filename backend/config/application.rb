@@ -49,6 +49,7 @@ module Backend
     # Performance Observatory - Request Timing Middleware
     # Captures request duration with zero production impact (~0.1ms overhead)
     # All writes are async via Performance::Buffer
+    require_relative "../app/middleware/request_timing_middleware"
     config.middleware.use RequestTimingMiddleware
 
     # Configure ActiveRecord encryption to use environment variables

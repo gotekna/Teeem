@@ -52,9 +52,8 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
+  KeyboardSensor,
   closestCenter,
-  rectIntersection,
-  pointerWithin,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -357,9 +356,10 @@ export function GanttCanvasView({
   const columnDragSensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5, // Must drag at least 5px to start
+        distance: 8, // Must drag at least 8px to start
       },
-    })
+    }),
+    useSensor(KeyboardSensor)
   );
 
   // Column resize state
@@ -823,7 +823,7 @@ export function GanttCanvasView({
             {/* Sidebar Header - Draggable Columns */}
             <DndContext
               sensors={columnDragSensors}
-              collisionDetection={pointerWithin}
+              collisionDetection={closestCenter}
               onDragStart={(e) => console.log('[Column Drag] DragStart:', e.active.id)}
               onDragOver={(e) => console.log('[Column Drag] DragOver:', { activeId: e.active.id, overId: e.over?.id })}
               onDragEnd={handleColumnDragEnd}
@@ -938,13 +938,13 @@ export function GanttCanvasView({
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center border-b text-xs hover:bg-muted/30",
+                        "flex items-center border-b text-xs hover:bg-muted/30 px-2",
                         index % 2 === 0 ? "bg-background" : "bg-muted/10"
                       )}
                       style={{ height: 40 }}
                     >
                       {visibleColumns.map(col => (
-                        <div key={col.id} style={{ width: col.width }} className="border border-red-500">
+                        <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="border border-red-500">
                           {renderCell(col)}
                         </div>
                       ))}

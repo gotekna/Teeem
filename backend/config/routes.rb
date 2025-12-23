@@ -150,6 +150,12 @@ Rails.application.routes.draw do
       post "metrics", to: "metrics#create"              # Receive frontend Web Vitals
       get "metrics/buffer_status", to: "metrics#buffer_status"  # Debug buffer status
 
+      # Performance Observatory - Dashboard API
+      get "performance", to: "performance#index"        # Main dashboard data
+      get "performance/endpoints", to: "performance#endpoints"  # Endpoint stats
+      get "performance/vitals", to: "performance#vitals"        # Web Vitals summary
+      get "performance/slow_queries", to: "performance#slow_queries"  # Slow query analysis
+
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"
 
