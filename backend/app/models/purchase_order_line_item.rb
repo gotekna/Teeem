@@ -23,6 +23,8 @@ class PurchaseOrderLineItem < ApplicationRecord
   before_validation :set_line_number, if: :new_record?
   before_validation :set_defaults_from_pricebook_item, if: -> { pricebook_item.present? }
   before_save :calculate_totals
+  after_save :update_purchase_order_totals
+  after_destroy :update_purchase_order_totals
 
   # Scopes
   scope :ordered, -> { order(:line_number) }
@@ -101,5 +103,11 @@ class PurchaseOrderLineItem < ApplicationRecord
     # Auto-fill colour from pricebook item if not set
     self.colour = pricebook_item.colour if colour.blank? && pricebook_item.colour.present?
     self.colour_code = pricebook_item.colour_code if colour_code.blank? && pricebook_item.colour_code.present?
+  end
+
+  # Trigger parent PO to recalculate totals when line items change
+  def update_purchase_order_totals
+    # Reload to get fresh line_items, then save to trigger calculate_totals callback
+    purchase_order.reload.save! if purchase_order.present?
   end
 end

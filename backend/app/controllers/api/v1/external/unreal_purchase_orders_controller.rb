@@ -273,8 +273,17 @@ module Api
             line_number: purchase_order.line_items.count + 1
           )
 
-          if purchase_order.supplier_id.nil? && pricebook_item.default_supplier_id.present?
-            purchase_order.update!(supplier_id: pricebook_item.default_supplier_id)
+          # Recalculate supplier from ALL line items' default suppliers (most common wins)
+          supplier_ids = purchase_order.line_items
+            .includes(:pricebook_item)
+            .map { |li| li.pricebook_item&.default_supplier_id }
+            .compact
+
+          if supplier_ids.any?
+            most_common_supplier = supplier_ids.group_by(&:itself)
+                                                .max_by { |_, v| v.size }
+                                                &.first
+            purchase_order.update!(supplier_id: most_common_supplier) if most_common_supplier
           end
 
           purchase_order.reload
