@@ -540,13 +540,15 @@ export default function CompanyDetailPage() {
 
           {/* XERO Tab - Dynamic rendering via XeroTabRenderer (SSoT) */}
           {activeTab === "xero" && company && (
-            <XeroTabRenderer
-              companyId={companyId}
-              companyName={company?.name}
-              company={company}
-              onRefresh={loadCompany}
-              DocumentsTabComponent={CompanyDocumentsTab}
-            />
+            <div className="h-full -mx-3 -mb-3">
+              <XeroTabRenderer
+                companyId={companyId}
+                companyName={company?.name}
+                company={company}
+                onRefresh={loadCompany}
+                DocumentsTabComponent={CompanyDocumentsTab}
+              />
+            </div>
           )}
 
           {/* Document Category Tabs */}
