@@ -12046,6 +12046,204 @@ export class GanttCanvas {
   // - Feature 249 (Palm rejection): See Feature 56 isPalmTouch()
   // - Feature 250 (Stylus): See Feature 57 isStylusActive()
 
+  // =========================================================================
+  // SECTION D: TABLE EDITOR INTEGRATION (Features 251-325)
+  // =========================================================================
+  // Note: The full Table Editor is a separate React component.
+  // These features enable integration between the Canvas and Table views.
+
+  // =========================================================================
+  // FEATURE 251-275: TABLE SYNC & ROW HIGHLIGHTING
+  // =========================================================================
+  private tableRowHighlightEnabled: boolean = true;
+  private highlightedTableRowId: string | null = null;
+  private tableScrollSyncEnabled: boolean = true;
+  private onTableRowSelect: ((taskId: string) => void) | null = null;
+
+  // Enable/disable table row highlighting in canvas
+  setTableRowHighlightEnabled(enabled: boolean): void {
+    this.tableRowHighlightEnabled = enabled;
+    this.markDirty();
+  }
+
+  isTableRowHighlightEnabled(): boolean { return this.tableRowHighlightEnabled; }
+
+  // Set callback for when table row is selected in canvas
+  setOnTableRowSelect(callback: ((taskId: string) => void) | null): void {
+    this.onTableRowSelect = callback;
+  }
+
+  // Called when table row is clicked - highlights in canvas
+  highlightTableRow(taskId: string): void {
+    if (!this.tableRowHighlightEnabled) return;
+    this.highlightedTableRowId = taskId;
+    this.selectTask(taskId, false, false); // Select without multi-select
+    this.scrollToTask(taskId);
+    this.markDirty();
+  }
+
+  // Get currently highlighted table row
+  getHighlightedTableRowId(): string | null {
+    return this.highlightedTableRowId;
+  }
+
+  // Clear table row highlight
+  clearTableRowHighlight(): void {
+    this.highlightedTableRowId = null;
+    this.markDirty();
+  }
+
+  // Enable/disable scroll sync between table and canvas
+  setTableScrollSyncEnabled(enabled: boolean): void {
+    this.tableScrollSyncEnabled = enabled;
+  }
+
+  isTableScrollSyncEnabled(): boolean { return this.tableScrollSyncEnabled; }
+
+  // Called by table when scroll position changes
+  syncScrollFromTable(rowIndex: number): void {
+    if (!this.tableScrollSyncEnabled) return;
+    const y = this.viewport.rowToY(rowIndex);
+    // Scroll canvas to match table position
+    this.viewport.scrollTo(this.viewport.getState().scrollX, Math.max(0, y - this.config.headerHeight));
+    this.markDirty();
+  }
+
+  // Get current row index for table scroll sync
+  getCurrentTopRowIndex(): number {
+    const scrollY = this.viewport.getState().scrollY;
+    return Math.floor(scrollY / this.config.rowHeight);
+  }
+
+  // =========================================================================
+  // FEATURE 276-300: TABLE COLUMN COORDINATION
+  // =========================================================================
+  private visibleColumns: Set<string> = new Set(['name', 'duration', 'startDate', 'endDate', 'progress', 'supplier']);
+  private columnWidths: Map<string, number> = new Map();
+
+  // Set which columns are visible in table (affects canvas tooltips)
+  setVisibleColumns(columns: string[]): void {
+    this.visibleColumns = new Set(columns);
+  }
+
+  getVisibleColumns(): string[] {
+    return Array.from(this.visibleColumns);
+  }
+
+  isColumnVisible(column: string): boolean {
+    return this.visibleColumns.has(column);
+  }
+
+  // Store column widths for coordinated rendering
+  setColumnWidth(column: string, width: number): void {
+    this.columnWidths.set(column, width);
+  }
+
+  getColumnWidth(column: string): number {
+    return this.columnWidths.get(column) || 100;
+  }
+
+  // =========================================================================
+  // FEATURE 301-325: CELL EDITING COORDINATION
+  // =========================================================================
+  private editingCell: { taskId: string; column: string } | null = null;
+  private onCellEdit: ((taskId: string, column: string, value: unknown) => void) | null = null;
+  private pendingEdits: Map<string, Map<string, unknown>> = new Map();
+
+  // Set callback for cell edits
+  setOnCellEdit(callback: ((taskId: string, column: string, value: unknown) => void) | null): void {
+    this.onCellEdit = callback;
+  }
+
+  // Mark a cell as being edited (from table)
+  startCellEdit(taskId: string, column: string): void {
+    this.editingCell = { taskId, column };
+    this.markDirty();
+  }
+
+  // End cell edit mode
+  endCellEdit(): void {
+    this.editingCell = null;
+    this.markDirty();
+  }
+
+  // Check if a cell is being edited
+  isCellEditing(taskId: string, column: string): boolean {
+    return this.editingCell?.taskId === taskId && this.editingCell?.column === column;
+  }
+
+  // Get currently editing cell info
+  getEditingCell(): { taskId: string; column: string } | null {
+    return this.editingCell;
+  }
+
+  // Queue an edit (for batched updates)
+  queueEdit(taskId: string, column: string, value: unknown): void {
+    if (!this.pendingEdits.has(taskId)) {
+      this.pendingEdits.set(taskId, new Map());
+    }
+    this.pendingEdits.get(taskId)!.set(column, value);
+  }
+
+  // Apply all pending edits
+  applyPendingEdits(): void {
+    this.pendingEdits.forEach((columns, taskId) => {
+      const task = this.state.tasks.find(t => t.id === taskId);
+      if (task) {
+        columns.forEach((value, column) => {
+          if (column === 'name' && typeof value === 'string') {
+            task.name = value;
+          } else if (column === 'progress' && typeof value === 'number') {
+            task.progress = value;
+          }
+          // Notify callback
+          if (this.onCellEdit) {
+            this.onCellEdit(taskId, column, value);
+          }
+        });
+      }
+    });
+    this.pendingEdits.clear();
+    this.markDirty();
+  }
+
+  // Clear pending edits
+  clearPendingEdits(): void {
+    this.pendingEdits.clear();
+  }
+
+  // Get pending edits for a task
+  getPendingEdits(taskId: string): Map<string, unknown> | undefined {
+    return this.pendingEdits.get(taskId);
+  }
+
+  // Get all task data for table rendering
+  getTasksForTable(): Array<{
+    id: string;
+    name: string;
+    startDate: Date;
+    endDate: Date;
+    duration: number;
+    progress: number;
+    status: string;
+    locked: string | undefined;
+    predecessorIds: string[];
+    rowIndex: number;
+  }> {
+    return this.state.tasks.map((task, index) => ({
+      id: task.id,
+      name: task.name,
+      startDate: task.startDate,
+      endDate: task.endDate,
+      duration: Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)),
+      progress: task.progress || 0,
+      status: task.status || 'not-started',
+      locked: task.locked,
+      predecessorIds: task.predecessorIds || [],
+      rowIndex: index,
+    }));
+  }
+
 }
 
 // ============================================================================
