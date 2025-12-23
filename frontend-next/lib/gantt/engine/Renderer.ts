@@ -324,7 +324,35 @@ export class Renderer {
       if (task.id === hoveredTaskId && !task.locked) {
         this.drawResizeHandles(startX, barY, taskWidth, barHeight, hoveredEdge);
       }
+
+      // Draw dependency connector dots on hover
+      if (task.id === hoveredTaskId) {
+        this.drawConnectorDots(startX, endX, barY, barHeight);
+      }
     });
+  }
+
+  /**
+   * Draw connector dots for dependency creation
+   */
+  private drawConnectorDots(startX: number, endX: number, barY: number, barHeight: number): void {
+    const dotRadius = 5;
+    const centerY = barY + barHeight / 2;
+
+    // Start connector (left side)
+    this.ctx.fillStyle = '#3b82f6';
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(startX, centerY, dotRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // End connector (right side)
+    this.ctx.beginPath();
+    this.ctx.arc(endX, centerY, dotRadius, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.stroke();
   }
 
   /**
@@ -531,6 +559,82 @@ export class Renderer {
       this.ctx.textBaseline = 'middle';
       this.ctx.fillText(fullText, tooltipX, tooltipY - 2);
     }
+  }
+
+  /**
+   * Draw dependency creation line while dragging from connector
+   */
+  drawDependencyCreationLine(
+    fromTask: GanttTask,
+    fromEdge: 'start' | 'end',
+    toX: number,
+    toY: number,
+    rowIndex: number,
+    targetTask?: GanttTask | null
+  ): void {
+    const { taskBarHeight, taskBarPadding } = this.config;
+    const y = this.viewport.rowToY(rowIndex);
+    const barY = y + taskBarPadding;
+    const centerY = barY + taskBarHeight / 2;
+
+    // Calculate from point
+    const fromX = fromEdge === 'start'
+      ? this.viewport.dateToX(fromTask.startDate)
+      : this.viewport.dateToX(fromTask.endDate);
+
+    // Draw line with animated dashes
+    this.ctx.setLineDash([5, 3]);
+    this.ctx.strokeStyle = '#3b82f6';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.moveTo(fromX, centerY);
+    this.ctx.lineTo(toX, toY);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+
+    // Draw source connector (pulsing)
+    this.ctx.fillStyle = '#3b82f6';
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.arc(fromX, centerY, 7, 0, Math.PI * 2);
+    this.ctx.fill();
+    this.ctx.stroke();
+
+    // Draw target indicator if hovering over a task
+    if (targetTask) {
+      const targetStartX = this.viewport.dateToX(targetTask.startDate);
+      const targetEndX = this.viewport.dateToX(targetTask.endDate);
+      const targetY = this.viewport.rowToY(this.getTaskIndex(targetTask));
+      const targetBarY = targetY + taskBarPadding;
+      const targetCenterY = targetBarY + taskBarHeight / 2;
+
+      // Determine which end we're closer to
+      const distToStart = Math.abs(toX - targetStartX);
+      const distToEnd = Math.abs(toX - targetEndX);
+      const snapX = distToStart < distToEnd ? targetStartX : targetEndX;
+
+      // Draw snap indicator
+      this.ctx.fillStyle = '#22c55e';
+      this.ctx.strokeStyle = '#ffffff';
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.arc(snapX, targetCenterY, 7, 0, Math.PI * 2);
+      this.ctx.fill();
+      this.ctx.stroke();
+    }
+  }
+
+  // Helper to get task index (needed for dependency creation line)
+  private taskIndexCache: Map<string, number> = new Map();
+
+  setTaskIndices(tasks: GanttTask[]): void {
+    this.taskIndexCache.clear();
+    tasks.forEach((task, index) => this.taskIndexCache.set(task.id, index));
+  }
+
+  private getTaskIndex(task: GanttTask): number {
+    return this.taskIndexCache.get(task.id) ?? 0;
   }
 
   /**

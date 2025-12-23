@@ -9,6 +9,7 @@
 
 import { Viewport, ViewportState } from './Viewport';
 import { Renderer } from './Renderer';
+import { UndoManager, Command } from './UndoManager';
 
 // ============================================================================
 // Types
@@ -177,9 +178,13 @@ export class GanttCanvas {
   private isCreatingDependency: boolean = false;
   private dependencyFromTask: GanttTask | null = null;
   private dependencyFromEdge: 'start' | 'end' | null = null;
+  private dependencyTargetTask: GanttTask | null = null;
   private dependencyLineEndX: number = 0;
   private dependencyLineEndY: number = 0;
   private connectorRadius: number = 5;
+
+  // Undo/Redo manager
+  private undoManager: UndoManager;
 
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
@@ -188,6 +193,7 @@ export class GanttCanvas {
   private onTaskDelete?: (task: GanttTask) => void;
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
+  private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -235,6 +241,12 @@ export class GanttCanvas {
 
     // Create renderer
     this.renderer = new Renderer(this.ctx, this.config, this.viewport);
+
+    // Create undo manager with listener
+    this.undoManager = new UndoManager(10);
+    this.undoManager.subscribe((canUndo, canRedo) => {
+      this.onUndoStateChange?.(canUndo, canRedo);
+    });
 
     // Set up canvas size
     this.resize();
@@ -361,6 +373,53 @@ export class GanttCanvas {
     this.onDependencyCreate = handler;
   }
 
+  onUndoStateChangeHandler(handler: (canUndo: boolean, canRedo: boolean) => void): void {
+    this.onUndoStateChange = handler;
+    // Immediately call with current state
+    handler(this.undoManager.canUndo(), this.undoManager.canRedo());
+  }
+
+  /**
+   * Record an action for undo/redo (use when action already executed externally)
+   */
+  recordAction(command: Command): void {
+    this.undoManager.record(command);
+  }
+
+  /**
+   * Undo the last action
+   */
+  undo(): void {
+    const command = this.undoManager.undo();
+    if (command) {
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Redo the last undone action
+   */
+  redo(): void {
+    const command = this.undoManager.redo();
+    if (command) {
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Check if undo is available
+   */
+  canUndo(): boolean {
+    return this.undoManager.canUndo();
+  }
+
+  /**
+   * Check if redo is available
+   */
+  canRedo(): boolean {
+    return this.undoManager.canRedo();
+  }
+
   /**
    * Resize the canvas
    */
@@ -452,6 +511,19 @@ export class GanttCanvas {
       );
     }
 
+    // Draw dependency creation line
+    if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
+      this.renderer.setTaskIndices(this.state.tasks);
+      this.renderer.drawDependencyCreationLine(
+        this.dependencyFromTask,
+        this.dependencyFromEdge,
+        this.dependencyLineEndX,
+        this.dependencyLineEndY,
+        this.state.tasks.indexOf(this.dependencyFromTask),
+        this.dependencyTargetTask
+      );
+    }
+
     // Draw selection count badge
     this.renderer.drawSelectionBadge(this.state.selectedTaskIds.size, this.containerWidth);
 
@@ -494,7 +566,20 @@ export class GanttCanvas {
     // Focus canvas for keyboard events
     this.canvas.focus();
 
-    // Check for resize edge first
+    // Check for connector hit first (for dependency creation)
+    const connectorHit = this.hitTestConnector(e.offsetX, e.offsetY);
+    if (connectorHit) {
+      // Start dependency creation
+      this.dependencyFromTask = connectorHit.task;
+      this.dependencyFromEdge = connectorHit.edge;
+      this.dependencyLineEndX = e.offsetX;
+      this.dependencyLineEndY = e.offsetY;
+      this.canvas.style.cursor = 'crosshair';
+      this.markDirty();
+      return;
+    }
+
+    // Check for resize edge
     const edgeHit = this.hitTestEdge(e.offsetX, e.offsetY);
     if (edgeHit && !edgeHit.task.locked) {
       // Start potential resize
@@ -571,6 +656,47 @@ export class GanttCanvas {
   }
 
   private handleMouseUp = (e: MouseEvent): void => {
+    // Handle dependency creation completion
+    if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
+      // Check if we dropped on a target task
+      const targetTask = this.hitTest(e.offsetX, e.offsetY);
+
+      if (targetTask && targetTask.id !== this.dependencyFromTask.id) {
+        // Determine the dependency type based on which connectors were used
+        // fromEdge: 'start' or 'end' - which connector on the source task
+        // We need to determine which connector on the target we're closest to
+        const targetStartX = this.viewport.dateToX(targetTask.startDate);
+        const targetEndX = this.viewport.dateToX(targetTask.endDate);
+        const distToStart = Math.abs(e.offsetX - targetStartX);
+        const distToEnd = Math.abs(e.offsetX - targetEndX);
+        const targetEdge = distToStart < distToEnd ? 'start' : 'end';
+
+        // Determine dependency type:
+        // FS = from.end -> to.start (Finish-to-Start)
+        // SS = from.start -> to.start (Start-to-Start)
+        // FF = from.end -> to.end (Finish-to-Finish)
+        // SF = from.start -> to.end (Start-to-Finish)
+        let depType: 'FS' | 'SS' | 'FF' | 'SF';
+        if (this.dependencyFromEdge === 'end') {
+          depType = targetEdge === 'start' ? 'FS' : 'FF';
+        } else {
+          depType = targetEdge === 'start' ? 'SS' : 'SF';
+        }
+
+        // Call the handler
+        this.onDependencyCreate?.(this.dependencyFromTask.id, targetTask.id, depType);
+      }
+
+      // Reset dependency creation state
+      this.isCreatingDependency = false;
+      this.dependencyFromTask = null;
+      this.dependencyFromEdge = null;
+      this.dependencyTargetTask = null;
+      this.canvas.style.cursor = 'default';
+      this.markDirty();
+      return;
+    }
+
     // Handle resize completion
     if (this.isResizing && this.resizeTask && this.resizeCurrentStart && this.resizeCurrentEnd) {
       const originalStart = this.resizeOriginalStart!;
@@ -643,6 +769,21 @@ export class GanttCanvas {
     // Track mouse position for tooltip
     this.mouseX = e.offsetX;
     this.mouseY = e.offsetY;
+
+    // Handle dependency creation in progress
+    if (this.dependencyFromTask && this.dependencyFromEdge) {
+      this.isCreatingDependency = true;
+      this.dependencyLineEndX = e.offsetX;
+      this.dependencyLineEndY = e.offsetY;
+
+      // Check if hovering over a potential target task
+      const targetTask = this.hitTest(e.offsetX, e.offsetY);
+      // Store the target for highlighting (only if different from source)
+      this.dependencyTargetTask = targetTask && targetTask.id !== this.dependencyFromTask.id ? targetTask : null;
+
+      this.markDirty();
+      return;
+    }
 
     // Handle resize in progress
     if (this.resizeTask && this.resizeOriginalStart && this.resizeOriginalEnd) {
@@ -745,6 +886,15 @@ export class GanttCanvas {
   };
 
   private handleMouseLeave = (): void => {
+    // Cancel any dependency creation in progress
+    if (this.isCreatingDependency) {
+      this.isCreatingDependency = false;
+      this.dependencyFromTask = null;
+      this.dependencyFromEdge = null;
+      this.dependencyTargetTask = null;
+      this.canvas.style.cursor = 'default';
+    }
+
     // Cancel any resize in progress
     if (this.isResizing) {
       this.isResizing = false;
@@ -896,6 +1046,27 @@ export class GanttCanvas {
         }
         break;
 
+      case 'z':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Ctrl+Shift+Z: Redo
+            this.redo();
+          } else {
+            // Ctrl+Z: Undo
+            this.undo();
+          }
+        }
+        break;
+
+      case 'y':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+Y: Redo
+          this.redo();
+        }
+        break;
+
       case 'Home':
         e.preventDefault();
         this.scrollToToday();
@@ -1000,6 +1171,47 @@ export class GanttCanvas {
     // Check right edge
     if (x >= taskEndX - this.resizeHandleWidth / 2 && x <= taskEndX + this.resizeHandleWidth / 2) {
       return { task, edge: 'right' };
+    }
+
+    return null;
+  }
+
+  /**
+   * Hit test for connector dots (for dependency creation)
+   * Returns which connector was clicked (start, end) or null
+   */
+  private hitTestConnector(x: number, y: number): { task: GanttTask; edge: 'start' | 'end' } | null {
+    // Account for header height
+    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    if (adjustedY < 0) return null;
+
+    // Find which row was clicked
+    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
+    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
+
+    const task = this.state.tasks[rowIndex];
+
+    // Calculate task bar center Y
+    const rowY = this.viewport.rowToY(rowIndex);
+    const centerY = rowY + this.config.rowHeight / 2;
+
+    // Check if click is vertically near the center
+    if (Math.abs(adjustedY + this.config.headerHeight - centerY) > this.connectorRadius + 5) return null;
+
+    // Calculate connector positions
+    const taskStartX = this.viewport.dateToX(task.startDate);
+    const taskEndX = this.viewport.dateToX(task.endDate);
+
+    // Check start connector
+    const distToStart = Math.sqrt(Math.pow(x - taskStartX, 2) + Math.pow(y - centerY, 2));
+    if (distToStart <= this.connectorRadius + 3) {
+      return { task, edge: 'start' };
+    }
+
+    // Check end connector
+    const distToEnd = Math.sqrt(Math.pow(x - taskEndX, 2) + Math.pow(y - centerY, 2));
+    if (distToEnd <= this.connectorRadius + 3) {
+      return { task, edge: 'end' };
     }
 
     return null;
