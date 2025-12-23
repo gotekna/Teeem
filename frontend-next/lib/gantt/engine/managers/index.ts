@@ -31,9 +31,28 @@ export type {
   InteractionConfig,
 } from './InteractionManager';
 
+// Dependency manager (Day 3)
+export { DependencyManager } from './DependencyManager';
+export type {
+  DependencyType,
+  DependencyValidationError,
+  CascadeResult,
+  DependencyChangeEvent,
+  DependencyChangeCallback,
+} from './DependencyManager';
+
+// State manager (Day 5)
+export { StateManager } from './StateManager';
+export type {
+  ViewportState,
+  GanttCanvasState,
+  StateSnapshot,
+  StateChangeEvent,
+  StateChangeCallback,
+  PersistenceConfig,
+} from './StateManager';
+
 // Feature managers (to be implemented)
-// export { DependencyManager } from './DependencyManager';
-// export { StateManager } from './StateManager';
 // export { ExportManager } from './ExportManager';
 // export { FilterManager } from './FilterManager';
 // export { BaselineManager } from './BaselineManager';

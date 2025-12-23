@@ -13,9 +13,10 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 
-// Extracted Managers (Day 2 Refactor)
+// Extracted Managers (Day 2-3 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
 import { RenderCoordinator } from './managers/RenderCoordinator';
+import { DependencyManager } from './managers/DependencyManager';
 import { SpatialIndex, Rect as SpatialRect } from './spatial/SpatialIndex';
 
 // Re-export Command type for external use
@@ -464,9 +465,10 @@ export class GanttCanvas {
   // Working days calendar
   private calendar: WorkingDaysCalendar;
 
-  // Extracted Managers (Day 2 Refactor)
+  // Extracted Managers (Day 2-3 Refactor)
   private selectionManager: SelectionManager;
   private renderCoordinator: RenderCoordinator;
+  private dependencyManager: DependencyManager;
   private spatialIndex: SpatialIndex;
 
   // Context menu state
@@ -580,9 +582,10 @@ export class GanttCanvas {
     // Create working days calendar
     this.calendar = new WorkingDaysCalendar();
 
-    // Initialize extracted managers (Day 2 Refactor)
+    // Initialize extracted managers (Day 2-3 Refactor)
     this.selectionManager = new SelectionManager();
     this.renderCoordinator = new RenderCoordinator();
+    this.dependencyManager = new DependencyManager();
     this.spatialIndex = new SpatialIndex(50); // 50px cell size for grid-based hit testing
 
     // Wire selection manager to emit events
@@ -601,6 +604,22 @@ export class GanttCanvas {
     // Wire render coordinator
     this.renderCoordinator.onRender(() => {
       this.render();
+    });
+
+    // Wire dependency manager to emit events (Day 3 Refactor)
+    this.dependencyManager.onChange((event) => {
+      // Mark dirty for re-render
+      this.markDirty();
+
+      // Recalculate critical path if enabled
+      if (this.criticalPathEnabled) {
+        this.recalculateCriticalPath();
+      }
+
+      // Notify external handler for 'add' events
+      if (event.type === 'add') {
+        this.onDependencyCreate?.(event.dependency.fromId, event.dependency.toId, event.dependency.type);
+      }
     });
 
     // Set up canvas size
@@ -627,6 +646,9 @@ export class GanttCanvas {
     // Update SelectionManager task order for range selection (Day 2 Refactor)
     this.selectionManager.updateTaskOrderFromTasks(tasks);
 
+    // Update DependencyManager task map for validation (Day 3 Refactor)
+    this.dependencyManager.setTasks(tasks);
+
     // Rebuild spatial index for O(1) hit testing (Day 2 Refactor)
     this.rebuildSpatialIndex();
 
@@ -652,6 +674,10 @@ export class GanttCanvas {
    */
   setDependencies(dependencies: GanttDependency[]): void {
     this.state.dependencies = dependencies;
+
+    // Sync with DependencyManager (Day 3 Refactor)
+    this.dependencyManager.setDependencies(dependencies);
+
     this.markDirty();
 
     // Recalculate critical path if enabled
@@ -2027,6 +2053,12 @@ export class GanttCanvas {
     this.stopRenderLoop();
     this.removeEventListeners();
     this.canvas.remove();
+
+    // Clean up managers (Day 2-3 Refactor)
+    this.selectionManager.dispose();
+    this.renderCoordinator.dispose();
+    this.dependencyManager.dispose();
+    this.spatialIndex.clear();
   }
 
   // ============================================================================

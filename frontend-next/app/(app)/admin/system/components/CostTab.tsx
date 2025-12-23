@@ -2,6 +2,12 @@
 
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +21,7 @@ import {
   ExternalLink,
   Gift,
   Sparkles,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -93,9 +100,9 @@ export function CostTab() {
   const { cost: annualCost, effectiveRate, tiers } = calculateAnnualCost(turnover);
   const monthlyCost = annualCost / 12;
 
-  // Revenue distribution
+  // Revenue distribution (10 + 20 + 10 + 60 = 100%)
   const charityAmount = annualCost * 0.1;
-  const supportLineAmount = annualCost * 0.1;
+  const supportLineAmount = annualCost * 0.2;  // Your Support gets 20%
   const uplineSupportAmount = annualCost * 0.1;
   const teeemAmount = annualCost * 0.6;
 
@@ -195,35 +202,48 @@ export function CostTab() {
         </CardContent>
       </Card>
 
-      {/* Rate Breakdown - Tiered */}
+      {/* Rate Breakdown - Tiered (Collapsible) */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingDown className="h-5 w-5" />
-            Rate Breakdown (Tiered)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Tier breakdown table */}
-          <div className="space-y-1">
-            {tiers.map((tier, index) => (
-              <div
-                key={index}
-                className={cn(
-                  "flex justify-between text-sm py-1.5 px-2 rounded",
-                  index === 0 ? "bg-muted" : index % 2 === 0 ? "bg-muted/50" : ""
-                )}
-              >
-                <span className="text-muted-foreground">
-                  {index === 0
-                    ? `First ${formatCurrency(tier.to)}`
-                    : `${formatCurrency(tier.from)} - ${formatCurrency(tier.to)}`}
-                  <span className="ml-2 text-xs">@ {formatPercentage(tier.rate)}</span>
-                </span>
-                <span className="font-medium">{formatCurrency(tier.amount)}</span>
-              </div>
-            ))}
-            <div className="border-t pt-2 mt-2 flex justify-between font-semibold text-lg">
+        <CardContent className="pt-6">
+          <Accordion type="single" collapsible>
+            <AccordionItem value="tiers" className="border-none">
+              <AccordionTrigger className="hover:no-underline py-0">
+                <div className="flex items-center gap-2">
+                  <TrendingDown className="h-5 w-5" />
+                  <span className="font-semibold">Rate Breakdown (Tiered)</span>
+                  <Badge variant="secondary" className="ml-2">
+                    {tiers.length} tiers
+                  </Badge>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                {/* Tier breakdown table */}
+                <div className="space-y-1">
+                  {tiers.map((tier, index) => (
+                    <div
+                      key={index}
+                      className={cn(
+                        "flex justify-between text-sm py-1.5 px-2 rounded",
+                        index === 0 ? "bg-muted" : index % 2 === 0 ? "bg-muted/50" : ""
+                      )}
+                    >
+                      <span className="text-muted-foreground">
+                        {index === 0
+                          ? `First ${formatCurrency(tier.to)}`
+                          : `${formatCurrency(tier.from)} - ${formatCurrency(tier.to)}`}
+                        <span className="ml-2 text-xs">@ {formatPercentage(tier.rate)}</span>
+                      </span>
+                      <span className="font-medium">{formatCurrency(tier.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+
+          {/* Summary always visible */}
+          <div className="mt-4 pt-4 border-t space-y-2">
+            <div className="flex justify-between font-semibold text-lg">
               <span>Total Annual Cost</span>
               <span className="text-primary">{formatCurrency(annualCost)}</span>
             </div>
@@ -277,7 +297,7 @@ export function CostTab() {
               <div className="flex items-center justify-between">
                 <Users className="h-8 w-8 text-blue-500" />
                 <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">
-                  10%
+                  20%
                 </Badge>
               </div>
               <CardTitle className="text-lg">Your Support</CardTitle>
@@ -388,34 +408,50 @@ export function CostTab() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-lg font-medium">
-            Earn 10% from everyone you support + 10% from everyone they support.
+            Earn 20% from everyone you support + 10% from everyone they support.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <h4 className="font-semibold">How it works</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <span className="text-primary font-bold">•</span>
-                  <span>10% from people you directly support</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary font-bold">•</span>
-                  <span>10% from people they support (two levels)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary font-bold">•</span>
-                  <span>Eligibility: Generate $10k in total fees (yours + network)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary font-bold">•</span>
-                  <span>Network bonuses count towards the $10k threshold</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-primary font-bold">•</span>
-                  <span>Word of mouth is the best way to grow — and it's rewarded</span>
-                </li>
-              </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <div className="space-y-3">
+                <h4 className="font-semibold">Level 1: Your Support (20%)</h4>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold">•</span>
+                    <span>Eligibility: $10k in total fees (yours + network)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold">•</span>
+                    <span>Must actively support your referrals for life</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 font-bold">•</span>
+                    <span>Potential bonuses count towards $10k threshold</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="font-semibold">Level 2: Their Support (10%)</h4>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">•</span>
+                    <span>Eligibility: $50k in total fees (yours + network)</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">•</span>
+                    <span>Same rules apply — support your network</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-500 font-bold">•</span>
+                    <span>Potential bonuses count towards $50k threshold</span>
+                  </li>
+                </ul>
+              </div>
+
+              <p className="text-sm text-muted-foreground italic">
+                Word of mouth is the best way to grow — and it's rewarded.
+              </p>
             </div>
 
             <div className="bg-muted rounded-lg p-4">
@@ -427,8 +463,8 @@ export function CostTab() {
                   <span className="font-medium">5 x $11,000 = $55,000</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Your 10% share:</span>
-                  <span className="font-bold text-primary">$5,500/year</span>
+                  <span className="text-muted-foreground">Your 20% share:</span>
+                  <span className="font-bold text-primary">$11,000/year</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">
                   <span className="text-muted-foreground">If each supports 3 more:</span>
@@ -439,7 +475,7 @@ export function CostTab() {
                   <span className="font-bold text-primary">$16,500/year</span>
                 </div>
                 <p className="text-xs text-muted-foreground pt-2">
-                  Total: $22,000/year passive income from your support network.
+                  Total: $27,500/year passive income from your support network.
                 </p>
               </div>
             </div>

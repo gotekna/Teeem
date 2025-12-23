@@ -6,7 +6,10 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@bpmn-io/properties-panel": "^3.34.0",
@@ -99,8 +102,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/ui": "^4.0.16",
     "eslint": "^9",
     "eslint-config-next": "16.0.4",
-    "typescript": "^5"
+    "jsdom": "^27.3.0",
+    "typescript": "^5",
+    "vitest": "^4.0.16"
   }
 }
