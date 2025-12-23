@@ -2316,6 +2316,11 @@ Rails.application.routes.draw do
       # External integrations (API endpoints for third-party systems)
       namespace :external do
         post "unreal_estimates", to: "unreal_estimates#create"
+        # Unreal Engine Purchase Orders
+        post "unreal_purchase_orders", to: "unreal_purchase_orders#create"
+        post "unreal_purchase_orders/:id/add_line_items", to: "unreal_purchase_orders#add_line_items"
+        # Unreal Engine Job Lookup
+        get "unreal_jobs/:id", to: "unreal_purchase_orders#show_job"
       end
     end
   end

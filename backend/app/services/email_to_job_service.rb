@@ -146,7 +146,8 @@ class EmailToJobService
       site_supervisor_name: @user.name,
       site_supervisor_email: @user.email,
       site_supervisor_phone: @user.mobile_phone,
-      contract_value: user_edits["contract_value"] || job_data["contract_value"]&.to_f,
+      # SSoT: Use contract_price as THE ONE
+      contract_price: user_edits["contract_value"] || job_data["contract_value"]&.to_f,
       **location_data
     )
 

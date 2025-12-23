@@ -156,8 +156,9 @@ class InvoicePdfGenerator
       full_address: [street_address, job.try(:suburb), job.try(:state), job.try(:postcode)].compact.reject(&:blank?).join(", "),
 
       # Contract details
-      contract_value: job.try(:contract_value) || job.try(:contract_price),
-      contract_value_formatted: format_currency(job.try(:contract_value) || job.try(:contract_price)),
+      # SSoT: contract_price is THE ONE
+      contract_value: job.try(:contract_price),
+      contract_value_formatted: format_currency(job.try(:contract_price)),
 
       # Dates
       contract_date: format_date(job.try(:contract_date)),

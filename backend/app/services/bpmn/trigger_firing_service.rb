@@ -170,7 +170,8 @@ module Bpmn
           vars["job_name"] = subject.name
           vars["job_status"] = subject.job_status&.name
           vars["job_stage"] = subject.job_stage&.name
-          vars["contract_value"] = subject.contract_value
+          # SSoT: contract_price is THE ONE
+          vars["contract_value"] = subject.contract_price
         end
 
         vars

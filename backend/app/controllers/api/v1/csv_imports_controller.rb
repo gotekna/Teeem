@@ -38,12 +38,13 @@ module Api
         # Import job and POs in a transaction
         ActiveRecord::Base.transaction do
           # Create Construction (job)
+          # SSoT: Use contract_price as THE ONE
           construction = Job.create!(
             title: parse_result[:job_name],
             site_supervisor_name: params[:site_supervisor_name],
             site_supervisor_email: params[:site_supervisor_email],
             site_supervisor_phone: params[:site_supervisor_phone],
-            contract_value: params[:contract_value].presence || parse_result[:summary][:total_amount],
+            contract_price: params[:contract_value].presence || parse_result[:summary][:total_amount],
             status: params[:status].presence || "Active"
           )
 

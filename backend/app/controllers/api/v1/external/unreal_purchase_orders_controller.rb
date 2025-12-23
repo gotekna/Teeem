@@ -1,0 +1,310 @@
+module Api
+  module V1
+    module External
+      class UnrealPurchaseOrdersController < ApplicationController
+        before_action :authenticate_api_key!
+
+        # POST /api/v1/external/unreal_purchase_orders
+        # Creates a PO shell from a Task Template
+        #
+        # Payload:
+        #   {
+        #     "Task_ID": 10,           # TaskTemplate ID in TEEEM
+        #     "job_id": 30,            # Job ID in TEEEM
+        #     "estimator_notes": "..." # Notes from Unreal estimator
+        #   }
+        #
+        # Response:
+        #   {
+        #     "success": true,
+        #     "purchase_order_id": 123,
+        #     "purchase_order_number": "PO-000456",
+        #     "message": "Purchase order created successfully"
+        #   }
+        #
+        def create
+          # Validate required params
+          task_template_id = params[:Task_ID] || params[:task_id]
+          job_id = params[:job_id]
+          estimator_notes = params[:estimator_notes]
+
+          if task_template_id.blank?
+            return render json: {
+              success: false,
+              error: "Task_ID is required"
+            }, status: :unprocessable_entity
+          end
+
+          if job_id.blank?
+            return render json: {
+              success: false,
+              error: "job_id is required"
+            }, status: :unprocessable_entity
+          end
+
+          # Find the task template
+          task_template = TaskTemplate.find_by(id: task_template_id)
+          unless task_template
+            return render json: {
+              success: false,
+              error: "Task template not found with ID: #{task_template_id}"
+            }, status: :not_found
+          end
+
+          # Find the job
+          job = Job.find_by(id: job_id)
+          unless job
+            return render json: {
+              success: false,
+              error: "Job not found with ID: #{job_id}"
+            }, status: :not_found
+          end
+
+          ActiveRecord::Base.transaction do
+            # Create the PO shell
+            purchase_order = PurchaseOrder.new(
+              job_id: job.id,
+              description: task_template.name,
+              ted_task: task_template.category,
+              special_instructions: estimator_notes,
+              status: "draft",
+              source: "unreal_engine",
+              unreal_task_template_id: task_template_id
+            )
+
+            if purchase_order.save
+              # Log the creation
+              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} for job #{job.id} from TaskTemplate #{task_template_id}"
+
+              render json: {
+                success: true,
+                purchase_order_id: purchase_order.id,
+                purchase_order_number: purchase_order.purchase_order_number,
+                job_id: job.id,
+                job_title: job.title,
+                task_template_name: task_template.name,
+                task_template_category: task_template.category,
+                status: purchase_order.status,
+                message: "Purchase order created successfully from template '#{task_template.name}'"
+              }, status: :created
+            else
+              render json: {
+                success: false,
+                error: "Failed to create purchase order",
+                details: purchase_order.errors.full_messages
+              }, status: :unprocessable_entity
+            end
+          end
+
+        rescue ActiveRecord::RecordInvalid => e
+          render json: {
+            success: false,
+            error: e.message,
+            details: e.record.errors.full_messages
+          }, status: :unprocessable_entity
+
+        rescue => e
+          Rails.logger.error "[Unreal PO] Error: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+
+          render json: {
+            success: false,
+            error: "An error occurred while creating the purchase order",
+            details: e.message
+          }, status: :internal_server_error
+        end
+
+        # POST /api/v1/external/unreal_purchase_orders/:id/add_line_items
+        # Adds line items to an existing PO (from the separate Unreal line items process)
+        #
+        # Payload:
+        #   {
+        #     "line_items": [
+        #       {
+        #         "pricebook_item_id": 123,  # Optional - if provided, uses pricebook pricing
+        #         "description": "GPO Double",
+        #         "quantity": 24,
+        #         "unit_price": 45.50        # Optional if pricebook_item_id provided
+        #       }
+        #     ]
+        #   }
+        #
+        def add_line_items
+          purchase_order = PurchaseOrder.find_by(id: params[:id])
+
+          unless purchase_order
+            return render json: {
+              success: false,
+              error: "Purchase order not found with ID: #{params[:id]}"
+            }, status: :not_found
+          end
+
+          line_items_params = params[:line_items] || []
+
+          if line_items_params.empty?
+            return render json: {
+              success: false,
+              error: "No line items provided"
+            }, status: :unprocessable_entity
+          end
+
+          ActiveRecord::Base.transaction do
+            created_items = []
+            supplier_ids = []
+
+            line_items_params.each_with_index do |item_params, index|
+              line_item = purchase_order.line_items.new(
+                description: item_params[:description],
+                quantity: item_params[:quantity] || 1,
+                unit_price: item_params[:unit_price] || 0,
+                gst_code: item_params[:gst_code] || "GST",
+                line_number: purchase_order.line_items.count + index + 1
+              )
+
+              # If pricebook_item_id provided, use its pricing and track supplier
+              if item_params[:pricebook_item_id].present?
+                pricebook_item = PricebookItem.find_by(id: item_params[:pricebook_item_id])
+                if pricebook_item
+                  line_item.pricebook_item_id = pricebook_item.id
+                  line_item.description ||= pricebook_item.name
+                  line_item.unit_price = pricebook_item.active_price || item_params[:unit_price] || 0
+
+                  # Track default supplier from pricebook item
+                  if pricebook_item.default_supplier_id.present?
+                    supplier_ids << pricebook_item.default_supplier_id
+                  end
+                end
+              end
+
+              line_item.save!
+              created_items << line_item
+            end
+
+            # Set supplier from most common default supplier in line items
+            if supplier_ids.any? && purchase_order.supplier_id.nil?
+              most_common_supplier = supplier_ids.group_by(&:itself)
+                                                  .max_by { |_, v| v.size }
+                                                  &.first
+              purchase_order.update!(supplier_id: most_common_supplier) if most_common_supplier
+            end
+
+            # Recalculate totals
+            purchase_order.reload
+
+            Rails.logger.info "[Unreal PO] Added #{created_items.count} line items to PO #{purchase_order.purchase_order_number}"
+
+            render json: {
+              success: true,
+              purchase_order_id: purchase_order.id,
+              purchase_order_number: purchase_order.purchase_order_number,
+              line_items_added: created_items.count,
+              total_line_items: purchase_order.line_items.count,
+              sub_total: purchase_order.sub_total,
+              tax: purchase_order.tax,
+              total: purchase_order.total,
+              supplier_id: purchase_order.supplier_id,
+              supplier_name: purchase_order.supplier&.display_name,
+              message: "Added #{created_items.count} line items to purchase order"
+            }, status: :ok
+          end
+
+        rescue ActiveRecord::RecordInvalid => e
+          render json: {
+            success: false,
+            error: e.message,
+            details: e.record.errors.full_messages
+          }, status: :unprocessable_entity
+
+        rescue => e
+          Rails.logger.error "[Unreal PO Line Items] Error: #{e.message}"
+          Rails.logger.error e.backtrace.join("\n")
+
+          render json: {
+            success: false,
+            error: "An error occurred while adding line items",
+            details: e.message
+          }, status: :internal_server_error
+        end
+
+        # GET /api/v1/external/unreal_jobs/:id
+        # Get job details including contract price for Unreal
+        #
+        # Response:
+        #   {
+        #     "success": true,
+        #     "job": {
+        #       "id": 30,
+        #       "name": "Smith Residence",
+        #       "contract_price": 450000.00,
+        #       ...
+        #     }
+        #   }
+        #
+        # NOTE: contract_price is THE ONE for total contract price (SSoT)
+        # contract_value exists but is being deprecated - do not use in new code
+        #
+        def show_job
+          job = Job.find_by(id: params[:id])
+
+          unless job
+            return render json: {
+              success: false,
+              error: "Job not found with ID: #{params[:id]}"
+            }, status: :not_found
+          end
+
+          render json: {
+            success: true,
+            job: {
+              id: job.id,
+              name: job.name,
+              title: job.title,
+              job_number: job.job_number,
+              # SSoT: contract_price is THE ONE for total contract price
+              contract_price: job.contract_price,
+              deposit: job.deposit,
+              prime_cost: job.prime_cost,
+              provisional_sum: job.provisional_sum,
+              live_profit: job.live_profit,
+              profit_percentage: job.profit_percentage,
+              status: job.status,
+              site_address: job.site_address,
+              suburb: job.suburb,
+              state: job.state,
+              postcode: job.postcode
+            }
+          }
+        end
+
+        private
+
+        def authenticate_api_key!
+          api_key = request.headers["X-API-Key"]
+
+          if api_key.blank?
+            render json: {
+              success: false,
+              error: "API key required. Please include X-API-Key header."
+            }, status: :unauthorized
+            return
+          end
+
+          integration = ExternalIntegration.find_by_api_key(api_key)
+
+          if integration.nil?
+            render json: {
+              success: false,
+              error: "Invalid API key"
+            }, status: :unauthorized
+            return
+          end
+
+          # Record usage
+          integration.record_usage!
+
+          @current_integration = integration
+        end
+      end
+    end
+  end
+end

@@ -11,7 +11,8 @@ module Api
         stages = @job.job_claim_stages.includes(:claim_stage_template, :external_invoice).ordered
 
         # Summary calculations (handle nil values)
-        contract_value = @job.contract_value.to_d
+        # SSoT: contract_price is THE ONE
+        contract = @job.contract_price.to_d
         total_expected = stages.sum { |s| s.expected_amount.to_d }
         total_invoiced = stages.sum { |s| s.amount_invoiced.to_d }
         total_paid = stages.sum { |s| s.amount_paid.to_d }
@@ -21,12 +22,13 @@ module Api
           data: {
             stages: stages.map { |s| stage_json(s) },
             summary: {
-              contract_value: contract_value.to_f,
+              # Keep key as contract_value for frontend compatibility
+              contract_value: contract.to_f,
               total_expected: total_expected.to_f,
               total_invoiced: total_invoiced.to_f,
               total_paid: total_paid.to_f,
-              remaining: (contract_value - total_paid).to_f,
-              paid_percentage: contract_value.positive? ? ((total_paid / contract_value) * 100).round(1) : 0
+              remaining: (contract - total_paid).to_f,
+              paid_percentage: contract.positive? ? ((total_paid / contract) * 100).round(1) : 0
             },
             available_invoices: available_invoices_json
           }
@@ -45,8 +47,9 @@ module Api
         @stage.is_custom = true
 
         # Calculate expected amount if percentage provided
-        if @stage.percentage.present? && @job.contract_value.present?
-          @stage.expected_amount = (@job.contract_value.to_d * @stage.percentage / 100).round(2)
+        # SSoT: contract_price is THE ONE
+        if @stage.percentage.present? && @job.contract_price.present?
+          @stage.expected_amount = (@job.contract_price.to_d * @stage.percentage / 100).round(2)
         end
 
         # Auto-set sequence order
@@ -66,9 +69,10 @@ module Api
       # PATCH /api/v1/jobs/:job_id/claim_stages/:id
       def update
         # If percentage changes, recalculate expected amount
-        if params.dig(:job_claim_stage, :percentage).present? && @job.contract_value.present?
+        # SSoT: contract_price is THE ONE
+        if params.dig(:job_claim_stage, :percentage).present? && @job.contract_price.present?
           new_percentage = params[:job_claim_stage][:percentage].to_d
-          params[:job_claim_stage][:expected_amount] = (@job.contract_value.to_d * new_percentage / 100).round(2)
+          params[:job_claim_stage][:expected_amount] = (@job.contract_price.to_d * new_percentage / 100).round(2)
         end
 
         if @stage.update(stage_params)

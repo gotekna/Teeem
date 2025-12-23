@@ -2,6 +2,11 @@ class Job < ApplicationRecord
   # Explicitly set table name since it was renamed from 'constructions' to 'jobs'
   self.table_name = "jobs"
 
+  # =============================================================================
+  # SSoT: contract_price is THE ONE for total contract price
+  # See: TEEEM_DOCS/SSOT_CONTRACT_VALUE_MIGRATION.md
+  # =============================================================================
+
   # BPMN Workflow Triggers - fires when job status changes
   include BpmnTriggerable
   bpmn_status_trigger :job_status_id
@@ -147,17 +152,19 @@ class Job < ApplicationRecord
     purchase_orders.for_schedule.any?
   end
 
-  # Calculate live profit ex-GST: (contract_value - PO totals) / 1.1
+  # Calculate live profit ex-GST: (contract_price - PO totals) / 1.1
+  # SSoT: contract_price is THE ONE
   def calculate_live_profit
-    contract = contract_value || 0
+    contract = contract_price || 0
     po_total = purchase_orders.sum(:total) || 0
     ((contract - po_total) / 1.1).round(2)
   end
 
   # Calculate profit percentage
+  # SSoT: contract_price is THE ONE
   def calculate_profit_percentage
-    return 0 if contract_value.nil? || contract_value.zero?
-    ((calculate_live_profit / contract_value) * 100).round(2)
+    return 0 if contract_price.nil? || contract_price.zero?
+    ((calculate_live_profit / contract_price) * 100).round(2)
   end
 
   # Update live_profit and profit_percentage fields in database
@@ -220,8 +227,9 @@ class Job < ApplicationRecord
       job_claim_stages.destroy_all  # Clear existing stages
 
       templates.each do |template|
-        expected = if contract_value.present? && template.percentage.present?
-                     (contract_value.to_d * template.percentage / 100).round(2)
+        # SSoT: contract_price is THE ONE
+        expected = if contract_price.present? && template.percentage.present?
+                     (contract_price.to_d * template.percentage / 100).round(2)
                    end
 
         job_claim_stages.create!(
@@ -237,13 +245,14 @@ class Job < ApplicationRecord
     end
   end
 
-  # Recalculate expected amounts based on current contract value
+  # Recalculate expected amounts based on current contract price
+  # SSoT: contract_price is THE ONE
   def recalculate_claim_stage_amounts!
-    return unless contract_value.present?
+    return unless contract_price.present?
 
     job_claim_stages.each do |stage|
       next unless stage.percentage.present?
-      stage.update!(expected_amount: (contract_value.to_d * stage.percentage / 100).round(2))
+      stage.update!(expected_amount: (contract_price.to_d * stage.percentage / 100).round(2))
     end
   end
 
@@ -526,8 +535,9 @@ class Job < ApplicationRecord
     return if templates.empty?
 
     templates.each do |template|
-      expected = if contract_value.present? && template.percentage.present?
-                   (contract_value.to_d * template.percentage / 100).round(2)
+      # SSoT: contract_price is THE ONE
+      expected = if contract_price.present? && template.percentage.present?
+                   (contract_price.to_d * template.percentage / 100).round(2)
                  end
 
       job_claim_stages.create!(

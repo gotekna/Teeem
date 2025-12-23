@@ -327,8 +327,9 @@ class TeknaDocumentGenerator
       council: job.try(:council),
 
       # Contract details
-      contract_price: format_currency(job.try(:contract_price) || job.try(:contract_value)),
-      contract_price_raw: job.try(:contract_price) || job.try(:contract_value),
+      # SSoT: contract_price is THE ONE
+      contract_price: format_currency(job.try(:contract_price)),
+      contract_price_raw: job.try(:contract_price),
       contract_price_ex_gst: format_currency(job.try(:contract_price_ex_gst)),
       gst_amount: format_currency(job.try(:gst_amount)),
       deposit: format_currency(job.try(:deposit)),

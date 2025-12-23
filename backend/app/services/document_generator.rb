@@ -481,9 +481,10 @@ class DocumentGenerator
       status: job.try(:job_status)&.name || job.try(:status)&.humanize,
 
       # Contract details
-      contract_price: format_currency(job.try(:contract_price) || job.try(:contract_value)),
-      contract_price_raw: job.try(:contract_price) || job.try(:contract_value),
-      contract_value: format_currency(job.try(:contract_value)),
+      # SSoT: contract_price is THE ONE
+      contract_price: format_currency(job.try(:contract_price)),
+      contract_price_raw: job.try(:contract_price),
+      contract_value: format_currency(job.try(:contract_price)),  # Alias for templates
       contract_price_ex_gst: format_currency(job.try(:contract_price_ex_gst)),
       deposit: format_currency(job.try(:deposit)),
       deposit_percentage: job.try(:deposit_percentage),
