@@ -8502,7 +8502,8 @@ export class GanttCanvas {
 
       case ' ':
         if (this.focusedTaskId) {
-          this.toggleTaskSelection(this.focusedTaskId);
+          // Toggle selection using ctrl+click logic
+          this.selectTask(this.focusedTaskId, true, false);
         }
         event.preventDefault();
         return true;
@@ -8533,9 +8534,11 @@ export class GanttCanvas {
     this.focusTask(newTask.id);
 
     if (extendSelection) {
-      this.selectTask(newTask.id, true);
+      // Shift-select: add to selection
+      this.selectTask(newTask.id, false, true);
     } else {
-      this.selectTask(newTask.id, false);
+      // Simple select: clear others
+      this.selectTask(newTask.id, false, false);
     }
   }
 
@@ -8574,13 +8577,13 @@ export class GanttCanvas {
     this.registerKeyboardShortcut({
       key: '+',
       ctrl: true,
-      action: () => this.zoomIn(),
+      action: () => this.zoomInOneLevel(),
       description: 'Zoom in'
     });
     this.registerKeyboardShortcut({
       key: '-',
       ctrl: true,
-      action: () => this.zoomOut(),
+      action: () => this.zoomOutOneLevel(),
       description: 'Zoom out'
     });
     this.registerKeyboardShortcut({
@@ -8924,24 +8927,6 @@ export class GanttCanvas {
 
     return result;
   }
-
-  // Callbacks for edit/delete
-  private onTaskDoubleClick?: (taskId: string) => void;
-  private onTaskDelete?: (taskId: string) => void;
-
-  /**
-   * Set double-click callback
-   */
-  setOnTaskDoubleClick(callback: (taskId: string) => void): void {
-    this.onTaskDoubleClick = callback;
-  }
-
-  /**
-   * Set delete callback
-   */
-  setOnTaskDelete(callback: (taskId: string) => void): void {
-    this.onTaskDelete = callback;
-  }
 }
 
 // ============================================================================
@@ -9126,65 +9111,6 @@ export interface TimelineMarker {
   color?: string;
   icon?: string;
   showLabel?: boolean;
-  description?: string;
-}
-
-// ============================================================================
-// Feature 11: Task Hierarchy Types
-// ============================================================================
-
-export interface TaskHierarchyNode {
-  parentId: string | null;
-  childIds: string[];
-  level: number;
-  expanded: boolean;
-}
-
-// ============================================================================
-// Feature 12: Resource Types
-// ============================================================================
-
-export interface Resource {
-  id: string;
-  name: string;
-  type: 'person' | 'equipment' | 'material' | 'other';
-  email?: string;
-  capacity?: number; // Default 100 (100%)
-  costRate?: number;
-  color?: string;
-  avatar?: string;
-}
-
-export interface TaskResourceAssignment {
-  resourceId: string;
-  taskId: string;
-  allocation: number; // Percentage (0-100+)
-  role?: string;
-}
-
-export interface ResourceAllocation {
-  resourceId: string;
-  totalAllocation: number;
-  dailyAllocation: Map<string, number>;
-  overallocatedDays: Date[];
-  availableCapacity: number;
-}
-
-// ============================================================================
-// Feature 13: Keyboard Types
-// ============================================================================
-
-export interface ShortcutModifiers {
-  ctrl?: boolean;
-  alt?: boolean;
-  shift?: boolean;
-  meta?: boolean;
-}
-
-export interface KeyboardShortcut {
-  key: string;
-  modifiers?: ShortcutModifiers;
-  action: () => void;
   description?: string;
 }
 
