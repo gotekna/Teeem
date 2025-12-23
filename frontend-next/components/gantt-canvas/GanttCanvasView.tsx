@@ -476,18 +476,31 @@ export function GanttCanvasView({
   }, []);
 
   // Check for circular dependencies
-  const hasCircularDependency = React.useCallback((taskId: string, newPredecessorIds: string[], visited: Set<string> = new Set()): boolean => {
-    if (visited.has(taskId)) return true;
-    visited.add(taskId);
+  // Returns true if adding these predecessors to taskId would create a cycle
+  const hasCircularDependency = React.useCallback((taskId: string, newPredecessorIds: string[]): boolean => {
+    // Helper: Check if targetId is an ancestor of currentId
+    const isAncestor = (targetId: string, currentId: string, visited: Set<string>): boolean => {
+      if (currentId === targetId) return true; // Found the target in ancestor chain
+      if (visited.has(currentId)) return false; // Already checked this branch
+      visited.add(currentId);
 
+      const currentTask = tasks.find(t => t.id === currentId);
+      if (!currentTask) return false;
+
+      for (const predId of currentTask.predecessorIds || []) {
+        if (isAncestor(targetId, predId, visited)) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    // For each new predecessor, check if taskId is in its ancestor chain
+    // If so, adding this predecessor would create a cycle
     for (const predId of newPredecessorIds) {
-      // Get the predecessor's own predecessors
-      const predTask = tasks.find(t => t.id === predId);
-      if (predTask) {
-        const predPredecessors = predTask.predecessorIds || [];
-        // Check if this predecessor (or any of its predecessors) depends on our task
-        if (predPredecessors.includes(taskId)) return true;
-        if (hasCircularDependency(taskId, predPredecessors, visited)) return true;
+      if (predId === taskId) return true; // Can't depend on itself
+      if (isAncestor(taskId, predId, new Set())) {
+        return true; // taskId is already an ancestor of predId
       }
     }
     return false;
@@ -634,6 +647,37 @@ export function GanttCanvasView({
       ganttRef.current.setDarkMode(isDarkMode);
     }
   }, [isDarkMode]);
+
+  // Load holidays from API and add to canvas
+  React.useEffect(() => {
+    if (!ganttRef.current) return;
+
+    const loadHolidays = async () => {
+      try {
+        const currentYear = new Date().getFullYear();
+        const response = await api.get<{ dates: string[] }>(
+          `/api/v1/public_holidays/dates?year_start=${currentYear}&year_end=${currentYear + 2}&region=QLD`
+        );
+
+        if (response.dates && response.dates.length > 0) {
+          const holidays = response.dates.map(dateStr => {
+            // Parse date parts to avoid timezone issues
+            const [year, month, day] = dateStr.split('-').map(Number);
+            return {
+              date: new Date(year, month - 1, day), // month is 0-indexed
+              name: 'Public Holiday',
+              type: 'public' as const,
+            };
+          });
+          ganttRef.current?.addHolidays(holidays);
+        }
+      } catch (err) {
+        console.error('Failed to load holidays:', err);
+      }
+    };
+
+    loadHolidays();
+  }, [rows, staticTasks]); // Re-run when data changes (after canvas is created)
 
   // Trigger resize when fullscreen changes
   React.useEffect(() => {
