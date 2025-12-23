@@ -524,7 +524,7 @@ export function GanttCanvasView({
       const predecessorIdsNumeric = predecessorIds.map(id => parseInt(id, 10));
 
       // Call API to update dependencies
-      await api.patch(`/api/v1/sm_template_rows/${depEditorTask.id}`, {
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
         predecessor_ids: predecessorIdsNumeric
       });
 

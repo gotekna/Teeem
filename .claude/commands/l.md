@@ -22,6 +22,13 @@ git branch --show-current
 git status --short
 ```
 
+**IMPORTANT: Note if ANY backend/ files are shown above. After commit, verify they were included.**
+
+### Step 1.5 - Pull Latest (if needed)
+```bash
+git pull origin Live
+```
+
 ### Step 2 - Commit This Chat's Changes
 
 **Auto-generate commit message based on changes:**
@@ -49,6 +56,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 git push origin Live
 ```
 *Vercel auto-deploys frontend from this push*
+
+### Step 3.5 - Verify Backend Changes Were Committed
+**CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
+```bash
+git diff --name-only HEAD~1 HEAD | grep backend/
+```
+**If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
 ### Step 4 - Pre-Flight Checks (Fail Fast)
 
