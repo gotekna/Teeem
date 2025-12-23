@@ -12244,6 +12244,195 @@ export class GanttCanvas {
     }));
   }
 
+  // =========================================================================
+  // SECTION E: MODAL INTEGRATION (Features 326-400)
+  // =========================================================================
+  // Note: The actual modals are React components.
+  // These features enable the canvas to trigger and coordinate with modals.
+
+  // =========================================================================
+  // FEATURE 326-340: DEPENDENCY EDITOR MODAL INTEGRATION
+  // =========================================================================
+  private onOpenDependencyEditor: ((taskId: string) => void) | null = null;
+  private dependencyEditorTaskId: string | null = null;
+
+  // Set callback for opening dependency editor
+  setOnOpenDependencyEditor(callback: ((taskId: string) => void) | null): void {
+    this.onOpenDependencyEditor = callback;
+  }
+
+  // Open dependency editor for a task (from double-click on task)
+  openDependencyEditor(taskId: string): void {
+    this.dependencyEditorTaskId = taskId;
+    if (this.onOpenDependencyEditor) {
+      this.onOpenDependencyEditor(taskId);
+    }
+  }
+
+  // Get task data for dependency editor modal
+  getDependencyEditorData(taskId: string): {
+    task: GanttTask | null;
+    predecessors: Array<{ task: GanttTask; type: string; lag: number }>;
+    availableTasks: GanttTask[];
+  } | null {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return null;
+
+    const predecessors = (task.predecessorIds || []).map(predId => {
+      const predTask = this.state.tasks.find(t => t.id === predId);
+      return predTask ? { task: predTask, type: 'FS', lag: 0 } : null;
+    }).filter(Boolean) as Array<{ task: GanttTask; type: string; lag: number }>;
+
+    // Available tasks exclude self and tasks that would create circular deps
+    const availableTasks = this.state.tasks.filter(t =>
+      t.id !== taskId && !this.wouldCreateCircularDependency(taskId, t.id)
+    );
+
+    return { task, predecessors, availableTasks };
+  }
+
+  // Apply dependency changes from modal
+  applyDependencyChanges(taskId: string, predecessorIds: string[]): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (task) {
+      task.predecessorIds = predecessorIds;
+      this.dependencyEditorTaskId = null;
+      this.markDirty();
+    }
+  }
+
+  // =========================================================================
+  // FEATURE 341-352: AUTO-COMPLETE TASKS MODAL INTEGRATION
+  // =========================================================================
+  private onOpenAutoCompleteModal: ((taskId: string) => void) | null = null;
+
+  setOnOpenAutoCompleteModal(callback: ((taskId: string) => void) | null): void {
+    this.onOpenAutoCompleteModal = callback;
+  }
+
+  openAutoCompleteModal(taskId: string): void {
+    if (this.onOpenAutoCompleteModal) {
+      this.onOpenAutoCompleteModal(taskId);
+    }
+  }
+
+  // Get tasks that can be auto-completed
+  getAutoCompletableTasks(): GanttTask[] {
+    return this.state.tasks.filter(t => t.status !== 'completed');
+  }
+
+  // =========================================================================
+  // FEATURE 353-364: SUBTASKS MODAL INTEGRATION
+  // =========================================================================
+  private onOpenSubtasksModal: ((taskId: string) => void) | null = null;
+
+  setOnOpenSubtasksModal(callback: ((taskId: string) => void) | null): void {
+    this.onOpenSubtasksModal = callback;
+  }
+
+  openSubtasksModal(taskId: string): void {
+    if (this.onOpenSubtasksModal) {
+      this.onOpenSubtasksModal(taskId);
+    }
+  }
+
+  // Get subtasks for a task
+  // Note: parentId is an optional extension field on GanttTask
+  getSubtasks(taskId: string): GanttTask[] {
+    return this.state.tasks.filter(t => (t as { parentId?: string }).parentId === taskId);
+  }
+
+  // Get available tasks that can become subtasks
+  getAvailableSubtasks(parentTaskId: string): GanttTask[] {
+    return this.state.tasks.filter(t =>
+      t.id !== parentTaskId && !(t as { parentId?: string }).parentId // Not already a subtask
+    );
+  }
+
+  // =========================================================================
+  // FEATURE 365-376: LINKED TASKS MODAL INTEGRATION
+  // =========================================================================
+  private onOpenLinkedTasksModal: ((taskId: string) => void) | null = null;
+
+  setOnOpenLinkedTasksModal(callback: ((taskId: string) => void) | null): void {
+    this.onOpenLinkedTasksModal = callback;
+  }
+
+  openLinkedTasksModal(taskId: string): void {
+    if (this.onOpenLinkedTasksModal) {
+      this.onOpenLinkedTasksModal(taskId);
+    }
+  }
+
+  // Search tasks for linking
+  searchTasksForLinking(query: string, excludeTaskId: string): GanttTask[] {
+    const lowerQuery = query.toLowerCase();
+    return this.state.tasks.filter(t =>
+      t.id !== excludeTaskId &&
+      t.name.toLowerCase().includes(lowerQuery)
+    );
+  }
+
+  // =========================================================================
+  // FEATURE 377-388: SUPERVISOR CHECKLIST MODAL INTEGRATION
+  // =========================================================================
+  private onOpenChecklistModal: ((taskId: string) => void) | null = null;
+
+  setOnOpenChecklistModal(callback: ((taskId: string) => void) | null): void {
+    this.onOpenChecklistModal = callback;
+  }
+
+  openChecklistModal(taskId: string): void {
+    if (this.onOpenChecklistModal) {
+      this.onOpenChecklistModal(taskId);
+    }
+  }
+
+  // =========================================================================
+  // FEATURE 389-400: DOCUMENTATION TABS MODAL INTEGRATION
+  // =========================================================================
+  private onOpenDocumentationModal: ((taskId: string) => void) | null = null;
+
+  setOnOpenDocumentationModal(callback: ((taskId: string) => void) | null): void {
+    this.onOpenDocumentationModal = callback;
+  }
+
+  openDocumentationModal(taskId: string): void {
+    if (this.onOpenDocumentationModal) {
+      this.onOpenDocumentationModal(taskId);
+    }
+  }
+
+  // =========================================================================
+  // MODAL STATE MANAGEMENT
+  // =========================================================================
+  private activeModal: string | null = null;
+  private modalTaskId: string | null = null;
+
+  getActiveModal(): string | null {
+    return this.activeModal;
+  }
+
+  getModalTaskId(): string | null {
+    return this.modalTaskId;
+  }
+
+  setActiveModal(modalType: string | null, taskId: string | null = null): void {
+    this.activeModal = modalType;
+    this.modalTaskId = taskId;
+  }
+
+  closeActiveModal(): void {
+    this.activeModal = null;
+    this.modalTaskId = null;
+    this.markDirty();
+  }
+
+  // Check if any modal is open
+  isModalOpen(): boolean {
+    return this.activeModal !== null;
+  }
+
 }
 
 // ============================================================================
