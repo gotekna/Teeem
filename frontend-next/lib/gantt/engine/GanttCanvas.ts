@@ -11926,10 +11926,56 @@ export class GanttCanvas {
   }
 
   // =========================================================================
-  // FEATURE 222-223: ACCESSIBILITY EXTENSIONS
+  // FEATURE 222: VISIBLE FOCUS RING CONFIGURATION
   // =========================================================================
-  // Note: ariaLiveRegion and announceToScreenReader exist in Feature 51.
-  // See Feature 40 for focus ring and Feature 51 for screen reader.
+  // Note: focusRingColor, focusRingWidth, setFocusRingStyle() exist in Feature 40.
+  // This adds enable/disable and additional styling options.
+  private visibleFocusRingEnabled: boolean = true;
+  private focusRingOffset: number = 2;
+  private focusRingLineStyle: 'solid' | 'dashed' | 'dotted' = 'solid';
+
+  setVisibleFocusRingEnabled(enabled: boolean): void {
+    this.visibleFocusRingEnabled = enabled;
+    this.markDirty();
+  }
+
+  isVisibleFocusRingEnabled(): boolean { return this.visibleFocusRingEnabled; }
+
+  setFocusRingOffset(offset: number): void {
+    this.focusRingOffset = offset;
+    this.markDirty();
+  }
+
+  getFocusRingOffset(): number { return this.focusRingOffset; }
+
+  setFocusRingLineStyle(style: 'solid' | 'dashed' | 'dotted'): void {
+    this.focusRingLineStyle = style;
+    this.markDirty();
+  }
+
+  getFocusRingLineStyle(): string { return this.focusRingLineStyle; }
+
+  // =========================================================================
+  // FEATURE 223: SCREEN READER ANNOUNCEMENTS
+  // =========================================================================
+  // Note: announceAction() and announceToScreenReader() exist in Feature 51.
+  // These are convenience methods for common action announcements.
+
+  announceTaskSelected(taskName: string): void {
+    this.announceToScreenReader(`Selected task: ${taskName}`);
+  }
+
+  announceTaskMoved(taskName: string, newDate: string): void {
+    this.announceToScreenReader(`Moved ${taskName} to ${newDate}`);
+  }
+
+  announceTaskResized(taskName: string, newDuration: number): void {
+    this.announceToScreenReader(`Resized ${taskName} to ${newDuration} days`);
+  }
+
+  announceDependencyCreated(fromTask: string, toTask: string, type: string): void {
+    this.announceToScreenReader(`Created ${type} dependency from ${fromTask} to ${toTask}`);
+  }
 
   // =========================================================================
   // FEATURE 232: TOUCH GESTURE DETECTION (Extension of Features 45-47)
