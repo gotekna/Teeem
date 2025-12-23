@@ -49,9 +49,9 @@ import { CompanyDocumentsTab } from "@/components/corporate/CompanyDocumentsTab"
 import { ATOSetupCard } from "@/components/corporate/ATOSetupCard";
 
 // Dynamic tab rendering (SSoT: lib/tab-component-registry.ts)
-// Individual components are lazy-loaded via OverviewTabRenderer
+// Individual components are lazy-loaded via OverviewTabRenderer and XeroTabRenderer
 import { OverviewTabRenderer } from "@/components/corporate/OverviewTabRenderer";
-import { XeroTabSection } from "@/components/corporate/XeroTabSection";
+import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 // ActivityTab is used for main "activity-main" tab (not overview sub-tab)
 import { ActivityTab } from "@/components/tabs";
 // Shared types for corporate entities (SSoT for Company type)
@@ -496,11 +496,13 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
-          {/* XERO Tab - Extracted to XeroTabSection component */}
-          {activeTab === "xero" && (
-            <XeroTabSection
+          {/* XERO Tab - Dynamic rendering via XeroTabRenderer (SSoT) */}
+          {activeTab === "xero" && company && (
+            <XeroTabRenderer
               companyId={companyId}
+              companyName={company?.name}
               company={company}
+              onRefresh={loadCompany}
               DocumentsTabComponent={CompanyDocumentsTab}
             />
           )}

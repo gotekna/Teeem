@@ -1874,7 +1874,8 @@ module Api
             with_errors_count = tenant_links.with_errors.count
 
             # Count invoices/bills for this tenant
-            tenant_invoices = ExternalInvoice.xero.where(tenant_id: tenant_id)
+            # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
+            tenant_invoices = ExternalInvoice.xero.active.where(tenant_id: tenant_id)
             invoices_count = tenant_invoices.sales_invoices.count
             bills_count = tenant_invoices.bills.count
             quotes_count = tenant_invoices.quotes.count
@@ -1934,8 +1935,9 @@ module Api
           end
 
           # Global statistics (across all tenants)
+          # SSoT: Use .active scope to match Stage 1 sync count (excludes voided/deleted)
           all_xero_links = ContactExternalLink.xero
-          all_invoices = ExternalInvoice.xero
+          all_invoices = ExternalInvoice.xero.active
 
           # Total pending reviews
           total_pending_reviews = all_xero_links.pending_review.count

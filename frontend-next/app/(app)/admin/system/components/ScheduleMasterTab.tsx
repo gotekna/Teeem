@@ -40,6 +40,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { GanttChart, type GanttFeature, type GanttGroup } from "@/components/ui/gantt";
+import { GanttCanvasView } from "@/components/gantt-canvas";
 import { SMGanttTab } from "./SMGanttTab";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -133,6 +134,7 @@ export function ScheduleMasterTab() {
   // Gantt Preview state
   const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
   const [ganttRows, setGanttRows] = React.useState<SmTemplateRow[]>([]);
+  const [ganttViewMode, setGanttViewMode] = React.useState<"canvas" | "react">("canvas");
 
   // Task Templates state
   const [taskTemplates, setTaskTemplates] = React.useState<TaskTemplate[]>([]);
@@ -162,7 +164,19 @@ export function ScheduleMasterTab() {
   const loadTemplates = async () => {
     try {
       const data = await api.get<{ success: boolean; sm_templates: SmTemplate[] }>("/api/v1/sm_templates");
-      setTemplates(data?.sm_templates || []);
+      const loadedTemplates = data?.sm_templates || [];
+      setTemplates(loadedTemplates);
+
+      // Auto-select "Schedule Master LIVE" template for Gantt Preview if not already selected
+      if (!ganttTemplateId && loadedTemplates.length > 0) {
+        const scheduleMasterLive = loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('schedule master live') ||
+          (t.row_count === 165 && t.name.toLowerCase().includes('schedule'))
+        );
+        if (scheduleMasterLive) {
+          loadGanttRows(scheduleMasterLive.id);
+        }
+      }
     } catch (error) {
       console.error("Failed to load templates:", error);
       setTemplates([]);
@@ -812,21 +826,40 @@ export function ScheduleMasterTab() {
                   Preview schedule templates as a Gantt chart
                 </p>
               </div>
-              <Select
-                value={ganttTemplateId ? String(ganttTemplateId) : ""}
-                onValueChange={(value) => loadGanttRows(parseInt(value))}
-              >
-                <SelectTrigger className="w-[300px]">
-                  <SelectValue placeholder="Select a template to preview" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((template) => (
-                    <SelectItem key={template.id} value={String(template.id)}>
-                      {template.name} ({template.row_count} tasks)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-4">
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-2 border rounded-lg p-1">
+                  <Button
+                    variant={ganttViewMode === "canvas" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setGanttViewMode("canvas")}
+                  >
+                    Canvas (New)
+                  </Button>
+                  <Button
+                    variant={ganttViewMode === "react" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setGanttViewMode("react")}
+                  >
+                    React (Legacy)
+                  </Button>
+                </div>
+                <Select
+                  value={ganttTemplateId ? String(ganttTemplateId) : ""}
+                  onValueChange={(value) => loadGanttRows(parseInt(value))}
+                >
+                  <SelectTrigger className="w-[300px]">
+                    <SelectValue placeholder="Select a template to preview" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={String(template.id)}>
+                        {template.name} ({template.row_count} tasks)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {loadingRows === ganttTemplateId && (
@@ -835,33 +868,48 @@ export function ScheduleMasterTab() {
               </div>
             )}
 
-            {ganttTemplateId && ganttRows.length > 0 && loadingRows !== ganttTemplateId && (
-              <Card>
-                <CardContent className="p-0">
-                  <div className="h-[600px]">
-                    <GanttChart
-                      features={convertRowsToGanttFeatures(ganttRows)}
-                      showControls={true}
-                      showSidebar={true}
-                      showToday={true}
-                      showDependencies={true}
-                      title={templates.find(t => t.id === ganttTemplateId)?.name || "Template Preview"}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {ganttTemplateId && ganttRows.length === 0 && loadingRows !== ganttTemplateId && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">No tasks in this template</h3>
-                  <p className="text-center max-w-md">
-                    Add tasks to this template to see the Gantt preview.
-                  </p>
-                </CardContent>
-              </Card>
+            {ganttTemplateId && loadingRows !== ganttTemplateId && (
+              <>
+                {ganttViewMode === "canvas" ? (
+                  /* New Canvas-based Gantt - High Performance */
+                  <Card>
+                    <CardContent className="p-0">
+                      <div className="h-[600px]">
+                        <GanttCanvasView
+                          templateId={ganttTemplateId}
+                          className="h-full"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : ganttRows.length > 0 ? (
+                  /* Legacy React Gantt */
+                  <Card>
+                    <CardContent className="p-0">
+                      <div className="h-[600px]">
+                        <GanttChart
+                          features={convertRowsToGanttFeatures(ganttRows)}
+                          showControls={true}
+                          showSidebar={true}
+                          showToday={true}
+                          showDependencies={true}
+                          title={templates.find(t => t.id === ganttTemplateId)?.name || "Template Preview"}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                      <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
+                      <h3 className="text-lg font-medium mb-2">No tasks in this template</h3>
+                      <p className="text-center max-w-md">
+                        Add tasks to this template to see the Gantt preview.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
 
             {!ganttTemplateId && (

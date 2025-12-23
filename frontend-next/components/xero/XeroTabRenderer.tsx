@@ -48,8 +48,9 @@ interface XeroTabRendererProps {
   /** Company name for display */
   companyName?: string;
 
-  /** Full company data object */
-  company?: Record<string, unknown>;
+  /** Full company data object - uses any to support CorporateCompany from caller */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  company?: any;
 
   /** Callback to refresh company data */
   onRefresh?: () => Promise<void>;
@@ -68,6 +69,18 @@ interface XeroTabRendererProps {
    * Returns the legacy hardcoded tab content
    */
   legacyRenderer?: (xeroSubTab: string) => React.ReactNode;
+
+  /**
+   * Component for rendering SharePoint document folder tabs
+   * Used when tab has has_sharepoint_folder=true
+   * Uses any for company to support CorporateCompany type from caller
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DocumentsTabComponent?: React.ComponentType<{
+    companyId: string;
+    company: any;
+    category?: string;
+  }>;
 }
 
 // ============================================
@@ -112,6 +125,7 @@ export function XeroTabRenderer({
   initialTab = "connection",
   onTabChange,
   legacyRenderer,
+  DocumentsTabComponent,
 }: XeroTabRendererProps) {
   const isEnabled = forceEnabled || isUnifiedXeroTabsEnabled();
 
@@ -262,6 +276,20 @@ export function XeroTabRenderer({
 
     // If tab has SharePoint folder, render folder view
     if (activeTab.has_sharepoint_folder && activeTab.full_sharepoint_path) {
+      // Use provided DocumentsTabComponent if available
+      if (DocumentsTabComponent && company) {
+        return (
+          <Suspense fallback={<TabSkeleton />}>
+            <DocumentsTabComponent
+              companyId={companyId}
+              company={company}
+              category={activeTab.tab_key}
+            />
+          </Suspense>
+        );
+      }
+
+      // Fallback: show path info
       return (
         <div className="p-4 text-muted-foreground">
           SharePoint folder: {activeTab.full_sharepoint_path}
