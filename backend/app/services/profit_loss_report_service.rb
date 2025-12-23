@@ -15,7 +15,7 @@ class ProfitLossReportService
 
   def initialize(profit_loss_report)
     @report = profit_loss_report
-    @company = @report.company
+    @company = @report.corporate_company
   end
 
   def generate

@@ -8927,6 +8927,858 @@ export class GanttCanvas {
 
     return result;
   }
+
+  // =========================================================================
+  // FEATURE 16: TASK RESIZE (DRAG EDGES)
+  // =========================================================================
+  // Drag left/right edges of task bars to change duration
+
+  private isResizing: boolean = false;
+  private resizeTaskId: string | null = null;
+  private resizeEdge: 'left' | 'right' | null = null;
+  private resizeStartX: number = 0;
+  private resizeOriginalStart: Date | null = null;
+  private resizeOriginalEnd: Date | null = null;
+  private resizeHandleWidth: number = 8;
+  private onTaskResize?: (taskId: string, newStart: Date, newEnd: Date) => void;
+
+  /**
+   * Check if mouse is over a resize handle
+   */
+  getResizeHandle(x: number, y: number): { taskId: string; edge: 'left' | 'right' } | null {
+    const task = this.getTaskAtPosition(x, y);
+    if (!task || task.locked) return null;
+
+    const taskBounds = this.getTaskBounds(task);
+    if (!taskBounds) return null;
+
+    // Check left edge
+    if (x >= taskBounds.x && x <= taskBounds.x + this.resizeHandleWidth) {
+      return { taskId: task.id, edge: 'left' };
+    }
+
+    // Check right edge
+    if (x >= taskBounds.x + taskBounds.width - this.resizeHandleWidth &&
+        x <= taskBounds.x + taskBounds.width) {
+      return { taskId: task.id, edge: 'right' };
+    }
+
+    return null;
+  }
+
+  /**
+   * Get task visual bounds
+   */
+  private getTaskBounds(task: GanttTask): { x: number; y: number; width: number; height: number } | null {
+    const taskIndex = this.state.tasks.findIndex(t => t.id === task.id);
+    if (taskIndex === -1) return null;
+
+    const x = this.dateToX(task.startDate);
+    const width = this.dateToX(task.endDate) - x;
+    const y = taskIndex * this.config.rowHeight + this.config.headerHeight;
+
+    return {
+      x: x - this.viewport.offsetX,
+      y: y - this.viewport.offsetY,
+      width: Math.max(width, this.config.minTaskWidth || 20),
+      height: this.config.rowHeight - 8
+    };
+  }
+
+  /**
+   * Start resizing a task
+   */
+  startResize(taskId: string, edge: 'left' | 'right', mouseX: number): void {
+    const task = this.getTask(taskId);
+    if (!task || task.locked) return;
+
+    this.isResizing = true;
+    this.resizeTaskId = taskId;
+    this.resizeEdge = edge;
+    this.resizeStartX = mouseX;
+    this.resizeOriginalStart = new Date(task.startDate);
+    this.resizeOriginalEnd = new Date(task.endDate);
+    this.markDirty();
+  }
+
+  /**
+   * Update resize during drag
+   */
+  updateResize(mouseX: number): void {
+    if (!this.isResizing || !this.resizeTaskId || !this.resizeEdge) return;
+
+    const task = this.getTask(this.resizeTaskId);
+    if (!task) return;
+
+    const deltaX = mouseX - this.resizeStartX;
+    const deltaDays = Math.round(deltaX / (this.config.dayWidth * this.viewport.zoom));
+
+    if (this.resizeEdge === 'left' && this.resizeOriginalStart) {
+      const newStart = new Date(this.resizeOriginalStart);
+      newStart.setDate(newStart.getDate() + deltaDays);
+
+      // Don't allow start to go past end
+      if (newStart < task.endDate) {
+        task.startDate = newStart;
+      }
+    } else if (this.resizeEdge === 'right' && this.resizeOriginalEnd) {
+      const newEnd = new Date(this.resizeOriginalEnd);
+      newEnd.setDate(newEnd.getDate() + deltaDays);
+
+      // Don't allow end to go before start
+      if (newEnd > task.startDate) {
+        task.endDate = newEnd;
+      }
+    }
+
+    this.markDirty();
+  }
+
+  /**
+   * Complete resize operation
+   */
+  completeResize(): { taskId: string; newStart: Date; newEnd: Date } | null {
+    if (!this.isResizing || !this.resizeTaskId) return null;
+
+    const task = this.getTask(this.resizeTaskId);
+    const result = task ? {
+      taskId: this.resizeTaskId,
+      newStart: new Date(task.startDate),
+      newEnd: new Date(task.endDate)
+    } : null;
+
+    // Notify callback
+    if (result && this.onTaskResize) {
+      this.onTaskResize(result.taskId, result.newStart, result.newEnd);
+    }
+
+    // Reset state
+    this.isResizing = false;
+    this.resizeTaskId = null;
+    this.resizeEdge = null;
+    this.resizeOriginalStart = null;
+    this.resizeOriginalEnd = null;
+    this.markDirty();
+
+    return result;
+  }
+
+  /**
+   * Cancel resize operation
+   */
+  cancelResize(): void {
+    if (!this.isResizing || !this.resizeTaskId) return;
+
+    // Restore original dates
+    const task = this.getTask(this.resizeTaskId);
+    if (task && this.resizeOriginalStart && this.resizeOriginalEnd) {
+      task.startDate = this.resizeOriginalStart;
+      task.endDate = this.resizeOriginalEnd;
+    }
+
+    this.isResizing = false;
+    this.resizeTaskId = null;
+    this.resizeEdge = null;
+    this.resizeOriginalStart = null;
+    this.resizeOriginalEnd = null;
+    this.markDirty();
+  }
+
+  /**
+   * Check if currently resizing
+   */
+  isResizingTask(): boolean {
+    return this.isResizing;
+  }
+
+  /**
+   * Get resize state
+   */
+  getResizeState(): { taskId: string | null; edge: 'left' | 'right' | null; isResizing: boolean } {
+    return {
+      taskId: this.resizeTaskId,
+      edge: this.resizeEdge,
+      isResizing: this.isResizing
+    };
+  }
+
+  /**
+   * Set resize callback
+   */
+  setOnTaskResize(callback: (taskId: string, newStart: Date, newEnd: Date) => void): void {
+    this.onTaskResize = callback;
+  }
+
+  // =========================================================================
+  // FEATURE 17: LINK CREATION BY DRAG
+  // =========================================================================
+  // Create dependencies by dragging from one task to another
+
+  private isLinkDragging: boolean = false;
+  private linkSourceTaskId: string | null = null;
+  private linkSourcePoint: 'start' | 'end' = 'end';
+  private linkTargetX: number = 0;
+  private linkTargetY: number = 0;
+  private linkConnectorSize: number = 10;
+  private onLinkCreate?: (fromId: string, toId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
+
+  /**
+   * Check if mouse is over a link connector
+   */
+  getLinkConnector(x: number, y: number): { taskId: string; point: 'start' | 'end' } | null {
+    for (const task of this.state.tasks) {
+      const bounds = this.getTaskBounds(task);
+      if (!bounds) continue;
+
+      // Start connector (left side)
+      const startConnectorX = bounds.x - this.linkConnectorSize / 2;
+      const startConnectorY = bounds.y + bounds.height / 2;
+      if (Math.abs(x - startConnectorX) <= this.linkConnectorSize &&
+          Math.abs(y - startConnectorY) <= this.linkConnectorSize) {
+        return { taskId: task.id, point: 'start' };
+      }
+
+      // End connector (right side)
+      const endConnectorX = bounds.x + bounds.width + this.linkConnectorSize / 2;
+      const endConnectorY = bounds.y + bounds.height / 2;
+      if (Math.abs(x - endConnectorX) <= this.linkConnectorSize &&
+          Math.abs(y - endConnectorY) <= this.linkConnectorSize) {
+        return { taskId: task.id, point: 'end' };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Start link creation drag
+   */
+  startLinkDrag(taskId: string, point: 'start' | 'end', x: number, y: number): void {
+    this.isLinkDragging = true;
+    this.linkSourceTaskId = taskId;
+    this.linkSourcePoint = point;
+    this.linkTargetX = x;
+    this.linkTargetY = y;
+    this.markDirty();
+  }
+
+  /**
+   * Update link drag position
+   */
+  updateLinkDrag(x: number, y: number): void {
+    if (!this.isLinkDragging) return;
+    this.linkTargetX = x;
+    this.linkTargetY = y;
+    this.markDirty();
+  }
+
+  /**
+   * Complete link creation
+   */
+  completeLinkDrag(x: number, y: number): { fromId: string; toId: string; type: 'FS' | 'SS' | 'FF' | 'SF' } | null {
+    if (!this.isLinkDragging || !this.linkSourceTaskId) {
+      this.cancelLinkDrag();
+      return null;
+    }
+
+    // Find target connector
+    const targetConnector = this.getLinkConnector(x, y);
+    if (!targetConnector || targetConnector.taskId === this.linkSourceTaskId) {
+      this.cancelLinkDrag();
+      return null;
+    }
+
+    // Determine dependency type based on connection points
+    let type: 'FS' | 'SS' | 'FF' | 'SF';
+    if (this.linkSourcePoint === 'end' && targetConnector.point === 'start') {
+      type = 'FS'; // Finish-to-Start
+    } else if (this.linkSourcePoint === 'start' && targetConnector.point === 'start') {
+      type = 'SS'; // Start-to-Start
+    } else if (this.linkSourcePoint === 'end' && targetConnector.point === 'end') {
+      type = 'FF'; // Finish-to-Finish
+    } else {
+      type = 'SF'; // Start-to-Finish
+    }
+
+    const result = {
+      fromId: this.linkSourceTaskId,
+      toId: targetConnector.taskId,
+      type
+    };
+
+    // Notify callback
+    if (this.onLinkCreate) {
+      this.onLinkCreate(result.fromId, result.toId, result.type);
+    }
+
+    this.cancelLinkDrag();
+    return result;
+  }
+
+  /**
+   * Cancel link drag
+   */
+  cancelLinkDrag(): void {
+    this.isLinkDragging = false;
+    this.linkSourceTaskId = null;
+    this.linkTargetX = 0;
+    this.linkTargetY = 0;
+    this.markDirty();
+  }
+
+  /**
+   * Check if creating link
+   */
+  isCreatingLink(): boolean {
+    return this.isLinkDragging;
+  }
+
+  /**
+   * Get link drag state for rendering
+   */
+  getLinkDragState(): {
+    isActive: boolean;
+    sourceTaskId: string | null;
+    sourcePoint: 'start' | 'end';
+    targetX: number;
+    targetY: number
+  } {
+    return {
+      isActive: this.isLinkDragging,
+      sourceTaskId: this.linkSourceTaskId,
+      sourcePoint: this.linkSourcePoint,
+      targetX: this.linkTargetX,
+      targetY: this.linkTargetY
+    };
+  }
+
+  /**
+   * Set link create callback
+   */
+  setOnLinkCreate(callback: (fromId: string, toId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void): void {
+    this.onLinkCreate = callback;
+  }
+
+  // =========================================================================
+  // FEATURE 18: VIRTUAL SCROLLING
+  // =========================================================================
+  // Only render visible tasks for performance with large datasets
+
+  private virtualScrollEnabled: boolean = true;
+  private virtualScrollBuffer: number = 5; // Extra rows above/below viewport
+  private visibleTaskRange: { start: number; end: number } = { start: 0, end: 100 };
+
+  /**
+   * Enable/disable virtual scrolling
+   */
+  setVirtualScrollEnabled(enabled: boolean): void {
+    this.virtualScrollEnabled = enabled;
+    this.updateVisibleRange();
+  }
+
+  /**
+   * Calculate visible task range based on viewport
+   */
+  updateVisibleRange(): void {
+    if (!this.virtualScrollEnabled) {
+      this.visibleTaskRange = { start: 0, end: this.state.tasks.length };
+      return;
+    }
+
+    const viewportTop = this.viewport.offsetY;
+    const viewportBottom = viewportTop + this.containerHeight;
+
+    const startRow = Math.max(0, Math.floor(viewportTop / this.config.rowHeight) - this.virtualScrollBuffer);
+    const endRow = Math.min(
+      this.state.tasks.length,
+      Math.ceil(viewportBottom / this.config.rowHeight) + this.virtualScrollBuffer
+    );
+
+    this.visibleTaskRange = { start: startRow, end: endRow };
+  }
+
+  /**
+   * Get tasks that should be rendered (visible + buffer)
+   */
+  getVisibleTasksForRender(): GanttTask[] {
+    this.updateVisibleRange();
+    return this.state.tasks.slice(this.visibleTaskRange.start, this.visibleTaskRange.end);
+  }
+
+  /**
+   * Get virtual scroll range (start/end indices and total count)
+   */
+  getVirtualScrollRange(): { start: number; end: number; total: number } {
+    return {
+      ...this.visibleTaskRange,
+      total: this.state.tasks.length
+    };
+  }
+
+  /**
+   * Check if a task index is in visible range
+   */
+  isTaskIndexVisible(index: number): boolean {
+    return index >= this.visibleTaskRange.start && index < this.visibleTaskRange.end;
+  }
+
+  /**
+   * Get scroll position for task
+   */
+  getScrollPositionForTask(taskId: string): { x: number; y: number } | null {
+    const taskIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return null;
+
+    const task = this.state.tasks[taskIndex];
+    return {
+      x: this.dateToX(task.startDate),
+      y: taskIndex * this.config.rowHeight + this.config.headerHeight
+    };
+  }
+
+  /**
+   * Set virtual scroll buffer size
+   */
+  setVirtualScrollBuffer(rows: number): void {
+    this.virtualScrollBuffer = Math.max(1, rows);
+    this.updateVisibleRange();
+  }
+
+  // =========================================================================
+  // FEATURE 19: MINIMAP NAVIGATION
+  // =========================================================================
+  // Overview minimap for navigating large projects
+
+  private minimapEnabled: boolean = false;
+  private minimapWidth: number = 200;
+  private minimapHeight: number = 100;
+  private minimapPosition: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left' = 'bottom-right';
+
+  /**
+   * Enable/disable minimap
+   */
+  setMinimapEnabled(enabled: boolean): void {
+    this.minimapEnabled = enabled;
+    this.markDirty();
+  }
+
+  /**
+   * Check if minimap is enabled
+   */
+  isMinimapEnabled(): boolean {
+    return this.minimapEnabled;
+  }
+
+  /**
+   * Set minimap size
+   */
+  setMinimapSize(width: number, height: number): void {
+    this.minimapWidth = Math.max(100, width);
+    this.minimapHeight = Math.max(50, height);
+    this.markDirty();
+  }
+
+  /**
+   * Set minimap position
+   */
+  setMinimapPosition(position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'): void {
+    this.minimapPosition = position;
+    this.markDirty();
+  }
+
+  /**
+   * Get minimap bounds on canvas
+   */
+  getMinimapBounds(): { x: number; y: number; width: number; height: number } {
+    const padding = 10;
+    let x: number, y: number;
+
+    switch (this.minimapPosition) {
+      case 'bottom-right':
+        x = this.containerWidth - this.minimapWidth - padding;
+        y = this.containerHeight - this.minimapHeight - padding;
+        break;
+      case 'bottom-left':
+        x = padding;
+        y = this.containerHeight - this.minimapHeight - padding;
+        break;
+      case 'top-right':
+        x = this.containerWidth - this.minimapWidth - padding;
+        y = padding;
+        break;
+      case 'top-left':
+        x = padding;
+        y = padding;
+        break;
+    }
+
+    return { x, y, width: this.minimapWidth, height: this.minimapHeight };
+  }
+
+  /**
+   * Get minimap viewport rectangle (current visible area)
+   */
+  getMinimapViewport(): { x: number; y: number; width: number; height: number } {
+    const bounds = this.getMinimapBounds();
+    const projectBounds = this.getProjectBounds();
+
+    if (!projectBounds.width || !projectBounds.height) {
+      return { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height };
+    }
+
+    const scaleX = bounds.width / projectBounds.width;
+    const scaleY = bounds.height / projectBounds.height;
+
+    return {
+      x: bounds.x + (this.viewport.offsetX * scaleX),
+      y: bounds.y + (this.viewport.offsetY * scaleY),
+      width: (this.containerWidth / this.viewport.zoom) * scaleX,
+      height: (this.containerHeight / this.viewport.zoom) * scaleY
+    };
+  }
+
+  /**
+   * Get project bounds for minimap scaling
+   */
+  private getProjectBounds(): { width: number; height: number } {
+    if (this.state.tasks.length === 0) {
+      return { width: 0, height: 0 };
+    }
+
+    let minDate = this.state.tasks[0].startDate;
+    let maxDate = this.state.tasks[0].endDate;
+
+    this.state.tasks.forEach(task => {
+      if (task.startDate < minDate) minDate = task.startDate;
+      if (task.endDate > maxDate) maxDate = task.endDate;
+    });
+
+    const width = this.dateToX(maxDate) - this.dateToX(minDate);
+    const height = this.state.tasks.length * this.config.rowHeight;
+
+    return { width: Math.max(width, this.containerWidth), height: Math.max(height, this.containerHeight) };
+  }
+
+  /**
+   * Handle minimap click to navigate
+   */
+  handleMinimapClick(x: number, y: number): boolean {
+    if (!this.minimapEnabled) return false;
+
+    const bounds = this.getMinimapBounds();
+
+    // Check if click is within minimap
+    if (x < bounds.x || x > bounds.x + bounds.width ||
+        y < bounds.y || y > bounds.y + bounds.height) {
+      return false;
+    }
+
+    // Convert minimap position to viewport offset
+    const projectBounds = this.getProjectBounds();
+    const relativeX = (x - bounds.x) / bounds.width;
+    const relativeY = (y - bounds.y) / bounds.height;
+
+    this.viewport.offsetX = relativeX * projectBounds.width - this.containerWidth / 2;
+    this.viewport.offsetY = relativeY * projectBounds.height - this.containerHeight / 2;
+
+    // Clamp to bounds
+    this.viewport.offsetX = Math.max(0, Math.min(this.viewport.offsetX, projectBounds.width - this.containerWidth));
+    this.viewport.offsetY = Math.max(0, Math.min(this.viewport.offsetY, projectBounds.height - this.containerHeight));
+
+    this.markDirty();
+    return true;
+  }
+
+  /**
+   * Get minimap task positions for rendering
+   */
+  getMinimapTasks(): Array<{ x: number; y: number; width: number; height: number; color: string }> {
+    const bounds = this.getMinimapBounds();
+    const projectBounds = this.getProjectBounds();
+
+    if (!projectBounds.width || !projectBounds.height) return [];
+
+    const scaleX = bounds.width / projectBounds.width;
+    const scaleY = bounds.height / projectBounds.height;
+
+    return this.state.tasks.map((task, index) => {
+      const taskX = this.dateToX(task.startDate);
+      const taskWidth = this.dateToX(task.endDate) - taskX;
+
+      return {
+        x: bounds.x + (taskX * scaleX),
+        y: bounds.y + (index * this.config.rowHeight * scaleY),
+        width: Math.max(1, taskWidth * scaleX),
+        height: Math.max(1, this.config.rowHeight * scaleY * 0.8),
+        color: task.color || this.config.taskBarColor || '#4F46E5'
+      };
+    });
+  }
+
+  // =========================================================================
+  // FEATURE 20: BASELINE COMPARISON
+  // =========================================================================
+  // Compare current schedule against baseline
+
+  private baselineEnabled: boolean = false;
+  private baselineTasks: Map<string, { startDate: Date; endDate: Date }> = new Map();
+  private baselineColor: string = '#9CA3AF'; // Gray
+  private baselineOpacity: number = 0.5;
+
+  /**
+   * Enable/disable baseline display
+   */
+  setBaselineEnabled(enabled: boolean): void {
+    this.baselineEnabled = enabled;
+    this.markDirty();
+  }
+
+  /**
+   * Check if baseline is enabled
+   */
+  isBaselineEnabled(): boolean {
+    return this.baselineEnabled;
+  }
+
+  /**
+   * Capture current schedule as baseline
+   */
+  captureBaseline(): void {
+    this.baselineTasks.clear();
+    this.state.tasks.forEach(task => {
+      this.baselineTasks.set(task.id, {
+        startDate: new Date(task.startDate),
+        endDate: new Date(task.endDate)
+      });
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Set baseline from external data
+   */
+  setBaseline(data: Array<{ taskId: string; startDate: Date | string; endDate: Date | string }>): void {
+    this.baselineTasks.clear();
+    data.forEach(item => {
+      this.baselineTasks.set(item.taskId, {
+        startDate: new Date(item.startDate),
+        endDate: new Date(item.endDate)
+      });
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Clear baseline
+   */
+  clearBaseline(): void {
+    this.baselineTasks.clear();
+    this.markDirty();
+  }
+
+  /**
+   * Get baseline for a task
+   */
+  getTaskBaseline(taskId: string): { startDate: Date; endDate: Date } | null {
+    return this.baselineTasks.get(taskId) || null;
+  }
+
+  /**
+   * Check if task has baseline
+   */
+  hasBaseline(taskId: string): boolean {
+    return this.baselineTasks.has(taskId);
+  }
+
+  /**
+   * Get variance between current and baseline
+   */
+  getTaskVariance(taskId: string): {
+    startVariance: number;
+    endVariance: number;
+    durationVariance: number;
+    status: 'on-track' | 'ahead' | 'behind' | 'no-baseline';
+  } {
+    const baseline = this.baselineTasks.get(taskId);
+    const task = this.getTask(taskId);
+
+    if (!baseline || !task) {
+      return { startVariance: 0, endVariance: 0, durationVariance: 0, status: 'no-baseline' };
+    }
+
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const startVariance = Math.round((task.startDate.getTime() - baseline.startDate.getTime()) / msPerDay);
+    const endVariance = Math.round((task.endDate.getTime() - baseline.endDate.getTime()) / msPerDay);
+
+    const currentDuration = Math.round((task.endDate.getTime() - task.startDate.getTime()) / msPerDay);
+    const baselineDuration = Math.round((baseline.endDate.getTime() - baseline.startDate.getTime()) / msPerDay);
+    const durationVariance = currentDuration - baselineDuration;
+
+    let status: 'on-track' | 'ahead' | 'behind';
+    if (endVariance < 0) {
+      status = 'ahead';
+    } else if (endVariance > 0) {
+      status = 'behind';
+    } else {
+      status = 'on-track';
+    }
+
+    return { startVariance, endVariance, durationVariance, status };
+  }
+
+  /**
+   * Get all tasks with variances
+   */
+  getAllVariances(): Array<{
+    taskId: string;
+    taskName: string;
+    startVariance: number;
+    endVariance: number;
+    status: 'on-track' | 'ahead' | 'behind';
+  }> {
+    const results: Array<{
+      taskId: string;
+      taskName: string;
+      startVariance: number;
+      endVariance: number;
+      status: 'on-track' | 'ahead' | 'behind';
+    }> = [];
+
+    this.state.tasks.forEach(task => {
+      if (this.baselineTasks.has(task.id)) {
+        const variance = this.getTaskVariance(task.id);
+        if (variance.status !== 'no-baseline') {
+          results.push({
+            taskId: task.id,
+            taskName: task.name,
+            startVariance: variance.startVariance,
+            endVariance: variance.endVariance,
+            status: variance.status
+          });
+        }
+      }
+    });
+
+    return results;
+  }
+
+  /**
+   * Get baseline data for rendering
+   */
+  getBaselineRenderData(): Array<{
+    taskId: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }> {
+    if (!this.baselineEnabled) return [];
+
+    const results: Array<{
+      taskId: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }> = [];
+
+    this.state.tasks.forEach((task, index) => {
+      const baseline = this.baselineTasks.get(task.id);
+      if (!baseline) return;
+
+      const x = this.dateToX(baseline.startDate) - this.viewport.offsetX;
+      const width = this.dateToX(baseline.endDate) - this.dateToX(baseline.startDate);
+      const y = index * this.config.rowHeight + this.config.headerHeight - this.viewport.offsetY;
+
+      results.push({
+        taskId: task.id,
+        x,
+        y: y + this.config.rowHeight * 0.7, // Position below actual task
+        width: Math.max(width, 2),
+        height: 4 // Thin bar
+      });
+    });
+
+    return results;
+  }
+
+  /**
+   * Set baseline visual style
+   */
+  setBaselineStyle(color: string, opacity: number): void {
+    this.baselineColor = color;
+    this.baselineOpacity = Math.max(0, Math.min(1, opacity));
+    this.markDirty();
+  }
+
+  /**
+   * Export baseline data
+   */
+  exportBaseline(): Array<{ taskId: string; startDate: string; endDate: string }> {
+    const result: Array<{ taskId: string; startDate: string; endDate: string }> = [];
+
+    this.baselineTasks.forEach((dates, taskId) => {
+      result.push({
+        taskId,
+        startDate: dates.startDate.toISOString(),
+        endDate: dates.endDate.toISOString()
+      });
+    });
+
+    return result;
+  }
+
+  /**
+   * Import baseline data
+   */
+  importBaseline(data: Array<{ taskId: string; startDate: string; endDate: string }>): void {
+    this.baselineTasks.clear();
+    data.forEach(item => {
+      this.baselineTasks.set(item.taskId, {
+        startDate: new Date(item.startDate),
+        endDate: new Date(item.endDate)
+      });
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Get summary of schedule health vs baseline
+   */
+  getScheduleHealth(): {
+    totalTasks: number;
+    tasksWithBaseline: number;
+    onTrack: number;
+    ahead: number;
+    behind: number;
+    averageVariance: number;
+  } {
+    let onTrack = 0;
+    let ahead = 0;
+    let behind = 0;
+    let totalVariance = 0;
+    let tasksWithBaseline = 0;
+
+    this.state.tasks.forEach(task => {
+      if (this.baselineTasks.has(task.id)) {
+        tasksWithBaseline++;
+        const variance = this.getTaskVariance(task.id);
+        totalVariance += variance.endVariance;
+
+        if (variance.status === 'on-track') onTrack++;
+        else if (variance.status === 'ahead') ahead++;
+        else if (variance.status === 'behind') behind++;
+      }
+    });
+
+    return {
+      totalTasks: this.state.tasks.length,
+      tasksWithBaseline,
+      onTrack,
+      ahead,
+      behind,
+      averageVariance: tasksWithBaseline > 0 ? totalVariance / tasksWithBaseline : 0
+    };
+  }
 }
 
 // ============================================================================

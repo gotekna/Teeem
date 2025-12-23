@@ -16,7 +16,7 @@ class BalanceSheetReportService
 
   def initialize(balance_sheet_report)
     @report = balance_sheet_report
-    @company = @report.company
+    @company = @report.corporate_company
   end
 
   def generate
