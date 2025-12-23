@@ -8344,6 +8344,1029 @@ export class GanttCanvas {
       maxEnd: childTasks.length > 0 ? new Date(Math.max(...childTasks.map(t => t.endDate.getTime()))) : undefined
     };
   }
+
+  // =========================================================================
+  // FEATURE 11: TASK GROUPING/HIERARCHY SYSTEM
+  // =========================================================================
+  // Enables parent-child relationships between tasks with expand/collapse
+
+  private taskHierarchy: Map<string, TaskHierarchyNode> = new Map();
+  private collapsedGroups: Set<string> = new Set();
+  private indentWidth: number = 20;
+
+  /**
+   * Set a task as a child of another task
+   */
+  setTaskParent(childId: string, parentId: string | null): void {
+    const child = this.state.tasks.find(t => t.id === childId);
+    if (!child) return;
+
+    // Remove from current parent if exists
+    this.taskHierarchy.forEach((node, id) => {
+      const childIndex = node.childIds.indexOf(childId);
+      if (childIndex !== -1) {
+        node.childIds.splice(childIndex, 1);
+      }
+    });
+
+    if (parentId === null) {
+      // Make it a root task
+      this.taskHierarchy.delete(childId);
+    } else {
+      // Add to new parent
+      let parentNode = this.taskHierarchy.get(parentId);
+      if (!parentNode) {
+        parentNode = { parentId: null, childIds: [], level: 0, expanded: true };
+        this.taskHierarchy.set(parentId, parentNode);
+      }
+      if (!parentNode.childIds.includes(childId)) {
+        parentNode.childIds.push(childId);
+      }
+
+      // Create/update child node
+      const parentLevel = this.getTaskLevel(parentId);
+      let childNode = this.taskHierarchy.get(childId);
+      if (!childNode) {
+        childNode = { parentId, childIds: [], level: parentLevel + 1, expanded: true };
+        this.taskHierarchy.set(childId, childNode);
+      } else {
+        childNode.parentId = parentId;
+        childNode.level = parentLevel + 1;
+      }
+
+      // Update descendant levels
+      this.updateDescendantLevels(childId);
+    }
+
+    this.markDirty();
+  }
+
+  /**
+   * Get the nesting level of a task (0 = root)
+   */
+  getTaskLevel(taskId: string): number {
+    const node = this.taskHierarchy.get(taskId);
+    if (!node || !node.parentId) return 0;
+    return this.getTaskLevel(node.parentId) + 1;
+  }
+
+  /**
+   * Update levels for all descendants
+   */
+  private updateDescendantLevels(taskId: string): void {
+    const node = this.taskHierarchy.get(taskId);
+    if (!node) return;
+
+    const currentLevel = this.getTaskLevel(taskId);
+    node.level = currentLevel;
+
+    node.childIds.forEach(childId => {
+      const childNode = this.taskHierarchy.get(childId);
+      if (childNode) {
+        childNode.level = currentLevel + 1;
+        this.updateDescendantLevels(childId);
+      }
+    });
+  }
+
+  /**
+   * Get parent task ID
+   */
+  getTaskParent(taskId: string): string | null {
+    const node = this.taskHierarchy.get(taskId);
+    return node?.parentId || null;
+  }
+
+  /**
+   * Get child task IDs
+   */
+  getTaskChildren(taskId: string): string[] {
+    const node = this.taskHierarchy.get(taskId);
+    return node?.childIds || [];
+  }
+
+  /**
+   * Check if task has children
+   */
+  hasChildren(taskId: string): boolean {
+    const node = this.taskHierarchy.get(taskId);
+    return node ? node.childIds.length > 0 : false;
+  }
+
+  /**
+   * Toggle group expanded state
+   */
+  toggleGroup(taskId: string): void {
+    if (this.collapsedGroups.has(taskId)) {
+      this.collapsedGroups.delete(taskId);
+    } else {
+      this.collapsedGroups.add(taskId);
+    }
+    this.markDirty();
+  }
+
+  /**
+   * Expand a group
+   */
+  expandGroup(taskId: string): void {
+    this.collapsedGroups.delete(taskId);
+    this.markDirty();
+  }
+
+  /**
+   * Collapse a group
+   */
+  collapseGroup(taskId: string): void {
+    this.collapsedGroups.add(taskId);
+    this.markDirty();
+  }
+
+  /**
+   * Check if group is expanded
+   */
+  isGroupExpanded(taskId: string): boolean {
+    return !this.collapsedGroups.has(taskId);
+  }
+
+  /**
+   * Expand all groups
+   */
+  expandAllGroups(): void {
+    this.collapsedGroups.clear();
+    this.markDirty();
+  }
+
+  /**
+   * Collapse all groups
+   */
+  collapseAllGroups(): void {
+    this.taskHierarchy.forEach((node, taskId) => {
+      if (node.childIds.length > 0) {
+        this.collapsedGroups.add(taskId);
+      }
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Check if task is visible (not hidden by collapsed parent)
+   */
+  isTaskVisibleInHierarchy(taskId: string): boolean {
+    const node = this.taskHierarchy.get(taskId);
+    if (!node || !node.parentId) return true;
+
+    // Check if any ancestor is collapsed
+    let parentId: string | null = node.parentId;
+    while (parentId) {
+      if (this.collapsedGroups.has(parentId)) {
+        return false;
+      }
+      const parentNode = this.taskHierarchy.get(parentId);
+      parentId = parentNode?.parentId || null;
+    }
+    return true;
+  }
+
+  /**
+   * Get all visible tasks (respecting hierarchy collapse state)
+   */
+  getVisibleTasksInHierarchy(): GanttTask[] {
+    return this.state.tasks.filter(t => this.isTaskVisibleInHierarchy(t.id));
+  }
+
+  /**
+   * Get indent offset for a task based on its level
+   */
+  getTaskIndent(taskId: string): number {
+    return this.getTaskLevel(taskId) * this.indentWidth;
+  }
+
+  /**
+   * Indent a task (make it child of previous sibling)
+   */
+  indentTask(taskId: string): boolean {
+    const taskIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    if (taskIndex <= 0) return false;
+
+    const previousTask = this.state.tasks[taskIndex - 1];
+    const currentLevel = this.getTaskLevel(taskId);
+    const previousLevel = this.getTaskLevel(previousTask.id);
+
+    // Can only indent if previous task is at same level or one level up
+    if (previousLevel <= currentLevel) {
+      this.setTaskParent(taskId, previousTask.id);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Outdent a task (move to parent's level)
+   */
+  outdentTask(taskId: string): boolean {
+    const node = this.taskHierarchy.get(taskId);
+    if (!node?.parentId) return false;
+
+    const grandparentId = this.getTaskParent(node.parentId);
+    this.setTaskParent(taskId, grandparentId);
+    return true;
+  }
+
+  // =========================================================================
+  // FEATURE 12: RESOURCE ASSIGNMENT SYSTEM
+  // =========================================================================
+  // Tracks resource allocation to tasks
+
+  private resources: Map<string, Resource> = new Map();
+  private taskResources: Map<string, TaskResourceAssignment[]> = new Map();
+
+  /**
+   * Add a resource to the pool
+   */
+  addResource(resource: Resource): void {
+    this.resources.set(resource.id, resource);
+  }
+
+  /**
+   * Remove a resource from the pool
+   */
+  removeResource(resourceId: string): void {
+    this.resources.delete(resourceId);
+    // Remove from all task assignments
+    this.taskResources.forEach((assignments, taskId) => {
+      const filtered = assignments.filter(a => a.resourceId !== resourceId);
+      this.taskResources.set(taskId, filtered);
+    });
+  }
+
+  /**
+   * Get a resource by ID
+   */
+  getResource(resourceId: string): Resource | undefined {
+    return this.resources.get(resourceId);
+  }
+
+  /**
+   * Get all resources
+   */
+  getAllResources(): Resource[] {
+    return Array.from(this.resources.values());
+  }
+
+  /**
+   * Assign a resource to a task
+   */
+  assignResourceToTask(
+    taskId: string,
+    resourceId: string,
+    allocation: number = 100,
+    role?: string
+  ): void {
+    const task = this.state.tasks.find(t => t.id === taskId);
+    const resource = this.resources.get(resourceId);
+    if (!task || !resource) return;
+
+    const assignments = this.taskResources.get(taskId) || [];
+
+    // Check if already assigned
+    const existing = assignments.find(a => a.resourceId === resourceId);
+    if (existing) {
+      existing.allocation = allocation;
+      existing.role = role;
+    } else {
+      assignments.push({
+        resourceId,
+        taskId,
+        allocation,
+        role
+      });
+    }
+
+    this.taskResources.set(taskId, assignments);
+    this.markDirty();
+  }
+
+  /**
+   * Remove resource assignment from task
+   */
+  unassignResourceFromTask(taskId: string, resourceId: string): void {
+    const assignments = this.taskResources.get(taskId);
+    if (!assignments) return;
+
+    const filtered = assignments.filter(a => a.resourceId !== resourceId);
+    this.taskResources.set(taskId, filtered);
+    this.markDirty();
+  }
+
+  /**
+   * Get resources assigned to a task
+   */
+  getTaskResources(taskId: string): TaskResourceAssignment[] {
+    return this.taskResources.get(taskId) || [];
+  }
+
+  /**
+   * Get tasks assigned to a resource
+   */
+  getResourceTasks(resourceId: string): GanttTask[] {
+    const taskIds: string[] = [];
+    this.taskResources.forEach((assignments, taskId) => {
+      if (assignments.some(a => a.resourceId === resourceId)) {
+        taskIds.push(taskId);
+      }
+    });
+    return this.state.tasks.filter(t => taskIds.includes(t.id));
+  }
+
+  /**
+   * Calculate resource allocation for a date range
+   */
+  getResourceAllocation(resourceId: string, startDate: Date, endDate: Date): ResourceAllocation {
+    const tasks = this.getResourceTasks(resourceId);
+    const resource = this.resources.get(resourceId);
+
+    if (!resource) {
+      return {
+        resourceId,
+        totalAllocation: 0,
+        dailyAllocation: new Map(),
+        overallocatedDays: [],
+        availableCapacity: 0
+      };
+    }
+
+    const dailyAllocation = new Map<string, number>();
+    const overallocatedDays: Date[] = [];
+
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const dateKey = current.toISOString().split('T')[0];
+      let dayAllocation = 0;
+
+      tasks.forEach(task => {
+        if (task.startDate <= current && task.endDate >= current) {
+          const assignment = this.taskResources.get(task.id)?.find(
+            a => a.resourceId === resourceId
+          );
+          if (assignment) {
+            dayAllocation += assignment.allocation;
+          }
+        }
+      });
+
+      dailyAllocation.set(dateKey, dayAllocation);
+      if (dayAllocation > (resource.capacity || 100)) {
+        overallocatedDays.push(new Date(current));
+      }
+
+      current.setDate(current.getDate() + 1);
+    }
+
+    const allocations = Array.from(dailyAllocation.values());
+    const totalAllocation = allocations.length > 0
+      ? allocations.reduce((a, b) => a + b, 0) / allocations.length
+      : 0;
+
+    return {
+      resourceId,
+      totalAllocation,
+      dailyAllocation,
+      overallocatedDays,
+      availableCapacity: (resource.capacity || 100) - totalAllocation
+    };
+  }
+
+  /**
+   * Check if resource is overallocated on any day
+   */
+  isResourceOverallocated(resourceId: string): boolean {
+    const projectDates = this.getVisibleDateRange();
+    const allocation = this.getResourceAllocation(
+      resourceId,
+      projectDates.start,
+      projectDates.end
+    );
+    return allocation.overallocatedDays.length > 0;
+  }
+
+  // =========================================================================
+  // FEATURE 13: KEYBOARD NAVIGATION SYSTEM
+  // =========================================================================
+  // Arrow keys, shortcuts for common actions
+
+  private keyboardEnabled: boolean = true;
+  private focusedTaskId: string | null = null;
+  private keyboardShortcuts: Map<string, KeyboardShortcut> = new Map();
+
+  /**
+   * Enable/disable keyboard navigation
+   */
+  setKeyboardEnabled(enabled: boolean): void {
+    this.keyboardEnabled = enabled;
+  }
+
+  /**
+   * Register a keyboard shortcut
+   */
+  registerShortcut(shortcut: KeyboardShortcut): void {
+    const key = this.getShortcutKey(shortcut);
+    this.keyboardShortcuts.set(key, shortcut);
+  }
+
+  /**
+   * Unregister a keyboard shortcut
+   */
+  unregisterShortcut(key: string, modifiers?: ShortcutModifiers): void {
+    const shortcutKey = this.getShortcutKey({ key, modifiers, action: () => {} });
+    this.keyboardShortcuts.delete(shortcutKey);
+  }
+
+  /**
+   * Get shortcut key string for lookup
+   */
+  private getShortcutKey(shortcut: KeyboardShortcut): string {
+    const parts: string[] = [];
+    if (shortcut.modifiers?.ctrl) parts.push('ctrl');
+    if (shortcut.modifiers?.alt) parts.push('alt');
+    if (shortcut.modifiers?.shift) parts.push('shift');
+    if (shortcut.modifiers?.meta) parts.push('meta');
+    parts.push(shortcut.key.toLowerCase());
+    return parts.join('+');
+  }
+
+  /**
+   * Process keyboard event with custom shortcuts and navigation
+   * This is the enhanced keyboard handler that supports custom shortcuts
+   */
+  processKeyboardEvent(event: KeyboardEvent): boolean {
+    if (!this.keyboardEnabled) return false;
+
+    // Check for registered shortcuts
+    const shortcutKey = this.getShortcutKey({
+      key: event.key,
+      modifiers: {
+        ctrl: event.ctrlKey,
+        alt: event.altKey,
+        shift: event.shiftKey,
+        meta: event.metaKey
+      },
+      action: () => {}
+    });
+
+    const shortcut = this.keyboardShortcuts.get(shortcutKey);
+    if (shortcut) {
+      event.preventDefault();
+      shortcut.action();
+      return true;
+    }
+
+    // Built-in navigation
+    switch (event.key) {
+      case 'ArrowUp':
+        this.navigateTask('up', event.shiftKey);
+        event.preventDefault();
+        return true;
+
+      case 'ArrowDown':
+        this.navigateTask('down', event.shiftKey);
+        event.preventDefault();
+        return true;
+
+      case 'ArrowLeft':
+        if (event.ctrlKey || event.metaKey) {
+          // Outdent
+          if (this.focusedTaskId) {
+            this.outdentTask(this.focusedTaskId);
+          }
+        } else {
+          // Collapse or move to parent
+          if (this.focusedTaskId && this.hasChildren(this.focusedTaskId)) {
+            this.collapseGroup(this.focusedTaskId);
+          }
+        }
+        event.preventDefault();
+        return true;
+
+      case 'ArrowRight':
+        if (event.ctrlKey || event.metaKey) {
+          // Indent
+          if (this.focusedTaskId) {
+            this.indentTask(this.focusedTaskId);
+          }
+        } else {
+          // Expand
+          if (this.focusedTaskId && this.hasChildren(this.focusedTaskId)) {
+            this.expandGroup(this.focusedTaskId);
+          }
+        }
+        event.preventDefault();
+        return true;
+
+      case 'Enter':
+        if (this.focusedTaskId) {
+          // Trigger edit
+          this.onTaskDoubleClick?.(this.focusedTaskId);
+        }
+        event.preventDefault();
+        return true;
+
+      case 'Delete':
+      case 'Backspace':
+        if (this.focusedTaskId && !event.ctrlKey && !event.metaKey) {
+          // Delete task (if callback registered)
+          this.onTaskDelete?.(this.focusedTaskId);
+        }
+        event.preventDefault();
+        return true;
+
+      case 'Escape':
+        this.clearSelection();
+        this.focusedTaskId = null;
+        this.markDirty();
+        event.preventDefault();
+        return true;
+
+      case 'a':
+        if (event.ctrlKey || event.metaKey) {
+          // Select all
+          this.selectAllTasks();
+          event.preventDefault();
+          return true;
+        }
+        break;
+
+      case 'Home':
+        // Go to first task
+        if (this.state.tasks.length > 0) {
+          this.focusTask(this.state.tasks[0].id);
+        }
+        event.preventDefault();
+        return true;
+
+      case 'End':
+        // Go to last task
+        if (this.state.tasks.length > 0) {
+          this.focusTask(this.state.tasks[this.state.tasks.length - 1].id);
+        }
+        event.preventDefault();
+        return true;
+
+      case ' ':
+        // Toggle selection
+        if (this.focusedTaskId) {
+          this.toggleTaskSelection(this.focusedTaskId);
+        }
+        event.preventDefault();
+        return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Navigate to adjacent task
+   */
+  private navigateTask(direction: 'up' | 'down', extendSelection: boolean): void {
+    const visibleTasks = this.getVisibleTasksInHierarchy();
+    if (visibleTasks.length === 0) return;
+
+    const currentIndex = this.focusedTaskId
+      ? visibleTasks.findIndex(t => t.id === this.focusedTaskId)
+      : -1;
+
+    let newIndex: number;
+    if (direction === 'up') {
+      newIndex = currentIndex <= 0 ? visibleTasks.length - 1 : currentIndex - 1;
+    } else {
+      newIndex = currentIndex >= visibleTasks.length - 1 ? 0 : currentIndex + 1;
+    }
+
+    const newTask = visibleTasks[newIndex];
+    this.focusTask(newTask.id);
+
+    if (extendSelection) {
+      this.selectTask(newTask.id, true);
+    } else {
+      this.selectTask(newTask.id, false);
+    }
+  }
+
+  /**
+   * Focus a task (for keyboard navigation)
+   */
+  focusTask(taskId: string): void {
+    this.focusedTaskId = taskId;
+    this.scrollToTask(taskId);
+    this.markDirty();
+  }
+
+  /**
+   * Get focused task ID
+   */
+  getFocusedTaskId(): string | null {
+    return this.focusedTaskId;
+  }
+
+  /**
+   * Get all registered shortcuts
+   */
+  getRegisteredShortcuts(): KeyboardShortcut[] {
+    return Array.from(this.keyboardShortcuts.values());
+  }
+
+  /**
+   * Register default shortcuts
+   */
+  registerDefaultShortcuts(): void {
+    // Undo/Redo
+    this.registerShortcut({
+      key: 'z',
+      modifiers: { ctrl: true },
+      action: () => this.undo(),
+      description: 'Undo'
+    });
+    this.registerShortcut({
+      key: 'y',
+      modifiers: { ctrl: true },
+      action: () => this.redo(),
+      description: 'Redo'
+    });
+
+    // Zoom
+    this.registerShortcut({
+      key: '+',
+      modifiers: { ctrl: true },
+      action: () => this.zoomIn(),
+      description: 'Zoom in'
+    });
+    this.registerShortcut({
+      key: '-',
+      modifiers: { ctrl: true },
+      action: () => this.zoomOut(),
+      description: 'Zoom out'
+    });
+    this.registerShortcut({
+      key: '0',
+      modifiers: { ctrl: true },
+      action: () => this.zoomToFit(),
+      description: 'Zoom to fit'
+    });
+
+    // Today
+    this.registerShortcut({
+      key: 't',
+      modifiers: {},
+      action: () => this.scrollToToday(),
+      description: 'Go to today'
+    });
+  }
+
+  // =========================================================================
+  // FEATURE 14: ROW REORDERING (DRAG TO REORDER)
+  // =========================================================================
+  // Drag tasks to reorder them in the list
+
+  private isReorderDragging: boolean = false;
+  private reorderSourceIndex: number = -1;
+  private reorderTargetIndex: number = -1;
+  private reorderDragY: number = 0;
+  private reorderPreviewOffset: number = 0;
+
+  /**
+   * Start reorder drag
+   */
+  startReorderDrag(taskId: string, y: number): void {
+    const index = this.state.tasks.findIndex(t => t.id === taskId);
+    if (index === -1) return;
+
+    this.isReorderDragging = true;
+    this.reorderSourceIndex = index;
+    this.reorderTargetIndex = index;
+    this.reorderDragY = y;
+    this.reorderPreviewOffset = 0;
+    this.markDirty();
+  }
+
+  /**
+   * Update reorder drag position
+   */
+  updateReorderDrag(y: number): void {
+    if (!this.isReorderDragging) return;
+
+    this.reorderDragY = y;
+
+    // Calculate target index based on Y position
+    const rowHeight = this.config.rowHeight;
+    const headerHeight = this.config.headerHeight;
+    const scrollY = this.viewport.getState().scrollY;
+
+    const relativeY = y - headerHeight + scrollY;
+    let targetIndex = Math.floor(relativeY / rowHeight);
+    targetIndex = Math.max(0, Math.min(targetIndex, this.state.tasks.length - 1));
+
+    if (targetIndex !== this.reorderTargetIndex) {
+      this.reorderTargetIndex = targetIndex;
+      this.markDirty();
+    }
+  }
+
+  /**
+   * Complete reorder drag
+   */
+  completeReorderDrag(): boolean {
+    if (!this.isReorderDragging) return false;
+
+    const sourceIndex = this.reorderSourceIndex;
+    const targetIndex = this.reorderTargetIndex;
+
+    this.isReorderDragging = false;
+    this.reorderSourceIndex = -1;
+    this.reorderTargetIndex = -1;
+
+    if (sourceIndex !== targetIndex && sourceIndex !== -1 && targetIndex !== -1) {
+      // Move task in array
+      const [task] = this.state.tasks.splice(sourceIndex, 1);
+      this.state.tasks.splice(targetIndex, 0, task);
+
+      // Emit reorder event
+      this.onTaskReorder?.(task.id, sourceIndex, targetIndex);
+      this.markDirty();
+      return true;
+    }
+
+    this.markDirty();
+    return false;
+  }
+
+  /**
+   * Cancel reorder drag
+   */
+  cancelReorderDrag(): void {
+    this.isReorderDragging = false;
+    this.reorderSourceIndex = -1;
+    this.reorderTargetIndex = -1;
+    this.markDirty();
+  }
+
+  /**
+   * Get reorder state for rendering
+   */
+  getReorderState(): ReorderState {
+    return {
+      isDragging: this.isReorderDragging,
+      sourceIndex: this.reorderSourceIndex,
+      targetIndex: this.reorderTargetIndex,
+      dragY: this.reorderDragY
+    };
+  }
+
+  /**
+   * Check if reorder is in progress
+   */
+  isReordering(): boolean {
+    return this.isReorderDragging;
+  }
+
+  // Callback for reorder events
+  private onTaskReorder?: (taskId: string, fromIndex: number, toIndex: number) => void;
+
+  /**
+   * Set reorder callback
+   */
+  setOnTaskReorder(callback: (taskId: string, fromIndex: number, toIndex: number) => void): void {
+    this.onTaskReorder = callback;
+  }
+
+  // =========================================================================
+  // FEATURE 15: TASK CONSTRAINTS SYSTEM
+  // =========================================================================
+  // Must-start-on, must-finish-on, start-no-earlier-than, etc.
+
+  private taskConstraints: Map<string, TaskConstraint> = new Map();
+
+  /**
+   * Set a constraint on a task
+   */
+  setTaskConstraint(taskId: string, constraint: TaskConstraint): void {
+    this.taskConstraints.set(taskId, constraint);
+    this.markDirty();
+  }
+
+  /**
+   * Remove constraint from a task
+   */
+  removeTaskConstraint(taskId: string): void {
+    this.taskConstraints.delete(taskId);
+    this.markDirty();
+  }
+
+  /**
+   * Get constraint for a task
+   */
+  getTaskConstraint(taskId: string): TaskConstraint | null {
+    return this.taskConstraints.get(taskId) || null;
+  }
+
+  /**
+   * Check if a proposed date violates the task's constraint
+   */
+  validateConstraint(taskId: string, proposedStart: Date, proposedEnd: Date): ConstraintViolation | null {
+    const constraint = this.taskConstraints.get(taskId);
+    if (!constraint) return null;
+
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return null;
+
+    switch (constraint.type) {
+      case 'must-start-on':
+        if (proposedStart.getTime() !== constraint.date.getTime()) {
+          return {
+            taskId,
+            constraintType: constraint.type,
+            constraintDate: constraint.date,
+            violationType: 'date-mismatch',
+            message: `Task must start on ${this.formatConstraintDate(constraint.date)}`
+          };
+        }
+        break;
+
+      case 'must-finish-on':
+        if (proposedEnd.getTime() !== constraint.date.getTime()) {
+          return {
+            taskId,
+            constraintType: constraint.type,
+            constraintDate: constraint.date,
+            violationType: 'date-mismatch',
+            message: `Task must finish on ${this.formatConstraintDate(constraint.date)}`
+          };
+        }
+        break;
+
+      case 'start-no-earlier-than':
+        if (proposedStart < constraint.date) {
+          return {
+            taskId,
+            constraintType: constraint.type,
+            constraintDate: constraint.date,
+            violationType: 'too-early',
+            message: `Task cannot start before ${this.formatConstraintDate(constraint.date)}`
+          };
+        }
+        break;
+
+      case 'start-no-later-than':
+        if (proposedStart > constraint.date) {
+          return {
+            taskId,
+            constraintType: constraint.type,
+            constraintDate: constraint.date,
+            violationType: 'too-late',
+            message: `Task cannot start after ${this.formatConstraintDate(constraint.date)}`
+          };
+        }
+        break;
+
+      case 'finish-no-earlier-than':
+        if (proposedEnd < constraint.date) {
+          return {
+            taskId,
+            constraintType: constraint.type,
+            constraintDate: constraint.date,
+            violationType: 'too-early',
+            message: `Task cannot finish before ${this.formatConstraintDate(constraint.date)}`
+          };
+        }
+        break;
+
+      case 'finish-no-later-than':
+        if (proposedEnd > constraint.date) {
+          return {
+            taskId,
+            constraintType: constraint.type,
+            constraintDate: constraint.date,
+            violationType: 'too-late',
+            message: `Task cannot finish after ${this.formatConstraintDate(constraint.date)}`
+          };
+        }
+        break;
+    }
+
+    return null;
+  }
+
+  /**
+   * Format constraint date for display
+   */
+  private formatConstraintDate(date: Date): string {
+    return date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  /**
+   * Get all constraint violations in the project
+   */
+  getAllConstraintViolations(): ConstraintViolation[] {
+    const violations: ConstraintViolation[] = [];
+
+    this.state.tasks.forEach(task => {
+      const violation = this.validateConstraint(task.id, task.startDate, task.endDate);
+      if (violation) {
+        violations.push(violation);
+      }
+    });
+
+    return violations;
+  }
+
+  /**
+   * Auto-adjust task to satisfy constraint (if possible)
+   */
+  adjustToConstraint(taskId: string): boolean {
+    const constraint = this.taskConstraints.get(taskId);
+    if (!constraint) return false;
+
+    const task = this.state.tasks.find(t => t.id === taskId);
+    if (!task) return false;
+
+    const duration = task.endDate.getTime() - task.startDate.getTime();
+
+    switch (constraint.type) {
+      case 'must-start-on':
+      case 'start-no-earlier-than':
+      case 'start-no-later-than':
+        task.startDate = new Date(constraint.date);
+        task.endDate = new Date(constraint.date.getTime() + duration);
+        break;
+
+      case 'must-finish-on':
+      case 'finish-no-earlier-than':
+      case 'finish-no-later-than':
+        task.endDate = new Date(constraint.date);
+        task.startDate = new Date(constraint.date.getTime() - duration);
+        break;
+    }
+
+    this.markDirty();
+    return true;
+  }
+
+  /**
+   * Get tasks with constraints
+   */
+  getTasksWithConstraints(): GanttTask[] {
+    return this.state.tasks.filter(t => this.taskConstraints.has(t.id));
+  }
+
+  /**
+   * Import constraints from data
+   */
+  importConstraints(data: Array<{ taskId: string; type: ConstraintType; date: string }>): void {
+    data.forEach(({ taskId, type, date }) => {
+      this.taskConstraints.set(taskId, {
+        type,
+        date: new Date(date)
+      });
+    });
+    this.markDirty();
+  }
+
+  /**
+   * Export constraints to data
+   */
+  exportConstraints(): Array<{ taskId: string; type: ConstraintType; date: string }> {
+    const result: Array<{ taskId: string; type: ConstraintType; date: string }> = [];
+
+    this.taskConstraints.forEach((constraint, taskId) => {
+      result.push({
+        taskId,
+        type: constraint.type,
+        date: constraint.date.toISOString()
+      });
+    });
+
+    return result;
+  }
+
+  // Callbacks for edit/delete
+  private onTaskDoubleClick?: (taskId: string) => void;
+  private onTaskDelete?: (taskId: string) => void;
+
+  /**
+   * Set double-click callback
+   */
+  setOnTaskDoubleClick(callback: (taskId: string) => void): void {
+    this.onTaskDoubleClick = callback;
+  }
+
+  /**
+   * Set delete callback
+   */
+  setOnTaskDelete(callback: (taskId: string) => void): void {
+    this.onTaskDelete = callback;
+  }
 }
 
 // ============================================================================
@@ -8529,6 +9552,101 @@ export interface TimelineMarker {
   icon?: string;
   showLabel?: boolean;
   description?: string;
+}
+
+// ============================================================================
+// Feature 11: Task Hierarchy Types
+// ============================================================================
+
+export interface TaskHierarchyNode {
+  parentId: string | null;
+  childIds: string[];
+  level: number;
+  expanded: boolean;
+}
+
+// ============================================================================
+// Feature 12: Resource Types
+// ============================================================================
+
+export interface Resource {
+  id: string;
+  name: string;
+  type: 'person' | 'equipment' | 'material' | 'other';
+  email?: string;
+  capacity?: number; // Default 100 (100%)
+  costRate?: number;
+  color?: string;
+  avatar?: string;
+}
+
+export interface TaskResourceAssignment {
+  resourceId: string;
+  taskId: string;
+  allocation: number; // Percentage (0-100+)
+  role?: string;
+}
+
+export interface ResourceAllocation {
+  resourceId: string;
+  totalAllocation: number;
+  dailyAllocation: Map<string, number>;
+  overallocatedDays: Date[];
+  availableCapacity: number;
+}
+
+// ============================================================================
+// Feature 13: Keyboard Types
+// ============================================================================
+
+export interface ShortcutModifiers {
+  ctrl?: boolean;
+  alt?: boolean;
+  shift?: boolean;
+  meta?: boolean;
+}
+
+export interface KeyboardShortcut {
+  key: string;
+  modifiers?: ShortcutModifiers;
+  action: () => void;
+  description?: string;
+}
+
+// ============================================================================
+// Feature 14: Reorder Types
+// ============================================================================
+
+export interface ReorderState {
+  isDragging: boolean;
+  sourceIndex: number;
+  targetIndex: number;
+  dragY: number;
+}
+
+// ============================================================================
+// Feature 15: Constraint Types
+// ============================================================================
+
+export type ConstraintType =
+  | 'must-start-on'
+  | 'must-finish-on'
+  | 'start-no-earlier-than'
+  | 'start-no-later-than'
+  | 'finish-no-earlier-than'
+  | 'finish-no-later-than';
+
+export interface TaskConstraint {
+  type: ConstraintType;
+  date: Date;
+}
+
+export interface ConstraintViolation {
+  taskId: string;
+  constraintType: ConstraintType;
+  constraintDate: Date;
+  violationType: 'date-mismatch' | 'too-early' | 'too-late';
+  message: string;
 }
 
 // Default export

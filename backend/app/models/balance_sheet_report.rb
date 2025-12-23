@@ -149,9 +149,10 @@ class BalanceSheetReport < ApplicationRecord
       return { success: false, error: "Company is not connected to Xero", created: 0 }
     end
 
-    # Determine date range: from Xero connection to current month
+    # Determine date range: from Xero connection to LAST completed month
+    # Don't generate for current month (incomplete data)
     start_date = connection.created_at.to_date.beginning_of_month
-    end_date = Date.current.end_of_month
+    end_date = Date.current.prev_month.end_of_month  # Last day of previous month
     company_code = company.code.presence || company.name[0..3].upcase
 
     created_count = 0
