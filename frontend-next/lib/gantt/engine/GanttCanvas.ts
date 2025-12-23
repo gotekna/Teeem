@@ -276,15 +276,15 @@ export interface SummaryTaskInfo {
 
 export interface TaskFilterConfig {
   status?: GanttTask['status'][];
-  suppliers?: number[];
+  supplierIds?: number[];
   dateRange?: { start: Date; end: Date };
   progressRange?: { min: number; max: number };
   locked?: boolean;
-  hasHold?: boolean;
-  hasDependencies?: boolean;
-  hasBrokenDependencies?: boolean;
-  searchTerm?: string;
-  customFilter?: (task: GanttTask) => boolean;
+  searchText?: string;
+  customPredicate?: (task: GanttTask) => boolean;
+  criticalPathOnly?: boolean;
+  onHoldOnly?: boolean;
+  brokenDependenciesOnly?: boolean;
 }
 
 export interface FilterStats {
