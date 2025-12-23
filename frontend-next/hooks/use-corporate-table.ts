@@ -279,7 +279,7 @@ function getFoundationId(entityType: CorporateEntityType): number | null {
     case 'companies':
       return null; // Companies use CorporateCompany Rails model, not Foundation
     case 'assets':
-      return 526; // Assets Foundation - Gold Standard Table with database-driven columns
+      return 530; // Assets Foundation - database-driven columns synced from assets table
     case 'directors':
       return null; // Directors use Contact Rails model with is_director=true
     default:
