@@ -17,6 +17,7 @@ import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './Criti
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
 import { RenderCoordinator } from './managers/RenderCoordinator';
 import { DependencyManager } from './managers/DependencyManager';
+import { InteractionManager, DragEvent, ResizeEvent, ProgressEvent, DependencyDragEvent, MarqueeEvent } from './managers/InteractionManager';
 import { SpatialIndex, Rect as SpatialRect } from './spatial/SpatialIndex';
 
 // Re-export Command type for external use
@@ -469,6 +470,7 @@ export class GanttCanvas {
   private selectionManager: SelectionManager;
   private renderCoordinator: RenderCoordinator;
   private dependencyManager: DependencyManager;
+  private interactionManager: InteractionManager;
   private spatialIndex: SpatialIndex;
 
   // Context menu state
@@ -586,7 +588,24 @@ export class GanttCanvas {
     this.selectionManager = new SelectionManager();
     this.renderCoordinator = new RenderCoordinator();
     this.dependencyManager = new DependencyManager();
+    this.interactionManager = new InteractionManager();
     this.spatialIndex = new SpatialIndex(50); // 50px cell size for grid-based hit testing
+
+    // Wire InteractionManager dependencies (Day 7 Final Integration)
+    this.interactionManager.setCanvas(this.canvas);
+    this.interactionManager.setSpatialIndex(this.spatialIndex);
+    this.interactionManager.setSelectionManager(this.selectionManager);
+    this.interactionManager.setRenderCoordinator(this.renderCoordinator);
+    this.interactionManager.setTaskAccessors(
+      (id: string) => this.state.tasks.find(t => t.id === id),
+      () => this.state.tasks
+    );
+    this.interactionManager.setCoordinateConverters(
+      (x: number) => this.viewport.xToDate(x),
+      (date: Date) => this.viewport.dateToX(date),
+      (y: number) => Math.floor((y - this.config.headerHeight + this.state.viewportState.scrollY) / this.config.rowHeight),
+      (row: number) => this.config.headerHeight + row * this.config.rowHeight - this.state.viewportState.scrollY
+    );
 
     // Wire selection manager to emit events
     this.selectionManager.onChange((event: SelectionChangeEvent) => {
@@ -620,6 +639,60 @@ export class GanttCanvas {
       if (event.type === 'add') {
         this.onDependencyCreate?.(event.dependency.fromId, event.dependency.toId, event.dependency.type);
       }
+    });
+
+    // Wire InteractionManager event handlers (Day 7 Final Integration)
+    this.interactionManager.onDrag((event: DragEvent) => {
+      if (event.phase === 'end') {
+        // Apply the date change to the task
+        const task = this.state.tasks.find(t => t.id === event.task.id);
+        if (task) {
+          task.startDate = event.newStartDate;
+          task.endDate = event.newEndDate;
+          this.onTaskUpdate?.(task);
+          this.rebuildSpatialIndex();
+        }
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onResize((event: ResizeEvent) => {
+      if (event.phase === 'end') {
+        const task = this.state.tasks.find(t => t.id === event.task.id);
+        if (task) {
+          task.startDate = event.newStartDate;
+          task.endDate = event.newEndDate;
+          this.onTaskUpdate?.(task);
+          this.rebuildSpatialIndex();
+        }
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onProgressChange((event: ProgressEvent) => {
+      if (event.phase === 'end') {
+        const task = this.state.tasks.find(t => t.id === event.task.id);
+        if (task) {
+          task.progress = event.newProgress;
+          this.onTaskUpdate?.(task);
+        }
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onDependencyDrag((event: DependencyDragEvent) => {
+      if (event.phase === 'end' && event.toTask) {
+        // Create dependency via DependencyManager
+        this.dependencyManager.addDependency(event.fromTask.id, event.toTask.id, 'FS');
+        // Sync to state
+        this.state.dependencies = this.dependencyManager.getDependencies();
+      }
+      this.markDirty();
+    });
+
+    this.interactionManager.onMarquee((event: MarqueeEvent) => {
+      // Selection is handled by InteractionManager using SelectionManager
+      this.markDirty();
     });
 
     // Set up canvas size
@@ -2058,6 +2131,7 @@ export class GanttCanvas {
     this.selectionManager.dispose();
     this.renderCoordinator.dispose();
     this.dependencyManager.dispose();
+    this.interactionManager.dispose();
     this.spatialIndex.clear();
   }
 
@@ -2120,16 +2194,30 @@ export class GanttCanvas {
   }
 
   /**
-   * Get the bounds of a task in canvas coordinates (Day 2 Refactor)
-   * Used for spatial indexing and hit testing
+   * Get the bounds of a task in world coordinates (Day 7 Optimization)
+   * World coordinates are scroll-independent for stable spatial indexing
    */
   private getTaskBounds(task: GanttTask, rowIndex: number): SpatialRect {
-    const x = this.viewport.dateToX(task.startDate);
-    const width = this.viewport.dateToX(task.endDate) - x;
-    const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding - this.state.viewportState.scrollY;
+    // Use world X (without scrollX offset applied by dateToX)
+    const screenX = this.viewport.dateToX(task.startDate);
+    const x = screenX + this.state.viewportState.scrollX;
+    const width = this.viewport.dateToX(task.endDate) - screenX;
+
+    // Use world Y (without scrollY offset)
+    const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding;
     const height = this.config.taskBarHeight;
 
     return { x, y, width, height };
+  }
+
+  /**
+   * Convert screen coordinates to world coordinates for spatial index queries
+   */
+  private screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+    return {
+      x: screenX + this.state.viewportState.scrollX,
+      y: screenY + this.state.viewportState.scrollY,
+    };
   }
 
   /**
@@ -3389,22 +3477,14 @@ export class GanttCanvas {
   }
 
   private hitTest(x: number, y: number): GanttTask | null {
-    // Account for header height
-    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
-    if (adjustedY < 0) return null;
+    // Convert screen coordinates to world coordinates (Day 7 Optimization)
+    const world = this.screenToWorld(x, y);
 
-    // Find which row was clicked
-    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
-    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
-
-    const task = this.state.tasks[rowIndex];
-
-    // Check if click is within the task bar
-    const taskStartX = this.viewport.dateToX(task.startDate);
-    const taskEndX = this.viewport.dateToX(task.endDate);
-
-    if (x >= taskStartX && x <= taskEndX) {
-      return task;
+    // Use SpatialIndex for O(1) hit testing
+    const hits = this.spatialIndex.queryPoint(world.x, world.y);
+    if (hits.length > 0) {
+      const taskId = hits[0];
+      return this.state.tasks.find(t => t.id === taskId) || null;
     }
 
     return null;
@@ -3521,33 +3601,27 @@ export class GanttCanvas {
 
   /**
    * Get tasks within a marquee rectangle
+   * Uses SpatialIndex for O(k) performance where k = tasks in rect (Day 7 Optimization)
    */
   private getTasksInMarquee(x1: number, y1: number, x2: number, y2: number): GanttTask[] {
+    // Convert screen coordinates to world coordinates
+    const world1 = this.screenToWorld(x1, y1);
+    const world2 = this.screenToWorld(x2, y2);
+
     // Normalize rectangle
-    const left = Math.min(x1, x2);
-    const right = Math.max(x1, x2);
-    const top = Math.min(y1, y2);
-    const bottom = Math.max(y1, y2);
+    const left = Math.min(world1.x, world2.x);
+    const right = Math.max(world1.x, world2.x);
+    const top = Math.min(world1.y, world2.y);
+    const bottom = Math.max(world1.y, world2.y);
 
-    const tasks: GanttTask[] = [];
+    // Use SpatialIndex for efficient rect query
+    const rect: SpatialRect = { x: left, y: top, width: right - left, height: bottom - top };
+    const taskIds = this.spatialIndex.queryRect(rect);
 
-    this.state.tasks.forEach((task, index) => {
-      const taskStartX = this.viewport.dateToX(task.startDate);
-      const taskEndX = this.viewport.dateToX(task.endDate);
-      const rowY = this.viewport.rowToY(index);
-      const taskTop = rowY + (this.config.rowHeight - this.config.taskBarHeight) / 2;
-      const taskBottom = taskTop + this.config.taskBarHeight;
-
-      // Check if task bar intersects with marquee
-      const intersectsX = taskStartX <= right && taskEndX >= left;
-      const intersectsY = taskTop <= bottom && taskBottom >= top;
-
-      if (intersectsX && intersectsY) {
-        tasks.push(task);
-      }
-    });
-
-    return tasks;
+    // Map IDs to tasks
+    return taskIds
+      .map(id => this.state.tasks.find(t => t.id === id))
+      .filter((t): t is GanttTask => t !== undefined);
   }
 
   // ============================================================================

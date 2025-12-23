@@ -230,14 +230,14 @@ class ProfitLossReport < ApplicationRecord
   end
 
   # Display name for table views - follows Entity Config: {DocTypeName} {MonthYearLong}
-  # Example: "Profit & Loss December 2025"
-  # FY column is for searching (e.g., search "FY2026" to find all 12 months)
+  # Example: "Profit and Loss December 2025"
+  # FY column is for searching (e.g., search "FY26" to find all 12 months)
   # For legacy reports without period_end, fallback to FY
   def display_name
     if period_end.present?
-      "P&L #{period_label}"  # "P&L December 2025"
+      "Profit and Loss #{period_label}"  # "Profit and Loss December 2025"
     else
-      "P&L #{financial_year}"  # "P&L FY2024" for legacy reports
+      "Profit and Loss #{financial_year}"  # "Profit and Loss FY24" for legacy reports
     end
   end
 
