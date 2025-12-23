@@ -23,12 +23,12 @@
 #   {DocTypeName}     - Document type name (e.g., "Profit and Loss")
 #   {DocTypeCode}     - Document type abbreviation (e.g., "P&L")
 #   {FY}              - Financial year short (e.g., "FY26")
-#   {YY}              - Year 2-digit (e.g., "26")
+#   {Year}            - Year 2-digit (e.g., "26")
+#   {YearLong}        - Year 4-digit (e.g., "2026")
 #   {Date}            - Document date formatted (e.g., "31-12-2025")
 #   {Signed}          - Signed/Unsigned status
 #   {MonthYearLong}   - Month and year (e.g., "December 2025")
-#   {MonthYearShort}  - Month and year short (e.g., "Dec25")
-#   {MonthYear}       - Alias for MonthYearShort
+#   {MonthYear}       - Month and year short (e.g., "Dec25")
 #   {Period}          - Period code (e.g., "Jan25", "Feb25", "EOY")
 #   {BankCode}        - Bank code (e.g., "NAB", "WBC")
 #   {AccountNumber}   - Bank account number
@@ -64,7 +64,8 @@ module DocumentTemplatable
                  else
                    fy_str
                  end
-      result.gsub!('{YY}', fy_short)
+      result.gsub!('{Year}', fy_short)
+      result.gsub!('{YearLong}', "20#{fy_short}")
       result.gsub!('{FY}', "FY#{fy_short}")
     end
 
@@ -90,8 +91,7 @@ module DocumentTemplatable
 
       # Month/Year tokens (for period-based reports)
       result.gsub!('{MonthYearLong}', doc_date.strftime('%B %Y'))      # "December 2025"
-      result.gsub!('{MonthYearShort}', doc_date.strftime('%b%y'))      # "Dec25"
-      result.gsub!('{MonthYear}', doc_date.strftime('%b%y'))           # Alias for MonthYearShort
+      result.gsub!('{MonthYear}', doc_date.strftime('%b%y'))           # "Dec25"
     end
 
     # =============
