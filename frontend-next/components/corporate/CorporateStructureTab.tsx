@@ -41,7 +41,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
-import type { TableColumn } from "@/components/table/types";
+import type { TableColumn, TableRow } from "@/components/table/types";
 import dynamic from "next/dynamic";
 import { isTrust } from "@/lib/entity-types";
 
@@ -227,9 +227,9 @@ export function CorporateStructureTab({
   };
 
   // Compute table rows for structure
-  const structureRows = React.useMemo(() => {
+  const structureRows = React.useMemo((): TableRow[] => {
     if (!structureData) return [];
-    const rows: Array<Record<string, unknown>> = [];
+    const rows: TableRow[] = [];
     const flattenCompanies = (companies: StructureCompany[], level = 0) => {
       for (const company of companies) {
         rows.push({
@@ -254,12 +254,12 @@ export function CorporateStructureTab({
   }, [structureData]);
 
   const structureColumns: TableColumn[] = [
-    { key: "display_name", label: "Name", type: "text" },
-    { key: "entity_type", label: "Type", type: "text" },
-    { key: "acn", label: "ACN", type: "text" },
-    { key: "status", label: "Status", type: "text" },
-    { key: "is_trustee", label: "Trustee", type: "text" },
-    { key: "trust_name", label: "Trust", type: "text" },
+    { key: "display_name", label: "Name", column_type: "text" },
+    { key: "entity_type", label: "Type", column_type: "text" },
+    { key: "acn", label: "ACN", column_type: "text" },
+    { key: "status", label: "Status", column_type: "text" },
+    { key: "is_trustee", label: "Trustee", column_type: "text" },
+    { key: "trust_name", label: "Trust", column_type: "text" },
   ];
 
   // Compute people rows with filter application
@@ -286,11 +286,11 @@ export function CorporateStructureTab({
   }, [structureData, structureFilters]);
 
   const peopleColumns: TableColumn[] = [
-    { key: "name", label: "Name", type: "text" },
-    { key: "email", label: "Email", type: "text" },
-    { key: "membership_type", label: "Type", type: "text" },
-    { key: "is_active", label: "Active", type: "text" },
-    { key: "roles_count", label: "Roles", type: "number" },
+    { key: "name", label: "Name", column_type: "text" },
+    { key: "email", label: "Email", column_type: "text" },
+    { key: "membership_type", label: "Type", column_type: "text" },
+    { key: "is_active", label: "Active", column_type: "text" },
+    { key: "roles_count", label: "Roles", column_type: "number" },
   ];
 
   return (

@@ -1345,7 +1345,6 @@ export default function CorporateDashboardPage() {
                               onClick={() => {
                                 setSelectedGroupId(group.id);
                                 setActiveTab("structure");
-                                setIsStructureFullscreen(true);
                               }}
                             >
                               <FolderOpen className="h-5 w-5 text-indigo-600" />
