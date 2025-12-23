@@ -569,6 +569,7 @@ export function EntityTabsConfig({
                   const applyReplacements = (str: string | undefined) => str
                     ?.replace(/\{CompanyCode\}/gi, 'TH')
                     ?.replace(/\{CompanyName\}/gi, 'Tekna Homes')
+                    ?.replace(/\{CompanyGroup\}/gi, 'Tekna Group')
                     ?.replace(/\{JobCode\}/gi, '46')
                     ?.replace(/\{JobId\}/gi, '46')
                     ?.replace(/\{JobNumber\}/gi, '46')

@@ -10,6 +10,26 @@
 import { Viewport, ViewportState } from './Viewport';
 import { Renderer } from './Renderer';
 import { UndoManager, Command } from './UndoManager';
+import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
+import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
+
+// Re-export Command type for external use
+export type { Command } from './UndoManager';
+export {
+  createMoveTaskCommand,
+  createResizeTaskCommand,
+  createAddDependencyCommand,
+  createRemoveDependencyCommand,
+  createDeleteTaskCommand,
+} from './UndoManager';
+
+// Re-export working days calendar types
+export type { Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
+export { WorkingDaysCalendar, getAustralianHolidays } from './WorkingDaysCalendar';
+
+// Re-export critical path types
+export type { CriticalPathResult, TaskSchedule } from './CriticalPath';
+export { calculateCriticalPath, getCriticalPathSummary } from './CriticalPath';
 
 // ============================================================================
 // Types
@@ -76,6 +96,14 @@ export interface GanttState {
   hoveredTaskId: string | null;
   hoveredEdge: 'left' | 'right' | null; // For resize handle highlighting
   viewportState: ViewportState;
+}
+
+export interface ContextMenuItem {
+  id: string;
+  label: string;
+  icon?: string;
+  disabled?: boolean;
+  separator?: boolean;
 }
 
 // ============================================================================
@@ -186,6 +214,30 @@ export class GanttCanvas {
   // Undo/Redo manager
   private undoManager: UndoManager;
 
+  // Working days calendar
+  private calendar: WorkingDaysCalendar;
+
+  // Context menu state
+  private contextMenuVisible: boolean = false;
+  private contextMenuX: number = 0;
+  private contextMenuY: number = 0;
+  private contextMenuTask: GanttTask | null = null;
+  private contextMenuItems: ContextMenuItem[] = [];
+  private contextMenuHoveredItem: string | null = null;
+
+  // Minimap state
+  private minimapVisible: boolean = true;
+  private minimapBounds: { x: number; y: number; width: number; height: number; viewportRect: { x: number; y: number; width: number; height: number } } | null = null;
+  private isDraggingMinimap: boolean = false;
+  private minimapDragStartX: number = 0;
+  private minimapDragStartY: number = 0;
+  private minimapDragStartScrollX: number = 0;
+  private minimapDragStartScrollY: number = 0;
+
+  // Critical path state
+  private criticalPathEnabled: boolean = false;
+  private criticalPathResult: CriticalPathResult | null = null;
+
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
   private onTaskDoubleClick?: (task: GanttTask) => void;
@@ -194,6 +246,7 @@ export class GanttCanvas {
   private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
   private onDependencyCreate?: (fromTaskId: string, toTaskId: string, type: 'FS' | 'SS' | 'FF' | 'SF') => void;
   private onUndoStateChange?: (canUndo: boolean, canRedo: boolean) => void;
+  private onContextMenuAction?: (actionId: string, task: GanttTask | null) => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -248,6 +301,9 @@ export class GanttCanvas {
       this.onUndoStateChange?.(canUndo, canRedo);
     });
 
+    // Create working days calendar
+    this.calendar = new WorkingDaysCalendar();
+
     // Set up canvas size
     this.resize();
 
@@ -281,6 +337,9 @@ export class GanttCanvas {
       this.state.viewportState.startDate = minDate;
       this.viewport.setStartDate(minDate);
     }
+
+    // Recalculate critical path if enabled
+    this.recalculateCriticalPath();
   }
 
   /**
@@ -289,6 +348,9 @@ export class GanttCanvas {
   setDependencies(dependencies: GanttDependency[]): void {
     this.state.dependencies = dependencies;
     this.markDirty();
+
+    // Recalculate critical path if enabled
+    this.recalculateCriticalPath();
   }
 
   /**
@@ -421,6 +483,111 @@ export class GanttCanvas {
   }
 
   /**
+   * Set handler for context menu actions
+   */
+  onContextMenuActionHandler(handler: (actionId: string, task: GanttTask | null) => void): void {
+    this.onContextMenuAction = handler;
+  }
+
+  /**
+   * Configure working days (array of day indices: 0=Sun, 1=Mon, ..., 6=Sat)
+   */
+  setWorkingDays(days: number[]): void {
+    this.calendar.setWorkingDays(days);
+    this.markDirty();
+  }
+
+  /**
+   * Add holidays to the calendar
+   */
+  addHolidays(holidays: Holiday[]): void {
+    this.calendar.addHolidays(holidays);
+    this.markDirty();
+  }
+
+  /**
+   * Clear all holidays
+   */
+  clearHolidays(): void {
+    this.calendar.clearHolidays();
+    this.markDirty();
+  }
+
+  /**
+   * Get the working days calendar instance for advanced configuration
+   */
+  getCalendar(): WorkingDaysCalendar {
+    return this.calendar;
+  }
+
+  /**
+   * Show or hide the minimap
+   */
+  setMinimapVisible(visible: boolean): void {
+    this.minimapVisible = visible;
+    this.markDirty();
+  }
+
+  /**
+   * Toggle minimap visibility
+   */
+  toggleMinimap(): void {
+    this.minimapVisible = !this.minimapVisible;
+    this.markDirty();
+  }
+
+  /**
+   * Check if minimap is visible
+   */
+  isMinimapVisible(): boolean {
+    return this.minimapVisible;
+  }
+
+  /**
+   * Enable or disable critical path highlighting
+   */
+  setCriticalPathEnabled(enabled: boolean): void {
+    this.criticalPathEnabled = enabled;
+    if (enabled) {
+      this.recalculateCriticalPath();
+    } else {
+      this.criticalPathResult = null;
+    }
+    this.markDirty();
+  }
+
+  /**
+   * Toggle critical path highlighting
+   */
+  toggleCriticalPath(): void {
+    this.setCriticalPathEnabled(!this.criticalPathEnabled);
+  }
+
+  /**
+   * Check if critical path highlighting is enabled
+   */
+  isCriticalPathEnabled(): boolean {
+    return this.criticalPathEnabled;
+  }
+
+  /**
+   * Get the current critical path result (for external analysis)
+   */
+  getCriticalPathResult(): CriticalPathResult | null {
+    return this.criticalPathResult;
+  }
+
+  /**
+   * Recalculate the critical path
+   */
+  recalculateCriticalPath(): void {
+    if (this.criticalPathEnabled) {
+      this.criticalPathResult = calculateCriticalPath(this.state.tasks, this.state.dependencies);
+      this.markDirty();
+    }
+  }
+
+  /**
    * Resize the canvas
    */
   resize(): void {
@@ -483,13 +650,21 @@ export class GanttCanvas {
     // Reset transform
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
+    // Get critical path data if enabled
+    const criticalTasks = this.criticalPathEnabled && this.criticalPathResult
+      ? this.criticalPathResult.criticalTasks
+      : undefined;
+    const criticalDeps = this.criticalPathEnabled && this.criticalPathResult
+      ? this.criticalPathResult.criticalDependencies
+      : undefined;
+
     // Draw layers in order
     this.renderer.drawBackground(this.containerWidth, this.containerHeight);
-    this.renderer.drawGrid(this.containerWidth, this.containerHeight, this.state.tasks.length);
+    this.renderer.drawGrid(this.containerWidth, this.containerHeight, this.state.tasks.length, this.calendar);
     this.renderer.drawTimeScale(this.containerWidth);
     this.renderer.drawTodayMarker(this.containerHeight);
-    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge);
-    this.renderer.drawDependencies(this.state.tasks, this.state.dependencies, this.state.lastSelectedTaskId);
+    this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
+    this.renderer.drawDependencies(this.state.tasks, this.state.dependencies, this.state.lastSelectedTaskId, this.containerHeight, criticalDeps);
 
     // Draw drag preview overlay
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {
@@ -527,12 +702,35 @@ export class GanttCanvas {
     // Draw selection count badge
     this.renderer.drawSelectionBadge(this.state.selectedTaskIds.size, this.containerWidth);
 
-    // Draw tooltip for hovered task (only when not dragging/resizing)
-    if (this.state.hoveredTaskId && !this.isDragging && !this.isResizing) {
+    // Draw tooltip for hovered task (only when not dragging/resizing/context menu)
+    if (this.state.hoveredTaskId && !this.isDragging && !this.isResizing && !this.contextMenuVisible) {
       const hoveredTask = this.state.tasks.find(t => t.id === this.state.hoveredTaskId);
       if (hoveredTask) {
         this.renderer.drawTooltip(hoveredTask, this.mouseX, this.mouseY, this.containerWidth);
       }
+    }
+
+    // Draw context menu (always on top)
+    if (this.contextMenuVisible && this.contextMenuItems.length > 0) {
+      this.renderer.drawContextMenu(
+        this.contextMenuX,
+        this.contextMenuY,
+        this.contextMenuItems,
+        this.containerWidth,
+        this.containerHeight,
+        this.contextMenuHoveredItem
+      );
+    }
+
+    // Draw minimap (bottom-right corner)
+    if (this.minimapVisible && this.state.tasks.length > 0) {
+      this.minimapBounds = this.renderer.drawMinimap(
+        this.state.tasks,
+        this.containerWidth,
+        this.containerHeight
+      );
+    } else {
+      this.minimapBounds = null;
     }
   }
 
@@ -548,6 +746,7 @@ export class GanttCanvas {
     this.canvas.addEventListener('dblclick', this.handleDoubleClick);
     this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
     this.canvas.addEventListener('keydown', this.handleKeyDown);
+    this.canvas.addEventListener('contextmenu', this.handleContextMenu);
     window.addEventListener('resize', this.handleResize);
   }
 
@@ -559,12 +758,61 @@ export class GanttCanvas {
     this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
     this.canvas.removeEventListener('wheel', this.handleWheel);
     this.canvas.removeEventListener('keydown', this.handleKeyDown);
+    this.canvas.removeEventListener('contextmenu', this.handleContextMenu);
     window.removeEventListener('resize', this.handleResize);
   }
 
   private handleMouseDown = (e: MouseEvent): void => {
     // Focus canvas for keyboard events
     this.canvas.focus();
+
+    // Check for minimap click first
+    if (this.minimapVisible && this.minimapBounds) {
+      const scrollResult = this.renderer.minimapClickToScroll(
+        e.offsetX,
+        e.offsetY,
+        this.minimapBounds,
+        this.state.tasks,
+        this.containerWidth,
+        this.containerHeight
+      );
+
+      if (scrollResult) {
+        // Start minimap drag
+        this.isDraggingMinimap = true;
+        this.minimapDragStartX = e.offsetX;
+        this.minimapDragStartY = e.offsetY;
+        this.minimapDragStartScrollX = this.state.viewportState.scrollX;
+        this.minimapDragStartScrollY = this.state.viewportState.scrollY;
+
+        // Also immediately scroll to the clicked position
+        this.viewport.scrollTo(scrollResult.scrollX, scrollResult.scrollY);
+        this.canvas.style.cursor = 'grabbing';
+        this.markDirty();
+        return;
+      }
+    }
+
+    // Check for context menu click first
+    if (this.contextMenuVisible) {
+      const itemId = this.renderer.hitTestContextMenu(
+        e.offsetX,
+        e.offsetY,
+        this.contextMenuX,
+        this.contextMenuY,
+        this.contextMenuItems,
+        this.containerWidth
+      );
+
+      if (itemId) {
+        this.handleContextMenuClick(itemId);
+        return;
+      } else {
+        // Clicked outside menu - close it
+        this.closeContextMenu();
+        return;
+      }
+    }
 
     // Check for connector hit first (for dependency creation)
     const connectorHit = this.hitTestConnector(e.offsetX, e.offsetY);
@@ -656,6 +904,14 @@ export class GanttCanvas {
   }
 
   private handleMouseUp = (e: MouseEvent): void => {
+    // Handle minimap drag completion
+    if (this.isDraggingMinimap) {
+      this.isDraggingMinimap = false;
+      this.canvas.style.cursor = 'default';
+      this.markDirty();
+      return;
+    }
+
     // Handle dependency creation completion
     if (this.isCreatingDependency && this.dependencyFromTask && this.dependencyFromEdge) {
       // Check if we dropped on a target task
@@ -769,6 +1025,42 @@ export class GanttCanvas {
     // Track mouse position for tooltip
     this.mouseX = e.offsetX;
     this.mouseY = e.offsetY;
+
+    // Handle minimap dragging
+    if (this.isDraggingMinimap && this.minimapBounds) {
+      const scrollResult = this.renderer.minimapClickToScroll(
+        e.offsetX,
+        e.offsetY,
+        this.minimapBounds,
+        this.state.tasks,
+        this.containerWidth,
+        this.containerHeight
+      );
+
+      if (scrollResult) {
+        this.viewport.scrollTo(scrollResult.scrollX, scrollResult.scrollY);
+        this.markDirty();
+      }
+      return;
+    }
+
+    // Handle context menu hover
+    if (this.contextMenuVisible) {
+      const itemId = this.renderer.hitTestContextMenu(
+        e.offsetX,
+        e.offsetY,
+        this.contextMenuX,
+        this.contextMenuY,
+        this.contextMenuItems,
+        this.containerWidth
+      );
+
+      if (itemId !== this.contextMenuHoveredItem) {
+        this.contextMenuHoveredItem = itemId;
+        this.markDirty();
+      }
+      return;
+    }
 
     // Handle dependency creation in progress
     if (this.dependencyFromTask && this.dependencyFromEdge) {
@@ -886,6 +1178,11 @@ export class GanttCanvas {
   };
 
   private handleMouseLeave = (): void => {
+    // Cancel any minimap dragging in progress
+    if (this.isDraggingMinimap) {
+      this.isDraggingMinimap = false;
+    }
+
     // Cancel any dependency creation in progress
     if (this.isCreatingDependency) {
       this.isCreatingDependency = false;
@@ -935,6 +1232,82 @@ export class GanttCanvas {
   private handleResize = (): void => {
     this.resize();
   };
+
+  private handleContextMenu = (e: MouseEvent): void => {
+    e.preventDefault();
+
+    // Check what was right-clicked
+    const task = this.hitTest(e.offsetX, e.offsetY);
+
+    // Build context menu items based on context
+    const items: ContextMenuItem[] = [];
+
+    if (task) {
+      // Task-specific context menu
+      items.push(
+        { id: 'edit', label: 'Edit Task', icon: '✏️' },
+        { id: 'separator1', label: '', separator: true },
+        { id: 'lock', label: task.locked ? 'Unlock Task' : 'Lock Task', icon: '🔒', disabled: false },
+        { id: 'separator2', label: '', separator: true },
+        { id: 'add-predecessor', label: 'Add Predecessor', icon: '⬅️' },
+        { id: 'add-successor', label: 'Add Successor', icon: '➡️' },
+        { id: 'separator3', label: '', separator: true },
+        { id: 'delete', label: 'Delete Task', icon: '🗑️', disabled: !!task.locked }
+      );
+    } else {
+      // Empty space context menu
+      items.push(
+        { id: 'add-task', label: 'Add Task', icon: '➕' },
+        { id: 'separator1', label: '', separator: true },
+        { id: 'zoom-fit', label: 'Zoom to Fit', icon: '🔍' },
+        { id: 'scroll-today', label: 'Go to Today', icon: '📅' }
+      );
+    }
+
+    // Show context menu
+    this.contextMenuVisible = true;
+    this.contextMenuX = e.offsetX;
+    this.contextMenuY = e.offsetY;
+    this.contextMenuTask = task;
+    this.contextMenuItems = items;
+    this.contextMenuHoveredItem = null;
+
+    this.markDirty();
+  };
+
+  private closeContextMenu(): void {
+    if (this.contextMenuVisible) {
+      this.contextMenuVisible = false;
+      this.contextMenuTask = null;
+      this.contextMenuItems = [];
+      this.contextMenuHoveredItem = null;
+      this.markDirty();
+    }
+  }
+
+  private handleContextMenuClick(itemId: string): void {
+    const task = this.contextMenuTask;
+    this.closeContextMenu();
+
+    // Handle built-in actions
+    switch (itemId) {
+      case 'edit':
+        if (task) this.onTaskDoubleClick?.(task);
+        break;
+      case 'delete':
+        if (task) this.onTaskDelete?.(task);
+        break;
+      case 'zoom-fit':
+        this.zoomToFit();
+        break;
+      case 'scroll-today':
+        this.scrollToToday();
+        break;
+      default:
+        // Delegate to external handler
+        this.onContextMenuAction?.(itemId, task);
+    }
+  }
 
   private handleKeyDown = (e: KeyboardEvent): void => {
     // Get the last selected task for keyboard operations
@@ -1029,9 +1402,15 @@ export class GanttCanvas {
 
       case 'Escape':
         e.preventDefault();
-        this.state.selectedTaskIds.clear();
-        this.state.lastSelectedTaskId = null;
-        this.markDirty();
+        // Close context menu if open
+        if (this.contextMenuVisible) {
+          this.closeContextMenu();
+        } else {
+          // Clear selection
+          this.state.selectedTaskIds.clear();
+          this.state.lastSelectedTaskId = null;
+          this.markDirty();
+        }
         break;
 
       case 'a':
@@ -1099,27 +1478,35 @@ export class GanttCanvas {
           this.markDirty();
         }
         break;
+
+      case 'm':
+      case 'M':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // M: Toggle minimap
+          this.toggleMinimap();
+        }
+        break;
+
+      case 'c':
+      case 'C':
+        if (!e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          // C: Toggle critical path
+          this.toggleCriticalPath();
+        }
+        break;
     }
   };
 
   /**
-   * Snap date to a working day (skip weekends)
+   * Snap date to a working day (skip weekends and holidays)
+   * Uses the WorkingDaysCalendar for accurate working day detection
    * @param date - The date to snap
    * @param forward - If true, snap forward to next working day; if false, snap backward
    */
   private snapToWorkingDay(date: Date, forward: boolean = true): Date {
-    const result = new Date(date);
-    const dayOfWeek = result.getDay(); // 0 = Sunday, 6 = Saturday
-
-    if (dayOfWeek === 0) {
-      // Sunday -> Monday (forward) or Friday (backward)
-      result.setDate(result.getDate() + (forward ? 1 : -2));
-    } else if (dayOfWeek === 6) {
-      // Saturday -> Monday (forward) or Friday (backward)
-      result.setDate(result.getDate() + (forward ? 2 : -1));
-    }
-
-    return result;
+    return this.calendar.snapToWorkingDay(date, forward);
   }
 
   private hitTest(x: number, y: number): GanttTask | null {
