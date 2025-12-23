@@ -12,7 +12,7 @@
 #
 class EntityTab < ApplicationRecord
   # Valid scopes (xero tabs are children of corporate_entity/xero tab)
-  SCOPES = %w[corporate_entity people job document].freeze
+  SCOPES = %w[corporate_entity people job document contact].freeze
 
   # Valid tab groups
   # - overview: Main features and data display

@@ -4,12 +4,12 @@ import * as React from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { cn } from "@/lib/utils";
 import { getIcon } from "@/lib/icon-map";
-import type { JobTab } from "@/lib/types/job-tabs";
+import type { EntityTab } from "@/lib/types/entity-tabs";
 
 interface HierarchicalTabsListProps {
-  tabs: JobTab[];
+  tabs: EntityTab[];
   activeTab: string;
-  onTabChange?: (slug: string) => void;
+  onTabChange?: (tabKey: string) => void;
   className?: string;
 }
 
@@ -17,9 +17,11 @@ interface HierarchicalTabsListProps {
  * A two-row TabsList that displays parent tabs in the first row and
  * children of the selected parent in the second row.
  *
+ * SSoT: Uses EntityTab directly from useEntityTabs hook (Phase 5)
+ *
  * Usage:
  * ```tsx
- * const { tabs } = useJobTabs();
+ * const { tabs } = useEntityTabs({ scope: "job" });
  *
  * <Tabs value={activeTab} onValueChange={setActiveTab}>
  *   <HierarchicalTabsList
@@ -38,9 +40,9 @@ export function HierarchicalTabsList({
   className,
 }: HierarchicalTabsListProps) {
   // Find the parent tab that contains the active tab as a child
-  const findParentOfActiveTab = React.useCallback((): JobTab | null => {
+  const findParentOfActiveTab = React.useCallback((): EntityTab | null => {
     for (const tab of tabs) {
-      if (tab.children?.some((child) => child.slug === activeTab)) {
+      if (tab.children?.some((child) => child.tab_key === activeTab)) {
         return tab;
       }
     }
@@ -52,7 +54,7 @@ export function HierarchicalTabsList({
   const selectedParent = React.useMemo(() => {
     // First check if active tab is a parent with children
     const activeParent = tabs.find(
-      (tab) => tab.slug === activeTab && tab.has_children && tab.children?.length > 0
+      (tab) => tab.tab_key === activeTab && tab.children && tab.children.length > 0
     );
     if (activeParent) return activeParent;
 
@@ -60,11 +62,11 @@ export function HierarchicalTabsList({
     return findParentOfActiveTab();
   }, [tabs, activeTab, findParentOfActiveTab]);
 
-  // Get visible tabs (not hidden)
-  const visibleTabs = tabs.filter((tab) => !tab.is_hidden);
+  // Get visible tabs (enabled)
+  const visibleTabs = tabs.filter((tab) => tab.enabled);
 
   // Check if we have any children to show
-  const childrenToShow = selectedParent?.children?.filter((child) => !child.is_hidden) || [];
+  const childrenToShow = selectedParent?.children?.filter((child) => child.enabled) || [];
 
   return (
     <div className={cn("space-y-1", className)}>
@@ -73,14 +75,15 @@ export function HierarchicalTabsList({
         className="flex flex-wrap gap-1 rounded-lg bg-muted p-1"
       >
         {visibleTabs.map((tab) => {
-          const IconComponent = getIcon(tab.icon);
-          const isParentOfActiveChild = selectedParent?.slug === tab.slug && tab.slug !== activeTab;
+          const IconComponent = getIcon(tab.icon_name || "file");
+          const isParentOfActiveChild = selectedParent?.tab_key === tab.tab_key && tab.tab_key !== activeTab;
+          const hasChildren = tab.children && tab.children.length > 0;
 
           return (
             <TabsPrimitive.Trigger
-              key={tab.slug}
-              value={tab.slug}
-              onClick={() => onTabChange?.(tab.slug)}
+              key={tab.tab_key}
+              value={tab.tab_key}
+              onClick={() => onTabChange?.(tab.tab_key)}
               className={cn(
                 "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -93,10 +96,10 @@ export function HierarchicalTabsList({
               )}
             >
               <IconComponent className="h-4 w-4" />
-              {tab.name}
-              {tab.has_children && tab.children && tab.children.length > 0 && (
+              {tab.display_name}
+              {hasChildren && (
                 <span className="text-xs text-muted-foreground ml-0.5">
-                  ({tab.children.filter((c) => !c.is_hidden).length})
+                  ({tab.children!.filter((c) => c.enabled).length})
                 </span>
               )}
             </TabsPrimitive.Trigger>
@@ -110,12 +113,12 @@ export function HierarchicalTabsList({
           className="flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1 ml-4"
         >
           {childrenToShow.map((child) => {
-            const ChildIcon = getIcon(child.icon);
+            const ChildIcon = getIcon(child.icon_name || "file");
             return (
               <TabsPrimitive.Trigger
-                key={child.slug}
-                value={child.slug}
-                onClick={() => onTabChange?.(child.slug)}
+                key={child.tab_key}
+                value={child.tab_key}
+                onClick={() => onTabChange?.(child.tab_key)}
                 className={cn(
                   "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -126,7 +129,7 @@ export function HierarchicalTabsList({
                 )}
               >
                 <ChildIcon className="h-4 w-4" />
-                {child.name}
+                {child.display_name}
               </TabsPrimitive.Trigger>
             );
           })}

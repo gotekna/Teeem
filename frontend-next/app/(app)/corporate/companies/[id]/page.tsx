@@ -57,8 +57,8 @@ import { ActivityTab } from "@/components/tabs";
 // Shared types for corporate entities (SSoT for Company type)
 import type { CorporateCompany } from "@/lib/types/corporate";
 
-// SSoT: Using unified EntityTabs API (Phase 4 migration)
-import { useCorporateEntityTabs } from "@/lib/hooks/useCorporateEntityTabs";
+// SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
+import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
@@ -156,13 +156,43 @@ export default function CompanyDetailPage() {
     return entityType;
   }, [company]);
 
-  // SSoT: Using unified EntityTabs API (Phase 4 migration)
-  // Corporate tabs - replaces old /api/v1/corporate/entity_tabs
-  const {
-    overviewTabs: entityOverviewTabs,
-    documentTabs: documentFolderTabs,
-    mainTabs: entityMainTabs,
-  } = useCorporateEntityTabs(normalizedEntityType);
+  // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
+  const { tabs: entityTabs } = useEntityTabs({
+    scope: "corporate_entity",
+    entityType: normalizedEntityType,
+  });
+
+  // Split tabs by group - SSoT: tab_group field from EntityTabs database
+  const entityOverviewTabs = React.useMemo(() => {
+    return entityTabs
+      .filter((t) => t.tab_group === "overview")
+      .map((t) => ({ id: t.tab_key, name: t.display_name }));
+  }, [entityTabs]);
+
+  const documentFolderTabs = React.useMemo(() => {
+    return entityTabs
+      .filter((t) => t.tab_group === "documents")
+      .map((t) => {
+        // Some tabs need "-docs" suffix to avoid conflicts with other tabs
+        const needsDocsSuffix = ["assets", "dividends", "loans", "minutes"].includes(t.tab_key);
+        return {
+          id: needsDocsSuffix ? `${t.tab_key}-docs` : t.tab_key,
+          name: t.display_name,
+          icon: t.icon_name,
+        };
+      });
+  }, [entityTabs]);
+
+  const entityMainTabs = React.useMemo(() => {
+    return entityTabs
+      .filter((t) => t.tab_group === "main")
+      .map((t) => ({
+        id: t.tab_key,
+        name: t.display_name,
+        icon: t.icon_name,
+        component: t.component_name,
+      }));
+  }, [entityTabs]);
 
   // Map folder names to icons
   const getFolderIcon = (folderName: string) => {
@@ -190,7 +220,7 @@ export default function CompanyDetailPage() {
     return iconMap[folderName] || FileText;
   };
 
-  // REMOVED: loadEntityTabs - now using useCorporateEntityTabs hook (SSoT)
+  // REMOVED: loadEntityTabs - now using useEntityTabs hook directly (SSoT)
   // REMOVED: loadXeroTabs - now using XeroTabRenderer with useEntityTabs (SSoT)
 
   // Load company details
@@ -201,7 +231,7 @@ export default function CompanyDetailPage() {
         `/api/v1/companies/${companyId}`
       );
       setCompany(response.company);
-      // SSoT: Entity tabs now loaded via useCorporateEntityTabs hook (Phase 4)
+      // SSoT: Entity tabs now loaded via useEntityTabs hook directly (Phase 5)
       // The hook automatically refetches when company.entity_type changes
     } catch (error) {
       console.error("Failed to load company:", error);

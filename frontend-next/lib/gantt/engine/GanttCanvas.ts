@@ -156,10 +156,23 @@ export class GanttCanvas {
   private dragCurrentDate: Date | null = null;
   private dragThreshold: number = 5; // pixels before drag starts
 
+  // Resize state
+  private isResizing: boolean = false;
+  private resizeTask: GanttTask | null = null;
+  private resizeEdge: 'left' | 'right' | null = null;
+  private resizeStartX: number = 0;
+  private resizeOriginalStart: Date | null = null;
+  private resizeOriginalEnd: Date | null = null;
+  private resizeCurrentStart: Date | null = null;
+  private resizeCurrentEnd: Date | null = null;
+  private resizeHandleWidth: number = 8; // pixels for edge detection
+
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
   private onTaskDoubleClick?: (task: GanttTask) => void;
   private onTaskDrag?: (task: GanttTask, newStartDate: Date) => void;
+  private onTaskDelete?: (task: GanttTask) => void;
+  private onTaskResize?: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -319,6 +332,14 @@ export class GanttCanvas {
     this.onTaskDrag = handler;
   }
 
+  onTaskDeleteHandler(handler: (task: GanttTask) => void): void {
+    this.onTaskDelete = handler;
+  }
+
+  onTaskResizeHandler(handler: (task: GanttTask, newStartDate: Date, newEndDate: Date) => void): void {
+    this.onTaskResize = handler;
+  }
+
   /**
    * Resize the canvas
    */
@@ -398,15 +419,31 @@ export class GanttCanvas {
         this.state.tasks.indexOf(this.dragTask)
       );
     }
+
+    // Draw resize preview overlay
+    if (this.isResizing && this.resizeTask && this.resizeCurrentStart && this.resizeCurrentEnd && this.resizeEdge) {
+      this.renderer.drawResizePreview(
+        this.resizeTask,
+        this.resizeCurrentStart,
+        this.resizeCurrentEnd,
+        this.state.tasks.indexOf(this.resizeTask),
+        this.resizeEdge
+      );
+    }
   }
 
   private setupEventListeners(): void {
+    // Make canvas focusable for keyboard events
+    this.canvas.tabIndex = 0;
+    this.canvas.style.outline = 'none'; // Remove focus outline
+
     this.canvas.addEventListener('mousedown', this.handleMouseDown);
     this.canvas.addEventListener('mousemove', this.handleMouseMove);
     this.canvas.addEventListener('mouseup', this.handleMouseUp);
     this.canvas.addEventListener('mouseleave', this.handleMouseLeave);
     this.canvas.addEventListener('dblclick', this.handleDoubleClick);
     this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
+    this.canvas.addEventListener('keydown', this.handleKeyDown);
     window.addEventListener('resize', this.handleResize);
   }
 
@@ -417,10 +454,31 @@ export class GanttCanvas {
     this.canvas.removeEventListener('mouseleave', this.handleMouseLeave);
     this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
     this.canvas.removeEventListener('wheel', this.handleWheel);
+    this.canvas.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('resize', this.handleResize);
   }
 
   private handleMouseDown = (e: MouseEvent): void => {
+    // Focus canvas for keyboard events
+    this.canvas.focus();
+
+    // Check for resize edge first
+    const edgeHit = this.hitTestEdge(e.offsetX, e.offsetY);
+    if (edgeHit && !edgeHit.task.locked) {
+      // Start potential resize
+      this.resizeTask = edgeHit.task;
+      this.resizeEdge = edgeHit.edge;
+      this.resizeStartX = e.offsetX;
+      this.resizeOriginalStart = new Date(edgeHit.task.startDate);
+      this.resizeOriginalEnd = new Date(edgeHit.task.endDate);
+      this.resizeCurrentStart = new Date(edgeHit.task.startDate);
+      this.resizeCurrentEnd = new Date(edgeHit.task.endDate);
+      this.state.selectedTaskId = edgeHit.task.id;
+      this.markDirty();
+      return;
+    }
+
+    // Check for regular task hit
     const task = this.hitTest(e.offsetX, e.offsetY);
     if (task && !task.locked) {
       // Start potential drag
@@ -434,6 +492,32 @@ export class GanttCanvas {
   };
 
   private handleMouseUp = (e: MouseEvent): void => {
+    // Handle resize completion
+    if (this.isResizing && this.resizeTask && this.resizeCurrentStart && this.resizeCurrentEnd) {
+      const originalStart = this.resizeOriginalStart!;
+      const originalEnd = this.resizeOriginalEnd!;
+      const newStart = this.resizeCurrentStart;
+      const newEnd = this.resizeCurrentEnd;
+
+      // Only trigger if dates actually changed
+      if (originalStart.getTime() !== newStart.getTime() || originalEnd.getTime() !== newEnd.getTime()) {
+        this.onTaskResize?.(this.resizeTask, newStart, newEnd);
+      }
+
+      this.isResizing = false;
+      this.canvas.style.cursor = 'pointer';
+      this.resetResizeState();
+      this.markDirty();
+      return;
+    } else if (this.resizeTask && !this.isResizing) {
+      // It was a click on edge, not a resize
+      this.onTaskClick?.(this.resizeTask);
+      this.resetResizeState();
+      this.markDirty();
+      return;
+    }
+
+    // Handle drag completion
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {
       // Complete the drag
       const originalDate = this.dragStartDate!;
@@ -459,6 +543,16 @@ export class GanttCanvas {
     this.markDirty();
   };
 
+  private resetResizeState(): void {
+    this.resizeTask = null;
+    this.resizeEdge = null;
+    this.resizeStartX = 0;
+    this.resizeOriginalStart = null;
+    this.resizeOriginalEnd = null;
+    this.resizeCurrentStart = null;
+    this.resizeCurrentEnd = null;
+  }
+
   private handleDoubleClick = (e: MouseEvent): void => {
     const task = this.hitTest(e.offsetX, e.offsetY);
     if (task) {
@@ -467,6 +561,51 @@ export class GanttCanvas {
   };
 
   private handleMouseMove = (e: MouseEvent): void => {
+    // Handle resize in progress
+    if (this.resizeTask && this.resizeOriginalStart && this.resizeOriginalEnd) {
+      const deltaX = e.offsetX - this.resizeStartX;
+
+      // Check if we've crossed the threshold to start resizing
+      if (!this.isResizing && Math.abs(deltaX) > this.dragThreshold) {
+        this.isResizing = true;
+        this.canvas.style.cursor = 'ew-resize';
+      }
+
+      if (this.isResizing) {
+        // Calculate day offset from mouse movement
+        const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.state.viewportState.zoom));
+
+        if (this.resizeEdge === 'left') {
+          // Resizing from left - change start date
+          let newStart = new Date(this.resizeOriginalStart);
+          newStart.setDate(newStart.getDate() + daysDelta);
+          newStart.setHours(0, 0, 0, 0);
+          newStart = this.snapToWorkingDay(newStart, daysDelta >= 0);
+
+          // Don't allow start to go past end (minimum 1 day)
+          if (newStart < this.resizeOriginalEnd!) {
+            this.resizeCurrentStart = newStart;
+            this.resizeCurrentEnd = new Date(this.resizeOriginalEnd);
+            this.markDirty();
+          }
+        } else if (this.resizeEdge === 'right') {
+          // Resizing from right - change end date
+          let newEnd = new Date(this.resizeOriginalEnd);
+          newEnd.setDate(newEnd.getDate() + daysDelta);
+          newEnd.setHours(0, 0, 0, 0);
+          newEnd = this.snapToWorkingDay(newEnd, daysDelta >= 0);
+
+          // Don't allow end to go before start (minimum 1 day)
+          if (newEnd > this.resizeOriginalStart!) {
+            this.resizeCurrentStart = new Date(this.resizeOriginalStart);
+            this.resizeCurrentEnd = newEnd;
+            this.markDirty();
+          }
+        }
+        return;
+      }
+    }
+
     // Handle drag in progress
     if (this.dragTask && this.dragStartDate) {
       const deltaX = e.offsetX - this.dragStartX;
@@ -480,11 +619,15 @@ export class GanttCanvas {
       if (this.isDragging) {
         // Calculate new date based on drag distance
         const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.state.viewportState.zoom));
-        const newDate = new Date(this.dragStartDate);
+        let newDate = new Date(this.dragStartDate);
         newDate.setDate(newDate.getDate() + daysDelta);
 
         // Snap to day
         newDate.setHours(0, 0, 0, 0);
+
+        // Snap to working day (skip weekends)
+        // Use forward direction when moving right, backward when moving left
+        newDate = this.snapToWorkingDay(newDate, daysDelta >= 0);
 
         if (this.dragCurrentDate?.getTime() !== newDate.getTime()) {
           this.dragCurrentDate = newDate;
@@ -494,7 +637,16 @@ export class GanttCanvas {
       }
     }
 
-    // Normal hover handling
+    // Normal hover handling - check for resize edges first
+    const edgeHit = this.hitTestEdge(e.offsetX, e.offsetY);
+    if (edgeHit) {
+      this.state.hoveredTaskId = edgeHit.task.id;
+      this.canvas.style.cursor = edgeHit.task.locked ? 'not-allowed' : 'ew-resize';
+      this.markDirty();
+      return;
+    }
+
+    // Check for task hover
     const task = this.hitTest(e.offsetX, e.offsetY);
     const newHoveredId = task?.id || null;
 
@@ -506,6 +658,12 @@ export class GanttCanvas {
   };
 
   private handleMouseLeave = (): void => {
+    // Cancel any resize in progress
+    if (this.isResizing) {
+      this.isResizing = false;
+      this.resetResizeState();
+    }
+
     // Cancel any drag in progress
     if (this.isDragging) {
       this.isDragging = false;
@@ -540,6 +698,149 @@ export class GanttCanvas {
     this.resize();
   };
 
+  private handleKeyDown = (e: KeyboardEvent): void => {
+    const selectedTask = this.state.selectedTaskId
+      ? this.state.tasks.find(t => t.id === this.state.selectedTaskId)
+      : null;
+    const selectedIndex = selectedTask
+      ? this.state.tasks.indexOf(selectedTask)
+      : -1;
+
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        if (e.shiftKey && selectedTask && !selectedTask.locked) {
+          // Shift+Up: Move selection up in list (reorder - future feature)
+        } else {
+          // Select previous task
+          if (selectedIndex > 0) {
+            this.state.selectedTaskId = this.state.tasks[selectedIndex - 1].id;
+            this.scrollToTask(this.state.selectedTaskId);
+            this.markDirty();
+          }
+        }
+        break;
+
+      case 'ArrowDown':
+        e.preventDefault();
+        if (e.shiftKey && selectedTask && !selectedTask.locked) {
+          // Shift+Down: Move selection down in list (reorder - future feature)
+        } else {
+          // Select next task
+          if (selectedIndex < this.state.tasks.length - 1) {
+            this.state.selectedTaskId = this.state.tasks[selectedIndex + 1].id;
+            this.scrollToTask(this.state.selectedTaskId);
+            this.markDirty();
+          }
+        }
+        break;
+
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (e.shiftKey && selectedTask && !selectedTask.locked) {
+          // Shift+Left: Move task earlier by 1 day
+          const newDate = new Date(selectedTask.startDate);
+          newDate.setDate(newDate.getDate() - 1);
+          const snappedDate = this.snapToWorkingDay(newDate, false);
+          this.onTaskDrag?.(selectedTask, snappedDate);
+        } else {
+          // Pan left
+          this.viewport.pan(50, 0);
+          this.markDirty();
+        }
+        break;
+
+      case 'ArrowRight':
+        e.preventDefault();
+        if (e.shiftKey && selectedTask && !selectedTask.locked) {
+          // Shift+Right: Move task later by 1 day
+          const newDate = new Date(selectedTask.startDate);
+          newDate.setDate(newDate.getDate() + 1);
+          const snappedDate = this.snapToWorkingDay(newDate, true);
+          this.onTaskDrag?.(selectedTask, snappedDate);
+        } else {
+          // Pan right
+          this.viewport.pan(-50, 0);
+          this.markDirty();
+        }
+        break;
+
+      case 'Enter':
+        e.preventDefault();
+        if (selectedTask) {
+          this.onTaskDoubleClick?.(selectedTask);
+        }
+        break;
+
+      case 'Delete':
+      case 'Backspace':
+        e.preventDefault();
+        if (selectedTask && !selectedTask.locked) {
+          this.onTaskDelete?.(selectedTask);
+        }
+        break;
+
+      case 'Escape':
+        e.preventDefault();
+        this.state.selectedTaskId = null;
+        this.markDirty();
+        break;
+
+      case 'Home':
+        e.preventDefault();
+        this.scrollToToday();
+        break;
+
+      case '0':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+0: Reset zoom
+          this.viewport.setZoom(1);
+          this.markDirty();
+        }
+        break;
+
+      case '+':
+      case '=':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+Plus: Zoom in
+          this.viewport.zoom(1.2, this.containerWidth / 2, this.containerHeight / 2);
+          this.markDirty();
+        }
+        break;
+
+      case '-':
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          // Ctrl+Minus: Zoom out
+          this.viewport.zoom(0.8, this.containerWidth / 2, this.containerHeight / 2);
+          this.markDirty();
+        }
+        break;
+    }
+  };
+
+  /**
+   * Snap date to a working day (skip weekends)
+   * @param date - The date to snap
+   * @param forward - If true, snap forward to next working day; if false, snap backward
+   */
+  private snapToWorkingDay(date: Date, forward: boolean = true): Date {
+    const result = new Date(date);
+    const dayOfWeek = result.getDay(); // 0 = Sunday, 6 = Saturday
+
+    if (dayOfWeek === 0) {
+      // Sunday -> Monday (forward) or Friday (backward)
+      result.setDate(result.getDate() + (forward ? 1 : -2));
+    } else if (dayOfWeek === 6) {
+      // Saturday -> Monday (forward) or Friday (backward)
+      result.setDate(result.getDate() + (forward ? 2 : -1));
+    }
+
+    return result;
+  }
+
   private hitTest(x: number, y: number): GanttTask | null {
     // Account for header height
     const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
@@ -557,6 +858,38 @@ export class GanttCanvas {
 
     if (x >= taskStartX && x <= taskEndX) {
       return task;
+    }
+
+    return null;
+  }
+
+  /**
+   * Hit test for resize edges
+   * Returns which edge was clicked (left, right) or null if not on an edge
+   */
+  private hitTestEdge(x: number, y: number): { task: GanttTask; edge: 'left' | 'right' } | null {
+    // Account for header height
+    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    if (adjustedY < 0) return null;
+
+    // Find which row was clicked
+    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
+    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
+
+    const task = this.state.tasks[rowIndex];
+
+    // Calculate task bar bounds
+    const taskStartX = this.viewport.dateToX(task.startDate);
+    const taskEndX = this.viewport.dateToX(task.endDate);
+
+    // Check left edge
+    if (x >= taskStartX - this.resizeHandleWidth / 2 && x <= taskStartX + this.resizeHandleWidth / 2) {
+      return { task, edge: 'left' };
+    }
+
+    // Check right edge
+    if (x >= taskEndX - this.resizeHandleWidth / 2 && x <= taskEndX + this.resizeHandleWidth / 2) {
+      return { task, edge: 'right' };
     }
 
     return null;

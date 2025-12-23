@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_000001) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_015208) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4769,6 +4769,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_000001) do
     t.string "cost_centre"
     t.boolean "require_supplier_confirm", default: false
     t.boolean "is_master", default: false
+    t.integer "ts_identifier"
+    t.string "category"
+    t.index ["category"], name: "index_sm_template_rows_on_category"
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
@@ -4781,6 +4784,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_000001) do
     t.index ["stage"], name: "index_sm_template_rows_on_stage"
     t.index ["supplier_id"], name: "index_sm_template_rows_on_supplier_id"
     t.index ["trade"], name: "index_sm_template_rows_on_trade"
+    t.index ["ts_identifier"], name: "index_sm_template_rows_on_ts_identifier"
     t.index ["updated_by_id"], name: "index_sm_template_rows_on_updated_by_id"
   end
 

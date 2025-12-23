@@ -140,15 +140,14 @@ export function XeroTabRenderer({
 
   // Filter to just Xero tabs (tabs with parent that has tab_key="xero")
   // NOTE: Backend returns NESTED tabs (children inside parent.children array)
-  const xeroTabs = React.useMemo(() => {
+  const xeroTabs = React.useMemo((): EntityTab[] => {
     // Find the Xero parent tab
     const xeroParent = tabs.find((t) => t.tab_key === "xero" && !t.parent_id);
     if (!xeroParent) return [];
 
-    // Children are NESTED inside parent, not flat in the tabs array
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const children = (xeroParent as any).children || [];
-    return children.filter((t: EntityTab) => t.enabled);
+    // Children are NESTED inside parent (EntityTab.children array)
+    const children: EntityTab[] = xeroParent.children || [];
+    return children.filter((t) => t.enabled);
   }, [tabs]);
 
   // Build hierarchy (L1 = direct children of xero, L2 = grandchildren)
@@ -158,17 +157,16 @@ export function XeroTabRenderer({
     const l1 = xeroTabs;
 
     // Find active L1 - match by tab_key or prefix
-    const currentL1 = l1.find((t: EntityTab) => t.tab_key === activeSubTab)
-      || l1.find((t: EntityTab) => activeSubTab.startsWith(t.tab_key))
+    const currentL1 = l1.find((t) => t.tab_key === activeSubTab)
+      || l1.find((t) => activeSubTab.startsWith(t.tab_key))
       || l1[0] || null;
 
     // L2 tabs = children NESTED inside active L1 tab
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const l2Children = currentL1 ? ((currentL1 as any).children || []) : [];
-    const l2 = l2Children.filter((t: EntityTab) => t.enabled);
+    const l2Children: EntityTab[] = currentL1?.children || [];
+    const l2 = l2Children.filter((t) => t.enabled);
 
     // Find active L2
-    const currentL2 = l2.find((t: EntityTab) => t.tab_key === activeSubTab) || l2[0] || null;
+    const currentL2 = l2.find((t) => t.tab_key === activeSubTab) || l2[0] || null;
 
     return {
       l1Tabs: l1,

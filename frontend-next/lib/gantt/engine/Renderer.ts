@@ -400,6 +400,100 @@ export class Renderer {
   }
 
   /**
+   * Draw resize preview overlay
+   */
+  drawResizePreview(
+    task: GanttTask,
+    newStartDate: Date,
+    newEndDate: Date,
+    rowIndex: number,
+    edge: 'left' | 'right'
+  ): void {
+    const { taskBarHeight, taskBarPadding } = this.config;
+    const originalStartX = this.viewport.dateToX(task.startDate);
+    const originalEndX = this.viewport.dateToX(task.endDate);
+
+    // Calculate new position
+    const newStartX = this.viewport.dateToX(newStartDate);
+    const newEndX = this.viewport.dateToX(newEndDate);
+    const taskWidth = Math.max(newEndX - newStartX, 20);
+
+    const y = this.viewport.rowToY(rowIndex);
+    const barY = y + taskBarPadding;
+    const barHeight = taskBarHeight;
+
+    // Draw ghost of original position
+    this.ctx.globalAlpha = 0.3;
+    this.ctx.fillStyle = '#9ca3af';
+    this.ctx.beginPath();
+    this.ctx.roundRect(originalStartX, barY, originalEndX - originalStartX, barHeight, 4);
+    this.ctx.fill();
+    this.ctx.globalAlpha = 1;
+
+    // Draw new position with highlight (green for expand, orange for shrink)
+    const isExpanding = (newEndX - newStartX) > (originalEndX - originalStartX);
+    this.ctx.fillStyle = isExpanding ? '#22c55e' : '#f59e0b';
+    this.ctx.beginPath();
+    this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
+    this.ctx.fill();
+
+    // Draw border
+    this.ctx.strokeStyle = isExpanding ? '#16a34a' : '#d97706';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
+    this.ctx.stroke();
+
+    // Draw task name
+    this.ctx.fillStyle = '#ffffff';
+    this.ctx.font = '11px Inter, system-ui, sans-serif';
+    this.ctx.textAlign = 'left';
+    this.ctx.textBaseline = 'middle';
+    if (taskWidth > 30) {
+      const truncatedText = this.truncateText(task.name, taskWidth - 16);
+      this.ctx.fillText(truncatedText, newStartX + 8, barY + barHeight / 2);
+    }
+
+    // Draw tooltip showing duration change
+    const originalDuration = Math.round(
+      (task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const newDuration = Math.round(
+      (newEndDate.getTime() - newStartDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const durationDiff = newDuration - originalDuration;
+
+    if (durationDiff !== 0) {
+      const tooltipText = durationDiff > 0 ? `+${durationDiff}d` : `${durationDiff}d`;
+      const fullText = `${newDuration} days (${tooltipText})`;
+
+      const tooltipX = edge === 'left' ? newStartX : newEndX;
+      const tooltipY = barY - 8;
+      const padding = 6;
+      const textWidth = this.ctx.measureText(fullText).width;
+
+      // Tooltip background
+      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+      this.ctx.beginPath();
+      this.ctx.roundRect(
+        tooltipX - textWidth / 2 - padding,
+        tooltipY - 10 - padding,
+        textWidth + padding * 2,
+        16 + padding,
+        4
+      );
+      this.ctx.fill();
+
+      // Tooltip text
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(fullText, tooltipX, tooltipY - 2);
+    }
+  }
+
+  /**
    * Draw dependencies between tasks
    */
   drawDependencies(tasks: GanttTask[], dependencies: GanttDependency[]): void {
