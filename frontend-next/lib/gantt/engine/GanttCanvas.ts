@@ -3857,7 +3857,1727 @@ export class GanttCanvas {
     this.onSelectionChange?.(this.getSelectedTaskIds());
     this.markDirty();
   }
+
+  // ============================================================================
+  // Filtering & Search API
+  // ============================================================================
+
+  /**
+   * Filter tasks by a predicate function
+   * Returns matching tasks without modifying the display
+   */
+  filterTasks(predicate: (task: GanttTask) => boolean): GanttTask[] {
+    return this.state.tasks.filter(predicate);
+  }
+
+  /**
+   * Search tasks by name (case-insensitive)
+   */
+  searchByName(query: string): GanttTask[] {
+    const lowerQuery = query.toLowerCase();
+    return this.state.tasks.filter(t => t.name.toLowerCase().includes(lowerQuery));
+  }
+
+  /**
+   * Find tasks within a date range
+   */
+  findTasksInDateRange(startDate: Date, endDate: Date): GanttTask[] {
+    return this.state.tasks.filter(t => {
+      return t.startDate <= endDate && t.endDate >= startDate;
+    });
+  }
+
+  /**
+   * Find tasks by supplier
+   */
+  findTasksBySupplier(supplierId: number): GanttTask[] {
+    return this.state.tasks.filter(t => t.supplierId === supplierId);
+  }
+
+  /**
+   * Find tasks with no predecessors (starting tasks)
+   */
+  findStartingTasks(): GanttTask[] {
+    return this.state.tasks.filter(t => !t.predecessorIds || t.predecessorIds.length === 0);
+  }
+
+  /**
+   * Find tasks with no successors (ending tasks)
+   */
+  findEndingTasks(): GanttTask[] {
+    const taskIdsWithSuccessors = new Set<string>();
+    this.state.dependencies.forEach(d => taskIdsWithSuccessors.add(d.fromId));
+    return this.state.tasks.filter(t => !taskIdsWithSuccessors.has(t.id));
+  }
+
+  /**
+   * Find overdue tasks (end date before today, not completed)
+   */
+  findOverdueTasks(): GanttTask[] {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return this.state.tasks.filter(t => {
+      return t.status !== 'completed' && t.endDate < today;
+    });
+  }
+
+  /**
+   * Find tasks due soon (within N days)
+   */
+  findTasksDueSoon(days: number = 7): GanttTask[] {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + days);
+
+    return this.state.tasks.filter(t => {
+      return t.status !== 'completed' && t.endDate >= today && t.endDate <= futureDate;
+    });
+  }
+
+  /**
+   * Find tasks starting soon (within N days)
+   */
+  findTasksStartingSoon(days: number = 7): GanttTask[] {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const futureDate = new Date(today);
+    futureDate.setDate(futureDate.getDate() + days);
+
+    return this.state.tasks.filter(t => {
+      return t.status === 'not-started' && t.startDate >= today && t.startDate <= futureDate;
+    });
+  }
+
+  // ============================================================================
+  // Task Hierarchy/Grouping API
+  // ============================================================================
+
+  private taskParentMap: Map<string, string> = new Map(); // child -> parent
+  private taskChildrenMap: Map<string, string[]> = new Map(); // parent -> children
+
+  /**
+   * Set parent-child relationship between tasks
+   */
+  setTaskParent(childId: string, parentId: string | null): void {
+    // Remove from old parent
+    const oldParentId = this.taskParentMap.get(childId);
+    if (oldParentId) {
+      const oldSiblings = this.taskChildrenMap.get(oldParentId) || [];
+      this.taskChildrenMap.set(oldParentId, oldSiblings.filter(id => id !== childId));
+    }
+
+    if (parentId) {
+      // Set new parent
+      this.taskParentMap.set(childId, parentId);
+      const children = this.taskChildrenMap.get(parentId) || [];
+      if (!children.includes(childId)) {
+        children.push(childId);
+        this.taskChildrenMap.set(parentId, children);
+      }
+    } else {
+      // Remove parent relationship
+      this.taskParentMap.delete(childId);
+    }
+
+    this.markDirty();
+  }
+
+  /**
+   * Get parent task ID
+   */
+  getTaskParent(taskId: string): string | null {
+    return this.taskParentMap.get(taskId) || null;
+  }
+
+  /**
+   * Get children task IDs
+   */
+  getTaskChildren(taskId: string): string[] {
+    return this.taskChildrenMap.get(taskId) || [];
+  }
+
+  /**
+   * Check if task has children
+   */
+  hasChildren(taskId: string): boolean {
+    return (this.taskChildrenMap.get(taskId)?.length || 0) > 0;
+  }
+
+  /**
+   * Check if task is a root task (no parent)
+   */
+  isRootTask(taskId: string): boolean {
+    return !this.taskParentMap.has(taskId);
+  }
+
+  /**
+   * Get all root tasks
+   */
+  getRootTasks(): GanttTask[] {
+    return this.state.tasks.filter(t => this.isRootTask(t.id));
+  }
+
+  /**
+   * Get task depth in hierarchy
+   */
+  getTaskDepth(taskId: string): number {
+    let depth = 0;
+    let currentId: string | null = taskId;
+    while (currentId && this.taskParentMap.has(currentId)) {
+      depth++;
+      currentId = this.taskParentMap.get(currentId) || null;
+    }
+    return depth;
+  }
+
+  /**
+   * Get all ancestors of a task
+   */
+  getTaskAncestors(taskId: string): string[] {
+    const ancestors: string[] = [];
+    let currentId: string | null = this.taskParentMap.get(taskId) || null;
+    while (currentId) {
+      ancestors.push(currentId);
+      currentId = this.taskParentMap.get(currentId) || null;
+    }
+    return ancestors;
+  }
+
+  /**
+   * Get all descendants of a task (recursive)
+   */
+  getTaskDescendants(taskId: string): string[] {
+    const descendants: string[] = [];
+    const children = this.taskChildrenMap.get(taskId) || [];
+
+    for (const childId of children) {
+      descendants.push(childId);
+      descendants.push(...this.getTaskDescendants(childId));
+    }
+
+    return descendants;
+  }
+
+  // ============================================================================
+  // Date Calculation Helpers
+  // ============================================================================
+
+  /**
+   * Calculate task duration in days
+   */
+  getTaskDuration(taskId: string): number {
+    const task = this.getTask(taskId);
+    if (!task) return 0;
+    return Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (24 * 60 * 60 * 1000));
+  }
+
+  /**
+   * Calculate working days duration (excluding weekends/holidays)
+   */
+  getTaskWorkingDays(taskId: string): number {
+    const task = this.getTask(taskId);
+    if (!task) return 0;
+    return this.calendar.getWorkingDaysBetween(task.startDate, task.endDate);
+  }
+
+  /**
+   * Set task duration (adjusts end date)
+   */
+  setTaskDuration(taskId: string, days: number): void {
+    const task = this.getTask(taskId);
+    if (!task) return;
+
+    const newEndDate = new Date(task.startDate);
+    newEndDate.setDate(newEndDate.getDate() + days - 1);
+    task.endDate = newEndDate;
+
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Set task duration in working days (adjusts end date)
+   */
+  setTaskWorkingDaysDuration(taskId: string, workingDays: number): void {
+    const task = this.getTask(taskId);
+    if (!task) return;
+
+    task.endDate = this.calendar.addWorkingDays(task.startDate, workingDays - 1);
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Move task to new start date (preserving duration)
+   */
+  moveTask(taskId: string, newStartDate: Date): void {
+    const task = this.getTask(taskId);
+    if (!task) return;
+
+    const duration = this.getTaskDuration(taskId);
+    task.startDate = new Date(newStartDate);
+    task.endDate = new Date(newStartDate);
+    task.endDate.setDate(task.endDate.getDate() + duration - 1);
+
+    this.onTaskUpdate?.(task);
+    this.markDirty();
+  }
+
+  /**
+   * Get project date range
+   */
+  getProjectDateRange(): { start: Date; end: Date } | null {
+    if (this.state.tasks.length === 0) return null;
+
+    let minDate = this.state.tasks[0].startDate;
+    let maxDate = this.state.tasks[0].endDate;
+
+    this.state.tasks.forEach(t => {
+      if (t.startDate < minDate) minDate = t.startDate;
+      if (t.endDate > maxDate) maxDate = t.endDate;
+    });
+
+    return { start: new Date(minDate), end: new Date(maxDate) };
+  }
+
+  /**
+   * Get project duration in days
+   */
+  getProjectDuration(): number {
+    const range = this.getProjectDateRange();
+    if (!range) return 0;
+    return Math.ceil((range.end.getTime() - range.start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+  }
+
+  /**
+   * Calculate earliest start for a task based on predecessors
+   */
+  calculateEarliestStart(taskId: string): Date {
+    const task = this.getTask(taskId);
+    if (!task) return new Date();
+
+    const predecessors = this.getPredecessors(taskId);
+    if (predecessors.length === 0) return task.startDate;
+
+    let latestPredEnd = new Date(0);
+
+    predecessors.forEach(dep => {
+      const predTask = this.getTask(dep.fromId);
+      if (!predTask) return;
+
+      let constraintDate: Date;
+      const lag = dep.lag || 0;
+
+      switch (dep.type) {
+        case 'FS':
+          constraintDate = new Date(predTask.endDate);
+          constraintDate.setDate(constraintDate.getDate() + 1 + lag);
+          break;
+        case 'SS':
+          constraintDate = new Date(predTask.startDate);
+          constraintDate.setDate(constraintDate.getDate() + lag);
+          break;
+        case 'FF':
+          const duration = this.getTaskDuration(taskId);
+          constraintDate = new Date(predTask.endDate);
+          constraintDate.setDate(constraintDate.getDate() + lag - duration + 1);
+          break;
+        case 'SF':
+          constraintDate = new Date(predTask.startDate);
+          constraintDate.setDate(constraintDate.getDate() + lag);
+          break;
+        default:
+          constraintDate = new Date(predTask.endDate);
+          constraintDate.setDate(constraintDate.getDate() + 1);
+      }
+
+      if (constraintDate > latestPredEnd) {
+        latestPredEnd = constraintDate;
+      }
+    });
+
+    return latestPredEnd.getTime() > 0 ? latestPredEnd : task.startDate;
+  }
+
+  // ============================================================================
+  // Validation & Constraints API
+  // ============================================================================
+
+  /**
+   * Validate all tasks and return issues
+   */
+  validateAllTasks(): Array<{ taskId: string; issue: string; severity: 'error' | 'warning' }> {
+    const issues: Array<{ taskId: string; issue: string; severity: 'error' | 'warning' }> = [];
+
+    this.state.tasks.forEach(task => {
+      // Check for invalid dates
+      if (task.endDate < task.startDate) {
+        issues.push({
+          taskId: task.id,
+          issue: 'End date is before start date',
+          severity: 'error',
+        });
+      }
+
+      // Check for zero duration
+      if (task.startDate.getTime() === task.endDate.getTime()) {
+        issues.push({
+          taskId: task.id,
+          issue: 'Task has zero duration',
+          severity: 'warning',
+        });
+      }
+
+      // Check for overdue
+      if (this.violatesTodayConstraint(task.id)) {
+        issues.push({
+          taskId: task.id,
+          issue: 'Task is overdue (past start date but not started)',
+          severity: 'warning',
+        });
+      }
+
+      // Check for broken dependencies
+      if (this.hasBrokenDependencies(task.id)) {
+        issues.push({
+          taskId: task.id,
+          issue: 'Task has broken dependencies',
+          severity: 'warning',
+        });
+      }
+
+      // Check progress vs status mismatch
+      if (task.status === 'completed' && (task.progress || 0) < 100) {
+        issues.push({
+          taskId: task.id,
+          issue: 'Task marked complete but progress < 100%',
+          severity: 'warning',
+        });
+      }
+
+      // Check for predecessor constraint violations
+      const earliestStart = this.calculateEarliestStart(task.id);
+      if (task.startDate < earliestStart && task.status !== 'completed') {
+        issues.push({
+          taskId: task.id,
+          issue: `Task starts before predecessors allow (earliest: ${earliestStart.toLocaleDateString()})`,
+          severity: 'error',
+        });
+      }
+    });
+
+    return issues;
+  }
+
+  /**
+   * Check if a task can be moved to a date
+   */
+  canMoveTask(taskId: string, newStartDate: Date): { canMove: boolean; reason?: string } {
+    const task = this.getTask(taskId);
+    if (!task) return { canMove: false, reason: 'Task not found' };
+
+    if (task.locked) {
+      return { canMove: false, reason: `Task is locked (${task.locked})` };
+    }
+
+    const constraints = this.checkMoveConstraints(taskId, newStartDate);
+
+    if (constraints.violatesToday) {
+      return { canMove: false, reason: 'Cannot schedule before today' };
+    }
+
+    if (constraints.violatesPredecessors.length > 0) {
+      return {
+        canMove: false,
+        reason: `Violates predecessor constraints (${constraints.violatesPredecessors.length} conflicts)`,
+      };
+    }
+
+    return { canMove: true };
+  }
+
+  /**
+   * Auto-schedule a task based on predecessors
+   */
+  autoScheduleTask(taskId: string): void {
+    const task = this.getTask(taskId);
+    if (!task || task.locked) return;
+
+    const earliestStart = this.calculateEarliestStart(taskId);
+    const snappedStart = this.calendar.snapToWorkingDay(earliestStart, true);
+
+    if (snappedStart.getTime() !== task.startDate.getTime()) {
+      this.moveTask(taskId, snappedStart);
+    }
+  }
+
+  /**
+   * Auto-schedule all unlocked tasks based on predecessors
+   */
+  autoScheduleAll(): number {
+    let count = 0;
+
+    // Sort by dependencies (process tasks with no/fewer predecessors first)
+    const sorted = [...this.state.tasks].sort((a, b) => {
+      const aPreds = a.predecessorIds?.length || 0;
+      const bPreds = b.predecessorIds?.length || 0;
+      return aPreds - bPreds;
+    });
+
+    this.beginBatchUpdate();
+
+    sorted.forEach(task => {
+      if (!task.locked) {
+        const oldStart = task.startDate.getTime();
+        this.autoScheduleTask(task.id);
+        if (task.startDate.getTime() !== oldStart) {
+          count++;
+        }
+      }
+    });
+
+    this.endBatchUpdate();
+    return count;
+  }
+
+  /**
+   * Get summary statistics
+   */
+  getStatistics(): {
+    totalTasks: number;
+    completedTasks: number;
+    inProgressTasks: number;
+    notStartedTasks: number;
+    onHoldTasks: number;
+    atRiskTasks: number;
+    overdueTasks: number;
+    completionRate: number;
+    averageProgress: number;
+    projectDuration: number;
+    workingDays: number;
+  } {
+    const statusCounts = this.getStatusCounts();
+    const range = this.getProjectDateRange();
+
+    return {
+      totalTasks: this.state.tasks.length,
+      completedTasks: statusCounts['completed'] || 0,
+      inProgressTasks: statusCounts['in-progress'] || 0,
+      notStartedTasks: statusCounts['not-started'] || 0,
+      onHoldTasks: statusCounts['on-hold'] || 0,
+      atRiskTasks: statusCounts['at-risk'] || 0,
+      overdueTasks: this.findOverdueTasks().length,
+      completionRate: this.getCompletionPercentage(),
+      averageProgress: this.getAverageProgress(),
+      projectDuration: this.getProjectDuration(),
+      workingDays: range ? this.calendar.getWorkingDaysBetween(range.start, range.end) : 0,
+    };
+  }
+
+  // =========================================================================
+  // CONTEXT MENU API
+  // =========================================================================
+
+  /**
+   * Context menu item definition
+   */
+  private contextMenuItems: ContextMenuItem[] = [];
+  private contextMenuPosition: { x: number; y: number } | null = null;
+  private contextMenuTarget: { type: 'task' | 'dependency' | 'canvas'; id?: string } | null = null;
+  private isContextMenuVisible: boolean = false;
+
+  /**
+   * Show context menu at position
+   */
+  showContextMenu(screenX: number, screenY: number, target: { type: 'task' | 'dependency' | 'canvas'; id?: string }): void {
+    this.contextMenuPosition = { x: screenX, y: screenY };
+    this.contextMenuTarget = target;
+    this.isContextMenuVisible = true;
+
+    // Build menu items based on target
+    this.contextMenuItems = this.buildContextMenuItems(target);
+
+    // Trigger callback for React to render menu
+    if (this.options.onContextMenu) {
+      this.options.onContextMenu({
+        x: screenX,
+        y: screenY,
+        items: this.contextMenuItems,
+        target,
+      });
+    }
+
+    this.requestRender();
+  }
+
+  /**
+   * Hide context menu
+   */
+  hideContextMenu(): void {
+    this.isContextMenuVisible = false;
+    this.contextMenuPosition = null;
+    this.contextMenuTarget = null;
+    this.contextMenuItems = [];
+
+    if (this.options.onContextMenuClose) {
+      this.options.onContextMenuClose();
+    }
+
+    this.requestRender();
+  }
+
+  /**
+   * Build context menu items based on target
+   */
+  private buildContextMenuItems(target: { type: 'task' | 'dependency' | 'canvas'; id?: string }): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+
+    if (target.type === 'task' && target.id) {
+      const task = this.getTask(target.id);
+      if (!task) return items;
+
+      // Edit actions
+      items.push({
+        id: 'edit',
+        label: 'Edit Task...',
+        icon: 'edit',
+        shortcut: 'Enter',
+        action: () => this.options.onTaskEdit?.(task),
+      });
+
+      items.push({ id: 'divider1', type: 'divider' });
+
+      // Status actions
+      if (task.status !== 'in-progress') {
+        items.push({
+          id: 'start',
+          label: 'Start Task',
+          icon: 'play',
+          shortcut: 'S',
+          action: () => this.startTask(target.id!),
+        });
+      }
+
+      if (task.status !== 'completed') {
+        items.push({
+          id: 'complete',
+          label: 'Mark Complete',
+          icon: 'check',
+          action: () => this.completeTask(target.id!),
+        });
+      }
+
+      if (!this.isTaskOnHold(target.id)) {
+        items.push({
+          id: 'hold',
+          label: 'Put On Hold...',
+          icon: 'pause',
+          shortcut: 'H',
+          action: () => this.options.onTaskHold?.(task),
+        });
+      } else {
+        items.push({
+          id: 'resume',
+          label: 'Resume Task',
+          icon: 'play',
+          shortcut: 'H',
+          action: () => this.resumeTask(target.id!),
+        });
+      }
+
+      items.push({ id: 'divider2', type: 'divider' });
+
+      // Lock actions
+      if (!task.locked) {
+        items.push({
+          id: 'lock',
+          label: 'Lock Position',
+          icon: 'lock',
+          shortcut: 'L',
+          action: () => this.lockTask(target.id!, 'manuallyPositioned'),
+        });
+      } else {
+        items.push({
+          id: 'unlock',
+          label: 'Unlock Position',
+          icon: 'unlock',
+          shortcut: 'L',
+          action: () => this.unlockTask(target.id!),
+        });
+      }
+
+      items.push({ id: 'divider3', type: 'divider' });
+
+      // Dependency actions
+      items.push({
+        id: 'add-predecessor',
+        label: 'Add Predecessor...',
+        icon: 'link',
+        action: () => this.options.onAddPredecessor?.(task),
+      });
+
+      items.push({
+        id: 'view-successors',
+        label: 'View Successors',
+        icon: 'arrow-right',
+        action: () => this.highlightSuccessors(target.id!),
+      });
+
+      if (task.brokenPredecessorIds && task.brokenPredecessorIds.length > 0) {
+        items.push({
+          id: 'restore-deps',
+          label: `Restore ${task.brokenPredecessorIds.length} Broken Dependencies`,
+          icon: 'refresh',
+          action: () => this.restoreBrokenDependencies(target.id!),
+        });
+      }
+
+      items.push({ id: 'divider4', type: 'divider' });
+
+      // Clipboard actions
+      items.push({
+        id: 'copy',
+        label: 'Copy',
+        icon: 'copy',
+        shortcut: 'Ctrl+C',
+        action: () => {
+          this.clipboardTask = { ...task };
+          this.clipboardIsCut = false;
+        },
+      });
+
+      items.push({
+        id: 'cut',
+        label: 'Cut',
+        icon: 'scissors',
+        shortcut: 'Ctrl+X',
+        action: () => {
+          this.clipboardTask = { ...task };
+          this.clipboardIsCut = true;
+        },
+      });
+
+      items.push({
+        id: 'duplicate',
+        label: 'Duplicate',
+        icon: 'copy',
+        shortcut: 'Ctrl+D',
+        action: () => this.duplicateTask(target.id!),
+      });
+
+      items.push({ id: 'divider5', type: 'divider' });
+
+      // Delete action
+      items.push({
+        id: 'delete',
+        label: 'Delete Task',
+        icon: 'trash',
+        shortcut: 'Delete',
+        danger: true,
+        action: () => this.deleteTask(target.id!),
+      });
+
+    } else if (target.type === 'dependency' && target.id) {
+      // Dependency context menu
+      items.push({
+        id: 'edit-dep',
+        label: 'Edit Dependency...',
+        icon: 'edit',
+        action: () => this.options.onDependencyEdit?.(target.id!),
+      });
+
+      items.push({
+        id: 'delete-dep',
+        label: 'Remove Dependency',
+        icon: 'unlink',
+        danger: true,
+        action: () => {
+          const dep = this.state.dependencies.find(d => d.id === target.id);
+          if (dep) {
+            this.removeDependency(dep.fromId, dep.toId);
+          }
+        },
+      });
+
+    } else if (target.type === 'canvas') {
+      // Canvas (empty area) context menu
+      items.push({
+        id: 'new-task',
+        label: 'New Task',
+        icon: 'plus',
+        shortcut: 'Ctrl+N',
+        action: () => this.options.onNewTask?.(),
+      });
+
+      if (this.clipboardTask) {
+        items.push({
+          id: 'paste',
+          label: 'Paste Task',
+          icon: 'clipboard',
+          shortcut: 'Ctrl+V',
+          action: () => {
+            if (this.clipboardTask) {
+              const newTask = this.createTask(this.clipboardTask);
+              if (this.clipboardIsCut && this.clipboardTask.id) {
+                this.deleteTask(this.clipboardTask.id);
+                this.clipboardTask = null;
+              }
+            }
+          },
+        });
+      }
+
+      items.push({ id: 'divider-canvas1', type: 'divider' });
+
+      items.push({
+        id: 'select-all',
+        label: 'Select All',
+        icon: 'check-square',
+        shortcut: 'Ctrl+A',
+        action: () => this.selectAllTasks(),
+      });
+
+      items.push({
+        id: 'zoom-fit',
+        label: 'Zoom to Fit',
+        icon: 'maximize',
+        shortcut: 'F',
+        action: () => this.zoomToFit(),
+      });
+
+      items.push({
+        id: 'scroll-today',
+        label: 'Go to Today',
+        icon: 'calendar',
+        shortcut: 'T',
+        action: () => this.scrollToToday(),
+      });
+    }
+
+    return items;
+  }
+
+  /**
+   * Execute a context menu action
+   */
+  executeContextMenuAction(itemId: string): void {
+    const item = this.contextMenuItems.find(i => i.id === itemId);
+    if (item && item.action) {
+      item.action();
+    }
+    this.hideContextMenu();
+  }
+
+  /**
+   * Get current context menu state
+   */
+  getContextMenuState(): {
+    visible: boolean;
+    position: { x: number; y: number } | null;
+    items: ContextMenuItem[];
+    target: { type: 'task' | 'dependency' | 'canvas'; id?: string } | null;
+  } {
+    return {
+      visible: this.isContextMenuVisible,
+      position: this.contextMenuPosition,
+      items: this.contextMenuItems,
+      target: this.contextMenuTarget,
+    };
+  }
+
+  // =========================================================================
+  // PRINT & EXPORT API
+  // =========================================================================
+
+  /**
+   * Generate print-ready HTML
+   */
+  generatePrintHTML(options: PrintOptions = {}): string {
+    const {
+      title = 'Gantt Chart',
+      includeHeader = true,
+      includeFooter = true,
+      pageSize = 'A4',
+      orientation = 'landscape',
+      showDependencies = true,
+      showProgress = true,
+      showDates = true,
+    } = options;
+
+    const tasks = this.state.tasks;
+    const range = this.getProjectDateRange();
+
+    let html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <style>
+          @page {
+            size: ${pageSize} ${orientation};
+            margin: 1cm;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 10pt;
+            color: #333;
+          }
+          .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 18pt;
+          }
+          .header .dates {
+            color: #666;
+            font-size: 9pt;
+          }
+          .task-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+          }
+          .task-table th,
+          .task-table td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+          }
+          .task-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+          }
+          .task-table tr:nth-child(even) {
+            background: #fafafa;
+          }
+          .progress-bar {
+            width: 100px;
+            height: 12px;
+            background: #eee;
+            border-radius: 6px;
+            overflow: hidden;
+          }
+          .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+          }
+          .status-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 8pt;
+          }
+          .status-not-started { background: #e0e0e0; }
+          .status-in-progress { background: #bbdefb; color: #1565c0; }
+          .status-completed { background: #c8e6c9; color: #2e7d32; }
+          .status-on-hold { background: #fff9c4; color: #f57f17; }
+          .status-at-risk { background: #ffcdd2; color: #c62828; }
+          .footer {
+            text-align: center;
+            font-size: 8pt;
+            color: #666;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+            margin-top: 20px;
+          }
+          @media print {
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+    `;
+
+    if (includeHeader) {
+      html += `
+        <div class="header">
+          <h1>${title}</h1>
+          ${range ? `<div class="dates">${this.formatDate(range.start)} - ${this.formatDate(range.end)}</div>` : ''}
+        </div>
+      `;
+    }
+
+    html += `
+      <table class="task-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Task Name</th>
+            ${showDates ? '<th>Start Date</th><th>End Date</th><th>Duration</th>' : ''}
+            ${showProgress ? '<th>Progress</th>' : ''}
+            <th>Status</th>
+            ${showDependencies ? '<th>Predecessors</th>' : ''}
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    tasks.forEach((task, index) => {
+      const duration = this.getTaskDuration(task.id);
+      const progress = task.progress || 0;
+      const status = task.status || 'not-started';
+      const preds = task.predecessorIds?.join(', ') || '-';
+
+      html += `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${this.escapeHTML(task.name)}</td>
+          ${showDates ? `
+            <td>${this.formatDate(task.startDate)}</td>
+            <td>${this.formatDate(task.endDate)}</td>
+            <td>${duration} days</td>
+          ` : ''}
+          ${showProgress ? `
+            <td>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width: ${progress}%"></div>
+              </div>
+              ${progress}%
+            </td>
+          ` : ''}
+          <td><span class="status-badge status-${status}">${status.replace('-', ' ')}</span></td>
+          ${showDependencies ? `<td>${preds}</td>` : ''}
+        </tr>
+      `;
+    });
+
+    html += `
+        </tbody>
+      </table>
+    `;
+
+    if (includeFooter) {
+      const stats = this.getStatistics();
+      html += `
+        <div class="footer">
+          <p>Total Tasks: ${stats.totalTasks} | Completed: ${stats.completedTasks} (${stats.completionRate.toFixed(1)}%) |
+             In Progress: ${stats.inProgressTasks} | On Hold: ${stats.onHoldTasks} | At Risk: ${stats.atRiskTasks}</p>
+          <p>Generated on ${new Date().toLocaleString()}</p>
+        </div>
+      `;
+    }
+
+    html += `
+      </body>
+      </html>
+    `;
+
+    return html;
+  }
+
+  /**
+   * Open print dialog
+   */
+  print(options: PrintOptions = {}): void {
+    const html = this.generatePrintHTML(options);
+    const printWindow = window.open('', '_blank');
+
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.focus();
+
+      // Wait for content to load then print
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    }
+  }
+
+  /**
+   * Export to PDF (requires html2canvas + jspdf)
+   */
+  async exportToPDF(options: PDFExportOptions = {}): Promise<Blob | null> {
+    const {
+      filename = 'gantt-chart.pdf',
+      orientation = 'landscape',
+      pageSize = 'A4',
+      quality = 2,
+      includeTaskList = true,
+    } = options;
+
+    // Check if required libraries are available
+    if (typeof window === 'undefined') {
+      console.error('PDF export requires browser environment');
+      return null;
+    }
+
+    try {
+      // Dynamic imports for PDF libraries
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      // Create a temporary container for the canvas
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.appendChild(this.canvas.cloneNode(true) as HTMLCanvasElement);
+      document.body.appendChild(container);
+
+      // Capture canvas as image
+      const canvasImage = await html2canvas(container, { scale: quality });
+
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation,
+        unit: 'mm',
+        format: pageSize,
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      // Add title
+      pdf.setFontSize(16);
+      pdf.text(options.title || 'Gantt Chart', pageWidth / 2, 15, { align: 'center' });
+
+      // Add chart image
+      const imgWidth = pageWidth - 20;
+      const imgHeight = (canvasImage.height * imgWidth) / canvasImage.width;
+      pdf.addImage(canvasImage.toDataURL('image/png'), 'PNG', 10, 25, imgWidth, Math.min(imgHeight, pageHeight - 50));
+
+      // Add task list on additional pages if requested
+      if (includeTaskList) {
+        pdf.addPage();
+        pdf.setFontSize(14);
+        pdf.text('Task List', 10, 15);
+
+        let y = 25;
+        pdf.setFontSize(10);
+
+        this.state.tasks.forEach((task, index) => {
+          if (y > pageHeight - 20) {
+            pdf.addPage();
+            y = 15;
+          }
+
+          const status = task.status || 'not-started';
+          const progress = task.progress || 0;
+          pdf.text(`${index + 1}. ${task.name} - ${status} (${progress}%)`, 10, y);
+          y += 7;
+        });
+      }
+
+      // Cleanup
+      document.body.removeChild(container);
+
+      // Return blob
+      return pdf.output('blob');
+
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      console.info('PDF export requires html2canvas and jspdf packages. Install with: npm install html2canvas jspdf');
+      return null;
+    }
+  }
+
+  /**
+   * Download PDF
+   */
+  async downloadPDF(options: PDFExportOptions = {}): Promise<void> {
+    const blob = await this.exportToPDF(options);
+    if (blob) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = options.filename || 'gantt-chart.pdf';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /**
+   * Helper: Format date for print
+   */
+  private formatDate(date: Date): string {
+    return date.toLocaleDateString('en-AU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
+  /**
+   * Helper: Escape HTML entities
+   */
+  private escapeHTML(str: string): string {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // =========================================================================
+  // RESOURCE ASSIGNMENT API
+  // =========================================================================
+
+  /**
+   * Resource assignments map (taskId -> resourceIds)
+   */
+  private taskResources: Map<string, string[]> = new Map();
+  private resources: Map<string, Resource> = new Map();
+
+  /**
+   * Add a resource to the system
+   */
+  addResource(resource: Resource): void {
+    this.resources.set(resource.id, resource);
+  }
+
+  /**
+   * Remove a resource
+   */
+  removeResource(resourceId: string): void {
+    this.resources.delete(resourceId);
+    // Remove from all task assignments
+    this.taskResources.forEach((resourceIds, taskId) => {
+      const filtered = resourceIds.filter(id => id !== resourceId);
+      this.taskResources.set(taskId, filtered);
+    });
+  }
+
+  /**
+   * Get a resource by ID
+   */
+  getResource(resourceId: string): Resource | undefined {
+    return this.resources.get(resourceId);
+  }
+
+  /**
+   * Get all resources
+   */
+  getAllResources(): Resource[] {
+    return Array.from(this.resources.values());
+  }
+
+  /**
+   * Assign resource to task
+   */
+  assignResource(taskId: string, resourceId: string): void {
+    if (!this.resources.has(resourceId)) {
+      console.warn(`Resource ${resourceId} not found`);
+      return;
+    }
+
+    const existing = this.taskResources.get(taskId) || [];
+    if (!existing.includes(resourceId)) {
+      this.taskResources.set(taskId, [...existing, resourceId]);
+      this.requestRender();
+
+      if (this.options.onResourceAssigned) {
+        this.options.onResourceAssigned(taskId, resourceId);
+      }
+    }
+  }
+
+  /**
+   * Unassign resource from task
+   */
+  unassignResource(taskId: string, resourceId: string): void {
+    const existing = this.taskResources.get(taskId) || [];
+    const filtered = existing.filter(id => id !== resourceId);
+    this.taskResources.set(taskId, filtered);
+    this.requestRender();
+
+    if (this.options.onResourceUnassigned) {
+      this.options.onResourceUnassigned(taskId, resourceId);
+    }
+  }
+
+  /**
+   * Get resources assigned to a task
+   */
+  getTaskResources(taskId: string): Resource[] {
+    const resourceIds = this.taskResources.get(taskId) || [];
+    return resourceIds
+      .map(id => this.resources.get(id))
+      .filter((r): r is Resource => r !== undefined);
+  }
+
+  /**
+   * Get tasks assigned to a resource
+   */
+  getResourceTasks(resourceId: string): GanttTask[] {
+    const taskIds: string[] = [];
+    this.taskResources.forEach((resourceIds, taskId) => {
+      if (resourceIds.includes(resourceId)) {
+        taskIds.push(taskId);
+      }
+    });
+    return taskIds
+      .map(id => this.getTask(id))
+      .filter((t): t is GanttTask => t !== undefined);
+  }
+
+  /**
+   * Check resource availability for date range
+   */
+  isResourceAvailable(resourceId: string, startDate: Date, endDate: Date, excludeTaskId?: string): boolean {
+    const resource = this.resources.get(resourceId);
+    if (!resource) return false;
+
+    const assignedTasks = this.getResourceTasks(resourceId)
+      .filter(t => t.id !== excludeTaskId);
+
+    // Check for overlapping assignments
+    for (const task of assignedTasks) {
+      const taskStart = task.startDate.getTime();
+      const taskEnd = task.endDate.getTime();
+      const checkStart = startDate.getTime();
+      const checkEnd = endDate.getTime();
+
+      // Check for overlap
+      if (checkStart <= taskEnd && checkEnd >= taskStart) {
+        return false; // Overlap found
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Get resource utilization percentage for date range
+   */
+  getResourceUtilization(resourceId: string, startDate: Date, endDate: Date): number {
+    const resource = this.resources.get(resourceId);
+    if (!resource) return 0;
+
+    const totalDays = this.calendar.getWorkingDaysBetween(startDate, endDate);
+    if (totalDays === 0) return 0;
+
+    const assignedTasks = this.getResourceTasks(resourceId);
+    let assignedDays = 0;
+
+    for (const task of assignedTasks) {
+      // Calculate overlap with date range
+      const overlapStart = new Date(Math.max(task.startDate.getTime(), startDate.getTime()));
+      const overlapEnd = new Date(Math.min(task.endDate.getTime(), endDate.getTime()));
+
+      if (overlapStart <= overlapEnd) {
+        assignedDays += this.calendar.getWorkingDaysBetween(overlapStart, overlapEnd);
+      }
+    }
+
+    return Math.min(100, (assignedDays / totalDays) * 100);
+  }
+
+  /**
+   * Find overallocated resources in date range
+   */
+  findOverallocatedResources(startDate: Date, endDate: Date): { resource: Resource; dates: Date[] }[] {
+    const overallocated: { resource: Resource; dates: Date[] }[] = [];
+
+    this.resources.forEach(resource => {
+      const dates: Date[] = [];
+      const current = new Date(startDate);
+
+      while (current <= endDate) {
+        if (this.calendar.isWorkingDay(current)) {
+          // Count tasks assigned on this day
+          const tasksOnDay = this.getResourceTasks(resource.id).filter(task => {
+            return current >= task.startDate && current <= task.endDate;
+          });
+
+          if (tasksOnDay.length > 1) {
+            dates.push(new Date(current));
+          }
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      if (dates.length > 0) {
+        overallocated.push({ resource, dates });
+      }
+    });
+
+    return overallocated;
+  }
+
+  // =========================================================================
+  // ACCESSIBILITY (A11Y) API
+  // =========================================================================
+
+  /**
+   * ARIA live region announcements
+   */
+  private ariaLiveRegion: HTMLDivElement | null = null;
+
+  /**
+   * Initialize accessibility features
+   */
+  initializeAccessibility(): void {
+    // Create ARIA live region for announcements
+    this.ariaLiveRegion = document.createElement('div');
+    this.ariaLiveRegion.setAttribute('role', 'status');
+    this.ariaLiveRegion.setAttribute('aria-live', 'polite');
+    this.ariaLiveRegion.setAttribute('aria-atomic', 'true');
+    this.ariaLiveRegion.className = 'sr-only'; // Screen reader only
+    this.ariaLiveRegion.style.cssText = `
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    `;
+    document.body.appendChild(this.ariaLiveRegion);
+
+    // Set canvas ARIA attributes
+    this.canvas.setAttribute('role', 'application');
+    this.canvas.setAttribute('aria-label', 'Gantt Chart - Use arrow keys to navigate tasks');
+    this.canvas.setAttribute('tabindex', '0');
+  }
+
+  /**
+   * Announce message to screen readers
+   */
+  announce(message: string, priority: 'polite' | 'assertive' = 'polite'): void {
+    if (!this.ariaLiveRegion) return;
+
+    this.ariaLiveRegion.setAttribute('aria-live', priority);
+    this.ariaLiveRegion.textContent = message;
+
+    // Clear after announcement
+    setTimeout(() => {
+      if (this.ariaLiveRegion) {
+        this.ariaLiveRegion.textContent = '';
+      }
+    }, 1000);
+  }
+
+  /**
+   * Get task description for screen readers
+   */
+  getTaskDescription(taskId: string): string {
+    const task = this.getTask(taskId);
+    if (!task) return 'Unknown task';
+
+    const index = this.getTaskIndex(taskId);
+    const duration = this.getTaskDuration(taskId);
+    const status = task.status || 'not-started';
+    const progress = task.progress || 0;
+    const locked = task.locked ? ', locked' : '';
+    const onHold = this.isTaskOnHold(taskId) ? ', on hold' : '';
+
+    return `Task ${index + 1}: ${task.name}. ` +
+           `Starts ${this.formatDate(task.startDate)}, ` +
+           `ends ${this.formatDate(task.endDate)}, ` +
+           `${duration} days. ` +
+           `Status: ${status.replace('-', ' ')}, ${progress}% complete${locked}${onHold}`;
+  }
+
+  /**
+   * Announce task selection
+   */
+  announceTaskSelection(taskId: string): void {
+    const description = this.getTaskDescription(taskId);
+    this.announce(description);
+  }
+
+  /**
+   * Announce action result
+   */
+  announceAction(action: string): void {
+    this.announce(action, 'assertive');
+  }
+
+  /**
+   * Get keyboard navigation instructions
+   */
+  getKeyboardInstructions(): string {
+    return `
+      Keyboard Navigation:
+      - Arrow Up/Down: Navigate between tasks
+      - Arrow Left/Right: Move selected task dates
+      - Enter: Edit selected task
+      - Delete: Delete selected task
+      - Space: Toggle progress
+      - S: Start task
+      - L: Toggle lock
+      - H: Toggle hold
+      - Ctrl+A: Select all
+      - Ctrl+Z: Undo
+      - Ctrl+Y: Redo
+      - Escape: Deselect all
+      - T: Scroll to today
+      - F: Fit all tasks in view
+    `;
+  }
+
+  /**
+   * Cleanup accessibility resources
+   */
+  cleanupAccessibility(): void {
+    if (this.ariaLiveRegion && this.ariaLiveRegion.parentNode) {
+      this.ariaLiveRegion.parentNode.removeChild(this.ariaLiveRegion);
+      this.ariaLiveRegion = null;
+    }
+  }
+
+  // =========================================================================
+  // UNDO/REDO SYSTEM (Command Pattern)
+  // =========================================================================
+
+  /**
+   * Command history for undo/redo
+   */
+  private commandHistory: Command[] = [];
+  private commandIndex: number = -1;
+  private maxHistorySize: number = 50;
+
+  /**
+   * Execute a command and add to history
+   */
+  executeCommand(command: Command): void {
+    // Execute the command
+    command.execute();
+
+    // Remove any redo history
+    this.commandHistory = this.commandHistory.slice(0, this.commandIndex + 1);
+
+    // Add command to history
+    this.commandHistory.push(command);
+    this.commandIndex++;
+
+    // Limit history size
+    if (this.commandHistory.length > this.maxHistorySize) {
+      this.commandHistory.shift();
+      this.commandIndex--;
+    }
+
+    // Notify listeners
+    if (this.options.onUndoStackChanged) {
+      this.options.onUndoStackChanged(this.canUndo(), this.canRedo());
+    }
+  }
+
+  /**
+   * Undo last command
+   */
+  undo(): boolean {
+    if (!this.canUndo()) return false;
+
+    const command = this.commandHistory[this.commandIndex];
+    command.undo();
+    this.commandIndex--;
+
+    this.announce('Undid: ' + command.description);
+
+    if (this.options.onUndoStackChanged) {
+      this.options.onUndoStackChanged(this.canUndo(), this.canRedo());
+    }
+
+    this.requestRender();
+    return true;
+  }
+
+  /**
+   * Redo last undone command
+   */
+  redo(): boolean {
+    if (!this.canRedo()) return false;
+
+    this.commandIndex++;
+    const command = this.commandHistory[this.commandIndex];
+    command.execute();
+
+    this.announce('Redid: ' + command.description);
+
+    if (this.options.onUndoStackChanged) {
+      this.options.onUndoStackChanged(this.canUndo(), this.canRedo());
+    }
+
+    this.requestRender();
+    return true;
+  }
+
+  /**
+   * Check if undo is available
+   */
+  canUndo(): boolean {
+    return this.commandIndex >= 0;
+  }
+
+  /**
+   * Check if redo is available
+   */
+  canRedo(): boolean {
+    return this.commandIndex < this.commandHistory.length - 1;
+  }
+
+  /**
+   * Clear command history
+   */
+  clearHistory(): void {
+    this.commandHistory = [];
+    this.commandIndex = -1;
+
+    if (this.options.onUndoStackChanged) {
+      this.options.onUndoStackChanged(false, false);
+    }
+  }
+
+  /**
+   * Get undo/redo stack info
+   */
+  getHistoryInfo(): { undoCount: number; redoCount: number; lastAction?: string } {
+    return {
+      undoCount: this.commandIndex + 1,
+      redoCount: this.commandHistory.length - this.commandIndex - 1,
+      lastAction: this.commandIndex >= 0 ? this.commandHistory[this.commandIndex].description : undefined,
+    };
+  }
+
+  /**
+   * Create a move task command
+   */
+  createMoveCommand(taskId: string, newStartDate: Date): Command {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+
+    const oldStartDate = new Date(task.startDate);
+    const oldEndDate = new Date(task.endDate);
+    const duration = task.endDate.getTime() - task.startDate.getTime();
+    const newEndDate = new Date(newStartDate.getTime() + duration);
+
+    return {
+      description: `Move ${task.name}`,
+      execute: () => {
+        const t = this.getTask(taskId);
+        if (t) {
+          t.startDate = new Date(newStartDate);
+          t.endDate = new Date(newEndDate);
+        }
+      },
+      undo: () => {
+        const t = this.getTask(taskId);
+        if (t) {
+          t.startDate = oldStartDate;
+          t.endDate = oldEndDate;
+        }
+      },
+    };
+  }
+
+  /**
+   * Create a progress change command
+   */
+  createProgressCommand(taskId: string, newProgress: number): Command {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+
+    const oldProgress = task.progress || 0;
+
+    return {
+      description: `Change progress of ${task.name}`,
+      execute: () => {
+        const t = this.getTask(taskId);
+        if (t) t.progress = newProgress;
+      },
+      undo: () => {
+        const t = this.getTask(taskId);
+        if (t) t.progress = oldProgress;
+      },
+    };
+  }
+
+  /**
+   * Create a delete task command
+   */
+  createDeleteCommand(taskId: string): Command {
+    const task = this.getTask(taskId);
+    if (!task) throw new Error(`Task ${taskId} not found`);
+
+    const taskCopy = { ...task };
+    const index = this.getTaskIndex(taskId);
+
+    return {
+      description: `Delete ${task.name}`,
+      execute: () => {
+        const idx = this.state.tasks.findIndex(t => t.id === taskId);
+        if (idx !== -1) {
+          this.state.tasks.splice(idx, 1);
+        }
+      },
+      undo: () => {
+        this.state.tasks.splice(index, 0, taskCopy);
+      },
+    };
+  }
+
+  /**
+   * Create an add task command
+   */
+  createAddCommand(task: GanttTask): Command {
+    const taskCopy = { ...task };
+
+    return {
+      description: `Add ${task.name}`,
+      execute: () => {
+        this.state.tasks.push(taskCopy);
+      },
+      undo: () => {
+        const idx = this.state.tasks.findIndex(t => t.id === taskCopy.id);
+        if (idx !== -1) {
+          this.state.tasks.splice(idx, 1);
+        }
+      },
+    };
+  }
 }
+
+// ============================================================================
+// Types for new APIs
+// ============================================================================
+
+export interface ContextMenuItem {
+  id: string;
+  label?: string;
+  icon?: string;
+  shortcut?: string;
+  action?: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  type?: 'divider';
+}
+
+export interface PrintOptions {
+  title?: string;
+  includeHeader?: boolean;
+  includeFooter?: boolean;
+  pageSize?: 'A4' | 'A3' | 'Letter' | 'Legal';
+  orientation?: 'portrait' | 'landscape';
+  showDependencies?: boolean;
+  showProgress?: boolean;
+  showDates?: boolean;
+}
+
+export interface PDFExportOptions extends PrintOptions {
+  filename?: string;
+  quality?: number;
+  includeTaskList?: boolean;
+}
+
+export interface Resource {
+  id: string;
+  name: string;
+  type?: 'person' | 'equipment' | 'material';
+  email?: string;
+  role?: string;
+  color?: string;
+  avatar?: string;
+  hourlyRate?: number;
+  availability?: number; // percentage (0-100)
+}
+
+// Note: Command interface is imported from './UndoManager'
 
 // Default export
 export default GanttCanvas;
