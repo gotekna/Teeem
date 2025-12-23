@@ -85,7 +85,7 @@ export function HolidaysTab() {
   const [formData, setFormData] = React.useState({
     name: "",
     date: "",
-    region: "QLD",
+    region: "National",
   });
   const [multiDayMode, setMultiDayMode] = React.useState(false);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
@@ -128,7 +128,7 @@ export function HolidaysTab() {
   };
 
   const handleOpenAddDialog = () => {
-    setFormData({ name: "", date: "", region: "QLD" });
+    setFormData({ name: "", date: "", region: "National" });
     setEditingHoliday(null);
     setMultiDayMode(false);
     setDateRange(undefined);
