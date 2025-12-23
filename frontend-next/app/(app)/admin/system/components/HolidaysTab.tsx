@@ -145,15 +145,24 @@ export function HolidaysTab() {
     setShowAddDialog(true);
   };
 
-  // Helper to get all dates in a range
+  // Helper to get all WEEKDAY dates in a range (skip Saturdays and Sundays)
   const getDatesInRange = (start: Date, end: Date): Date[] => {
     const dates: Date[] = [];
     const current = new Date(start);
     while (current <= end) {
-      dates.push(new Date(current));
+      const dayOfWeek = current.getDay();
+      // Skip Saturday (6) and Sunday (0)
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        dates.push(new Date(current));
+      }
       current.setDate(current.getDate() + 1);
     }
     return dates;
+  };
+
+  // Helper to count weekdays in range (for display)
+  const countWeekdaysInRange = (start: Date, end: Date): number => {
+    return getDatesInRange(start, end).length;
   };
 
   const handleSave = async () => {
@@ -186,14 +195,33 @@ export function HolidaysTab() {
         });
         toast({ title: "Success", description: "Holiday updated successfully" });
       } else if (multiDayMode && dateRange?.from) {
-        // Multi-day creation
+        // Multi-day creation (weekdays only)
         const endDate = dateRange.to || dateRange.from;
         const dates = getDatesInRange(dateRange.from, endDate);
 
+        if (dates.length === 0) {
+          toast({ title: "No weekdays selected", description: "The selected range contains only weekends. Please select a range with at least one weekday.", variant: "destructive" });
+          setSaving(false);
+          return;
+        }
+
+        // Get existing holidays to check for duplicates
+        const existingDates = new Set(holidays.map(h => h.date));
+
         // Create holidays for each date
         let successCount = 0;
+        const skippedDates: string[] = [];
+        const failedDates: string[] = [];
+
         for (const date of dates) {
           const dateStr = format(date, "yyyy-MM-dd");
+
+          // Skip if holiday already exists for this date
+          if (existingDates.has(dateStr)) {
+            skippedDates.push(format(date, "MMM d"));
+            continue;
+          }
+
           try {
             await api.post("/api/v1/public_holidays", {
               public_holiday: {
@@ -203,15 +231,31 @@ export function HolidaysTab() {
               },
             });
             successCount++;
-          } catch (err) {
-            console.error(`Failed to create holiday for ${dateStr}:`, err);
+          } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : String(err);
+            // Check if it's a duplicate error from server
+            if (errorMessage.includes("already been taken") || errorMessage.includes("duplicate")) {
+              skippedDates.push(format(date, "MMM d"));
+            } else {
+              failedDates.push(format(date, "MMM d"));
+              console.error(`Failed to create holiday for ${dateStr}:`, err);
+            }
           }
         }
 
-        if (successCount === dates.length) {
-          toast({ title: "Success", description: `Created ${successCount} holidays successfully` });
-        } else if (successCount > 0) {
-          toast({ title: "Partial Success", description: `Created ${successCount} of ${dates.length} holidays` });
+        // Build feedback message
+        let description = `Created ${successCount} holiday${successCount !== 1 ? "s" : ""}`;
+        if (skippedDates.length > 0) {
+          description += `. Skipped ${skippedDates.length} (already exist: ${skippedDates.slice(0, 3).join(", ")}${skippedDates.length > 3 ? "..." : ""})`;
+        }
+        if (failedDates.length > 0) {
+          description += `. Failed: ${failedDates.join(", ")}`;
+        }
+
+        if (successCount > 0) {
+          toast({ title: "Holidays Created", description });
+        } else if (skippedDates.length > 0) {
+          toast({ title: "No New Holidays", description: "All selected dates already have holidays", variant: "destructive" });
         } else {
           throw new Error("Failed to create any holidays");
         }
@@ -428,7 +472,7 @@ export function HolidaysTab() {
                   />
                   {dateRange?.from && dateRange?.to && (
                     <p className="text-sm text-muted-foreground">
-                      {getDatesInRange(dateRange.from, dateRange.to).length} days selected
+                      {getDatesInRange(dateRange.from, dateRange.to).length} weekdays selected (Sat/Sun excluded)
                     </p>
                   )}
                 </>
