@@ -3,10 +3,13 @@
 module Api
   module V1
     class BankStatementReportsController < ApplicationController
-      # GET /api/v1/bank_statement_reports
-      # List all generated reports, organized by bank and FY
+      before_action :set_company, only: [:index, :show, :generate_historical, :regenerate, :download], if: -> { params[:company_id].present? }
+
+      # GET /api/v1/bank_statement_reports (global)
+      # GET /api/v1/companies/:company_id/bank_statement_reports (company-scoped)
+      # List generated reports, organized by bank and FY
       def index
-        reports = BankStatementReport.order(financial_year: :desc, month: :desc, bank_account_name: :asc)
+        reports = base_scope.order(period_end: :desc, financial_year: :desc, bank_account_name: :asc)
 
         # Filter by bank account
         reports = reports.for_bank_account(params[:bank_account_id]) if params[:bank_account_id].present?
@@ -20,8 +23,8 @@ module Api
         # Filter by bank code (e.g., NAB, WBC, BOQ, CBA, ANZ)
         reports = reports.for_bank(params[:bank_code]) if params[:bank_code].present?
 
-        # Filter by company code (e.g., TH)
-        reports = reports.for_company(params[:company_code]) if params[:company_code].present?
+        # Filter by company code (e.g., TH) - only for global route
+        reports = reports.for_company(params[:company_code]) if params[:company_code].present? && @company.nil?
 
         render json: {
           success: true,
@@ -39,8 +42,9 @@ module Api
       end
 
       # GET /api/v1/bank_statement_reports/:id
+      # GET /api/v1/companies/:company_id/bank_statement_reports/:id
       def show
-        report = BankStatementReport.find(params[:id])
+        report = base_scope.find(params[:id])
 
         render json: {
           success: true,
@@ -51,9 +55,10 @@ module Api
       end
 
       # GET /api/v1/bank_statement_reports/:id/download
+      # GET /api/v1/companies/:company_id/bank_statement_reports/:id/download
       # Download the PDF file (redirects to SharePoint URL)
       def download
-        report = BankStatementReport.find(params[:id])
+        report = base_scope.find(params[:id])
 
         unless report.status == "completed" && report.cloudinary_url.present?
           return render json: { success: false, error: "Report not available for download" }, status: :unprocessable_entity
@@ -65,8 +70,8 @@ module Api
         render json: { success: false, error: "Report not found" }, status: :not_found
       end
 
-      # POST /api/v1/bank_statement_reports/generate_all
-      # Trigger generation of all missing/outdated reports
+      # POST /api/v1/bank_statement_reports/generate_all (global - all companies)
+      # Trigger generation of all missing/outdated reports globally
       def generate_all
         result = BankStatementReportGenerationJob.perform_now(force: params[:force] == "true")
 
@@ -82,10 +87,43 @@ module Api
         }, status: :internal_server_error
       end
 
+      # POST /api/v1/companies/:company_id/bank_statement_reports/generate_historical
+      # Generate monthly bank statement reports for this company's bank accounts
+      def generate_historical
+        unless @company
+          return render json: { success: false, error: "Company ID required" }, status: :bad_request
+        end
+
+        result = BankStatementReport.generate_historical!(@company)
+
+        render json: {
+          success: result[:success],
+          data: @company.bank_accounts.linked_to_xero.flat_map do |ba|
+            BankStatementReport.for_company_id(@company.id)
+                               .for_bank_account(ba.xero_account_id)
+                               .order(period_end: :desc)
+                               .map { |r| serialize_report(r) }
+          end,
+          summary: {
+            created: result[:created],
+            skipped: result[:skipped],
+            errors: result[:errors]
+          },
+          message: result[:success] ? "Generated #{result[:created]} reports (#{result[:skipped]} already existed)" : result[:error]
+        }
+      rescue StandardError => e
+        Rails.logger.error("Historical bank statement generation failed: #{e.message}")
+        render json: {
+          success: false,
+          error: "Generation failed: #{e.message}"
+        }, status: :internal_server_error
+      end
+
       # POST /api/v1/bank_statement_reports/:id/regenerate
+      # POST /api/v1/companies/:company_id/bank_statement_reports/:id/regenerate
       # Regenerate a specific report
       def regenerate
-        report = BankStatementReport.find(params[:id])
+        report = base_scope.find(params[:id])
         result = report.generate!
 
         render json: {
@@ -100,7 +138,7 @@ module Api
       # GET /api/v1/bank_statement_reports/by_structure
       # Returns reports organized by bank -> FY -> month for tree view
       def by_structure
-        reports = BankStatementReport.completed.order(bank_account_name: :asc, financial_year: :desc, month: :asc)
+        reports = base_scope.completed.order(bank_account_name: :asc, financial_year: :desc, month: :asc)
 
         # Group by bank account
         structure = {}
@@ -148,13 +186,30 @@ module Api
 
       private
 
+      def set_company
+        @company = CorporateCompany.find(params[:company_id])
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Company not found" }, status: :not_found
+      end
+
+      # Base scope - scoped to company if company_id present
+      def base_scope
+        if @company
+          BankStatementReport.for_company_id(@company.id)
+        else
+          BankStatementReport.all
+        end
+      end
+
       def serialize_report(report, include_url: false)
         data = {
           id: report.id,
+          display_name: report.display_name,            # "NAB December 2025" - for table display
           bank_account_id: report.bank_account_id,
           bank_account_name: report.bank_account_name,
           bank_code: report.bank_code,
           account_number: report.account_number,
+          company_id: report.company_id,
           company_code: report.company_code,
           financial_year: report.financial_year,
           month: report.month,

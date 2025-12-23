@@ -272,7 +272,7 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
             <TeeemTableView
               entries={tableRows}
               columns={columns}
-              tableName="Balance Sheet Statements"
+              tableName="Balance Sheet Report Statements"
               onRowClick={handleRowClick}
               viewOnly={true}
               enableExport={true}

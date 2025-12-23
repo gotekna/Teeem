@@ -11,7 +11,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import type { TableRow } from "@/components/table/types";
 
-const BILL_INBOX_TABLE_NAME = "bill_inboxes";
+const BILL_INBOX_TABLE_NAME = "bill-inbox";
 
 export default function BillInboxPage() {
   const router = useRouter();

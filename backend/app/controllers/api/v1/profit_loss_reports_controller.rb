@@ -132,6 +132,7 @@ module Api
       def serialize_report(report, include_url: false)
         data = {
           id: report.id,
+          display_name: report.display_name,            # "P&L December 2025" - for table display
           company_id: report.company_id,
           company_name: report.company_name,
           company_code: report.company_code,

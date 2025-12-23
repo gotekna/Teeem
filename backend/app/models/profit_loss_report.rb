@@ -222,10 +222,22 @@ class ProfitLossReport < ApplicationRecord
   # ============================================
 
   # Human-readable period label
-  # Returns "Jan 2025" or falls back to financial year
+  # Returns "January 2025" or falls back to financial year
   def period_label
     return period_end.strftime("%B %Y") if period_end.present?
     financial_year
+  end
+
+  # Display name for table views - follows Entity Config: {DocTypeName} {MonthYearLong}
+  # Example: "Profit & Loss December 2025"
+  # FY column is for searching (e.g., search "FY2026" to find all 12 months)
+  # For legacy reports without period_end, fallback to FY
+  def display_name
+    if period_end.present?
+      "P&L #{period_label}"  # "P&L December 2025"
+    else
+      "P&L #{financial_year}"  # "P&L FY2024" for legacy reports
+    end
   end
 
   # Short period label for filenames

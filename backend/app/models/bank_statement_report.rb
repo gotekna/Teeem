@@ -7,6 +7,9 @@
 #   Warehousing/Bank Statements/Bank Produced/{bank_account_name}/{FY}/{filename}.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
+  belongs_to :corporate_company, foreign_key: "company_id", optional: true
+  belongs_to :bank_account, primary_key: "xero_account_id", foreign_key: "bank_account_id", optional: true
+
   # Bank code mapping for standardized naming
   BANK_CODES = {
     "nab" => "NAB",
@@ -32,6 +35,7 @@ class BankStatementReport < ApplicationRecord
   scope :for_financial_year, ->(fy) { where(financial_year: fy) }
   scope :for_bank, ->(code) { where(bank_code: code.upcase) }
   scope :for_company, ->(code) { where(company_code: code.upcase) }
+  scope :for_company_id, ->(id) { where(company_id: id) }
   scope :monthly, -> { where(report_type: "monthly") }
   scope :annual, -> { where(report_type: "annual") }
 
@@ -153,6 +157,108 @@ class BankStatementReport < ApplicationRecord
     else
       financial_year
     end
+  end
+
+  # Display name for table views - follows Entity Config: {DocTypeName} {MonthYearLong}
+  # Example: "Bank Statement December 2025" or "NAB December 2025"
+  # For legacy reports without month, fallback to FY
+  def display_name
+    bank_label = bank_code.presence || "Bank Statement"
+    if month.present? && year.present?
+      "#{bank_label} #{Date.new(year, month, 1).strftime('%B %Y')}"
+    else
+      "#{bank_label} #{financial_year}"
+    end
+  end
+
+  # ============================================
+  # CLASS METHODS: Historical Report Generation
+  # ============================================
+
+  # Generate monthly bank statement reports for all bank accounts since Xero connection
+  # Creates one report per bank account per month
+  def self.generate_historical!(company)
+    connection = company.company_xero_connection
+    unless connection&.connected?
+      Rails.logger.info("[BankStatementReport] Company #{company.id} not connected to Xero - skipping historical generation")
+      return { success: false, error: "Company is not connected to Xero", created: 0 }
+    end
+
+    # Get all bank accounts for this company linked to Xero
+    bank_accounts = company.bank_accounts.linked_to_xero
+    if bank_accounts.empty?
+      Rails.logger.info("[BankStatementReport] Company #{company.id} has no Xero-linked bank accounts")
+      return { success: false, error: "No bank accounts linked to Xero", created: 0 }
+    end
+
+    # Determine date range: from Xero start date to LAST completed month
+    start_date = (connection.xero_start_date || connection.created_at.to_date).beginning_of_month
+    end_date = Date.current.prev_month.end_of_month  # Last day of previous month
+
+    created_count = 0
+    skipped_count = 0
+    errors = []
+
+    bank_accounts.each do |bank_account|
+      # Generate for each month
+      current_date = start_date
+      while current_date <= end_date
+        month_start = current_date.beginning_of_month
+        month_end = current_date.end_of_month
+        month_num = current_date.month
+        year_num = current_date.year
+        fy = fiscal_year_for_date(month_end)
+
+        # Skip if report already exists for this period
+        if exists?(bank_account_id: bank_account.xero_account_id, financial_year: fy, month: month_num)
+          skipped_count += 1
+          current_date = current_date.next_month
+          next
+        end
+
+        begin
+          report = create!(
+            company_id: company.id,
+            bank_account_id: bank_account.xero_account_id,
+            bank_account_name: bank_account.institution_name,
+            bank_code: bank_account.bank_code || detect_bank_code(bank_account.institution_name),
+            account_number: bank_account.account_number,
+            company_code: company.code,
+            financial_year: fy,
+            month: month_num,
+            year: year_num,
+            report_type: "monthly",
+            period_start: month_start,
+            period_end: month_end,
+            status: "pending"
+          )
+
+          # Generate the report
+          report.generate!
+          created_count += 1
+
+          Rails.logger.info("[BankStatementReport] Generated #{report.display_name} for company #{company.id}")
+        rescue StandardError => e
+          errors << { period: "#{bank_account.institution_name} #{month_end.strftime('%b%y')}", error: e.message }
+          Rails.logger.error("[BankStatementReport] Failed to generate #{bank_account.institution_name} #{month_end.strftime('%b%y')}: #{e.message}")
+        end
+
+        current_date = current_date.next_month
+      end
+    end
+
+    {
+      success: errors.empty?,
+      created: created_count,
+      skipped: skipped_count,
+      errors: errors
+    }
+  end
+
+  # Calculate fiscal year for a given date (Australian FY: July-June)
+  def self.fiscal_year_for_date(date)
+    year = date.month >= 7 ? date.year + 1 : date.year
+    "FY#{year}"
   end
 
   # Check if report needs regeneration (transactions updated since generation)

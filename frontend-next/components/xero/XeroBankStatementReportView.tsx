@@ -15,10 +15,12 @@ import type { TableColumn, TableRow } from "@/components/table/types";
 
 interface BSReport {
   id: number;
+  display_name: string;              // "NAB December 2025"
   bank_account_id: string;
   bank_account_name: string;
   bank_code: string;
   account_number: string;
+  company_id: number | null;
   company_code: string;
   financial_year: string;
   month: number | null;
@@ -58,9 +60,9 @@ interface XeroBankStatementReportViewProps {
  * XeroBankStatementReportView - Displays Bank Statement PDF reports in a table format
  *
  * Features:
- * - Lists all generated Bank Statement reports
+ * - Lists all generated Bank Statement reports for a company
  * - Shows status (completed, pending, generating, failed)
- * - Generate all missing reports
+ * - Generate all missing reports for all bank accounts
  * - Download completed reports
  */
 export function XeroBankStatementReportView({ companyId }: XeroBankStatementReportViewProps) {
@@ -79,7 +81,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
         data: BSReport[];
         summary: BSReportsSummary;
         error?: string;
-      }>(`/api/v1/bank_statement_reports`);
+      }>(`/api/v1/companies/${companyId}/bank_statement_reports`);
 
       if (response?.success) {
         setReports(response.data);
@@ -95,18 +97,24 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
     }
   };
 
-  const generateAll = async () => {
+  const generateHistorical = async () => {
     try {
       setGenerating(true);
       setError(null);
       const response = await api.post<{
         success: boolean;
-        data: { created: number; skipped: number; errors: Array<{ period: string; error: string }> };
+        data: BSReport[];
+        summary: { created: number; skipped: number; errors: Array<{ period: string; error: string }> };
+        message?: string;
         error?: string;
-      }>(`/api/v1/bank_statement_reports/generate_all`);
+      }>(`/api/v1/companies/${companyId}/bank_statement_reports/generate_historical`);
 
       if (response?.success) {
-        await loadReports();
+        setReports(response.data);
+        // Show success message
+        if (response.message) {
+          console.log(response.message);
+        }
       } else {
         setError(response?.error || "Failed to generate reports");
       }
@@ -125,7 +133,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
         const response = await api.get<{
           success: boolean;
           data: BSReport;
-        }>(`/api/v1/bank_statement_reports/${report.id}`);
+        }>(`/api/v1/companies/${companyId}/bank_statement_reports/${report.id}`);
 
         if (response?.success && response.data.download_url) {
           window.open(response.data.download_url, "_blank");
@@ -144,10 +152,12 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
     loadReports();
   }, [companyId]);
 
-  // Define columns for TeeemTableView
+  // Define columns for TeeemTableView (no Foundation backing - explicit columns)
+  // display_name follows Entity Config: {BankCode} {MonthYearLong} = "NAB December 2025"
+  // bank_account_name for filtering by specific account
   const columns: TableColumn[] = [
-    { key: "bank_account_name", label: "Bank Account", width: 200, sortable: true },
-    { key: "period_display", label: "Period", width: 150, sortable: true },
+    { key: "display_name", label: "Display Name", width: 200, sortable: true },
+    { key: "bank_account_name", label: "Bank Account", width: 180, sortable: true },
     { key: "financial_year", label: "FY", width: 80, sortable: true },
     { key: "period_end", label: "As Of Date", width: 120, column_type: "date" },
     { key: "transaction_count", label: "Transactions", width: 110, sortable: true },
@@ -168,8 +178,8 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
   // Transform reports to table rows
   const tableRows: TableRow[] = sortedReports.map((report) => ({
     id: report.id,
+    display_name: report.display_name,
     bank_account_name: report.bank_account_name,
-    period_display: report.period_display,
     financial_year: report.financial_year,
     period_end: report.period_end,
     transaction_count: report.transaction_count,
@@ -208,7 +218,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           </div>
           <div className="flex items-center gap-2">
             <Button
-              onClick={generateAll}
+              onClick={generateHistorical}
               disabled={generating}
               size="sm"
             >
@@ -248,7 +258,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
             <TeeemTableView
               entries={tableRows}
               columns={columns}
-              tableName="Bank Statement Reports"
+              tableName="Bank Statement PDF Reports v2"
               onRowClick={handleRowClick}
               viewOnly={true}
               enableExport={true}

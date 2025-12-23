@@ -1784,6 +1784,15 @@ Rails.application.routes.draw do
             get :download
           end
         end
+        resources :bank_statement_reports, only: [ :index, :show ] do
+          collection do
+            post :generate_historical  # Generate all monthly reports for all bank accounts since Xero connection
+          end
+          member do
+            post :regenerate
+            get :download
+          end
+        end
       end
 
       # Company Groups

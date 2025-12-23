@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_130455) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_130457) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -487,9 +487,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130455) do
     t.string "bank_code"
     t.string "account_number"
     t.string "company_code"
+    t.bigint "company_id"
     t.index ["bank_account_id", "financial_year", "month"], name: "idx_bank_reports_unique", unique: true
     t.index ["bank_code"], name: "index_bank_statement_reports_on_bank_code"
     t.index ["company_code"], name: "index_bank_statement_reports_on_company_code"
+    t.index ["company_id"], name: "index_bank_statement_reports_on_company_id"
   end
 
   create_table "bank_statement_templates", force: :cascade do |t|
@@ -1849,6 +1851,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130455) do
     t.datetime "accounts_synced_at"
     t.datetime "invoices_synced_at"
     t.datetime "balance_sheet_synced_at"
+    t.date "xero_start_date"
     t.index ["company_id"], name: "index_corporate_company_xero_connections_on_company_id", unique: true
     t.index ["xero_credential_id"], name: "index_corporate_company_xero_connections_on_xero_credential_id"
     t.index ["xero_tenant_id"], name: "index_corporate_company_xero_connections_on_xero_tenant_id"

@@ -15,6 +15,7 @@ import type { TableColumn, TableRow } from "@/components/table/types";
 
 interface PLReport {
   id: number;
+  display_name: string;              // "P&L December 2025"
   company_id: number;
   company_name: string;
   company_code: string;
@@ -169,9 +170,12 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
   }, [companyId]);
 
   // Define columns for TeeemTableView (no Foundation backing - explicit columns)
+  // display_name follows Entity Config: {DocTypeName} {MonthYearLong} = "P&L December 2025"
+  // financial_year is for searching/filtering all 12 months of a FY
   const columns: TableColumn[] = [
-    { key: "period_label", label: "Period", width: 130, sortable: true },
+    { key: "display_name", label: "Display Name", width: 200, sortable: true },
     { key: "financial_year", label: "FY", width: 80, sortable: true },
+    { key: "report_date", label: "As Of Date", width: 120, column_type: "date" },
     { key: "total_revenue", label: "Revenue", width: 120, sortable: true, column_type: "currency", showSum: true },
     { key: "total_expenses", label: "Expenses", width: 120, sortable: true, column_type: "currency", showSum: true },
     { key: "net_profit", label: "Net Profit", width: 130, sortable: true, column_type: "currency", showSum: true },
@@ -179,11 +183,19 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
     { key: "generated_at", label: "Generated", width: 130, column_type: "date" },
   ];
 
+  // Sort reports by report_date descending (latest first)
+  const sortedReports = [...reports].sort((a, b) => {
+    const dateA = a.report_date ? new Date(a.report_date).getTime() : 0;
+    const dateB = b.report_date ? new Date(b.report_date).getTime() : 0;
+    return dateB - dateA; // Descending (latest first)
+  });
+
   // Transform reports to table rows
-  const tableRows: TableRow[] = reports.map((report) => ({
+  const tableRows: TableRow[] = sortedReports.map((report) => ({
     id: report.id,
-    period_label: report.period_label || report.financial_year,  // Fallback to FY for legacy reports
+    display_name: report.display_name,
     financial_year: report.financial_year,
+    report_date: report.report_date,
     period: report.period,
     period_start: report.period_start,
     period_end: report.period_end,
@@ -262,7 +274,7 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
             <TeeemTableView
               entries={tableRows}
               columns={columns}
-              tableName="P&L Statements"
+              tableName="P&L Report Statements"
               onRowClick={handleRowClick}
               viewOnly={true}
               enableExport={true}
