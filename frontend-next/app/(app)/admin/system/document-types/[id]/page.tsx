@@ -548,9 +548,15 @@ export default function DocumentTypeDetailPage() {
     } catch (error: unknown) {
       console.error("Failed to save document type:", error);
       // Extract the actual error message from the API response
-      const errorMessage = error instanceof Error
+      let errorMessage = error instanceof Error
         ? error.message
         : (error as { message?: string })?.message || (isNew ? "Failed to create document type" : "Failed to save document type");
+
+      // Make name uniqueness errors more user-friendly
+      if (errorMessage.toLowerCase().includes("name") && errorMessage.toLowerCase().includes("taken")) {
+        errorMessage = `A document type named "${documentType?.name}" already exists. Please choose a different name.`;
+      }
+
       toast({
         title: "Error",
         description: errorMessage,
