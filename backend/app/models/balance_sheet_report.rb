@@ -53,6 +53,9 @@ class BalanceSheetReport < ApplicationRecord
   scope :for_company, ->(company_id) { where(company_id: company_id) }
   scope :for_financial_year, ->(fy) { where(financial_year: fy) }
 
+  # Callbacks - persist computed display_name to DB column
+  before_save :persist_display_name
+
   # Status methods
   def pending?
     status == "pending"
@@ -233,7 +236,12 @@ class BalanceSheetReport < ApplicationRecord
   # FY column is for searching (e.g., search "FY26" to find all 12 months)
   # For legacy reports without period_end_date, fallback to FY
   def display_name
-    # SSoT: Use DocumentType template if linked
+    # Return persisted value if present, otherwise compute
+    self[:display_name].presence || computed_display_name
+  end
+
+  # Compute display name from template or fallback
+  def computed_display_name
     if document_type&.display_name.present?
       expand_display_template(document_type.display_name)
     elsif period_end_date.present?
@@ -275,6 +283,11 @@ class BalanceSheetReport < ApplicationRecord
   end
 
   private
+
+  # Persist computed display_name to DB column before save
+  def persist_display_name
+    self[:display_name] = computed_display_name
+  end
 
   def financial_year_end_date
     # Parse FY2024 -> June 30, 2024

@@ -42,6 +42,9 @@ class BankStatementReport < ApplicationRecord
   scope :monthly, -> { where(report_type: "monthly") }
   scope :annual, -> { where(report_type: "annual") }
 
+  # Callbacks - persist computed display_name to DB column
+  before_save :persist_display_name
+
   # Detect bank code from account name
   def self.detect_bank_code(account_name)
     name = account_name.to_s.downcase
@@ -166,7 +169,12 @@ class BankStatementReport < ApplicationRecord
   # Template: {BankCode} {MonthYearLong} → "NAB December 2025"
   # For legacy reports without month, fallback to FY
   def display_name
-    # SSoT: Use DocumentType template if linked
+    # Return persisted value if present, otherwise compute
+    self[:display_name].presence || computed_display_name
+  end
+
+  # Compute display name from template or fallback
+  def computed_display_name
     if document_type&.display_name.present?
       expand_display_template(document_type.display_name)
     else
@@ -319,6 +327,11 @@ class BankStatementReport < ApplicationRecord
   end
 
   private
+
+  # Persist computed display_name to DB column before save
+  def persist_display_name
+    self[:display_name] = computed_display_name
+  end
 
   # Upload file content to SharePoint using folder structure:
   # Warehousing/Bank Statements/Xero Generated/{bank_account_name}/{FY}/{filename}
