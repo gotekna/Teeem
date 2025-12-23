@@ -545,11 +545,15 @@ export default function DocumentTypeDetailPage() {
           description: "Document type saved successfully",
         });
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Failed to save document type:", error);
+      // Extract the actual error message from the API response
+      const errorMessage = error instanceof Error
+        ? error.message
+        : (error as { message?: string })?.message || (isNew ? "Failed to create document type" : "Failed to save document type");
       toast({
         title: "Error",
-        description: isNew ? "Failed to create document type" : "Failed to save document type",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

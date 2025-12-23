@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Loader2,
   RefreshCw,
@@ -154,10 +155,8 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
 
   // Define columns for TeeemTableView (no Foundation backing - explicit columns)
   // display_name follows Entity Config: {BankCode} {MonthYearLong} = "NAB December 2025"
-  // bank_account_name for filtering by specific account
   const columns: TableColumn[] = [
-    { key: "display_name", label: "Display Name", width: 200, sortable: true },
-    { key: "bank_account_name", label: "Bank Account", width: 180, sortable: true },
+    { key: "display_name", label: "Display Name", width: 220, sortable: true },
     { key: "financial_year", label: "FY", width: 80, sortable: true },
     { key: "period_end", label: "As Of Date", width: 120, column_type: "date" },
     { key: "transaction_count", label: "Transactions", width: 110, sortable: true },
@@ -168,30 +167,55 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
     { key: "generated_at", label: "Generated", width: 130, column_type: "date" },
   ];
 
-  // Sort reports by period_end descending (latest first)
-  const sortedReports = [...reports].sort((a, b) => {
-    const dateA = a.period_end ? new Date(a.period_end).getTime() : 0;
-    const dateB = b.period_end ? new Date(b.period_end).getTime() : 0;
-    return dateB - dateA; // Descending (latest first)
-  });
+  // Group reports by bank account
+  const reportsByBank = React.useMemo(() => {
+    const grouped: Record<string, BSReport[]> = {};
+    reports.forEach((report) => {
+      const key = report.bank_account_name || "Unknown";
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+      grouped[key].push(report);
+    });
+    // Sort each bank's reports by period_end descending (latest first)
+    Object.keys(grouped).forEach((key) => {
+      grouped[key].sort((a, b) => {
+        const dateA = a.period_end ? new Date(a.period_end).getTime() : 0;
+        const dateB = b.period_end ? new Date(b.period_end).getTime() : 0;
+        return dateB - dateA;
+      });
+    });
+    return grouped;
+  }, [reports]);
 
-  // Transform reports to table rows
-  const tableRows: TableRow[] = sortedReports.map((report) => ({
-    id: report.id,
-    display_name: report.display_name,
-    bank_account_name: report.bank_account_name,
-    financial_year: report.financial_year,
-    period_end: report.period_end,
-    transaction_count: report.transaction_count,
-    total_in: report.total_in,
-    total_out: report.total_out,
-    net_change: report.net_change,
-    status: report.status?.toUpperCase(),
-    generated_at: report.generated_at,
-    file_size: report.file_size,
-    download_url: report.download_url,
-    _original: report,
-  }));
+  const bankNames = Object.keys(reportsByBank).sort();
+  const [activeBank, setActiveBank] = React.useState<string>("");
+
+  // Set initial active bank when data loads
+  React.useEffect(() => {
+    if (bankNames.length > 0 && !activeBank) {
+      setActiveBank(bankNames[0]);
+    }
+  }, [bankNames, activeBank]);
+
+  // Transform reports to table rows for a specific bank
+  const getTableRows = (bankReports: BSReport[]): TableRow[] => {
+    return bankReports.map((report) => ({
+      id: report.id,
+      display_name: report.display_name,
+      financial_year: report.financial_year,
+      period_end: report.period_end,
+      transaction_count: report.transaction_count,
+      total_in: report.total_in,
+      total_out: report.total_out,
+      net_change: report.net_change,
+      status: report.status?.toUpperCase(),
+      generated_at: report.generated_at,
+      file_size: report.file_size,
+      download_url: report.download_url,
+      _original: report,
+    }));
+  };
 
   // Handle row actions
   const handleRowClick = (row: TableRow) => {
@@ -212,7 +236,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
             </CardTitle>
             {summary && (
               <p className="text-sm text-muted-foreground mt-1">
-                {summary.total_reports} reports ({summary.completed} completed)
+                {summary.total_reports} reports ({summary.completed} completed) across {bankNames.length} bank{bankNames.length !== 1 ? "s" : ""}
               </p>
             )}
           </div>
@@ -252,18 +276,42 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : (
-          /* TeeemTableView handles empty state and table rendering */
-          <div className="-mx-4">
-            <TeeemTableView
-              entries={tableRows}
-              columns={columns}
-              tableName="Bank Statement PDF Reports v2"
-              onRowClick={handleRowClick}
-              viewOnly={true}
-              enableExport={true}
-            />
+        ) : bankNames.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            No bank statement reports found. Click "Generate All Historical" to create reports for all linked bank accounts.
           </div>
+        ) : (
+          /* Tabs for each bank account */
+          <Tabs value={activeBank} onValueChange={setActiveBank} className="-mx-4">
+            <div className="px-4 border-b">
+              <TabsList className="h-auto flex-wrap gap-1 bg-transparent p-0 pb-2">
+                {bankNames.map((bankName) => (
+                  <TabsTrigger
+                    key={bankName}
+                    value={bankName}
+                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-3 py-1.5 text-sm"
+                  >
+                    {bankName}
+                    <span className="ml-1.5 text-xs opacity-70">
+                      ({reportsByBank[bankName]?.length || 0})
+                    </span>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+            {bankNames.map((bankName) => (
+              <TabsContent key={bankName} value={bankName} className="mt-0">
+                <TeeemTableView
+                  entries={getTableRows(reportsByBank[bankName] || [])}
+                  columns={columns}
+                  tableName={`${bankName} Statements`}
+                  onRowClick={handleRowClick}
+                  viewOnly={true}
+                  enableExport={true}
+                />
+              </TabsContent>
+            ))}
+          </Tabs>
         )}
 
       </CardContent>

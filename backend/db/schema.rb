@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_130457) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_23_130458) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2093,7 +2093,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_130457) do
     t.index ["category"], name: "index_document_types_on_category"
     t.index ["file_extensions"], name: "index_document_types_on_file_extensions", using: :gin
     t.index ["folder"], name: "index_document_types_on_folder"
-    t.index ["name"], name: "index_document_types_on_name", unique: true
+    t.index ["name", "scope"], name: "index_document_types_on_name_and_scope", unique: true
     t.index ["primary_tab"], name: "index_document_types_on_primary_tab"
     t.index ["scope"], name: "index_document_types_on_scope"
   end
