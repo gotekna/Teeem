@@ -43,9 +43,7 @@ import {
   XCircle,
   DollarSign,
   Trash2,
-  Download,
   RefreshCw,
-  Activity,
   Paperclip,
   User,
   Network,
@@ -57,8 +55,6 @@ import {
   Copy,
   Merge,
   Settings,
-  FolderOpen,
-  FolderInput,
   Pencil,
 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -71,9 +67,6 @@ const EntityChat = dynamic(
   () => import("@/components/chat/EntityChat").then(mod => ({ default: mod.EntityChat })),
   { ssr: false }
 );
-
-// Import SharePointFolderBrowser (same component used in case proposal approval)
-import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
 
 // Import EditCaseContactDialog for editing contact relationships
 import { EditCaseContactDialog } from "@/components/cases/EditCaseContactDialog";
@@ -243,25 +236,7 @@ export default function CaseDetailPage() {
   const [actions, setActions] = React.useState<CaseAction[]>([]);
   const [loadingActions, setLoadingActions] = React.useState(false);
 
-  const [documents, setDocuments] = React.useState<CaseDocument[]>([]);
-  const [loadingDocuments, setLoadingDocuments] = React.useState(false);
-
-  // Source folder picker state for OneDrive (using same pattern as case-proposal-approval-dialog)
-  const [showSourceFolderBrowser, setShowSourceFolderBrowser] = React.useState(false);
-  const [sourceFolderInputMode, setSourceFolderInputMode] = React.useState<"browse" | "type">("browse");
-  const [newSourceFolderPath, setNewSourceFolderPath] = React.useState("");
-  const [scanningFolders, setScanningFolders] = React.useState(false);
-
-  // Case folder state
-  const [caseFolderInfo, setCaseFolderInfo] = React.useState<{
-    has_folder: boolean;
-    folder_id?: string;
-    folder_name?: string;
-    folder_path?: string;
-    web_url?: string;
-    folder_missing?: boolean;
-  } | null>(null);
-  const [creatingFolder, setCreatingFolder] = React.useState(false);
+  // Note: Documents state now managed by CaseDocumentsTab component
 
   const [emails, setEmails] = React.useState<CaseEmail[]>([]);
   const [loadingEmails, setLoadingEmails] = React.useState(false);
@@ -287,12 +262,7 @@ export default function CaseDetailPage() {
   const [relationshipGraph, setRelationshipGraph] = React.useState<unknown>(null);
   const [loadingRelationships, setLoadingRelationships] = React.useState(false);
 
-  // Folder settings (used in Documents tab)
-  const [folderSettings, setFolderSettings] = React.useState<{
-    source_folder_paths: string[];
-    filing_folder_paths: string[];
-    file_action: string;
-  }>({ source_folder_paths: [], filing_folder_paths: [], file_action: "copy" });
+  // Note: Folder settings now managed by CaseDocumentsTab component
 
   // Action types
   const [actionTypes, setActionTypes] = React.useState<Record<string, ActionType>>({});
@@ -357,10 +327,7 @@ export default function CaseDetailPage() {
       case "actions":
         if (actions.length === 0) loadActions();
         break;
-      case "documents":
-        if (documents.length === 0) loadDocuments();
-        if (caseFolderInfo === null) loadCaseFolderInfo();
-        break;
+      // documents tab handles its own data loading via CaseDocumentsTab component
       case "emails":
         if (emails.length === 0) loadEmails();
         break;
@@ -383,108 +350,8 @@ export default function CaseDetailPage() {
     }
   };
 
-  const loadDocuments = async () => {
-    try {
-      setLoadingDocuments(true);
-      const response = await api.get<{ success: boolean; data: CaseDocument[] }>(
-        `/api/v1/cases/${caseId}/documents`
-      );
-      setDocuments(response.data || []);
-    } catch (error) {
-      console.error("Failed to load documents:", error);
-    } finally {
-      setLoadingDocuments(false);
-    }
-  };
-
-  // Handle folder selection from SharePointFolderBrowser (same pattern as case-proposal-approval-dialog)
-  const handleSourceFolderSelect = (folder: { id: string; name: string; web_url?: string; child_count: number } | null, path: string) => {
-    // Add folder path to source folders if not already present
-    if (path && !folderSettings.source_folder_paths.includes(path)) {
-      setFolderSettings(prev => ({
-        ...prev,
-        source_folder_paths: [...prev.source_folder_paths, path]
-      }));
-    }
-  };
-
-  // Add source folder from typed path
-  const addSourceFolderFromPath = () => {
-    if (newSourceFolderPath.trim() && !folderSettings.source_folder_paths.includes(newSourceFolderPath.trim())) {
-      setFolderSettings(prev => ({
-        ...prev,
-        source_folder_paths: [...prev.source_folder_paths, newSourceFolderPath.trim()]
-      }));
-      setNewSourceFolderPath("");
-    }
-  };
-
-  // Scan all selected source folders for documents
-  const scanSourceFolders = async () => {
-    if (folderSettings.source_folder_paths.length === 0) return;
-
-    setScanningFolders(true);
-    try {
-      // Call backend to scan folders and link documents
-      await api.post(`/api/v1/cases/${caseId}/scan_folders`, {
-        folder_paths: folderSettings.source_folder_paths,
-      });
-      // Refresh documents list after scanning
-      await loadDocuments();
-    } catch (error) {
-      console.error("Failed to scan folders:", error);
-    } finally {
-      setScanningFolders(false);
-    }
-  };
-
-  // Load case folder info from OneDrive
-  const loadCaseFolderInfo = async () => {
-    try {
-      const response = await api.get<{ success: boolean; data: typeof caseFolderInfo }>(
-        `/api/v1/cases/${caseId}/folder_info`
-      );
-      setCaseFolderInfo(response.data);
-    } catch (error) {
-      console.error("Failed to load folder info:", error);
-    }
-  };
-
-  // Create case folder in OneDrive
-  const createCaseFolder = async () => {
-    setCreatingFolder(true);
-    try {
-      const response = await api.post<{
-        success: boolean;
-        data: { folder_id: string; folder_name: string; folder_path: string; web_url: string };
-        message?: string;
-      }>(`/api/v1/cases/${caseId}/create_folder`);
-
-      if (response && response.data) {
-        setCaseFolderInfo({
-          has_folder: true,
-          folder_id: response.data.folder_id,
-          folder_name: response.data.folder_name,
-          folder_path: response.data.folder_path,
-          web_url: response.data.web_url,
-        });
-
-        toast({
-          title: "Success",
-          description: response.message || "Case folder created successfully",
-        });
-      }
-    } catch (error) {
-      console.error("Failed to create folder:", error);
-      toast({
-        title: "Error",
-        description: "Failed to create case folder. Make sure SharePoint is connected.",
-        variant: "destructive",
-      });
-    } finally {
-      setCreatingFolder(false);
-    }
-  };
+  // Note: Document functions (loadDocuments, handleSourceFolderSelect, addSourceFolderFromPath,
+  // scanSourceFolders, loadCaseFolderInfo, createCaseFolder) are now in CaseDocumentsTab component
 
   const loadEmails = async () => {
     try {
@@ -596,24 +463,8 @@ export default function CaseDetailPage() {
     }
   };
 
-  // Note: QA functions (loadQAPairs, loadProcessingStatus, loadDuplicates, etc.)
-  // are now in CaseQATab component
-
-  const addSourceFolder = (path: string) => {
-    if (path && !folderSettings.source_folder_paths.includes(path)) {
-      setFolderSettings(prev => ({
-        ...prev,
-        source_folder_paths: [...prev.source_folder_paths, path]
-      }));
-    }
-  };
-
-  const removeSourceFolder = (path: string) => {
-    setFolderSettings(prev => ({
-      ...prev,
-      source_folder_paths: prev.source_folder_paths.filter(p => p !== path)
-    }));
-  };
+  // Note: QA functions are in CaseQATab component
+  // Note: Folder functions (addSourceFolder, removeSourceFolder) are in CaseDocumentsTab component
 
   const createSubCase = async () => {
     if (!newSubCaseTitle.trim()) return;
@@ -733,13 +584,6 @@ export default function CaseDetailPage() {
       default:
         return "bg-blue-100 text-blue-700";
     }
-  };
-
-  const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return "-";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const formatCurrency = (amount: number) => {
