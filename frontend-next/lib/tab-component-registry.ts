@@ -46,9 +46,11 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "XeroAccountsCard": lazy(() => import("@/components/xero/XeroAccountsCard")),
   "XeroAccounts": lazy(() => import("@/components/xero/XeroAccountsCard")), // Alias
 
-  // Bank Accounts
+  // Bank Accounts & Statement
   "XeroBankAccountsCard": lazy(() => import("@/components/xero/XeroBankAccountsCard")),
   "XeroBankAccounts": lazy(() => import("@/components/xero/XeroBankAccountsCard")), // Alias
+  "XeroBankStatement": lazy(() => import("@/components/corporate/XeroStatementView").then(m => ({ default: m.XeroStatementView }))), // Bank statement view
+  "XeroStatementView": lazy(() => import("@/components/corporate/XeroStatementView").then(m => ({ default: m.XeroStatementView }))), // Alias
 
   // Profit & Loss
   "XeroProfitLossMonthly": lazy(() => import("@/components/xero/XeroProfitLossMonthly")),
@@ -66,7 +68,7 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   // Group Reports (consolidated across companies)
   "XeroGroupPLCard": lazy(() => import("@/components/xero/XeroGroupPLCard")),
   "XeroGroupBalanceSheetCard": lazy(() => import("@/components/xero/XeroGroupBalanceSheetCard")),
-  // Note: XeroGroupAccountsCard is referenced in EntityTabs but component doesn't exist yet
+  "XeroGroupAccountsCard": lazy(() => import("@/components/xero/XeroAccountsCard")), // XeroAccountsCard shows group view
 
   // Contacts
   "XeroContactsTable": lazy(() => import("@/components/xero/XeroContactsTable")),
@@ -108,12 +110,59 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   "ConsolidationTab": lazy(() => import("@/components/tabs/ConsolidationTab")),
 
   // ============================================
-  // CORPORATE DOCUMENT COMPONENTS
+  // CORPORATE COMPONENTS - /components/corporate/
   // ============================================
+
+  // CorporateStructureTab - Corporate structure visualization with chart/table view
+  "CorporateStructureTab": lazy(() => import("@/components/corporate/CorporateStructureTab")),
 
   // CompanyDocumentsTab - extracted component for corporate documents
   // Note: Used directly in page.tsx, not via registry (accepts company prop)
   // "CompanyDocumentsTab": lazy(() => import("@/components/corporate/CompanyDocumentsTab")),
+
+  // ============================================
+  // CASE COMPONENTS - /components/cases/
+  // ============================================
+
+  // Case tab components (extracted from cases/[id]/page.tsx)
+  "CaseOverviewTab": lazy(() => import("@/components/cases/CaseOverviewTab")),
+  "CaseEntitiesTab": lazy(() => import("@/components/cases/CaseEntitiesTab")),
+  "CaseDocumentsTab": lazy(() => import("@/components/cases/CaseDocumentsTab")),
+  "CaseTimelineTab": lazy(() => import("@/components/cases/CaseTimelineTab")),
+  "CaseWarehouseTab": lazy(() => import("@/components/cases/CaseWarehouseTab")),
+  "CaseQATab": lazy(() => import("@/components/cases/CaseQATab")),
+  "CaseProposalsTab": lazy(() => import("@/components/cases/case-proposals-tab").then(m => ({ default: m.CaseProposalsTab }))),
+  "CaseRelationshipChart": lazy(() => import("@/components/cases/CaseRelationshipChart")),
+
+  // ============================================
+  // CONTACT COMPONENTS - /app/(app)/contacts/[id]/components/
+  // ============================================
+
+  // Contact tab components (co-located with page, named exports)
+  "ContactOverviewTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactOverviewTab").then(m => ({ default: m.ContactOverviewTab }))),
+  "ContactCorporateTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactCorporateTab").then(m => ({ default: m.ContactCorporateTab }))),
+  "ContactFinancialTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactFinancialTab").then(m => ({ default: m.ContactFinancialTab }))),
+  "ContactCasesTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactCasesTab").then(m => ({ default: m.ContactCasesTab }))),
+  "ContactEmailsTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactEmailsTab").then(m => ({ default: m.ContactEmailsTab }))),
+  "ContactDirectorshipsTab": lazy(() => import("@/app/(app)/contacts/[id]/components/ContactDirectorshipsTab").then(m => ({ default: m.ContactDirectorshipsTab }))),
+
+  // ============================================
+  // JOB COMPONENTS - /components/jobs/
+  // ============================================
+
+  // Job tab components (named exports)
+  "JobActivityTab": lazy(() => import("@/components/jobs/JobActivityTab").then(m => ({ default: m.JobActivityTab }))),
+  "JobBudgetTab": lazy(() => import("@/components/jobs/JobBudgetTab").then(m => ({ default: m.JobBudgetTab }))),
+  "JobClaimStagesTab": lazy(() => import("@/components/jobs/JobClaimStagesTab").then(m => ({ default: m.JobClaimStagesTab }))),
+  "JobCommunicationsTab": lazy(() => import("@/components/jobs/JobCommunicationsTab").then(m => ({ default: m.JobCommunicationsTab }))),
+  "JobContractTab": lazy(() => import("@/components/jobs/JobContractTab").then(m => ({ default: m.JobContractTab }))),
+  "JobDocumentsTab": lazy(() => import("@/components/jobs/JobDocumentsTab").then(m => ({ default: m.JobDocumentsTab }))),
+  "JobEstimatorTab": lazy(() => import("@/components/jobs/JobEstimatorTab").then(m => ({ default: m.JobEstimatorTab }))),
+  "JobPeopleTab": lazy(() => import("@/components/jobs/JobPeopleTab").then(m => ({ default: m.JobPeopleTab }))),
+  "JobPlansTab": lazy(() => import("@/components/jobs/JobPlansTab").then(m => ({ default: m.JobPlansTab }))),
+  "JobProfitTab": lazy(() => import("@/components/jobs/JobProfitTab").then(m => ({ default: m.JobProfitTab }))),
+  "JobPurchaseOrdersTab": lazy(() => import("@/components/jobs/JobPurchaseOrdersTab").then(m => ({ default: m.JobPurchaseOrdersTab }))),
+  "RainLogTab": lazy(() => import("@/components/jobs/RainLogTab").then(m => ({ default: m.RainLogTab }))),
 };
 
 /**

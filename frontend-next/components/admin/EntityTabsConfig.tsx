@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import { resolveWithExamples } from "@/lib/placeholders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -565,25 +566,17 @@ export function EntityTabsConfig({
               </thead>
               <tbody>
                 {tab.document_types.map((dt) => {
-                  // Generate example with Tekna Homes dummy data
-                  const applyReplacements = (str: string | undefined) => str
-                    ?.replace(/\{CompanyCode\}/gi, 'TH')
-                    ?.replace(/\{CompanyName\}/gi, 'Tekna Homes')
-                    ?.replace(/\{JobCode\}/gi, '46')
-                    ?.replace(/\{JobId\}/gi, '46')
-                    ?.replace(/\{JobNumber\}/gi, '46')
-                    ?.replace(/\{Date\}/gi, '15-Dec-2024')
-                    ?.replace(/\{ExpiryDate\}/gi, '15-Dec-2025')
-                    ?.replace(/\{Expiry\}/gi, '15-Dec-2025')
-                    ?.replace(/\{FY\}/gi, 'FY2024')
-                    ?.replace(/\{PersonCode\}/gi, 'RH')
-                    ?.replace(/\{PersonShort\}/gi, 'RH')
-                    ?.replace(/\{Person\}/gi, 'RH')
-                    ?.replace(/\{PersonName\}/gi, 'Robert Harder')
-                    ?.replace(/\{PersonDisplayName\}/gi, 'Robert Harder')
-                    ?.replace(/\{DisplayName\}/gi, 'Robert Harder')
-                    ?.replace(/\{DocTypeName\}/gi, dt.name)
-                    || '—';
+                  // Generate example using SSoT placeholders.ts
+                  const applyReplacements = (str: string | undefined) => {
+                    if (!str) return '—';
+                    // Use SSoT for all standard placeholders
+                    let result = resolveWithExamples(str);
+                    // Override document-type specific values with actual data
+                    result = result
+                      .replace(/\{DocTypeCode\}/gi, dt.abbreviation || 'DOC')
+                      .replace(/\{DocTypeName\}/gi, dt.name || 'Document');
+                    return result;
+                  };
                   const exampleFileName = applyReplacements(dt.file_name);
                   const exampleDisplayName = applyReplacements(dt.display_name);
 

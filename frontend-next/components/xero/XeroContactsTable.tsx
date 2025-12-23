@@ -1,6 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+/**
+ * XeroContactsTable - Self-contained Xero contacts component
+ *
+ * SSoT: Follows the same pattern as other Xero components (XeroInvoicesCard, etc.)
+ * - Accepts companyId as required prop
+ * - Fetches its own data via API
+ * - Manages its own loading/error states
+ */
+
+import * as React from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Table,
@@ -13,6 +23,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   ChevronDown,
   ChevronRight,
@@ -22,9 +33,13 @@ import {
   Plus,
   Search,
   Globe,
-  Download
+  Download,
+  Loader2,
+  AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 interface XeroContact {
   id: number;
@@ -42,10 +57,20 @@ interface XeroContact {
 type FilterType = "all" | "supplier" | "customer" | "person" | "company";
 
 interface XeroContactsTableProps {
-  contacts: XeroContact[];
+  /** Company ID - required for self-contained data loading */
+  companyId: string;
+  /** Entity ID alias for companyId (TabComponentProps compatibility) */
+  entityId?: string;
+  /** Optional tenant ID if already known (avoids extra API call) */
+  tenantId?: string;
+  /** Optional callback when row is clicked */
   onRowClick?: (contact: XeroContact) => void;
+  /** Optional callback for add contact action */
   onAddContact?: () => void;
+  /** Optional callback for export action */
   onExport?: () => void;
+  /** Optional callback after data refresh */
+  onRefresh?: () => Promise<void>;
 }
 
 interface GroupedContacts {
@@ -54,8 +79,25 @@ interface GroupedContacts {
   other: XeroContact[];
 }
 
-export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport }: XeroContactsTableProps) {
+export function XeroContactsTable({
+  companyId,
+  entityId,
+  tenantId: propTenantId,
+  onRowClick,
+  onAddContact,
+  onExport,
+  onRefresh,
+}: XeroContactsTableProps) {
   const router = useRouter();
+  const effectiveCompanyId = companyId || entityId;
+
+  // Data loading state
+  const [contacts, setContacts] = useState<XeroContact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>(propTenantId || null);
+
+  // UI state
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     person: true,
     company: true,
@@ -64,6 +106,79 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterType>("all");
   const [isEditMode, setIsEditMode] = useState(false);
+
+  // Fetch Xero tenant ID from company connection
+  const fetchTenantId = useCallback(async (): Promise<string | null> => {
+    if (propTenantId) return propTenantId;
+    if (!effectiveCompanyId) return null;
+
+    try {
+      const response = await api.get<{
+        success: boolean;
+        connection?: { xero_tenant_id: string };
+      }>(`/api/v1/companies/${effectiveCompanyId}/xero/connection`);
+
+      if (response?.success && response.connection?.xero_tenant_id) {
+        setTenantId(response.connection.xero_tenant_id);
+        return response.connection.xero_tenant_id;
+      }
+      return null;
+    } catch (err) {
+      console.error("Failed to fetch Xero connection:", err);
+      return null;
+    }
+  }, [effectiveCompanyId, propTenantId]);
+
+  // Fetch contacts linked to this company's Xero tenant
+  const fetchContacts = useCallback(async () => {
+    if (!effectiveCompanyId) {
+      setError("No company ID provided");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Get tenant ID if not already known
+      const tid = tenantId || await fetchTenantId();
+
+      if (!tid) {
+        setContacts([]);
+        setLoading(false);
+        return;
+      }
+
+      const response = await api.get<{ success: boolean; contacts: XeroContact[] }>(
+        `/api/v1/contacts?xero_tenant_id=${tid}`
+      );
+
+      if (response.success) {
+        setContacts(response.contacts || []);
+      } else {
+        setError("Failed to load contacts");
+      }
+    } catch (err) {
+      console.error("Failed to load Xero contacts:", err);
+      setError("Failed to load contacts");
+    } finally {
+      setLoading(false);
+    }
+  }, [effectiveCompanyId, tenantId, fetchTenantId]);
+
+  // Load data on mount
+  useEffect(() => {
+    fetchContacts();
+  }, [fetchContacts]);
+
+  // Handle refresh
+  const handleRefresh = useCallback(async () => {
+    await fetchContacts();
+    if (onRefresh) {
+      await onRefresh();
+    }
+  }, [fetchContacts, onRefresh]);
 
   // Filter contacts based on search and filter type
   const filteredContacts = useMemo(() => {
@@ -219,7 +334,7 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
     const isExpanded = expandedGroups[groupKey];
 
     return (
-      <>
+      <React.Fragment key={groupKey}>
         <TableRow
           className="bg-muted/30 dark:bg-muted/10 cursor-pointer hover:bg-muted/50 dark:hover:bg-muted/20"
           onClick={() => toggleGroup(groupKey)}
@@ -240,15 +355,54 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
           </TableCell>
         </TableRow>
         {isExpanded && groupContacts.map(renderContactRow)}
-      </>
+      </React.Fragment>
     );
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col items-center justify-center text-center">
+            <AlertCircle className="h-8 w-8 text-red-500 mb-2" />
+            <p className="font-medium text-red-600">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              className="mt-4 gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Empty state
   if (contacts.length === 0) {
     return (
-      <div className="flex items-center justify-center h-32 text-muted-foreground">
-        No Xero-linked contacts found
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            <p className="font-medium mb-2">No Contacts Linked</p>
+            <p className="text-sm">No contacts are linked to this Xero account yet.</p>
+            <p className="text-sm mt-2">Link contacts to Xero in the Contacts module.</p>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -274,6 +428,17 @@ export function XeroContactsTable({ contacts, onRowClick, onAddContact, onExport
             Add Contact
           </Button>
         )}
+
+        {/* Refresh Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          className="gap-1.5"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          Refresh
+        </Button>
 
         {/* Record Count Badge */}
         <Badge variant="outline" className="text-green-600 border-green-300 dark:border-green-700">

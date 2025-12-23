@@ -45,6 +45,7 @@ import {
   Camera,
   CheckCircle,
   AlertCircle,
+  GanttChartSquare,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -285,6 +286,13 @@ export default function ScheduleTemplateDetailPage() {
               Default
             </Badge>
           )}
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/schedule-templates/${templateId}/gantt`)}
+          >
+            <GanttChartSquare className="h-4 w-4 mr-2" />
+            Canvas Gantt
+          </Button>
         </div>
       </div>
 

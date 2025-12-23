@@ -31,6 +31,29 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:company_id/xero/connection
+      # Returns the Xero connection details (tenant_id) for this company
+      # Used by XeroAccountsCard, XeroInvoicesCard, XeroBillsCard for syncing
+      def connection
+        conn = @company.corporate_company_xero_connection
+
+        if conn
+          render json: {
+            success: true,
+            connection: {
+              xero_tenant_id: conn.xero_tenant_id,
+              xero_tenant_name: conn.xero_tenant_name,
+              connected: true
+            }
+          }
+        else
+          render json: {
+            success: false,
+            error: "No Xero connection for this company"
+          }, status: :not_found
+        end
+      end
+
       # GET /api/v1/companies/:company_id/xero/setup_status
       # Returns the setup wizard status for this company's Xero integration
       # Used by XeroSetupWizard component to track progress

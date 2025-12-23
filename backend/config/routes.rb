@@ -1735,6 +1735,7 @@ Rails.application.routes.draw do
         # Per-Company Xero Integration
         get "xero/status", to: "corporate_company_xero#status"
         get "xero/setup_status", to: "corporate_company_xero#setup_status"
+        get "xero/connection", to: "corporate_company_xero#connection"
         get "xero/authorize", to: "corporate_company_xero#authorize"
         get "xero/callback", to: "corporate_company_xero#callback"
         post "xero/link", to: "corporate_company_xero#link"

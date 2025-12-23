@@ -49,16 +49,16 @@ import { CompanyDocumentsTab } from "@/components/corporate/CompanyDocumentsTab"
 import { ATOSetupCard } from "@/components/corporate/ATOSetupCard";
 
 // Dynamic tab rendering (SSoT: lib/tab-component-registry.ts)
-// Individual components are lazy-loaded via OverviewTabRenderer
+// Individual components are lazy-loaded via OverviewTabRenderer and XeroTabRenderer
 import { OverviewTabRenderer } from "@/components/corporate/OverviewTabRenderer";
-import { XeroTabSection } from "@/components/corporate/XeroTabSection";
+import { XeroTabRenderer } from "@/components/xero/XeroTabRenderer";
 // ActivityTab is used for main "activity-main" tab (not overview sub-tab)
 import { ActivityTab } from "@/components/tabs";
 // Shared types for corporate entities (SSoT for Company type)
 import type { CorporateCompany } from "@/lib/types/corporate";
 
-// SSoT: Using unified EntityTabs API (Phase 4 migration)
-import { useCorporateEntityTabs } from "@/lib/hooks/useCorporateEntityTabs";
+// SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
+import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
 import { getIcon } from "@/lib/icon-map";
 
 // =============================================================================
@@ -66,7 +66,7 @@ import { getIcon } from "@/lib/icon-map";
 // SSoT: GET /api/v1/entity_tabs?scope=corporate_entity (EntityTab model)
 // Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
 // Manage via: Admin > System > Entity Configuration
-// Phase 4 Migration Complete: Using useCorporateEntityTabs & useXeroEntityTabs hooks
+// Phase 5 Migration: Using XeroTabRenderer for dynamic Xero tab rendering
 // =============================================================================
 
 // SSoT: All tabs come from API only (EntityTabs database)
@@ -156,13 +156,50 @@ export default function CompanyDetailPage() {
     return entityType;
   }, [company]);
 
-  // SSoT: Using unified EntityTabs API (Phase 4 migration)
-  // Corporate tabs - replaces old /api/v1/corporate/entity_tabs
-  const {
-    overviewTabs: entityOverviewTabs,
-    documentTabs: documentFolderTabs,
-    mainTabs: entityMainTabs,
-  } = useCorporateEntityTabs(normalizedEntityType);
+  // SSoT: Using unified EntityTabs API directly (Phase 5 - no adapter hooks)
+  const { tabs: entityTabs } = useEntityTabs({
+    scope: "corporate_entity",
+    entityType: normalizedEntityType,
+  });
+
+  // Split tabs by group - SSoT: tab_group field from EntityTabs database
+  // Overview sub-tabs are children of the "overview" main tab
+  const entityOverviewTabs = React.useMemo(() => {
+    // Find the Overview main tab and get its children
+    const overviewTab = entityTabs.find((t) => t.tab_key === "overview" && t.tab_group === "main");
+    if (!overviewTab?.children) return [];
+    return overviewTab.children
+      .filter((child) => child.tab_group === "overview")
+      .map((child) => ({
+        id: child.tab_key,
+        name: child.display_name
+      }));
+  }, [entityTabs]);
+
+  const documentFolderTabs = React.useMemo(() => {
+    return entityTabs
+      .filter((t) => t.tab_group === "documents")
+      .map((t) => {
+        // Some tabs need "-docs" suffix to avoid conflicts with other tabs
+        const needsDocsSuffix = ["assets", "dividends", "loans", "minutes"].includes(t.tab_key);
+        return {
+          id: needsDocsSuffix ? `${t.tab_key}-docs` : t.tab_key,
+          name: t.display_name,
+          icon: t.icon_name,
+        };
+      });
+  }, [entityTabs]);
+
+  const entityMainTabs = React.useMemo(() => {
+    return entityTabs
+      .filter((t) => t.tab_group === "main")
+      .map((t) => ({
+        id: t.tab_key,
+        name: t.display_name,
+        icon: t.icon_name,
+        component: t.component_name,
+      }));
+  }, [entityTabs]);
 
   // Map folder names to icons
   const getFolderIcon = (folderName: string) => {
@@ -190,8 +227,8 @@ export default function CompanyDetailPage() {
     return iconMap[folderName] || FileText;
   };
 
-  // REMOVED: loadEntityTabs - now using useCorporateEntityTabs hook (SSoT)
-  // REMOVED: loadXeroTabs - now using useXeroEntityTabs hook (SSoT)
+  // REMOVED: loadEntityTabs - now using useEntityTabs hook directly (SSoT)
+  // REMOVED: loadXeroTabs - now using XeroTabRenderer with useEntityTabs (SSoT)
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -201,7 +238,7 @@ export default function CompanyDetailPage() {
         `/api/v1/companies/${companyId}`
       );
       setCompany(response.company);
-      // SSoT: Entity tabs now loaded via useCorporateEntityTabs hook (Phase 4)
+      // SSoT: Entity tabs now loaded via useEntityTabs hook directly (Phase 5)
       // The hook automatically refetches when company.entity_type changes
     } catch (error) {
       console.error("Failed to load company:", error);
@@ -257,7 +294,7 @@ export default function CompanyDetailPage() {
     loadCompany();
     loadDocumentCounts();
     loadHealthScore();
-    // SSoT: Xero tabs now loaded via useXeroEntityTabs hook (Phase 4)
+    // SSoT: Xero tabs now rendered via XeroTabRenderer (Phase 5)
   }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
   // Handle tab from URL
@@ -332,7 +369,9 @@ export default function CompanyDetailPage() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight font-serif">{company.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight font-serif">
+                {company.name}
+              </h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {company.formatted_acn && (
                   <span className="text-sm text-muted-foreground">ACN: {company.formatted_acn}</span>
@@ -496,13 +535,17 @@ export default function CompanyDetailPage() {
             </div>
           )}
 
-          {/* XERO Tab - Extracted to XeroTabSection component */}
-          {activeTab === "xero" && (
-            <XeroTabSection
-              companyId={companyId}
-              company={company}
-              DocumentsTabComponent={CompanyDocumentsTab}
-            />
+          {/* XERO Tab - Dynamic rendering via XeroTabRenderer (SSoT) */}
+          {activeTab === "xero" && company && (
+            <div className="h-full -mx-3 -mb-3">
+              <XeroTabRenderer
+                companyId={companyId}
+                companyName={company?.name}
+                company={company}
+                onRefresh={loadCompany}
+                DocumentsTabComponent={CompanyDocumentsTab}
+              />
+            </div>
           )}
 
           {/* Document Category Tabs */}

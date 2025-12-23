@@ -28,6 +28,16 @@ export function InformationTab({ company }: InformationTabProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
         <div>
           <CopyableField label="Legal Name" value={company.name} />
+          {company.code && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Code: <span className="font-mono">{company.code}</span>
+            </p>
+          )}
+          {company.corporate_group && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Group: {company.corporate_group.name}{company.corporate_group.code ? ` [${company.corporate_group.code}]` : ''}
+            </p>
+          )}
           {company.previous_names && (
             <p className="text-xs text-muted-foreground mt-1">
               Previously: {company.previous_names}

@@ -4854,8 +4854,8 @@ export default function TeeemTableView({
                 Add Record
               </Button>
             )}
-            {/* Edit Mode Toggle - enables inline cell editing */}
-            <EditModeToggle />
+            {/* Edit Mode Toggle - enables inline cell editing (hidden in viewOnly mode) */}
+            <EditModeToggle show={!viewOnly} />
             {leftActions}
             {/* Health Indicator Button - shows if table has health checks */}
             {foundationIdNumeric && (
@@ -5093,19 +5093,29 @@ export default function TeeemTableView({
               </DropdownMenuLabel>
 
               {foundationIdNumeric && (
-                <div className="px-2 py-1.5 flex items-center justify-between">
-                  <span className="text-[11px]">
-                    Table ID: <span className="font-mono font-medium">{foundationIdNumeric}</span>
-                  </span>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    onClick={handleCopyTableId}
+                <>
+                  <div className="px-2 py-1.5 flex items-center justify-between">
+                    <span className="text-[11px]">
+                      Table ID: <span className="font-mono font-medium">{foundationIdNumeric}</span>
+                    </span>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={handleCopyTableId}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                  <DropdownMenuItem
+                    onClick={() => window.open(`/admin/system?tab=gold-standard&foundation=${foundationIdNumeric}`, '_blank')}
+                    className="flex items-center gap-2"
                   >
-                    Copy
-                  </Button>
-                </div>
+                    <Settings className="h-4 w-4" />
+                    Configure Table
+                    <ExternalLink className="h-3 w-3 ml-auto text-muted-foreground" />
+                  </DropdownMenuItem>
+                </>
               )}
 
             </DropdownMenuContent>

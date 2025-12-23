@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSetAtom } from "jotai";
 import Link from "next/link";
@@ -64,6 +64,8 @@ import { type TableColumn } from "@/components/table/types";
 import PersonStructureChart from "@/components/corporate/PersonStructureChart";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { ContactHeader } from "./components/ContactHeader";
+import { useEntityTabs } from "@/lib/hooks/useEntityTabs";
+import { getIcon } from "@/lib/icon-map";
 import {
   ContactOverviewTab,
   ContactCorporateTab,
@@ -212,6 +214,21 @@ export default function ContactDetailPage() {
 
   // SSoT: Entity types from API
   const { metadata: entityTypeMetadata } = useEntityTypes();
+
+  // SSoT: Tab configuration from EntityTabs API (Phase 5 - unified tabs)
+  const { tabs: contactTabs } = useEntityTabs({ scope: "contact" });
+
+  // Create a map for quick tab config lookup
+  const tabConfigMap = useMemo(() => {
+    const map: Record<string, { display_name: string; icon_name: string | null }> = {};
+    contactTabs.forEach((tab) => {
+      map[tab.tab_key] = {
+        display_name: tab.display_name,
+        icon_name: tab.icon_name,
+      };
+    });
+    return map;
+  }, [contactTabs]);
 
   const [contact, setContact] = useState<Contact | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1800,11 +1817,11 @@ export default function ContactDetailPage() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="overview">{tabConfigMap.overview?.display_name || "Overview"}</TabsTrigger>
           {contact.linked_company && contact.can_view_corporate && (
             <TabsTrigger value="corporate">
-              <Building2 className="h-3.5 w-3.5 mr-1" />
-              Corporate
+              {(() => { const Icon = getIcon(tabConfigMap.corporate?.icon_name || "building-2"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              {tabConfigMap.corporate?.display_name || "Corporate"}
               {(directorships.length > 0 || shareholdings.length > 0 || (trustRoles && trustRoles.total_count > 0) || memberships.length > 0) && (
                 <Badge variant="secondary" className="ml-1.5">
                   {directorships.length + shareholdings.length + (trustRoles?.total_count || 0) + memberships.length}
@@ -1813,16 +1830,16 @@ export default function ContactDetailPage() {
               {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
             </TabsTrigger>
           )}
-          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="documents">{tabConfigMap.documents?.display_name || "Documents"}</TabsTrigger>
           <TabsTrigger value="financial">
-            Financial
+            {tabConfigMap.financial?.display_name || "Financial"}
             {!contact.can_view_confidential && <Lock className="h-3 w-3 ml-1 text-amber-500" />}
           </TabsTrigger>
-          <TabsTrigger value="coms">Communications</TabsTrigger>
+          <TabsTrigger value="coms">{tabConfigMap.coms?.display_name || "Communications"}</TabsTrigger>
           {contact.can_view_cases && (
             <TabsTrigger value="cases">
-              <Briefcase className="h-3.5 w-3.5 mr-1" />
-              Cases
+              {(() => { const Icon = getIcon(tabConfigMap.cases?.icon_name || "briefcase"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              {tabConfigMap.cases?.display_name || "Cases"}
               {caseRelationships.length > 0 && (
                 <Badge variant="secondary" className="ml-1.5">
                   {caseRelationships.length}
@@ -1832,8 +1849,8 @@ export default function ContactDetailPage() {
           )}
           {contact.email && (
             <TabsTrigger value="emails">
-              <Mail className="h-3.5 w-3.5 mr-1" />
-              Emails
+              {(() => { const Icon = getIcon(tabConfigMap.emails?.icon_name || "mail"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              {tabConfigMap.emails?.display_name || "Emails"}
               {emailsPagination && emailsPagination.total > 0 && (
                 <Badge variant="secondary" className="ml-1.5">
                   {emailsPagination.total}
@@ -1843,18 +1860,18 @@ export default function ContactDetailPage() {
           )}
           {contact["is_customer?"] && (
             <TabsTrigger value="invoices">
-              <FileText className="h-3.5 w-3.5 mr-1" />
-              Invoices
+              {(() => { const Icon = getIcon(tabConfigMap.invoices?.icon_name || "file-text"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              {tabConfigMap.invoices?.display_name || "Invoices"}
             </TabsTrigger>
           )}
           {contact["is_supplier?"] && (
-            <TabsTrigger value="pricebook">Price Book</TabsTrigger>
+            <TabsTrigger value="pricebook">{tabConfigMap.pricebook?.display_name || "Price Book"}</TabsTrigger>
           )}
-          <TabsTrigger value="portal">Portal Access</TabsTrigger>
+          <TabsTrigger value="portal">{tabConfigMap.portal?.display_name || "Portal Access"}</TabsTrigger>
           {directorships.length > 0 && (
             <TabsTrigger value="directorships">
-              <Briefcase className="h-3.5 w-3.5 mr-1" />
-              Directorships
+              {(() => { const Icon = getIcon(tabConfigMap.directorships?.icon_name || "users"); return <Icon className="h-3.5 w-3.5 mr-1" />; })()}
+              {tabConfigMap.directorships?.display_name || "Directorships"}
               <Badge variant="secondary" className="ml-1.5">
                 {directorships.filter(d => d.is_current).length}
               </Badge>
