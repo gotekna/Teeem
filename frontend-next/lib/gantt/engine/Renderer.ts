@@ -13,6 +13,7 @@
 import type { GanttConfig, GanttTask, GanttDependency, GanttBaseline, ContextMenuItem } from './GanttCanvas';
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
+import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 
 // ============================================================================
 // Renderer Class
@@ -237,8 +238,8 @@ export class Renderer {
    * Draw today marker
    */
   drawTodayMarker(height: number): void {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Get today in company timezone (from /api/v1/company_settings)
+    const today = getTodayInCompanyTimezone();
 
     const x = this.viewport.dateToX(today);
 

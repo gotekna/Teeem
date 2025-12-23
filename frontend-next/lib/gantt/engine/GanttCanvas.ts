@@ -12,6 +12,7 @@ import { Renderer } from './Renderer';
 import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
+import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -825,7 +826,7 @@ export class GanttCanvas {
    * Scroll to today
    */
   scrollToToday(): void {
-    const today = new Date();
+    const today = getTodayInCompanyTimezone();
     const x = this.viewport.dateToX(today);
     this.viewport.scrollTo(x - this.containerWidth / 2, this.state.viewportState.scrollY);
     this.markDirty();
@@ -1560,8 +1561,7 @@ export class GanttCanvas {
    * @returns true if the date is before today
    */
   wouldViolateTodayConstraint(taskId: string, proposedStartDate: Date): boolean {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     const proposed = new Date(proposedStartDate);
     proposed.setHours(0, 0, 0, 0);
@@ -1582,8 +1582,7 @@ export class GanttCanvas {
       return false;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     const taskStart = new Date(task.startDate);
     taskStart.setHours(0, 0, 0, 0);
@@ -1596,8 +1595,7 @@ export class GanttCanvas {
    * (scheduled before today but not started)
    */
   getTasksViolatingTodayConstraint(): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     return this.state.tasks.filter(task => {
       if (task.status === 'in-progress' || task.status === 'completed') {
@@ -2172,6 +2170,9 @@ export class GanttCanvas {
     const rect = parent.getBoundingClientRect();
     this.containerWidth = rect.width;
     this.containerHeight = rect.height;
+
+    // Update viewport container size for scroll limiting
+    this.viewport.setContainerSize(rect.width, rect.height);
 
     // Set canvas size accounting for device pixel ratio
     this.canvas.width = rect.width * this.dpr;
@@ -3795,8 +3796,7 @@ export class GanttCanvas {
    * @returns The created task
    */
   createTask(overrides?: Partial<GanttTask>): GanttTask {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     const endDate = new Date(today);
     endDate.setDate(endDate.getDate() + 1);
@@ -4267,8 +4267,7 @@ export class GanttCanvas {
    * Find overdue tasks (end date before today, not completed)
    */
   findOverdueTasks(): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
     return this.state.tasks.filter(t => {
       return t.status !== 'completed' && t.endDate < today;
     });
@@ -4278,8 +4277,7 @@ export class GanttCanvas {
    * Find tasks due soon (within N days)
    */
   findTasksDueSoon(days: number = 7): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + days);
 
@@ -4292,8 +4290,7 @@ export class GanttCanvas {
    * Find tasks starting soon (within N days)
    */
   findTasksStartingSoon(days: number = 7): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + days);
 
@@ -6132,8 +6129,8 @@ export class GanttCanvas {
     const guides: SnapGuide[] = [];
     const proposedX = this.dateToX(proposedDate);
 
-    // Add snap guide for today
-    const todayX = this.dateToX(new Date());
+    // Add snap guide for today (company timezone)
+    const todayX = this.dateToX(getTodayInCompanyTimezone());
     if (this.shouldSnap(Math.abs(proposedX - todayX))) {
       guides.push({ type: 'today', x: todayX, label: 'Today' });
     }
@@ -11764,9 +11761,8 @@ export class GanttCanvas {
       return { hasConflict: false, conflictType: null, conflictingTaskId: null, message: '' };
     }
 
-    // Check today constraint
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Check today constraint (company timezone)
+    const today = getTodayInCompanyTimezone();
     if (newStartDate < today) {
       return {
         hasConflict: true,
@@ -15216,7 +15212,7 @@ ${this.getAutomatedTestResults()}
   // FEATURE 585: TIMELINE COVERAGE DATA
   getTimelineCoverageData(): { startDate: Date; endDate: Date; totalDays: number; workingDays: number } {
     if (this.state.tasks.length === 0) {
-      const today = new Date();
+      const today = getTodayInCompanyTimezone();
       return { startDate: today, endDate: today, totalDays: 0, workingDays: 0 };
     }
 

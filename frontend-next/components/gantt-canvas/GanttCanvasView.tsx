@@ -45,6 +45,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { initCompanySettings, getTodayInCompanyTimezone } from "@/lib/stores/company-settings-store";
 
 // ============================================================================
 // Types
@@ -125,6 +135,80 @@ export function GanttCanvasView({
 
   // Column configuration state - controls order and visibility
   const [columns, setColumns] = React.useState<ColumnConfig[]>(DEFAULT_COLUMNS);
+  const [columnsLoaded, setColumnsLoaded] = React.useState(false);
+
+  // Load columns from localStorage on client mount
+  React.useEffect(() => {
+    const saved = localStorage.getItem('gantt-column-config');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setColumns(parsed);
+        }
+      } catch {
+        // Invalid JSON, use defaults
+      }
+    }
+    setColumnsLoaded(true);
+  }, []);
+
+  // Initialize company settings (timezone) on mount
+  React.useEffect(() => {
+    initCompanySettings();
+  }, []);
+
+  // Save columns to localStorage whenever they change (only after initial load)
+  React.useEffect(() => {
+    if (columnsLoaded) {
+      localStorage.setItem('gantt-column-config', JSON.stringify(columns));
+    }
+  }, [columns, columnsLoaded]);
+
+  // Dependency types
+  type DependencyType = 'FS' | 'FF' | 'SS' | 'SF';
+  interface PredecessorLink {
+    predecessorId: string;
+    type: DependencyType;
+    lag: number;
+  }
+
+  // Dependency editor state
+  const [depEditorOpen, setDepEditorOpen] = React.useState(false);
+  const [depEditorTask, setDepEditorTask] = React.useState<GanttTask | null>(null);
+  const [depEditorLinks, setDepEditorLinks] = React.useState<PredecessorLink[]>([]);
+
+  // Task items for combobox (memoized)
+  const taskComboItems = React.useMemo((): ComboboxItem[] => {
+    return tasks
+      .filter(t => t.id !== depEditorTask?.id)
+      .map(t => {
+        const rowNum = tasks.findIndex(task => task.id === t.id) + 1;
+        return {
+          id: t.id,
+          label: `${rowNum}. ${t.name}`,
+        };
+      });
+  }, [tasks, depEditorTask]);
+
+  // Permanent columns that cannot be hidden
+  const PERMANENT_COLUMNS = ['name'];
+
+  // Get visible columns (always includes permanent columns, name always first)
+  // When sidebar is "hidden", only show permanent columns (Name)
+  const visibleColumns = React.useMemo(() => {
+    const visible = columns.filter(c => c.visible || PERMANENT_COLUMNS.includes(c.id));
+    // Ensure Name is always first
+    const nameCol = visible.find(c => c.id === 'name');
+    const others = visible.filter(c => c.id !== 'name');
+    const allVisible = nameCol ? [nameCol, ...others] : others;
+
+    // When sidebar is hidden, only show permanent columns
+    if (!showSidebar) {
+      return allVisible.filter(c => PERMANENT_COLUMNS.includes(c.id));
+    }
+    return allVisible;
+  }, [columns, showSidebar]);
 
   // Helper to get visible status by column id (for backwards compatibility)
   const isColumnVisible = React.useCallback((columnId: string) => {
@@ -142,6 +226,127 @@ export function GanttCanvasView({
   const handleColumnReorder = React.useCallback((newColumns: ColumnConfig[]) => {
     setColumns(newColumns);
   }, []);
+
+  // Column resize state
+  const [resizingColumn, setResizingColumn] = React.useState<string | null>(null);
+  const [resizeStartX, setResizeStartX] = React.useState(0);
+  const [resizeStartWidth, setResizeStartWidth] = React.useState(0);
+
+  // Handle column resize
+  const handleResizeStart = React.useCallback((e: React.MouseEvent, columnId: string, currentWidth: number) => {
+    e.preventDefault();
+    setResizingColumn(columnId);
+    setResizeStartX(e.clientX);
+    setResizeStartWidth(currentWidth);
+  }, []);
+
+  // Mouse move handler for resize
+  React.useEffect(() => {
+    if (!resizingColumn) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizeStartX;
+      const newWidth = Math.max(40, resizeStartWidth + delta); // Min width 40px
+      setColumns(prev => prev.map(col =>
+        col.id === resizingColumn ? { ...col, width: newWidth } : col
+      ));
+    };
+
+    const handleMouseUp = () => {
+      setResizingColumn(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingColumn, resizeStartX, resizeStartWidth]);
+
+  // Open dependency editor for a task
+  const openDepEditor = React.useCallback((task: GanttTask) => {
+    setDepEditorTask(task);
+    // Convert predecessorIds to PredecessorLink objects (default to FS, 0 lag)
+    const links: PredecessorLink[] = (task.predecessorIds || []).map(id => ({
+      predecessorId: id,
+      type: 'FS' as DependencyType,
+      lag: 0,
+    }));
+    setDepEditorLinks(links);
+    setDepEditorOpen(true);
+  }, []);
+
+  // Add a new predecessor link
+  const addPredecessorLink = React.useCallback(() => {
+    setDepEditorLinks(prev => [...prev, { predecessorId: '', type: 'FS', lag: 0 }]);
+  }, []);
+
+  // Update a predecessor link
+  const updatePredecessorLink = React.useCallback((index: number, updates: Partial<PredecessorLink>) => {
+    setDepEditorLinks(prev => prev.map((link, i) =>
+      i === index ? { ...link, ...updates } : link
+    ));
+  }, []);
+
+  // Remove a predecessor link
+  const removePredecessorLink = React.useCallback((index: number) => {
+    setDepEditorLinks(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Check for circular dependencies
+  const hasCircularDependency = React.useCallback((taskId: string, newPredecessorIds: string[], visited: Set<string> = new Set()): boolean => {
+    if (visited.has(taskId)) return true;
+    visited.add(taskId);
+
+    for (const predId of newPredecessorIds) {
+      // Get the predecessor's own predecessors
+      const predTask = tasks.find(t => t.id === predId);
+      if (predTask) {
+        const predPredecessors = predTask.predecessorIds || [];
+        // Check if this predecessor (or any of its predecessors) depends on our task
+        if (predPredecessors.includes(taskId)) return true;
+        if (hasCircularDependency(taskId, predPredecessors, visited)) return true;
+      }
+    }
+    return false;
+  }, [tasks]);
+
+  // Save dependencies
+  const saveDependencies = React.useCallback(async () => {
+    if (!depEditorTask || !templateId) return;
+
+    // Filter out empty links
+    const validLinks = depEditorLinks.filter(l => l.predecessorId);
+    const predecessorIds = validLinks.map(l => l.predecessorId);
+
+    // Check for circular dependencies
+    if (hasCircularDependency(depEditorTask.id, predecessorIds)) {
+      alert('Cannot save: Circular dependency detected. A task cannot depend on itself or create a dependency loop.');
+      return;
+    }
+
+    try {
+      const predecessorIdsNumeric = predecessorIds.map(id => parseInt(id, 10));
+
+      // Call API to update dependencies
+      await api.patch(`/api/v1/sm_template_rows/${depEditorTask.id}`, {
+        predecessor_ids: predecessorIdsNumeric
+      });
+
+      // Update local state
+      setTasks(prev => prev.map(t =>
+        t.id === depEditorTask.id
+          ? { ...t, predecessorIds: validLinks.map(l => l.predecessorId) }
+          : t
+      ));
+
+      setDepEditorOpen(false);
+    } catch (err) {
+      console.error('Failed to save dependencies:', err);
+    }
+  }, [depEditorTask, depEditorLinks, templateId]);
 
   // Theme
   const { resolvedTheme } = useTheme();
@@ -192,7 +397,9 @@ export function GanttCanvasView({
       }));
     } else {
       // API mode - convert rows to tasks
-      const projectStartDate = new Date();
+      // Use company timezone for consistent date handling
+      const today = getTodayInCompanyTimezone();
+      const projectStartDate = new Date(today);
       projectStartDate.setDate(projectStartDate.getDate() - 7);
       taskList = convertRowsToTasks(rows, projectStartDate);
       dependencies = convertToDependencies(rows);
@@ -252,7 +459,7 @@ export function GanttCanvasView({
   React.useEffect(() => {
     if (ganttRef.current) {
       // Update visible columns in engine
-      const cols = columns.filter(c => c.visible).map(c => c.id);
+      const cols = visibleColumns.map(c => c.id);
       ganttRef.current.setVisibleColumns(cols);
 
       // Update tooltip config to match
@@ -428,29 +635,39 @@ export function GanttCanvasView({
                   onReorder={handleColumnReorder}
                   className="space-y-0.5"
                 >
-                  {columns.map((col, index) => (
-                    <SortableItem
-                      key={col.id}
-                      id={col.id}
-                      variant="simple"
-                      showBadge={false}
-                      className="py-1"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id={`col-${col.id}`}
-                          checked={col.visible}
-                          onCheckedChange={() => toggleColumnVisibility(col.id)}
-                        />
-                        <label
-                          htmlFor={`col-${col.id}`}
-                          className="text-sm cursor-pointer select-none flex-1"
-                        >
-                          {col.label}
-                        </label>
-                      </div>
-                    </SortableItem>
-                  ))}
+                  {columns.map((col, index) => {
+                    const isPermanent = col.id === 'name';
+                    return (
+                      <SortableItem
+                        key={col.id}
+                        id={col.id}
+                        variant="simple"
+                        showBadge={false}
+                        className="py-1"
+                      >
+                        <div className="flex items-center gap-2">
+                          {isPermanent ? (
+                            <Check className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Checkbox
+                              id={`col-${col.id}`}
+                              checked={col.visible}
+                              onCheckedChange={() => toggleColumnVisibility(col.id)}
+                            />
+                          )}
+                          <label
+                            htmlFor={`col-${col.id}`}
+                            className={cn(
+                              "text-sm select-none flex-1",
+                              isPermanent ? "text-muted-foreground" : "cursor-pointer"
+                            )}
+                          >
+                            {col.label}{isPermanent && " (always)"}
+                          </label>
+                        </div>
+                      </SortableItem>
+                    );
+                  })}
                 </SortableList>
               </div>
             </DropdownMenuContent>
@@ -466,25 +683,33 @@ export function GanttCanvasView({
 
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
-        {/* Sidebar Table */}
-        {showSidebar && (
-          <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: 200, maxWidth: 600 }}>
+        {/* Sidebar Table - always shows Name column, toggles other columns */}
+        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 160, maxWidth: showSidebar ? 600 : 200 }}>
             {/* Sidebar Header */}
             <div
               className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
               style={{ height: 60, minHeight: 60 }}
             >
-              {columns.filter(c => c.visible).map(col => (
+              {visibleColumns.map((col, colIndex) => (
                 <div
                   key={col.id}
                   className={cn(
-                    "truncate px-1",
+                    "truncate px-1 relative group",
                     col.align === 'center' && "text-center",
                     col.align === 'right' && "text-right"
                   )}
                   style={{ width: col.width }}
                 >
                   {col.shortLabel || col.label}
+                  {/* Resize handle */}
+                  <div
+                    className={cn(
+                      "absolute right-0 top-0 bottom-0 w-1 cursor-col-resize",
+                      "hover:bg-primary/50 active:bg-primary",
+                      resizingColumn === col.id && "bg-primary"
+                    )}
+                    onMouseDown={(e) => handleResizeStart(e, col.id, col.width)}
+                  />
                 </div>
               ))}
             </div>
@@ -508,6 +733,7 @@ export function GanttCanvasView({
                       case 'name':
                         return (
                           <div className="truncate px-2 font-medium" title={task.name}>
+                            <span className="text-muted-foreground mr-1">{index + 1}.</span>
                             {task.name}
                           </div>
                         );
@@ -548,7 +774,27 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'dependencies':
-                        return <div className="truncate px-1 text-muted-foreground">-</div>;
+                        // Show predecessor row numbers (e.g., "1, 3, 5")
+                        const deps = task.predecessorIds || [];
+                        // Find row numbers for predecessor IDs
+                        const depRowNums = deps.length > 0
+                          ? deps.map(predId => {
+                              const predIndex = tasks.findIndex(t => t.id === predId);
+                              return predIndex >= 0 ? predIndex + 1 : '?';
+                            }).join(', ')
+                          : '-';
+                        return (
+                          <button
+                            className="truncate px-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded cursor-pointer w-full text-left"
+                            title={`Click to edit dependencies: ${depRowNums}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDepEditor(task);
+                            }}
+                          >
+                            {depRowNums}
+                          </button>
+                        );
                       default:
                         return null;
                     }
@@ -563,7 +809,7 @@ export function GanttCanvasView({
                       )}
                       style={{ height: 40 }}
                     >
-                      {columns.filter(c => c.visible).map(col => (
+                      {visibleColumns.map(col => (
                         <div key={col.id} style={{ width: col.width }}>
                           {renderCell(col)}
                         </div>
@@ -573,8 +819,7 @@ export function GanttCanvasView({
                 })}
               </div>
             </div>
-          </div>
-        )}
+        </div>
 
         {/* Canvas Container */}
         <div
@@ -583,6 +828,149 @@ export function GanttCanvasView({
           style={{ position: "relative" }}
         />
       </div>
+
+      {/* Dependency Editor Dialog */}
+      <Dialog open={depEditorOpen} onOpenChange={setDepEditorOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit Predecessors</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              Row {depEditorTask ? tasks.findIndex(t => t.id === depEditorTask.id) + 1 : ''}: {depEditorTask?.name}
+            </p>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            {/* Header row */}
+            <div className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
+              <span>Row #</span>
+              <span>Task</span>
+              <span>Type</span>
+              <span>Lag</span>
+              <span></span>
+            </div>
+
+            {/* Predecessor rows - min height for 8 rows without scrolling */}
+            <div className="space-y-2 min-h-[360px]">
+              {depEditorLinks.map((link, index) => {
+                const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+                const predecessorRowNum = predecessorTask
+                  ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                  : '';
+
+                return (
+                  <div key={index} className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 items-center">
+                    {/* Row # input */}
+                    <Input
+                      type="number"
+                      min={1}
+                      max={tasks.length}
+                      value={predecessorRowNum}
+                      onChange={(e) => {
+                        const rowNum = parseInt(e.target.value, 10);
+                        if (rowNum >= 1 && rowNum <= tasks.length) {
+                          const task = tasks[rowNum - 1];
+                          if (task && task.id !== depEditorTask?.id) {
+                            updatePredecessorLink(index, { predecessorId: task.id });
+                          }
+                        } else if (!e.target.value) {
+                          updatePredecessorLink(index, { predecessorId: '' });
+                        }
+                      }}
+                      className="h-8 text-center"
+                      placeholder="#"
+                    />
+
+                    {/* Task dropdown */}
+                    <ComboboxDropdown
+                      items={taskComboItems}
+                      selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                      onSelect={(item) => updatePredecessorLink(index, { predecessorId: item.id })}
+                      placeholder="Select task..."
+                      searchPlaceholder="Search tasks..."
+                      className="h-8"
+                    />
+
+                    {/* Type dropdown */}
+                    <select
+                      value={link.type}
+                      onChange={(e) => updatePredecessorLink(index, { type: e.target.value as DependencyType })}
+                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    >
+                      <option value="FS">Finish-to-Start (FS)</option>
+                      <option value="FF">Finish-to-Finish (FF)</option>
+                      <option value="SS">Start-to-Start (SS)</option>
+                      <option value="SF">Start-to-Finish (SF)</option>
+                    </select>
+
+                    {/* Lag input */}
+                    <Input
+                      type="number"
+                      value={link.lag}
+                      onChange={(e) => updatePredecessorLink(index, { lag: parseInt(e.target.value, 10) || 0 })}
+                      className="h-8 text-center"
+                      placeholder="0"
+                    />
+
+                    {/* Remove button */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => removePredecessorLink(index)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+
+              {/* Empty row to add new predecessor */}
+              <div className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 items-center opacity-60">
+                <Input
+                  type="number"
+                  min={1}
+                  max={tasks.length}
+                  onChange={(e) => {
+                    const rowNum = parseInt(e.target.value, 10);
+                    if (rowNum >= 1 && rowNum <= tasks.length) {
+                      const task = tasks[rowNum - 1];
+                      if (task && task.id !== depEditorTask?.id) {
+                        setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }
+                  }}
+                  className="h-8 text-center"
+                  placeholder="#"
+                />
+                <ComboboxDropdown
+                  items={taskComboItems.filter(item => !depEditorLinks.some(l => l.predecessorId === item.id))}
+                  onSelect={(item) => {
+                    setDepEditorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
+                  }}
+                  placeholder="Add predecessor..."
+                  searchPlaceholder="Search tasks..."
+                  className="h-8"
+                />
+                <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                  <option>Finish-to-Start (FS)</option>
+                </select>
+                <Input disabled className="h-8 text-center" placeholder="0" />
+                <div className="h-8 w-8" />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDepEditorOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveDependencies}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
