@@ -6814,45 +6814,28 @@ export class GanttCanvas {
 
   // =========================================================================
   // FEATURE 1: COMPREHENSIVE TASK FILTERING API
-  // Delegates to FilterManager (Day 7 Refactor)
+  // Fully delegated to FilterManager (Day 7 Refactor)
   // =========================================================================
-
-  // Local state kept for backward compatibility with render code
-  private activeFilter: TaskFilterConfig | null = null;
-  private filteredTaskIds: Set<string> = new Set();
-  private isFilterActive: boolean = false;
 
   /**
    * Apply a comprehensive filter to the Gantt chart
    * Only matching tasks will be visible
-   * Delegates to FilterManager
    */
   applyFilter(filter: TaskFilterConfig): void {
-    this.activeFilter = filter;
-    this.isFilterActive = true;
-    // Delegate to FilterManager
     this.filterManager.setFilter(filter);
-    // Sync local state from manager
-    this.syncFilteredTaskIds();
     this.markDirty();
   }
 
   /**
    * Clear all filters and show all tasks
-   * Delegates to FilterManager
    */
   clearFilter(): void {
-    this.activeFilter = null;
-    this.isFilterActive = false;
-    this.filteredTaskIds.clear();
-    // Delegate to FilterManager
     this.filterManager.clearFilter();
     this.markDirty();
   }
 
   /**
    * Check if a filter is currently active
-   * Delegates to FilterManager
    */
   hasActiveFilter(): boolean {
     return this.filterManager.isFiltering();
@@ -6860,24 +6843,13 @@ export class GanttCanvas {
 
   /**
    * Get the current active filter
-   * Delegates to FilterManager
    */
   getActiveFilter(): TaskFilterConfig | null {
     return this.filterManager.getFilter();
   }
 
   /**
-   * Sync filteredTaskIds from FilterManager for backward compatibility
-   */
-  private syncFilteredTaskIds(): void {
-    this.filteredTaskIds.clear();
-    const filtered = this.filterManager.getFilteredTasks();
-    filtered.forEach(task => this.filteredTaskIds.add(task.id));
-  }
-
-  /**
    * Get tasks that pass the current filter
-   * Delegates to FilterManager
    */
   getFilteredTasks(): GanttTask[] {
     return this.filterManager.getFilteredTasks();
@@ -6885,7 +6857,6 @@ export class GanttCanvas {
 
   /**
    * Check if a specific task passes the current filter
-   * Delegates to FilterManager
    */
   taskPassesFilter(taskId: string): boolean {
     if (!this.filterManager.isFiltering()) {
@@ -6897,7 +6868,6 @@ export class GanttCanvas {
 
   /**
    * Get filter statistics
-   * Delegates to FilterManager
    */
   getFilterStats(): FilterStats {
     return this.filterManager.getStats();
