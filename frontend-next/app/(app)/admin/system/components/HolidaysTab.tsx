@@ -12,6 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import type { DateRange } from "react-day-picker";
 import {
   Table,
   TableBody,
@@ -84,6 +88,9 @@ export function HolidaysTab() {
     date: "",
     region: "QLD",
   });
+  const [multiDayMode, setMultiDayMode] = React.useState(false);
+  const [dateRange, setDateRange] = React.useState<DateRange | undefined>(undefined);
+  const [calendarOpen, setCalendarOpen] = React.useState(false);
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear + i - 1);
 
@@ -125,6 +132,8 @@ export function HolidaysTab() {
   const handleOpenAddDialog = () => {
     setFormData({ name: "", date: "", region: "QLD" });
     setEditingHoliday(null);
+    setMultiDayMode(false);
+    setDateRange(undefined);
     setShowAddDialog(true);
   };
 
@@ -138,20 +147,78 @@ export function HolidaysTab() {
     setShowAddDialog(true);
   };
 
+  // Helper to get all dates in a range
+  const getDatesInRange = (start: Date, end: Date): Date[] => {
+    const dates: Date[] = [];
+    const current = new Date(start);
+    while (current <= end) {
+      dates.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+
   const handleSave = async () => {
-    if (!formData.name || !formData.date) {
-      toast({ title: "Error", description: "Please fill in all required fields", variant: "destructive" });
+    // Validation
+    if (!formData.name) {
+      toast({ title: "Error", description: "Please enter a holiday name", variant: "destructive" });
       return;
+    }
+
+    if (multiDayMode && !editingHoliday) {
+      // Multi-day mode - need date range
+      if (!dateRange?.from) {
+        toast({ title: "Error", description: "Please select at least one date", variant: "destructive" });
+        return;
+      }
+    } else {
+      // Single day mode
+      if (!formData.date) {
+        toast({ title: "Error", description: "Please select a date", variant: "destructive" });
+        return;
+      }
     }
 
     setSaving(true);
     try {
       if (editingHoliday) {
+        // Editing existing - always single day
         await api.patch(`/api/v1/public_holidays/${editingHoliday.id}`, {
           public_holiday: formData,
         });
         toast({ title: "Success", description: "Holiday updated successfully" });
+      } else if (multiDayMode && dateRange?.from) {
+        // Multi-day creation
+        const endDate = dateRange.to || dateRange.from;
+        const dates = getDatesInRange(dateRange.from, endDate);
+
+        // Create holidays for each date
+        let successCount = 0;
+        for (const date of dates) {
+          const dateStr = format(date, "yyyy-MM-dd");
+          try {
+            await api.post("/api/v1/public_holidays", {
+              public_holiday: {
+                name: formData.name,
+                date: dateStr,
+                region: formData.region,
+              },
+            });
+            successCount++;
+          } catch (err) {
+            console.error(`Failed to create holiday for ${dateStr}:`, err);
+          }
+        }
+
+        if (successCount === dates.length) {
+          toast({ title: "Success", description: `Created ${successCount} holidays successfully` });
+        } else if (successCount > 0) {
+          toast({ title: "Partial Success", description: `Created ${successCount} of ${dates.length} holidays` });
+        } else {
+          throw new Error("Failed to create any holidays");
+        }
       } else {
+        // Single day creation
         await api.post("/api/v1/public_holidays", {
           public_holiday: formData,
         });
@@ -320,15 +387,80 @@ export function HolidaysTab() {
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
+
+            {/* Multi-day toggle - only when adding new */}
+            {!editingHoliday && (
+              <div className="flex items-center justify-between py-2">
+                <div className="space-y-0.5">
+                  <Label htmlFor="multi-day">Multiple Days</Label>
+                  <p className="text-sm text-muted-foreground">Select a date range for consecutive days</p>
+                </div>
+                <Switch
+                  id="multi-day"
+                  checked={multiDayMode}
+                  onCheckedChange={(checked) => {
+                    setMultiDayMode(checked);
+                    if (checked) {
+                      // Reset date range when switching to multi-day
+                      setDateRange(undefined);
+                    } else {
+                      // Reset single date when switching to single day
+                      setFormData({ ...formData, date: "" });
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Date selection - single or range */}
             <div className="space-y-2">
-              <Label htmlFor="date">Date</Label>
-              <Input
-                id="date"
-                type="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-              />
+              <Label>{multiDayMode && !editingHoliday ? "Date Range" : "Date"}</Label>
+              {multiDayMode && !editingHoliday ? (
+                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <Calendar className="mr-2 h-4 w-4" />
+                      {dateRange?.from ? (
+                        dateRange.to ? (
+                          <>
+                            {format(dateRange.from, "d MMM yyyy")} - {format(dateRange.to, "d MMM yyyy")}
+                          </>
+                        ) : (
+                          format(dateRange.from, "d MMM yyyy")
+                        )
+                      ) : (
+                        <span className="text-muted-foreground">Select date range</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={setDateRange}
+                      numberOfMonths={2}
+                      defaultMonth={new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              ) : (
+                <Input
+                  id="date"
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                />
+              )}
+              {multiDayMode && dateRange?.from && dateRange?.to && (
+                <p className="text-sm text-muted-foreground">
+                  {getDatesInRange(dateRange.from, dateRange.to).length} days selected
+                </p>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="region">Region</Label>
               <Select
@@ -360,6 +492,8 @@ export function HolidaysTab() {
                 </>
               ) : editingHoliday ? (
                 "Update Holiday"
+              ) : multiDayMode && dateRange?.from && dateRange?.to ? (
+                `Add ${getDatesInRange(dateRange.from, dateRange.to).length} Holidays`
               ) : (
                 "Add Holiday"
               )}
