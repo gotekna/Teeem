@@ -837,3 +837,5 @@ export function XeroStatementView({ companyId, tabKey = "bank-statement" }: Prop
     </Card>
   );
 }
+
+export default XeroStatementView;

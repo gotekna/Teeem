@@ -66,7 +66,7 @@ import { getIcon } from "@/lib/icon-map";
 // SSoT: GET /api/v1/entity_tabs?scope=corporate_entity (EntityTab model)
 // Xero tabs are children of the Xero tab in corporate_entity scope (SSoT)
 // Manage via: Admin > System > Entity Configuration
-// Phase 4 Migration Complete: Using useCorporateEntityTabs & useXeroEntityTabs hooks
+// Phase 5 Migration: Using XeroTabRenderer for dynamic Xero tab rendering
 // =============================================================================
 
 // SSoT: All tabs come from API only (EntityTabs database)
@@ -191,7 +191,7 @@ export default function CompanyDetailPage() {
   };
 
   // REMOVED: loadEntityTabs - now using useCorporateEntityTabs hook (SSoT)
-  // REMOVED: loadXeroTabs - now using useXeroEntityTabs hook (SSoT)
+  // REMOVED: loadXeroTabs - now using XeroTabRenderer with useEntityTabs (SSoT)
 
   // Load company details
   const loadCompany = React.useCallback(async () => {
@@ -257,7 +257,7 @@ export default function CompanyDetailPage() {
     loadCompany();
     loadDocumentCounts();
     loadHealthScore();
-    // SSoT: Xero tabs now loaded via useXeroEntityTabs hook (Phase 4)
+    // SSoT: Xero tabs now rendered via XeroTabRenderer (Phase 5)
   }, [loadCompany, loadDocumentCounts, loadHealthScore]);
 
   // Handle tab from URL

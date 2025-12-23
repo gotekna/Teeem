@@ -148,6 +148,14 @@ export class GanttCanvas {
   private containerWidth: number = 0;
   private containerHeight: number = 0;
 
+  // Drag state
+  private isDragging: boolean = false;
+  private dragTask: GanttTask | null = null;
+  private dragStartX: number = 0;
+  private dragStartDate: Date | null = null;
+  private dragCurrentDate: Date | null = null;
+  private dragThreshold: number = 5; // pixels before drag starts
+
   // Event handlers
   private onTaskClick?: (task: GanttTask) => void;
   private onTaskDoubleClick?: (task: GanttTask) => void;
@@ -381,38 +389,74 @@ export class GanttCanvas {
     this.renderer.drawTodayMarker(this.containerHeight);
     this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskId, this.state.hoveredTaskId);
     this.renderer.drawDependencies(this.state.tasks, this.state.dependencies);
+
+    // Draw drag preview overlay
+    if (this.isDragging && this.dragTask && this.dragCurrentDate) {
+      this.renderer.drawDragPreview(
+        this.dragTask,
+        this.dragCurrentDate,
+        this.state.tasks.indexOf(this.dragTask)
+      );
+    }
   }
 
   private setupEventListeners(): void {
-    this.canvas.addEventListener('click', this.handleClick);
-    this.canvas.addEventListener('dblclick', this.handleDoubleClick);
+    this.canvas.addEventListener('mousedown', this.handleMouseDown);
     this.canvas.addEventListener('mousemove', this.handleMouseMove);
+    this.canvas.addEventListener('mouseup', this.handleMouseUp);
     this.canvas.addEventListener('mouseleave', this.handleMouseLeave);
+    this.canvas.addEventListener('dblclick', this.handleDoubleClick);
     this.canvas.addEventListener('wheel', this.handleWheel, { passive: false });
     window.addEventListener('resize', this.handleResize);
   }
 
   private removeEventListeners(): void {
-    this.canvas.removeEventListener('click', this.handleClick);
-    this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
+    this.canvas.removeEventListener('mousedown', this.handleMouseDown);
     this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+    this.canvas.removeEventListener('mouseup', this.handleMouseUp);
     this.canvas.removeEventListener('mouseleave', this.handleMouseLeave);
+    this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
     this.canvas.removeEventListener('wheel', this.handleWheel);
     window.removeEventListener('resize', this.handleResize);
   }
 
-  private handleClick = (e: MouseEvent): void => {
+  private handleMouseDown = (e: MouseEvent): void => {
     const task = this.hitTest(e.offsetX, e.offsetY);
-    if (task) {
+    if (task && !task.locked) {
+      // Start potential drag
+      this.dragTask = task;
+      this.dragStartX = e.offsetX;
+      this.dragStartDate = new Date(task.startDate);
+      this.dragCurrentDate = new Date(task.startDate);
       this.state.selectedTaskId = task.id;
-      this.onTaskClick?.(task);
       this.markDirty();
-    } else {
-      if (this.state.selectedTaskId) {
-        this.state.selectedTaskId = null;
-        this.markDirty();
-      }
     }
+  };
+
+  private handleMouseUp = (e: MouseEvent): void => {
+    if (this.isDragging && this.dragTask && this.dragCurrentDate) {
+      // Complete the drag
+      const originalDate = this.dragStartDate!;
+      const newDate = this.dragCurrentDate;
+
+      // Only trigger if date actually changed
+      if (originalDate.getTime() !== newDate.getTime()) {
+        this.onTaskDrag?.(this.dragTask, newDate);
+      }
+
+      this.isDragging = false;
+      this.canvas.style.cursor = 'pointer';
+    } else if (this.dragTask && !this.isDragging) {
+      // It was a click, not a drag
+      this.onTaskClick?.(this.dragTask);
+    }
+
+    // Reset drag state
+    this.dragTask = null;
+    this.dragStartX = 0;
+    this.dragStartDate = null;
+    this.dragCurrentDate = null;
+    this.markDirty();
   };
 
   private handleDoubleClick = (e: MouseEvent): void => {
@@ -423,17 +467,54 @@ export class GanttCanvas {
   };
 
   private handleMouseMove = (e: MouseEvent): void => {
+    // Handle drag in progress
+    if (this.dragTask && this.dragStartDate) {
+      const deltaX = e.offsetX - this.dragStartX;
+
+      // Check if we've crossed the drag threshold
+      if (!this.isDragging && Math.abs(deltaX) > this.dragThreshold) {
+        this.isDragging = true;
+        this.canvas.style.cursor = 'grabbing';
+      }
+
+      if (this.isDragging) {
+        // Calculate new date based on drag distance
+        const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.state.viewportState.zoom));
+        const newDate = new Date(this.dragStartDate);
+        newDate.setDate(newDate.getDate() + daysDelta);
+
+        // Snap to day
+        newDate.setHours(0, 0, 0, 0);
+
+        if (this.dragCurrentDate?.getTime() !== newDate.getTime()) {
+          this.dragCurrentDate = newDate;
+          this.markDirty();
+        }
+        return;
+      }
+    }
+
+    // Normal hover handling
     const task = this.hitTest(e.offsetX, e.offsetY);
     const newHoveredId = task?.id || null;
 
     if (newHoveredId !== this.state.hoveredTaskId) {
       this.state.hoveredTaskId = newHoveredId;
-      this.canvas.style.cursor = task ? 'pointer' : 'default';
+      this.canvas.style.cursor = task ? (task.locked ? 'not-allowed' : 'grab') : 'default';
       this.markDirty();
     }
   };
 
   private handleMouseLeave = (): void => {
+    // Cancel any drag in progress
+    if (this.isDragging) {
+      this.isDragging = false;
+      this.dragTask = null;
+      this.dragStartX = 0;
+      this.dragStartDate = null;
+      this.dragCurrentDate = null;
+    }
+
     if (this.state.hoveredTaskId) {
       this.state.hoveredTaskId = null;
       this.markDirty();
