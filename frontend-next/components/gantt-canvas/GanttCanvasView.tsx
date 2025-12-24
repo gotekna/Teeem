@@ -269,6 +269,38 @@ export function GanttCanvasView({
   // Filter to show only grouped tasks (headers + their children)
   const [showOnlyGrouped, setShowOnlyGrouped] = React.useState(false);
 
+  // Confirm/Supplier Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = React.useState<{
+    isOpen: boolean;
+    type: 'confirm' | 'supplierConfirm';
+    task: GanttTask | null;
+    isChecking: boolean; // true = turning ON, false = turning OFF
+    affectedSuccessors: SmTemplateRow[];
+  }>({
+    isOpen: false,
+    type: 'confirm',
+    task: null,
+    isChecking: true,
+    affectedSuccessors: []
+  });
+
+  // Cascade dialog state for task moves
+  const [cascadeDialog, setCascadeDialog] = React.useState<{
+    isOpen: boolean;
+    task: GanttTask | null;
+    newStartDate: Date | null;
+    successors: SmTemplateRow[];
+    lockedSuccessors: SmTemplateRow[]; // successors with confirm/supplier_confirm
+    unlockedSuccessors: SmTemplateRow[]; // successors that can cascade
+  }>({
+    isOpen: false,
+    task: null,
+    newStartDate: null,
+    successors: [],
+    lockedSuccessors: [],
+    unlockedSuccessors: []
+  });
+
   // Undo history - stores previous task states for session-based undo
   // Key: taskId, Value: { startDate, endDate, duration, manuallyPositioned, manualStartDate }
   const [undoHistory, setUndoHistory] = React.useState<Map<string, {
@@ -725,7 +757,7 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode]);
 
-  // Handle task drag - save manual position
+  // Handle task drag - show cascade dialog if there are successors
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
     // Use ref to get current templateId (avoids stale closure)
     const currentTemplateId = templateIdRef.current;
@@ -737,6 +769,45 @@ export function GanttCanvasView({
     if (isStaticMode || !currentTemplateId) {
       return;
     }
+
+    // Find all successors (tasks that depend on this task)
+    const row = rows.find(r => String(r.id) === task.id);
+    if (!row) return;
+
+    const taskTaskNumber = row.task_number;
+    const allSuccessors = rows.filter(r =>
+      r.predecessor_ids?.some(p => p.id === taskTaskNumber)
+    );
+
+    // Categorize successors
+    const lockedSuccessors = allSuccessors.filter(s =>
+      s.require_supervisor_check || s.require_supplier_confirm || s.is_completed
+    );
+    const unlockedSuccessors = allSuccessors.filter(s =>
+      !s.require_supervisor_check && !s.require_supplier_confirm && !s.is_completed
+    );
+
+    // If there are successors, show the cascade dialog
+    if (allSuccessors.length > 0) {
+      setCascadeDialog({
+        isOpen: true,
+        task,
+        newStartDate,
+        successors: allSuccessors,
+        lockedSuccessors,
+        unlockedSuccessors
+      });
+      return;
+    }
+
+    // No successors - save directly
+    await executeDragMove(task, newStartDate);
+  }, [templateId, isStaticMode, onTaskDrag, rows]);
+
+  // Execute the actual drag move (called directly or after cascade dialog confirmation)
+  const executeDragMove = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
+    const currentTemplateId = templateIdRef.current;
+    if (!currentTemplateId) return;
 
     // Save previous state for undo (before making any changes)
     const row = rows.find(r => String(r.id) === task.id);
@@ -788,7 +859,7 @@ export function GanttCanvasView({
     } catch (err) {
       console.error('Failed to save manual position:', err);
     }
-  }, [templateId, isStaticMode, onTaskDrag, rows]);
+  }, [rows]);
 
   // Handle dependency create - save new dependency to API
   const handleDependencyCreate = React.useCallback(async (
@@ -1158,43 +1229,107 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, rows]);
 
-  // Handle confirm toggle (require_supervisor_check)
-  const handleConfirmToggle = React.useCallback(async (task: GanttTask, checked: boolean) => {
+  // Find all successors of a task (tasks that have this task as a predecessor)
+  const findSuccessors = React.useCallback((taskTaskNumber: string): SmTemplateRow[] => {
+    return rows.filter(r =>
+      r.predecessor_ids?.some(p => p.id === taskTaskNumber)
+    );
+  }, [rows]);
+
+  // Handle confirm toggle (require_supervisor_check) - show dialog first
+  const handleConfirmToggle = React.useCallback((task: GanttTask, checked: boolean) => {
     if (isStaticMode || !templateId) return;
+
+    const row = rows.find(r => String(r.id) === task.id);
+    if (!row) return;
+
+    // Find affected successors
+    const successors = findSuccessors(row.task_number);
+
+    console.log('🔒 CONFIRM TOGGLE:', {
+      task: task.name,
+      taskNumber: row.task_number,
+      currentValue: row.require_supervisor_check,
+      newValue: checked,
+      action: checked ? 'CHECKING (locking)' : 'UNCHECKING (unlocking)',
+      successorCount: successors.length,
+      successors: successors.map(s => ({ id: s.id, name: s.name, taskNumber: s.task_number }))
+    });
+
+    // Show confirmation dialog
+    setConfirmDialog({
+      isOpen: true,
+      type: 'confirm',
+      task,
+      isChecking: checked,
+      affectedSuccessors: successors
+    });
+  }, [templateId, isStaticMode, rows, findSuccessors]);
+
+  // Handle supplier confirm toggle (require_supplier_confirm) - show dialog first
+  const handleSupplierConfirmToggle = React.useCallback((task: GanttTask, checked: boolean) => {
+    if (isStaticMode || !templateId) return;
+
+    const row = rows.find(r => String(r.id) === task.id);
+    if (!row) return;
+
+    // Find affected successors
+    const successors = findSuccessors(row.task_number);
+
+    console.log('🔒 SUPPLIER CONFIRM TOGGLE:', {
+      task: task.name,
+      taskNumber: row.task_number,
+      currentValue: row.require_supplier_confirm,
+      newValue: checked,
+      action: checked ? 'CHECKING (locking)' : 'UNCHECKING (unlocking)',
+      successorCount: successors.length,
+      successors: successors.map(s => ({ id: s.id, name: s.name, taskNumber: s.task_number }))
+    });
+
+    // Show confirmation dialog
+    setConfirmDialog({
+      isOpen: true,
+      type: 'supplierConfirm',
+      task,
+      isChecking: checked,
+      affectedSuccessors: successors
+    });
+  }, [templateId, isStaticMode, rows, findSuccessors]);
+
+  // Execute the confirm/supplier confirm toggle after dialog confirmation
+  const executeConfirmToggle = React.useCallback(async () => {
+    if (!confirmDialog.task || !templateId) return;
+
+    const { type, task, isChecking, affectedSuccessors } = confirmDialog;
+    const fieldName = type === 'confirm' ? 'require_supervisor_check' : 'require_supplier_confirm';
+
+    console.log('✅ EXECUTING CONFIRM TOGGLE:', {
+      type,
+      task: task.name,
+      isChecking,
+      fieldName,
+      affectedSuccessors: affectedSuccessors.length
+    });
 
     try {
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
-        row: { require_supervisor_check: checked }
+        row: { [fieldName]: isChecking }
       });
+
+      console.log(`✅ Saved ${fieldName}=${isChecking} for task ${task.id}`);
 
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, require_supervisor_check: checked }
+          ? { ...r, [fieldName]: isChecking }
           : r
       ));
+
+      // Close dialog
+      setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     } catch (err) {
-      console.error('Failed to toggle confirm:', err);
+      console.error(`Failed to toggle ${type}:`, err);
     }
-  }, [templateId, isStaticMode]);
-
-  // Handle supplier confirm toggle (require_supplier_confirm)
-  const handleSupplierConfirmToggle = React.useCallback(async (task: GanttTask, checked: boolean) => {
-    if (isStaticMode || !templateId) return;
-
-    try {
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
-        row: { require_supplier_confirm: checked }
-      });
-
-      setRows(prev => prev.map(r =>
-        String(r.id) === task.id
-          ? { ...r, require_supplier_confirm: checked }
-          : r
-      ));
-    } catch (err) {
-      console.error('Failed to toggle supplier confirm:', err);
-    }
-  }, [templateId, isStaticMode]);
+  }, [confirmDialog, templateId]);
 
   // Initialize canvas engine - recreated when data changes
   // Note: Using rows in dependencies causes recreation, but this is needed for proper handler binding
@@ -2087,6 +2222,209 @@ export function GanttCanvasView({
             </Button>
             <Button onClick={saveDependencies}>
               OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cascade Dependencies Dialog - shown when moving a task with successors */}
+      <Dialog open={cascadeDialog.isOpen} onOpenChange={(open) => setCascadeDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-yellow-500" />
+              Cascade Dependencies
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Task being moved */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm">
+                Moving <span className="font-semibold">{cascadeDialog.task?.name}</span> to{' '}
+                <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded">
+                  {cascadeDialog.newStartDate?.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </span>
+              </p>
+            </div>
+
+            {/* Affected successors */}
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                ⚠️ {cascadeDialog.successors.length} task{cascadeDialog.successors.length > 1 ? 's' : ''} depend on this task
+              </p>
+
+              {/* Unlocked successors - will cascade */}
+              {cascadeDialog.unlockedSuccessors.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    Will Cascade ({cascadeDialog.unlockedSuccessors.length}):
+                  </p>
+                  <ul className="mt-1 text-xs text-green-600 dark:text-green-400 space-y-0.5 ml-3">
+                    {cascadeDialog.unlockedSuccessors.slice(0, 5).map(s => (
+                      <li key={s.id}>• #{s.task_number} {s.name}</li>
+                    ))}
+                    {cascadeDialog.unlockedSuccessors.length > 5 && (
+                      <li>• ... and {cascadeDialog.unlockedSuccessors.length - 5} more</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {/* Locked successors - dependencies will break */}
+              {cascadeDialog.lockedSuccessors.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    Locked - Dependencies Will Break ({cascadeDialog.lockedSuccessors.length}):
+                  </p>
+                  <ul className="mt-1 text-xs text-red-600 dark:text-red-400 space-y-0.5 ml-3">
+                    {cascadeDialog.lockedSuccessors.map(s => {
+                      const lockType = s.require_supplier_confirm ? 'Supplier Confirmed'
+                        : s.require_supervisor_check ? 'Confirmed'
+                        : s.is_completed ? 'Completed' : 'Locked';
+                      return (
+                        <li key={s.id} className="flex items-center gap-2">
+                          <span>• #{s.task_number} {s.name}</span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                            s.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                            : s.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                          }`}>
+                            {lockType}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Explanation */}
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p><strong>What will happen:</strong></p>
+              <ul className="ml-3 space-y-0.5">
+                <li>• Unlocked tasks will automatically move to maintain dependencies</li>
+                <li>• Locked tasks (Confirmed/Supplier Confirmed) stay in place</li>
+                <li>• Dependencies to locked tasks will be broken</li>
+              </ul>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCascadeDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel Move
+            </Button>
+            <Button
+              onClick={async () => {
+                if (cascadeDialog.task && cascadeDialog.newStartDate) {
+                  await executeDragMove(cascadeDialog.task, cascadeDialog.newStartDate);
+                  setCascadeDialog(prev => ({ ...prev, isOpen: false }));
+                }
+              }}
+              className="bg-yellow-600 hover:bg-yellow-700"
+            >
+              Move & Cascade
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm/Supplier Confirm Dialog */}
+      <Dialog open={confirmDialog.isOpen} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, isOpen: open }))}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {confirmDialog.type === 'supplierConfirm' ? (
+                <>
+                  <div className="w-3 h-3 rounded-full bg-purple-500" />
+                  Supplier Confirm
+                </>
+              ) : (
+                <>
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  Confirm Task
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Task being modified */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm font-medium">{confirmDialog.task?.name}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Task #{confirmDialog.task?.rowData?.task_number}
+              </p>
+            </div>
+
+            {/* What will happen */}
+            {confirmDialog.isChecking ? (
+              <div className="space-y-3">
+                <div className={`p-3 rounded-lg border-2 ${
+                  confirmDialog.type === 'supplierConfirm'
+                    ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800'
+                    : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                }`}>
+                  <p className="text-sm font-medium">
+                    {confirmDialog.type === 'supplierConfirm'
+                      ? '🔒 Supplier has confirmed this date'
+                      : '✓ Supervisor confirms this task'}
+                  </p>
+                  <ul className="mt-2 text-xs text-muted-foreground space-y-1">
+                    <li>• Task becomes "locked" - won't move during cascade</li>
+                    <li>• Predecessor changes won't affect this task</li>
+                    <li>• Dependencies TO this task will break if predecessors move</li>
+                  </ul>
+                </div>
+
+                {confirmDialog.affectedSuccessors.length > 0 && (
+                  <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                      ⚠️ {confirmDialog.affectedSuccessors.length} successor{confirmDialog.affectedSuccessors.length > 1 ? 's' : ''} depend on this task:
+                    </p>
+                    <ul className="mt-2 text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                      {confirmDialog.affectedSuccessors.slice(0, 5).map(s => (
+                        <li key={s.id}>• #{s.task_number} {s.name}</li>
+                      ))}
+                      {confirmDialog.affectedSuccessors.length > 5 && (
+                        <li>• ... and {confirmDialog.affectedSuccessors.length - 5} more</li>
+                      )}
+                    </ul>
+                    <p className="mt-2 text-xs text-yellow-600 dark:text-yellow-400 italic">
+                      If this task moves, successor dependencies may break.
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                  🔓 Removing {confirmDialog.type === 'supplierConfirm' ? 'supplier confirmation' : 'confirmation'}
+                </p>
+                <ul className="mt-2 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+                  <li>• Task will rejoin the cascade chain</li>
+                  <li>• Predecessor changes will move this task</li>
+                  <li>• Dependencies will be maintained</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
+            </Button>
+            <Button
+              onClick={executeConfirmToggle}
+              className={confirmDialog.type === 'supplierConfirm'
+                ? 'bg-purple-600 hover:bg-purple-700'
+                : 'bg-green-600 hover:bg-green-700'
+              }
+            >
+              {confirmDialog.isChecking ? 'Confirm' : 'Remove'}
             </Button>
           </DialogFooter>
         </DialogContent>
