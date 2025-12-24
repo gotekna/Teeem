@@ -1075,33 +1075,67 @@ export function GanttCanvasView({
     const row = rows.find(r => String(r.id) === task.id);
     if (!row) return;
 
+    const taskTaskNumber = row.task_number;
+
     try {
       if (complete) {
-        // Mark as complete - keep dependencies intact
+        // Mark as complete - move to today, clear dependencies
         const today = new Date().toISOString().split('T')[0];
+
+        // Find all successors (tasks that have this task as a predecessor)
+        const successors = rows.filter(r =>
+          r.predecessor_ids?.some(p => p.id === taskTaskNumber)
+        );
+
+        // Update the completed task
         await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: true,
-            completed_at: today
+            completed_at: today,
+            manual_start_date: today,
+            predecessor_ids_backup: row.predecessor_ids || [],
+            predecessor_ids: []
           }
         });
 
+        // Remove completed task from all successors' predecessor_ids
+        for (const successor of successors) {
+          const newPredIds = (successor.predecessor_ids || []).filter(p => p.id !== taskTaskNumber);
+          await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successor.id}`, {
+            row: { predecessor_ids: newPredIds }
+          });
+        }
+
         // Update local state
-        setRows(prev => prev.map(r =>
-          String(r.id) === task.id
-            ? {
-                ...r,
-                is_completed: true,
-                completed_at: today
-              }
-            : r
-        ));
+        setRows(prev => prev.map(r => {
+          if (String(r.id) === task.id) {
+            return {
+              ...r,
+              is_completed: true,
+              completed_at: today,
+              manual_start_date: today,
+              predecessor_ids_backup: r.predecessor_ids || [],
+              predecessor_ids: []
+            };
+          }
+          // Also remove from successors' predecessor_ids in local state
+          if (r.predecessor_ids?.some(p => p.id === taskTaskNumber)) {
+            return {
+              ...r,
+              predecessor_ids: (r.predecessor_ids || []).filter(p => p.id !== taskTaskNumber)
+            };
+          }
+          return r;
+        }));
       } else {
-        // Uncomplete
+        // Uncomplete - restore predecessors, clear hold, rejoin schedule
         await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: false,
-            completed_at: null
+            completed_at: null,
+            manually_positioned: false,
+            manual_start_date: null,
+            predecessor_ids: row.predecessor_ids_backup || []
           }
         });
 
@@ -1111,7 +1145,10 @@ export function GanttCanvasView({
             ? {
                 ...r,
                 is_completed: false,
-                completed_at: null
+                completed_at: null,
+                manually_positioned: false,
+                manual_start_date: null,
+                predecessor_ids: r.predecessor_ids_backup || []
               }
             : r
         ));

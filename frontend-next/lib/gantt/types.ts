@@ -453,8 +453,9 @@ export function convertRowToTask(
   let startDate: Date;
   let endDate: Date;
 
-  // If manually positioned, use the manual start date (held/locked)
-  if (row.manually_positioned && row.manual_start_date) {
+  // If manually positioned OR completed with manual_start_date, use the manual start date
+  // Completed tasks use manual_start_date to position at their completion date without needing the "hold" flag
+  if ((row.manually_positioned || row.is_completed) && row.manual_start_date) {
     startDate = skipToNextWorkingDay(new Date(row.manual_start_date));
   } else if (taskDateMap && row.predecessor_ids?.length > 0) {
     // Find the latest required start date from all predecessors

@@ -182,6 +182,7 @@ export function XeroTabRenderer({
     if (!tabStats) return 0;
 
     // Map tab keys to stats
+    // Tab keys from entity_tabs: xero-bank, xero-invoices, xero-bills, etc.
     const statsMap: Record<string, number | null | undefined> = {
       connection: tabStats.connection,
       profit_loss: tabStats.profit_loss,
@@ -189,11 +190,14 @@ export function XeroTabRenderer({
       balance_sheet: tabStats.balance_sheet,
       "balance-sheet": tabStats.balance_sheet,
       bank: tabStats.bank?.display ?? tabStats.bank?.accounts,
+      "xero-bank": tabStats.bank?.display ?? tabStats.bank?.accounts,
       accounts: tabStats.accounts,
       contacts: tabStats.contacts,
       invoices: tabStats.invoices,
+      "xero-invoices": tabStats.invoices,
       "invoices-credit-notes": tabStats.invoices,
       bills: tabStats.bills,
+      "xero-bills": tabStats.bills,
       "bills-pos": tabStats.bills,
     };
 

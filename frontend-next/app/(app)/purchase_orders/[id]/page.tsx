@@ -30,6 +30,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { SupplierPicker, type Supplier as SupplierPickerType } from "@/components/ui/supplier-picker";
+import { PricebookCodePicker, type PricebookItem as PricebookPickerType } from "@/components/ui/pricebook-code-picker";
 import {
   ArrowLeft,
   DollarSign,
@@ -49,6 +51,8 @@ interface Supplier {
   email?: string;
   phone?: string;
   address?: string;
+  /** Pricebook item IDs this supplier has price histories for */
+  supplied_pricebook_item_ids?: number[];
 }
 
 interface PricebookItem {
@@ -171,20 +175,9 @@ export default function PurchaseOrderDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Supplier search
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
-  const [supplierOpen, setSupplierOpen] = useState(false);
-
   // Local SmTasks for this job (for task/description lookup)
   const [taskItems, setTaskItems] = useState<TaskComboboxItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-
-  // Pricebook items for line item code selection
-  const [pricebookItems, setPricebookItems] = useState<PricebookItem[]>([]);
-  const [loadingPricebook, setLoadingPricebook] = useState(false);
-  const [pricebookOpenFor, setPricebookOpenFor] = useState<number | null>(null);
-  const [pricebookSearch, setPricebookSearch] = useState("");
 
   // Editable fields
   const [description, setDescription] = useState("");
@@ -229,17 +222,6 @@ export default function PurchaseOrderDetailPage() {
     };
      
   }, [recordId]);
-
-  // Debounced server-side search for pricebook items
-  useEffect(() => {
-    if (pricebookOpenFor === null) return;
-
-    const timer = setTimeout(() => {
-      loadPricebookItems(pricebookSearch || undefined);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [pricebookSearch, pricebookOpenFor]);
 
   // Load SmTasks when purchaseOrder is loaded (for task dropdown)
   useEffect(() => {
@@ -299,20 +281,6 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Load suppliers
-  const loadSuppliers = async () => {
-    if (suppliers.length > 0) return;
-    try {
-      setLoadingSuppliers(true);
-      const response = await api.get<{ contacts: Supplier[] }>("/api/v1/contacts?type=suppliers");
-      setSuppliers(response?.contacts || []);
-    } catch (err) {
-      console.error("Failed to load suppliers:", err);
-    } finally {
-      setLoadingSuppliers(false);
-    }
-  };
-
   // Load local SmTasks for this job (for task/description lookup)
   const loadSmTasks = async () => {
     if (!purchaseOrder?.job_id) return;
@@ -338,23 +306,6 @@ export default function PurchaseOrderDetailPage() {
   // Helper to check if a line item is blank (no meaningful data)
   const isBlankLineItem = (item: LineItem) => {
     return !item.id && !item.pricebook_item_id && !item.description && item.quantity <= 0 && item.unit_price <= 0;
-  };
-
-  // Load pricebook items with server-side search
-  const loadPricebookItems = async (search?: string) => {
-    // TODO: Re-enable supplier filter when pricebook items are properly linked to suppliers
-    try {
-      setLoadingPricebook(true);
-      const searchParam = search ? `&search=${encodeURIComponent(search)}` : "";
-      const response = await api.get<{ items: PricebookItem[] }>(
-        `/api/v1/pricebook?per_page=100${searchParam}`
-      );
-      setPricebookItems(response?.items || []);
-    } catch (err) {
-      console.error("Failed to load pricebook items:", err);
-    } finally {
-      setLoadingPricebook(false);
-    }
   };
 
   // Save changes
@@ -554,7 +505,6 @@ export default function PurchaseOrderDetailPage() {
       updated.push({ description: "", quantity: 0, unit_price: 0 });
     }
     setLineItems(updated);
-    setPricebookOpenFor(null);
   };
 
   // Calculate totals with per-line GST rates
@@ -761,62 +711,20 @@ export default function PurchaseOrderDetailPage() {
               <Building2 className="h-4 w-4" />
               Supplier
             </div>
-            <Popover
-              open={supplierOpen}
-              onOpenChange={(open) => {
-                setSupplierOpen(open);
-                if (open) loadSuppliers();
+            <SupplierPicker
+              value={selectedSupplier}
+              onSelect={(supplier) => {
+                // Cast to include supplied_pricebook_item_ids
+                setSelectedSupplier(supplier as Supplier | null);
               }}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={supplierOpen}
-                  className="w-full justify-between"
-                  disabled={loadingSuppliers}
-                >
-                  {loadingSuppliers ? (
-                    <span className="text-muted-foreground">Loading...</span>
-                  ) : selectedSupplier ? (
-                    selectedSupplier.display_name || selectedSupplier.display_name
-                  ) : (
-                    <span className="text-muted-foreground">Select...</span>
-                  )}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[300px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search suppliers..." />
-                  <CommandList>
-                    <CommandEmpty>No supplier found.</CommandEmpty>
-                    <CommandGroup>
-                      {suppliers.map((supplier) => (
-                        <CommandItem
-                          key={supplier.id}
-                          value={supplier.display_name || supplier.display_name}
-                          onSelect={() => {
-                            setSelectedSupplier(supplier);
-                            setSupplierOpen(false);
-                            // Clear pricebook cache when supplier changes
-                            setPricebookItems([]);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedSupplier?.id === supplier.id ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {supplier.display_name || supplier.display_name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+              placeholder="Search suppliers..."
+              clearable
+              forPricebookItemIds={lineItems
+                .filter((li) => li.pricebook_item_id && !li._destroy)
+                .map((li) => li.pricebook_item_id!)
+              }
+              showAllToggle
+            />
             {selectedSupplier?.email && (
               <p className="text-sm text-muted-foreground mt-2">{selectedSupplier.email}</p>
             )}
@@ -913,6 +821,13 @@ export default function PurchaseOrderDetailPage() {
                   const hasPriceChanged = item.pricebook_item?.active_price != null &&
                     Number(item.unit_price) !== Number(item.pricebook_item.active_price);
 
+                  // Check if item is NOT supplied by the selected supplier
+                  const isNotSuppliedBySelectedSupplier =
+                    selectedSupplier &&
+                    item.pricebook_item_id &&
+                    selectedSupplier.supplied_pricebook_item_ids &&
+                    !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
+
                   // Debug logging
                   if (item.pricebook_item && hasPriceChanged) {
                     console.log('Price mismatch detected:', {
@@ -925,8 +840,15 @@ export default function PurchaseOrderDetailPage() {
                     });
                   }
 
-                  // Determine background color (priority: grey out > price changed > normal)
-                  const rowBgColor = shouldGreyOut ? '#f1f5f9' : (hasPriceChanged ? '#fb923c' : undefined);
+                  // Determine background color (priority: grey out > not supplied > price changed > normal)
+                  // Not supplied = amber, Price changed = orange
+                  const rowBgColor = shouldGreyOut
+                    ? '#f1f5f9'
+                    : isNotSuppliedBySelectedSupplier
+                      ? '#fef3c7' // amber-100 for items not supplied
+                      : hasPriceChanged
+                        ? '#fb923c' // orange for price changed
+                        : undefined;
 
                   return (
                   <TableRow
@@ -935,68 +857,30 @@ export default function PurchaseOrderDetailPage() {
                     style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                   >
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      <Popover
-                        open={pricebookOpenFor === originalIndex}
-                        onOpenChange={(open) => {
-                          setPricebookOpenFor(open ? originalIndex : null);
-                          if (!open) setPricebookSearch(""); // Clear search when closing
+                      <PricebookCodePicker
+                        value={item.pricebook_item ? {
+                          id: item.pricebook_item.id,
+                          item_code: item.pricebook_item.item_code,
+                          item_name: item.pricebook_item.item_name,
+                          current_price: item.pricebook_item.current_price,
+                          active_price: item.pricebook_item.active_price,
+                          gst_code: item.pricebook_item.gst_code,
+                        } : null}
+                        onSelect={(pbItem) => {
+                          if (pbItem) {
+                            selectPricebookItem(originalIndex, {
+                              id: pbItem.id,
+                              item_code: pbItem.item_code,
+                              item_name: pbItem.item_name,
+                              current_price: pbItem.current_price,
+                              active_price: pbItem.active_price,
+                              gst_code: pbItem.gst_code,
+                            });
+                          }
                         }}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            className="w-full justify-between border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0"
-                            style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
-                          >
-                            {item.pricebook_item?.item_code || (
-                              <span className="text-muted-foreground">-</span>
-                            )}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0">
-                          <Command shouldFilter={false}>
-                            <CommandInput
-                              placeholder="Search items..."
-                              value={pricebookSearch}
-                              onValueChange={setPricebookSearch}
-                            />
-                            <CommandList>
-                              <CommandEmpty>
-                                {loadingPricebook ? "Loading..." : "No items found."}
-                              </CommandEmpty>
-                              <CommandGroup>
-                                {pricebookItems.slice(0, 50).map((pbItem) => (
-                                  <CommandItem
-                                    key={pbItem.id}
-                                    value={`${pbItem.item_code} ${pbItem.item_name}`}
-                                    onSelect={() => {
-                                      selectPricebookItem(originalIndex, pbItem);
-                                      setPricebookSearch("");
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "mr-2 h-4 w-4",
-                                        item.pricebook_item_id === pbItem.id
-                                          ? "opacity-100"
-                                          : "opacity-0"
-                                      )}
-                                    />
-                                    <div>
-                                      <div className="font-medium">{pbItem.item_code}</div>
-                                      <div className="text-sm text-muted-foreground">
-                                        {pbItem.item_name}
-                                      </div>
-                                    </div>
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
+                        placeholder="Search items..."
+                        showPrice
+                      />
                     </TableCell>
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Input

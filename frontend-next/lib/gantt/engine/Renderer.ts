@@ -1138,12 +1138,24 @@ export class Renderer {
   private getTaskColor(task: GanttTask): string {
     const { taskBar } = this.config.colors;
 
-    // Black for completed tasks (locked at completed_at date)
+    // Priority order: Complete > Supplier Confirm > Confirm > Hold
+
+    // 1. Black for completed tasks (beats all)
     if (task.rowData?.is_completed) {
       return '#1f2937'; // Dark gray / near black
     }
 
-    // Light brown for manually positioned (held) tasks
+    // 2. Purple for supplier confirmed tasks (beats confirm and hold)
+    if (task.rowData?.require_supplier_confirm) {
+      return '#8b5cf6'; // Purple - supplier confirmed
+    }
+
+    // 3. Green for confirmed tasks (beats hold)
+    if (task.rowData?.require_supervisor_check) {
+      return '#22c55e'; // Green - supervisor confirmed
+    }
+
+    // 4. Light brown for manually positioned (held) tasks
     if (task.rowData?.manually_positioned) {
       return '#D4A574'; // Light brown / tan color
     }

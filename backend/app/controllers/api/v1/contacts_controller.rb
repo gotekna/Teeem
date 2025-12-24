@@ -111,6 +111,20 @@ module Api
           end
         end
 
+        # Filter suppliers by pricebook items they supply (have price histories for)
+        # Use: ?type=suppliers&for_pricebook_items=1,2,3
+        if params[:for_pricebook_items].present? && params[:type] == "suppliers"
+          pricebook_item_ids = params[:for_pricebook_items].to_s.split(",").map(&:to_i).reject(&:zero?)
+          if pricebook_item_ids.any?
+            supplier_ids_for_items = PriceHistory
+              .where(pricebook_item_id: pricebook_item_ids)
+              .where.not(supplier_id: nil)
+              .distinct
+              .pluck(:supplier_id)
+            @contacts = @contacts.where(id: supplier_ids_for_items)
+          end
+        end
+
         # Filter by Xero sync status (SSoT: contact_external_links)
         if params[:xero_sync].present?
           case params[:xero_sync]
@@ -218,6 +232,25 @@ module Api
             employee_names = contact.employees.active.limit(10).pluck(:display_name).compact
             contact_json["employee_names"] = employee_names
             contact_json["employee_count"] = contact.employees.active.count
+          end
+        end
+
+        # Add which pricebook items each supplier has price histories for
+        # This helps the frontend show which items aren't covered by a supplier
+        if params[:for_pricebook_items].present? && params[:type] == "suppliers"
+          pricebook_item_ids = params[:for_pricebook_items].to_s.split(",").map(&:to_i).reject(&:zero?)
+          if pricebook_item_ids.any?
+            # Get supplier -> item mappings
+            supplier_items = PriceHistory
+              .where(pricebook_item_id: pricebook_item_ids)
+              .where.not(supplier_id: nil)
+              .group(:supplier_id)
+              .pluck(:supplier_id, Arel.sql("array_agg(DISTINCT pricebook_item_id)"))
+              .to_h
+
+            contacts_json.each do |contact_json|
+              contact_json["supplied_pricebook_item_ids"] = supplier_items[contact_json["id"]] || []
+            end
           end
         end
 
