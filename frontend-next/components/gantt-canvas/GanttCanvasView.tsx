@@ -759,8 +759,16 @@ export function GanttCanvasView({
       });
 
       // Call API to update dependencies
+      // If task is LOCKED (supplier confirmed), also set require_supervisor_check = true
+      // because the task can't move to follow the new dependencies - user needs to be informed
+      const isLocked = depEditorTask.rowData?.require_supplier_confirm === true;
+
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
-        row: { predecessor_ids: predecessorData }
+        row: {
+          predecessor_ids: predecessorData,
+          // Only set confirm if task is locked and can't follow dependencies
+          ...(isLocked && { require_supervisor_check: true })
+        }
       });
 
       // Build display string for local state update (matches backend format: "2FS+3, 5SS")
@@ -778,7 +786,7 @@ export function GanttCanvasView({
         }).join(', ');
       };
 
-      // Update local state with both predecessorIds and display string
+      // Update local state with both predecessorIds, display string, and confirm checkbox (if locked)
       setTasks(prev => prev.map(t =>
         t.id === depEditorTask.id
           ? {
@@ -787,7 +795,9 @@ export function GanttCanvasView({
               rowData: t.rowData ? {
                 ...t.rowData,
                 predecessor_display: buildPredDisplay(),
-                predecessor_ids: predecessorData
+                predecessor_ids: predecessorData,
+                // Only set confirm if task is locked and can't follow dependencies
+                ...(isLocked && { require_supervisor_check: true })
               } : undefined
             }
           : t

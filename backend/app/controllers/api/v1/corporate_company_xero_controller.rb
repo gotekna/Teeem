@@ -1243,13 +1243,26 @@ module Api
           end
 
           transactions = result[:data]["BankTransactions"] || []
-          Rails.logger.info("[XeroBankTransactions] Received #{transactions.count} transactions from Xero")
+          Rails.logger.info("[XeroBankTransactions] Received #{transactions.count} raw transactions from Xero")
 
           # Log first transaction for debugging
           if transactions.any?
             first_tx = transactions.first
             Rails.logger.info("[XeroBankTransactions] First transaction date: #{first_tx['Date']}, type: #{first_tx['Type']}, status: #{first_tx['Status']}")
           end
+
+          # Xero's BankTransactions API doesn't properly filter by date in the where clause
+          # We need to filter client-side using the parsed date
+          from_date_obj = Date.parse(from_date)
+          to_date_obj = Date.parse(to_date)
+
+          transactions = transactions.select do |tx|
+            tx_date = parse_xero_date_to_date(tx["Date"])
+            next false unless tx_date
+            tx_date >= from_date_obj && tx_date <= to_date_obj
+          end
+
+          Rails.logger.info("[XeroBankTransactions] After date filtering: #{transactions.count} transactions (#{from_date} to #{to_date})")
 
           # Format transactions for display
           formatted_transactions = transactions.map do |tx|
@@ -1301,6 +1314,23 @@ module Api
             error: e.message
           }, status: :internal_server_error
         end
+      end
+
+      # Parse Xero .NET date format to Ruby Date object
+      # Returns nil if parsing fails
+      def parse_xero_date_to_date(xero_date)
+        return nil if xero_date.blank?
+
+        if xero_date.is_a?(String) && xero_date.match?(%r{/Date\((\d+)([+-]\d{4})?\)/})
+          match = xero_date.match(%r{/Date\((\d+)([+-]\d{4})?\)/})
+          ms = match[1].to_i
+          Time.at(ms / 1000).utc.to_date
+        else
+          Date.parse(xero_date.to_s)
+        end
+      rescue StandardError => e
+        Rails.logger.warn("[XeroBankTransactions] Failed to parse date '#{xero_date}': #{e.message}")
+        nil
       end
 
       # Helper to fetch bank account balance from Xero
