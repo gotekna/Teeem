@@ -495,6 +495,9 @@ export class GanttCanvas {
   private contextMenuItems: ContextMenuItem[] = [];
   private contextMenuHoveredItem: string | null = null;
 
+  // Dependency lines visibility
+  private dependenciesVisible: boolean = true;
+
   // Minimap state
   private minimapVisible: boolean = true;
   private minimapBounds: { x: number; y: number; width: number; height: number; viewportRect: { x: number; y: number; width: number; height: number } } | null = null;
@@ -840,13 +843,29 @@ export class GanttCanvas {
   }
 
   /**
+   * Set dependency lines visibility
+   */
+  setDependenciesVisible(visible: boolean): void {
+    this.dependenciesVisible = visible;
+    this.markDirty();
+  }
+
+  /**
+   * Get dependency lines visibility
+   */
+  getDependenciesVisible(): boolean {
+    return this.dependenciesVisible;
+  }
+
+  /**
    * Scroll to today
-   * @param position - Where to position today: 'start' (left edge) or 'center'
+   * @param position - Where to position today: 'start' (hard left edge) or 'center'
    */
   scrollToToday(position: 'start' | 'center' = 'start'): void {
     const today = getTodayInCompanyTimezone();
     const x = this.viewport.dateToX(today);
-    const scrollX = position === 'center' ? x - this.containerWidth / 2 : x - 50; // 50px margin from left
+    // 'start' puts today at the hard left edge (small 5px padding so marker isn't cut off)
+    const scrollX = position === 'center' ? x - this.containerWidth / 2 : x - 5;
     // SSoT: Use the viewportState getter for live scroll position
     this.viewport.scrollTo(Math.max(0, scrollX), this.viewportState.scrollY);
     this.markDirty();
@@ -2550,17 +2569,21 @@ export class GanttCanvas {
     }
 
     this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
-    const brokenDeps = this.getBrokenDependencyIds();
-    this.renderer.drawDependencies(
-      this.state.tasks,
-      this.state.dependencies,
-      this.state.lastSelectedTaskId,
-      this.containerHeight,
-      criticalDeps,
-      this.highlightedDeps.size > 0 ? this.highlightedDeps : undefined,
-      this.highlightedDeps.size > 0 ? this.highlightPhase : undefined,
-      brokenDeps.size > 0 ? brokenDeps : undefined
-    );
+
+    // Draw dependency lines if visible
+    if (this.dependenciesVisible) {
+      const brokenDeps = this.getBrokenDependencyIds();
+      this.renderer.drawDependencies(
+        this.state.tasks,
+        this.state.dependencies,
+        this.state.lastSelectedTaskId,
+        this.containerHeight,
+        criticalDeps,
+        this.highlightedDeps.size > 0 ? this.highlightedDeps : undefined,
+        this.highlightedDeps.size > 0 ? this.highlightPhase : undefined,
+        brokenDeps.size > 0 ? brokenDeps : undefined
+      );
+    }
 
     // Draw drag preview overlay
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {

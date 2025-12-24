@@ -80,6 +80,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Info, GitBranch } from "lucide-react";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   Select,
@@ -264,6 +266,7 @@ export function GanttCanvasView({
   const [showSidebar, setShowSidebar] = React.useState(true);
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
+  const [showDependencies, setShowDependencies] = React.useState(true);
 
   // Collapsed headers state - stores row IDs of collapsed header rows
   const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
@@ -1850,6 +1853,17 @@ export function GanttCanvasView({
     }
   }, [isFullscreen]);
 
+  // Trigger resize when sidebar is toggled
+  React.useEffect(() => {
+    if (ganttRef.current) {
+      // Small delay to allow CSS transition to complete
+      const timer = setTimeout(() => {
+        ganttRef.current?.resize();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showSidebar]);
+
   // Update column visibility and tooltip config when columns change
   React.useEffect(() => {
     if (ganttRef.current) {
@@ -2116,6 +2130,127 @@ export function GanttCanvasView({
               </div>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Legend */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" title="Color Legend">
+                <Info className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80">
+              <div className="space-y-3">
+                <h4 className="font-medium text-sm">Task Bar Colors</h4>
+                <p className="text-xs text-muted-foreground">Based on checkbox status (priority order)</p>
+                <div className="grid gap-2 text-sm">
+                  {/* Checkbox-based colors in priority order */}
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#1f2937' }} />
+                    <div className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">Done checked</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#a855f7' }} />
+                    <div className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">S✓ (Supplier Confirm) checked</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#22c55e' }} />
+                    <div className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">✓ (Confirm) checked</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#D4A574' }} />
+                    <div className="flex items-center gap-1.5">
+                      <Check className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-muted-foreground">Hold checked (tan)</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-3 rounded" style={{ backgroundColor: '#9ca3af' }} />
+                    <span className="text-muted-foreground">No checkboxes (default)</span>
+                  </div>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <h4 className="font-medium text-sm mb-2">Other Indicators</h4>
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#ef4444' }} />
+                      <span className="text-muted-foreground">Today marker</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded opacity-50" style={{ backgroundColor: '#f9fafb', border: '1px solid #e5e7eb' }} />
+                      <span className="text-muted-foreground">Weekend</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-3 rounded" style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }} />
+                      <span className="text-muted-foreground">Holiday</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-4 h-3 rounded overflow-hidden relative"
+                        style={{ backgroundColor: '#a855f7' }}
+                      >
+                        {/* Checkerboard overlay */}
+                        <div
+                          className="absolute inset-0"
+                          style={{
+                            backgroundImage: `
+                              linear-gradient(45deg, rgba(255,255,255,0.3) 25%, transparent 25%),
+                              linear-gradient(-45deg, rgba(255,255,255,0.3) 25%, transparent 25%),
+                              linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.3) 75%),
+                              linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.3) 75%)
+                            `,
+                            backgroundSize: '4px 4px',
+                            backgroundPosition: '0 0, 0 2px, 2px -2px, -2px 0px'
+                          }}
+                        />
+                      </div>
+                      <span className="text-muted-foreground">Broken dependency</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t pt-2 mt-2">
+                  <h4 className="font-medium text-sm mb-2">Dependency Lines (on selection)</h4>
+                  <div className="grid gap-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-0.5 relative">
+                        <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fbbf24 3px, #fbbf24 6px)' }} />
+                      </div>
+                      <span className="text-muted-foreground">Predecessor (must finish before)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-0.5 relative">
+                        <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fff 3px, #fff 6px)', border: '0.5px solid #ccc' }} />
+                      </div>
+                      <span className="text-muted-foreground">Successor (waits for this task)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Dependency Lines Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            title={showDependencies ? "Hide Dependency Lines" : "Show Dependency Lines"}
+            onClick={() => {
+              const newValue = !showDependencies;
+              setShowDependencies(newValue);
+              ganttRef.current?.setDependenciesVisible(newValue);
+            }}
+            className={cn(!showDependencies && "text-muted-foreground")}
+          >
+            <GitBranch className="h-4 w-4" />
+          </Button>
 
           <div className="flex-1" />
 
@@ -2436,22 +2571,34 @@ export function GanttCanvasView({
               {/* Visual Guide */}
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                 <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">💡 Drag to connect on Gantt</p>
-                <div className="flex flex-col items-center gap-1 py-2">
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col items-center gap-2 py-2">
+                  {/* Predecessor line: black/yellow */}
+                  <div className="flex items-center gap-1.5">
                     <div className="flex items-center">
                       <div className="bg-indigo-500 text-white text-[10px] px-2 py-1 rounded font-medium">A</div>
                       <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full -ml-0.5 ring-1 ring-white" />
                     </div>
-                    <div className="w-6 h-0.5 bg-indigo-400" />
-                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-indigo-400" />
+                    <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fbbf24 3px, #fbbf24 6px)' }} />
+                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-amber-400" />
                     <div className="flex items-center">
                       <div className="w-1.5 h-1.5 bg-purple-500 rounded-full -mr-0.5 ring-1 ring-white z-10" />
                       <div className="bg-purple-500 text-white text-[10px] px-2 py-1 rounded font-medium">B</div>
                     </div>
+                    <span className="text-[9px] text-muted-foreground ml-1">predecessor</span>
                   </div>
-                  <div className="flex gap-8 text-[9px]">
-                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">PRED</span>
-                    <span className="text-purple-600 dark:text-purple-400 font-medium">SUCC</span>
+                  {/* Successor line: black/white */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="flex items-center">
+                      <div className="bg-purple-500 text-white text-[10px] px-2 py-1 rounded font-medium">B</div>
+                      <div className="w-1.5 h-1.5 bg-purple-500 rounded-full -ml-0.5 ring-1 ring-white" />
+                    </div>
+                    <div className="w-8 h-[3px] border border-gray-300" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fff 3px, #fff 6px)' }} />
+                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-white" style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))' }} />
+                    <div className="flex items-center">
+                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full -mr-0.5 ring-1 ring-white z-10" />
+                      <div className="bg-gray-500 text-white text-[10px] px-2 py-1 rounded font-medium">C</div>
+                    </div>
+                    <span className="text-[9px] text-muted-foreground ml-1">successor</span>
                   </div>
                 </div>
                 <p className="text-[10px] text-blue-700 dark:text-blue-300 text-center">

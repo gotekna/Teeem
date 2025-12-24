@@ -1082,8 +1082,7 @@ export class Renderer {
       }
     });
 
-    // Draw highlighted dependencies on top with colors
-    let colorIndex = 0;
+    // Draw highlighted dependencies on top with distinct styles for predecessors vs successors
     dependencies.forEach((dep) => {
       const isPredecessor = highlightedPredecessors.has(dep.id);
       const isSuccessor = highlightedSuccessors.has(dep.id);
@@ -1101,9 +1100,12 @@ export class Renderer {
       const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
       const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
-      const color = Renderer.DEPENDENCY_COLORS[colorIndex % Renderer.DEPENDENCY_COLORS.length];
-      this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, color, tasks, from.index, to.index);
-      colorIndex++;
+      // Predecessors: black/yellow stripes, Successors: black/white dashed
+      if (isPredecessor) {
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#fbbf24', tasks, from.index, to.index);
+      } else {
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#ffffff', tasks, from.index, to.index);
+      }
     });
 
     // Draw flashing dependencies with animation effect
@@ -1328,6 +1330,74 @@ export class Renderer {
     );
     this.ctx.closePath();
     this.ctx.fill();
+  }
+
+  /**
+   * Draw a striped dependency line (alternating colors)
+   * Used for highlighting predecessors (black/yellow) and successors (black/white)
+   */
+  private drawStripedDependencyLine(
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+    type: string,
+    color1: string,
+    color2: string,
+    tasks?: GanttTask[],
+    fromIndex?: number,
+    toIndex?: number
+  ): void {
+    const lineWidth = 3;
+    const dashLength = 6;
+
+    this.ctx.save();
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    // Build the path points
+    const points: { x: number; y: number }[] = [];
+    points.push({ x: fromX, y: fromY });
+
+    if (Math.abs(toY - fromY) < 5) {
+      // Same row - straight line
+      points.push({ x: toX, y: toY });
+    } else {
+      // Different rows - inverted L routing
+      points.push({ x: fromX, y: toY });
+      points.push({ x: toX, y: toY });
+    }
+
+    // Draw striped line by drawing dashed segments
+    // First layer: color1 (black)
+    this.ctx.strokeStyle = color1;
+    this.ctx.setLineDash([dashLength, dashLength]);
+    this.ctx.lineDashOffset = 0;
+    this.ctx.beginPath();
+    this.ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      this.ctx.lineTo(points[i].x, points[i].y);
+    }
+    this.ctx.stroke();
+
+    // Second layer: color2 (yellow or white) - offset
+    this.ctx.strokeStyle = color2;
+    this.ctx.lineDashOffset = -dashLength;
+    this.ctx.beginPath();
+    this.ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+      this.ctx.lineTo(points[i].x, points[i].y);
+    }
+    this.ctx.stroke();
+
+    // Reset dash
+    this.ctx.setLineDash([]);
+
+    // Draw arrow head with color2
+    this.drawArrowHead(toX, toY, toX > fromX ? 0 : Math.PI, color2);
+
+    this.ctx.restore();
   }
 
   /**
