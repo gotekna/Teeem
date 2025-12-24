@@ -24,6 +24,8 @@ import {
 } from "@/lib/gantt/types";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatDateForAPI } from "@/lib/timezone-utils";
+import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
@@ -251,6 +253,9 @@ export function GanttCanvasView({
 
   // Determine if we're using static mode
   const isStaticMode = Boolean(staticTasks);
+
+  // Toast for user-visible notifications
+  const { toast } = useToast();
 
   // State
   const [loading, setLoading] = React.useState(!isStaticMode);
@@ -723,9 +728,13 @@ export function GanttCanvasView({
         || axiosError?.message
         || 'Unknown error occurred';
 
-      alert(`Failed to save dependencies: ${errorMessage}`);
+      toast({
+        variant: "destructive",
+        title: "Failed to save dependencies",
+        description: errorMessage,
+      });
     }
-  }, [depEditorTask, depEditorLinks, templateId, tasks]);
+  }, [depEditorTask, depEditorLinks, templateId, tasks, toast]);
 
   // Theme
   const { resolvedTheme } = useTheme();
@@ -915,8 +924,13 @@ export function GanttCanvasView({
       ));
     } catch (err) {
       console.error('Failed to save manual position:', err);
+      toast({
+        variant: "destructive",
+        title: "Position not saved",
+        description: "Failed to save task position. Please try again.",
+      });
     }
-  }, [rows]);
+  }, [rows, toast]);
 
   // Handle dependency create - save new dependency to API
   const handleDependencyCreate = React.useCallback(async (
@@ -976,14 +990,18 @@ export function GanttCanvasView({
       await loadData(true);
     } catch (err: any) {
       console.error('Failed to save dependency:', err);
-      // Show user-friendly message for common errors
-      if (err?.message?.includes('circular')) {
-        alert('Cannot create dependency: This would create a circular reference.');
-      }
+      // Show user-friendly toast for errors
+      toast({
+        variant: "destructive",
+        title: "Dependency not saved",
+        description: err?.message?.includes('circular')
+          ? 'Cannot create dependency: This would create a circular reference.'
+          : 'Failed to save dependency. Please try again.',
+      });
       // Reload to remove the invalid dependency from canvas (API rejected it)
       await loadData(true);
     }
-  }, [templateId, isStaticMode, rows, loadData]);
+  }, [templateId, isStaticMode, rows, loadData, toast]);
 
   // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
@@ -1050,8 +1068,13 @@ export function GanttCanvasView({
       await loadData(true);
     } catch (err) {
       console.error('Failed to save task resize:', err);
+      toast({
+        variant: "destructive",
+        title: "Resize not saved",
+        description: "Failed to save task duration. Please try again.",
+      });
     }
-  }, [templateId, isStaticMode, loadData, rows]);
+  }, [templateId, isStaticMode, loadData, rows, toast]);
 
   // Handle duration edit - save new duration and recalculate dependent task dates
   const handleDurationSave = React.useCallback(async (taskId: string, newDuration: number) => {
@@ -1086,6 +1109,11 @@ export function GanttCanvasView({
       await loadData(true);
     } catch (err) {
       console.error('Failed to save duration:', err);
+      toast({
+        variant: "destructive",
+        title: "Duration not saved",
+        description: "Failed to update task duration. Please try again.",
+      });
     }
 
     setEditingDurationTaskId(null);
@@ -1127,8 +1155,13 @@ export function GanttCanvasView({
       ));
     } catch (err) {
       console.error('Failed to reset manual position:', err);
+      toast({
+        variant: "destructive",
+        title: "Reset failed",
+        description: "Failed to reset task position. Please try again.",
+      });
     }
-  }, [templateId, isStaticMode]);
+  }, [templateId, isStaticMode, toast]);
 
   // Handle undo - restore previous task state
   const handleUndoTask = React.useCallback(async (task: GanttTask) => {
@@ -1302,11 +1335,8 @@ export function GanttCanvasView({
 
     // Get current task position to lock it in place
     const currentTask = tasks.find(t => t.id === task.id);
-    // Use local date (not UTC) to avoid timezone issues
-    const startDate = currentTask?.startDate;
-    const currentDateStr = startDate
-      ? `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
-      : null;
+    // Use company timezone (Brisbane) for date formatting
+    const currentDateStr = formatDateForAPI(currentTask?.startDate ?? null);
 
     console.log('🔒 CONFIRM TOGGLE (direct):', {
       task: task.name,
@@ -1385,11 +1415,8 @@ export function GanttCanvasView({
 
     // Find the current task position from the tasks state
     const currentTask = tasks.find(t => t.id === task.id);
-    // Use local date (not UTC) to avoid timezone issues
-    const startDate = currentTask?.startDate;
-    const currentDateStr = startDate
-      ? `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
-      : null;
+    // Use company timezone (Brisbane) for date formatting
+    const currentDateStr = formatDateForAPI(currentTask?.startDate ?? null);
 
     console.log('✅ EXECUTING CONFIRM TOGGLE:', {
       type,
@@ -2507,43 +2534,55 @@ export function GanttCanvasView({
                   const movedTaskRow = rows.find(r => String(r.id) === cascadeDialog.task?.id);
                   const movedTaskNumber = movedTaskRow?.task_number;
 
-                  // Process each direct locked successor and its children
+                  // CRITICAL FIX: Null check for movedTaskNumber
+                  if (!movedTaskNumber) {
+                    console.error('Cannot find moved task - aborting cascade operations');
+                    await executeDragMove(cascadeDialog.task, cascadeDialog.newStartDate);
+                    setCascadeDialog(prev => ({ ...prev, isOpen: false }));
+                    return;
+                  }
+
+                  // CRITICAL FIX: Collect all updates first to avoid race conditions
+                  // Each update contains: { id, apiPayload, rowUpdate }
+                  const pendingUpdates: Array<{
+                    id: number;
+                    apiPayload: Record<string, unknown>;
+                    rowUpdate: Record<string, unknown>;
+                  }> = [];
+
+                  // Helper to get formatted date from task (uses company timezone)
+                  const getTaskDateStr = (taskId: number): string | null => {
+                    const currentTask = tasks.find(t => t.id === String(taskId));
+                    return formatDateForAPI(currentTask?.startDate ?? null);
+                  };
+
+                  // Process each direct locked successor and its children - collect updates
                   for (const parentTask of cascadeDialog.lockedSuccessors) {
                     const parentDecision = lockedTaskDecisions[parentTask.id] || 'break';
 
                     if (parentDecision === 'break') {
                       // BREAK DEPENDENCY on parent - children are not affected (stay connected to parent)
                       console.log(`🔗 Breaking dependency on task #${parentTask.task_number}`);
-                      try {
-                        const currentPreds = parentTask.predecessor_ids || [];
-                        const updatedPreds = currentPreds.filter((p: any) => p.id !== movedTaskNumber);
+                      const currentPreds = parentTask.predecessor_ids || [];
+                      // CRITICAL FIX: Use String() for consistent comparison
+                      const updatedPreds = currentPreds.filter((p: { id: string | number }) => String(p.id) !== String(movedTaskNumber));
+                      const currentDateStr = getTaskDateStr(parentTask.id);
 
-                        const currentTask = tasks.find(t => t.id === String(parentTask.id));
-                        const taskStartDate = currentTask?.startDate;
-                        const currentDateStr = taskStartDate
-                          ? `${taskStartDate.getFullYear()}-${String(taskStartDate.getMonth() + 1).padStart(2, '0')}-${String(taskStartDate.getDate()).padStart(2, '0')}`
-                          : null;
-
-                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${parentTask.id}`, {
-                          row: {
-                            predecessor_ids: updatedPreds,
-                            manually_positioned: true,
-                            manual_start_date: currentDateStr,
-                            dependency_broken: true
-                          }
-                        });
-                        setRows(prev => prev.map(r =>
-                          r.id === parentTask.id ? {
-                            ...r,
-                            predecessor_ids: updatedPreds,
-                            manually_positioned: true,
-                            manual_start_date: currentDateStr,
-                            dependency_broken: true
-                          } : r
-                        ));
-                      } catch (err) {
-                        console.error('Failed to break dependency:', err);
-                      }
+                      pendingUpdates.push({
+                        id: parentTask.id,
+                        apiPayload: {
+                          predecessor_ids: updatedPreds,
+                          manually_positioned: true,
+                          manual_start_date: currentDateStr,
+                          dependency_broken: true
+                        },
+                        rowUpdate: {
+                          predecessor_ids: updatedPreds,
+                          manually_positioned: true,
+                          manual_start_date: currentDateStr,
+                          dependency_broken: true
+                        }
+                      });
                       // Children stay connected to this parent - no action needed for them
                     } else {
                       // CLEAR & CASCADE on parent - then process children
@@ -2551,16 +2590,12 @@ export function GanttCanvasView({
                         : parentTask.finance_approved ? 'finance_approved'
                         : 'require_supervisor_check';
                       console.log(`🔓 Clearing ${fieldName} on task #${parentTask.task_number}`);
-                      try {
-                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${parentTask.id}`, {
-                          row: { [fieldName]: false }
-                        });
-                        setRows(prev => prev.map(r =>
-                          r.id === parentTask.id ? { ...r, [fieldName]: false } : r
-                        ));
-                      } catch (err) {
-                        console.error('Failed to clear lock:', err);
-                      }
+
+                      pendingUpdates.push({
+                        id: parentTask.id,
+                        apiPayload: { [fieldName]: false },
+                        rowUpdate: { [fieldName]: false }
+                      });
 
                       // Now process children since parent is cascading
                       for (const childTask of (parentTask.downstreamTasks || [])) {
@@ -2569,56 +2604,68 @@ export function GanttCanvasView({
                         if (childDecision === 'break') {
                           // Break child dependency
                           console.log(`🔗 Breaking dependency on child task #${childTask.task_number}`);
-                          try {
-                            const currentPreds = childTask.predecessor_ids || [];
-                            // Remove predecessor that points to the parent (not the original moved task)
-                            const updatedPreds = currentPreds.filter((p: any) => p.id !== parentTask.task_number);
+                          const currentPreds = childTask.predecessor_ids || [];
+                          // CRITICAL FIX: Use String() for consistent comparison - filter out parent's task_number
+                          const updatedPreds = currentPreds.filter((p: { id: string | number }) => String(p.id) !== String(parentTask.task_number));
+                          const currentDateStr = getTaskDateStr(childTask.id);
 
-                            const currentTask = tasks.find(t => t.id === String(childTask.id));
-                            const taskStartDate = currentTask?.startDate;
-                            const currentDateStr = taskStartDate
-                              ? `${taskStartDate.getFullYear()}-${String(taskStartDate.getMonth() + 1).padStart(2, '0')}-${String(taskStartDate.getDate()).padStart(2, '0')}`
-                              : null;
-
-                            await api.patch(`/api/v1/sm_templates/${templateId}/rows/${childTask.id}`, {
-                              row: {
-                                predecessor_ids: updatedPreds,
-                                manually_positioned: true,
-                                manual_start_date: currentDateStr,
-                                dependency_broken: true
-                              }
-                            });
-                            setRows(prev => prev.map(r =>
-                              r.id === childTask.id ? {
-                                ...r,
-                                predecessor_ids: updatedPreds,
-                                manually_positioned: true,
-                                manual_start_date: currentDateStr,
-                                dependency_broken: true
-                              } : r
-                            ));
-                          } catch (err) {
-                            console.error('Failed to break child dependency:', err);
-                          }
+                          pendingUpdates.push({
+                            id: childTask.id,
+                            apiPayload: {
+                              predecessor_ids: updatedPreds,
+                              manually_positioned: true,
+                              manual_start_date: currentDateStr,
+                              dependency_broken: true
+                            },
+                            rowUpdate: {
+                              predecessor_ids: updatedPreds,
+                              manually_positioned: true,
+                              manual_start_date: currentDateStr,
+                              dependency_broken: true
+                            }
+                          });
                         } else {
                           // Clear & cascade child
                           const childFieldName = childTask.require_supplier_confirm ? 'require_supplier_confirm'
                             : childTask.finance_approved ? 'finance_approved'
                             : 'require_supervisor_check';
                           console.log(`🔓 Clearing ${childFieldName} on child task #${childTask.task_number}`);
-                          try {
-                            await api.patch(`/api/v1/sm_templates/${templateId}/rows/${childTask.id}`, {
-                              row: { [childFieldName]: false }
-                            });
-                            setRows(prev => prev.map(r =>
-                              r.id === childTask.id ? { ...r, [childFieldName]: false } : r
-                            ));
-                          } catch (err) {
-                            console.error('Failed to clear child lock:', err);
-                          }
+
+                          pendingUpdates.push({
+                            id: childTask.id,
+                            apiPayload: { [childFieldName]: false },
+                            rowUpdate: { [childFieldName]: false }
+                          });
                         }
                       }
                     }
+                  }
+
+                  // CRITICAL FIX: Execute all API calls in parallel
+                  try {
+                    await Promise.all(
+                      pendingUpdates.map(update =>
+                        api.patch(`/api/v1/sm_templates/${templateId}/rows/${update.id}`, {
+                          row: update.apiPayload
+                        })
+                      )
+                    );
+
+                    // CRITICAL FIX: Single setRows call with all updates
+                    setRows(prev => {
+                      const updateMap = new Map(pendingUpdates.map(u => [u.id, u.rowUpdate]));
+                      return prev.map(r => {
+                        const update = updateMap.get(r.id);
+                        return update ? { ...r, ...update } : r;
+                      });
+                    });
+                  } catch (err) {
+                    console.error('Failed to apply cascade updates:', err);
+                    toast({
+                      variant: "destructive",
+                      title: "Update failed",
+                      description: "Failed to apply cascade updates. Please try again.",
+                    });
                   }
 
                   // Now execute the move

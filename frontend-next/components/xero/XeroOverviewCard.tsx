@@ -222,14 +222,18 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
                 <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="space-y-1">
-                {lockedDateFormatted && (
+                {showBothDates ? (
+                  <>
+                    <p className="font-medium text-blue-900 dark:text-blue-100">
+                      Locked (except advisers): {periodLockFormatted}
+                    </p>
+                    <p className="font-medium text-blue-900 dark:text-blue-100">
+                      Fully Locked: {lockedDateFormatted}
+                    </p>
+                  </>
+                ) : (
                   <p className="font-medium text-blue-900 dark:text-blue-100">
-                    End of Year Lock: {lockedDateFormatted}
-                  </p>
-                )}
-                {showBothDates && (
-                  <p className="font-medium text-blue-900 dark:text-blue-100">
-                    Period Lock: {periodLockFormatted}
+                    Fully Locked: {lockedDateFormatted || periodLockFormatted}
                   </p>
                 )}
                 <p className="text-sm text-blue-700 dark:text-blue-300">

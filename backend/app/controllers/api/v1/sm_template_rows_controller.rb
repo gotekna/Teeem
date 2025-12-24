@@ -56,6 +56,9 @@ module Api
         # Track if we need to cascade dependencies
         timing_changed = will_timing_change?
 
+        # Auto-clear dependency_broken when predecessors are re-added
+        clear_dependency_broken_if_needed
+
         if @row.update(row_params)
           updated_rows = [@row]
 
@@ -185,6 +188,19 @@ module Api
         end
 
         false
+      end
+
+      # Clear dependency_broken flag when predecessors are re-added
+      def clear_dependency_broken_if_needed
+        return unless params[:row]
+        return unless @row.dependency_broken
+
+        # If predecessor_ids are being set and there are actual predecessors
+        new_preds = params[:row][:predecessor_ids]
+        if new_preds.present? && new_preds.is_a?(Array) && new_preds.any?
+          # Predecessors being added - clear the broken flag
+          params[:row][:dependency_broken] = false
+        end
       end
 
       def row_params

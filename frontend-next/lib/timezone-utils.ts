@@ -32,3 +32,14 @@ export function formatDateTimeForDisplay(date: Date | string | null): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleString('en-AU', { timeZone: BRISBANE_TZ });
 }
+
+/**
+ * Format a Date as YYYY-MM-DD string using company timezone (Brisbane)
+ * Use this for API calls that expect date strings
+ */
+export function formatDateForAPI(date: Date | string | null): string | null {
+  if (!date) return null;
+  const d = typeof date === 'string' ? new Date(date) : date;
+  // Use en-CA locale which produces YYYY-MM-DD format, with Brisbane timezone
+  return d.toLocaleDateString('en-CA', { timeZone: BRISBANE_TZ });
+}
