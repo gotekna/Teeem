@@ -815,12 +815,12 @@ export function GanttCanvasView({
       };
     });
 
-    // Categorize successors
+    // Categorize successors (include finance_approved as a lock)
     const lockedSuccessors = successorInfo.filter(s =>
-      s.require_supervisor_check || s.require_supplier_confirm || s.is_completed
+      s.require_supervisor_check || s.require_supplier_confirm || s.finance_approved || s.is_completed
     );
     const unlockedSuccessors = successorInfo.filter(s =>
-      !s.require_supervisor_check && !s.require_supplier_confirm && !s.is_completed
+      !s.require_supervisor_check && !s.require_supplier_confirm && !s.finance_approved && !s.is_completed
     );
 
     // If there are successors, show the cascade dialog
@@ -2337,9 +2337,13 @@ export function GanttCanvasView({
                   <div className="mt-2 space-y-2 ml-3">
                     {cascadeDialog.lockedSuccessors.map(s => {
                       const lockType = s.require_supplier_confirm ? 'Supplier Confirmed'
+                        : s.finance_approved ? 'Finance Approved'
                         : s.require_supervisor_check ? 'Confirmed'
                         : s.is_completed ? 'Completed' : 'Locked';
                       const canUnlock = !s.is_completed;
+                      const fieldName = s.require_supplier_confirm ? 'require_supplier_confirm'
+                        : s.finance_approved ? 'finance_approved'
+                        : 'require_supervisor_check';
                       return (
                         <div key={s.id} className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
                           {/* Task header */}
@@ -2347,6 +2351,7 @@ export function GanttCanvasView({
                             <span className="font-medium">#{s.task_number} {s.name}</span>
                             <span className={`px-1.5 py-0.5 rounded text-[10px] ${
                               s.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                              : s.finance_approved ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                               : s.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                               : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                             }`}>
@@ -2359,22 +2364,66 @@ export function GanttCanvasView({
                             )}
                           </div>
 
-                          {/* Show downstream tasks that will be affected */}
-                          {s.downstreamCount > 0 && (
-                            <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-700 text-[10px]">
-                              <div className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
-                                ⚠️ Breaking this will also affect {s.downstreamCount} downstream task{s.downstreamCount > 1 ? 's' : ''}:
+                          {/* Show locked downstream tasks - each with TWO checkboxes */}
+                          {s.downstreamTasks?.filter((dt: any) =>
+                            dt.require_supervisor_check || dt.require_supplier_confirm || dt.finance_approved || dt.is_completed
+                          ).map((dt: any) => {
+                            const dtLockType = dt.require_supplier_confirm ? 'Supplier Confirmed'
+                              : dt.finance_approved ? 'Finance Approved'
+                              : dt.require_supervisor_check ? 'Confirmed'
+                              : dt.is_completed ? 'Completed' : 'Locked';
+                            const dtCanUnlock = !dt.is_completed;
+                            const dtFieldName = dt.require_supplier_confirm ? 'require_supplier_confirm'
+                              : dt.finance_approved ? 'finance_approved'
+                              : 'require_supervisor_check';
+
+                            return (
+                              <div key={dt.id} className="mb-2 ml-4 p-2 bg-orange-50/50 dark:bg-orange-900/10 rounded border border-orange-200/50 dark:border-orange-800/50">
+                                <div className="flex items-center gap-2 text-[10px] mb-1.5">
+                                  <span className="text-orange-600 dark:text-orange-400">↳</span>
+                                  <span className="font-medium">#{dt.task_number} {dt.name}</span>
+                                  <span className={`px-1 py-0.5 rounded text-[9px] ${
+                                    dt.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                                    : dt.finance_approved ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                                    : dt.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                    : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                                  }`}>
+                                    {dtLockType}
+                                  </span>
+                                </div>
+                                <div className="space-y-1 text-[10px]">
+                                  <label className="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" name={`dt-${dt.id}-break`} defaultChecked={true}
+                                      className="h-3 w-3 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                      onChange={(e) => {
+                                        const cascade = document.querySelector(`input[name="dt-${dt.id}-cascade"]`) as HTMLInputElement;
+                                        if (cascade && e.target.checked) cascade.checked = false;
+                                      }}
+                                    />
+                                    <span className="text-red-600 dark:text-red-400">Break</span>
+                                  </label>
+                                  <label className={`flex items-center gap-1.5 ${dtCanUnlock ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                                    <input type="checkbox" name={`dt-${dt.id}-cascade`} disabled={!dtCanUnlock}
+                                      className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                      onChange={async (e) => {
+                                        if (e.target.checked && dtCanUnlock) {
+                                          const breakCb = document.querySelector(`input[name="dt-${dt.id}-break"]`) as HTMLInputElement;
+                                          if (breakCb) breakCb.checked = false;
+                                          try {
+                                            await api.patch(`/api/v1/sm_templates/${templateId}/rows/${dt.id}`, {
+                                              row: { [dtFieldName]: false }
+                                            });
+                                            setRows(prev => prev.map(r => r.id === dt.id ? { ...r, [dtFieldName]: false } : r));
+                                          } catch (err) { console.error('Failed to unlock:', err); }
+                                        }
+                                      }}
+                                    />
+                                    <span className={dtCanUnlock ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}>Clear & Cascade</span>
+                                  </label>
+                                </div>
                               </div>
-                              <ul className="text-yellow-700 dark:text-yellow-300 space-y-0.5 ml-2">
-                                {s.downstreamTasks?.map((dt: any) => (
-                                  <li key={dt.id}>• #{dt.task_number} {dt.name}</li>
-                                ))}
-                                {s.hasMoreDownstream && (
-                                  <li className="italic">• ... and {s.downstreamCount - 10} more</li>
-                                )}
-                              </ul>
-                            </div>
-                          )}
+                            );
+                          })}
 
                           {/* Two checkbox options */}
                           <div className="space-y-2 text-xs">
@@ -2413,8 +2462,7 @@ export function GanttCanvasView({
                                     if (breakCheckbox) {
                                       breakCheckbox.checked = false;
                                     }
-                                    // Clear the confirm flag
-                                    const fieldName = s.require_supplier_confirm ? 'require_supplier_confirm' : 'require_supervisor_check';
+                                    // Clear the lock flag (uses fieldName defined above)
                                     console.log(`🔓 Unlocking task #${s.task_number} - clearing ${fieldName}`);
                                     try {
                                       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${s.id}`, {

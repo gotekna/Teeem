@@ -1606,8 +1606,12 @@ module Api
             end_of_month: {
               current_month: current_month.strftime("%B %Y"),
               last_month: last_month.strftime("%B %Y"),
-              last_month_closed: organisation_info[:locked_date].present? &&
-                Date.parse(organisation_info[:locked_date]) >= last_month.end_of_month rescue false
+              last_month_closed: begin
+                organisation_info[:locked_date].present? &&
+                  Date.parse(organisation_info[:locked_date]) >= last_month.end_of_month
+              rescue
+                false
+              end
             }
           }
         }
