@@ -105,11 +105,13 @@ interface SmTask {
   task_number: number;
   sequence_order: number;
   sm_template_row_id: number;
+  start_date?: string; // SSoT: Used to auto-populate PO required_date
 }
 
 // ComboboxDropdown item type for tasks
 interface TaskComboboxItem extends ComboboxItem {
   sm_template_row_id: number;
+  start_date?: string; // SSoT: Used to auto-populate PO required_date
 }
 
 interface PurchaseOrder {
@@ -297,6 +299,7 @@ export default function PurchaseOrderDetailPage() {
         id: String(task.sm_template_row_id), // Use sm_template_row_id as the key for matching
         label: task.name,
         sm_template_row_id: task.sm_template_row_id,
+        start_date: task.start_date, // SSoT: For auto-populating PO required_date
       }));
       setTaskItems(items);
     } catch (err) {
@@ -577,6 +580,10 @@ export default function PurchaseOrderDetailPage() {
                 onSelect={(item) => {
                   setDescription(item.label);
                   setSmTemplateRowId(item.sm_template_row_id); // SSoT link
+                  // Auto-populate required date from task's start_date (SSoT)
+                  if (item.start_date) {
+                    setRequiredDate(item.start_date);
+                  }
                 }}
                 placeholder="Search tasks..."
                 isLoading={loadingTasks}

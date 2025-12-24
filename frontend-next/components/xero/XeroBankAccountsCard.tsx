@@ -460,20 +460,46 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                 </div>
               </div>
 
-              {/* Date Range & Search */}
+              {/* Month Picker & Date Range */}
               <div className="flex items-center gap-3">
+                {/* Quick Month Picker */}
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [year, month] = e.target.value.split("-").map(Number);
+                      const firstDay = new Date(year, month - 1, 1);
+                      const lastDay = new Date(year, month, 0);
+                      setDateRange({
+                        from: firstDay.toISOString().split("T")[0],
+                        to: lastDay.toISOString().split("T")[0],
+                      });
+                    }
+                  }}
+                  className="h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="">Select Month...</option>
+                  {Array.from({ length: 24 }, (_, i) => {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - i);
+                    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                    const label = d.toLocaleDateString("en-AU", { month: "short", year: "numeric" });
+                    return <option key={value} value={value}>{label}</option>;
+                  })}
+                </select>
+                <span className="text-muted-foreground text-xs">or</span>
                 <input
                   type="date"
                   value={dateRange.from}
                   onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                  className="w-36 h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-32 h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <span className="text-muted-foreground text-sm">to</span>
                 <input
                   type="date"
                   value={dateRange.to}
                   onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                  className="w-36 h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-32 h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button
                   variant={showFilters ? "secondary" : "outline"}
