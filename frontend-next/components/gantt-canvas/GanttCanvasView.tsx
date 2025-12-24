@@ -37,6 +37,8 @@ import {
   Check,
   X,
   Expand,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import {
   DropdownMenu,

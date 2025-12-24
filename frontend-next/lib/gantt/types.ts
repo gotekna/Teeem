@@ -117,6 +117,7 @@ export interface SmTemplateRow {
   linked_po_task_name: string | null;
   require_supplier_confirm: boolean;
   is_master: boolean;
+  category: string | null;
   // Multi-template support
   sm_template_ids: number[];
   created_at: string;

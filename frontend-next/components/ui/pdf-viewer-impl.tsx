@@ -182,6 +182,16 @@ export function PDFViewerImpl({
     setBlobUrl(null);
   }, []);
 
+  // Handle new page iframe load - complete the crossfade
+  // MUST be defined before any early returns to maintain consistent hook count
+  const handleNewPageLoad = React.useCallback(() => {
+    // Small delay to ensure iframe has rendered content
+    setTimeout(() => {
+      setDisplayedPage(currentPage);
+      setIsPageTransitioning(false);
+    }, 50);
+  }, [currentPage]);
+
   // ResizeObserver to re-fit PDF when container size changes
   React.useEffect(() => {
     const container = containerRef.current;
@@ -270,15 +280,6 @@ export function PDFViewerImpl({
       setCurrentPage(page);
     }
   };
-
-  // Handle new page iframe load - complete the crossfade
-  const handleNewPageLoad = React.useCallback(() => {
-    // Small delay to ensure iframe has rendered content
-    setTimeout(() => {
-      setDisplayedPage(currentPage);
-      setIsPageTransitioning(false);
-    }, 50);
-  }, [currentPage]);
 
   const prevPage = () => goToPage(currentPage - 1);
   const nextPage = () => goToPage(currentPage + 1);
