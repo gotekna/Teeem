@@ -1189,12 +1189,13 @@ export class Renderer {
     highlighted: boolean = false,
     highlightColor?: string
   ): void {
-    const controlOffset = 20;
     const color = highlighted && highlightColor ? highlightColor : '#6b7280';
     const lineWidth = highlighted ? 3 : 1.5;
 
     this.ctx.strokeStyle = color;
     this.ctx.lineWidth = lineWidth;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
 
     // Add glow effect for highlighted lines
     if (highlighted) {
@@ -1209,15 +1210,46 @@ export class Renderer {
       // Same row - draw straight line
       this.ctx.lineTo(toX, toY);
     } else {
-      // Different rows - draw bezier curve
-      this.ctx.bezierCurveTo(
-        fromX + controlOffset,
-        fromY,
-        toX - controlOffset,
-        toY,
-        toX,
-        toY
-      );
+      // Different rows - use orthogonal routing to avoid going through tasks
+      // This creates an "elbow" pattern: right → down/up → right
+      const horizontalOffset = 15; // How far to go right before dropping down
+      const rowHeight = this.config.rowHeight;
+
+      if (toX > fromX) {
+        // Target is to the right - standard FS routing
+        // Go right first, then down/up, then right to target
+        const midX = fromX + horizontalOffset;
+
+        // If there's enough horizontal space, use clean orthogonal routing
+        if (toX - fromX > horizontalOffset * 2) {
+          this.ctx.lineTo(midX, fromY);           // Go right
+          this.ctx.lineTo(midX, toY);             // Go down/up
+          this.ctx.lineTo(toX, toY);              // Go right to target
+        } else {
+          // Tight space - drop below/above the row first
+          const verticalOffset = toY > fromY ? rowHeight / 2 : -rowHeight / 2;
+          const midY = fromY + verticalOffset;
+
+          this.ctx.lineTo(midX, fromY);           // Go right
+          this.ctx.lineTo(midX, midY);            // Go partially down/up
+          this.ctx.lineTo(toX - horizontalOffset, midY);  // Go horizontally
+          this.ctx.lineTo(toX - horizontalOffset, toY);   // Go rest of way vertically
+          this.ctx.lineTo(toX, toY);              // Enter target
+        }
+      } else {
+        // Target is to the left (backwards dependency)
+        // Need to route around: right, down past source row, left, down to target, right
+        const rightOffset = horizontalOffset;
+        const dropY = toY > fromY
+          ? fromY + rowHeight / 2 + (rowHeight * 0.3)  // Go below source row
+          : fromY - rowHeight / 2 - (rowHeight * 0.3); // Go above source row
+
+        this.ctx.lineTo(fromX + rightOffset, fromY);    // Exit right
+        this.ctx.lineTo(fromX + rightOffset, dropY);    // Drop down/up past row
+        this.ctx.lineTo(toX - rightOffset, dropY);      // Go left
+        this.ctx.lineTo(toX - rightOffset, toY);        // Go to target row
+        this.ctx.lineTo(toX, toY);                      // Enter target
+      }
     }
 
     this.ctx.stroke();

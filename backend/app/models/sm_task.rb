@@ -22,6 +22,15 @@ class SmTask < ApplicationRecord
     moved_after_confirm: "moved_after_confirm"
   }, prefix: true, default: nil
 
+  # Progress percentage based on status
+  def progress_percentage
+    case status
+    when "completed" then 100
+    when "started" then 50
+    else 0
+    end
+  end
+
   # Associations
   belongs_to :job
   alias_method :construction, :job  # Backwards compatibility

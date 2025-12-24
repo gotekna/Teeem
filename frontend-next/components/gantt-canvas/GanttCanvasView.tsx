@@ -788,7 +788,7 @@ export function GanttCanvasView({
     } catch (err) {
       console.error('Failed to save manual position:', err);
     }
-  }, [templateId, isStaticMode, onTaskDrag]);
+  }, [templateId, isStaticMode, onTaskDrag, rows]);
 
   // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
@@ -856,7 +856,7 @@ export function GanttCanvasView({
     } catch (err) {
       console.error('Failed to save task resize:', err);
     }
-  }, [templateId, isStaticMode, loadData]);
+  }, [templateId, isStaticMode, loadData, rows]);
 
   // Handle duration edit - save new duration and recalculate dependent task dates
   const handleDurationSave = React.useCallback(async (taskId: string, newDuration: number) => {
@@ -970,6 +970,36 @@ export function GanttCanvasView({
       console.error('Failed to undo task change:', err);
     }
   }, [templateId, isStaticMode, undoHistory, loadData]);
+
+  // Ctrl+Z undo for selected task
+  React.useEffect(() => {
+    const handleUndo = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+
+        // Get selected task from gantt engine
+        const gantt = ganttRef.current;
+        if (!gantt) return;
+
+        const selectedIds = gantt.getSelectedTaskIds();
+        if (selectedIds.length === 0) return;
+
+        // Undo the first selected task that has undo history
+        for (const taskId of selectedIds) {
+          if (undoHistory.has(taskId)) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+              handleUndoTask(task);
+              break;
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleUndo);
+    return () => window.removeEventListener("keydown", handleUndo);
+  }, [undoHistory, tasks, handleUndoTask]);
 
   // Handle complete task toggle
   const handleCompleteTask = React.useCallback(async (task: GanttTask, complete: boolean) => {
