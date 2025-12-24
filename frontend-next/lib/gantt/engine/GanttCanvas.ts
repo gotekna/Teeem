@@ -3710,8 +3710,8 @@ export class GanttCanvas {
     const rowIndex = this.state.tasks.indexOf(task);
     if (rowIndex < 0) return null;
 
-    // Hit area radius
-    const hitRadius = this.connectorRadius + 10;
+    // Hit area radius - needs to be generous to account for visual perception
+    const hitRadius = this.connectorRadius + 20;
     const dayWidth = this.viewport.getDayWidth();
 
     // Calculate task bar position (must match renderer exactly - use config.taskBarPadding)

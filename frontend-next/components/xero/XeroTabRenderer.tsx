@@ -162,12 +162,13 @@ export function XeroTabRenderer({
   React.useEffect(() => {
     const loadTabStats = async () => {
       try {
-        const response = await fetch(`/api/v1/companies/${companyId}/xero/tab_stats`);
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setTabStats(data.stats);
-          }
+        // Import api dynamically to avoid SSR issues
+        const { api } = await import("@/lib/api");
+        const response = await api.get<{ success: boolean; stats: XeroTabStats }>(
+          `/api/v1/companies/${companyId}/xero/tab_stats`
+        );
+        if (response.success && response.stats) {
+          setTabStats(response.stats);
         }
       } catch (err) {
         console.error("Failed to load tab stats:", err);
