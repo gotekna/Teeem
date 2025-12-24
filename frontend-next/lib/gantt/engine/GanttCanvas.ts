@@ -2937,15 +2937,19 @@ export class GanttCanvas {
         } else if (this.resizeEdge === 'right') {
           // Resizing from right - change end date
           let newEnd = new Date(this.resizeOriginalEnd);
+          console.log('[DEBUG resize right] BEFORE:', {
+            originalEnd: this.resizeOriginalEnd?.toISOString(),
+            daysDelta,
+            dayWidth: this.config.dayWidth,
+            zoom: this.state.viewportState.zoom,
+            deltaX
+          });
           newEnd.setDate(newEnd.getDate() + daysDelta);
           // Use UTC midnight to avoid timezone shifts
           newEnd.setUTCHours(0, 0, 0, 0);
-          console.log('[GanttCanvas resize right]', {
-            originalEnd: this.resizeOriginalEnd?.toISOString(),
-            daysDelta,
-            newEndBeforeSnap: newEnd.toISOString()
-          });
+          console.log('[DEBUG resize right] AFTER setUTCHours:', newEnd.toISOString());
           newEnd = this.snapToWorkingDay(newEnd, daysDelta >= 0);
+          console.log('[DEBUG resize right] AFTER snap:', newEnd.toISOString());
 
           // Don't allow end to go before start (minimum 0-day duration = same day)
           if (newEnd >= this.resizeOriginalStart!) {
@@ -3583,18 +3587,11 @@ export class GanttCanvas {
    */
   private snapToWorkingDay(date: Date, forward: boolean = true): Date {
     // Respect snapConfig - if snapToWorkingDay is disabled, return date unchanged
-    console.log('[GanttCanvas snapToWorkingDay]', {
-      input: date.toISOString(),
-      forward,
-      snapEnabled: this.snapConfig.snapToWorkingDay
-    });
+    // Templates use relative day offsets, not calendar dates - snap is disabled for them
     if (!this.snapConfig.snapToWorkingDay) {
-      console.log('[GanttCanvas snapToWorkingDay] Snap DISABLED, returning unchanged');
       return date;
     }
-    const result = this.calendar.snapToWorkingDay(date, forward);
-    console.log('[GanttCanvas snapToWorkingDay] Snapped to:', result.toISOString());
-    return result;
+    return this.calendar.snapToWorkingDay(date, forward);
   }
 
   private hitTest(x: number, y: number): GanttTask | null {

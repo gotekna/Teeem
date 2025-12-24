@@ -319,10 +319,10 @@ export default function PurchaseOrderDetailPage() {
     if (taskItems.length > 0) return;
     try {
       setLoadingTasks(true);
-      // Fetch SmTasks for this specific job (LOCAL schedule master)
-      const response = await api.get<{ tasks: SmTask[] }>(`/api/v1/sm_tasks?job_id=${purchaseOrder.job_id}`);
+      // Fetch SmTasks for this specific job (nested under jobs)
+      const response = await api.get<{ sm_tasks: SmTask[] }>(`/api/v1/jobs/${purchaseOrder.job_id}/sm_tasks`);
       // Convert to ComboboxItem format
-      const items: TaskComboboxItem[] = (response?.tasks || []).map((task) => ({
+      const items: TaskComboboxItem[] = (response?.sm_tasks || []).map((task) => ({
         id: String(task.sm_template_row_id), // Use sm_template_row_id as the key for matching
         label: task.name,
         sm_template_row_id: task.sm_template_row_id,
