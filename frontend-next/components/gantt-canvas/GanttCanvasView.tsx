@@ -511,15 +511,20 @@ export function GanttCanvasView({
     setDepEditorTask(task);
     // Use full predecessor data from rowData if available (has type and lag)
     // Otherwise fall back to just IDs with defaults
+    // NOTE: pred.id is task_number, need to convert to row.id for matching task.id
     const apiPredecessors = task.rowData?.predecessor_ids || [];
-    const links: PredecessorLink[] = apiPredecessors.map(pred => ({
-      predecessorId: String(pred.id),
-      type: (pred.type || 'FS') as DependencyType,
-      lag: pred.lag || 0,
-    }));
+    const links: PredecessorLink[] = apiPredecessors.map(pred => {
+      // Find the task by task_number to get its row.id
+      const predecessorTask = tasks.find(t => t.rowData?.task_number === pred.id);
+      return {
+        predecessorId: predecessorTask?.id || String(pred.id), // Use task.id (row.id), fallback to task_number if not found
+        type: (pred.type || 'FS') as DependencyType,
+        lag: pred.lag || 0,
+      };
+    });
     setDepEditorLinks(links);
     setDepEditorOpen(true);
-  }, []);
+  }, [tasks]);
 
   // Add a new predecessor link
   const addPredecessorLink = React.useCallback(() => {
@@ -585,11 +590,17 @@ export function GanttCanvasView({
 
     try {
       // Build predecessor_ids in the format backend expects: [{id, type, lag}]
-      const predecessorData = validLinks.map(link => ({
-        id: parseInt(link.predecessorId, 10),
-        type: link.type || 'FS',
-        lag: link.lag || 0
-      }));
+      // NOTE: predecessorId is row.id (task.id), need to convert to task_number for API
+      const predecessorData = validLinks.map(link => {
+        // Find the task to get its task_number
+        const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+        const taskNumber = predecessorTask?.rowData?.task_number || parseInt(link.predecessorId, 10);
+        return {
+          id: taskNumber,
+          type: link.type || 'FS',
+          lag: link.lag || 0
+        };
+      });
 
       // Call API to update dependencies
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
@@ -597,11 +608,14 @@ export function GanttCanvasView({
       });
 
       // Build display string for local state update (matches backend format: "2FS+3, 5SS")
+      // Uses task_number for display, not row.id
       const buildPredDisplay = (): string => {
         if (validLinks.length === 0) return 'None';
         return validLinks.map(link => {
+          const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+          const taskNumber = predecessorTask?.rowData?.task_number || link.predecessorId;
           const lag = link.lag || 0;
-          let result = `${link.predecessorId}${link.type || 'FS'}`;
+          let result = `${taskNumber}${link.type || 'FS'}`;
           if (lag > 0) result += `+${lag}`;
           else if (lag < 0) result += `${lag}`;
           return result;
@@ -636,7 +650,7 @@ export function GanttCanvasView({
 
       alert(`Failed to save dependencies: ${errorMessage}`);
     }
-  }, [depEditorTask, depEditorLinks, templateId]);
+  }, [depEditorTask, depEditorLinks, templateId, tasks]);
 
   // Theme
   const { resolvedTheme } = useTheme();
@@ -1259,7 +1273,7 @@ export function GanttCanvasView({
 
       {/* Dependency Editor Dialog */}
       <Dialog open={depEditorOpen} onOpenChange={setDepEditorOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Edit Predecessors</DialogTitle>
             <p className="text-sm text-muted-foreground">
@@ -1269,7 +1283,7 @@ export function GanttCanvasView({
 
           <div className="space-y-2">
             {/* Header row */}
-            <div className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
+            <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
               <span>Row #</span>
               <span>Task</span>
               <span>Type</span>
@@ -1286,7 +1300,7 @@ export function GanttCanvasView({
                   : '';
 
                 return (
-                  <div key={index} className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 items-center">
+                  <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
                     {/* Row # input */}
                     <Input
                       type="number"
@@ -1353,7 +1367,7 @@ export function GanttCanvasView({
               })}
 
               {/* Empty row to add new predecessor */}
-              <div className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 items-center opacity-60">
+              <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
                 <Input
                   type="number"
                   min={1}
