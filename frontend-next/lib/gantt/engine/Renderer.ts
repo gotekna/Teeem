@@ -1089,6 +1089,11 @@ export class Renderer {
   private getTaskColor(task: GanttTask): string {
     const { taskBar } = this.config.colors;
 
+    // Light brown for manually positioned (held) tasks
+    if (task.rowData?.manually_positioned) {
+      return '#D4A574'; // Light brown / tan color
+    }
+
     switch (task.status) {
       case 'completed':
         return taskBar.completed;

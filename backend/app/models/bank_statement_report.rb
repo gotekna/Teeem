@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
 # Stores generated bank statement PDF reports for ATO compliance.
-# Reports are uploaded to SharePoint in a separate folder from bank-produced statements:
-#   Warehousing/Bank Statements/Xero Generated/{bank_account_name}/{FY}/{filename}.pdf
-# Bank-produced (official) statements go in:
-#   Warehousing/Bank Statements/Bank Produced/{bank_account_name}/{FY}/{filename}.pdf
+# SSoT: DocumentType (ID 22: "X Bank Statement") → EntityTab (xero-bank-statement) → sharepoint_folder_path
+# Path template from EntityTab: Corporate/{CompanyGroup}/{CompanyCode}/XERO/Bank
+# Example: Corporate/Tekna/THS/XERO/Bank/THS XB NAB 083-052 305422840 Dec24.pdf
 # PDFs can be regenerated on demand from the underlying bank transaction data.
 class BankStatementReport < ApplicationRecord
   include DocumentTemplatable
@@ -362,9 +361,9 @@ class BankStatementReport < ApplicationRecord
     self[:display_name] = computed_display_name
   end
 
-  # Upload file content to SharePoint using folder structure:
-  # Warehousing/Bank Statements/Xero Generated/{bank_account_name}/{FY}/{filename}
-  # This keeps Xero-generated statements separate from bank-produced (official) statements
+  # Upload file content to SharePoint using SSoT folder structure from DocumentType system
+  # Path: /Shared Documents/00 TEEEM PRIVATE/{CompanyGroup}/{CompanyCode}/BANK/{filename}
+  # SSoT: Uses CorporateCompanySetting.company_path for path resolution
   def upload_to_sharepoint(content, filename)
     credential = OrganizationSharePointCredential.active_credential
     unless credential.present?
@@ -374,45 +373,62 @@ class BankStatementReport < ApplicationRecord
 
     graph_client = MicrosoftGraphClient.new(credential)
 
-    # Get or create Warehousing folder at root
-    warehousing_folder = graph_client.find_folder_in_drive_root("Warehousing")
-    unless warehousing_folder
-      warehousing_folder = graph_client.create_folder("Warehousing")
-      Rails.logger.info("[BankStatementReport] Created SharePoint folder: Warehousing")
+    # SSoT: EntityTab (xero-bank-statement) → sharepoint_folder_path is THE ONE source
+    # Path defined in Admin > Entity Tabs > Bank Statement tab
+    entity_tab = EntityTab.find_by(tab_key: 'xero-bank-statement')
+    unless entity_tab&.sharepoint_folder_path.present?
+      Rails.logger.error("[BankStatementReport] SSoT missing: EntityTab 'xero-bank-statement' has no sharepoint_folder_path")
+      return nil
+    end
+    path_template = entity_tab.sharepoint_folder_path
+
+    # SSoT: Resolve placeholders in path template
+    company_group = corporate_company&.group_name || "Other"
+    resolved_path = path_template
+      .gsub("{CompanyGroup}", company_group)
+      .gsub("{CompanyCode}", company_code || "UNKNOWN")
+      .gsub("{company_code}", company_code || "UNKNOWN")
+
+    Rails.logger.info("[BankStatementReport] SSoT path from EntityTab: #{resolved_path}/#{filename}")
+
+    # Navigate to or create each folder in the path
+    path_parts = resolved_path.split("/").reject(&:blank?)
+
+    # Start from drive root with first folder
+    current_folder = graph_client.find_folder_in_drive_root(path_parts.first)
+    unless current_folder
+      current_folder = graph_client.create_folder(path_parts.first)
+      Rails.logger.info("[BankStatementReport] Created folder: #{path_parts.first}")
     end
 
-    # Get or create Bank Statements subfolder
-    bank_statements_folder = graph_client.get_or_create_subfolder(
-      warehousing_folder["id"] || warehousing_folder[:id],
-      "Bank Statements"
-    )
-
-    # Get or create "Xero Generated" subfolder to separate from bank-produced statements
-    xero_generated_folder = graph_client.get_or_create_subfolder(
-      bank_statements_folder[:id] || bank_statements_folder["id"],
-      "Xero Generated"
-    )
-
-    # Get or create bank account subfolder (e.g., "NAB - Tekna Homes")
-    bank_folder = graph_client.get_or_create_subfolder(
-      xero_generated_folder[:id] || xero_generated_folder["id"],
-      bank_account_name
-    )
-
-    # Get or create FY subfolder (e.g., "FY24")
-    fy_folder = graph_client.get_or_create_subfolder(
-      bank_folder[:id] || bank_folder["id"],
-      financial_year
-    )
+    # Create remaining folders in the path
+    path_parts[1..].each do |folder_name|
+      current_folder = graph_client.get_or_create_subfolder(
+        current_folder["id"] || current_folder[:id],
+        folder_name
+      )
+    end
 
     # Upload the file
     upload_result = graph_client.upload_file_content(
-      fy_folder[:id] || fy_folder["id"],
+      current_folder[:id] || current_folder["id"],
       filename,
       content
     )
 
-    Rails.logger.info("[BankStatementReport] Uploaded to SharePoint: Warehousing/Bank Statements/Xero Generated/#{bank_account_name}/#{financial_year}/#{filename}")
+    Rails.logger.info("[BankStatementReport] Uploaded to SharePoint: #{resolved_path}/#{filename}")
+
+    # SSoT: Create CorporateCompanyDocument so it appears in document warehouse
+    if upload_result && corporate_company.present?
+      create_document_record(
+        filename: filename,
+        sharepoint_path: resolved_path,
+        sharepoint_file_id: upload_result[:id] || upload_result["id"],
+        sharepoint_url: upload_result[:web_url] || upload_result["webUrl"],
+        file_size: content.bytesize
+      )
+    end
+
     upload_result
   rescue MicrosoftGraphClient::AuthenticationError => e
     Rails.logger.error("[BankStatementReport] SharePoint auth error: #{e.message}")
@@ -422,6 +438,46 @@ class BankStatementReport < ApplicationRecord
     nil
   rescue StandardError => e
     Rails.logger.error("[BankStatementReport] SharePoint upload error: #{e.message}")
+    nil
+  end
+
+  # Create a CorporateCompanyDocument record for the warehouse
+  # SSoT: Links the PDF to the company's document system so it appears in tabs
+  def create_document_record(filename:, sharepoint_path:, sharepoint_file_id:, sharepoint_url:, file_size:)
+    # Use unique external_id to prevent duplicates
+    external_id = "bank_statement_report:#{id}"
+
+    doc = CorporateCompanyDocument.find_or_initialize_by(
+      source: "xero",
+      external_id: external_id
+    )
+
+    doc.assign_attributes(
+      corporate_company_id: company_id,
+      document_type_id: document_type_id,
+      display_name: display_name,
+      file_name: filename,
+      file_size: file_size,
+      mime_type: "application/pdf",
+      folder: "XERO",  # Shows in XERO tab
+      document_date: period_end,
+      expected_sharepoint_path: "#{sharepoint_path}/#{filename}",
+      sharepoint_file_id: sharepoint_file_id,
+      cloudinary_url: sharepoint_url,
+      storage_type: "sharepoint",
+      ai_verification_status: "verified",  # System-generated, no AI needed
+      documentable: self  # Link back to BankStatementReport
+    )
+
+    if doc.save
+      Rails.logger.info("[BankStatementReport] Created CorporateCompanyDocument #{doc.id} for report #{id}")
+    else
+      Rails.logger.error("[BankStatementReport] Failed to create document: #{doc.errors.full_messages.join(', ')}")
+    end
+
+    doc
+  rescue StandardError => e
+    Rails.logger.error("[BankStatementReport] Error creating document record: #{e.message}")
     nil
   end
 

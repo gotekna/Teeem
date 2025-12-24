@@ -656,6 +656,52 @@ export function GanttCanvasView({
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
 
+  // Handle task drag - save manual position
+  const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
+    // Call external handler if provided
+    onTaskDrag?.(task, newStartDate);
+
+    // Skip API save in static mode
+    if (isStaticMode || !templateId) return;
+
+    try {
+      // Format date as YYYY-MM-DD
+      const dateStr = newStartDate.toISOString().split('T')[0];
+
+      // Save manual position to API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: {
+          manually_positioned: true,
+          manual_start_date: dateStr
+        }
+      });
+
+      // Update local state
+      setTasks(prev => prev.map(t =>
+        t.id === task.id
+          ? {
+              ...t,
+              startDate: newStartDate,
+              rowData: t.rowData ? {
+                ...t.rowData,
+                manually_positioned: true,
+                manual_start_date: dateStr
+              } : undefined
+            }
+          : t
+      ));
+
+      // Also update rows for proper re-render
+      setRows(prev => prev.map(r =>
+        String(r.id) === task.id
+          ? { ...r, manually_positioned: true, manual_start_date: dateStr }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to save manual position:', err);
+    }
+  }, [templateId, isStaticMode, onTaskDrag]);
+
   // Load data from API (only when not using static mode)
   const loadData = React.useCallback(async () => {
     if (isStaticMode || !templateId) return;
@@ -728,9 +774,8 @@ export function GanttCanvasView({
     if (onTaskDoubleClick) {
       gantt.onTaskDoubleClickHandler(onTaskDoubleClick);
     }
-    if (onTaskDrag) {
-      gantt.onTaskDragHandler(onTaskDrag);
-    }
+    // Always register drag handler to save manual positions
+    gantt.onTaskDragHandler(handleTaskDrag);
 
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {
@@ -750,7 +795,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, onTaskDrag]);
+  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {

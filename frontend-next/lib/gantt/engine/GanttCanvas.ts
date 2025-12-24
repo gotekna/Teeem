@@ -2266,7 +2266,13 @@ export class GanttCanvas {
     // Use world X (without scrollX offset applied by dateToX)
     const screenX = this.viewport.dateToX(task.startDate);
     const x = screenX + this.state.viewportState.scrollX;
-    const width = this.viewport.dateToX(task.endDate) - screenX;
+
+    // Calculate width - ensure minimum of dayWidth for single-day tasks
+    const endScreenX = this.viewport.dateToX(task.endDate);
+    const dayWidth = this.viewport.getDayWidth();
+    const calculatedWidth = endScreenX - screenX;
+    // Match renderer logic: single-day tasks get full day width, multi-day tasks get width + 1 day
+    const width = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
 
     // Use world Y (without scrollY offset)
     const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding;
@@ -2934,10 +2940,12 @@ export class GanttCanvas {
     // Handle drag in progress
     if (this.dragTask && this.dragStartDate) {
       const deltaX = e.offsetX - this.dragStartX;
+      console.log('[GanttCanvas] drag in progress:', { deltaX, threshold: this.dragThreshold, isDragging: this.isDragging });
 
       // Check if we've crossed the drag threshold
       if (!this.isDragging && Math.abs(deltaX) > this.dragThreshold) {
         this.isDragging = true;
+        console.log('[GanttCanvas] drag STARTED!');
         this.canvas.style.cursor = 'grabbing';
         // Anti-flicker: We DON'T suppress during drag preview - we want smooth visual feedback
         // Suppression is used during cascade calculations when many tasks update at once

@@ -167,6 +167,8 @@ module Api
           :auto_include, :allow_duplicates, :ai_select,
           :photo_entity_tab_id, :linked_po_task_id,
           :require_supplier_confirm, :is_master,
+          # Manual positioning
+          :manually_positioned, :manual_start_date,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           spawn_office_tasks: [],
@@ -255,6 +257,9 @@ module Api
           linked_po_task_name: row.linked_po_task&.name,
           require_supplier_confirm: row.require_supplier_confirm,
           is_master: row.is_master,
+          # Manual positioning (for held/locked dates)
+          manually_positioned: row.manually_positioned,
+          manual_start_date: row.manual_start_date,
           created_at: row.created_at,
           updated_at: row.updated_at
         }

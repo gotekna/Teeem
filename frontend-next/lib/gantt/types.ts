@@ -120,6 +120,9 @@ export interface SmTemplateRow {
   category: string | null;
   // Multi-template support
   sm_template_ids: number[];
+  // Manual positioning (held dates)
+  manually_positioned: boolean | null;
+  manual_start_date: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -421,7 +424,10 @@ export function convertRowToTask(
   let startDate: Date;
   let endDate: Date;
 
-  if (taskDateMap && row.predecessor_ids?.length > 0) {
+  // If manually positioned, use the manual start date (held/locked)
+  if (row.manually_positioned && row.manual_start_date) {
+    startDate = skipToNextWorkingDay(new Date(row.manual_start_date));
+  } else if (taskDateMap && row.predecessor_ids?.length > 0) {
     // Find the latest required start date from all predecessors
     let latestRequiredStart = projectStartDate;
     for (const pred of row.predecessor_ids) {

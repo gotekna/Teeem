@@ -39,7 +39,10 @@ class SmTemplateRow < ApplicationRecord
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
-  validates :task_number, presence: true, uniqueness: true
+  # Note: task_number uniqueness is per-template, not global
+  # Since rows can belong to multiple templates (sm_template_ids JSONB),
+  # global uniqueness doesn't apply. Each template can have task_number 1, 2, 3, etc.
+  validates :task_number, presence: true
   validates :sequence_order, presence: true
   validates :duration_days, presence: true, numericality: { only_integer: true, greater_than: 0 }
   validates :cert_lag_days, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
