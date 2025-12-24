@@ -1299,13 +1299,8 @@ export default function JobDetailPage() {
           <RainLogTab jobId={job.id} />
         </TabsContent>
 
-        <TabsContent value="plans" className="flex-1 min-h-0 mt-0">
-          <JobPlansTab
-            jobId={job.id}
-            jobCode={String(job.id).padStart(4, "0")}
-            jobTitle={job.name}
-          />
-        </TabsContent>
+        {/* Plans tab renders fullscreen overlay - handled separately below */}
+        <TabsContent value="plans" className="hidden" />
 
         <TabsContent value="documents" className="mt-4">
           <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
@@ -1348,6 +1343,15 @@ export default function JobDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Plans tab renders fullscreen overlay - outside of Tabs to avoid hook conflicts */}
+      {activeTab === "plans" && (
+        <JobPlansTab
+          jobId={job.id}
+          jobCode={String(job.id).padStart(4, "0")}
+          jobTitle={job.name}
+        />
+      )}
     </div>
   );
 }

@@ -360,6 +360,7 @@ export function convertRowsToTasks(
   projectStartDate: Date
 ): GanttTask[] {
   // First pass: create date map based on sequence order
+  // Key by task_number (not row.id) because predecessor_ids reference task_number
   const taskDateMap = new Map<number, { start: Date; end: Date }>();
 
   // Sort by sequence order
@@ -368,7 +369,7 @@ export function convertRowsToTasks(
   // Calculate dates for each row
   for (const row of sortedRows) {
     const task = convertRowToTask(row, projectStartDate, taskDateMap);
-    taskDateMap.set(row.id, { start: task.startDate, end: task.endDate });
+    taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
   }
 
   // Second pass: convert all rows with the complete date map
@@ -381,13 +382,23 @@ export function convertRowsToTasks(
 export function convertToDependencies(rows: SmTemplateRow[]): GanttDependency[] {
   const dependencies: GanttDependency[] = [];
 
+  // Build lookup: task_number -> row.id (for converting predecessor references)
+  const taskNumToRowId = new Map<number, number>();
+  for (const row of rows) {
+    taskNumToRowId.set(row.task_number, row.id);
+  }
+
   for (const row of rows) {
     if (!row.predecessor_ids) continue;
 
     for (const pred of row.predecessor_ids) {
+      // pred.id is task_number, need to convert to row.id for matching task.id
+      const fromRowId = taskNumToRowId.get(pred.id);
+      if (!fromRowId) continue; // Skip if predecessor doesn't exist
+
       dependencies.push({
-        id: `${pred.id}-${row.id}`,
-        fromId: String(pred.id),
+        id: `${fromRowId}-${row.id}`,
+        fromId: String(fromRowId),
         toId: String(row.id),
         type: pred.type || 'FS',
         lag: pred.lag || 0,
