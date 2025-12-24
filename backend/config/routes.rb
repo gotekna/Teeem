@@ -1528,6 +1528,8 @@ Rails.application.routes.draw do
       resources :bank_statement_reports, only: [ :index, :show ] do
         collection do
           post :generate_all
+          post :batch_regenerate  # Batch regeneration with progress tracking
+          get :batch_progress     # Check progress of batch regeneration
           get :by_structure
         end
         member do

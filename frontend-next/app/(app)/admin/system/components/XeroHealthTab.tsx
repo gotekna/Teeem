@@ -16,6 +16,9 @@ import {
   Clock,
   Shield,
   AlertCircle,
+  FileText,
+  Play,
+  Building2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -80,6 +83,24 @@ interface Predictions {
   healthy_count: number;
 }
 
+interface BankStatementProgress {
+  overall: {
+    total: number;
+    completed: number;
+    pending: number;
+    percent: number;
+  };
+  by_company: Array<{
+    id: number;
+    name: string;
+    code: string;
+    total: number;
+    completed: number;
+    pending: number;
+    percent: number;
+  }>;
+}
+
 export function XeroHealthTab() {
   const { toast } = useToast();
   const [loading, setLoading] = React.useState(true);
@@ -96,14 +117,20 @@ export function XeroHealthTab() {
   const [analytics, setAnalytics] = React.useState<Analytics | null>(null);
   const [predictions, setPredictions] = React.useState<Predictions | null>(null);
 
+  // Bank Statement Regeneration state
+  const [bankStatementProgress, setBankStatementProgress] = React.useState<BankStatementProgress | null>(null);
+  const [regeneratingStatements, setRegeneratingStatements] = React.useState(false);
+  const [selectedCompanyId, setSelectedCompanyId] = React.useState<number | null>(null);
+
   const loadData = React.useCallback(async () => {
     try {
-      const [dashboardData, eventsData, warningsData, analyticsData, predictionsData] = await Promise.all([
+      const [dashboardData, eventsData, warningsData, analyticsData, predictionsData, bankStatementData] = await Promise.all([
         api.get<{ success: boolean; overall_status: string; total_credentials: number; connected_count: number; needs_attention_count: number; credentials: Credential[] }>("/api/v1/xero/health/dashboard"),
         api.get<{ success: boolean; events: HealthEvent[] }>("/api/v1/xero/health/events"),
         api.get<{ success: boolean; warnings: Warning[] }>("/api/v1/xero/health/warnings"),
         api.get<{ success: boolean; analytics: Analytics }>("/api/v1/xero/health/analytics"),
         api.get<{ success: boolean; predictions: Predictions }>("/api/v1/xero/health/predictions"),
+        api.get<{ success: boolean; data: BankStatementProgress }>("/api/v1/bank_statement_reports/batch_progress"),
       ]);
 
       setDashboard({
@@ -117,6 +144,9 @@ export function XeroHealthTab() {
       setWarnings(warningsData.warnings);
       setAnalytics(analyticsData.analytics);
       setPredictions(predictionsData.predictions);
+      if (bankStatementData.success && bankStatementData.data) {
+        setBankStatementProgress(bankStatementData.data);
+      }
     } catch (error) {
       console.error("Failed to load health data:", error);
       toast({ title: "Error", description: "Failed to load health data", variant: "destructive" });
@@ -140,6 +170,42 @@ export function XeroHealthTab() {
       toast({ title: "Error", description: "Failed to run health check", variant: "destructive" });
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // Bank Statement Regeneration handler
+  const handleStartBankStatementRegeneration = async (companyId?: number) => {
+    setRegeneratingStatements(true);
+    try {
+      const params: Record<string, string> = {
+        batch_size: "10",
+        auto_continue: "true",
+      };
+      if (companyId) {
+        params.company_id = companyId.toString();
+      }
+
+      await api.post<{ success: boolean; message: string }>("/api/v1/bank_statement_reports/batch_regenerate", params);
+      toast({
+        title: "Job Started",
+        description: companyId
+          ? "Bank statement regeneration started for selected company"
+          : "Bank statement regeneration started for all companies",
+      });
+
+      // Reload progress after a short delay
+      setTimeout(() => {
+        loadData();
+      }, 2000);
+    } catch (error) {
+      console.error("Failed to start bank statement regeneration:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start bank statement regeneration",
+        variant: "destructive",
+      });
+    } finally {
+      setRegeneratingStatements(false);
     }
   };
 
@@ -477,6 +543,136 @@ export function XeroHealthTab() {
               <p className="text-muted-foreground text-center py-8">No events recorded yet</p>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Bank Statement Document Regeneration */}
+      <Card className="border-blue-200 dark:border-blue-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5 text-blue-500" />
+            Bank Statement Document Generation
+          </CardTitle>
+          <CardDescription>
+            Regenerate bank statement PDFs and create CorporateCompanyDocument records for the document warehouse.
+            Use this when bringing in new companies or fixing missing documents.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Overall Progress */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-sm text-muted-foreground">Total Reports</p>
+              <p className="text-2xl font-bold">{bankStatementProgress?.overall.total || 0}</p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-sm text-muted-foreground">Documents Created</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                {bankStatementProgress?.overall.completed || 0}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-sm text-muted-foreground">Pending</p>
+              <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                {bankStatementProgress?.overall.pending || 0}
+              </p>
+            </div>
+            <div className="p-4 rounded-lg bg-muted">
+              <p className="text-sm text-muted-foreground">Progress</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all"
+                    style={{ width: `${bankStatementProgress?.overall.percent || 0}%` }}
+                  />
+                </div>
+                <span className="text-sm font-medium">{bankStatementProgress?.overall.percent || 0}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            <Button
+              onClick={() => handleStartBankStatementRegeneration()}
+              disabled={regeneratingStatements || (bankStatementProgress?.overall.pending === 0)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {regeneratingStatements ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4 mr-2" />
+              )}
+              Start All
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => loadData()}
+              disabled={loading}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
+              Refresh Progress
+            </Button>
+          </div>
+
+          {/* Companies with Pending Work */}
+          {bankStatementProgress?.by_company && bankStatementProgress.by_company.length > 0 && (
+            <div className="space-y-3">
+              <h4 className="font-medium text-sm text-muted-foreground">Companies with Pending Documents</h4>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {bankStatementProgress.by_company.map((company) => (
+                  <div
+                    key={company.id}
+                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{company.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {company.code} • {company.completed}/{company.total} documents created
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              company.percent === 100 ? "bg-green-500" :
+                              company.percent >= 50 ? "bg-blue-500" : "bg-orange-500"
+                            )}
+                            style={{ width: `${company.percent}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-12">{company.percent}%</span>
+                      </div>
+                      <Badge variant={company.pending > 0 ? "secondary" : "default"}>
+                        {company.pending} pending
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleStartBankStatementRegeneration(company.id)}
+                        disabled={regeneratingStatements || company.pending === 0}
+                      >
+                        <Play className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* No pending work message */}
+          {bankStatementProgress?.overall.pending === 0 && (
+            <div className="flex items-center justify-center py-8 text-muted-foreground">
+              <CheckCircle2 className="h-5 w-5 mr-2 text-green-500" />
+              <span>All bank statement documents are up to date!</span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

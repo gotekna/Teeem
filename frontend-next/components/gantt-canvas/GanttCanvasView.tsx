@@ -790,6 +790,73 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, onTaskDrag, rows]);
 
+  // Handle dependency create - save new dependency to API
+  const handleDependencyCreate = React.useCallback(async (
+    fromTaskId: string,
+    toTaskId: string,
+    type: 'FS' | 'SS' | 'FF' | 'SF'
+  ) => {
+    // Skip API save in static mode
+    if (isStaticMode || !templateId) return;
+
+    try {
+      // Find the source task to get its task_number
+      const fromRow = rows.find(r => String(r.id) === fromTaskId);
+      // Find the target task to get its current predecessor_ids
+      const toRow = rows.find(r => String(r.id) === toTaskId);
+
+      if (!fromRow || !toRow) {
+        console.error('Could not find tasks for dependency:', { fromTaskId, toTaskId });
+        return;
+      }
+
+      // Build new predecessor entry using task_number
+      const newPredecessor = {
+        id: fromRow.task_number,
+        type: type,
+        lag: 0
+      };
+
+      // Get current predecessors or empty array
+      const currentPredecessors = toRow.predecessor_ids || [];
+
+      // Check if this dependency already exists
+      const alreadyExists = currentPredecessors.some(p => p.id === fromRow.task_number);
+      if (alreadyExists) {
+        console.log('Dependency already exists, skipping');
+        return;
+      }
+
+      // Add new predecessor
+      const updatedPredecessors = [...currentPredecessors, newPredecessor];
+
+      // Save to API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${toTaskId}`, {
+        row: {
+          predecessor_ids: updatedPredecessors
+        }
+      });
+
+      // Update local state
+      setRows(prev => prev.map(r =>
+        String(r.id) === toTaskId
+          ? { ...r, predecessor_ids: updatedPredecessors }
+          : r
+      ));
+
+      // Silent reload to recalculate dates
+      await loadData(true);
+    } catch (err: any) {
+      console.error('Failed to save dependency:', err);
+      // Show user-friendly message for common errors
+      if (err?.message?.includes('circular')) {
+        alert('Cannot create dependency: This would create a circular reference.');
+      }
+      // Reload to remove the invalid dependency from canvas (API rejected it)
+      await loadData(true);
+    }
+  }, [templateId, isStaticMode, rows, loadData]);
+
   // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
     // Skip API save in static mode
@@ -1165,6 +1232,9 @@ export function GanttCanvasView({
     // Register reset manual position handler (context menu)
     gantt.onResetManualPositionHandler(handleResetManualPosition);
 
+    // Register dependency create handler to save new dependencies
+    gantt.onDependencyCreateHandler(handleDependencyCreate);
+
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {
       if (sidebarRef.current) {
@@ -1183,7 +1253,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition]);
+  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition, handleDependencyCreate]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {

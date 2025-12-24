@@ -706,6 +706,8 @@ export class GanttCanvas {
         this.dependencyManager.addDependency(event.fromTask.id, event.toTask.id, 'FS');
         // Sync to state
         this.state.dependencies = this.dependencyManager.getDependencies();
+        // Call external handler to save to API
+        this.onDependencyCreate?.(event.fromTask.id, event.toTask.id, 'FS');
       }
       this.markDirty();
     });
@@ -2985,6 +2987,17 @@ export class GanttCanvas {
       }
     }
 
+    // Check for connector hover first (flagpole dots above task)
+    const connectorHit = this.hitTestConnector(e.offsetX, e.offsetY);
+    if (connectorHit) {
+      const stateChanged = this.state.hoveredTaskId !== connectorHit.task.id;
+      this.state.hoveredTaskId = connectorHit.task.id;
+      this.state.hoveredEdge = null;
+      this.canvas.style.cursor = 'crosshair';
+      if (stateChanged) this.markDirty();
+      return;
+    }
+
     // Normal hover handling - check for resize edges first
     const edgeHit = this.hitTestEdge(e.offsetX, e.offsetY);
     if (edgeHit) {
@@ -3609,26 +3622,41 @@ export class GanttCanvas {
     const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
     if (adjustedY < 0) return null;
 
-    // Find which row was clicked
+    // Find which row was clicked - but flagpole extends above, so check current row AND row below
     const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
-    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
 
-    const task = this.state.tasks[rowIndex];
+    // Check this row and the row below (flagpole from row below might extend into this row's space)
+    const rowsToCheck = [rowIndex, rowIndex + 1].filter(i => i >= 0 && i < this.state.tasks.length);
 
-    // Calculate task bar bounds (must match Renderer.drawTaskBars logic)
-    const taskStartX = this.viewport.dateToX(task.startDate);
-    const taskEndX = this.viewport.dateToX(task.endDate);
-    const dayWidth = this.viewport.getDayWidth();
-    const calculatedWidth = taskEndX - taskStartX;
-    // Task bar extends by dayWidth to include the end date visually
-    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
-    const actualRightEdge = taskStartX + taskWidth;
+    for (const checkRowIndex of rowsToCheck) {
+      const task = this.state.tasks[checkRowIndex];
 
-    // Check right edge only (left edge removed for simpler UX)
-    // Use larger hit zone for easier targeting
-    const hitZone = Math.max(this.resizeHandleWidth, 12);
-    if (x >= actualRightEdge - hitZone && x <= actualRightEdge + 4) {
-      return { task, edge: 'right' };
+      // Calculate task bar bounds (must match Renderer.drawTaskBars logic)
+      const taskStartX = this.viewport.dateToX(task.startDate);
+      const taskEndX = this.viewport.dateToX(task.endDate);
+      const dayWidth = this.viewport.getDayWidth();
+      const calculatedWidth = taskEndX - taskStartX;
+      // Task bar extends by dayWidth to include the end date visually
+      const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+      const actualRightEdge = taskStartX + taskWidth;
+
+      // Resize handle is now a flagpole above the right edge
+      const poleHeight = 16; // Must match renderer
+      const handleRadius = 8; // Slightly larger hit area for easier grabbing
+      const rowY = this.viewport.rowToY(checkRowIndex);
+      const taskBarPadding = (this.config.rowHeight - this.config.taskBarHeight) / 2;
+      const barTop = rowY + taskBarPadding;
+      const handleY = barTop - poleHeight;
+
+      // Check if click is on the flagpole handle (square area above bar)
+      const handleLeft = actualRightEdge - handleRadius;
+      const handleRight = actualRightEdge + handleRadius;
+      const handleTop = handleY - handleRadius;
+      const handleBottom = handleY + handleRadius;
+
+      if (x >= handleLeft && x <= handleRight && y >= handleTop && y <= handleBottom) {
+        return { task, edge: 'right' };
+      }
     }
 
     return null;
@@ -3649,26 +3677,34 @@ export class GanttCanvas {
 
     const task = this.state.tasks[rowIndex];
 
-    // Calculate task bar center Y
+    // Calculate task bar position (dots on bar center)
     const rowY = this.viewport.rowToY(rowIndex);
-    const centerY = rowY + this.config.rowHeight / 2;
+    const taskBarPadding = (this.config.rowHeight - this.config.taskBarHeight) / 2;
+    const barTop = rowY + taskBarPadding;
+    const centerY = barTop + this.config.taskBarHeight / 2;
 
-    // Check if click is vertically near the center
-    if (Math.abs(adjustedY + this.config.headerHeight - centerY) > this.connectorRadius + 5) return null;
+    // Hit area radius
+    const hitRadius = this.connectorRadius + 8;
 
-    // Calculate connector positions
+    // Calculate connector positions - must match rendering logic
     const taskStartX = this.viewport.dateToX(task.startDate);
-    const taskEndX = this.viewport.dateToX(task.endDate);
+    const rawEndX = this.viewport.dateToX(task.endDate);
+    const dayWidth = this.viewport.getDayWidth();
+    const calculatedWidth = rawEndX - taskStartX;
+    // Use minimum day width for 1-day tasks, like the renderer does
+    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+    const taskEndX = taskStartX + taskWidth;
 
-    // Check start connector
-    const distToStart = Math.sqrt(Math.pow(x - taskStartX, 2) + Math.pow(y - centerY, 2));
-    if (distToStart <= this.connectorRadius + 3) {
+    // Use bounding box check (simpler and avoids coordinate space issues)
+    // Check start connector (on bar center left)
+    if (x >= taskStartX - hitRadius && x <= taskStartX + hitRadius &&
+        y >= centerY - hitRadius && y <= centerY + hitRadius) {
       return { task, edge: 'start' };
     }
 
-    // Check end connector
-    const distToEnd = Math.sqrt(Math.pow(x - taskEndX, 2) + Math.pow(y - centerY, 2));
-    if (distToEnd <= this.connectorRadius + 3) {
+    // Check end connector (on bar center right)
+    if (x >= taskEndX - hitRadius && x <= taskEndX + hitRadius &&
+        y >= centerY - hitRadius && y <= centerY + hitRadius) {
       return { task, edge: 'end' };
     }
 

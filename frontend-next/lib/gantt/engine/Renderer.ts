@@ -447,8 +447,9 @@ export class Renderer {
       }
 
       // Draw dependency connector dots on hover
+      // Use startX + taskWidth (not endX) to account for minimum bar width on 1-day tasks
       if (task.id === hoveredTaskId) {
-        this.drawConnectorDots(startX, endX, barY, barHeight);
+        this.drawConnectorDots(startX, startX + taskWidth, barY, barHeight);
       }
     }
   }
@@ -548,6 +549,7 @@ export class Renderer {
 
   /**
    * Draw connector dots for dependency creation
+   * Dots are on the left and right edges of the bar (offset slightly outside)
    */
   private drawConnectorDots(startX: number, endX: number, barY: number, barHeight: number): void {
     const dotRadius = 5;
@@ -570,7 +572,7 @@ export class Renderer {
   }
 
   /**
-   * Draw resize handles on task bar edges
+   * Draw resize handle as flagpole (pops up above right edge of task bar)
    */
   private drawResizeHandles(
     startX: number,
@@ -579,56 +581,50 @@ export class Renderer {
     barHeight: number,
     hoveredEdge?: 'left' | 'right' | null
   ): void {
-    const handleWidth = 6;
-    const handleHeight = barHeight;
-    const handleY = barY;
-    const handleX = startX + taskWidth - handleWidth;
+    const poleHeight = 16; // Height of flagpole above bar
+    const handleRadius = 6;
+    const poleX = startX + taskWidth; // Right edge of bar
+    const barTop = barY;
+    const handleY = barTop - poleHeight; // Handle sits above bar
 
-    // Right handle only - more visible
     const isActive = hoveredEdge === 'right';
+    const handleColor = isActive ? '#f59e0b' : '#94a3b8'; // Orange when active, gray otherwise
 
-    // Draw handle bar
-    this.ctx.fillStyle = isActive ? 'rgba(59, 130, 246, 0.9)' : 'rgba(255, 255, 255, 0.6)';
+    // Draw pole
+    this.ctx.strokeStyle = handleColor;
+    this.ctx.lineWidth = 2;
     this.ctx.beginPath();
-    this.ctx.roundRect(handleX, handleY, handleWidth, handleHeight, [0, 3, 3, 0]);
-    this.ctx.fill();
-
-    // Draw grip lines
-    this.ctx.strokeStyle = isActive ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.3)';
-    this.ctx.lineWidth = 1;
-    const lineX1 = handleX + 2;
-    const lineX2 = handleX + 4;
-    const lineY1 = handleY + barHeight * 0.3;
-    const lineY2 = handleY + barHeight * 0.7;
-    this.ctx.beginPath();
-    this.ctx.moveTo(lineX1, lineY1);
-    this.ctx.lineTo(lineX1, lineY2);
-    this.ctx.moveTo(lineX2, lineY1);
-    this.ctx.lineTo(lineX2, lineY2);
+    this.ctx.moveTo(poleX, barTop);
+    this.ctx.lineTo(poleX, handleY);
     this.ctx.stroke();
 
-    // Draw tooltip flag when active
-    if (isActive) {
-      const tooltipText = 'Duration';
-      this.ctx.font = 'bold 10px system-ui, sans-serif';
-      const metrics = this.ctx.measureText(tooltipText);
-      const tooltipWidth = metrics.width + 10;
-      const tooltipHeight = 18;
-      const tooltipX = handleX + handleWidth + 4;
-      const tooltipY = barY + (barHeight - tooltipHeight) / 2;
+    // Draw handle (square with rounded corners for resize affordance)
+    this.ctx.fillStyle = handleColor;
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 2;
+    this.ctx.beginPath();
+    this.ctx.roundRect(poleX - handleRadius, handleY - handleRadius, handleRadius * 2, handleRadius * 2, 3);
+    this.ctx.fill();
+    this.ctx.stroke();
 
-      // Draw flag background
-      this.ctx.fillStyle = '#1e40af';
-      this.ctx.beginPath();
-      this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
-      this.ctx.fill();
-
-      // Draw flag text
-      this.ctx.fillStyle = '#ffffff';
-      this.ctx.textAlign = 'left';
-      this.ctx.textBaseline = 'middle';
-      this.ctx.fillText(tooltipText, tooltipX + 5, tooltipY + tooltipHeight / 2);
-    }
+    // Draw resize arrows inside handle
+    this.ctx.strokeStyle = '#ffffff';
+    this.ctx.lineWidth = 1.5;
+    const arrowSize = 3;
+    // Left arrow
+    this.ctx.beginPath();
+    this.ctx.moveTo(poleX - arrowSize, handleY);
+    this.ctx.lineTo(poleX - arrowSize + 2, handleY - 2);
+    this.ctx.moveTo(poleX - arrowSize, handleY);
+    this.ctx.lineTo(poleX - arrowSize + 2, handleY + 2);
+    this.ctx.stroke();
+    // Right arrow
+    this.ctx.beginPath();
+    this.ctx.moveTo(poleX + arrowSize, handleY);
+    this.ctx.lineTo(poleX + arrowSize - 2, handleY - 2);
+    this.ctx.moveTo(poleX + arrowSize, handleY);
+    this.ctx.lineTo(poleX + arrowSize - 2, handleY + 2);
+    this.ctx.stroke();
   }
 
   /**

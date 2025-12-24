@@ -135,6 +135,84 @@ module Api
         render json: { success: false, error: "Report not found" }, status: :not_found
       end
 
+      # POST /api/v1/bank_statement_reports/batch_regenerate
+      # Start batch regeneration of bank statement PDFs and document records
+      # This is designed for bulk operations when bringing in new companies
+      def batch_regenerate
+        company_id = params[:company_id].presence&.to_i
+        batch_size = (params[:batch_size].presence || 10).to_i
+        force = params[:force] == "true"
+        auto_continue = params[:auto_continue] == "true"
+
+        # Enqueue the job
+        BankStatementBatchRegenerateJob.perform_later(
+          company_id: company_id,
+          batch_size: batch_size,
+          force: force,
+          auto_continue: auto_continue
+        )
+
+        # Return current progress
+        progress = BankStatementBatchRegenerateJob.progress(company_id: company_id, force: force)
+
+        render json: {
+          success: true,
+          message: "Batch regeneration job enqueued",
+          data: {
+            job_enqueued: true,
+            company_id: company_id,
+            batch_size: batch_size,
+            force: force,
+            auto_continue: auto_continue,
+            progress: progress
+          }
+        }
+      rescue StandardError => e
+        Rails.logger.error("Batch regeneration failed to start: #{e.message}")
+        render json: {
+          success: false,
+          error: "Failed to start batch regeneration: #{e.message}"
+        }, status: :internal_server_error
+      end
+
+      # GET /api/v1/bank_statement_reports/batch_progress
+      # Get current progress of batch regeneration
+      def batch_progress
+        company_id = params[:company_id].presence&.to_i
+        force = params[:force] == "true"
+
+        progress = BankStatementBatchRegenerateJob.progress(company_id: company_id, force: force)
+
+        # Get list of companies with pending work
+        companies_with_pending = CorporateCompany
+          .joins("LEFT JOIN bank_statement_reports ON bank_statement_reports.company_id = corporate_companies.id")
+          .where(bank_statement_reports: { status: "completed" })
+          .select("corporate_companies.id, corporate_companies.name, corporate_companies.code")
+          .group("corporate_companies.id, corporate_companies.name, corporate_companies.code")
+          .having("COUNT(bank_statement_reports.id) > 0")
+          .map do |company|
+            company_progress = BankStatementBatchRegenerateJob.progress(company_id: company.id, force: force)
+            {
+              id: company.id,
+              name: company.name,
+              code: company.code,
+              total: company_progress[:total],
+              completed: company_progress[:completed],
+              pending: company_progress[:pending],
+              percent: company_progress[:percent]
+            }
+          end
+          .select { |c| c[:pending] > 0 || company_id.present? }
+
+        render json: {
+          success: true,
+          data: {
+            overall: progress,
+            by_company: companies_with_pending.sort_by { |c| -c[:pending] }
+          }
+        }
+      end
+
       # GET /api/v1/bank_statement_reports/by_structure
       # Returns reports organized by bank -> FY -> month for tree view
       def by_structure
