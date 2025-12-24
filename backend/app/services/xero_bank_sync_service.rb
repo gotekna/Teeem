@@ -249,10 +249,9 @@ class XeroBankSyncService
       date_closed = fetch_last_transaction_date(xero_account["AccountID"]) || Date.today
     end
 
-    # Store original bank name if not already in standardized format
-    # Standardized format: "NAB 083-052 305422840"
-    is_standardized_name = xero_name.match?(/^[A-Z]{2,7}\s+\d{3}[- ]?\d{3}\s+\d+$/)
-    bank_feed_name = is_standardized_name ? nil : xero_name
+    # SSoT: Use company name as the statement name (account holder)
+    # The company we're syncing for IS the account holder
+    statement_name = company.name
 
     company.bank_accounts.create!(
       institution_name: institution_name,
@@ -260,7 +259,7 @@ class XeroBankSyncService
       bsb: parsed[:bsb],
       account_number: parsed[:account_number],
       account_name: xero_name,
-      bank_feed_name: bank_feed_name, # Original official bank account name
+      bank_feed_name: statement_name, # Company name = account holder
       xero_account_id: xero_account["AccountID"],
       status: is_closed ? "closed" : "active",
       date_opened: date_opened,
@@ -281,12 +280,10 @@ class XeroBankSyncService
 
     changes = {}
 
-    # Store original bank account name in bank_feed_name (before we rename it)
-    # Only if blank and current Xero name is NOT already our standardized format
-    # Standardized format: "NAB 083-052 305422840" (BANK BSB-BSB ACCOUNT)
-    is_standardized_name = xero_name.match?(/^[A-Z]{2,7}\s+\d{3}[- ]?\d{3}\s+\d+$/)
-    if local_account.bank_feed_name.blank? && !is_standardized_name
-      changes[:bank_feed_name] = xero_name
+    # SSoT: Set statement name from company name (account holder)
+    # The company we're syncing for IS the account holder
+    if local_account.bank_feed_name.blank?
+      changes[:bank_feed_name] = company.name
     end
 
     # Store Xero name as account_name (keeps in sync with Xero)
