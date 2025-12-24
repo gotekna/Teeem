@@ -281,6 +281,9 @@ class Contact < ApplicationRecord
   scope :team_contacts, -> { where(is_team_contact: true) }
   scope :individual_contacts, -> { where(is_team_contact: false) }
 
+  # Active status scope (SSoT: is_active column)
+  scope :active, -> { where(is_active: true) }
+
   # Instance methods
   # computed_display_name: Generates a display-friendly name based on entity type
   # Note: display_name is now a database column (SSoT), this method computes the value
