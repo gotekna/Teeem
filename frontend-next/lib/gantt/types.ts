@@ -369,6 +369,31 @@ function isHoliday(date: Date, holidays: Set<string>): boolean {
 }
 
 /**
+ * Count working days between two dates (INCLUSIVE of both start and end)
+ * A task from Monday to Wednesday = 3 working days
+ */
+export function countWorkingDays(startDate: Date, endDate: Date): number {
+  const holidays = getAustralianHolidays(startDate.getFullYear());
+  // Also get holidays for end date year if different
+  if (endDate.getFullYear() !== startDate.getFullYear()) {
+    const endYearHolidays = getAustralianHolidays(endDate.getFullYear());
+    endYearHolidays.forEach(h => holidays.add(h));
+  }
+
+  let count = 0;
+  const current = new Date(startDate);
+
+  while (current <= endDate) {
+    if (!isWeekend(current) && !isHoliday(current, holidays)) {
+      count++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return count;
+}
+
+/**
  * Add working days to a date (skipping weekends and holidays)
  */
 export function addWorkingDays(startDate: Date, days: number): Date {

@@ -297,6 +297,7 @@ module Api
           # Manual positioning (for held/locked dates)
           manually_positioned: row.manually_positioned,
           manual_start_date: row.manual_start_date,
+          previous_manual_start_date: row.previous_manual_start_date,
           created_at: row.created_at,
           updated_at: row.updated_at
         }

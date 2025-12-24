@@ -57,6 +57,7 @@ import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { JobClaimStagesTab } from "@/components/jobs/JobClaimStagesTab";
+import { JobScheduleTab } from "@/components/jobs/JobScheduleTab";
 import { ColourSelectionBuilder } from "@/components/colours/ColourSelectionBuilder";
 import { SpecificationBuilder } from "@/components/specifications/SpecificationBuilder";
 
@@ -1128,20 +1129,8 @@ export default function JobDetailPage() {
           <JobBudgetTab jobId={job.id} />
         </TabsContent>
 
-        <TabsContent value="schedule" className="mt-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Schedule Master</CardTitle>
-              <Button onClick={() => router.push(`/jobs/${jobId}/schedule`)}>
-                Open Full View
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                View the full Schedule Master for detailed task management and Gantt chart.
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="schedule" className="mt-4 h-[calc(100vh-300px)]">
+          <JobScheduleTab jobId={jobId} />
         </TabsContent>
 
         <TabsContent value="whs" className="mt-4">

@@ -41,10 +41,11 @@ class SmTemplateCascadeService
 
       if successor.manually_positioned?
         Rails.logger.info "[SmTemplateCascade] Clearing manually_positioned on successor #{successor.id}"
+        # Save the old date for potential undo/restore
         successor.update!(
           manually_positioned: false,
+          previous_manual_start_date: successor.manual_start_date,
           manual_start_date: nil
-          # TODO: Could store old date in a backup field for undo
         )
         updated_rows << successor
       end

@@ -15,6 +15,7 @@ import { GanttCanvas } from "@/lib/gantt/engine/GanttCanvas";
 import {
   convertRowsToTasks,
   convertToDependencies,
+  countWorkingDays,
   type SmTemplateRow,
   type GanttTask,
   type TaskClickEvent,
@@ -267,6 +268,16 @@ export function GanttCanvasView({
 
   // Filter to show only grouped tasks (headers + their children)
   const [showOnlyGrouped, setShowOnlyGrouped] = React.useState(false);
+
+  // Undo history - stores previous task states for session-based undo
+  // Key: taskId, Value: { startDate, endDate, duration, manuallyPositioned, manualStartDate }
+  const [undoHistory, setUndoHistory] = React.useState<Map<string, {
+    startDate: Date;
+    endDate: Date;
+    duration: number;
+    manuallyPositioned: boolean;
+    manualStartDate: string | null;
+  }>>(new Map());
 
   // Toggle header collapse state
   const toggleHeaderCollapse = React.useCallback((headerId: number) => {
@@ -727,6 +738,20 @@ export function GanttCanvasView({
       return;
     }
 
+    // Save previous state for undo (before making any changes)
+    const row = rows.find(r => String(r.id) === task.id);
+    setUndoHistory(prev => {
+      const next = new Map(prev);
+      next.set(task.id, {
+        startDate: new Date(task.startDate),
+        endDate: new Date(task.endDate),
+        duration: row?.duration_days || 1,
+        manuallyPositioned: row?.manually_positioned || false,
+        manualStartDate: row?.manual_start_date || null
+      });
+      return next;
+    });
+
     try {
       // Format date as YYYY-MM-DD
       const dateStr = newStartDate.toISOString().split('T')[0];
@@ -770,10 +795,24 @@ export function GanttCanvasView({
     // Skip API save in static mode
     if (isStaticMode || !templateId) return;
 
+    // Save previous state for undo (before making any changes)
+    const row = rows.find(r => String(r.id) === task.id);
+    setUndoHistory(prev => {
+      const next = new Map(prev);
+      next.set(task.id, {
+        startDate: new Date(task.startDate),
+        endDate: new Date(task.endDate),
+        duration: row?.duration_days || 1,
+        manuallyPositioned: row?.manually_positioned || false,
+        manualStartDate: row?.manual_start_date || null
+      });
+      return next;
+    });
+
     try {
-      // Calculate duration in days
-      const durationMs = newEndDate.getTime() - newStartDate.getTime();
-      const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+      // Calculate duration in WORKING days (skipping weekends/holidays)
+      // This matches how convertRowToTask calculates dates from duration_days
+      const durationDays = countWorkingDays(newStartDate, newEndDate);
 
       // Format dates as YYYY-MM-DD
       const startStr = newStartDate.toISOString().split('T')[0];
@@ -837,10 +876,12 @@ export function GanttCanvasView({
       ));
 
       // Update tasks state
+      // INCLUSIVE: endDate is the last day of the task
+      // A 2-day task starting Jan 1 ends on Jan 2 (duration - 1 days after start)
       setTasks(prev => prev.map(t => {
         if (t.id === taskId) {
           const newEndDate = new Date(t.startDate);
-          newEndDate.setDate(newEndDate.getDate() + newDuration);
+          newEndDate.setDate(newEndDate.getDate() + (newDuration - 1));
           return { ...t, duration: newDuration, endDate: newEndDate };
         }
         return t;
@@ -893,6 +934,42 @@ export function GanttCanvasView({
       console.error('Failed to reset manual position:', err);
     }
   }, [templateId, isStaticMode]);
+
+  // Handle undo - restore previous task state
+  const handleUndoTask = React.useCallback(async (task: GanttTask) => {
+    if (isStaticMode || !templateId) return;
+
+    const previousState = undoHistory.get(task.id);
+    if (!previousState) {
+      console.log('No undo history for task:', task.id);
+      return;
+    }
+
+    try {
+      // Restore to previous state via API
+      const startStr = previousState.manualStartDate || previousState.startDate.toISOString().split('T')[0];
+
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: {
+          manually_positioned: previousState.manuallyPositioned,
+          manual_start_date: previousState.manuallyPositioned ? startStr : null,
+          duration_days: previousState.duration
+        }
+      });
+
+      // Clear from undo history
+      setUndoHistory(prev => {
+        const next = new Map(prev);
+        next.delete(task.id);
+        return next;
+      });
+
+      // Reload to get recalculated positions
+      await loadData(true);
+    } catch (err) {
+      console.error('Failed to undo task change:', err);
+    }
+  }, [templateId, isStaticMode, undoHistory, loadData]);
 
   // Handle complete task toggle
   const handleCompleteTask = React.useCallback(async (task: GanttTask, complete: boolean) => {
@@ -1508,7 +1585,8 @@ export function GanttCanvasView({
                   const row = rows.find(r => String(r.id) === task.id);
                   const startStr = task.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
                   const endStr = task.endDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
-                  const duration = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  // Use working days to match backend duration_days semantics
+                  const duration = countWorkingDays(task.startDate, task.endDate);
                   const isHeader = isHeaderRow(row);
                   const childCount = isHeader && row ? getChildCount(row.id) : 0;
                   const isCollapsed = row ? collapsedHeaders.has(row.id) : false;
