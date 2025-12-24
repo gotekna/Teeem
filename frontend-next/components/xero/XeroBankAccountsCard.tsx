@@ -79,6 +79,7 @@ interface XeroBankAccountsCardProps {
  * - Date range filtering for transactions
  * - Search/filter panel like Xero
  * - Spent/Received columns with color coding
+ * - Balance column with running balance calculation
  */
 export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   const [bankAccounts, setBankAccounts] = React.useState<XeroBankAccount[]>([]);

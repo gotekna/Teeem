@@ -140,20 +140,20 @@ interface ColumnConfig {
   align?: 'left' | 'center' | 'right';
 }
 
-/** Default column configuration */
+/** Default column configuration - matches preferred layout */
 const DEFAULT_COLUMNS: ColumnConfig[] = [
-  { id: 'name', label: 'Name', width: 140, visible: true, align: 'left' },
-  { id: 'startDate', label: 'Start Date', shortLabel: 'Start', width: 80, visible: true, align: 'left' },
-  { id: 'endDate', label: 'End Date', shortLabel: 'End', width: 80, visible: true, align: 'left' },
-  { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
-  { id: 'progress', label: 'Progress', shortLabel: '%', width: 50, visible: true, align: 'center' },
-  { id: 'status', label: 'Status', width: 80, visible: true, align: 'left' },
-  { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
+  { id: 'name', label: 'Name', width: 242, visible: true, align: 'left' },
+  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
   { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: true, align: 'center' },
   { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: true, align: 'center' },
-  { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
-  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
   { id: 'complete', label: 'Done', shortLabel: '✓', width: 28, visible: true, align: 'center' },
+  { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
+  { id: 'duration', label: 'Duration', shortLabel: 'Days', width: 50, visible: true, align: 'center' },
+  { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
+  { id: 'startDate', label: 'Start Date', shortLabel: 'Start', width: 80, visible: false, align: 'left' },
+  { id: 'endDate', label: 'End Date', shortLabel: 'End', width: 80, visible: false, align: 'left' },
+  { id: 'progress', label: 'Progress', shortLabel: '%', width: 50, visible: false, align: 'center' },
+  { id: 'status', label: 'Status', width: 80, visible: false, align: 'left' },
 ];
 
 // ============================================================================
@@ -2390,10 +2390,9 @@ export function GanttCanvasView({
                       )}
                       style={{ height: 28 }}
                       onClick={() => {
-                        // Select and scroll horizontally to show this task's bar in the Gantt
-                        // Uses horizontal-only scroll to keep sidebar rows in place
+                        // Select and scroll to show this task's bar in the Gantt
                         setSelectedTaskId(task.id);
-                        ganttRef.current?.scrollToTaskHorizontalOnly(task.id, true);
+                        ganttRef.current?.scrollToTask(task.id, true);
                       }}
                     >
                       {visibleColumns.map(col => (
