@@ -116,6 +116,7 @@ export interface SmTemplateRow {
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
   require_supplier_confirm: boolean;
+  finance_approved: boolean;
   is_master: boolean;
   category: string | null;
   // Multi-template support
@@ -285,6 +286,16 @@ export interface GanttCanvasProps {
 // ============================================================================
 // Cascade Types
 // ============================================================================
+
+/**
+ * Extended SmTemplateRow with downstream successor info for cascade dialogs
+ */
+export interface SuccessorInfo extends SmTemplateRow {
+  downstreamCount: number;
+  downstreamTasks: SmTemplateRow[];
+  lockedDownstreamCount: number;
+  hasMoreDownstream: boolean;
+}
 
 /**
  * Result of cascade calculation
