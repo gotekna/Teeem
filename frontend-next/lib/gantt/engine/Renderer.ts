@@ -294,8 +294,10 @@ export class Renderer {
     );
 
     // Calculate visible X range for horizontal virtual scrolling
-    const visibleStartX = state.scrollX - 100; // Buffer
-    const visibleEndX = state.scrollX + (canvasHeight ? visibleHeight * 2 : 2000) + 100; // Use a reasonable width estimate
+    // NOTE: dateToX returns SCREEN coordinates (scroll-adjusted), so visible range is screen-based
+    const visibleStartX = -100; // Buffer to the left of visible screen
+    const canvasWidth = canvasHeight ? visibleHeight * 2 : 2000; // Estimate canvas width
+    const visibleEndX = canvasWidth + 100; // Buffer to the right of visible screen
 
     // Only iterate through visible tasks
     for (let index = firstVisibleRow; index <= lastVisibleRow; index++) {
@@ -601,29 +603,37 @@ export class Renderer {
    */
   drawDragPreview(task: GanttTask, newDate: Date, rowIndex: number): void {
     const { taskBarHeight, taskBarPadding } = this.config;
+    const dayWidth = this.viewport.getDayWidth();
+
+    // Calculate original position with SAME width logic as drawTaskBars
     const originalStartX = this.viewport.dateToX(task.startDate);
     const originalEndX = this.viewport.dateToX(task.endDate);
+    const originalCalcWidth = originalEndX - originalStartX;
+    // Match drawTaskBars: single-day tasks get dayWidth, multi-day get width + dayWidth
+    const originalWidth = originalCalcWidth < dayWidth ? dayWidth : originalCalcWidth + dayWidth;
+
     const taskDuration = task.endDate.getTime() - task.startDate.getTime();
 
-    // Calculate new position
+    // Calculate new position with SAME width logic
     const newStartX = this.viewport.dateToX(newDate);
     const newEndDate = new Date(newDate.getTime() + taskDuration);
     const newEndX = this.viewport.dateToX(newEndDate);
-    const taskWidth = Math.max(newEndX - newStartX, 20);
+    const newCalcWidth = newEndX - newStartX;
+    const taskWidth = newCalcWidth < dayWidth ? dayWidth : newCalcWidth + dayWidth;
 
     const y = this.viewport.rowToY(rowIndex);
     const barY = y + taskBarPadding;
     const barHeight = taskBarHeight;
 
-    // Draw ghost of original position
+    // Draw ghost of original position (same size as actual task)
     this.ctx.globalAlpha = 0.3;
     this.ctx.fillStyle = '#9ca3af';
     this.ctx.beginPath();
-    this.ctx.roundRect(originalStartX, barY, originalEndX - originalStartX, barHeight, 4);
+    this.ctx.roundRect(originalStartX, barY, originalWidth, barHeight, 4);
     this.ctx.fill();
     this.ctx.globalAlpha = 1;
 
-    // Draw new position with highlight
+    // Draw new position with highlight (same size as actual task)
     this.ctx.fillStyle = '#3b82f6';
     this.ctx.beginPath();
     this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
@@ -718,28 +728,34 @@ export class Renderer {
     edge: 'left' | 'right'
   ): void {
     const { taskBarHeight, taskBarPadding } = this.config;
+    const dayWidth = this.viewport.getDayWidth();
+
+    // Calculate original position with SAME width logic as drawTaskBars
     const originalStartX = this.viewport.dateToX(task.startDate);
     const originalEndX = this.viewport.dateToX(task.endDate);
+    const originalCalcWidth = originalEndX - originalStartX;
+    const originalWidth = originalCalcWidth < dayWidth ? dayWidth : originalCalcWidth + dayWidth;
 
-    // Calculate new position
+    // Calculate new position with SAME width logic
     const newStartX = this.viewport.dateToX(newStartDate);
     const newEndX = this.viewport.dateToX(newEndDate);
-    const taskWidth = Math.max(newEndX - newStartX, 20);
+    const newCalcWidth = newEndX - newStartX;
+    const taskWidth = newCalcWidth < dayWidth ? dayWidth : newCalcWidth + dayWidth;
 
     const y = this.viewport.rowToY(rowIndex);
     const barY = y + taskBarPadding;
     const barHeight = taskBarHeight;
 
-    // Draw ghost of original position
+    // Draw ghost of original position (same size as actual task)
     this.ctx.globalAlpha = 0.3;
     this.ctx.fillStyle = '#9ca3af';
     this.ctx.beginPath();
-    this.ctx.roundRect(originalStartX, barY, originalEndX - originalStartX, barHeight, 4);
+    this.ctx.roundRect(originalStartX, barY, originalWidth, barHeight, 4);
     this.ctx.fill();
     this.ctx.globalAlpha = 1;
 
     // Draw new position with highlight (green for expand, orange for shrink)
-    const isExpanding = (newEndX - newStartX) > (originalEndX - originalStartX);
+    const isExpanding = taskWidth > originalWidth;
     this.ctx.fillStyle = isExpanding ? '#22c55e' : '#f59e0b';
     this.ctx.beginPath();
     this.ctx.roundRect(newStartX, barY, taskWidth, barHeight, 4);
@@ -1088,6 +1104,11 @@ export class Renderer {
 
   private getTaskColor(task: GanttTask): string {
     const { taskBar } = this.config.colors;
+
+    // Black for completed tasks (locked at completed_at date)
+    if (task.rowData?.is_completed) {
+      return '#1f2937'; // Dark gray / near black
+    }
 
     // Light brown for manually positioned (held) tasks
     if (task.rowData?.manually_positioned) {

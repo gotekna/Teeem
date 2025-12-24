@@ -52,6 +52,26 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+// Filter operators for display (copied from TeeemTableView)
+const FILTER_OPERATOR_LABELS: Record<string, string> = {
+  "=": "is",
+  "!=": "is not",
+  ">": ">",
+  "<": "<",
+  ">=": "≥",
+  "<=": "≤",
+  contains: "contains",
+  not_contains: "doesn't contain",
+  starts_with: "starts with",
+  ends_with: "ends with",
+  is_empty: "is empty",
+  is_not_empty: "is not empty",
+};
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -224,18 +244,9 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
   const isBooleanColumn = column?.type === "boolean";
   const isChoiceColumn = column?.type === "choice" || column?.type === "badge";
   const isNumericColumn = column?.type === "number" || column?.type === "currency";
+  const isDateColumn = column?.type === "date";
 
-  // Build column items for searchable dropdown
-  const columnItems: ComboboxItem[] = columns
-    .filter((c) => c.filterable !== false)
-    .map((col) => ({
-      id: col.key,
-      label: col.label,
-    }));
-
-  const selectedColumn = columnItems.find((item) => item.id === filter.column);
-
-  // Render value input based on column type (matches TeeemTableView's ViewManagerSheet)
+  // Render value input based on column type (matches CascadeFilterItem.tsx)
   const renderValueInput = () => {
     if (["is_empty", "is_not_empty"].includes(filter.operator)) {
       return null;
@@ -248,7 +259,7 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
           value={filter.value === true || filter.value === "true" ? "true" : filter.value === false || filter.value === "false" ? "false" : ""}
           onValueChange={(value) => onUpdate(filter.id, { value: value === "true" })}
         >
-          <SelectTrigger className="w-[80px] h-8">
+          <SelectTrigger className="flex-1 h-8">
             <SelectValue placeholder="Select..." />
           </SelectTrigger>
           <SelectContent>
@@ -259,7 +270,7 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
       );
     }
 
-    // Choice/Badge column - show searchable choices dropdown (like TeeemTableView)
+    // Choice/Badge column - show searchable choices dropdown
     if (isChoiceColumn && column?.choices && column.choices.length > 0) {
       const choiceItems: ComboboxItem[] = column.choices.map((choice) => ({
         id: choice,
@@ -268,14 +279,13 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
       const selectedChoice = choiceItems.find((item) => item.id === String(filter.value || ""));
 
       return (
-        <div className="w-[140px]">
+        <div className="flex-1">
           <ComboboxDropdown
             items={choiceItems}
             selectedItem={selectedChoice}
             onSelect={(item) => onUpdate(filter.id, { value: item.id })}
-            placeholder="Search value..."
-            searchInTrigger={true}
-            popoverProps={{ className: "min-w-[200px] w-auto" }}
+            placeholder="Select..."
+            searchPlaceholder="Search choices..."
           />
         </div>
       );
@@ -284,7 +294,7 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
     // Default text input
     return (
       <Input
-        className="w-[140px] h-8"
+        className="flex-1 h-8"
         value={String(filter.value || "")}
         onChange={(e) => onUpdate(filter.id, { value: e.target.value })}
         placeholder="Value..."
@@ -293,43 +303,53 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2 bg-background rounded border">
-      {/* Column selector - searchable dropdown like TeeemTableView */}
-      <div className="w-[140px]">
-        <ComboboxDropdown
-          items={columnItems}
-          selectedItem={selectedColumn}
-          onSelect={(item) => onUpdate(filter.id, { column: item.id, value: "" })}
-          placeholder="Search column..."
-          searchInTrigger={true}
-          popoverProps={{ className: "min-w-[200px] w-auto" }}
-        />
-      </div>
+    <div className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+      {/* Column selector */}
+      <Select
+        value={filter.column}
+        onValueChange={(value) => onUpdate(filter.id, { column: value, value: "" })}
+      >
+        <SelectTrigger className="w-[140px] h-8">
+          <SelectValue placeholder="Column" />
+        </SelectTrigger>
+        <SelectContent>
+          {columns
+            .filter((c) => c.filterable !== false)
+            .map((col) => (
+              <SelectItem key={col.key} value={col.key}>
+                {col.label}
+              </SelectItem>
+            ))}
+        </SelectContent>
+      </Select>
 
-      {/* Operator selector - matches TeeemTableView style */}
+      {/* Operator selector */}
       <Select
         value={filter.operator}
         onValueChange={(value) =>
           onUpdate(filter.id, { operator: value as CascadeFilter["operator"] })
         }
       >
-        <SelectTrigger className="w-[90px] h-8">
+        <SelectTrigger className="w-[100px] h-8">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="=">equals</SelectItem>
+          <SelectItem value="!=">not equals</SelectItem>
           <SelectItem value="contains">contains</SelectItem>
-          <SelectItem value="=">=</SelectItem>
-          <SelectItem value="!=">≠</SelectItem>
-          {isNumericColumn && (
+          <SelectItem value="not_contains">not contains</SelectItem>
+          <SelectItem value="starts_with">starts with</SelectItem>
+          <SelectItem value="ends_with">ends with</SelectItem>
+          <SelectItem value="is_empty">is empty</SelectItem>
+          <SelectItem value="is_not_empty">is not empty</SelectItem>
+          {(isNumericColumn || isDateColumn) && (
             <>
-              <SelectItem value=">">{">"}</SelectItem>
-              <SelectItem value="<">{"<"}</SelectItem>
-              <SelectItem value=">=">≥</SelectItem>
-              <SelectItem value="<=">≤</SelectItem>
+              <SelectItem value=">">greater than</SelectItem>
+              <SelectItem value="<">less than</SelectItem>
+              <SelectItem value=">=">greater or equal</SelectItem>
+              <SelectItem value="<=">less or equal</SelectItem>
             </>
           )}
-          <SelectItem value="is_empty">empty</SelectItem>
-          <SelectItem value="is_not_empty">not empty</SelectItem>
         </SelectContent>
       </Select>
 
@@ -340,10 +360,10 @@ function FilterItem({ filter, columns, onUpdate, onRemove }: FilterItemProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+        className="h-8 w-8 shrink-0"
         onClick={() => onRemove(filter.id)}
       >
-        <X className="h-3 w-3" />
+        <X className="h-4 w-4" />
       </Button>
     </div>
   );
@@ -610,49 +630,34 @@ export function ViewTableView<T extends ViewTableRow>({
         </div>
       </div>
 
-      {/* Filters Sheet - matches TeeemTableView's ViewManagerSheet pattern */}
+      {/* Filters Sheet */}
       <Sheet open={showFilters} onOpenChange={setShowFilters}>
-        <SheetContent className="w-[400px] sm:w-[540px]">
+        <SheetContent className="w-[400px] sm:w-[500px]">
           <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              View Filter
+            <SheetTitle className="flex items-center justify-between">
+              <span>Filters</span>
               {filters.length > 0 && (
-                <Badge variant="secondary" className="ml-2">
-                  {filters.length} active
-                </Badge>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllFilters}
+                  className="text-xs h-7"
+                >
+                  Clear all
+                </Button>
               )}
             </SheetTitle>
           </SheetHeader>
 
           <ScrollArea className="h-[calc(100vh-120px)] mt-4">
-            <div className="border rounded-lg p-3">
-              {/* Header with +Rule and Clear All */}
-              <div className="flex items-center gap-2 mb-3">
-                <Button variant="outline" size="sm" onClick={addFilter}>
-                  <Plus className="h-3 w-3 mr-1" />
-                  Rule
-                </Button>
-                {filters.length > 0 && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="ml-auto text-destructive"
-                    onClick={clearAllFilters}
-                  >
-                    Clear All
-                  </Button>
-                )}
-              </div>
-
-              {/* Rules */}
-              <div className="space-y-2">
-                {filters.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-2 italic">
-                    No rules. Click +Rule to add one.
-                  </p>
-                ) : (
-                  filters.map((filter) => (
+            <div className="space-y-3 pr-4">
+              {filters.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  No filters applied. Click the button below to add one.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {filters.map((filter) => (
                     <FilterItem
                       key={filter.id}
                       filter={filter}
@@ -660,13 +665,54 @@ export function ViewTableView<T extends ViewTableRow>({
                       onUpdate={updateFilter}
                       onRemove={removeFilter}
                     />
-                  ))
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addFilter}
+                className="w-full"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Filter
+              </Button>
             </div>
           </ScrollArea>
         </SheetContent>
       </Sheet>
+
+      {/* Active filters indicator - shows clickable badges for each filter (copied from TeeemTableView) */}
+      {filters.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap px-4 py-2 border-b shrink-0">
+          <span className="text-[11px] text-muted-foreground">Active filters:</span>
+          {filters.map((filter) => {
+            const col = columns.find((c) => c.key === filter.column);
+            return (
+              <Badge
+                key={filter.id}
+                variant="secondary"
+                className="gap-1 cursor-pointer hover:bg-secondary/80"
+                onClick={() => setShowFilters(true)}
+              >
+                {col?.label || filter.column}{" "}
+                {FILTER_OPERATOR_LABELS[filter.operator] || filter.operator}{" "}
+                {!["is_empty", "is_not_empty"].includes(filter.operator) &&
+                  `"${filter.value}"`}
+              </Badge>
+            );
+          })}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearAllFilters}
+            className="h-6 px-2 text-muted-foreground"
+          >
+            Clear all
+          </Button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="flex-1 overflow-auto">

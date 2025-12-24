@@ -149,6 +149,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 40, visible: false, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
   { id: 'hold', label: 'Hold', shortLabel: '📌', width: 40, visible: true, align: 'center' },
+  { id: 'complete', label: 'Done', shortLabel: '✓', width: 40, visible: true, align: 'center' },
 ];
 
 // ============================================================================
@@ -756,6 +757,65 @@ export function GanttCanvasView({
       console.error('Failed to reset manual position:', err);
     }
   }, [templateId, isStaticMode]);
+
+  // Handle complete task toggle
+  const handleCompleteTask = React.useCallback(async (task: GanttTask, complete: boolean) => {
+    if (isStaticMode || !templateId) return;
+
+    const row = rows.find(r => String(r.id) === task.id);
+    if (!row) return;
+
+    try {
+      if (complete) {
+        // Mark as complete: backup deps, clear them, set completed_at to today
+        const today = new Date().toISOString().split('T')[0];
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+          row: {
+            is_completed: true,
+            completed_at: today,
+            predecessor_ids_backup: row.predecessor_ids || [],
+            predecessor_ids: []
+          }
+        });
+
+        // Update local state
+        setRows(prev => prev.map(r =>
+          String(r.id) === task.id
+            ? {
+                ...r,
+                is_completed: true,
+                completed_at: today,
+                predecessor_ids_backup: r.predecessor_ids || [],
+                predecessor_ids: []
+              }
+            : r
+        ));
+      } else {
+        // Uncomplete: restore deps from backup
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+          row: {
+            is_completed: false,
+            completed_at: null,
+            predecessor_ids: row.predecessor_ids_backup || []
+          }
+        });
+
+        // Update local state
+        setRows(prev => prev.map(r =>
+          String(r.id) === task.id
+            ? {
+                ...r,
+                is_completed: false,
+                completed_at: null,
+                predecessor_ids: r.predecessor_ids_backup || []
+              }
+            : r
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to toggle complete:', err);
+    }
+  }, [templateId, isStaticMode, rows]);
 
   // Load data from API (only when not using static mode)
   const loadData = React.useCallback(async () => {
@@ -1400,6 +1460,22 @@ export function GanttCanvasView({
                             />
                           </div>
                         );
+                      case 'complete':
+                        const isComplete = row?.is_completed === true;
+                        return (
+                          <div className="flex justify-center">
+                            <input
+                              type="checkbox"
+                              checked={isComplete}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleCompleteTask(task, !isComplete);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 cursor-pointer"
+                              title={isComplete ? 'Task is complete - click to uncomplete' : 'Mark task as complete'}
+                            />
+                          </div>
+                        );
                       default:
                         return null;
                     }
@@ -1539,13 +1615,25 @@ export function GanttCanvasView({
                   type="number"
                   min={1}
                   max={tasks.length}
-                  onChange={(e) => {
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
+                      if (rowNum >= 1 && rowNum <= tasks.length) {
+                        const task = tasks[rowNum - 1];
+                        if (task && task.id !== depEditorTask?.id) {
+                          setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                          (e.target as HTMLInputElement).value = '';
+                        }
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
                     const rowNum = parseInt(e.target.value, 10);
                     if (rowNum >= 1 && rowNum <= tasks.length) {
                       const task = tasks[rowNum - 1];
                       if (task && task.id !== depEditorTask?.id) {
                         setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                        (e.target as HTMLInputElement).value = '';
+                        e.target.value = '';
                       }
                     }
                   }}

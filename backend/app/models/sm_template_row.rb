@@ -44,7 +44,15 @@ class SmTemplateRow < ApplicationRecord
   # global uniqueness doesn't apply. Each template can have task_number 1, 2, 3, etc.
   validates :task_number, presence: true
   validates :sequence_order, presence: true
-  validates :duration_days, presence: true, numericality: { only_integer: true, greater_than: 0 }
+  validates :duration_days, presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validate :duration_positive_for_tasks
+
+  def duration_positive_for_tasks
+    return if category == 'Header' # Headers can have 0 duration
+    if duration_days.present? && duration_days <= 0
+      errors.add(:duration_days, 'must be greater than 0 for tasks')
+    end
+  end
   validates :cert_lag_days, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :subtask_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }, if: :has_subtasks?
   validate :supplier_required_if_auto_po

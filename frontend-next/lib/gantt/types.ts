@@ -123,6 +123,10 @@ export interface SmTemplateRow {
   // Manual positioning (held dates)
   manually_positioned: boolean | null;
   manual_start_date: string | null;
+  // Completion tracking
+  is_completed: boolean | null;
+  completed_at: string | null;
+  predecessor_ids_backup: ApiPredecessor[] | null;
   created_at: string;
   updated_at: string;
 }

@@ -1,26 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -44,11 +28,6 @@ import {
 } from "@/components/ui/popover";
 import {
   Plus,
-  MoreVertical,
-  Eye,
-  Pencil,
-  Trash2,
-  Search,
   Loader2,
   ShoppingCart,
   ChevronsUpDown,
@@ -58,6 +37,13 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
+import type { TableRow } from "@/components/table/types";
+
+// Foundation table name for Purchase Orders
+const PURCHASE_ORDERS_TABLE_NAME = "purchase_orders";
 
 interface Contact {
   id: number;
@@ -73,37 +59,10 @@ interface TaskTemplate {
   default_duration_days?: number;
 }
 
-interface PurchaseOrder {
-  id: number;
-  purchase_order_number: string;
-  description?: string;
-  status: string;
-  total: number;
-  required_date?: string;
-  supplier?: {
-    id: number;
-    display_name?: string;
-  };
-  schedule_task?: {
-    id: number;
-    title: string;
-  };
-}
-
 interface JobPurchaseOrdersTabProps {
   jobId: string | number;
   jobTitle?: string;
 }
-
-const STATUS_VARIANTS: Record<string, string> = {
-  draft: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-  approved: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-  sent: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-  received: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-  paid: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400",
-  cancelled: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-};
 
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-AU", {
@@ -114,21 +73,25 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function formatDate(dateString: string | undefined): string {
-  if (!dateString) return "-";
-  return new Date(dateString).toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabProps) {
   const router = useRouter();
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+
+  // Use Foundation hook to get purchase orders data
+  const { foundation, records, isLoading, refresh } = useFoundationBySlug(PURCHASE_ORDERS_TABLE_NAME);
+  const foundationId = foundation?.id;
+
+  // Filter records to only show POs for this job
+  const jobPurchaseOrders = useMemo(() => {
+    return records.filter((po) => {
+      // Handle both numeric job_id and lookup object formats
+      const poJobId = typeof po.job_id === 'object' && po.job_id !== null
+        ? (po.job_id as { id?: number }).id
+        : po.job_id;
+      return String(poJobId) === String(jobId);
+    });
+  }, [records, jobId]);
+
+  // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [taskTemplates, setTaskTemplates] = useState<TaskTemplate[]>([]);
@@ -143,28 +106,28 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [contactOpen, setContactOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
 
-  // Delete confirmation
-  const [deleteId, setDeleteId] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    loadPurchaseOrders();
-     
-  }, [jobId]);
-
-  const loadPurchaseOrders = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get<{ purchase_orders: PurchaseOrder[] }>(
-        `/api/v1/purchase_orders?job_id=${jobId}`
-      );
-      setPurchaseOrders(response?.purchase_orders || []);
-    } catch (err) {
-      console.error("Failed to load purchase orders:", err);
-    } finally {
-      setLoading(false);
+  // Handle row click - navigate to PO detail page
+  const handleRowClick = useCallback((row: TableRow) => {
+    const poNumber = row.purchase_order_number as string | undefined;
+    const slug = poNumber?.replace('PO-', '') || row.id;
+    if (slug) {
+      router.push(`/purchase_orders/${slug}`);
     }
-  };
+  }, [router]);
+
+  // Handle inline row update
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    if (!foundationId) return;
+    try {
+      await api.patch(`/api/v1/foundations/${foundationId}/records/${rowId}`, {
+        record: { [field]: value }
+      });
+      refresh();
+    } catch (err) {
+      console.error("Failed to update purchase order:", err);
+      throw err;
+    }
+  }, [foundationId, refresh]);
 
   const loadContacts = async () => {
     if (contacts.length > 0) return;
@@ -224,7 +187,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         },
       });
       setShowCreateModal(false);
-      await loadPurchaseOrders();
+      refresh();
     } catch (err) {
       console.error("Failed to create purchase order:", err);
       setError("Failed to create purchase order");
@@ -233,246 +196,69 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      setDeleting(true);
-      await api.delete(`/api/v1/purchase_orders/${deleteId}`);
-      setDeleteId(null);
-      await loadPurchaseOrders();
-    } catch (err) {
-      console.error("Failed to delete purchase order:", err);
-    } finally {
-      setDeleting(false);
-    }
-  };
+  // Stats from filtered records
+  const stats = useMemo(() => ({
+    total: jobPurchaseOrders.length,
+    totalValue: jobPurchaseOrders.reduce((sum, po) => sum + (Number(po.total) || 0), 0),
+    draft: jobPurchaseOrders.filter((po) => po.status === "draft").length,
+    pending: jobPurchaseOrders.filter((po) => po.status === "pending").length,
+  }), [jobPurchaseOrders]);
 
-  const filteredPOs = purchaseOrders.filter((po) => {
-    const supplierName = po.supplier?.display_name || po.supplier?.display_name || "";
-    const matchesSearch =
-      !searchQuery ||
-      po.purchase_order_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      supplierName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      po.description?.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = !statusFilter || po.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  // Stats
-  const totalValue = purchaseOrders.reduce((sum, po) => sum + (Number(po.total) || 0), 0);
-  const draftCount = purchaseOrders.filter((po) => po.status === "draft").length;
-  const pendingCount = purchaseOrders.filter((po) => po.status === "pending").length;
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <Spinner />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col h-full -mx-4">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 px-4 mb-4 shrink-0">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{purchaseOrders.length}</div>
+            <div className="text-2xl font-bold">{stats.total}</div>
             <p className="text-sm text-muted-foreground">Total POs</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{formatCurrency(totalValue)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats.totalValue)}</div>
             <p className="text-sm text-muted-foreground">Total Value</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-600">{draftCount}</div>
+            <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
             <p className="text-sm text-muted-foreground">Drafts</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-yellow-600">{pendingCount}</div>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
             <p className="text-sm text-muted-foreground">Pending Approval</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Header with Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShoppingCart className="h-6 w-6 text-muted-foreground" />
-          <div>
-            <h3 className="text-lg font-semibold">Purchase Orders</h3>
-            <p className="text-sm text-muted-foreground">
-              Manage purchase orders for {jobTitle || "this job"}
-            </p>
-          </div>
-        </div>
-        <Button onClick={handleOpenCreateModal}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Purchase Order
-        </Button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search PO number, supplier..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="h-10 px-3 py-2 border border-input rounded-md text-sm bg-background"
-        >
-          <option value="">All Statuses</option>
-          <option value="draft">Draft</option>
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="sent">Sent</option>
-          <option value="received">Received</option>
-          <option value="paid">Paid</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
-
-      {/* PO Table */}
-      {filteredPOs.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">
-              {searchQuery || statusFilter
-                ? "No purchase orders match your filters"
-                : "No purchase orders yet"}
-            </p>
-            {!searchQuery && !statusFilter && (
-              <Button className="mt-4" onClick={handleOpenCreateModal}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create First PO
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>PO Number</TableHead>
-                  <TableHead>Supplier</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead>Required Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPOs.map((po) => (
-                  <TableRow
-                    key={po.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => router.push(`/purchase_orders/${po.purchase_order_number?.replace('PO-', '') || po.id}`)}
-                  >
-                    <TableCell className="font-medium">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/purchase_orders/${po.purchase_order_number?.replace('PO-', '') || po.id}`);
-                        }}
-                        className="text-primary hover:underline"
-                      >
-                        {po.purchase_order_number}
-                      </button>
-                    </TableCell>
-                    <TableCell>
-                      {po.supplier ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/contacts/${po.supplier!.id}`);
-                          }}
-                          className="text-primary hover:underline"
-                        >
-                          {po.supplier.display_name || po.supplier.display_name}
-                        </button>
-                      ) : (
-                        "-"
-                      )}
-                    </TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {po.description || "-"}
-                    </TableCell>
-                    <TableCell>{formatDate(po.required_date)}</TableCell>
-                    <TableCell>
-                      <Badge className={STATUS_VARIANTS[po.status] || STATUS_VARIANTS.draft}>
-                        {po.status.charAt(0).toUpperCase() + po.status.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">
-                      {formatCurrency(Number(po.total) || 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/purchase_orders/${po.purchase_order_number?.replace('PO-', '') || po.id}`);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/purchase_orders/${po.purchase_order_number?.replace('PO-', '') || po.id}/edit`);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          {po.status !== "paid" && (
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteId(po.id);
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
+      {/* TeeemTableView with global views support */}
+      <TeeemTableView
+        entries={jobPurchaseOrders}
+        foundationId={foundationId ? String(foundationId) : ""}
+        foundationIdNumeric={foundationId || 0}
+        tableName="Purchase Orders"
+        enableExport={true}
+        onRefresh={refresh}
+        onRowClick={handleRowClick}
+        onRowUpdate={handleRowUpdate}
+        leftActions={
+          <Button onClick={handleOpenCreateModal}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Purchase Order
+          </Button>
+        }
+      />
 
       {/* Create PO Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
@@ -529,7 +315,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                       <CommandEmpty>No supplier found.</CommandEmpty>
                       <CommandGroup>
                         {contacts.map((contact) => {
-                          // Build searchable value including employee names
                           const searchValue = [
                             contact.display_name,
                             ...(contact.employee_names || [])
@@ -662,33 +447,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                 </>
               ) : (
                 "Create Purchase Order"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Purchase Order</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this purchase order? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteId(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                "Delete"
               )}
             </Button>
           </DialogFooter>

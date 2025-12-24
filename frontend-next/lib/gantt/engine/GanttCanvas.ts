@@ -2695,7 +2695,8 @@ export class GanttCanvas {
 
     // Check for regular task hit
     const task = this.hitTest(e.offsetX, e.offsetY);
-    if (task && !task.locked) {
+    // Don't allow dragging locked or completed tasks
+    if (task && !task.locked && !task.rowData?.is_completed) {
       // Start potential drag
       this.dragTask = task;
       this.dragStartX = e.offsetX;
@@ -6194,6 +6195,9 @@ export class GanttCanvas {
   // =========================================================================
 
   private startTaskDrag(task: GanttTask, x: number, y: number): void {
+    // Don't allow dragging completed tasks
+    if (task.rowData?.is_completed) return;
+
     this.dragTask = task;
     this.isDragging = true;
     this.dragStartX = x;
