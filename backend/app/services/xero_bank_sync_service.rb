@@ -249,17 +249,12 @@ class XeroBankSyncService
       date_closed = fetch_last_transaction_date(xero_account["AccountID"]) || Date.today
     end
 
-    # SSoT: Use company name as the statement name (account holder)
-    # The company we're syncing for IS the account holder
-    statement_name = company.name
-
     company.bank_accounts.create!(
       institution_name: institution_name,
       bank_code: bank_code,
       bsb: parsed[:bsb],
       account_number: parsed[:account_number],
       account_name: xero_name,
-      bank_feed_name: statement_name, # Company name = account holder
       xero_account_id: xero_account["AccountID"],
       status: is_closed ? "closed" : "active",
       date_opened: date_opened,
@@ -279,12 +274,6 @@ class XeroBankSyncService
     is_closed = xero_status == "ARCHIVED"
 
     changes = {}
-
-    # SSoT: Set statement name from company name (account holder)
-    # The company we're syncing for IS the account holder
-    if local_account.bank_feed_name.blank?
-      changes[:bank_feed_name] = company.name
-    end
 
     # Store Xero name as account_name (keeps in sync with Xero)
     if local_account.account_name != xero_name
@@ -366,11 +355,6 @@ class XeroBankSyncService
 
     # Build standardized name: "{BANK_CODE} {BSB} {ACCOUNT_NUMBER}"
     new_name = "#{bank_code} #{formatted_bsb} #{parsed[:account_number]}"
-
-    # Append statement name (company name from bank statement) if available
-    if local_account&.bank_feed_name.present?
-      new_name += " - #{local_account.bank_feed_name}"
-    end
 
     # Skip if already has the correct name
     if current_name == new_name
