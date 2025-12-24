@@ -5,11 +5,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   AlertTriangle,
   RefreshCw,
   Landmark,
   ChevronDown,
+  Search,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -40,6 +49,11 @@ const safeFormatDate = (dateValue: string | Date | null | undefined, formatStr: 
   return format(date, formatStr);
 };
 
+interface AccountBalance {
+  statement_balance?: number;
+  xero_balance?: number;
+}
+
 interface XeroBankAccountsCardProps {
   companyId: string;
 }
@@ -51,12 +65,15 @@ interface XeroBankAccountsCardProps {
  * - Display bank accounts from Xero as horizontal tabs
  * - Show transactions for selected account
  * - Date range filtering for transactions
+ * - Search/filter panel like Xero
  * - Spent/Received columns with color coding
  */
 export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   const [bankAccounts, setBankAccounts] = React.useState<XeroBankAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = React.useState<string | null>(null);
   const [transactions, setTransactions] = React.useState<XeroBankTransaction[]>([]);
+  const [filteredTransactions, setFilteredTransactions] = React.useState<XeroBankTransaction[]>([]);
+  const [accountBalance, setAccountBalance] = React.useState<AccountBalance>({});
   const [loading, setLoading] = React.useState(false);
   const [transactionsLoading, setTransactionsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -64,6 +81,20 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
     from: new Date(new Date().setMonth(new Date().getMonth() - 3)).toISOString().split("T")[0],
     to: new Date().toISOString().split("T")[0],
   });
+
+  // Search/Filter state
+  const [showFilters, setShowFilters] = React.useState(false);
+  const [searchText, setSearchText] = React.useState("");
+  const [minAmount, setMinAmount] = React.useState("");
+  const [maxAmount, setMaxAmount] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<string>("all");
+
+  // Meta info for debugging
+  const [meta, setMeta] = React.useState<{
+    from_date?: string;
+    to_date?: string;
+    count?: number;
+  }>({});
 
   // Load bank accounts on mount
   React.useEffect(() => {
@@ -76,6 +107,60 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
       loadTransactions(selectedAccount);
     }
   }, [selectedAccount, dateRange]);
+
+  // Apply filters when transactions or filter criteria change
+  React.useEffect(() => {
+    applyFilters();
+  }, [transactions, searchText, minAmount, maxAmount, statusFilter]);
+
+  const applyFilters = () => {
+    let filtered = [...transactions];
+
+    // Search text filter (description, reference, contact)
+    if (searchText.trim()) {
+      const search = searchText.toLowerCase();
+      filtered = filtered.filter(tx =>
+        (tx.description || "").toLowerCase().includes(search) ||
+        (tx.reference || "").toLowerCase().includes(search) ||
+        (tx.contact_name || "").toLowerCase().includes(search)
+      );
+    }
+
+    // Min amount filter
+    if (minAmount) {
+      const min = parseFloat(minAmount);
+      if (!isNaN(min)) {
+        filtered = filtered.filter(tx => Math.abs(tx.amount) >= min);
+      }
+    }
+
+    // Max amount filter
+    if (maxAmount) {
+      const max = parseFloat(maxAmount);
+      if (!isNaN(max)) {
+        filtered = filtered.filter(tx => Math.abs(tx.amount) <= max);
+      }
+    }
+
+    // Status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(tx => {
+        if (statusFilter === "reconciled") {
+          return tx.status === "AUTHORISED" || tx.status === "RECONCILED";
+        }
+        return tx.status === statusFilter;
+      });
+    }
+
+    setFilteredTransactions(filtered);
+  };
+
+  const clearFilters = () => {
+    setSearchText("");
+    setMinAmount("");
+    setMaxAmount("");
+    setStatusFilter("all");
+  };
 
   const loadBankAccounts = async () => {
     try {
@@ -129,9 +214,17 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   const loadTransactions = async (accountId: string) => {
     try {
       setTransactionsLoading(true);
+      console.log(`[XeroBankTransactions] Loading transactions for account ${accountId}, date range: ${dateRange.from} to ${dateRange.to}`);
+
       const response = await api.get<{
         success: boolean;
         transactions?: XeroBankTransaction[];
+        balance?: AccountBalance;
+        meta?: {
+          from_date?: string;
+          to_date?: string;
+          count?: number;
+        };
         error?: string;
       }>(`/api/v1/companies/${companyId}/xero/bank_transactions`, {
         params: {
@@ -141,13 +234,39 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
         }
       });
 
+      console.log(`[XeroBankTransactions] Response:`, {
+        success: response?.success,
+        transactionCount: response?.transactions?.length,
+        meta: response?.meta,
+        balance: response?.balance,
+      });
+
       if (response?.success && response.transactions) {
         setTransactions(response.transactions);
+        setFilteredTransactions(response.transactions);
+
+        // Log first few transactions for debugging
+        if (response.transactions.length > 0) {
+          console.log(`[XeroBankTransactions] First transaction:`, response.transactions[0]);
+        }
       } else {
         setTransactions([]);
+        setFilteredTransactions([]);
+      }
+
+      // Set meta info
+      if (response?.meta) {
+        setMeta(response.meta);
+      }
+
+      // Set balance if provided
+      if (response?.balance) {
+        setAccountBalance(response.balance);
       }
     } catch (err) {
+      console.error(`[XeroBankTransactions] Error loading transactions:`, err);
       setTransactions([]);
+      setFilteredTransactions([]);
     } finally {
       setTransactionsLoading(false);
     }
@@ -208,6 +327,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   }
 
   const selectedAccountDetails = bankAccounts.find(a => a.account_id === selectedAccount);
+  const hasActiveFilters = searchText || minAmount || maxAmount || statusFilter !== "all";
 
   return (
     <Card>
@@ -267,19 +387,117 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
             </div>
 
             {/* Balance Info - Xero Style */}
-            <div className="flex items-center gap-6 text-sm">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div>
-                  <span className="text-muted-foreground">Statement Balance</span>
-                  <p className="text-lg font-semibold">—</p>
+                  <span className="text-muted-foreground text-sm">Statement Balance</span>
+                  <p className="text-lg font-semibold">
+                    {accountBalance.statement_balance !== undefined
+                      ? formatCurrency(accountBalance.statement_balance)
+                      : "—"}
+                  </p>
                 </div>
                 <div className="h-8 w-px bg-border" />
                 <div>
-                  <span className="text-muted-foreground">Balance in Xero</span>
-                  <p className="text-lg font-semibold">—</p>
+                  <span className="text-muted-foreground text-sm">Balance in Xero</span>
+                  <p className="text-lg font-semibold">
+                    {accountBalance.xero_balance !== undefined
+                      ? formatCurrency(accountBalance.xero_balance)
+                      : "—"}
+                  </p>
                 </div>
               </div>
+
+              {/* Search/Filter Toggle */}
+              <Button
+                variant={showFilters ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Search
+                {hasActiveFilters && (
+                  <span className="ml-2 bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                    !
+                  </span>
+                )}
+              </Button>
             </div>
+
+            {/* Search/Filter Panel - Xero Style */}
+            {showFilters && (
+              <div className="mt-4 p-4 border rounded-lg bg-muted/30">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {/* Description/Contact Search */}
+                  <div className="md:col-span-2">
+                    <label className="text-sm text-muted-foreground mb-1 block">Description or contact name</label>
+                    <Input
+                      type="text"
+                      placeholder="Search..."
+                      value={searchText}
+                      onChange={(e) => setSearchText(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Min Amount */}
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Min Amount</label>
+                    <Input
+                      type="number"
+                      placeholder="0.00"
+                      value={minAmount}
+                      onChange={(e) => setMinAmount(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Max Amount */}
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Max Amount</label>
+                    <Input
+                      type="number"
+                      placeholder="0.00"
+                      value={maxAmount}
+                      onChange={(e) => setMaxAmount(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Status Filter */}
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Status</label>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="reconciled">Reconciled</SelectItem>
+                        <SelectItem value="AUTHORISED">Authorised</SelectItem>
+                        <SelectItem value="DRAFT">Draft</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Filter Actions */}
+                <div className="flex justify-end gap-2 mt-4">
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    Clear
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setShowFilters(false)}>
+                    <X className="h-4 w-4 mr-1" />
+                    Close
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Debug Info (only in dev) */}
+        {process.env.NODE_ENV === 'development' && meta.count !== undefined && (
+          <div className="text-xs text-muted-foreground mb-2 p-2 bg-muted/30 rounded">
+            API returned {meta.count} transactions for {meta.from_date} to {meta.to_date}
+            {hasActiveFilters && ` (showing ${filteredTransactions.length} after filters)`}
           </div>
         )}
 
@@ -288,9 +506,14 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : transactions.length === 0 ? (
+        ) : filteredTransactions.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p>No transactions found for this date range</p>
+            <p>{hasActiveFilters ? "No transactions match your filters" : "No transactions found for this date range"}</p>
+            {hasActiveFilters && (
+              <Button variant="link" size="sm" onClick={clearFilters} className="mt-2">
+                Clear filters
+              </Button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -311,7 +534,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map((tx) => {
+                {filteredTransactions.map((tx) => {
                   const isSpend = tx.amount < 0;
                   const isReconciled = tx.status === "AUTHORISED" || tx.status === "RECONCILED";
                   // Determine source - if it has a bank feed reference it's from bank feed

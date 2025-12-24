@@ -699,6 +699,37 @@ export function GanttCanvasView({
     return false;
   }, [tasks]);
 
+  // Load data from API (only when not using static mode)
+  // NOTE: Defined early because saveDependencies, handleTaskResize and handleDurationSave depend on it
+  // silent=true skips loading spinner (for background refreshes after edits)
+  const loadData = React.useCallback(async (silent = false) => {
+    if (isStaticMode || !templateId) return;
+
+    try {
+      if (!silent) {
+        setLoading(true);
+      }
+      setError(null);
+
+      const response = await api.get<ApiResponse>(
+        `/api/v1/sm_templates/${templateId}/rows`
+      );
+
+      if (response.success && response.rows) {
+        setRows(response.rows);
+      } else {
+        setError("Failed to load template rows");
+      }
+    } catch (err) {
+      console.error("Error loading Gantt data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      if (!silent) {
+        setLoading(false);
+      }
+    }
+  }, [templateId, isStaticMode]);
+
   // Save dependencies
   const saveDependencies = React.useCallback(async () => {
     if (!depEditorTask || !templateId) return;
@@ -763,6 +794,9 @@ export function GanttCanvasView({
       ));
 
       setDepEditorOpen(false);
+
+      // Silent reload to recalculate all dependent task dates (refresh Gantt with new lag values)
+      await loadData(true);
     } catch (err: unknown) {
       console.error('Failed to save dependencies:', err);
 
@@ -779,42 +813,11 @@ export function GanttCanvasView({
         description: errorMessage,
       });
     }
-  }, [depEditorTask, depEditorLinks, templateId, tasks, toast]);
+  }, [depEditorTask, depEditorLinks, templateId, tasks, toast, loadData]);
 
   // Theme
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
-
-  // Load data from API (only when not using static mode)
-  // NOTE: Defined early because handleTaskResize and handleDurationSave depend on it
-  // silent=true skips loading spinner (for background refreshes after edits)
-  const loadData = React.useCallback(async (silent = false) => {
-    if (isStaticMode || !templateId) return;
-
-    try {
-      if (!silent) {
-        setLoading(true);
-      }
-      setError(null);
-
-      const response = await api.get<ApiResponse>(
-        `/api/v1/sm_templates/${templateId}/rows`
-      );
-
-      if (response.success && response.rows) {
-        setRows(response.rows);
-      } else {
-        setError("Failed to load template rows");
-      }
-    } catch (err) {
-      console.error("Error loading Gantt data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load data");
-    } finally {
-      if (!silent) {
-        setLoading(false);
-      }
-    }
-  }, [templateId, isStaticMode]);
 
   // Handle task drag - show cascade dialog if there are successors
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {

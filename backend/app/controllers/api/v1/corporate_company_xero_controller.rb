@@ -1214,18 +1214,28 @@ module Api
 
           client = XeroApiClient.new
 
+          # Build date filter - Xero uses DateTime(year,month,day) format
+          from_parts = from_date.split("-")
+          to_parts = to_date.split("-")
+          date_filter = "BankAccount.AccountID=Guid(\"#{bank_account_id}\") AND Date>=DateTime(#{from_parts[0]},#{from_parts[1].to_i},#{from_parts[2].to_i}) AND Date<=DateTime(#{to_parts[0]},#{to_parts[1].to_i},#{to_parts[2].to_i})"
+
+          Rails.logger.info("[XeroBankTransactions] Fetching for company #{@company.id}, account #{bank_account_id}")
+          Rails.logger.info("[XeroBankTransactions] Date range: #{from_date} to #{to_date}")
+          Rails.logger.info("[XeroBankTransactions] Filter: #{date_filter}")
+
           # Fetch bank transactions from Xero
           result = client.get(
             "BankTransactions",
             tenant_id: connection.xero_tenant_id,
             access_token: connection.access_token,
             params: {
-              where: "BankAccount.AccountID=Guid(\"#{bank_account_id}\") AND Date>=DateTime(#{from_date.gsub("-", ",")}) AND Date<=DateTime(#{to_date.gsub("-", ",")})",
+              where: date_filter,
               order: "Date DESC"
             }
           )
 
           unless result[:success]
+            Rails.logger.error("[XeroBankTransactions] Xero API error: #{result[:error]}")
             return render json: {
               success: false,
               error: result[:error] || "Failed to fetch bank transactions from Xero"
@@ -1233,22 +1243,33 @@ module Api
           end
 
           transactions = result[:data]["BankTransactions"] || []
+          Rails.logger.info("[XeroBankTransactions] Received #{transactions.count} transactions from Xero")
+
+          # Log first transaction for debugging
+          if transactions.any?
+            first_tx = transactions.first
+            Rails.logger.info("[XeroBankTransactions] First transaction date: #{first_tx['Date']}, type: #{first_tx['Type']}, status: #{first_tx['Status']}")
+          end
 
           # Format transactions for display
           formatted_transactions = transactions.map do |tx|
-            # Calculate total amount from line items
-            total = (tx["LineItems"] || []).sum { |li| li["LineAmount"].to_f }
+            # Calculate total amount from line items or use SubTotal
+            total = tx["SubTotal"].to_f
+            if total.zero?
+              total = (tx["LineItems"] || []).sum { |li| li["LineAmount"].to_f }
+            end
             is_spend = tx["Type"] == "SPEND"
 
             {
               transaction_id: tx["BankTransactionID"],
-              date: tx["Date"],
+              date: parse_xero_date(tx["Date"]),
               type: tx["Type"],
               reference: tx["Reference"],
               description: tx["LineItems"]&.first&.dig("Description") || tx["Reference"] || "No description",
               amount: is_spend ? -total.abs : total.abs,
               contact_name: tx["Contact"]&.dig("Name"),
               status: tx["Status"],
+              is_reconciled: tx["IsReconciled"],
               line_items: (tx["LineItems"] || []).map do |li|
                 {
                   description: li["Description"],
@@ -1259,9 +1280,13 @@ module Api
             }
           end
 
+          # Try to get account balance
+          balance_info = fetch_bank_account_balance(client, connection, bank_account_id)
+
           render json: {
             success: true,
             transactions: formatted_transactions,
+            balance: balance_info,
             meta: {
               from_date: from_date,
               to_date: to_date,
@@ -1269,11 +1294,37 @@ module Api
             }
           }
         rescue StandardError => e
-          Rails.logger.error("Failed to fetch Xero bank transactions for company #{@company.id}: #{e.message}")
+          Rails.logger.error("[XeroBankTransactions] Error for company #{@company.id}: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
           render json: {
             success: false,
             error: e.message
           }, status: :internal_server_error
+        end
+      end
+
+      # Helper to fetch bank account balance from Xero
+      def fetch_bank_account_balance(client, connection, bank_account_id)
+        begin
+          # Fetch the account to get balance
+          result = client.get(
+            "Accounts/#{bank_account_id}",
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token
+          )
+
+          if result[:success] && result[:data]["Accounts"]&.any?
+            account = result[:data]["Accounts"].first
+            {
+              xero_balance: account["BankAccountBalance"]&.to_f,
+              statement_balance: account["ReportingCodeBankStatement"]&.to_f || account["BankAccountBalance"]&.to_f
+            }
+          else
+            {}
+          end
+        rescue StandardError => e
+          Rails.logger.warn("[XeroBankTransactions] Could not fetch balance: #{e.message}")
+          {}
         end
       end
 
