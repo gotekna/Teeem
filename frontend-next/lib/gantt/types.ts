@@ -301,8 +301,111 @@ export interface CascadeResolution {
 // ============================================================================
 
 /**
+ * Australian public holidays (Queensland)
+ * Format: MM-DD for recurring, YYYY-MM-DD for specific dates
+ */
+function getAustralianHolidays(year: number): Set<string> {
+  const holidays = new Set<string>();
+
+  // Fixed holidays
+  holidays.add(`${year}-01-01`); // New Year's Day
+  holidays.add(`${year}-01-26`); // Australia Day
+  holidays.add(`${year}-04-25`); // ANZAC Day
+  holidays.add(`${year}-12-25`); // Christmas Day
+  holidays.add(`${year}-12-26`); // Boxing Day
+
+  // Easter dates (approximate - these shift each year)
+  // 2024: March 29 (Good Friday), April 1 (Easter Monday)
+  // 2025: April 18 (Good Friday), April 21 (Easter Monday)
+  if (year === 2024) {
+    holidays.add('2024-03-29'); // Good Friday
+    holidays.add('2024-03-30'); // Easter Saturday
+    holidays.add('2024-04-01'); // Easter Monday
+  } else if (year === 2025) {
+    holidays.add('2025-04-18'); // Good Friday
+    holidays.add('2025-04-19'); // Easter Saturday
+    holidays.add('2025-04-21'); // Easter Monday
+  } else if (year === 2026) {
+    holidays.add('2026-04-03'); // Good Friday
+    holidays.add('2026-04-04'); // Easter Saturday
+    holidays.add('2026-04-06'); // Easter Monday
+  }
+
+  // Queen's Birthday (QLD) - First Monday of October
+  const oct1 = new Date(year, 9, 1);
+  const firstMondayOct = new Date(oct1);
+  firstMondayOct.setDate(1 + ((8 - oct1.getDay()) % 7));
+  holidays.add(firstMondayOct.toISOString().split('T')[0]);
+
+  return holidays;
+}
+
+/**
+ * Check if a date is a weekend (Saturday or Sunday)
+ */
+function isWeekend(date: Date): boolean {
+  const day = date.getDay();
+  return day === 0 || day === 6; // Sunday = 0, Saturday = 6
+}
+
+/**
+ * Check if a date is a holiday
+ */
+function isHoliday(date: Date, holidays: Set<string>): boolean {
+  const dateStr = date.toISOString().split('T')[0];
+  return holidays.has(dateStr);
+}
+
+/**
+ * Add working days to a date (skipping weekends and holidays)
+ */
+export function addWorkingDays(startDate: Date, days: number): Date {
+  const result = new Date(startDate);
+  const holidays = getAustralianHolidays(result.getFullYear());
+
+  let addedDays = 0;
+  while (addedDays < days) {
+    result.setDate(result.getDate() + 1);
+
+    // Check if we crossed into a new year
+    if (result.getMonth() === 0 && result.getDate() === 1) {
+      // Merge in holidays for the new year
+      const newYearHolidays = getAustralianHolidays(result.getFullYear());
+      newYearHolidays.forEach(h => holidays.add(h));
+    }
+
+    if (!isWeekend(result) && !isHoliday(result, holidays)) {
+      addedDays++;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Skip to next working day if current date is weekend/holiday
+ */
+export function skipToNextWorkingDay(date: Date): Date {
+  const result = new Date(date);
+  const holidays = getAustralianHolidays(result.getFullYear());
+
+  while (isWeekend(result) || isHoliday(result, holidays)) {
+    result.setDate(result.getDate() + 1);
+
+    // Check if we crossed into a new year
+    if (result.getMonth() === 0 && result.getDate() === 1) {
+      const newYearHolidays = getAustralianHolidays(result.getFullYear());
+      newYearHolidays.forEach(h => holidays.add(h));
+    }
+  }
+
+  return result;
+}
+
+/**
  * Convert SmTemplateRow to GanttTask
  * Calculates dates based on sequence order and duration
+ * Skips weekends and Australian public holidays
  */
 export function convertRowToTask(
   row: SmTemplateRow,
@@ -314,29 +417,61 @@ export function convertRowToTask(
   let endDate: Date;
 
   if (taskDateMap && row.predecessor_ids?.length > 0) {
-    // Find the latest end date from predecessors
-    let latestEnd = projectStartDate;
+    // Find the latest required start date from all predecessors
+    let latestRequiredStart = projectStartDate;
     for (const pred of row.predecessor_ids) {
       const predDates = taskDateMap.get(pred.id);
       if (predDates) {
-        const predEndWithLag = new Date(predDates.end);
-        predEndWithLag.setDate(predEndWithLag.getDate() + (pred.lag || 0));
-        if (predEndWithLag > latestEnd) {
-          latestEnd = predEndWithLag;
+        const predType = pred.type || 'FS';
+        const lag = pred.lag || 0;
+        let requiredStart: Date;
+
+        switch (predType) {
+          case 'FS': // Finish-to-Start: successor starts after predecessor ends
+            // Start on next working day after predecessor ends
+            requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            break;
+          case 'SS': // Start-to-Start: successor starts when predecessor starts
+            requiredStart = new Date(predDates.start);
+            if (lag > 0) {
+              requiredStart = addWorkingDays(predDates.start, lag);
+            } else {
+              requiredStart = skipToNextWorkingDay(requiredStart);
+            }
+            break;
+          case 'FF': // Finish-to-Finish: handled by end date, start calculated backwards
+          case 'SF': // Start-to-Finish: rare, start calculated backwards
+          default:
+            // For FF/SF, just use predecessor end as reference
+            requiredStart = addWorkingDays(predDates.end, 1 + lag);
+            break;
+        }
+
+        if (requiredStart > latestRequiredStart) {
+          latestRequiredStart = requiredStart;
         }
       }
     }
-    startDate = new Date(latestEnd);
+    startDate = skipToNextWorkingDay(new Date(latestRequiredStart));
   } else {
     // Fallback: use start_day_offset or sequence order * 7 days
     const offsetDays = row.start_day_offset ?? ((row.sequence_order - 1) * 7);
-    startDate = new Date(projectStartDate);
-    startDate.setDate(startDate.getDate() + offsetDays);
+    if (offsetDays === 0) {
+      startDate = skipToNextWorkingDay(new Date(projectStartDate));
+    } else {
+      startDate = addWorkingDays(projectStartDate, offsetDays);
+    }
   }
 
-  // Calculate end date based on duration
-  endDate = new Date(startDate);
-  endDate.setDate(endDate.getDate() + (row.duration_days || 1));
+  // Calculate end date based on duration (in working days)
+  const duration = row.duration_days || 1;
+  if (duration <= 1) {
+    // Same day task
+    endDate = new Date(startDate);
+  } else {
+    // Add working days for duration
+    endDate = addWorkingDays(startDate, duration - 1);
+  }
 
   return {
     id: String(row.id),

@@ -690,7 +690,7 @@ export function GanttCanvasView({
       // Use company timezone for consistent date handling
       const today = getTodayInCompanyTimezone();
       const projectStartDate = new Date(today);
-      projectStartDate.setDate(projectStartDate.getDate() - 7);
+      // First task starts today
       taskList = convertRowsToTasks(rows, projectStartDate);
       dependencies = convertToDependencies(rows);
     }
