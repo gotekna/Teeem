@@ -1010,12 +1010,14 @@ export function GanttCanvasView({
 
     try {
       if (complete) {
-        // Mark as complete: backup deps, clear them, set completed_at to today
+        // Mark as complete: backup deps, clear them, set completed_at to today, move task to today
         const today = new Date().toISOString().split('T')[0];
         await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: true,
             completed_at: today,
+            manual_start_date: today,
+            manually_positioned: true,
             predecessor_ids_backup: row.predecessor_ids || [],
             predecessor_ids: []
           }
@@ -1028,6 +1030,8 @@ export function GanttCanvasView({
                 ...r,
                 is_completed: true,
                 completed_at: today,
+                manual_start_date: today,
+                manually_positioned: true,
                 predecessor_ids_backup: r.predecessor_ids || [],
                 predecessor_ids: []
               }
