@@ -305,7 +305,11 @@ export class Renderer {
       const y = this.viewport.rowToY(index);
       const startX = this.viewport.dateToX(task.startDate);
       const endX = this.viewport.dateToX(task.endDate);
-      const taskWidth = Math.max(endX - startX, 20); // Minimum width
+      // For single-day tasks (same start/end date), fill the full day width
+      // For multi-day tasks, use the actual span
+      const dayWidth = this.viewport.getDayWidth();
+      const calculatedWidth = endX - startX;
+      const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth; // Add 1 day to include end date
 
       // Horizontal virtual scrolling: skip if task is entirely outside visible X range
       if (endX < visibleStartX || startX > visibleEndX) {
@@ -1036,15 +1040,19 @@ export class Renderer {
     let fromX: number;
     let toX: number;
 
-    // Calculate actual visual bar ends (accounting for minimum bar width of 20px)
+    // Calculate actual visual bar ends (using full day width)
+    const dayWidth = this.viewport.getDayWidth();
+
     const fromStartX = this.viewport.dateToX(fromTask.startDate);
     const fromEndX = this.viewport.dateToX(fromTask.endDate);
-    const fromBarWidth = Math.max(fromEndX - fromStartX, 20);
+    const fromCalcWidth = fromEndX - fromStartX;
+    const fromBarWidth = fromCalcWidth < dayWidth ? dayWidth : fromCalcWidth + dayWidth;
     const fromVisualEndX = fromStartX + fromBarWidth;
 
     const toStartX = this.viewport.dateToX(toTask.startDate);
     const toEndX = this.viewport.dateToX(toTask.endDate);
-    const toBarWidth = Math.max(toEndX - toStartX, 20);
+    const toCalcWidth = toEndX - toStartX;
+    const toBarWidth = toCalcWidth < dayWidth ? dayWidth : toCalcWidth + dayWidth;
     const toVisualEndX = toStartX + toBarWidth;
 
     switch (dep.type) {

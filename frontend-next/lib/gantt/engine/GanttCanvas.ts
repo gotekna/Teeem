@@ -387,10 +387,10 @@ const defaultDarkColors: GanttColors = {
 };
 
 const defaultConfig: GanttConfig = {
-  rowHeight: 40,
-  headerHeight: 60,
-  taskBarHeight: 24,
-  taskBarPadding: 8,
+  rowHeight: 28,
+  headerHeight: 50,
+  taskBarHeight: 18,
+  taskBarPadding: 5,
   dayWidth: 40,
   minDayWidth: 10,
   maxDayWidth: 100,
