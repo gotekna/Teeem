@@ -70,6 +70,7 @@ class PurchaseOrder < ApplicationRecord
   }, prefix: :payment
 
   # Callbacks
+  before_create :set_temporary_po_number
   after_create :generate_po_number_from_id
   before_save :calculate_totals
   before_save :calculate_variances
@@ -333,10 +334,19 @@ class PurchaseOrder < ApplicationRecord
 
   private
 
+  # Set a temporary PO number to satisfy NOT NULL constraint
+  # This will be replaced with the ID-based number in after_create
+  def set_temporary_po_number
+    return if purchase_order_number.present?
+
+    # Use SecureRandom to create a unique temp value that satisfies NOT NULL
+    self.purchase_order_number = "PO-TEMP-#{SecureRandom.hex(4)}"
+  end
+
   # Generate PO number from the database ID (SSoT: id = PO number)
   # This ensures PO-002120 always corresponds to id 2120
   def generate_po_number_from_id
-    return if purchase_order_number.present?
+    return unless purchase_order_number&.start_with?("PO-TEMP-")
 
     # Use update_column to skip callbacks and validations (we're in after_create)
     update_column(:purchase_order_number, "PO-#{id.to_s.rjust(6, '0')}")
