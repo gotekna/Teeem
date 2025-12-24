@@ -1077,16 +1077,12 @@ export function GanttCanvasView({
 
     try {
       if (complete) {
-        // Mark as complete: backup deps, clear them, set completed_at to today, move task to today
+        // Mark as complete - keep dependencies intact
         const today = new Date().toISOString().split('T')[0];
         await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: true,
-            completed_at: today,
-            manual_start_date: today,
-            manually_positioned: true,
-            predecessor_ids_backup: row.predecessor_ids || [],
-            predecessor_ids: []
+            completed_at: today
           }
         });
 
@@ -1096,21 +1092,16 @@ export function GanttCanvasView({
             ? {
                 ...r,
                 is_completed: true,
-                completed_at: today,
-                manual_start_date: today,
-                manually_positioned: true,
-                predecessor_ids_backup: r.predecessor_ids || [],
-                predecessor_ids: []
+                completed_at: today
               }
             : r
         ));
       } else {
-        // Uncomplete: restore deps from backup
+        // Uncomplete
         await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: false,
-            completed_at: null,
-            predecessor_ids: row.predecessor_ids_backup || []
+            completed_at: null
           }
         });
 
@@ -1120,8 +1111,7 @@ export function GanttCanvasView({
             ? {
                 ...r,
                 is_completed: false,
-                completed_at: null,
-                predecessor_ids: r.predecessor_ids_backup || []
+                completed_at: null
               }
             : r
         ));

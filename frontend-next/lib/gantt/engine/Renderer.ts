@@ -862,10 +862,14 @@ export class Renderer {
     const barY = y + taskBarPadding;
     const centerY = barY + taskBarHeight / 2;
 
-    // Calculate from point
-    const fromX = fromEdge === 'start'
-      ? this.viewport.dateToX(fromTask.startDate)
-      : this.viewport.dateToX(fromTask.endDate);
+    // Calculate from point - must match where dots are drawn
+    // For 'end', we need to use startX + taskWidth (not just endDate) to match the dot position
+    const startX = this.viewport.dateToX(fromTask.startDate);
+    const endX = this.viewport.dateToX(fromTask.endDate);
+    const dayWidth = this.viewport.getDayWidth();
+    const calculatedWidth = endX - startX;
+    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+    const fromX = fromEdge === 'start' ? startX : startX + taskWidth;
 
     // Draw line with animated dashes
     this.ctx.setLineDash([5, 3]);

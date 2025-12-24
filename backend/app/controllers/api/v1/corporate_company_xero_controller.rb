@@ -1503,19 +1503,21 @@ module Api
           ).count
         end
 
-        # Invoices tab stats
+        # Invoices tab stats - uses ExternalInvoice model with sales_invoices scope
         invoices_count = 0
         if xero_tenant_id.present?
-          invoices_count = WarehouseInvoice.joins(:xero_sync_status)
-            .where(xero_sync_statuses: { tenant_id: xero_tenant_id })
+          invoices_count = ExternalInvoice.xero
+            .sales_invoices
+            .for_tenant(xero_tenant_id)
             .count
         end
 
-        # Bills & POs tab stats
+        # Bills & POs tab stats - uses ExternalInvoice model with bills scope
         bills_count = 0
         if xero_tenant_id.present?
-          bills_count = WarehouseBill.joins(:xero_sync_status)
-            .where(xero_sync_statuses: { tenant_id: xero_tenant_id })
+          bills_count = ExternalInvoice.xero
+            .bills
+            .for_tenant(xero_tenant_id)
             .count
         end
 
