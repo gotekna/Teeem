@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_131854) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_201005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4922,6 +4922,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_131854) do
     t.boolean "notify_on_rollover", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "gantt_column_config", default: {}
   end
 
   create_table "sm_spawn_logs", force: :cascade do |t|

@@ -36,7 +36,7 @@ module Api
       private
 
       def settings_params
-        params.require(:settings).permit(
+        permitted = params.require(:settings).permit(
           :rollover_time,
           :rollover_timezone,
           :rollover_enabled,
@@ -44,6 +44,15 @@ module Api
           :notify_on_supplier_confirm,
           :notify_on_rollover
         )
+
+        # Handle gantt_column_config as arbitrary JSON (array of column configs)
+        if params[:settings][:gantt_column_config].present?
+          permitted[:gantt_column_config] = params[:settings][:gantt_column_config].map do |col|
+            col.permit(:id, :label, :shortLabel, :width, :visible, :align).to_h
+          end
+        end
+
+        permitted
       end
 
       def settings_to_json(settings)
@@ -58,6 +67,7 @@ module Api
           notify_on_hold: settings.notify_on_hold,
           notify_on_supplier_confirm: settings.notify_on_supplier_confirm,
           notify_on_rollover: settings.notify_on_rollover,
+          gantt_column_config: settings.gantt_column_config,
           default_template_id: default_template&.id,
           default_template: default_template&.slice(:id, :name),
           # Computed values

@@ -405,48 +405,93 @@ export function GanttCanvasView({
   // Column configuration state - controls order and visibility
   const [columns, setColumns] = React.useState<ColumnConfig[]>(DEFAULT_COLUMNS);
   const [columnsLoaded, setColumnsLoaded] = React.useState(false);
+  const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Load columns from localStorage on client mount
-  // Merges saved preferences with DEFAULT_COLUMNS to ensure new columns are always included
-  React.useEffect(() => {
-    const saved = localStorage.getItem('gantt-column-config');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge saved preferences with defaults to include new columns
-          const savedIds = new Set(parsed.map((c: ColumnConfig) => c.id));
-          const newColumns = DEFAULT_COLUMNS.filter(c => !savedIds.has(c.id));
+  // Helper: Merge saved columns with defaults (ensures new columns are included)
+  const mergeColumnsWithDefaults = React.useCallback((saved: ColumnConfig[]): ColumnConfig[] => {
+    if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_COLUMNS;
 
-          // Update saved columns with any new properties from defaults
-          const mergedSaved = parsed.map((savedCol: ColumnConfig) => {
-            const defaultCol = DEFAULT_COLUMNS.find(d => d.id === savedCol.id);
-            if (defaultCol) {
-              return { ...defaultCol, visible: savedCol.visible, width: savedCol.width };
-            }
-            return savedCol;
-          });
+    const savedIds = new Set(saved.map((c: ColumnConfig) => c.id));
+    const newColumns = DEFAULT_COLUMNS.filter(c => !savedIds.has(c.id));
 
-          // Append new columns at the end
-          setColumns([...mergedSaved, ...newColumns]);
-        }
-      } catch {
-        // Invalid JSON, use defaults
+    const mergedSaved = saved.map((savedCol: ColumnConfig) => {
+      const defaultCol = DEFAULT_COLUMNS.find(d => d.id === savedCol.id);
+      if (defaultCol) {
+        return { ...defaultCol, visible: savedCol.visible, width: savedCol.width };
       }
-    }
-    setColumnsLoaded(true);
+      return savedCol;
+    });
+
+    return [...mergedSaved, ...newColumns];
   }, []);
+
+  // Load column config from API (with localStorage as cache/fallback)
+  React.useEffect(() => {
+    const loadColumnConfig = async () => {
+      // First, load from localStorage for fast initial render
+      const localSaved = localStorage.getItem('gantt-column-config');
+      if (localSaved) {
+        try {
+          const parsed = JSON.parse(localSaved);
+          setColumns(mergeColumnsWithDefaults(parsed));
+        } catch {
+          // Invalid JSON, continue to API fetch
+        }
+      }
+
+      // Then fetch from API (SSoT)
+      try {
+        const response = await api.get<{ success: boolean; settings: { gantt_column_config?: ColumnConfig[] } }>('/api/v1/sm_settings');
+        if (response.success && response.settings?.gantt_column_config && Array.isArray(response.settings.gantt_column_config) && response.settings.gantt_column_config.length > 0) {
+          const apiColumns = mergeColumnsWithDefaults(response.settings.gantt_column_config);
+          setColumns(apiColumns);
+          // Update localStorage cache
+          localStorage.setItem('gantt-column-config', JSON.stringify(apiColumns));
+        }
+      } catch (error) {
+        console.warn('Failed to load gantt column config from API, using localStorage/defaults:', error);
+      }
+
+      setColumnsLoaded(true);
+    };
+
+    loadColumnConfig();
+  }, [mergeColumnsWithDefaults]);
 
   // Initialize company settings (timezone) on mount
   React.useEffect(() => {
     initCompanySettings();
   }, []);
 
-  // Save columns to localStorage whenever they change (only after initial load)
+  // Save columns to localStorage immediately and to API (debounced)
   React.useEffect(() => {
-    if (columnsLoaded) {
-      localStorage.setItem('gantt-column-config', JSON.stringify(columns));
+    if (!columnsLoaded) return;
+
+    // Save to localStorage immediately for fast feedback
+    localStorage.setItem('gantt-column-config', JSON.stringify(columns));
+
+    // Debounce API save (500ms delay)
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
     }
+
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        await api.patch('/api/v1/sm_settings', {
+          settings: {
+            gantt_column_config: columns
+          }
+        });
+      } catch (error) {
+        console.warn('Failed to save gantt column config to API:', error);
+      }
+    }, 500);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [columns, columnsLoaded]);
 
   // Dependency types

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -9,17 +9,35 @@ import {
   AlertTriangle,
   RefreshCw,
   Landmark,
+  ChevronDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format, isValid } from "date-fns";
 import type { XeroBankAccount, XeroBankTransaction } from "./types";
 
+// Parse Xero's .NET date format: /Date(1738540800000+0000)/
+const parseXeroDate = (dateValue: string | Date | null | undefined): Date | null => {
+  if (!dateValue) return null;
+  if (dateValue instanceof Date) return dateValue;
+
+  // Handle .NET date format: /Date(1738540800000+0000)/
+  const netDateMatch = dateValue.match(/\/Date\((\d+)([+-]\d{4})?\)\//);
+  if (netDateMatch) {
+    const ms = parseInt(netDateMatch[1], 10);
+    return new Date(ms);
+  }
+
+  // Try standard date parsing
+  const date = new Date(dateValue);
+  return isValid(date) ? date : null;
+};
+
 // Safe date formatter
 const safeFormatDate = (dateValue: string | Date | null | undefined, formatStr: string, fallback = "—"): string => {
-  if (!dateValue) return fallback;
-  const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue;
-  return isValid(date) ? format(date, formatStr) : fallback;
+  const date = parseXeroDate(dateValue);
+  if (!date || !isValid(date)) return fallback;
+  return format(date, formatStr);
 };
 
 interface XeroBankAccountsCardProps {
@@ -193,27 +211,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Bank Account Transactions</CardTitle>
-          <div className="flex items-center gap-2">
-            <Input
-              type="date"
-              value={dateRange.from}
-              onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-              className="w-36"
-            />
-            <span className="text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={dateRange.to}
-              onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-              className="w-36"
-            />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {/* Bank Account Tabs */}
         <div className="flex gap-1 mb-4 border-b overflow-x-auto">
           {bankAccounts.map((account) => (
@@ -237,15 +235,50 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
           ))}
         </div>
 
-        {/* Selected Account Info */}
+        {/* Selected Account Header - Xero Style */}
         {selectedAccountDetails && (
-          <div className="flex items-center gap-4 mb-4 p-3 bg-muted/30 rounded-lg">
-            <div>
-              <p className="font-medium">{selectedAccountDetails.name}</p>
-              <p className="text-sm text-muted-foreground">
-                {selectedAccountDetails.bank_account_number || "No account number"}
-                {selectedAccountDetails.code && ` • Code: ${selectedAccountDetails.code}`}
-              </p>
+          <div className="mb-6">
+            {/* Account Name & Number */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-baseline gap-2">
+                <h2 className="text-2xl font-semibold">
+                  {selectedAccountDetails.name}
+                </h2>
+                <span className="text-muted-foreground">
+                  {selectedAccountDetails.bank_account_number || ""}
+                </span>
+              </div>
+              {/* Date Range Picker */}
+              <div className="flex items-center gap-2">
+                <Input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+                  className="w-36"
+                />
+                <span className="text-muted-foreground">to</span>
+                <Input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+                  className="w-36"
+                />
+              </div>
+            </div>
+
+            {/* Balance Info - Xero Style */}
+            <div className="flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-4">
+                <div>
+                  <span className="text-muted-foreground">Statement Balance</span>
+                  <p className="text-lg font-semibold">—</p>
+                </div>
+                <div className="h-8 w-px bg-border" />
+                <div>
+                  <span className="text-muted-foreground">Balance in Xero</span>
+                  <p className="text-lg font-semibold">—</p>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -264,42 +297,58 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="py-2 px-3 text-left font-medium">Date</th>
-                  <th className="py-2 px-3 text-left font-medium">Description</th>
-                  <th className="py-2 px-3 text-left font-medium">Reference</th>
-                  <th className="py-2 px-3 text-left font-medium">Contact</th>
-                  <th className="py-2 px-3 text-right font-medium">Spent</th>
-                  <th className="py-2 px-3 text-right font-medium">Received</th>
-                  <th className="py-2 px-3 text-right font-medium">Balance</th>
+                  <th className="py-2 px-3 text-left font-medium">
+                    <span className="flex items-center gap-1">
+                      Date <ChevronDown className="h-3 w-3 opacity-50" />
+                    </span>
+                  </th>
+                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Description</th>
+                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Reference</th>
+                  <th className="py-2 px-3 text-right font-medium text-blue-600 dark:text-blue-400">Spent</th>
+                  <th className="py-2 px-3 text-right font-medium text-blue-600 dark:text-blue-400">Received</th>
+                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Source</th>
+                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((tx) => {
                   const isSpend = tx.amount < 0;
+                  const isReconciled = tx.status === "AUTHORISED" || tx.status === "RECONCILED";
+                  // Determine source - if it has a bank feed reference it's from bank feed
+                  const source = tx.reference ? "Bank Feed" : "Manual";
+
                   return (
                     <tr key={tx.transaction_id} className="border-b hover:bg-muted/30">
                       <td className="py-2 px-3 whitespace-nowrap">
-                        {safeFormatDate(tx.date, "dd MMM yyyy")}
+                        {safeFormatDate(tx.date, "d MMM yyyy")}
                       </td>
                       <td className="py-2 px-3">
-                        <div className="max-w-xs truncate" title={tx.description}>
-                          {tx.description}
-                        </div>
+                        <span className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer">
+                          {tx.description || "No description"}
+                        </span>
                       </td>
                       <td className="py-2 px-3 text-muted-foreground">
-                        {tx.reference || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-muted-foreground">
-                        {tx.contact_name || "—"}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-red-600">
-                        {isSpend ? formatCurrency(Math.abs(tx.amount)) : ""}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-green-600">
-                        {!isSpend ? formatCurrency(tx.amount) : ""}
+                        {tx.reference || ""}
                       </td>
                       <td className="py-2 px-3 text-right font-mono">
-                        {tx.balance !== undefined ? formatCurrency(tx.balance) : "—"}
+                        {isSpend ? formatCurrency(Math.abs(tx.amount)) : ""}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">
+                        {!isSpend && tx.amount > 0 ? formatCurrency(tx.amount) : ""}
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground text-sm">
+                        {source}
+                      </td>
+                      <td className="py-2 px-3">
+                        {isReconciled ? (
+                          <span className="text-green-600 dark:text-green-400 text-sm">
+                            Reconciled
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">
+                            {tx.status || "Pending"}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );
