@@ -31,6 +31,11 @@ class SmTask < ApplicationRecord
     end
   end
 
+  # Hold notes - returns hold_reason description (used by controller)
+  def hold_notes
+    hold_reason&.description
+  end
+
   # Associations
   belongs_to :job
   alias_method :construction, :job  # Backwards compatibility

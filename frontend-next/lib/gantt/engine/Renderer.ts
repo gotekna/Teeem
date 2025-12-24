@@ -1005,9 +1005,9 @@ export class Renderer {
         // Check if this dependency is on the critical path
         const isCritical = criticalDependencyIds?.has(dep.id);
         if (isCritical) {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, '#ef4444');
+          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, '#ef4444', tasks, from.index, to.index);
         } else {
-          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false);
+          this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
         }
       }
     });
@@ -1032,7 +1032,7 @@ export class Renderer {
       const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
       const color = Renderer.DEPENDENCY_COLORS[colorIndex % Renderer.DEPENDENCY_COLORS.length];
-      this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, color);
+      this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, true, color, tasks, from.index, to.index);
       colorIndex++;
     });
 
@@ -1062,14 +1062,14 @@ export class Renderer {
         this.ctx.shadowBlur = 10 + flashPhase * 10;
 
         // Draw glow path
-        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type);
+        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type, tasks, from.index, to.index);
         this.ctx.stroke();
 
         // Inner line - bright amber
         this.ctx.shadowBlur = 0;
         this.ctx.strokeStyle = '#f59e0b';
         this.ctx.lineWidth = 2 + flashPhase;
-        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type);
+        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type, tasks, from.index, to.index);
         this.ctx.stroke();
 
         // Draw arrowhead
@@ -1187,7 +1187,10 @@ export class Renderer {
     toY: number,
     type: string,
     highlighted: boolean = false,
-    highlightColor?: string
+    highlightColor?: string,
+    tasks?: GanttTask[],
+    fromIndex?: number,
+    toIndex?: number
   ): void {
     const color = highlighted && highlightColor ? highlightColor : '#6b7280';
     const lineWidth = highlighted ? 3 : 1.5;
@@ -1210,45 +1213,56 @@ export class Renderer {
       // Same row - draw straight line
       this.ctx.lineTo(toX, toY);
     } else {
-      // Different rows - use orthogonal routing to avoid going through tasks
-      // This creates an "elbow" pattern: right → down/up → right
-      const horizontalOffset = 15; // How far to go right before dropping down
+      // Different rows - route BELOW all tasks to avoid crossing through task bars
       const rowHeight = this.config.rowHeight;
+      const padding = 8;
+      const goingDown = toY > fromY;
+
+      // Find the rightmost X of truly INTERMEDIATE tasks (between source and target)
+      // Don't include source or target - we exit source immediately and enter target from left
+      let clearanceX = fromX + 15;
+
+      if (tasks && fromIndex !== undefined && toIndex !== undefined) {
+        const minRow = Math.min(fromIndex, toIndex);
+        const maxRow = Math.max(fromIndex, toIndex);
+
+        // Only check truly intermediate rows (exclude both source and target)
+        for (let i = minRow + 1; i < maxRow; i++) {
+          if (i >= 0 && i < tasks.length) {
+            const task = tasks[i];
+            const taskRight = this.viewport.dateToX(task.endDate) + padding;
+            clearanceX = Math.max(clearanceX, taskRight);
+          }
+        }
+      }
+
+      // Route below all tasks: the horizontal segment should be at the BOTTOM
+      // of the lowest row we need to cross (just above the target row gutter)
+      const gutterY = goingDown
+        ? toY - rowHeight * 0.45  // Just above target row (below all intermediate tasks)
+        : toY + rowHeight * 0.45; // Just below target row (above all intermediate tasks)
 
       if (toX > fromX) {
-        // Target is to the right - standard FS routing
-        // Go right first, then down/up, then right to target
-        const midX = fromX + horizontalOffset;
+        // Target is to the right
+        const midX = Math.max(clearanceX, fromX + 15);
 
-        // If there's enough horizontal space, use clean orthogonal routing
-        if (toX - fromX > horizontalOffset * 2) {
-          this.ctx.lineTo(midX, fromY);           // Go right
-          this.ctx.lineTo(midX, toY);             // Go down/up
-          this.ctx.lineTo(toX, toY);              // Go right to target
-        } else {
-          // Tight space - drop below/above the row first
-          const verticalOffset = toY > fromY ? rowHeight / 2 : -rowHeight / 2;
-          const midY = fromY + verticalOffset;
-
-          this.ctx.lineTo(midX, fromY);           // Go right
-          this.ctx.lineTo(midX, midY);            // Go partially down/up
-          this.ctx.lineTo(toX - horizontalOffset, midY);  // Go horizontally
-          this.ctx.lineTo(toX - horizontalOffset, toY);   // Go rest of way vertically
-          this.ctx.lineTo(toX, toY);              // Enter target
-        }
+        // Route: exit right → drop all the way to gutter near target → go right → enter target
+        this.ctx.lineTo(fromX + 15, fromY);     // Exit right a bit
+        this.ctx.lineTo(fromX + 15, gutterY);   // Drop all the way down to gutter near target
+        this.ctx.lineTo(midX, gutterY);         // Go right in gutter past all tasks
+        this.ctx.lineTo(midX, toY);             // Rise up to target row
+        this.ctx.lineTo(toX, toY);              // Enter target
       } else {
         // Target is to the left (backwards dependency)
-        // Need to route around: right, down past source row, left, down to target, right
-        const rightOffset = horizontalOffset;
-        const dropY = toY > fromY
-          ? fromY + rowHeight / 2 + (rowHeight * 0.3)  // Go below source row
-          : fromY - rowHeight / 2 - (rowHeight * 0.3); // Go above source row
+        const rightOffset = Math.max(clearanceX - fromX, 15);
 
-        this.ctx.lineTo(fromX + rightOffset, fromY);    // Exit right
-        this.ctx.lineTo(fromX + rightOffset, dropY);    // Drop down/up past row
-        this.ctx.lineTo(toX - rightOffset, dropY);      // Go left
-        this.ctx.lineTo(toX - rightOffset, toY);        // Go to target row
-        this.ctx.lineTo(toX, toY);                      // Enter target
+        this.ctx.lineTo(fromX + 15, fromY);       // Exit right
+        this.ctx.lineTo(fromX + 15, gutterY);     // Drop to gutter
+        this.ctx.lineTo(fromX + rightOffset, gutterY);  // Go right in gutter
+        this.ctx.lineTo(fromX + rightOffset, gutterY);  // Stay in gutter
+        this.ctx.lineTo(toX - 15, gutterY);       // Go left in gutter
+        this.ctx.lineTo(toX - 15, toY);           // Rise to target row
+        this.ctx.lineTo(toX, toY);                // Enter target
       }
     }
 
@@ -1340,10 +1354,11 @@ export class Renderer {
     fromY: number,
     toX: number,
     toY: number,
-    type: string
+    type: string,
+    tasks?: GanttTask[],
+    fromIndex?: number,
+    toIndex?: number
   ): void {
-    const controlOffset = 20;
-
     this.ctx.beginPath();
     this.ctx.moveTo(fromX, fromY);
 
@@ -1351,15 +1366,51 @@ export class Renderer {
       // Same row - draw straight line
       this.ctx.lineTo(toX, toY);
     } else {
-      // Different rows - draw bezier curve
-      this.ctx.bezierCurveTo(
-        fromX + controlOffset,
-        fromY,
-        toX - controlOffset,
-        toY,
-        toX,
-        toY
-      );
+      // Different rows - route BELOW all tasks to avoid crossing through task bars
+      const rowHeight = this.config.rowHeight;
+      const padding = 8;
+      const goingDown = toY > fromY;
+
+      // Find the rightmost X of truly INTERMEDIATE tasks (between source and target)
+      let clearanceX = fromX + 15;
+
+      if (tasks && fromIndex !== undefined && toIndex !== undefined) {
+        const minRow = Math.min(fromIndex, toIndex);
+        const maxRow = Math.max(fromIndex, toIndex);
+
+        // Only check truly intermediate rows (exclude both source and target)
+        for (let i = minRow + 1; i < maxRow; i++) {
+          if (i >= 0 && i < tasks.length) {
+            const task = tasks[i];
+            const taskRight = this.viewport.dateToX(task.endDate) + padding;
+            clearanceX = Math.max(clearanceX, taskRight);
+          }
+        }
+      }
+
+      // Route below all tasks: horizontal segment at the BOTTOM of the path
+      const gutterY = goingDown
+        ? toY - rowHeight * 0.45
+        : toY + rowHeight * 0.45;
+
+      if (toX > fromX) {
+        const midX = Math.max(clearanceX, fromX + 15);
+
+        this.ctx.lineTo(fromX + 15, fromY);
+        this.ctx.lineTo(fromX + 15, gutterY);
+        this.ctx.lineTo(midX, gutterY);
+        this.ctx.lineTo(midX, toY);
+        this.ctx.lineTo(toX, toY);
+      } else {
+        const rightOffset = Math.max(clearanceX - fromX, 15);
+
+        this.ctx.lineTo(fromX + 15, fromY);
+        this.ctx.lineTo(fromX + 15, gutterY);
+        this.ctx.lineTo(fromX + rightOffset, gutterY);
+        this.ctx.lineTo(toX - 15, gutterY);
+        this.ctx.lineTo(toX - 15, toY);
+        this.ctx.lineTo(toX, toY);
+      }
     }
   }
 
