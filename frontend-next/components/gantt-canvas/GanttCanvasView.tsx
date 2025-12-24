@@ -1032,6 +1032,12 @@ export function GanttCanvasView({
     gantt.setTasks(taskList);
     gantt.setDependencies(dependencies);
 
+    // Disable snap-to-working-day for templates
+    // Templates use relative day offsets, not calendar dates
+    if (templateId && !isStaticMode) {
+      gantt.setSnapConfig({ snapToWorkingDay: false });
+    }
+
     // Set event handlers
     if (onTaskClick) {
       gantt.onTaskClickHandler(onTaskClick);

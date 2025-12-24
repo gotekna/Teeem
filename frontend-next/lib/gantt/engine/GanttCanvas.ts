@@ -2938,6 +2938,11 @@ export class GanttCanvas {
           let newEnd = new Date(this.resizeOriginalEnd);
           newEnd.setDate(newEnd.getDate() + daysDelta);
           newEnd.setHours(0, 0, 0, 0);
+          console.log('[GanttCanvas resize right]', {
+            originalEnd: this.resizeOriginalEnd?.toISOString(),
+            daysDelta,
+            newEndBeforeSnap: newEnd.toISOString()
+          });
           newEnd = this.snapToWorkingDay(newEnd, daysDelta >= 0);
 
           // Don't allow end to go before start (minimum 0-day duration = same day)
@@ -3575,7 +3580,19 @@ export class GanttCanvas {
    * @param forward - If true, snap forward to next working day; if false, snap backward
    */
   private snapToWorkingDay(date: Date, forward: boolean = true): Date {
-    return this.calendar.snapToWorkingDay(date, forward);
+    // Respect snapConfig - if snapToWorkingDay is disabled, return date unchanged
+    console.log('[GanttCanvas snapToWorkingDay]', {
+      input: date.toISOString(),
+      forward,
+      snapEnabled: this.snapConfig.snapToWorkingDay
+    });
+    if (!this.snapConfig.snapToWorkingDay) {
+      console.log('[GanttCanvas snapToWorkingDay] Snap DISABLED, returning unchanged');
+      return date;
+    }
+    const result = this.calendar.snapToWorkingDay(date, forward);
+    console.log('[GanttCanvas snapToWorkingDay] Snapped to:', result.toISOString());
+    return result;
   }
 
   private hitTest(x: number, y: number): GanttTask | null {

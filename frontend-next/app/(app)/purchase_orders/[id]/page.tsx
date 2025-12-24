@@ -29,6 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   ArrowLeft,
   DollarSign,
@@ -102,6 +103,11 @@ interface SmTask {
   sm_template_row_id: number;
 }
 
+// ComboboxDropdown item type for tasks
+interface TaskComboboxItem extends ComboboxItem {
+  sm_template_row_id: number;
+}
+
 interface PurchaseOrder {
   id: number;
   purchase_order_number: string;
@@ -171,9 +177,8 @@ export default function PurchaseOrderDetailPage() {
   const [supplierOpen, setSupplierOpen] = useState(false);
 
   // Local SmTasks for this job (for task/description lookup)
-  const [smTasks, setSmTasks] = useState<SmTask[]>([]);
+  const [taskItems, setTaskItems] = useState<TaskComboboxItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  const [descriptionOpen, setDescriptionOpen] = useState(false);
 
   // Pricebook items for line item code selection
   const [pricebookItems, setPricebookItems] = useState<PricebookItem[]>([]);
@@ -235,6 +240,13 @@ export default function PurchaseOrderDetailPage() {
 
     return () => clearTimeout(timer);
   }, [pricebookSearch, pricebookOpenFor]);
+
+  // Load SmTasks when purchaseOrder is loaded (for task dropdown)
+  useEffect(() => {
+    if (purchaseOrder?.job_id) {
+      loadSmTasks();
+    }
+  }, [purchaseOrder?.job_id]);
 
   const loadPurchaseOrder = async () => {
     try {
@@ -304,12 +316,18 @@ export default function PurchaseOrderDetailPage() {
   // Load local SmTasks for this job (for task/description lookup)
   const loadSmTasks = async () => {
     if (!purchaseOrder?.job_id) return;
-    if (smTasks.length > 0) return;
+    if (taskItems.length > 0) return;
     try {
       setLoadingTasks(true);
       // Fetch SmTasks for this specific job (LOCAL schedule master)
       const response = await api.get<{ tasks: SmTask[] }>(`/api/v1/sm_tasks?job_id=${purchaseOrder.job_id}`);
-      setSmTasks(response?.tasks || []);
+      // Convert to ComboboxItem format
+      const items: TaskComboboxItem[] = (response?.tasks || []).map((task) => ({
+        id: String(task.sm_template_row_id), // Use sm_template_row_id as the key for matching
+        label: task.name,
+        sm_template_row_id: task.sm_template_row_id,
+      }));
+      setTaskItems(items);
     } catch (err) {
       console.error("Failed to load SmTasks:", err);
     } finally {
@@ -597,61 +615,20 @@ export default function PurchaseOrderDetailPage() {
               {purchaseOrder.purchase_order_number}
             </h1>
             <span className="text-muted-foreground">-</span>
-            <Popover
-              open={descriptionOpen}
-              onOpenChange={(open) => {
-                setDescriptionOpen(open);
-                if (open) loadSmTasks();
-              }}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  role="combobox"
-                  aria-expanded={descriptionOpen}
-                  className="text-xl font-semibold min-w-[200px] justify-between px-2"
-                  disabled={loadingTasks}
-                >
-                  {loadingTasks ? (
-                    <span className="text-muted-foreground">Loading...</span>
-                  ) : description ? (
-                    description
-                  ) : (
-                    <span className="text-muted-foreground">Select task...</span>
-                  )}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[350px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search tasks..." />
-                  <CommandList>
-                    <CommandEmpty>No task found.</CommandEmpty>
-                    <CommandGroup>
-                      {smTasks.map((task) => (
-                        <CommandItem
-                          key={task.id}
-                          value={task.name}
-                          onSelect={() => {
-                            setDescription(task.name);
-                            setSmTemplateRowId(task.sm_template_row_id); // SSoT link
-                            setDescriptionOpen(false);
-                          }}
-                        >
-                          <Check
-                            className={cn(
-                              "mr-2 h-4 w-4",
-                              smTemplateRowId === task.sm_template_row_id ? "opacity-100" : "opacity-0"
-                            )}
-                          />
-                          {task.name}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+            <div className="min-w-[300px]">
+              <ComboboxDropdown<TaskComboboxItem>
+                items={taskItems}
+                selectedItem={taskItems.find((t) => t.sm_template_row_id === smTemplateRowId)}
+                onSelect={(item) => {
+                  setDescription(item.label);
+                  setSmTemplateRowId(item.sm_template_row_id); // SSoT link
+                }}
+                placeholder="Search tasks..."
+                isLoading={loadingTasks}
+                emptyResults="No task found"
+                popoverProps={{ className: "w-[350px]" }}
+              />
+            </div>
             {purchaseOrder.job && (
               <>
                 <span className="text-muted-foreground">-</span>
