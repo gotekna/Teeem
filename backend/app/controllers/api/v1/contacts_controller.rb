@@ -229,9 +229,9 @@ module Api
             next unless contact
 
             # Get employees via primary_company relationship
-            employee_names = contact.employees.active.limit(10).pluck(:display_name).compact
+            employee_names = contact.employees.limit(10).pluck(:display_name).compact
             contact_json["employee_names"] = employee_names
-            contact_json["employee_count"] = contact.employees.active.count
+            contact_json["employee_count"] = contact.employees.count
           end
         end
 
