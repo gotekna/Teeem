@@ -2815,7 +2815,10 @@ export class GanttCanvas {
 
       // Only trigger if date actually changed
       if (originalDate.getTime() !== newDate.getTime()) {
+        console.log('[GanttCanvas] Calling onTaskDrag handler for', this.dragTask.name);
         this.onTaskDrag?.(this.dragTask, newDate);
+      } else {
+        console.log('[GanttCanvas] No date change, skipping onTaskDrag');
       }
 
       this.isDragging = false;
@@ -2954,12 +2957,10 @@ export class GanttCanvas {
     // Handle drag in progress
     if (this.dragTask && this.dragStartDate) {
       const deltaX = e.offsetX - this.dragStartX;
-      console.log('[GanttCanvas] drag in progress:', { deltaX, threshold: this.dragThreshold, isDragging: this.isDragging });
 
       // Check if we've crossed the drag threshold
       if (!this.isDragging && Math.abs(deltaX) > this.dragThreshold) {
         this.isDragging = true;
-        console.log('[GanttCanvas] drag STARTED!');
         this.canvas.style.cursor = 'grabbing';
         // Anti-flicker: We DON'T suppress during drag preview - we want smooth visual feedback
         // Suppression is used during cascade calculations when many tasks update at once
@@ -3586,6 +3587,16 @@ export class GanttCanvas {
 
     // Use SpatialIndex for O(1) hit testing
     const hits = this.spatialIndex.queryPoint(world.x, world.y);
+
+    // Debug logging
+    console.log('[GanttCanvas hitTest]', {
+      screen: { x, y },
+      world,
+      hits: hits.length,
+      firstTask: this.state.tasks[0] ? { id: this.state.tasks[0].id, name: this.state.tasks[0].name } : null,
+      taskCount: this.state.tasks.length
+    });
+
     if (hits.length > 0) {
       const taskId = hits[0];
       return this.state.tasks.find(t => t.id === taskId) || null;

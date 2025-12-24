@@ -94,11 +94,12 @@ interface Job {
   } | null;
 }
 
-interface SmTemplateRow {
+interface SmTask {
   id: number;
   name: string;
   task_number: number;
   sequence_order: number;
+  sm_template_row_id: number;
 }
 
 interface PurchaseOrder {
@@ -119,6 +120,7 @@ interface PurchaseOrder {
   job?: Job;
   job_id?: number;
   line_items: LineItem[];
+  sm_template_row_id?: number; // SSoT link to Schedule Master
 }
 
 const STATUS_OPTIONS = [
@@ -168,9 +170,9 @@ export default function PurchaseOrderDetailPage() {
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
 
-  // SM template rows for task/description lookup (from SM_templates)
-  const [smTemplateRows, setSmTemplateRows] = useState<SmTemplateRow[]>([]);
-  const [loadingTemplateRows, setLoadingTemplateRows] = useState(false);
+  // Local SmTasks for this job (for task/description lookup)
+  const [smTasks, setSmTasks] = useState<SmTask[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
 
   // Pricebook items for line item code selection
@@ -181,6 +183,7 @@ export default function PurchaseOrderDetailPage() {
 
   // Editable fields
   const [description, setDescription] = useState("");
+  const [smTemplateRowId, setSmTemplateRowId] = useState<number | null>(null); // SSoT link
   const [status, setStatus] = useState("draft");
   const [budget, setBudget] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
@@ -192,6 +195,7 @@ export default function PurchaseOrderDetailPage() {
   // Original state for change tracking
   const [originalState, setOriginalState] = useState<{
     description: string;
+    smTemplateRowId: number | null;
     status: string;
     budget: string;
     requiredDate: string;
@@ -240,6 +244,7 @@ export default function PurchaseOrderDetailPage() {
 
       // Initialize editable fields
       const desc = response.description || "";
+      const templateRowId = response.sm_template_row_id || null;
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       const reqDate = response.required_date || "";
@@ -253,6 +258,7 @@ export default function PurchaseOrderDetailPage() {
       const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
 
       setDescription(desc);
+      setSmTemplateRowId(templateRowId);
       setStatus(stat);
       setBudget(budg);
       setRequiredDate(reqDate);
@@ -264,6 +270,7 @@ export default function PurchaseOrderDetailPage() {
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
+        smTemplateRowId: templateRowId,
         status: stat,
         budget: budg,
         requiredDate: reqDate,
@@ -294,18 +301,19 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Load SM template rows for task/description lookup (from SM_templates)
-  const loadSmTemplateRows = async () => {
-    if (smTemplateRows.length > 0) return;
+  // Load local SmTasks for this job (for task/description lookup)
+  const loadSmTasks = async () => {
+    if (!purchaseOrder?.job_id) return;
+    if (smTasks.length > 0) return;
     try {
-      setLoadingTemplateRows(true);
-      // Fetch the default SM template with its rows
-      const response = await api.get<{ sm_template: { rows: SmTemplateRow[] } }>("/api/v1/sm_templates/default");
-      setSmTemplateRows(response?.sm_template?.rows || []);
+      setLoadingTasks(true);
+      // Fetch SmTasks for this specific job (LOCAL schedule master)
+      const response = await api.get<{ entries: SmTask[] }>(`/api/v1/sm_tasks?job_id=${purchaseOrder.job_id}`);
+      setSmTasks(response?.entries || []);
     } catch (err) {
-      console.error("Failed to load SM template rows:", err);
+      console.error("Failed to load SmTasks:", err);
     } finally {
-      setLoadingTemplateRows(false);
+      setLoadingTasks(false);
     }
   };
 
@@ -342,6 +350,7 @@ export default function PurchaseOrderDetailPage() {
       const updateData = {
         purchase_order: {
           description,
+          sm_template_row_id: smTemplateRowId,
           status,
           budget: budget ? parseFloat(budget) : null,
           required_date: requiredDate || null,
@@ -372,6 +381,7 @@ export default function PurchaseOrderDetailPage() {
 
       // Initialize editable fields
       const desc = response.description || "";
+      const templateRowId = response.sm_template_row_id || null;
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       const reqDate = response.required_date || "";
@@ -385,6 +395,7 @@ export default function PurchaseOrderDetailPage() {
       const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
 
       setDescription(desc);
+      setSmTemplateRowId(templateRowId);
       setStatus(stat);
       setBudget(budg);
       setRequiredDate(reqDate);
@@ -396,6 +407,7 @@ export default function PurchaseOrderDetailPage() {
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
+        smTemplateRowId: templateRowId,
         status: stat,
         budget: budg,
         requiredDate: reqDate,
@@ -419,6 +431,7 @@ export default function PurchaseOrderDetailPage() {
     // Compare simple fields
     if (
       description !== originalState.description ||
+      smTemplateRowId !== originalState.smTemplateRowId ||
       status !== originalState.status ||
       budget !== originalState.budget ||
       requiredDate !== originalState.requiredDate ||
@@ -455,6 +468,7 @@ export default function PurchaseOrderDetailPage() {
     return false;
   }, [
     description,
+    smTemplateRowId,
     status,
     budget,
     requiredDate,
@@ -470,6 +484,7 @@ export default function PurchaseOrderDetailPage() {
     if (!originalState) return;
 
     setDescription(originalState.description);
+    setSmTemplateRowId(originalState.smTemplateRowId);
     setStatus(originalState.status);
     setBudget(originalState.budget);
     setRequiredDate(originalState.requiredDate);
@@ -586,7 +601,7 @@ export default function PurchaseOrderDetailPage() {
               open={descriptionOpen}
               onOpenChange={(open) => {
                 setDescriptionOpen(open);
-                if (open) loadSmTemplateRows();
+                if (open) loadSmTasks();
               }}
             >
               <PopoverTrigger asChild>
@@ -595,9 +610,9 @@ export default function PurchaseOrderDetailPage() {
                   role="combobox"
                   aria-expanded={descriptionOpen}
                   className="text-xl font-semibold min-w-[200px] justify-between px-2"
-                  disabled={loadingTemplateRows}
+                  disabled={loadingTasks}
                 >
-                  {loadingTemplateRows ? (
+                  {loadingTasks ? (
                     <span className="text-muted-foreground">Loading...</span>
                   ) : description ? (
                     description
@@ -613,22 +628,23 @@ export default function PurchaseOrderDetailPage() {
                   <CommandList>
                     <CommandEmpty>No task found.</CommandEmpty>
                     <CommandGroup>
-                      {smTemplateRows.map((row) => (
+                      {smTasks.map((task) => (
                         <CommandItem
-                          key={row.id}
-                          value={row.name}
+                          key={task.id}
+                          value={task.name}
                           onSelect={() => {
-                            setDescription(row.name);
+                            setDescription(task.name);
+                            setSmTemplateRowId(task.sm_template_row_id); // SSoT link
                             setDescriptionOpen(false);
                           }}
                         >
                           <Check
                             className={cn(
                               "mr-2 h-4 w-4",
-                              description === row.name ? "opacity-100" : "opacity-0"
+                              smTemplateRowId === task.sm_template_row_id ? "opacity-100" : "opacity-0"
                             )}
                           />
-                          {row.name}
+                          {task.name}
                         </CommandItem>
                       ))}
                     </CommandGroup>

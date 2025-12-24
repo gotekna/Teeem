@@ -241,6 +241,12 @@ export function GanttCanvasView({
   const sidebarRef = React.useRef<HTMLDivElement>(null);
   const ganttRef = React.useRef<GanttCanvas | null>(null);
 
+  // Ref for templateId to use in handlers (avoids stale closure issues)
+  const templateIdRef = React.useRef(templateId);
+  React.useEffect(() => {
+    templateIdRef.current = templateId;
+  }, [templateId]);
+
   // Determine if we're using static mode
   const isStaticMode = Boolean(staticTasks);
 
@@ -710,18 +716,25 @@ export function GanttCanvasView({
 
   // Handle task drag - save manual position
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
+    // Use ref to get current templateId (avoids stale closure)
+    const currentTemplateId = templateIdRef.current;
+    console.log('[GanttCanvasView] handleTaskDrag called', { taskId: task.id, taskName: task.name, newStartDate, templateId: currentTemplateId, isStaticMode });
+
     // Call external handler if provided
     onTaskDrag?.(task, newStartDate);
 
     // Skip API save in static mode
-    if (isStaticMode || !templateId) return;
+    if (isStaticMode || !currentTemplateId) {
+      console.log('[GanttCanvasView] Skipping API save - isStaticMode:', isStaticMode, 'templateId:', currentTemplateId);
+      return;
+    }
 
     try {
       // Format date as YYYY-MM-DD
       const dateStr = newStartDate.toISOString().split('T')[0];
 
       // Save manual position to API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_templates/${currentTemplateId}/rows/${task.id}`, {
         row: {
           manually_positioned: true,
           manual_start_date: dateStr
@@ -980,16 +993,46 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode]);
 
-  // Initialize canvas engine (only once on mount)
+  // Initialize canvas engine - recreated when data changes
+  // Note: Using rows in dependencies causes recreation, but this is needed for proper handler binding
   React.useEffect(() => {
     if (!containerRef.current || loading || error) return;
-    // Skip if canvas already exists
-    if (ganttRef.current) return;
+
+    // Get tasks and dependencies based on mode
+    let taskList: GanttTask[];
+    let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
+
+    if (isStaticMode && staticTasks) {
+      // Static mode - use provided data directly
+      taskList = staticTasks;
+      dependencies = (staticDependencies || []).map((d, i) => ({
+        id: `dep-${i}`,
+        fromId: d.fromId,
+        toId: d.toId,
+        type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
+        lag: 0,
+      }));
+    } else {
+      // API mode - convert rows to tasks
+      // Use company timezone for consistent date handling
+      const today = getTodayInCompanyTimezone();
+      const projectStartDate = new Date(today);
+      // First task starts today
+      taskList = convertRowsToTasks(rows, projectStartDate);
+      dependencies = convertToDependencies(rows);
+    }
+
+    // Store tasks for sidebar
+    setTasks(taskList);
 
     // Create canvas instance
     const gantt = new GanttCanvas(containerRef.current, {
       darkMode: isDarkMode,
     });
+
+    // Set data
+    gantt.setTasks(taskList);
+    gantt.setDependencies(dependencies);
 
     // Set event handlers
     if (onTaskClick) {
@@ -1025,44 +1068,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error]); // Only re-create on initial load
-
-  // Update tasks/dependencies when data changes (separate from canvas creation)
-  React.useEffect(() => {
-    if (!ganttRef.current) return;
-
-    // Get tasks and dependencies based on mode
-    let taskList: GanttTask[];
-    let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
-
-    if (isStaticMode && staticTasks) {
-      // Static mode - use provided data directly
-      taskList = staticTasks;
-      dependencies = (staticDependencies || []).map((d, i) => ({
-        id: `dep-${i}`,
-        fromId: d.fromId,
-        toId: d.toId,
-        type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
-        lag: 0,
-      }));
-    } else {
-      // API mode - convert rows to tasks
-      // Use company timezone for consistent date handling
-      const today = getTodayInCompanyTimezone();
-      const projectStartDate = new Date(today);
-      // First task starts today
-      taskList = convertRowsToTasks(rows, projectStartDate);
-      dependencies = convertToDependencies(rows);
-    }
-
-    // Store tasks for sidebar
-    setTasks(taskList);
-
-    // Update canvas with new data (no recreation)
-    ganttRef.current.setTasks(taskList);
-    ganttRef.current.setDependencies(dependencies);
-  }, [rows, staticTasks, staticDependencies, isStaticMode]);
+  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {
