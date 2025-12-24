@@ -1785,6 +1785,8 @@ Rails.application.routes.draw do
         get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
         # Tab stats (counts for badges on Xero sub-tabs)
         get "xero/tab_stats", to: "corporate_company_xero#tab_stats"
+        # Xero health dashboard (detailed sync status, locked date, etc.)
+        get "xero/health", to: "corporate_company_xero#health"
 
         # PDF Financial Reports (Gold Standard tables)
         resources :profit_loss_reports, only: [ :index, :show ] do

@@ -39,6 +39,8 @@ export { XeroConnectionCard } from './XeroConnectionCard';
 
 // Overview & Status Components
 export { XeroOverviewCard } from './XeroOverviewCard';
+export { XeroHealthDashboard } from './XeroHealthDashboard';
+export { XeroConnectionWithHealth } from './XeroConnectionWithHealth';
 
 // Financial Data Components
 export { XeroAccountsCard } from './XeroAccountsCard';

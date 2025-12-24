@@ -39,7 +39,9 @@ export const TAB_COMPONENTS: Record<string, LazyTabComponent> = {
   // Connection & Overview
   "XeroConnectionCard": lazy(() => import("@/components/xero/XeroConnectionCard")),
   "XeroConnectionStatus": lazy(() => import("@/components/xero/XeroConnectionCard")), // Alias
+  "XeroConnectionWithHealth": lazy(() => import("@/components/xero/XeroConnectionWithHealth")), // Connection + Health Dashboard
   "XeroOverviewCard": lazy(() => import("@/components/xero/XeroOverviewCard")),
+  "XeroHealthDashboard": lazy(() => import("@/components/xero/XeroHealthDashboard")), // Standalone health dashboard
   "XeroTab": lazy(() => import("@/components/xero/XeroOverviewCard")), // Alias for legacy name
 
   // Accounts

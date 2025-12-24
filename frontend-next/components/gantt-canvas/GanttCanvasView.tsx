@@ -146,8 +146,8 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'progress', label: 'Progress', shortLabel: '%', width: 50, visible: true, align: 'center' },
   { id: 'status', label: 'Status', width: 80, visible: true, align: 'left' },
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
-  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: false, align: 'center' },
-  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: false, align: 'center' },
+  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: true, align: 'center' },
+  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: true, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
   { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
   { id: 'complete', label: 'Done', shortLabel: '✓', width: 28, visible: true, align: 'center' },
@@ -770,30 +770,66 @@ export function GanttCanvasView({
       return;
     }
 
-    // Find all successors (tasks that depend on this task)
+    // Find all successors RECURSIVELY (entire dependency tree to the end)
     const row = rows.find(r => String(r.id) === task.id);
     if (!row) return;
 
+    // Recursive function to find all successors down the entire tree
+    const findAllSuccessorsRecursive = (taskNumber: string, visited: Set<number> = new Set()): typeof rows => {
+      const directSuccessors = rows.filter(r =>
+        r.predecessor_ids?.some(p => p.id === taskNumber) && !visited.has(r.id)
+      );
+
+      let allDescendants = [...directSuccessors];
+
+      // Mark these as visited to avoid infinite loops
+      directSuccessors.forEach(s => visited.add(s.id));
+
+      // Recursively find successors of successors (to the end of the schedule)
+      directSuccessors.forEach(successor => {
+        const childSuccessors = findAllSuccessorsRecursive(successor.task_number, visited);
+        allDescendants = [...allDescendants, ...childSuccessors];
+      });
+
+      return allDescendants;
+    };
+
+    // Find direct successors
     const taskTaskNumber = row.task_number;
-    const allSuccessors = rows.filter(r =>
+    const directSuccessors = rows.filter(r =>
       r.predecessor_ids?.some(p => p.id === taskTaskNumber)
     );
 
+    // For each direct successor, find ALL their downstream successors (to the end)
+    const visited = new Set<number>();
+    directSuccessors.forEach(s => visited.add(s.id));
+
+    // Build successor info with downstream data
+    const successorInfo = directSuccessors.map(s => {
+      const downstreamSuccessors = findAllSuccessorsRecursive(s.task_number, new Set(visited));
+      return {
+        ...s,
+        downstreamCount: downstreamSuccessors.length,
+        downstreamTasks: downstreamSuccessors.slice(0, 10), // Show first 10
+        hasMoreDownstream: downstreamSuccessors.length > 10
+      };
+    });
+
     // Categorize successors
-    const lockedSuccessors = allSuccessors.filter(s =>
+    const lockedSuccessors = successorInfo.filter(s =>
       s.require_supervisor_check || s.require_supplier_confirm || s.is_completed
     );
-    const unlockedSuccessors = allSuccessors.filter(s =>
+    const unlockedSuccessors = successorInfo.filter(s =>
       !s.require_supervisor_check && !s.require_supplier_confirm && !s.is_completed
     );
 
     // If there are successors, show the cascade dialog
-    if (allSuccessors.length > 0) {
+    if (successorInfo.length > 0) {
       setCascadeDialog({
         isOpen: true,
         task,
         newStartDate,
-        successors: allSuccessors,
+        successors: successorInfo,
         lockedSuccessors,
         unlockedSuccessors
       });
@@ -1232,7 +1268,7 @@ export function GanttCanvasView({
   // Find all successors of a task (tasks that have this task as a predecessor)
   const findSuccessors = React.useCallback((taskTaskNumber: string): SmTemplateRow[] => {
     return rows.filter(r =>
-      r.predecessor_ids?.some(p => p.id === taskTaskNumber)
+      r.predecessor_ids?.some(p => String(p.id) === taskTaskNumber)
     );
   }, [rows]);
 
@@ -1244,7 +1280,7 @@ export function GanttCanvasView({
     if (!row) return;
 
     // Find affected successors
-    const successors = findSuccessors(row.task_number);
+    const successors = findSuccessors(String(row.task_number));
 
     console.log('🔒 CONFIRM TOGGLE:', {
       task: task.name,
@@ -1274,7 +1310,7 @@ export function GanttCanvasView({
     if (!row) return;
 
     // Find affected successors
-    const successors = findSuccessors(row.task_number);
+    const successors = findSuccessors(String(row.task_number));
 
     console.log('🔒 SUPPLIER CONFIRM TOGGLE:', {
       task: task.name,
@@ -2257,47 +2293,159 @@ export function GanttCanvasView({
               {/* Unlocked successors - will cascade */}
               {cascadeDialog.unlockedSuccessors.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                  <div className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
                     Will Cascade ({cascadeDialog.unlockedSuccessors.length}):
-                  </p>
-                  <ul className="mt-1 text-xs text-green-600 dark:text-green-400 space-y-0.5 ml-3">
-                    {cascadeDialog.unlockedSuccessors.slice(0, 5).map(s => (
-                      <li key={s.id}>• #{s.task_number} {s.name}</li>
+                  </div>
+                  <div className="mt-2 space-y-2 ml-3">
+                    {cascadeDialog.unlockedSuccessors.map(s => (
+                      <div key={s.id} className="p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
+                        <div className="flex items-center gap-2 text-xs">
+                          <input
+                            type="checkbox"
+                            defaultChecked={true}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          />
+                          <span className="font-medium">#{s.task_number} {s.name}</span>
+                          {s.downstreamCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300">
+                              +{s.downstreamCount} downstream
+                            </span>
+                          )}
+                        </div>
+                        {s.downstreamCount > 0 && (
+                          <div className="mt-1 ml-5 text-[10px] text-green-600 dark:text-green-400">
+                            {s.downstreamTasks?.slice(0, 3).map((dt: any) => (
+                              <span key={dt.id} className="mr-2">→ #{dt.task_number}</span>
+                            ))}
+                            {s.downstreamCount > 3 && <span>+{s.downstreamCount - 3} more</span>}
+                          </div>
+                        )}
+                      </div>
                     ))}
-                    {cascadeDialog.unlockedSuccessors.length > 5 && (
-                      <li>• ... and {cascadeDialog.unlockedSuccessors.length - 5} more</li>
-                    )}
-                  </ul>
+                  </div>
                 </div>
               )}
 
-              {/* Locked successors - dependencies will break */}
+              {/* Locked successors - show both options */}
               {cascadeDialog.lockedSuccessors.length > 0 && (
                 <div className="mt-3">
-                  <p className="text-xs font-semibold text-red-700 dark:text-red-300 flex items-center gap-1">
-                    <div className="w-2 h-2 rounded-full bg-red-500" />
-                    Locked - Dependencies Will Break ({cascadeDialog.lockedSuccessors.length}):
-                  </p>
-                  <ul className="mt-1 text-xs text-red-600 dark:text-red-400 space-y-0.5 ml-3">
+                  <div className="text-xs font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                    Locked Tasks ({cascadeDialog.lockedSuccessors.length}):
+                  </div>
+                  <div className="mt-2 space-y-2 ml-3">
                     {cascadeDialog.lockedSuccessors.map(s => {
                       const lockType = s.require_supplier_confirm ? 'Supplier Confirmed'
                         : s.require_supervisor_check ? 'Confirmed'
                         : s.is_completed ? 'Completed' : 'Locked';
+                      const canUnlock = !s.is_completed;
                       return (
-                        <li key={s.id} className="flex items-center gap-2">
-                          <span>• #{s.task_number} {s.name}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${
-                            s.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
-                            : s.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                          }`}>
-                            {lockType}
-                          </span>
-                        </li>
+                        <div key={s.id} className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+                          {/* Task header */}
+                          <div className="flex items-center gap-2 text-xs mb-2">
+                            <span className="font-medium">#{s.task_number} {s.name}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                              s.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                              : s.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                              : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                            }`}>
+                              {lockType}
+                            </span>
+                            {s.downstreamCount > 0 && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">
+                                +{s.downstreamCount} downstream
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Show downstream tasks that will be affected */}
+                          {s.downstreamCount > 0 && (
+                            <div className="mb-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-700 text-[10px]">
+                              <div className="font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                                ⚠️ Breaking this will also affect {s.downstreamCount} downstream task{s.downstreamCount > 1 ? 's' : ''}:
+                              </div>
+                              <ul className="text-yellow-700 dark:text-yellow-300 space-y-0.5 ml-2">
+                                {s.downstreamTasks?.map((dt: any) => (
+                                  <li key={dt.id}>• #{dt.task_number} {dt.name}</li>
+                                ))}
+                                {s.hasMoreDownstream && (
+                                  <li className="italic">• ... and {s.downstreamCount - 10} more</li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+
+                          {/* Two checkbox options */}
+                          <div className="space-y-2 text-xs">
+                            {/* Option 1: Break dependency (default) */}
+                            <label className="flex items-center gap-2 cursor-pointer p-2 bg-red-50 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-700">
+                              <input
+                                type="checkbox"
+                                name={`task-${s.id}-action`}
+                                defaultChecked={true}
+                                className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                onChange={(e) => {
+                                  // When break is checked, uncheck cascade
+                                  const cascadeCheckbox = document.querySelector(`input[name="task-${s.id}-cascade"]`) as HTMLInputElement;
+                                  if (cascadeCheckbox && e.target.checked) {
+                                    cascadeCheckbox.checked = false;
+                                  }
+                                }}
+                              />
+                              <div>
+                                <span className="font-medium text-red-700 dark:text-red-300">Break dependency</span>
+                                <p className="text-[10px] text-red-600 dark:text-red-400">Task stays {lockType}, dependency removed</p>
+                              </div>
+                            </label>
+
+                            {/* Option 2: Clear confirm and cascade */}
+                            <label className={`flex items-center gap-2 p-2 rounded border ${canUnlock ? 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' : 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50'}`}>
+                              <input
+                                type="checkbox"
+                                name={`task-${s.id}-cascade`}
+                                disabled={!canUnlock}
+                                className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                onChange={async (e) => {
+                                  if (e.target.checked && canUnlock) {
+                                    // When cascade is checked, uncheck break
+                                    const breakCheckbox = document.querySelector(`input[name="task-${s.id}-action"]`) as HTMLInputElement;
+                                    if (breakCheckbox) {
+                                      breakCheckbox.checked = false;
+                                    }
+                                    // Clear the confirm flag
+                                    const fieldName = s.require_supplier_confirm ? 'require_supplier_confirm' : 'require_supervisor_check';
+                                    console.log(`🔓 Unlocking task #${s.task_number} - clearing ${fieldName}`);
+                                    try {
+                                      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${s.id}`, {
+                                        row: { [fieldName]: false }
+                                      });
+                                      setRows(prev => prev.map(r =>
+                                        r.id === s.id ? { ...r, [fieldName]: false } : r
+                                      ));
+                                      setCascadeDialog(prev => ({
+                                        ...prev,
+                                        lockedSuccessors: prev.lockedSuccessors.filter(ls => ls.id !== s.id),
+                                        unlockedSuccessors: [...prev.unlockedSuccessors, { ...s, [fieldName]: false }]
+                                      }));
+                                    } catch (err) {
+                                      console.error('Failed to unlock task:', err);
+                                    }
+                                  }
+                                }}
+                              />
+                              <div>
+                                <span className={`font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Clear {lockType} & cascade</span>
+                                <p className={`text-[10px] ${canUnlock ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                  {canUnlock ? 'Remove lock, task will move with parent' : 'Completed tasks cannot be changed'}
+                                </p>
+                              </div>
+                            </label>
+                          </div>
+                        </div>
                       );
                     })}
-                  </ul>
+                  </div>
                 </div>
               )}
             </div>

@@ -1461,6 +1461,158 @@ module Api
         }
       end
 
+      # GET /api/v1/companies/:company_id/xero/health
+      # Returns comprehensive Xero health dashboard data
+      # Includes locked date, sync status, and detailed stats for each area
+      def health
+        connection = @company.corporate_company_xero_connection
+
+        unless connection&.connected?
+          return render json: {
+            success: false,
+            error: "Company is not connected to Xero"
+          }, status: :bad_request
+        end
+
+        xero_tenant_id = connection.xero_tenant_id
+
+        # Fetch organisation info from Xero (includes locked date)
+        organisation_info = fetch_xero_organisation(connection)
+
+        # Invoice stats
+        invoices = ExternalInvoice.xero.sales_invoices.for_tenant(xero_tenant_id)
+        invoices_with_pdfs = invoices.joins(:corporate_company_documents).distinct.count
+        invoices_by_status = invoices.group(:status).count
+
+        # Bill stats
+        bills = ExternalInvoice.xero.bills.for_tenant(xero_tenant_id)
+        bills_with_pdfs = bills.joins(:corporate_company_documents).distinct.count
+        bills_by_status = bills.group(:status).count
+
+        # Credit notes
+        credit_notes = ExternalInvoice.xero.credit_notes.for_tenant(xero_tenant_id)
+
+        # Contact stats
+        linked_contacts = ContactExternalLink.where(
+          source: "xero",
+          tenant_id: xero_tenant_id,
+          sync_enabled: true
+        )
+        contacts_with_errors = linked_contacts.where.not(sync_error: nil).count
+
+        # Bank stats
+        bank_accounts = @company.bank_accounts.where.not(xero_account_id: nil)
+        bank_statements_completed = BankStatementReport.where(company_id: @company.id, status: "completed")
+        bank_statements_pending = BankStatementReport.where(company_id: @company.id, status: "pending")
+        bank_statements_failed = BankStatementReport.where(company_id: @company.id, status: "failed")
+        bank_documents = CorporateCompanyDocument.where(
+          company_id: @company.id,
+          source: "xero"
+        ).where("external_id LIKE 'bank_statement_report:%'")
+
+        # P&L stats
+        monthly_pls = @company.corporate_company_monthly_pls.ordered
+        pl_last_synced = connection.monthly_pl_synced_at
+
+        # Balance Sheet stats
+        balance_sheets = @company.balance_sheet_reports.where(status: "completed")
+        bs_last_synced = balance_sheets.maximum(:created_at)
+
+        # Sync status from XeroSyncStatus
+        sync_statuses = XeroSyncStatus.where(tenant_id: xero_tenant_id)
+        last_invoice_sync = sync_statuses.find_by(sync_type: "invoices")&.last_synced_at
+        last_contact_sync = sync_statuses.find_by(sync_type: "contacts")&.last_synced_at
+
+        # Calculate what's needed for end of month
+        current_month = Date.current.beginning_of_month
+        last_month = current_month - 1.month
+
+        render json: {
+          success: true,
+          health: {
+            # Organisation info from Xero
+            organisation: {
+              name: organisation_info[:name],
+              locked_date: organisation_info[:locked_date],
+              financial_year_end_day: organisation_info[:financial_year_end_day],
+              financial_year_end_month: organisation_info[:financial_year_end_month],
+              base_currency: organisation_info[:base_currency]
+            },
+
+            # Connection status
+            connection: {
+              status: connection.connected? ? "connected" : "disconnected",
+              tenant_name: connection.xero_tenant_name,
+              last_sync_at: connection.last_sync_at,
+              api_calls_today: organisation_info[:api_calls_remaining]
+            },
+
+            # Invoice health
+            invoices: {
+              total: invoices.count,
+              with_pdfs: invoices_with_pdfs,
+              missing_pdfs: invoices.count - invoices_with_pdfs,
+              by_status: invoices_by_status,
+              last_synced: last_invoice_sync
+            },
+
+            # Bills health
+            bills: {
+              total: bills.count,
+              with_pdfs: bills_with_pdfs,
+              missing_pdfs: bills.count - bills_with_pdfs,
+              by_status: bills_by_status,
+              last_synced: last_invoice_sync
+            },
+
+            # Credit notes
+            credit_notes: {
+              total: credit_notes.count
+            },
+
+            # Contact health
+            contacts: {
+              linked: linked_contacts.count,
+              with_errors: contacts_with_errors,
+              last_synced: last_contact_sync
+            },
+
+            # Bank health
+            bank: {
+              accounts: bank_accounts.count,
+              statements_completed: bank_statements_completed.count,
+              statements_pending: bank_statements_pending.count,
+              statements_failed: bank_statements_failed.count,
+              documents_generated: bank_documents.count
+            },
+
+            # P&L health
+            profit_loss: {
+              months_available: monthly_pls.count,
+              date_range: monthly_pls.any? ? {
+                from: monthly_pls.last&.month_label,
+                to: monthly_pls.first&.month_label
+              } : nil,
+              last_synced: pl_last_synced
+            },
+
+            # Balance Sheet health
+            balance_sheet: {
+              reports_count: balance_sheets.count,
+              last_synced: bs_last_synced
+            },
+
+            # End of month status
+            end_of_month: {
+              current_month: current_month.strftime("%B %Y"),
+              last_month: last_month.strftime("%B %Y"),
+              last_month_closed: organisation_info[:locked_date].present? &&
+                Date.parse(organisation_info[:locked_date]) >= last_month.end_of_month rescue false
+            }
+          }
+        }
+      end
+
       # GET /api/v1/companies/:company_id/xero/tab_stats
       # Returns counts for each Xero sub-tab to display as badges
       # Used by XeroTabRenderer to show document/record counts on tabs
@@ -1550,6 +1702,46 @@ module Api
       end
 
       private
+
+      # Fetch organisation info from Xero API (includes locked date)
+      def fetch_xero_organisation(connection)
+        return {} unless connection&.connected?
+
+        # Refresh tokens if needed
+        connection.refresh_tokens! if connection.needs_refresh?
+
+        begin
+          client = XeroApiClient.new
+          result = client.get(
+            "Organisation",
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token
+          )
+
+          if result[:success] && result[:data]["Organisations"].present?
+            org = result[:data]["Organisations"].first
+            {
+              name: org["Name"],
+              # EndOfYearLockDate is the date up to which books are locked
+              locked_date: org["EndOfYearLockDate"],
+              # PeriodLockDate is the date up to which the current period is locked
+              period_lock_date: org["PeriodLockDate"],
+              financial_year_end_day: org["FinancialYearEndDay"],
+              financial_year_end_month: org["FinancialYearEndMonth"],
+              base_currency: org["BaseCurrency"],
+              organisation_type: org["OrganisationType"],
+              tax_number: org["TaxNumber"],
+              api_calls_remaining: result[:headers]&.dig("x-daylimit-remaining")
+            }
+          else
+            Rails.logger.warn("Failed to fetch Xero organisation: #{result[:error]}")
+            {}
+          end
+        rescue StandardError => e
+          Rails.logger.error("Error fetching Xero organisation: #{e.message}")
+          {}
+        end
+      end
 
       # Get all companies in the consolidated group (parent + children)
       def get_group_companies
