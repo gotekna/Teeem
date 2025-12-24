@@ -44,6 +44,8 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -338,6 +340,17 @@ export function GanttCanvasView({
       }
       return next;
     });
+  }, []);
+
+  // Collapse all headers
+  const collapseAllHeaders = React.useCallback(() => {
+    const allHeaderIds = rows.filter(r => r.category === 'Header').map(r => r.id);
+    setCollapsedHeaders(new Set(allHeaderIds));
+  }, [rows]);
+
+  // Expand all headers
+  const expandAllHeaders = React.useCallback(() => {
+    setCollapsedHeaders(new Set());
   }, []);
 
   // Get set of header IDs for quick lookup
@@ -2065,6 +2078,26 @@ export function GanttCanvasView({
             <Layers className="h-4 w-4" />
           </Button>
 
+          {/* Collapse/Expand All */}
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={collapseAllHeaders}
+              title="Collapse All Groups"
+            >
+              <ChevronsDownUp className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={expandAllHeaders}
+              title="Expand All Groups"
+            >
+              <ChevronsUpDown className="h-4 w-4" />
+            </Button>
+          </div>
+
           {/* Fullscreen Toggle */}
           {showFullscreenButton && (
             <Button
@@ -2227,7 +2260,7 @@ export function GanttCanvasView({
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-0.5 relative">
-                        <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fff 3px, #fff 6px)', border: '0.5px solid #ccc' }} />
+                        <div className="absolute inset-0" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #60a5fa 3px, #60a5fa 6px)' }} />
                       </div>
                       <span className="text-muted-foreground">Successor (waits for this task)</span>
                     </div>
@@ -2450,10 +2483,27 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'dependencies':
-                        // Use pre-formatted predecessor_display from API (e.g., "2FS+0, 5SS")
-                        // Falls back to "None" if no dependencies
-                        const depDisplay = task.rowData?.predecessor_display || 'None';
-                        const hasDeps = depDisplay !== 'None';
+                        // SSoT FIX: Compute display using visual row numbers (matching Edit dialog)
+                        // instead of task_numbers from backend predecessor_display
+                        const predecessorIds = task.rowData?.predecessor_ids || [];
+                        const depDisplay = predecessorIds.length > 0
+                          ? predecessorIds.map((pred: { id: number; type?: string; lag?: number }) => {
+                              // Find the predecessor task by task_number
+                              const predTask = visibleTasks.find(t => t.rowData?.task_number === pred.id);
+                              // Get visual row number (1-based index in visible tasks)
+                              const visualRowNum = predTask
+                                ? visibleTasks.findIndex(t => t.id === predTask.id) + 1
+                                : pred.id; // Fallback to task_number if not found
+                              const depType = pred.type || 'FS';
+                              const lag = pred.lag || 0;
+                              let result = `${visualRowNum}${depType}`;
+                              if (lag !== 0) {
+                                result += lag > 0 ? `+${lag}` : `${lag}`;
+                              }
+                              return result;
+                            }).join(', ')
+                          : 'None';
+                        const hasDeps = predecessorIds.length > 0;
                         return (
                           <button
                             className="truncate px-1 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded cursor-pointer w-full text-left font-mono text-[11px]"
@@ -2586,14 +2636,14 @@ export function GanttCanvasView({
                     </div>
                     <span className="text-[9px] text-muted-foreground ml-1">predecessor</span>
                   </div>
-                  {/* Successor line: black/white */}
+                  {/* Successor line: black/blue */}
                   <div className="flex items-center gap-1.5">
                     <div className="flex items-center">
                       <div className="bg-purple-500 text-white text-[10px] px-2 py-1 rounded font-medium">B</div>
                       <div className="w-1.5 h-1.5 bg-purple-500 rounded-full -ml-0.5 ring-1 ring-white" />
                     </div>
-                    <div className="w-8 h-[3px] border border-gray-300" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fff 3px, #fff 6px)' }} />
-                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-white" style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))' }} />
+                    <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #60a5fa 3px, #60a5fa 6px)' }} />
+                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-blue-400" />
                     <div className="flex items-center">
                       <div className="w-1.5 h-1.5 bg-gray-500 rounded-full -mr-0.5 ring-1 ring-white z-10" />
                       <div className="bg-gray-500 text-white text-[10px] px-2 py-1 rounded font-medium">C</div>

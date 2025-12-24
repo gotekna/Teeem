@@ -1087,10 +1087,6 @@ export class Renderer {
     } // End of hideNonHighlighted check
 
     // Draw highlighted dependencies on top with distinct styles for predecessors vs successors
-    // Debug: log what we're trying to highlight
-    if (highlightedTaskId && (highlightedPredecessors.size > 0 || highlightedSuccessors.size > 0)) {
-      console.log('[Deps] Highlighting for task:', highlightedTaskId, 'predecessors:', highlightedPredecessors.size, 'successors:', highlightedSuccessors.size);
-    }
     dependencies.forEach((dep) => {
       const isPredecessor = highlightedPredecessors.has(dep.id);
       const isSuccessor = highlightedSuccessors.has(dep.id);
@@ -1098,16 +1094,11 @@ export class Renderer {
 
       const from = taskMap.get(dep.fromId);
       const to = taskMap.get(dep.toId);
-      if (!from || !to) {
-        console.log('[Deps] Skipping dep - task not found:', dep.fromId, '->', dep.toId, 'from:', !!from, 'to:', !!to);
-        return;
-      }
+      if (!from || !to) return;
+
       const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
       const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
       const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
-      console.log('[Deps] Drawing striped line:', from.task.name, '->', to.task.name, isPredecessor ? 'PRED' : 'SUCC',
-        'coords:', { fromX: Math.round(fromX), fromY: Math.round(fromY), toX: Math.round(toX), toY: Math.round(toY) },
-        'indices:', from.index, '->', to.index);
 
       // Virtual scrolling: skip if both tasks are outside visible range
       // (but we still render highlighted ones for UX - user clicked on a task)
@@ -1117,7 +1108,7 @@ export class Renderer {
       if (isPredecessor) {
         this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#fbbf24', tasks, from.index, to.index);
       } else {
-        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#ffffff', tasks, from.index, to.index);
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#60a5fa', tasks, from.index, to.index);
       }
     });
 
@@ -1150,7 +1141,7 @@ export class Renderer {
         if (isPredecessor) {
           this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#fbbf24', tasks, from.index, to.index);
         } else {
-          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#ffffff', tasks, from.index, to.index);
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#60a5fa', tasks, from.index, to.index);
         }
 
         this.ctx.restore();
