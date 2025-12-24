@@ -283,6 +283,28 @@ export default function PurchaseOrderDetailPage() {
     }
   }, [purchaseOrder?.job_id]);
 
+  // SSoT: Auto-populate required date from linked task via sm_template_row_id
+  // This runs after taskItems are loaded, since loadPurchaseOrder runs before tasks load
+  useEffect(() => {
+    // Only auto-populate if:
+    // 1. We have a smTemplateRowId set
+    // 2. requiredDate is still empty
+    // 3. taskItems are loaded
+    // 4. No direct sm_tasks are linked (those are handled in loadPurchaseOrder)
+    if (
+      smTemplateRowId &&
+      !requiredDate &&
+      taskItems.length > 0 &&
+      (!purchaseOrder?.sm_tasks || purchaseOrder.sm_tasks.length === 0)
+    ) {
+      const matchingTask = taskItems.find((t) => t.sm_template_row_id === smTemplateRowId);
+      if (matchingTask?.start_date) {
+        console.log('[PO Detail] Auto-populating required date from sm_template_row_id task:', matchingTask.start_date);
+        setRequiredDate(matchingTask.start_date);
+      }
+    }
+  }, [taskItems, smTemplateRowId, requiredDate, purchaseOrder?.sm_tasks]);
+
   const loadPurchaseOrder = async () => {
     try {
       setLoading(true);
