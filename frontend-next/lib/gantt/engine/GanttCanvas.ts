@@ -81,6 +81,9 @@ export interface GanttTask {
   supplierName?: string;
   /** Hold state for paused tasks */
   holdState?: HoldState;
+  /** Original row data from API (for accessing manually_positioned etc) */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rowData?: any;
 }
 
 /**
@@ -538,6 +541,7 @@ export class GanttCanvas {
   private onTaskUpdate?: (task: GanttTask) => void;
   private onProgressChange?: (task: GanttTask, newProgress: number) => void;
   private onSelectionChange?: (selectedTaskIds: string[]) => void;
+  private onResetManualPosition?: (task: GanttTask) => void;
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
@@ -824,11 +828,13 @@ export class GanttCanvas {
 
   /**
    * Scroll to today
+   * @param position - Where to position today: 'start' (left edge) or 'center'
    */
-  scrollToToday(): void {
+  scrollToToday(position: 'start' | 'center' = 'start'): void {
     const today = getTodayInCompanyTimezone();
     const x = this.viewport.dateToX(today);
-    this.viewport.scrollTo(x - this.containerWidth / 2, this.state.viewportState.scrollY);
+    const scrollX = position === 'center' ? x - this.containerWidth / 2 : x - 50; // 50px margin from left
+    this.viewport.scrollTo(Math.max(0, scrollX), this.state.viewportState.scrollY);
     this.markDirty();
   }
 
@@ -1100,6 +1106,10 @@ export class GanttCanvas {
 
   onTaskUpdateHandler(handler: (task: GanttTask) => void): void {
     this.onTaskUpdate = handler;
+  }
+
+  onResetManualPositionHandler(handler: (task: GanttTask) => void): void {
+    this.onResetManualPosition = handler;
   }
 
   onProgressChangeHandler(handler: (task: GanttTask, newProgress: number) => void): void {
@@ -3133,6 +3143,12 @@ export class GanttCanvas {
         break;
       case 'scroll-today':
         this.scrollToToday();
+        break;
+      case 'reset_hold':
+        if (task) {
+          // Reset manual positioning - delegate to external handler
+          this.onResetManualPosition?.(task);
+        }
         break;
       default:
         // Delegate to external handler
@@ -5723,6 +5739,7 @@ export class GanttCanvas {
     this.contextMenuTask = task;
 
     // Build menu items for task
+    const isManuallyPositioned = task.rowData?.manually_positioned === true;
     this.contextMenuItems = [
       { id: 'edit', label: 'Edit Task' },
       { id: 'start', label: task.status === 'in-progress' ? 'Mark Not Started' : 'Start Task' },
@@ -5730,6 +5747,7 @@ export class GanttCanvas {
       { id: 'separator1', label: '', separator: true },
       { id: 'lock', label: task.locked ? 'Unlock' : 'Lock Position' },
       { id: 'hold', label: this.isTaskOnHold(task.id) ? 'Resume' : 'Put On Hold' },
+      ...(isManuallyPositioned ? [{ id: 'reset_hold', label: 'Reset Manual Position' }] : []),
       { id: 'separator2', label: '', separator: true },
       { id: 'delete', label: 'Delete Task' },
     ];

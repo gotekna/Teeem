@@ -148,6 +148,7 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 40, visible: false, align: 'center' },
   { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 40, visible: false, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
+  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 40, visible: true, align: 'center' },
 ];
 
 // ============================================================================
@@ -342,13 +343,28 @@ export function GanttCanvasView({
   const [columnsLoaded, setColumnsLoaded] = React.useState(false);
 
   // Load columns from localStorage on client mount
+  // Merges saved preferences with DEFAULT_COLUMNS to ensure new columns are always included
   React.useEffect(() => {
     const saved = localStorage.getItem('gantt-column-config');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setColumns(parsed);
+          // Merge saved preferences with defaults to include new columns
+          const savedIds = new Set(parsed.map((c: ColumnConfig) => c.id));
+          const newColumns = DEFAULT_COLUMNS.filter(c => !savedIds.has(c.id));
+
+          // Update saved columns with any new properties from defaults
+          const mergedSaved = parsed.map((savedCol: ColumnConfig) => {
+            const defaultCol = DEFAULT_COLUMNS.find(d => d.id === savedCol.id);
+            if (defaultCol) {
+              return { ...defaultCol, visible: savedCol.visible, width: savedCol.width };
+            }
+            return savedCol;
+          });
+
+          // Append new columns at the end
+          setColumns([...mergedSaved, ...newColumns]);
         }
       } catch {
         // Invalid JSON, use defaults
@@ -702,6 +718,45 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, onTaskDrag]);
 
+  // Handle reset manual position (from context menu)
+  const handleResetManualPosition = React.useCallback(async (task: GanttTask) => {
+    // Skip API save in static mode
+    if (isStaticMode || !templateId) return;
+
+    try {
+      // Clear manual position via API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: {
+          manually_positioned: false,
+          manual_start_date: null
+        }
+      });
+
+      // Update local state
+      setTasks(prev => prev.map(t =>
+        t.id === task.id
+          ? {
+              ...t,
+              rowData: t.rowData ? {
+                ...t.rowData,
+                manually_positioned: false,
+                manual_start_date: null
+              } : undefined
+            }
+          : t
+      ));
+
+      // Also update rows for proper re-render
+      setRows(prev => prev.map(r =>
+        String(r.id) === task.id
+          ? { ...r, manually_positioned: false, manual_start_date: null }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to reset manual position:', err);
+    }
+  }, [templateId, isStaticMode]);
+
   // Load data from API (only when not using static mode)
   const loadData = React.useCallback(async () => {
     if (isStaticMode || !templateId) return;
@@ -777,6 +832,9 @@ export function GanttCanvasView({
     // Always register drag handler to save manual positions
     gantt.onTaskDragHandler(handleTaskDrag);
 
+    // Register reset manual position handler (context menu)
+    gantt.onResetManualPositionHandler(handleResetManualPosition);
+
     // Register scroll sync callback
     gantt.onScrollHandler((scrollX, scrollY) => {
       if (sidebarRef.current) {
@@ -795,7 +853,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag]);
+  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleResetManualPosition]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {
@@ -815,6 +873,34 @@ export function GanttCanvasView({
   React.useEffect(() => {
     if (!ganttRef.current) return;
 
+    // Australian QLD public holidays fallback
+    const getAustralianHolidays = (year: number) => {
+      const holidays = [
+        { date: new Date(year, 0, 1), name: "New Year's Day" },
+        { date: new Date(year, 0, 26), name: "Australia Day" },
+        { date: new Date(year, 3, 25), name: "Anzac Day" },
+        { date: new Date(year, 11, 25), name: "Christmas Day" },
+        { date: new Date(year, 11, 26), name: "Boxing Day" },
+      ];
+      // Easter (approximate - Good Friday, Easter Saturday, Easter Monday)
+      // 2025: April 18, 19, 21
+      // 2026: April 3, 4, 6
+      if (year === 2025) {
+        holidays.push({ date: new Date(2025, 3, 18), name: "Good Friday" });
+        holidays.push({ date: new Date(2025, 3, 19), name: "Easter Saturday" });
+        holidays.push({ date: new Date(2025, 3, 21), name: "Easter Monday" });
+        holidays.push({ date: new Date(2025, 7, 13), name: "Ekka (QLD)" }); // Aug 13 2025
+        holidays.push({ date: new Date(2025, 9, 6), name: "King's Birthday (QLD)" }); // Oct 6 2025
+      } else if (year === 2026) {
+        holidays.push({ date: new Date(2026, 3, 3), name: "Good Friday" });
+        holidays.push({ date: new Date(2026, 3, 4), name: "Easter Saturday" });
+        holidays.push({ date: new Date(2026, 3, 6), name: "Easter Monday" });
+        holidays.push({ date: new Date(2026, 7, 12), name: "Ekka (QLD)" });
+        holidays.push({ date: new Date(2026, 9, 5), name: "King's Birthday (QLD)" });
+      }
+      return holidays.map(h => ({ ...h, type: 'public' as const }));
+    };
+
     const loadHolidays = async () => {
       try {
         const currentYear = new Date().getFullYear();
@@ -833,9 +919,24 @@ export function GanttCanvasView({
             };
           });
           ganttRef.current?.addHolidays(holidays);
+        } else {
+          // Fallback to hardcoded holidays
+          const currentYear = new Date().getFullYear();
+          const fallbackHolidays = [
+            ...getAustralianHolidays(currentYear),
+            ...getAustralianHolidays(currentYear + 1),
+          ];
+          ganttRef.current?.addHolidays(fallbackHolidays);
         }
       } catch (err) {
-        console.error('Failed to load holidays:', err);
+        console.error('Failed to load holidays, using fallback:', err);
+        // Fallback to hardcoded holidays
+        const currentYear = new Date().getFullYear();
+        const fallbackHolidays = [
+          ...getAustralianHolidays(currentYear),
+          ...getAustralianHolidays(currentYear + 1),
+        ];
+        ganttRef.current?.addHolidays(fallbackHolidays);
       }
     };
 
@@ -1277,6 +1378,27 @@ export function GanttCanvasView({
                           >
                             {hasDeps ? depDisplay : '-'}
                           </button>
+                        );
+                      case 'hold':
+                        const isHeld = row?.manually_positioned === true;
+                        return (
+                          <div className="flex justify-center">
+                            <input
+                              type="checkbox"
+                              checked={isHeld}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (isHeld) {
+                                  // Unchecking - reset manual position
+                                  handleResetManualPosition(task);
+                                }
+                                // Note: Checking happens automatically when you drag
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                              title={isHeld ? 'Task is pinned - click to unpin' : 'Drag task to pin it'}
+                              disabled={!isHeld} // Can only uncheck, checking happens on drag
+                            />
+                          </div>
                         );
                       default:
                         return null;

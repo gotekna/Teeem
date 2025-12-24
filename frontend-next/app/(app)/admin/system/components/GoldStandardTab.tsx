@@ -74,6 +74,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { ViewTableView, type ViewTableColumn } from "@/components/table/ViewTableView";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { TableColumn, TableRow as TableRowType, SavedView } from "@/components/table/types";
 import { BillsInvoiceViewer, BillDetail } from "@/components/invoice/BillsInvoiceViewer";
@@ -2308,27 +2309,12 @@ function SyncCheckTab() {
 }
 
 // =============================================================================
-// DEMO: SimpleTableView Preview
+// DEMO: ViewTableView - THE ACTUAL COMPONENT
 // =============================================================================
 
-interface SimpleTableDemoRow {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-  amount: number;
-  status: string;
-  date: string;
-  email: string;
-  active: boolean;
-}
-
-function SimpleTableViewDemo() {
-  const [sortColumn, setSortColumn] = React.useState<string | null>(null);
-  const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc");
-
+function ViewTableViewDemo() {
   // Sample data
-  const sampleData: SimpleTableDemoRow[] = [
+  const sampleData = [
     { id: 1, code: "ACC-001", name: "Revenue Account", type: "Revenue", amount: 125000.50, status: "Active", date: "2024-12-15", email: "finance@company.com", active: true },
     { id: 2, code: "ACC-002", name: "Expense Account", type: "Expense", amount: 45230.00, status: "Active", date: "2024-12-14", email: "accounts@company.com", active: true },
     { id: 3, code: "ACC-003", name: "Asset Account", type: "Asset", amount: 890000.00, status: "Pending", date: "2024-12-13", email: "assets@company.com", active: true },
@@ -2339,62 +2325,16 @@ function SimpleTableViewDemo() {
     { id: 8, code: "ACC-008", name: "Bank Account", type: "Asset", amount: 1250000.00, status: "Active", date: "2024-12-08", email: "bank@company.com", active: true },
   ];
 
-  // Sort data
-  const sortedData = React.useMemo(() => {
-    if (!sortColumn) return sampleData;
-    return [...sampleData].sort((a, b) => {
-      const aVal = a[sortColumn as keyof SimpleTableDemoRow];
-      const bVal = b[sortColumn as keyof SimpleTableDemoRow];
-      if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [sortColumn, sortDirection]);
-
-  const handleSort = (column: string) => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      setSortColumn(column);
-      setSortDirection("asc");
-    }
-  };
-
-  const columns = [
+  const columns: ViewTableColumn[] = [
     { key: "code", label: "Code", width: 100 },
     { key: "name", label: "Name", width: 200 },
-    { key: "type", label: "Type", width: 100 },
-    { key: "amount", label: "Amount", width: 120, align: "right" as const },
-    { key: "status", label: "Status", width: 100 },
-    { key: "date", label: "Date", width: 100 },
+    { key: "type", label: "Type", width: 100, type: "choice", choices: ["Revenue", "Expense", "Asset", "Liability", "Equity"] },
+    { key: "amount", label: "Amount", width: 120, type: "currency", align: "right" },
+    { key: "status", label: "Status", width: 100, type: "badge", choices: ["Active", "Pending", "Archived"] },
+    { key: "date", label: "Date", width: 100, type: "date" },
     { key: "email", label: "Email", width: 180 },
-    { key: "active", label: "Active", width: 80 },
+    { key: "active", label: "Active", width: 80, type: "boolean" },
   ];
-
-  const formatValue = (key: string, value: unknown) => {
-    if (key === "amount" && typeof value === "number") {
-      return `$${value.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
-    }
-    if (key === "active") {
-      return value ? (
-        <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">Yes</Badge>
-      ) : (
-        <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">No</Badge>
-      );
-    }
-    if (key === "status") {
-      const statusColors: Record<string, string> = {
-        Active: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-        Pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-        Archived: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
-      };
-      return <Badge className={cn("text-[10px]", statusColors[value as string])}>{value as string}</Badge>;
-    }
-    if (key === "email") {
-      return <a href={`mailto:${value}`} className="text-primary hover:underline">{value as string}</a>;
-    }
-    return value as React.ReactNode;
-  };
 
   return (
     <div className="space-y-4">
@@ -2402,82 +2342,24 @@ function SimpleTableViewDemo() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base flex items-center gap-2">
             <TableProperties className="h-5 w-5" />
-            SimpleTableView Demo
+            ViewTableView Demo
           </CardTitle>
           <CardDescription>
-            View-only table with same styling as TeeemTableView. No Foundation required.
-            Click headers to sort. This is what the component will look like.
+            View-only table with TeeemTableView styling. Supports sorting, filtering, search.
+            No Foundation API required.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          {/* Header with title and count - matches TeeemTableView */}
-          <div className="px-4 py-2 border-b flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold">Sample Accounts</h3>
-              <span className="text-sm text-muted-foreground">{sortedData.length} records</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
-          </div>
-
-          {/* Table - matches TeeemTableView styling */}
-          <div className="border-t">
-            <Table>
-              <TableHeader>
-                <TableRow className="h-8 bg-muted/30">
-                  {columns.map((col) => (
-                    <TableHead
-                      key={col.key}
-                      className={cn(
-                        "h-7 text-[11px] font-medium cursor-pointer hover:bg-muted/50 select-none",
-                        col.align === "right" && "text-right"
-                      )}
-                      style={{ width: col.width }}
-                      onClick={() => handleSort(col.key)}
-                    >
-                      <div className={cn("flex items-center gap-1", col.align === "right" && "justify-end")}>
-                        {col.label}
-                        {sortColumn === col.key && (
-                          <span className="text-primary">{sortDirection === "asc" ? "↑" : "↓"}</span>
-                        )}
-                      </div>
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedData.map((row, index) => (
-                  <TableRow
-                    key={row.id}
-                    className={cn(
-                      "h-7 hover:bg-accent/50 cursor-pointer",
-                      index % 2 === 1 && "bg-muted/20"
-                    )}
-                  >
-                    {columns.map((col) => (
-                      <TableCell
-                        key={col.key}
-                        className={cn(
-                          "py-1 text-[11px]",
-                          col.align === "right" && "text-right"
-                        )}
-                      >
-                        {formatValue(col.key, row[col.key as keyof SimpleTableDemoRow])}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Footer - matches TeeemTableView */}
-          <div className="px-4 py-2 border-t text-xs text-muted-foreground">
-            Showing {sortedData.length} of {sortedData.length} records
+          <div className="h-[400px]">
+            <ViewTableView
+              tableName="Sample Accounts"
+              entries={sampleData}
+              columns={columns}
+              onRowClick={(row) => console.log("Row clicked:", row)}
+              enableExport
+              enableSearch
+              enableFilters
+            />
           </div>
         </CardContent>
       </Card>
@@ -2489,17 +2371,22 @@ function SimpleTableViewDemo() {
         </CardHeader>
         <CardContent>
           <pre className="text-xs bg-muted p-3 rounded-md overflow-x-auto">
-{`<SimpleTableView
+{`import { ViewTableView } from "@/components/table/ViewTableView";
+
+<ViewTableView
   tableName="Sample Accounts"
   entries={accounts}
   columns={[
     { key: "code", label: "Code", width: 100 },
     { key: "name", label: "Name" },
     { key: "amount", label: "Amount", type: "currency", align: "right" },
-    { key: "status", label: "Status" },
+    { key: "status", label: "Status", type: "badge", choices: ["Active", "Pending"] },
     { key: "active", label: "Active", type: "boolean" },
   ]}
   onRowClick={(row) => console.log(row)}
+  enableFilters
+  enableSearch
+  enableExport
 />`}
           </pre>
         </CardContent>
@@ -2760,9 +2647,9 @@ export function GoldStandardTab() {
           <Settings className="h-4 w-4" />
           UI Components
         </TabsTrigger>
-        <TabsTrigger value="simple-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
+        <TabsTrigger value="view-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
           <TableProperties className="h-4 w-4" />
-          SimpleTable Demo
+          ViewTable Demo
         </TabsTrigger>
         <TabsTrigger value="setup-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
           <LayoutList className="h-4 w-4" />
@@ -2798,8 +2685,8 @@ export function GoldStandardTab() {
         <UIComponentsPlaygroundTab />
       </TabsContent>
 
-      <TabsContent value="simple-table-demo" className="mt-0">
-        <SimpleTableViewDemo />
+      <TabsContent value="view-table-demo" className="mt-0">
+        <ViewTableViewDemo />
       </TabsContent>
 
       <TabsContent value="setup-table-demo" className="mt-0">
