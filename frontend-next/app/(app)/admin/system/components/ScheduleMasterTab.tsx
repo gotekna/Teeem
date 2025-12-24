@@ -176,24 +176,33 @@ export function ScheduleMasterTab() {
       const loadedTemplates = data?.sm_templates || [];
       setTemplates(loadedTemplates);
 
-      // Auto-select "Schedule Master LIVE" template for Gantt Preview if not already selected
+      // Auto-select template for Gantt Preview if not already selected
       if (!ganttTemplateId && loadedTemplates.length > 0) {
-        const scheduleMasterLive = loadedTemplates.find(t =>
-          t.name.toLowerCase().includes('schedule master live') ||
-          (t.row_count === 165 && t.name.toLowerCase().includes('schedule'))
-        );
-        if (scheduleMasterLive) {
-          loadGanttRows(scheduleMasterLive.id);
+        // Try to find a template in priority order:
+        // 1. "PO Schedule Master" (current default)
+        // 2. Any template with "schedule master" in name
+        // 3. First template in list
+        const autoSelectTemplate = loadedTemplates.find(t =>
+          t.name.toLowerCase() === 'po schedule master'
+        ) || loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('schedule master')
+        ) || loadedTemplates[0];
+
+        if (autoSelectTemplate) {
+          loadGanttRows(autoSelectTemplate.id);
         }
       }
 
-      // Auto-select template with "LIVE" in name for Data View
+      // Auto-select template for Data View (same priority as Gantt)
       if (!dataViewTemplateId && loadedTemplates.length > 0) {
-        const liveTemplate = loadedTemplates.find(t =>
-          t.name.toLowerCase().includes('live') && !t.name.toLowerCase().includes('copy')
-        );
-        if (liveTemplate) {
-          loadDataViewRows(liveTemplate.id);
+        const autoSelectTemplate = loadedTemplates.find(t =>
+          t.name.toLowerCase() === 'po schedule master'
+        ) || loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('schedule master')
+        ) || loadedTemplates[0];
+
+        if (autoSelectTemplate) {
+          loadDataViewRows(autoSelectTemplate.id);
         }
       }
     } catch (error) {
