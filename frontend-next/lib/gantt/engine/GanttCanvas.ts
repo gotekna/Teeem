@@ -2797,7 +2797,10 @@ export class GanttCanvas {
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {
       // Complete the drag
       const originalDate = this.dragStartDate!;
-      const newDate = this.dragCurrentDate;
+      let newDate = this.dragCurrentDate;
+
+      // Snap to next working day if dropped on weekend/holiday
+      newDate = this.snapToWorkingDay(newDate, true);
 
       // Only trigger if date actually changed
       if (originalDate.getTime() !== newDate.getTime()) {
@@ -2957,12 +2960,11 @@ export class GanttCanvas {
         let newDate = new Date(this.dragStartDate);
         newDate.setDate(newDate.getDate() + daysDelta);
 
-        // Snap to day
+        // Snap to day (midnight)
         newDate.setHours(0, 0, 0, 0);
 
-        // Snap to working day (skip weekends)
-        // Use forward direction when moving right, backward when moving left
-        newDate = this.snapToWorkingDay(newDate, daysDelta >= 0);
+        // NOTE: Manual positioning allows any date including weekends/holidays
+        // The user explicitly wants to "hold" the task at a specific date
 
         if (this.dragCurrentDate?.getTime() !== newDate.getTime()) {
           this.dragCurrentDate = newDate;

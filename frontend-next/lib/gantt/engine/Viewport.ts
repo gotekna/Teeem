@@ -229,12 +229,19 @@ export class Viewport {
   // ============================================================================
 
   /**
-   * Calculate days between two dates
+   * Calculate days between two dates (whole days only)
+   * Normalizes both dates to midnight to avoid fractional days
    */
   private daysBetween(date1: Date, date2: Date): number {
+    // Normalize to midnight to get whole days
+    const d1 = new Date(date1);
+    d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(date2);
+    d2.setHours(0, 0, 0, 0);
+
     const oneDay = 24 * 60 * 60 * 1000;
-    const diffTime = date2.getTime() - date1.getTime();
-    return diffTime / oneDay;
+    const diffTime = d2.getTime() - d1.getTime();
+    return Math.round(diffTime / oneDay);
   }
 }
 
