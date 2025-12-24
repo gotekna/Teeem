@@ -506,6 +506,7 @@ export function GanttCanvasView({
   const [depEditorOpen, setDepEditorOpen] = React.useState(false);
   const [depEditorTask, setDepEditorTask] = React.useState<GanttTask | null>(null);
   const [depEditorLinks, setDepEditorLinks] = React.useState<PredecessorLink[]>([]);
+  const [depEditorSuccessorLinks, setDepEditorSuccessorLinks] = React.useState<PredecessorLink[]>([]);
 
   // Task items for combobox (memoized)
   const taskComboItems = React.useMemo((): ComboboxItem[] => {
@@ -648,6 +649,28 @@ export function GanttCanvasView({
       };
     });
     setDepEditorLinks(links);
+
+    // Also populate successor links - tasks that have this task as a predecessor
+    const currentTaskNum = task.rowData?.task_number;
+    const successorLinks: PredecessorLink[] = [];
+    tasks.forEach(t => {
+      if (t.id === task.id) return; // Skip self
+      const predIds = t.rowData?.predecessor_ids;
+      if (!predIds || !Array.isArray(predIds)) return;
+      const predInfo = predIds.find((p: any) => {
+        const predId = p?.id || p;
+        return predId === currentTaskNum || String(predId) === String(task.id);
+      });
+      if (predInfo) {
+        successorLinks.push({
+          predecessorId: t.id, // This is actually the successor task ID
+          type: (predInfo.type || 'FS') as DependencyType,
+          lag: predInfo.lag || 0,
+        });
+      }
+    });
+    setDepEditorSuccessorLinks(successorLinks);
+
     setDepEditorOpen(true);
   }, [tasks]);
 
@@ -666,6 +689,18 @@ export function GanttCanvasView({
   // Remove a predecessor link
   const removePredecessorLink = React.useCallback((index: number) => {
     setDepEditorLinks(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Update a successor link
+  const updateSuccessorLink = React.useCallback((index: number, updates: Partial<PredecessorLink>) => {
+    setDepEditorSuccessorLinks(prev => prev.map((link, i) =>
+      i === index ? { ...link, ...updates } : link
+    ));
+  }, []);
+
+  // Remove a successor link
+  const removeSuccessorLink = React.useCallback((index: number) => {
+    setDepEditorSuccessorLinks(prev => prev.filter((_, i) => i !== index));
   }, []);
 
   // Check for circular dependencies
@@ -744,6 +779,15 @@ export function GanttCanvasView({
       return;
     }
 
+    // Also check successors for circular dependencies (current task would become predecessor of successor)
+    const validSuccessorLinks = depEditorSuccessorLinks.filter(l => l.predecessorId);
+    for (const succLink of validSuccessorLinks) {
+      if (hasCircularDependency(succLink.predecessorId, [depEditorTask.id])) {
+        alert('Cannot save: Adding this successor would create a circular dependency.');
+        return;
+      }
+    }
+
     try {
       // Build predecessor_ids in the format backend expects: [{id, type, lag}]
       // NOTE: predecessorId is row.id (task.id), need to convert to task_number for API
@@ -770,6 +814,86 @@ export function GanttCanvasView({
           ...(isLocked && { require_supervisor_check: true })
         }
       });
+
+      // Now save successor changes - update each successor task's predecessor_ids
+      // Get the current task's task_number for the predecessor reference
+      const currentTaskNum = depEditorTask.rowData?.task_number;
+
+      // Find original successors to compare (tasks that HAD this task as predecessor)
+      const originalSuccessorIds = new Set<string>();
+      tasks.forEach(t => {
+        if (t.id === depEditorTask.id) return;
+        const predIds = t.rowData?.predecessor_ids;
+        if (!predIds || !Array.isArray(predIds)) return;
+        const hasCurrent = predIds.some((p: any) => {
+          const predId = p?.id || p;
+          return predId === currentTaskNum || String(predId) === String(depEditorTask.id);
+        });
+        if (hasCurrent) originalSuccessorIds.add(t.id);
+      });
+
+      const newSuccessorIds = new Set(validSuccessorLinks.map(l => l.predecessorId));
+
+      // Find removed successors (were in original, not in new)
+      const removedSuccessors = [...originalSuccessorIds].filter(id => !newSuccessorIds.has(id));
+
+      // Find added successors (in new, not in original)
+      const addedSuccessors = [...newSuccessorIds].filter(id => !originalSuccessorIds.has(id));
+
+      // Find modified successors (in both, but type/lag may have changed)
+      const modifiedSuccessors = [...newSuccessorIds].filter(id => originalSuccessorIds.has(id));
+
+      // Remove this task from removed successors' predecessor_ids
+      for (const successorId of removedSuccessors) {
+        const successorTask = tasks.find(t => t.id === successorId);
+        if (!successorTask) continue;
+        const existingPreds = successorTask.rowData?.predecessor_ids || [];
+        const newPreds = existingPreds.filter((p: any) => {
+          const predId = p?.id || p;
+          return predId !== currentTaskNum && String(predId) !== String(depEditorTask.id);
+        });
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successorId}`, {
+          row: { predecessor_ids: newPreds }
+        });
+      }
+
+      // Add this task to added successors' predecessor_ids
+      for (const successorId of addedSuccessors) {
+        const successorTask = tasks.find(t => t.id === successorId);
+        if (!successorTask) continue;
+        const succLink = validSuccessorLinks.find(l => l.predecessorId === successorId);
+        const existingPreds = successorTask.rowData?.predecessor_ids || [];
+        const newPreds = [...existingPreds, {
+          id: currentTaskNum,
+          type: succLink?.type || 'FS',
+          lag: succLink?.lag || 0
+        }];
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successorId}`, {
+          row: { predecessor_ids: newPreds }
+        });
+      }
+
+      // Update modified successors' predecessor_ids (type/lag might have changed)
+      for (const successorId of modifiedSuccessors) {
+        const successorTask = tasks.find(t => t.id === successorId);
+        if (!successorTask) continue;
+        const succLink = validSuccessorLinks.find(l => l.predecessorId === successorId);
+        const existingPreds = successorTask.rowData?.predecessor_ids || [];
+        const newPreds = existingPreds.map((p: any) => {
+          const predId = p?.id || p;
+          if (predId === currentTaskNum || String(predId) === String(depEditorTask.id)) {
+            return {
+              id: currentTaskNum,
+              type: succLink?.type || 'FS',
+              lag: succLink?.lag || 0
+            };
+          }
+          return p;
+        });
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successorId}`, {
+          row: { predecessor_ids: newPreds }
+        });
+      }
 
       // Build display string for local state update (matches backend format: "2FS+3, 5SS")
       // Uses task_number for display, not row.id
@@ -823,7 +947,7 @@ export function GanttCanvasView({
         description: errorMessage,
       });
     }
-  }, [depEditorTask, depEditorLinks, templateId, tasks, toast, loadData]);
+  }, [depEditorTask, depEditorLinks, depEditorSuccessorLinks, templateId, tasks, toast, loadData, hasCircularDependency]);
 
   // Theme
   const { resolvedTheme } = useTheme();
@@ -2245,149 +2369,347 @@ export function GanttCanvasView({
 
       {/* Dependency Editor Dialog */}
       <Dialog open={depEditorOpen} onOpenChange={setDepEditorOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Edit Predecessors</DialogTitle>
+            <DialogTitle>Edit Dependencies</DialogTitle>
             <p className="text-sm text-muted-foreground">
               Row {depEditorTask ? tasks.findIndex(t => t.id === depEditorTask.id) + 1 : ''}: {depEditorTask?.name}
             </p>
           </DialogHeader>
 
-          <div className="space-y-2">
-            {/* Header row */}
-            <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
-              <span>Row #</span>
-              <span>Task</span>
-              <span>Type</span>
-              <span>Lag</span>
-              <span></span>
+          <div className="flex-1 overflow-y-auto space-y-4">
+            {/* Visual Guide - How to create dependencies */}
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">💡 Quick Tip: Create dependencies by dragging on the Gantt</p>
+              <div className="flex items-center justify-center gap-3 py-2">
+                {/* Task A box */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center">
+                    <div className="bg-indigo-500 text-white text-xs px-3 py-1.5 rounded font-medium">
+                      Task A
+                    </div>
+                    <div className="w-2 h-2 bg-indigo-500 rounded-full -ml-1 ring-2 ring-white dark:ring-gray-800" />
+                  </div>
+                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">PREDECESSOR</span>
+                </div>
+                {/* Arrow */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center">
+                    <div className="w-10 h-0.5 bg-indigo-400 dark:bg-indigo-500" />
+                    <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[8px] border-l-indigo-400 dark:border-l-indigo-500" />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">then</span>
+                </div>
+                {/* Task B box */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="flex items-center">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full -mr-1 ring-2 ring-white dark:ring-gray-800 z-10" />
+                    <div className="bg-purple-500 text-white text-xs px-3 py-1.5 rounded font-medium">
+                      Task B
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">SUCCESSOR</span>
+                </div>
+              </div>
+              <p className="text-[11px] text-blue-700 dark:text-blue-300 text-center">
+                Drag from Task A's <strong>right dot</strong> → Task B's <strong>left dot</strong> = "Task A must finish before Task B starts"
+              </p>
             </div>
 
-            {/* Predecessor rows - min height for 8 rows without scrolling */}
-            <div className="space-y-2 min-h-[360px]">
-              {depEditorLinks.map((link, index) => {
-                const predecessorTask = tasks.find(t => t.id === link.predecessorId);
-                const predecessorRowNum = predecessorTask
-                  ? tasks.findIndex(t => t.id === link.predecessorId) + 1
-                  : '';
+            {/* Predecessors Section */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Predecessors</h3>
+                <span className="text-xs text-muted-foreground">— Tasks that must finish before this task can start</span>
+              </div>
+              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                <strong>Predecessors</strong> control when this task starts. If Task A is a predecessor of Task B, then Task B waits for Task A to complete before starting.
+              </p>
 
-                return (
-                  <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
-                    {/* Row # input */}
-                    <Input
-                      type="number"
-                      min={1}
-                      max={tasks.length}
-                      value={predecessorRowNum}
-                      onChange={(e) => {
-                        const rowNum = parseInt(e.target.value, 10);
+              {/* Header row */}
+              <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                <span>Row #</span>
+                <span>Task</span>
+                <span>Type</span>
+                <span>Lag</span>
+                <span></span>
+              </div>
+
+              {/* Predecessor rows */}
+              <div className="space-y-2">
+                {depEditorLinks.map((link, index) => {
+                  const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+                  const predecessorRowNum = predecessorTask
+                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                    : '';
+
+                  return (
+                    <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
+                      {/* Row # input */}
+                      <Input
+                        type="number"
+                        min={1}
+                        max={tasks.length}
+                        value={predecessorRowNum}
+                        onChange={(e) => {
+                          const rowNum = parseInt(e.target.value, 10);
+                          if (rowNum >= 1 && rowNum <= tasks.length) {
+                            const task = tasks[rowNum - 1];
+                            if (task && task.id !== depEditorTask?.id) {
+                              updatePredecessorLink(index, { predecessorId: task.id });
+                            }
+                          } else if (!e.target.value) {
+                            updatePredecessorLink(index, { predecessorId: '' });
+                          }
+                        }}
+                        className="h-8 text-center"
+                        placeholder="#"
+                      />
+
+                      {/* Task dropdown */}
+                      <ComboboxDropdown
+                        items={taskComboItems}
+                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                        onSelect={(item) => updatePredecessorLink(index, { predecessorId: item.id })}
+                        placeholder="Select task..."
+                        searchPlaceholder="Search tasks..."
+                        className="h-8"
+                      />
+
+                      {/* Type dropdown */}
+                      <select
+                        value={link.type}
+                        onChange={(e) => updatePredecessorLink(index, { type: e.target.value as DependencyType })}
+                        className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                      >
+                        <option value="FS">Finish-to-Start (FS)</option>
+                        <option value="FF">Finish-to-Finish (FF)</option>
+                        <option value="SS">Start-to-Start (SS)</option>
+                        <option value="SF">Start-to-Finish (SF)</option>
+                      </select>
+
+                      {/* Lag input */}
+                      <Input
+                        type="number"
+                        value={link.lag}
+                        onChange={(e) => updatePredecessorLink(index, { lag: parseInt(e.target.value, 10) || 0 })}
+                        className="h-8 text-center"
+                        placeholder="0"
+                      />
+
+                      {/* Remove button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => removePredecessorLink(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+
+                {/* Empty row to add new predecessor */}
+                <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={tasks.length}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
                         if (rowNum >= 1 && rowNum <= tasks.length) {
                           const task = tasks[rowNum - 1];
                           if (task && task.id !== depEditorTask?.id) {
-                            updatePredecessorLink(index, { predecessorId: task.id });
+                            setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                            (e.target as HTMLInputElement).value = '';
                           }
-                        } else if (!e.target.value) {
-                          updatePredecessorLink(index, { predecessorId: '' });
                         }
-                      }}
-                      className="h-8 text-center"
-                      placeholder="#"
-                    />
-
-                    {/* Task dropdown */}
-                    <ComboboxDropdown
-                      items={taskComboItems}
-                      selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
-                      onSelect={(item) => updatePredecessorLink(index, { predecessorId: item.id })}
-                      placeholder="Select task..."
-                      searchPlaceholder="Search tasks..."
-                      className="h-8"
-                    />
-
-                    {/* Type dropdown */}
-                    <select
-                      value={link.type}
-                      onChange={(e) => updatePredecessorLink(index, { type: e.target.value as DependencyType })}
-                      className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                    >
-                      <option value="FS">Finish-to-Start (FS)</option>
-                      <option value="FF">Finish-to-Finish (FF)</option>
-                      <option value="SS">Start-to-Start (SS)</option>
-                      <option value="SF">Start-to-Finish (SF)</option>
-                    </select>
-
-                    {/* Lag input */}
-                    <Input
-                      type="number"
-                      value={link.lag}
-                      onChange={(e) => updatePredecessorLink(index, { lag: parseInt(e.target.value, 10) || 0 })}
-                      className="h-8 text-center"
-                      placeholder="0"
-                    />
-
-                    {/* Remove button */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => removePredecessorLink(index)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                );
-              })}
-
-              {/* Empty row to add new predecessor */}
-              <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
-                <Input
-                  type="number"
-                  min={1}
-                  max={tasks.length}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const rowNum = parseInt(e.target.value, 10);
                       if (rowNum >= 1 && rowNum <= tasks.length) {
                         const task = tasks[rowNum - 1];
                         if (task && task.id !== depEditorTask?.id) {
                           setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                          (e.target as HTMLInputElement).value = '';
+                          e.target.value = '';
                         }
                       }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const rowNum = parseInt(e.target.value, 10);
-                    if (rowNum >= 1 && rowNum <= tasks.length) {
-                      const task = tasks[rowNum - 1];
-                      if (task && task.id !== depEditorTask?.id) {
-                        setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
-                        e.target.value = '';
+                    }}
+                    className="h-8 text-center"
+                    placeholder="#"
+                  />
+                  <ComboboxDropdown
+                    items={taskComboItems.filter(item => !depEditorLinks.some(l => l.predecessorId === item.id))}
+                    onSelect={(item) => {
+                      setDepEditorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
+                    }}
+                    placeholder="Add predecessor..."
+                    searchPlaceholder="Search tasks..."
+                    className="h-8"
+                  />
+                  <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                    <option>Finish-to-Start (FS)</option>
+                  </select>
+                  <Input disabled className="h-8 text-center" placeholder="0" />
+                  <div className="h-8 w-8" />
+                </div>
+              </div>
+            </div>
+
+            {/* Successors Section (Editable) */}
+            <div className="space-y-2 border-t pt-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Successors</h3>
+                <span className="text-xs text-muted-foreground">— Tasks that wait for this task to complete</span>
+              </div>
+              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                <strong>Successors</strong> are tasks that depend on this task. When this task moves, successors may cascade (move automatically).
+              </p>
+
+              {/* Header row */}
+              <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
+                <span>Row #</span>
+                <span>Task</span>
+                <span>Type</span>
+                <span>Lag</span>
+                <span></span>
+              </div>
+
+              {/* Successor rows */}
+              <div className="space-y-2">
+                {depEditorSuccessorLinks.map((link, index) => {
+                  const successorTask = tasks.find(t => t.id === link.predecessorId);
+                  const successorRowNum = successorTask
+                    ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                    : '';
+
+                  return (
+                    <div key={index} className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center">
+                      {/* Row # input */}
+                      <Input
+                        type="number"
+                        min={1}
+                        max={tasks.length}
+                        value={successorRowNum}
+                        onChange={(e) => {
+                          const rowNum = parseInt(e.target.value, 10);
+                          if (rowNum >= 1 && rowNum <= tasks.length) {
+                            const task = tasks[rowNum - 1];
+                            if (task && task.id !== depEditorTask?.id) {
+                              updateSuccessorLink(index, { predecessorId: task.id });
+                            }
+                          } else if (!e.target.value) {
+                            updateSuccessorLink(index, { predecessorId: '' });
+                          }
+                        }}
+                        className="h-8 text-center"
+                        placeholder="#"
+                      />
+
+                      {/* Task dropdown */}
+                      <ComboboxDropdown
+                        items={taskComboItems}
+                        selectedItem={taskComboItems.find(item => item.id === link.predecessorId)}
+                        onSelect={(item) => updateSuccessorLink(index, { predecessorId: item.id })}
+                        placeholder="Select task..."
+                        searchPlaceholder="Search tasks..."
+                        className="h-8"
+                      />
+
+                      {/* Type dropdown */}
+                      <select
+                        value={link.type}
+                        onChange={(e) => updateSuccessorLink(index, { type: e.target.value as DependencyType })}
+                        className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                      >
+                        <option value="FS">Finish-to-Start (FS)</option>
+                        <option value="FF">Finish-to-Finish (FF)</option>
+                        <option value="SS">Start-to-Start (SS)</option>
+                        <option value="SF">Start-to-Finish (SF)</option>
+                      </select>
+
+                      {/* Lag input */}
+                      <Input
+                        type="number"
+                        value={link.lag}
+                        onChange={(e) => updateSuccessorLink(index, { lag: parseInt(e.target.value, 10) || 0 })}
+                        className="h-8 text-center"
+                        placeholder="0"
+                      />
+
+                      {/* Remove button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => removeSuccessorLink(index)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+
+                {/* Empty row to add new successor */}
+                <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 items-center opacity-60">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={tasks.length}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const rowNum = parseInt((e.target as HTMLInputElement).value, 10);
+                        if (rowNum >= 1 && rowNum <= tasks.length) {
+                          const task = tasks[rowNum - 1];
+                          if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
+                            setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }
                       }
-                    }
-                  }}
-                  className="h-8 text-center"
-                  placeholder="#"
-                />
-                <ComboboxDropdown
-                  items={taskComboItems.filter(item => !depEditorLinks.some(l => l.predecessorId === item.id))}
-                  onSelect={(item) => {
-                    setDepEditorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
-                  }}
-                  placeholder="Add predecessor..."
-                  searchPlaceholder="Search tasks..."
-                  className="h-8"
-                />
-                <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
-                  <option>Finish-to-Start (FS)</option>
-                </select>
-                <Input disabled className="h-8 text-center" placeholder="0" />
-                <div className="h-8 w-8" />
+                    }}
+                    onBlur={(e) => {
+                      const rowNum = parseInt(e.target.value, 10);
+                      if (rowNum >= 1 && rowNum <= tasks.length) {
+                        const task = tasks[rowNum - 1];
+                        if (task && task.id !== depEditorTask?.id && !depEditorSuccessorLinks.some(l => l.predecessorId === task.id)) {
+                          setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
+                          e.target.value = '';
+                        }
+                      }
+                    }}
+                    className="h-8 text-center"
+                    placeholder="#"
+                  />
+                  <ComboboxDropdown
+                    items={taskComboItems.filter(item => !depEditorSuccessorLinks.some(l => l.predecessorId === item.id) && !depEditorLinks.some(l => l.predecessorId === item.id))}
+                    onSelect={(item) => {
+                      setDepEditorSuccessorLinks(prev => [...prev, { predecessorId: item.id, type: 'FS', lag: 0 }]);
+                    }}
+                    placeholder="Add successor..."
+                    searchPlaceholder="Search tasks..."
+                    className="h-8"
+                  />
+                  <select disabled className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm">
+                    <option>Finish-to-Start (FS)</option>
+                  </select>
+                  <Input disabled className="h-8 text-center" placeholder="0" />
+                  <div className="h-8 w-8" />
+                </div>
+
+                {depEditorSuccessorLinks.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic py-1">
+                    No tasks depend on this task yet. Add one above.
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="border-t pt-4">
             <Button variant="outline" onClick={() => setDepEditorOpen(false)}>
               Cancel
             </Button>

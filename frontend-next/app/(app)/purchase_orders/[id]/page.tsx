@@ -553,7 +553,7 @@ export default function PurchaseOrderDetailPage() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => router.push("/purchase_orders")}
+          onClick={() => router.back()}
           className="mt-1"
         >
           <ArrowLeft className="h-4 w-4" />

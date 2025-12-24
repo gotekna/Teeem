@@ -378,6 +378,28 @@ export class Renderer {
         this.ctx.restore();
       }
 
+      // Draw CHECKERED pattern for "user applied logic" tasks (require_supervisor_check = true)
+      // This indicates the task's dates were manually set and don't follow dependencies exactly
+      if (task.rowData?.require_supervisor_check) {
+        this.ctx.save();
+        // Clip to task bar shape
+        this.ctx.beginPath();
+        this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
+        this.ctx.clip();
+
+        // Draw checkered pattern (alternating squares)
+        const squareSize = 6;
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        for (let x = 0; x < taskWidth; x += squareSize * 2) {
+          for (let y = 0; y < barHeight; y += squareSize * 2) {
+            // Draw two squares in alternating positions
+            this.ctx.fillRect(startX + x, barY + y, squareSize, squareSize);
+            this.ctx.fillRect(startX + x + squareSize, barY + y + squareSize, squareSize, squareSize);
+          }
+        }
+        this.ctx.restore();
+      }
+
       // Check if task is on critical path
       const isCritical = criticalTaskIds?.has(task.id);
 
