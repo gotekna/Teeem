@@ -1316,8 +1316,13 @@ export function GanttCanvasView({
       }
     } catch (err) {
       console.error('Failed to toggle complete:', err);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "Failed to update complete status. Please try again.",
+      });
     }
-  }, [templateId, isStaticMode, rows]);
+  }, [templateId, isStaticMode, rows, toast]);
 
   // Find all successors of a task (tasks that have this task as a predecessor)
   const findSuccessors = React.useCallback((taskTaskNumber: string): SmTemplateRow[] => {
@@ -1338,22 +1343,12 @@ export function GanttCanvasView({
     // Use company timezone (Brisbane) for date formatting
     const currentDateStr = formatDateForAPI(currentTask?.startDate ?? null);
 
-    console.log('🔒 CONFIRM TOGGLE (direct):', {
-      task: task.name,
-      taskNumber: row.task_number,
-      currentValue: row.require_supervisor_check,
-      newValue: checked,
-      currentDate: currentDateStr,
-      action: checked ? 'CHECKING (locking)' : 'UNCHECKING (unlocking)'
-    });
-
     try {
       // When confirming, also save position so task doesn't move
       // DON'T set manually_positioned - just save the date, isLocked handles the rest
       const updateData: any = { require_supervisor_check: checked };
       if (checked && currentDateStr) {
         updateData.manual_start_date = currentDateStr;
-        console.log(`🔒 Locking task at position: ${currentDateStr}`);
       }
 
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
@@ -1373,8 +1368,13 @@ export function GanttCanvasView({
       ));
     } catch (err) {
       console.error('Failed to toggle confirm:', err);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "Failed to update confirm status. Please try again.",
+      });
     }
-  }, [templateId, isStaticMode, rows, tasks]);
+  }, [templateId, isStaticMode, rows, tasks, toast]);
 
   // Handle supplier confirm toggle (require_supplier_confirm) - show dialog first
   const handleSupplierConfirmToggle = React.useCallback((task: GanttTask, checked: boolean) => {
@@ -1385,16 +1385,6 @@ export function GanttCanvasView({
 
     // Find affected successors
     const successors = findSuccessors(String(row.task_number));
-
-    console.log('🔒 SUPPLIER CONFIRM TOGGLE:', {
-      task: task.name,
-      taskNumber: row.task_number,
-      currentValue: row.require_supplier_confirm,
-      newValue: checked,
-      action: checked ? 'CHECKING (locking)' : 'UNCHECKING (unlocking)',
-      successorCount: successors.length,
-      successors: successors.map(s => ({ id: s.id, name: s.name, taskNumber: s.task_number }))
-    });
 
     // Show confirmation dialog
     setConfirmDialog({
@@ -1418,30 +1408,17 @@ export function GanttCanvasView({
     // Use company timezone (Brisbane) for date formatting
     const currentDateStr = formatDateForAPI(currentTask?.startDate ?? null);
 
-    console.log('✅ EXECUTING CONFIRM TOGGLE:', {
-      type,
-      task: task.name,
-      taskId: task.id,
-      isChecking,
-      fieldName,
-      currentDate: currentDateStr,
-      affectedSuccessors: affectedSuccessors.length
-    });
-
     try {
       // When CONFIRMING (locking), also save the current position so it doesn't move
       // DON'T set manually_positioned - just save the date, isLocked handles the rest
       const updateData: any = { [fieldName]: isChecking };
       if (isChecking && currentDateStr) {
         updateData.manual_start_date = currentDateStr;
-        console.log(`🔒 Locking task at position: ${currentDateStr}`);
       }
 
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: updateData
       });
-
-      console.log(`✅ Saved ${fieldName}=${isChecking} for task ${task.id}`);
 
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
@@ -1459,8 +1436,13 @@ export function GanttCanvasView({
       setConfirmDialog(prev => ({ ...prev, isOpen: false }));
     } catch (err) {
       console.error(`Failed to toggle ${type}:`, err);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: `Failed to update ${type === 'confirm' ? 'confirm' : 'supplier confirm'} status. Please try again.`,
+      });
     }
-  }, [confirmDialog, templateId, tasks]);
+  }, [confirmDialog, templateId, tasks, toast]);
 
   // Initialize canvas engine - recreated when data changes
   // Note: Using rows in dependencies causes recreation, but this is needed for proper handler binding
@@ -2098,7 +2080,6 @@ export function GanttCanvasView({
                               checked={isSupplierConfirmed}
                               onChange={(e) => {
                                 e.stopPropagation();
-                                console.log('📋 Supplier Confirm checkbox clicked:', { task: task.name, isSupplierConfirmed, willBe: !isSupplierConfirmed });
                                 handleSupplierConfirmToggle(task, !isSupplierConfirmed);
                               }}
                               className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
@@ -2562,7 +2543,6 @@ export function GanttCanvasView({
 
                     if (parentDecision === 'break') {
                       // BREAK DEPENDENCY on parent - children are not affected (stay connected to parent)
-                      console.log(`🔗 Breaking dependency on task #${parentTask.task_number}`);
                       const currentPreds = parentTask.predecessor_ids || [];
                       // CRITICAL FIX: Use String() for consistent comparison
                       const updatedPreds = currentPreds.filter((p: { id: string | number }) => String(p.id) !== String(movedTaskNumber));
@@ -2589,7 +2569,6 @@ export function GanttCanvasView({
                       const fieldName = parentTask.require_supplier_confirm ? 'require_supplier_confirm'
                         : parentTask.finance_approved ? 'finance_approved'
                         : 'require_supervisor_check';
-                      console.log(`🔓 Clearing ${fieldName} on task #${parentTask.task_number}`);
 
                       pendingUpdates.push({
                         id: parentTask.id,
@@ -2603,7 +2582,6 @@ export function GanttCanvasView({
 
                         if (childDecision === 'break') {
                           // Break child dependency
-                          console.log(`🔗 Breaking dependency on child task #${childTask.task_number}`);
                           const currentPreds = childTask.predecessor_ids || [];
                           // CRITICAL FIX: Use String() for consistent comparison - filter out parent's task_number
                           const updatedPreds = currentPreds.filter((p: { id: string | number }) => String(p.id) !== String(parentTask.task_number));
@@ -2629,7 +2607,6 @@ export function GanttCanvasView({
                           const childFieldName = childTask.require_supplier_confirm ? 'require_supplier_confirm'
                             : childTask.finance_approved ? 'finance_approved'
                             : 'require_supervisor_check';
-                          console.log(`🔓 Clearing ${childFieldName} on child task #${childTask.task_number}`);
 
                           pendingUpdates.push({
                             id: childTask.id,

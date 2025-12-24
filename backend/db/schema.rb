@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_130946) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_131854) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5004,9 +5004,13 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_130946) do
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
+    t.index ["dependency_broken"], name: "index_sm_template_rows_on_dependency_broken", where: "(dependency_broken = true)"
     t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_template_rows_on_linked_po_task_id"
+    t.index ["manually_positioned"], name: "index_sm_template_rows_on_manually_positioned", where: "(manually_positioned = true)"
     t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
+    t.index ["require_supervisor_check"], name: "index_sm_template_rows_on_require_supervisor_check", where: "(require_supervisor_check = true)"
+    t.index ["require_supplier_confirm"], name: "index_sm_template_rows_on_require_supplier_confirm", where: "(require_supplier_confirm = true)"
     t.index ["sm_template_ids"], name: "index_sm_template_rows_on_sm_template_ids", using: :gin
     t.index ["stage"], name: "index_sm_template_rows_on_stage"
     t.index ["supplier_id"], name: "index_sm_template_rows_on_supplier_id"
