@@ -885,6 +885,34 @@ export class GanttCanvas {
   }
 
   /**
+   * Scroll horizontally only to show a task's bar (keeps vertical position)
+   * Used when clicking a row in the sidebar - shows the task bar without moving the row list
+   */
+  scrollToTaskHorizontalOnly(taskId: string, select: boolean = false): void {
+    const taskIndex = this.state.tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) return;
+
+    const task = this.state.tasks[taskIndex];
+
+    // Calculate horizontal scroll position to show the task bar
+    const x = this.viewport.dateToX(task.startDate);
+
+    // Keep current vertical scroll, only scroll horizontally
+    const currentY = this.state.viewportState.scrollY;
+    this.viewport.scrollTo(x - this.containerWidth / 3, currentY);
+
+    // Optionally select the task
+    if (select) {
+      this.state.selectedTaskIds.clear();
+      this.state.selectedTaskIds.add(taskId);
+      this.state.lastSelectedTaskId = taskId;
+      this.startDependencyFlash(taskId);
+    }
+
+    this.markDirty();
+  }
+
+  /**
    * Get the currently visible date range
    */
   getVisibleDateRange(): { start: Date; end: Date } {

@@ -150,6 +150,28 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
     return Array.from(fys).sort().reverse();
   }, [transactions]);
 
+  // Calculate running balance for each transaction (sorted by date, newest first)
+  // IMPORTANT: This useMemo must be BEFORE all early returns to satisfy React's rules of hooks
+  const transactionsWithBalance = React.useMemo(() => {
+    const endBalance = accountBalance.xero_balance || 0;
+
+    // Sort by date descending (newest first)
+    const sorted = [...filteredTransactions].sort((a, b) => {
+      const dateA = parseXeroDate(a.date);
+      const dateB = parseXeroDate(b.date);
+      if (!dateA || !dateB) return 0;
+      return dateB.getTime() - dateA.getTime(); // Descending
+    });
+
+    // Calculate running balance backwards from the end balance
+    let runningBalance = endBalance;
+    return sorted.map(tx => {
+      const balanceAfter = runningBalance;
+      runningBalance -= tx.amount; // Go backwards
+      return { ...tx, balance: balanceAfter };
+    });
+  }, [filteredTransactions, accountBalance.xero_balance]);
+
   const applyFilters = () => {
     let filtered = [...transactions];
 
@@ -385,27 +407,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
 
   const selectedAccountDetails = bankAccounts.find(a => a.account_id === selectedAccount);
   const hasActiveFilters = searchText || minAmount || maxAmount || statusFilter !== "all" || monthFilter !== "all" || fyFilter !== "all";
-
-  // Calculate running balance for each transaction (sorted by date, newest first)
-  const transactionsWithBalance = React.useMemo(() => {
-    const endBalance = accountBalance.xero_balance || 0;
-
-    // Sort by date descending (newest first)
-    const sorted = [...filteredTransactions].sort((a, b) => {
-      const dateA = parseXeroDate(a.date);
-      const dateB = parseXeroDate(b.date);
-      if (!dateA || !dateB) return 0;
-      return dateB.getTime() - dateA.getTime(); // Descending
-    });
-
-    // Calculate running balance backwards from the end balance
-    let runningBalance = endBalance;
-    return sorted.map(tx => {
-      const balanceAfter = runningBalance;
-      runningBalance -= tx.amount; // Go backwards
-      return { ...tx, balance: balanceAfter };
-    });
-  }, [filteredTransactions, accountBalance.xero_balance]);
 
   return (
     <Card>
