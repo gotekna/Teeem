@@ -632,15 +632,41 @@ export default function JobDetailPage() {
   const tabFromUrl = searchParams.get("tab") || "overview";
   const [activeTab, setActiveTab] = React.useState(tabFromUrl);
 
+  // Helper: find first enabled child of a parent tab
+  const findFirstChildTab = React.useCallback((tabKey: string): string | null => {
+    const parentTab = jobTabs.find(t => t.tab_key === tabKey);
+    if (parentTab?.children?.length) {
+      const firstEnabledChild = parentTab.children.find(c => c.enabled);
+      return firstEnabledChild?.tab_key || null;
+    }
+    return null;
+  }, [jobTabs]);
+
+  // Auto-select first child when landing on a parent tab
+  React.useEffect(() => {
+    if (jobTabs.length > 0) {
+      const firstChild = findFirstChildTab(activeTab);
+      if (firstChild) {
+        setActiveTab(firstChild);
+        const newUrl = `/jobs/${jobId}?tab=${firstChild}`;
+        router.replace(newUrl, { scroll: false });
+      }
+    }
+  }, [jobTabs, activeTab, findFirstChildTab, jobId, router]);
+
   // Update URL when tab changes - keep numeric ID in URL
   const handleTabChange = React.useCallback((newTab: string) => {
-    setActiveTab(newTab);
+    // If clicking a parent tab with children, select first child instead
+    const firstChild = findFirstChildTab(newTab);
+    const effectiveTab = firstChild || newTab;
+
+    setActiveTab(effectiveTab);
     // Only add ?tab= for non-default tabs (cleaner URLs)
-    const newUrl = newTab === "overview"
+    const newUrl = effectiveTab === "overview"
       ? `/jobs/${jobId}`
-      : `/jobs/${jobId}?tab=${newTab}`;
+      : `/jobs/${jobId}?tab=${effectiveTab}`;
     router.replace(newUrl, { scroll: false });
-  }, [jobId, router]);
+  }, [jobId, router, findFirstChildTab]);
 
   const loadJob = React.useCallback(async () => {
     try {
@@ -792,7 +818,7 @@ export default function JobDetailPage() {
   return (
     <div className="h-full flex flex-col overflow-auto">
       {/* Sticky header and tabs */}
-      <div className="sticky top-0 z-10 bg-background">
+      <div className="sticky top-0 z-40 bg-background">
         {/* Header row - no pt-X, layout mode provides top padding */}
         <div className="px-3 pb-2 flex items-start justify-between gap-4">
         <div className="flex items-start gap-4">

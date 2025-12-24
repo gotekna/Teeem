@@ -361,7 +361,7 @@ export default function CompanyDetailPage() {
   return (
     <div className="h-full flex flex-col overflow-auto">
       {/* Sticky header and tabs - matches Job detail page layout */}
-      <div className="sticky top-0 z-10 bg-background">
+      <div className="sticky top-0 z-40 bg-background">
         {/* Header row - no card, inline back button like job detail */}
         <div className="px-3 pb-2 flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">

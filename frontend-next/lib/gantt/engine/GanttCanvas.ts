@@ -2277,14 +2277,18 @@ export class GanttCanvas {
   private getTaskBounds(task: GanttTask, rowIndex: number): SpatialRect {
     // Use world X (without scrollX offset applied by dateToX)
     const screenX = this.viewport.dateToX(task.startDate);
-    const x = screenX + this.state.viewportState.scrollX;
+
+    // Extend hit area to include connector dots at edges
+    const connectorPadding = this.connectorRadius + 5;
+    const x = screenX + this.state.viewportState.scrollX - connectorPadding;
 
     // Calculate width - ensure minimum of dayWidth for single-day tasks
     const endScreenX = this.viewport.dateToX(task.endDate);
     const dayWidth = this.viewport.getDayWidth();
     const calculatedWidth = endScreenX - screenX;
     // Match renderer logic: single-day tasks get full day width, multi-day tasks get width + 1 day
-    const width = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+    // Also add padding on both sides for connector dots
+    const width = (calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth) + connectorPadding * 2;
 
     // Use world Y (without scrollY offset)
     const y = this.config.headerHeight + rowIndex * this.config.rowHeight + this.config.taskBarPadding;
@@ -3068,6 +3072,8 @@ export class GanttCanvas {
       // Zoom
       const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1;
       this.viewport.zoom(zoomDelta, e.offsetX, e.offsetY);
+      // Rebuild spatial index after zoom to keep hit testing accurate
+      this.rebuildSpatialIndex();
     } else {
       // Pan
       this.viewport.pan(-e.deltaX, -e.deltaY);
@@ -3612,6 +3618,30 @@ export class GanttCanvas {
       return this.state.tasks.find(t => t.id === taskId) || null;
     }
 
+    // Fallback: Direct row-based hit test if spatial index fails
+    // This ensures hover works even if spatial index gets out of sync (e.g., after zoom)
+    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    if (adjustedY < 0) return null;
+
+    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
+    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
+
+    const task = this.state.tasks[rowIndex];
+
+    // Check if x is within task bounds (plus connector dot area)
+    const taskStartX = this.viewport.dateToX(task.startDate);
+    const taskEndX = this.viewport.dateToX(task.endDate);
+    const dayWidth = this.viewport.getDayWidth();
+    const calculatedWidth = taskEndX - taskStartX;
+    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+    const actualEndX = taskStartX + taskWidth;
+
+    // Extend hit area by connector dot radius (5) + some padding to include dots at edges
+    const connectorPadding = this.connectorRadius + 5;
+    if (x >= taskStartX - connectorPadding && x <= actualEndX + connectorPadding) {
+      return task;
+    }
+
     return null;
   }
 
@@ -3646,8 +3676,7 @@ export class GanttCanvas {
       const poleHeight = 16; // Must match renderer
       const handleRadius = 8; // Slightly larger hit area for easier grabbing
       const rowY = this.viewport.rowToY(checkRowIndex);
-      const taskBarPadding = (this.config.rowHeight - this.config.taskBarHeight) / 2;
-      const barTop = rowY + taskBarPadding;
+      const barTop = rowY + this.config.taskBarPadding;
       const handleY = barTop - poleHeight;
 
       // Check if click is on the flagpole handle (square area above bar)
@@ -3682,10 +3711,9 @@ export class GanttCanvas {
     const hitRadius = this.connectorRadius + 10;
     const dayWidth = this.viewport.getDayWidth();
 
-    // Calculate task bar position (must match renderer exactly)
+    // Calculate task bar position (must match renderer exactly - use config.taskBarPadding)
     const rowY = this.viewport.rowToY(rowIndex);
-    const taskBarPadding = (this.config.rowHeight - this.config.taskBarHeight) / 2;
-    const barTop = rowY + taskBarPadding;
+    const barTop = rowY + this.config.taskBarPadding;
     const centerY = barTop + this.config.taskBarHeight / 2;
 
     // Calculate connector positions - must match rendering logic
