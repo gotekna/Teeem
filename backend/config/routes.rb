@@ -1783,6 +1783,8 @@ Rails.application.routes.draw do
         get "xero/group/balance_sheet", to: "corporate_company_xero#group_balance_sheet"
         # Bank transactions by account
         get "xero/bank_transactions", to: "corporate_company_xero#bank_transactions"
+        # Tab stats (counts for badges on Xero sub-tabs)
+        get "xero/tab_stats", to: "corporate_company_xero#tab_stats"
 
         # PDF Financial Reports (Gold Standard tables)
         resources :profit_loss_reports, only: [ :index, :show ] do

@@ -116,6 +116,23 @@ function MissingComponent({ componentName }: { componentName: string }) {
 // MAIN COMPONENT
 // ============================================
 
+// Types for tab stats from API
+interface XeroTabStats {
+  connection: number | null;
+  profit_loss: number | null;
+  balance_sheet: number | null;
+  bank: {
+    accounts: number;
+    statements: number;
+    documents: number;
+    display: number | null;
+  } | null;
+  accounts: number | null;
+  contacts: number | null;
+  invoices: number | null;
+  bills: number | null;
+}
+
 export function XeroTabRenderer({
   companyId,
   companyName,
@@ -132,11 +149,55 @@ export function XeroTabRenderer({
   // State for current sub-tab
   const [activeSubTab, setActiveSubTab] = React.useState(initialTab);
 
+  // State for tab stats (counts)
+  const [tabStats, setTabStats] = React.useState<XeroTabStats | null>(null);
+
   // Fetch Xero tabs from API (children of "xero" parent in corporate_entity scope)
   const { tabs, loading, error } = useEntityTabs({
     scope: "corporate_entity",
     // entityType filtering not needed for Xero tabs
   });
+
+  // Load tab stats for badges
+  React.useEffect(() => {
+    const loadTabStats = async () => {
+      try {
+        const response = await fetch(`/api/v1/companies/${companyId}/xero/tab_stats`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setTabStats(data.stats);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load tab stats:", err);
+      }
+    };
+    loadTabStats();
+  }, [companyId]);
+
+  // Helper to get count for a tab key
+  const getTabCount = React.useCallback((tabKey: string): number => {
+    if (!tabStats) return 0;
+
+    // Map tab keys to stats
+    const statsMap: Record<string, number | null | undefined> = {
+      connection: tabStats.connection,
+      profit_loss: tabStats.profit_loss,
+      "profit-loss": tabStats.profit_loss,
+      balance_sheet: tabStats.balance_sheet,
+      "balance-sheet": tabStats.balance_sheet,
+      bank: tabStats.bank?.display ?? tabStats.bank?.accounts,
+      accounts: tabStats.accounts,
+      contacts: tabStats.contacts,
+      invoices: tabStats.invoices,
+      "invoices-credit-notes": tabStats.invoices,
+      bills: tabStats.bills,
+      "bills-pos": tabStats.bills,
+    };
+
+    return statsMap[tabKey] ?? 0;
+  }, [tabStats]);
 
   // Filter to just Xero tabs (tabs with parent that has tab_key="xero")
   // NOTE: Backend returns NESTED tabs (children inside parent.children array)
@@ -147,8 +208,15 @@ export function XeroTabRenderer({
 
     // Children are NESTED inside parent (EntityTab.children array)
     const children: EntityTab[] = xeroParent.children || [];
-    return children.filter((t) => t.enabled);
-  }, [tabs]);
+
+    // Apply tab stats (counts) to each tab
+    return children
+      .filter((t) => t.enabled)
+      .map((tab) => ({
+        ...tab,
+        document_count: getTabCount(tab.tab_key),
+      }));
+  }, [tabs, getTabCount]);
 
   // Build hierarchy (L1 = direct children of xero, L2 = grandchildren)
   // NOTE: Backend returns NESTED structure, so L2 tabs are in L1.children

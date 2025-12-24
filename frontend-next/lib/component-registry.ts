@@ -287,6 +287,30 @@ const TIER_2_COMPONENTS: StandardComponent[] = [
     whenToUse: "Multiple selection from a list",
     usageCount: 5,
   },
+  {
+    id: "supplier-picker",
+    name: "SupplierPicker",
+    displayName: "Supplier Picker",
+    category: "forms",
+    tier: 2,
+    status: "standard",
+    importPath: "@/components/ui/supplier-picker",
+    description: "Searchable supplier selector with server-side search",
+    whenToUse: "Select a supplier from the contacts list",
+    usageCount: 0,
+  },
+  {
+    id: "pricebook-code-picker",
+    name: "PricebookCodePicker",
+    displayName: "Pricebook Code Picker",
+    category: "forms",
+    tier: 2,
+    status: "standard",
+    importPath: "@/components/ui/pricebook-code-picker",
+    description: "Searchable pricebook item/code selector with price display",
+    whenToUse: "Select a pricebook item code to pick a price",
+    usageCount: 0,
+  },
 ];
 
 // =============================================================================

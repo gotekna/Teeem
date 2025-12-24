@@ -2593,6 +2593,7 @@ export class GanttCanvas {
 
     this.canvas.addEventListener('mousedown', this.handleMouseDown);
     this.canvas.addEventListener('mousemove', this.handleMouseMove);
+    this.canvas.addEventListener('mouseenter', this.handleMouseMove); // Trigger hover on enter too
     this.canvas.addEventListener('mouseup', this.handleMouseUp);
     this.canvas.addEventListener('mouseleave', this.handleMouseLeave);
     this.canvas.addEventListener('dblclick', this.handleDoubleClick);
@@ -2605,6 +2606,7 @@ export class GanttCanvas {
   private removeEventListeners(): void {
     this.canvas.removeEventListener('mousedown', this.handleMouseDown);
     this.canvas.removeEventListener('mousemove', this.handleMouseMove);
+    this.canvas.removeEventListener('mouseenter', this.handleMouseMove);
     this.canvas.removeEventListener('mouseup', this.handleMouseUp);
     this.canvas.removeEventListener('mouseleave', this.handleMouseLeave);
     this.canvas.removeEventListener('dblclick', this.handleDoubleClick);
@@ -3667,45 +3669,49 @@ export class GanttCanvas {
    * Returns which connector was clicked (start, end) or null
    */
   private hitTestConnector(x: number, y: number): { task: GanttTask; edge: 'start' | 'end' } | null {
-    // Account for header height
-    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
-    if (adjustedY < 0) return null;
+    // Only check connectors for hovered task (dots only visible on hover)
+    if (!this.state.hoveredTaskId) return null;
 
-    // Find which row was clicked
-    const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
-    if (rowIndex < 0 || rowIndex >= this.state.tasks.length) return null;
+    const task = this.state.tasks.find(t => t.id === this.state.hoveredTaskId);
+    if (!task) return null;
 
-    const task = this.state.tasks[rowIndex];
+    const rowIndex = this.state.tasks.indexOf(task);
+    if (rowIndex < 0) return null;
 
-    // Calculate task bar position (dots on bar center)
+    // Hit area radius
+    const hitRadius = this.connectorRadius + 10;
+    const dayWidth = this.viewport.getDayWidth();
+
+    // Calculate task bar position (must match renderer exactly)
     const rowY = this.viewport.rowToY(rowIndex);
     const taskBarPadding = (this.config.rowHeight - this.config.taskBarHeight) / 2;
     const barTop = rowY + taskBarPadding;
     const centerY = barTop + this.config.taskBarHeight / 2;
 
-    // Hit area radius
-    const hitRadius = this.connectorRadius + 8;
-
     // Calculate connector positions - must match rendering logic
     const taskStartX = this.viewport.dateToX(task.startDate);
     const rawEndX = this.viewport.dateToX(task.endDate);
-    const dayWidth = this.viewport.getDayWidth();
     const calculatedWidth = rawEndX - taskStartX;
-    // Use minimum day width for 1-day tasks, like the renderer does
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const taskEndX = taskStartX + taskWidth;
 
-    // Use bounding box check (simpler and avoids coordinate space issues)
-    // Check start connector (on bar center left)
-    if (x >= taskStartX - hitRadius && x <= taskStartX + hitRadius &&
-        y >= centerY - hitRadius && y <= centerY + hitRadius) {
-      return { task, edge: 'start' };
+    // Calculate distances to each connector
+    const distToStart = Math.abs(x - taskStartX);
+    const distToEnd = Math.abs(x - taskEndX);
+
+    // Check if within Y range of the bar
+    if (y < centerY - hitRadius || y > centerY + hitRadius) {
+      return null;
     }
 
-    // Check end connector (on bar center right)
-    if (x >= taskEndX - hitRadius && x <= taskEndX + hitRadius &&
-        y >= centerY - hitRadius && y <= centerY + hitRadius) {
+    // Return the CLOSER connector if within hit range
+    if (distToStart <= hitRadius && distToEnd <= hitRadius) {
+      // Both in range - pick closer one
+      return { task, edge: distToEnd < distToStart ? 'end' : 'start' };
+    } else if (distToEnd <= hitRadius) {
       return { task, edge: 'end' };
+    } else if (distToStart <= hitRadius) {
+      return { task, edge: 'start' };
     }
 
     return null;
