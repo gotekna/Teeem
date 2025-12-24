@@ -518,6 +518,7 @@ export function convertRowsToTasks(
 
   // Third pass: update header tasks to span their children
   // Header rows have category === 'Header' and children have parent_row_id pointing to them
+  // If a header has dependencies, shift its children accordingly
   const headerIds = new Set(
     sortedRows.filter(r => r.category === 'Header').map(r => r.id)
   );
@@ -535,18 +536,61 @@ export function convertRowsToTasks(
     }
 
     // Update header task dates to span their children
+    // If header has dependencies, shift children first
     for (const task of tasks) {
       const row = sortedRows.find(r => String(r.id) === task.id);
       if (row?.category === 'Header') {
         const children = headerChildrenMap.get(row.id);
         if (children && children.length > 0) {
-          // Find min start and max end from children
+          // Find current min start from children
           let minStart = children[0].startDate;
           let maxEnd = children[0].endDate;
           for (const child of children) {
             if (child.startDate < minStart) minStart = child.startDate;
             if (child.endDate > maxEnd) maxEnd = child.endDate;
           }
+
+          // Check if header has dependencies - if so, calculate required start
+          if (row.predecessor_ids && row.predecessor_ids.length > 0) {
+            let latestRequiredStart: Date | null = null;
+
+            for (const pred of row.predecessor_ids) {
+              const predDates = taskDateMap.get(pred.id);
+              if (!predDates) continue;
+
+              const predType = pred.type || 'FS';
+              const lagDays = pred.lag || 0;
+              let requiredStart: Date;
+
+              if (predType === 'FS') {
+                // Finish-to-Start: start after predecessor finishes + lag
+                requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+              } else if (predType === 'SS') {
+                // Start-to-Start: start when predecessor starts + lag
+                requiredStart = addWorkingDays(predDates.start, lagDays);
+              } else {
+                // Default to FS
+                requiredStart = addWorkingDays(predDates.end, 1 + lagDays);
+              }
+
+              if (!latestRequiredStart || requiredStart > latestRequiredStart) {
+                latestRequiredStart = requiredStart;
+              }
+            }
+
+            // If header needs to start later due to dependencies, shift all children
+            if (latestRequiredStart && latestRequiredStart > minStart) {
+              const offsetMs = latestRequiredStart.getTime() - minStart.getTime();
+              for (const child of children) {
+                child.startDate = new Date(child.startDate.getTime() + offsetMs);
+                child.endDate = new Date(child.endDate.getTime() + offsetMs);
+              }
+              // Recalculate min/max after shift
+              minStart = new Date(latestRequiredStart);
+              maxEnd = new Date(maxEnd.getTime() + offsetMs);
+            }
+          }
+
           task.startDate = new Date(minStart);
           task.endDate = new Date(maxEnd);
         }
