@@ -128,7 +128,12 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
   };
 
   const downloadReport = async (report: BSReport) => {
+    console.log("🟢 downloadReport called with:", report);
+    console.log("🟢 Report ID:", report.id);
+    console.log("🟢 Has download_url:", !!report.download_url);
+
     if (!report.download_url) {
+      console.log("🟡 No download_url, fetching from API...");
       // Need to fetch the full report to get download URL
       try {
         const response = await api.get<{
@@ -136,15 +141,21 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           data: BSReport;
         }>(`/api/v1/companies/${companyId}/bank_statement_reports/${report.id}`);
 
+        console.log("🟢 API response:", response);
+
         if (response?.success && response.data.download_url) {
+          console.log("🟢 Opening URL:", response.data.download_url);
           window.open(response.data.download_url, "_blank");
         } else {
+          console.log("🔴 No download URL in response");
           setError("Report download not available");
         }
-      } catch {
+      } catch (err) {
+        console.log("🔴 API error:", err);
         setError("Failed to get download link");
       }
     } else {
+      console.log("🟢 Opening existing URL:", report.download_url);
       window.open(report.download_url, "_blank");
     }
   };
@@ -223,9 +234,26 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
 
   // Handle row actions
   const handleRowClick = (row: TableRow) => {
+    console.log("🔵 ROW CLICKED:", row);
+    console.log("🔵 Row ID:", row.id);
+    console.log("🔵 Row status:", row.status);
+    console.log("🔵 Row _original:", row._original);
+
     const report = row._original as BSReport;
-    if (report.status === "completed") {
+    console.log("🔵 Report object:", report);
+    console.log("🔵 Report status:", report?.status);
+    console.log("🔵 Report download_url:", report?.download_url);
+
+    if (report?.status === "completed") {
+      console.log("✅ Status is completed, calling downloadReport");
       downloadReport(report);
+    } else {
+      console.log("⚠️ Status is NOT completed:", report?.status);
+      // Still try to download even if status doesn't match "completed" exactly
+      if (row.status === "COMPLETED" || report?.status?.toUpperCase() === "COMPLETED") {
+        console.log("✅ Status matches COMPLETED (uppercase), calling downloadReport");
+        downloadReport(report);
+      }
     }
   };
 

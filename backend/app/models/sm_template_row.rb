@@ -181,7 +181,9 @@ class SmTemplateRow < ApplicationRecord
     # Get valid task numbers in same template(s) for referential validation
     template_ids = sm_template_ids || []
     valid_task_numbers = if template_ids.any?
-      SmTemplateRow.where("sm_template_ids && ARRAY[?]::integer[]", template_ids)
+      # sm_template_ids is JSONB array, use @> to check containment
+      conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(' OR ')
+      SmTemplateRow.where(conditions)
                    .where.not(id: id)
                    .pluck(:task_number)
     else
@@ -222,7 +224,9 @@ class SmTemplateRow < ApplicationRecord
     template_ids = sm_template_ids || []
     return if template_ids.empty?
 
-    all_rows = SmTemplateRow.where("sm_template_ids && ARRAY[?]::integer[]", template_ids)
+    # sm_template_ids is JSONB array, use @> to check containment
+    conditions = template_ids.map { |tid| "sm_template_ids @> '[#{tid.to_i}]'::jsonb" }.join(' OR ')
+    all_rows = SmTemplateRow.where(conditions)
 
     # Build dependency graph: task_number -> [predecessor_task_numbers]
     predecessor_map = {}
