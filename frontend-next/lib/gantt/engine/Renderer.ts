@@ -1213,57 +1213,11 @@ export class Renderer {
       // Same row - draw straight line
       this.ctx.lineTo(toX, toY);
     } else {
-      // Different rows - route BELOW all tasks to avoid crossing through task bars
-      const rowHeight = this.config.rowHeight;
-      const padding = 8;
-      const goingDown = toY > fromY;
-
-      // Find the rightmost X of truly INTERMEDIATE tasks (between source and target)
-      // Don't include source or target - we exit source immediately and enter target from left
-      let clearanceX = fromX + 15;
-
-      if (tasks && fromIndex !== undefined && toIndex !== undefined) {
-        const minRow = Math.min(fromIndex, toIndex);
-        const maxRow = Math.max(fromIndex, toIndex);
-
-        // Only check truly intermediate rows (exclude both source and target)
-        for (let i = minRow + 1; i < maxRow; i++) {
-          if (i >= 0 && i < tasks.length) {
-            const task = tasks[i];
-            const taskRight = this.viewport.dateToX(task.endDate) + padding;
-            clearanceX = Math.max(clearanceX, taskRight);
-          }
-        }
-      }
-
-      // Route below all tasks: the horizontal segment should be at the BOTTOM
-      // of the lowest row we need to cross (just above the target row gutter)
-      const gutterY = goingDown
-        ? toY - rowHeight * 0.45  // Just above target row (below all intermediate tasks)
-        : toY + rowHeight * 0.45; // Just below target row (above all intermediate tasks)
-
-      if (toX > fromX) {
-        // Target is to the right
-        const midX = Math.max(clearanceX, fromX + 15);
-
-        // Route: exit right → drop all the way to gutter near target → go right → enter target
-        this.ctx.lineTo(fromX + 15, fromY);     // Exit right a bit
-        this.ctx.lineTo(fromX + 15, gutterY);   // Drop all the way down to gutter near target
-        this.ctx.lineTo(midX, gutterY);         // Go right in gutter past all tasks
-        this.ctx.lineTo(midX, toY);             // Rise up to target row
-        this.ctx.lineTo(toX, toY);              // Enter target
-      } else {
-        // Target is to the left (backwards dependency)
-        const rightOffset = Math.max(clearanceX - fromX, 15);
-
-        this.ctx.lineTo(fromX + 15, fromY);       // Exit right
-        this.ctx.lineTo(fromX + 15, gutterY);     // Drop to gutter
-        this.ctx.lineTo(fromX + rightOffset, gutterY);  // Go right in gutter
-        this.ctx.lineTo(fromX + rightOffset, gutterY);  // Stay in gutter
-        this.ctx.lineTo(toX - 15, gutterY);       // Go left in gutter
-        this.ctx.lineTo(toX - 15, toY);           // Rise to target row
-        this.ctx.lineTo(toX, toY);                // Enter target
-      }
+      // Different rows - inverted L routing
+      // Drop straight down to target row, then go horizontal
+      // This keeps the horizontal segment at target's height (consistent entry)
+      this.ctx.lineTo(fromX, toY);            // Drop straight down to target row
+      this.ctx.lineTo(toX, toY);              // Go horizontal to enter target
     }
 
     this.ctx.stroke();
@@ -1366,51 +1320,9 @@ export class Renderer {
       // Same row - draw straight line
       this.ctx.lineTo(toX, toY);
     } else {
-      // Different rows - route BELOW all tasks to avoid crossing through task bars
-      const rowHeight = this.config.rowHeight;
-      const padding = 8;
-      const goingDown = toY > fromY;
-
-      // Find the rightmost X of truly INTERMEDIATE tasks (between source and target)
-      let clearanceX = fromX + 15;
-
-      if (tasks && fromIndex !== undefined && toIndex !== undefined) {
-        const minRow = Math.min(fromIndex, toIndex);
-        const maxRow = Math.max(fromIndex, toIndex);
-
-        // Only check truly intermediate rows (exclude both source and target)
-        for (let i = minRow + 1; i < maxRow; i++) {
-          if (i >= 0 && i < tasks.length) {
-            const task = tasks[i];
-            const taskRight = this.viewport.dateToX(task.endDate) + padding;
-            clearanceX = Math.max(clearanceX, taskRight);
-          }
-        }
-      }
-
-      // Route below all tasks: horizontal segment at the BOTTOM of the path
-      const gutterY = goingDown
-        ? toY - rowHeight * 0.45
-        : toY + rowHeight * 0.45;
-
-      if (toX > fromX) {
-        const midX = Math.max(clearanceX, fromX + 15);
-
-        this.ctx.lineTo(fromX + 15, fromY);
-        this.ctx.lineTo(fromX + 15, gutterY);
-        this.ctx.lineTo(midX, gutterY);
-        this.ctx.lineTo(midX, toY);
-        this.ctx.lineTo(toX, toY);
-      } else {
-        const rightOffset = Math.max(clearanceX - fromX, 15);
-
-        this.ctx.lineTo(fromX + 15, fromY);
-        this.ctx.lineTo(fromX + 15, gutterY);
-        this.ctx.lineTo(fromX + rightOffset, gutterY);
-        this.ctx.lineTo(toX - 15, gutterY);
-        this.ctx.lineTo(toX - 15, toY);
-        this.ctx.lineTo(toX, toY);
-      }
+      // Different rows - inverted L routing
+      this.ctx.lineTo(fromX, toY);
+      this.ctx.lineTo(toX, toY);
     }
   }
 

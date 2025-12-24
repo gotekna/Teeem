@@ -833,16 +833,18 @@ module Api
           []
         end
 
+        # Build base scope - only add includes if we have associations to eager load
+        base_scope = eager_load_associations.any? ? Job.includes(*eager_load_associations) : Job
+
         if id_or_slug.to_s.match?(/\A\d+\z/)
           # Numeric ID - direct lookup
-          @job = Job.includes(*eager_load_associations).find(id_or_slug)
+          @job = base_scope.find(id_or_slug)
         else
           # Slug - search by name (convert slug back to search term)
           # Remove the _God_Loves_You_ suffix if present
           slug = id_or_slug.to_s.gsub(/_God_Loves_You_$/i, "")
           search_term = slug.gsub("-", " ")
-          @job = Job.includes(*eager_load_associations)
-                    .where("LOWER(name) LIKE ?", "%#{search_term.downcase}%").first
+          @job = base_scope.where("LOWER(name) LIKE ?", "%#{search_term.downcase}%").first
           raise ActiveRecord::RecordNotFound, "Job not found with slug: #{id_or_slug}" unless @job
         end
       end
