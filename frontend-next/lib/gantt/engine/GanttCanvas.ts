@@ -543,6 +543,17 @@ export class GanttCanvas {
   private onSelectionChange?: (selectedTaskIds: string[]) => void;
   private onResetManualPosition?: (task: GanttTask) => void;
 
+  // ============================================================================
+  // SSoT: Viewport State Accessor
+  // ============================================================================
+  // CRITICAL: The Viewport class owns the scroll/zoom state. This getter ensures
+  // we always read the LIVE state, not a stale copy. Never access state.viewportState
+  // directly - always use this getter.
+  // ============================================================================
+  private get viewportState(): ViewportState {
+    return this.viewport.getState();
+  }
+
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
     // Create canvas element
     this.canvas = document.createElement('canvas');
@@ -623,8 +634,8 @@ export class GanttCanvas {
     this.interactionManager.setCoordinateConverters(
       (x: number) => this.viewport.xToDate(x),
       (date: Date) => this.viewport.dateToX(date),
-      (y: number) => Math.floor((y - this.config.headerHeight + this.state.viewportState.scrollY) / this.config.rowHeight),
-      (row: number) => this.config.headerHeight + row * this.config.rowHeight - this.state.viewportState.scrollY
+      (y: number) => Math.floor((y - this.config.headerHeight + this.viewportState.scrollY) / this.config.rowHeight),
+      (row: number) => this.config.headerHeight + row * this.config.rowHeight - this.viewportState.scrollY
     );
 
     // Wire selection manager to emit events
@@ -792,7 +803,7 @@ export class GanttCanvas {
       minDate.setDate(minDate.getDate() - 7);
       maxDate.setDate(maxDate.getDate() + 14);
 
-      this.state.viewportState.startDate = minDate;
+      // SSoT: Viewport owns startDate - only call setStartDate()
       this.viewport.setStartDate(minDate);
     }
 
@@ -836,8 +847,8 @@ export class GanttCanvas {
     const today = getTodayInCompanyTimezone();
     const x = this.viewport.dateToX(today);
     const scrollX = position === 'center' ? x - this.containerWidth / 2 : x - 50; // 50px margin from left
-    // Use viewport.getState() for ACTUAL scroll position (this.state.viewportState is stale)
-    this.viewport.scrollTo(Math.max(0, scrollX), this.viewport.getState().scrollY);
+    // SSoT: Use the viewportState getter for live scroll position
+    this.viewport.scrollTo(Math.max(0, scrollX), this.viewportState.scrollY);
     this.markDirty();
   }
 
@@ -849,8 +860,8 @@ export class GanttCanvas {
   scrollToDate(date: Date, center: boolean = true): void {
     const x = this.viewport.dateToX(date);
     const scrollX = center ? x - this.containerWidth / 2 : x;
-    // Use viewport.getState() for ACTUAL scroll position (this.state.viewportState is stale)
-    this.viewport.scrollTo(scrollX, this.viewport.getState().scrollY);
+    // SSoT: Use the viewportState getter for live scroll position
+    this.viewport.scrollTo(scrollX, this.viewportState.scrollY);
     this.markDirty();
   }
 
@@ -902,9 +913,8 @@ export class GanttCanvas {
 
     // Keep the current Y position - DO NOT change vertical scroll
     // This keeps sidebar rows exactly where they are
-    // CRITICAL: Use viewport.getState() to get the ACTUAL scroll position
-    // (this.state.viewportState is a stale copy that doesn't update when scrolling)
-    const currentY = this.viewport.getState().scrollY;
+    // SSoT: Use the viewportState getter for live scroll position
+    const currentY = this.viewportState.scrollY;
 
     // Only scroll horizontally, keep vertical position unchanged
     this.viewport.scrollTo(x - this.containerWidth / 3, currentY);
@@ -924,7 +934,7 @@ export class GanttCanvas {
    * Get the currently visible date range
    */
   getVisibleDateRange(): { start: Date; end: Date } {
-    const startX = this.state.viewportState.scrollX;
+    const startX = this.viewportState.scrollX;
     const endX = startX + this.containerWidth;
     return {
       start: this.viewport.xToDate(startX),
@@ -936,7 +946,7 @@ export class GanttCanvas {
    * Get the currently visible task indices
    */
   getVisibleTaskRange(): { first: number; last: number } {
-    const scrollY = this.state.viewportState.scrollY;
+    const scrollY = this.viewportState.scrollY;
     const viewHeight = this.containerHeight - this.config.headerHeight;
     const first = Math.floor(scrollY / this.config.rowHeight);
     const last = Math.ceil((scrollY + viewHeight) / this.config.rowHeight);
@@ -961,7 +971,7 @@ export class GanttCanvas {
 
     const zoom = Math.max(0.1, Math.min(2, idealDayWidth / this.config.dayWidth));
     this.viewport.setZoom(zoom);
-    this.state.viewportState.startDate = minDate;
+    // SSoT: Viewport owns startDate - only call setStartDate()
     this.viewport.setStartDate(minDate);
     this.markDirty();
   }
@@ -1001,7 +1011,7 @@ export class GanttCanvas {
    * Get current zoom level name
    */
   getZoomLevel(): 'day' | 'week' | 'month' | 'custom' {
-    const zoom = this.state.viewportState.zoom;
+    const zoom = this.viewportState.zoom;
     if (zoom >= 0.8) return 'day';
     if (zoom >= 0.1 && zoom < 0.25) return 'week';
     if (zoom < 0.1) return 'month';
@@ -2316,7 +2326,7 @@ export class GanttCanvas {
 
     // Extend hit area to include connector dots at edges
     const connectorPadding = this.connectorRadius + 5;
-    const x = screenX + this.state.viewportState.scrollX - connectorPadding;
+    const x = screenX + this.viewportState.scrollX - connectorPadding;
 
     // Calculate width - ensure minimum of dayWidth for single-day tasks
     const endScreenX = this.viewport.dateToX(task.endDate);
@@ -2338,8 +2348,8 @@ export class GanttCanvas {
    */
   private screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
     return {
-      x: screenX + this.state.viewportState.scrollX,
-      y: screenY + this.state.viewportState.scrollY,
+      x: screenX + this.viewportState.scrollX,
+      y: screenY + this.viewportState.scrollY,
     };
   }
 
@@ -2420,7 +2430,7 @@ export class GanttCanvas {
 
     try {
       const stateToSave = {
-        viewportState: this.state.viewportState,
+        viewportState: this.viewportState,
         selectedTaskIds: Array.from(this.state.selectedTaskIds),
         minimapVisible: this.minimapVisible,
         criticalPathEnabled: this.criticalPathEnabled,
@@ -2676,8 +2686,8 @@ export class GanttCanvas {
         this.isDraggingMinimap = true;
         this.minimapDragStartX = e.offsetX;
         this.minimapDragStartY = e.offsetY;
-        this.minimapDragStartScrollX = this.state.viewportState.scrollX;
-        this.minimapDragStartScrollY = this.state.viewportState.scrollY;
+        this.minimapDragStartScrollX = this.viewportState.scrollX;
+        this.minimapDragStartScrollY = this.viewportState.scrollY;
 
         // Also immediately scroll to the clicked position
         this.viewport.scrollTo(scrollResult.scrollX, scrollResult.scrollY);
@@ -2963,7 +2973,7 @@ export class GanttCanvas {
 
       if (this.isResizing) {
         // Calculate day offset from mouse movement
-        const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.state.viewportState.zoom));
+        const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.viewportState.zoom));
 
         if (this.resizeEdge === 'left') {
           // Resizing from left - change start date
@@ -3012,7 +3022,7 @@ export class GanttCanvas {
 
       if (this.isDragging) {
         // Calculate new date based on drag distance
-        const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.state.viewportState.zoom));
+        const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.viewportState.zoom));
         let newDate = new Date(this.dragStartDate);
         newDate.setDate(newDate.getDate() + daysDelta);
 
@@ -3657,7 +3667,7 @@ export class GanttCanvas {
 
     // Fallback: Direct row-based hit test if spatial index fails
     // This ensures hover works even if spatial index gets out of sync (e.g., after zoom)
-    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
     if (adjustedY < 0) return null;
 
     const rowIndex = Math.floor(adjustedY / this.config.rowHeight);
@@ -3688,7 +3698,7 @@ export class GanttCanvas {
    */
   private hitTestEdge(x: number, y: number): { task: GanttTask; edge: 'left' | 'right' } | null {
     // Account for header height
-    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
     if (adjustedY < 0) return null;
 
     // Find which row was clicked - but flagpole extends above, so check current row AND row below
@@ -3796,7 +3806,7 @@ export class GanttCanvas {
    */
   private hitTestProgressBar(x: number, y: number): { task: GanttTask; progressX: number } | null {
     // Account for header height
-    const adjustedY = y - this.config.headerHeight + this.state.viewportState.scrollY;
+    const adjustedY = y - this.config.headerHeight + this.viewportState.scrollY;
     if (adjustedY < 0) return null;
 
     // Find which row was clicked
@@ -7508,7 +7518,7 @@ export class GanttCanvas {
 
     // Update viewport
     this.viewport.setZoom(zoom);
-    this.state.viewportState.startDate = minDate;
+    // SSoT: Viewport owns startDate - only call setStartDate()
     this.viewport.setStartDate(minDate);
 
     // Calculate vertical scroll to center selected tasks
@@ -7548,11 +7558,11 @@ export class GanttCanvas {
 
     // Update viewport
     this.viewport.setZoom(zoom);
-    this.state.viewportState.startDate = adjustedStart;
+    // SSoT: Viewport owns startDate - only call setStartDate()
     this.viewport.setStartDate(adjustedStart);
 
-    // Scroll to start - use viewport.getState() for ACTUAL scroll position
-    this.viewport.scrollTo(0, this.viewport.getState().scrollY);
+    // Scroll to start - SSoT: use viewportState getter
+    this.viewport.scrollTo(0, this.viewportState.scrollY);
     this.markDirty();
   }
 
@@ -7584,8 +7594,8 @@ export class GanttCanvas {
   centerOnDate(date: Date): void {
     const x = this.viewport.dateToX(date);
     const scrollX = x - this.containerWidth / 2;
-    // Use viewport.getState() for ACTUAL scroll position (this.state.viewportState is stale)
-    this.viewport.scrollTo(scrollX, this.viewport.getState().scrollY);
+    // SSoT: Use the viewportState getter for live scroll position
+    this.viewport.scrollTo(scrollX, this.viewportState.scrollY);
     this.markDirty();
   }
 
@@ -14210,7 +14220,7 @@ export class GanttCanvas {
   // FEATURE 553: TEST STATUS REPORT (MARKDOWN)
   generateTestStatusReport(): string {
     const now = new Date().toISOString();
-    const viewportState = this.state.viewportState;
+    const viewportState = this.viewportState;
     const metrics = this.getPerformanceMetrics();
 
     return `
@@ -14390,14 +14400,14 @@ ${this.getAutomatedTestResults()}
   }
 
   private testViewportNavigation(): { passed: boolean; message: string } {
-    const originalX = this.state.viewportState.scrollX;
-    const originalY = this.state.viewportState.scrollY;
+    const originalX = this.viewportState.scrollX;
+    const originalY = this.viewportState.scrollY;
 
     this.viewport.scrollTo(originalX + 100, originalY + 50);
-    const panned = this.state.viewportState.scrollX !== originalX || this.state.viewportState.scrollY !== originalY;
+    const panned = this.viewportState.scrollX !== originalX || this.viewportState.scrollY !== originalY;
 
     this.viewport.scrollTo(originalX, originalY);
-    const restored = Math.abs(this.state.viewportState.scrollX - originalX) < 1 && Math.abs(this.state.viewportState.scrollY - originalY) < 1;
+    const restored = Math.abs(this.viewportState.scrollX - originalX) < 1 && Math.abs(this.viewportState.scrollY - originalY) < 1;
 
     const passed = panned && restored;
     return { passed, message: passed ? 'Viewport navigation works' : 'Navigation failed' };
@@ -14442,14 +14452,14 @@ ${this.getAutomatedTestResults()}
   }
 
   private testZoomBounds(): { passed: boolean; message: string } {
-    const original = this.state.viewportState.zoom;
+    const original = this.viewportState.zoom;
 
     // Try to zoom beyond limits
     this.viewport.setZoom(0.001);
-    const atMin = this.state.viewportState.zoom >= 0.1;
+    const atMin = this.viewportState.zoom >= 0.1;
 
     this.viewport.setZoom(100);
-    const atMax = this.state.viewportState.zoom <= 10;
+    const atMax = this.viewportState.zoom <= 10;
 
     this.viewport.setZoom(original);
     const passed = atMin && atMax;
@@ -14499,9 +14509,9 @@ ${this.getAutomatedTestResults()}
       currentState: {
         taskCount: this.state.tasks.length,
         selectedCount: this.state.selectedTaskIds.size,
-        zoom: this.state.viewportState.zoom,
-        scrollX: this.state.viewportState.scrollX,
-        scrollY: this.state.viewportState.scrollY,
+        zoom: this.viewportState.zoom,
+        scrollX: this.viewportState.scrollX,
+        scrollY: this.viewportState.scrollY,
         darkMode: this.config.darkMode,
       },
       performanceMetrics: this.getPerformanceMetrics(),
@@ -14573,8 +14583,8 @@ ${this.getAutomatedTestResults()}
       state: {
         taskCount: this.state.tasks.length,
         selectedCount: this.state.selectedTaskIds.size,
-        zoom: this.state.viewportState.zoom,
-        viewport: { x: this.state.viewportState.scrollX, y: this.state.viewportState.scrollY },
+        zoom: this.viewportState.zoom,
+        viewport: { x: this.viewportState.scrollX, y: this.viewportState.scrollY },
         darkMode: this.config.darkMode,
         canvasSize: { width: this.canvas.width, height: this.canvas.height },
       },
@@ -14750,9 +14760,9 @@ ${this.getAutomatedTestResults()}
         locked: lockedCount,
       },
       viewport: {
-        x: this.state.viewportState.scrollX,
-        y: this.state.viewportState.scrollY,
-        zoom: this.state.viewportState.zoom,
+        x: this.viewportState.scrollX,
+        y: this.viewportState.scrollY,
+        zoom: this.viewportState.zoom,
         width: this.canvas.width,
         height: this.canvas.height,
       },
@@ -15001,8 +15011,8 @@ ${this.getAutomatedTestResults()}
     return {
       tasks: [...this.state.tasks],
       selectedIds: Array.from(this.state.selectedTaskIds),
-      zoom: this.state.viewportState.zoom,
-      viewport: { x: this.state.viewportState.scrollX, y: this.state.viewportState.scrollY },
+      zoom: this.viewportState.zoom,
+      viewport: { x: this.viewportState.scrollX, y: this.viewportState.scrollY },
     };
   }
 
@@ -15018,8 +15028,8 @@ ${this.getAutomatedTestResults()}
     if (state.zoom !== undefined) this.viewport.setZoom(state.zoom);
     if (state.scrollX !== undefined || state.scrollY !== undefined) {
       this.viewport.scrollTo(
-        state.scrollX ?? this.state.viewportState.scrollX,
-        state.scrollY ?? this.state.viewportState.scrollY
+        state.scrollX ?? this.viewportState.scrollX,
+        state.scrollY ?? this.viewportState.scrollY
       );
     }
     this.markDirty();

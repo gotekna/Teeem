@@ -222,16 +222,23 @@ module Api
           end
         end
 
-        # Add employee names for supplier contacts (for searchability)
-        if params[:type] == "suppliers" && params[:include_employees] != "false"
+        # Add employee names and payment terms for supplier contacts
+        if params[:type] == "suppliers"
           contacts_json.each do |contact_json|
             contact = @contacts.find { |c| c.id == contact_json["id"] }
             next unless contact
 
+            # Payment terms (for auto-calculating PO due date)
+            contact_json["bill_due_day"] = contact.bill_due_day
+            contact_json["bill_due_type"] = contact.bill_due_type
+            contact_json["payment_terms"] = contact.payment_terms
+
             # Get employees via primary_company relationship (SSoT: active scope uses is_active column)
-            employee_names = contact.employees.active.limit(10).pluck(:display_name).compact
-            contact_json["employee_names"] = employee_names
-            contact_json["employee_count"] = contact.employees.active.count
+            if params[:include_employees] != "false"
+              employee_names = contact.employees.active.limit(10).pluck(:display_name).compact
+              contact_json["employee_names"] = employee_names
+              contact_json["employee_count"] = contact.employees.active.count
+            end
           end
         end
 

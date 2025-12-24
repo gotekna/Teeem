@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_201005) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_223828) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4619,6 +4619,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_201005) do
     t.string "source"
     t.integer "unreal_task_template_id"
     t.bigint "sm_template_row_id"
+    t.date "due_date"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["completed_at"], name: "index_purchase_orders_on_completed_at"

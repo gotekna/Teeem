@@ -53,6 +53,10 @@ interface Supplier {
   address?: string;
   /** Pricebook item IDs this supplier has price histories for */
   supplied_pricebook_item_ids?: number[];
+  /** Payment terms for calculating PO due date */
+  bill_due_day?: number;
+  bill_due_type?: string; // DAYSAFTERBILLDATE, OFFOLLOWINGMONTH, etc.
+  payment_terms?: string;
 }
 
 interface PricebookItem {
@@ -124,6 +128,7 @@ interface PurchaseOrder {
   total: number;
   budget?: number;
   required_date?: string;
+  due_date?: string; // Payment due date (from supplier terms)
   ordered_date?: string;
   special_instructions?: string;
   delivery_address?: string;
@@ -168,6 +173,49 @@ function formatCurrency(value: number | undefined | null): string {
   }).format(value);
 }
 
+/**
+ * Calculate payment due date based on supplier's payment terms
+ * @param billDueDay - Number of days (e.g., 30 for Net 30)
+ * @param billDueType - Type: DAYSAFTERBILLDATE, OFFOLLOWINGMONTH, etc.
+ * @param fromDate - Base date (defaults to today)
+ * @returns ISO date string (YYYY-MM-DD)
+ */
+function calculateDueDate(
+  billDueDay: number | undefined,
+  billDueType: string | undefined,
+  fromDate?: Date
+): string {
+  if (!billDueDay) return "";
+
+  const baseDate = fromDate || new Date();
+  let dueDate: Date;
+
+  switch (billDueType) {
+    case "DAYSAFTERBILLDATE":
+      // Add X days to the bill date
+      dueDate = new Date(baseDate);
+      dueDate.setDate(dueDate.getDate() + billDueDay);
+      break;
+    case "OFFOLLOWINGMONTH":
+      // Xth day of the following month
+      dueDate = new Date(baseDate);
+      dueDate.setMonth(dueDate.getMonth() + 1);
+      dueDate.setDate(Math.min(billDueDay, new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 0).getDate()));
+      break;
+    case "DAYSAFTERBILLMONTH":
+      // X days after end of bill month
+      dueDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0); // End of month
+      dueDate.setDate(dueDate.getDate() + billDueDay);
+      break;
+    default:
+      // Default: Net X days
+      dueDate = new Date(baseDate);
+      dueDate.setDate(dueDate.getDate() + billDueDay);
+  }
+
+  return dueDate.toISOString().split("T")[0];
+}
+
 export default function PurchaseOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -188,6 +236,7 @@ export default function PurchaseOrderDetailPage() {
   const [status, setStatus] = useState("draft");
   const [budget, setBudget] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
+  const [dueDate, setDueDate] = useState(""); // Payment due date
   const [orderedDate, setOrderedDate] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -200,6 +249,7 @@ export default function PurchaseOrderDetailPage() {
     status: string;
     budget: string;
     requiredDate: string;
+    dueDate: string;
     orderedDate: string;
     notes: string;
     selectedSupplier: Supplier | null;
@@ -247,6 +297,7 @@ export default function PurchaseOrderDetailPage() {
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       const reqDate = response.required_date || "";
+      const payDueDate = response.due_date || "";
       const ordDate = response.ordered_date || "";
       const note = response.special_instructions || "";
       const supp = response.supplier || null;
@@ -261,6 +312,7 @@ export default function PurchaseOrderDetailPage() {
       setStatus(stat);
       setBudget(budg);
       setRequiredDate(reqDate);
+      setDueDate(payDueDate);
       setOrderedDate(ordDate);
       setNotes(note);
       setSelectedSupplier(supp);
@@ -273,6 +325,7 @@ export default function PurchaseOrderDetailPage() {
         status: stat,
         budget: budg,
         requiredDate: reqDate,
+        dueDate: payDueDate,
         orderedDate: ordDate,
         notes: note,
         selectedSupplier: supp,
@@ -329,6 +382,7 @@ export default function PurchaseOrderDetailPage() {
           status,
           budget: budget ? parseFloat(budget) : null,
           required_date: requiredDate || null,
+          due_date: dueDate || null,
           ordered_date: orderedDate || null,
           special_instructions: notes || null,
           supplier_id: selectedSupplier?.id || null,
@@ -362,6 +416,7 @@ export default function PurchaseOrderDetailPage() {
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       const reqDate = response.required_date || "";
+      const payDueDate = response.due_date || "";
       const ordDate = response.ordered_date || "";
       const note = response.special_instructions || "";
       const supp = response.supplier || null;
@@ -376,6 +431,7 @@ export default function PurchaseOrderDetailPage() {
       setStatus(stat);
       setBudget(budg);
       setRequiredDate(reqDate);
+      setDueDate(payDueDate);
       setOrderedDate(ordDate);
       setNotes(note);
       setSelectedSupplier(supp);
@@ -388,6 +444,7 @@ export default function PurchaseOrderDetailPage() {
         status: stat,
         budget: budg,
         requiredDate: reqDate,
+        dueDate: payDueDate,
         orderedDate: ordDate,
         notes: note,
         selectedSupplier: supp,
@@ -412,6 +469,7 @@ export default function PurchaseOrderDetailPage() {
       status !== originalState.status ||
       budget !== originalState.budget ||
       requiredDate !== originalState.requiredDate ||
+      dueDate !== originalState.dueDate ||
       orderedDate !== originalState.orderedDate ||
       notes !== originalState.notes ||
       selectedSupplier?.id !== originalState.selectedSupplier?.id
@@ -465,6 +523,7 @@ export default function PurchaseOrderDetailPage() {
     setStatus(originalState.status);
     setBudget(originalState.budget);
     setRequiredDate(originalState.requiredDate);
+    setDueDate(originalState.dueDate);
     setOrderedDate(originalState.orderedDate);
     setNotes(originalState.notes);
     setSelectedSupplier(originalState.selectedSupplier);
@@ -726,8 +785,20 @@ export default function PurchaseOrderDetailPage() {
             <SupplierPicker
               value={selectedSupplier}
               onSelect={(supplier) => {
-                // Cast to include supplied_pricebook_item_ids
-                setSelectedSupplier(supplier as Supplier | null);
+                // Cast to include payment terms
+                const typedSupplier = supplier as Supplier | null;
+                setSelectedSupplier(typedSupplier);
+
+                // Auto-calculate due date from supplier's payment terms
+                if (typedSupplier?.bill_due_day) {
+                  const calculatedDueDate = calculateDueDate(
+                    typedSupplier.bill_due_day,
+                    typedSupplier.bill_due_type
+                  );
+                  if (calculatedDueDate) {
+                    setDueDate(calculatedDueDate);
+                  }
+                }
               }}
               placeholder="Search suppliers..."
               clearable
@@ -756,6 +827,19 @@ export default function PurchaseOrderDetailPage() {
                 value={requiredDate}
                 onChange={(e) => setRequiredDate(e.target.value)}
               />
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground mb-1">Due Date</div>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+              {selectedSupplier?.payment_terms && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Terms: {selectedSupplier.payment_terms}
+                </p>
+              )}
             </div>
             <div>
               <div className="text-sm text-muted-foreground mb-1">Ordered Date</div>

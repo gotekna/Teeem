@@ -445,6 +445,7 @@ module Api
           :required_date,
           :required_on_site_date,
           :ordered_date,
+          :due_date,
           :expected_delivery_date,
           :ted_task,
           :estimation_check,
