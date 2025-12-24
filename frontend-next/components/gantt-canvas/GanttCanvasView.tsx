@@ -524,21 +524,28 @@ export function GanttCanvasView({
       });
   }, [tasks, depEditorTask]);
 
-  // Permanent columns that cannot be hidden
-  const PERMANENT_COLUMNS = ['name'];
+  // Permanent columns that cannot be hidden (always show in collapsed mode)
+  // These are the essential status columns: Name + Hold, Confirm, Supplier Confirm, Complete
+  // Order matters - this is the order they appear in collapsed mode
+  const PERMANENT_COLUMN_IDS = ['name', 'hold', 'confirm', 'supplierConfirm', 'complete'];
 
   // Get visible columns (always includes permanent columns, name always first)
-  // When sidebar is "hidden", only show permanent columns (Name)
+  // When sidebar is "hidden", only show permanent columns (Name + status checkboxes)
   const visibleColumns = React.useMemo(() => {
-    const visible = columns.filter(c => c.visible || PERMANENT_COLUMNS.includes(c.id));
+    const visible = columns.filter(c => c.visible || PERMANENT_COLUMN_IDS.includes(c.id));
     // Ensure Name is always first
     const nameCol = visible.find(c => c.id === 'name');
     const others = visible.filter(c => c.id !== 'name');
     const allVisible = nameCol ? [nameCol, ...others] : others;
 
-    // When sidebar is hidden, only show permanent columns
+    // When sidebar is hidden, only show permanent columns in specific order
     if (!showSidebar) {
-      return allVisible.filter(c => PERMANENT_COLUMNS.includes(c.id));
+      // Get permanent columns from current columns state (preserves width settings)
+      // Fall back to DEFAULT_COLUMNS if not found
+      return PERMANENT_COLUMN_IDS.map(id => {
+        const col = columns.find(c => c.id === id);
+        return col || DEFAULT_COLUMNS.find(c => c.id === id);
+      }).filter((c): c is ColumnConfig => c !== undefined);
     }
     return allVisible;
   }, [columns, showSidebar]);

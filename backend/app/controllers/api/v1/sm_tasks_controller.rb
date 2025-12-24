@@ -707,6 +707,7 @@ module Api
           supplier_id: task.supplier_id,
           parent_task_id: task.parent_task_id,
           sequence_order: task.sequence_order,
+          sm_template_row_id: task.sm_template_row_id,
           # Computed
           started_at: task.started_at,
           completed_at: task.completed_at,
