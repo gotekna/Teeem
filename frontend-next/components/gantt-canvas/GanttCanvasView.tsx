@@ -268,6 +268,9 @@ export function GanttCanvasView({
   // Collapsed headers state - stores row IDs of collapsed header rows
   const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
 
+  // Selected task ID - synced between grid and Gantt
+  const [selectedTaskId, setSelectedTaskId] = React.useState<string | null>(null);
+
   // Duration editing state
   const [editingDurationTaskId, setEditingDurationTaskId] = React.useState<string | null>(null);
   const [editingDurationValue, setEditingDurationValue] = React.useState<string>('');
@@ -1714,6 +1717,12 @@ export function GanttCanvasView({
       }
     });
 
+    // Register selection change handler to sync with grid
+    gantt.onSelectionChangeHandler((selectedIds) => {
+      // Update grid selection to match Gantt selection
+      setSelectedTaskId(selectedIds.length > 0 ? selectedIds[0] : null);
+    });
+
     // Scroll to today
     gantt.scrollToToday();
 
@@ -2349,18 +2358,27 @@ export function GanttCanvasView({
                     }
                   };
 
+                  const isSelected = selectedTaskId === task.id;
+
                   return (
                     <div
                       key={task.id}
                       className={cn(
-                        "flex items-center border-b text-xs hover:bg-muted/30 px-2",
-                        isHeader
-                          ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
-                          : isChild
-                            ? "bg-primary/5 dark:bg-primary/10 border-l-2 border-l-primary/30"
-                            : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
+                        "flex items-center border-b text-xs hover:bg-muted/30 px-2 cursor-pointer",
+                        isSelected
+                          ? "bg-blue-100 dark:bg-blue-900/40 ring-1 ring-inset ring-blue-500"
+                          : isHeader
+                            ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
+                            : isChild
+                              ? "bg-primary/5 dark:bg-primary/10 border-l-2 border-l-primary/30"
+                              : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 28 }}
+                      onClick={() => {
+                        // Select and scroll to this task in the Gantt
+                        setSelectedTaskId(task.id);
+                        ganttRef.current?.scrollToTask(task.id, true);
+                      }}
                     >
                       {visibleColumns.map(col => (
                         <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">

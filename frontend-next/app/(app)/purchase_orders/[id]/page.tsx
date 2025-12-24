@@ -131,6 +131,7 @@ interface PurchaseOrder {
   job_id?: number;
   line_items: LineItem[];
   sm_template_row_id?: number; // SSoT link to Schedule Master
+  sm_tasks?: SmTask[]; // Linked tasks via has_many
 }
 
 const STATUS_OPTIONS = [
@@ -238,7 +239,9 @@ export default function PurchaseOrderDetailPage() {
 
       // Initialize editable fields
       const desc = response.description || "";
-      const templateRowId = response.sm_template_row_id || null;
+      // Fallback: if sm_template_row_id is null but there are linked sm_tasks, use the first task's sm_template_row_id
+      const templateRowId = response.sm_template_row_id ||
+        (response.sm_tasks && response.sm_tasks.length > 0 ? response.sm_tasks[0].sm_template_row_id : null);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       const reqDate = response.required_date || "";
@@ -350,7 +353,9 @@ export default function PurchaseOrderDetailPage() {
 
       // Initialize editable fields
       const desc = response.description || "";
-      const templateRowId = response.sm_template_row_id || null;
+      // Fallback: if sm_template_row_id is null but there are linked sm_tasks, use the first task's sm_template_row_id
+      const templateRowId = response.sm_template_row_id ||
+        (response.sm_tasks && response.sm_tasks.length > 0 ? response.sm_tasks[0].sm_template_row_id : null);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       const reqDate = response.required_date || "";
