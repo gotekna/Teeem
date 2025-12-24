@@ -378,9 +378,11 @@ export class Renderer {
         this.ctx.restore();
       }
 
-      // Draw CHECKERED pattern for "user applied logic" tasks (require_supervisor_check = true)
+      // Draw CHECKERED pattern for "user applied logic" on LOCKED tasks
+      // Only show checkered when BOTH: require_supervisor_check = true AND task is locked (supplier confirmed)
       // This indicates the task's dates were manually set and don't follow dependencies exactly
-      if (task.rowData?.require_supervisor_check) {
+      const isLockedWithUserLogic = task.rowData?.require_supervisor_check && task.rowData?.require_supplier_confirm;
+      if (isLockedWithUserLogic) {
         this.ctx.save();
         // Clip to task bar shape
         this.ctx.beginPath();
