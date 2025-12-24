@@ -2924,7 +2924,8 @@ export class GanttCanvas {
           // Resizing from left - change start date
           let newStart = new Date(this.resizeOriginalStart);
           newStart.setDate(newStart.getDate() + daysDelta);
-          newStart.setHours(0, 0, 0, 0);
+          // Use UTC midnight to avoid timezone shifts
+          newStart.setUTCHours(0, 0, 0, 0);
           newStart = this.snapToWorkingDay(newStart, daysDelta >= 0);
 
           // Don't allow start to go past end (minimum 1 day)
@@ -2937,7 +2938,8 @@ export class GanttCanvas {
           // Resizing from right - change end date
           let newEnd = new Date(this.resizeOriginalEnd);
           newEnd.setDate(newEnd.getDate() + daysDelta);
-          newEnd.setHours(0, 0, 0, 0);
+          // Use UTC midnight to avoid timezone shifts
+          newEnd.setUTCHours(0, 0, 0, 0);
           console.log('[GanttCanvas resize right]', {
             originalEnd: this.resizeOriginalEnd?.toISOString(),
             daysDelta,
@@ -2974,8 +2976,8 @@ export class GanttCanvas {
         let newDate = new Date(this.dragStartDate);
         newDate.setDate(newDate.getDate() + daysDelta);
 
-        // Snap to day (midnight)
-        newDate.setHours(0, 0, 0, 0);
+        // Use UTC midnight to avoid timezone shifts
+        newDate.setUTCHours(0, 0, 0, 0);
 
         // NOTE: Manual positioning allows any date including weekends/holidays
         // The user explicitly wants to "hold" the task at a specific date
