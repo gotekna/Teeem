@@ -182,20 +182,28 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
 
   return (
     <div className="space-y-6">
-      {/* Locked Date Banner */}
-      {health.organisation.locked_date && formatDate(health.organisation.locked_date) && (
+      {/* Locked Dates Banner */}
+      {(health.organisation.locked_date || health.organisation.period_lock_date) && (
         <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg shrink-0">
                 <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
-                <p className="font-medium text-blue-900 dark:text-blue-100">
-                  Books Locked To: {formatDate(health.organisation.locked_date)}
-                </p>
+              <div className="space-y-1">
+                {health.organisation.locked_date && formatDate(health.organisation.locked_date) && (
+                  <p className="font-medium text-blue-900 dark:text-blue-100">
+                    End of Year Lock: {formatDate(health.organisation.locked_date)}
+                  </p>
+                )}
+                {health.organisation.period_lock_date && formatDate(health.organisation.period_lock_date) &&
+                 health.organisation.period_lock_date !== health.organisation.locked_date && (
+                  <p className="font-medium text-blue-900 dark:text-blue-100">
+                    Period Lock: {formatDate(health.organisation.period_lock_date)}
+                  </p>
+                )}
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Transactions up to this date cannot be modified in Xero
+                  Transactions up to these dates cannot be modified in Xero
                 </p>
               </div>
             </div>

@@ -2071,9 +2071,10 @@ export function GanttCanvasView({
                               checked={isSupplierConfirmed}
                               onChange={(e) => {
                                 e.stopPropagation();
+                                console.log('📋 Supplier Confirm checkbox clicked:', { task: task.name, isSupplierConfirmed, willBe: !isSupplierConfirmed });
                                 handleSupplierConfirmToggle(task, !isSupplierConfirmed);
                               }}
-                              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
                               title={isSupplierConfirmed ? 'Supplier confirm required - click to disable' : 'Click to require supplier confirm'}
                             />
                           </div>

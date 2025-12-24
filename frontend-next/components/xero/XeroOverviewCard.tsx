@@ -18,6 +18,7 @@ import type { XeroConnectionStatus, TenantStats } from "./types";
 interface XeroHealthData {
   organisation: {
     locked_date: string | null;
+    period_lock_date?: string | null;
   };
 }
 
@@ -145,6 +146,8 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
   };
 
   const lockedDateFormatted = formatLockedDate(healthData?.organisation?.locked_date);
+  const periodLockFormatted = formatLockedDate(healthData?.organisation?.period_lock_date);
+  const showBothDates = periodLockFormatted && periodLockFormatted !== lockedDateFormatted;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -210,20 +213,27 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
         </CardContent>
       </Card>
 
-      {/* Locked Date Banner */}
-      {lockedDateFormatted && (
+      {/* Locked Dates Banner */}
+      {(lockedDateFormatted || periodLockFormatted) && (
         <Card className="md:col-span-2 lg:col-span-4 border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
           <CardContent className="pt-6 pb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg shrink-0">
                 <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
-                <p className="font-medium text-blue-900 dark:text-blue-100">
-                  Books Locked To: {lockedDateFormatted}
-                </p>
+              <div className="space-y-1">
+                {lockedDateFormatted && (
+                  <p className="font-medium text-blue-900 dark:text-blue-100">
+                    End of Year Lock: {lockedDateFormatted}
+                  </p>
+                )}
+                {showBothDates && (
+                  <p className="font-medium text-blue-900 dark:text-blue-100">
+                    Period Lock: {periodLockFormatted}
+                  </p>
+                )}
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  Transactions up to this date cannot be modified in Xero
+                  Transactions up to {showBothDates ? 'these dates' : 'this date'} cannot be modified in Xero
                 </p>
               </div>
             </div>
