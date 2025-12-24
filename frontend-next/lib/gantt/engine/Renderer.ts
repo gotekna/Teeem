@@ -1036,23 +1036,38 @@ export class Renderer {
     let fromX: number;
     let toX: number;
 
+    // Calculate actual visual bar ends (accounting for minimum bar width of 20px)
+    const fromStartX = this.viewport.dateToX(fromTask.startDate);
+    const fromEndX = this.viewport.dateToX(fromTask.endDate);
+    const fromBarWidth = Math.max(fromEndX - fromStartX, 20);
+    const fromVisualEndX = fromStartX + fromBarWidth;
+
+    const toStartX = this.viewport.dateToX(toTask.startDate);
+    const toEndX = this.viewport.dateToX(toTask.endDate);
+    const toBarWidth = Math.max(toEndX - toStartX, 20);
+    const toVisualEndX = toStartX + toBarWidth;
+
     switch (dep.type) {
       case 'SS':
-        fromX = this.viewport.dateToX(fromTask.startDate);
-        toX = this.viewport.dateToX(toTask.startDate);
+        // Start-to-Start: from start of predecessor to start of successor
+        fromX = fromStartX;
+        toX = toStartX;
         break;
       case 'FF':
-        fromX = this.viewport.dateToX(fromTask.endDate);
-        toX = this.viewport.dateToX(toTask.endDate);
+        // Finish-to-Finish: from visual end of predecessor to visual end of successor
+        fromX = fromVisualEndX;
+        toX = toVisualEndX;
         break;
       case 'SF':
-        fromX = this.viewport.dateToX(fromTask.startDate);
-        toX = this.viewport.dateToX(toTask.endDate);
+        // Start-to-Finish: from start of predecessor to visual end of successor
+        fromX = fromStartX;
+        toX = toVisualEndX;
         break;
       case 'FS':
       default:
-        fromX = this.viewport.dateToX(fromTask.endDate);
-        toX = this.viewport.dateToX(toTask.startDate);
+        // Finish-to-Start: from visual end of predecessor to start of successor
+        fromX = fromVisualEndX;
+        toX = toStartX;
         break;
     }
 
