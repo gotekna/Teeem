@@ -569,26 +569,35 @@ export class Renderer {
   }
 
   /**
-   * Draw connector dots for dependency creation
-   * Dots are on the left and right edges of the bar (offset slightly outside)
+   * Draw connector chevrons for dependency creation
+   * Chevrons point outward from bar edges, leaving bar area free for dragging
    */
   private drawConnectorDots(startX: number, endX: number, barY: number, barHeight: number): void {
-    const dotRadius = 5;
+    const chevronWidth = 8;  // How wide the chevron opens
+    const chevronHeight = 12; // Height of chevron
+    const offset = 6; // Distance from bar edge
     const centerY = barY + barHeight / 2;
 
-    // Start connector (left side)
     this.ctx.fillStyle = '#3b82f6';
-    this.ctx.strokeStyle = '#ffffff';
-    this.ctx.lineWidth = 2;
+    this.ctx.strokeStyle = '#3b82f6';
+    this.ctx.lineWidth = 2.5;
+    this.ctx.lineCap = 'round';
+    this.ctx.lineJoin = 'round';
+
+    // Start connector (left side) - chevron pointing LEFT (outward)
+    const leftX = startX - offset;
     this.ctx.beginPath();
-    this.ctx.arc(startX, centerY, dotRadius, 0, Math.PI * 2);
-    this.ctx.fill();
+    this.ctx.moveTo(leftX, centerY - chevronHeight / 2);
+    this.ctx.lineTo(leftX - chevronWidth, centerY);
+    this.ctx.lineTo(leftX, centerY + chevronHeight / 2);
     this.ctx.stroke();
 
-    // End connector (right side)
+    // End connector (right side) - chevron pointing RIGHT (outward)
+    const rightX = endX + offset;
     this.ctx.beginPath();
-    this.ctx.arc(endX, centerY, dotRadius, 0, Math.PI * 2);
-    this.ctx.fill();
+    this.ctx.moveTo(rightX, centerY - chevronHeight / 2);
+    this.ctx.lineTo(rightX + chevronWidth, centerY);
+    this.ctx.lineTo(rightX, centerY + chevronHeight / 2);
     this.ctx.stroke();
   }
 

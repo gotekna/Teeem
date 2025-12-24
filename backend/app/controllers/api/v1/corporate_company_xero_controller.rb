@@ -1708,6 +1708,24 @@ module Api
       private
 
       # Fetch organisation info from Xero API (includes locked date)
+      # Parse Xero .NET date format "/Date(1751155200000+0000)/" to ISO string
+      def parse_xero_date(xero_date)
+        return nil if xero_date.blank?
+
+        # Extract milliseconds from .NET format: /Date(1751155200000+0000)/
+        if xero_date.is_a?(String) && xero_date.match?(%r{/Date\((\d+)([+-]\d{4})?\)/})
+          match = xero_date.match(%r{/Date\((\d+)([+-]\d{4})?\)/})
+          ms = match[1].to_i
+          Time.at(ms / 1000).utc.strftime("%Y-%m-%d")
+        else
+          # Already in a usable format or unrecognized
+          xero_date.to_s
+        end
+      rescue StandardError => e
+        Rails.logger.warn("Failed to parse Xero date '#{xero_date}': #{e.message}")
+        nil
+      end
+
       def fetch_xero_organisation(connection)
         return {} unless connection&.connected?
 
@@ -1727,9 +1745,10 @@ module Api
             {
               name: org["Name"],
               # EndOfYearLockDate is the date up to which books are locked
-              locked_date: org["EndOfYearLockDate"],
+              # Xero returns .NET format like "/Date(1751155200000+0000)/" - convert to ISO
+              locked_date: parse_xero_date(org["EndOfYearLockDate"]),
               # PeriodLockDate is the date up to which the current period is locked
-              period_lock_date: org["PeriodLockDate"],
+              period_lock_date: parse_xero_date(org["PeriodLockDate"]),
               financial_year_end_day: org["FinancialYearEndDay"],
               financial_year_end_month: org["FinancialYearEndMonth"],
               base_currency: org["BaseCurrency"],

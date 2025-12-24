@@ -3699,7 +3699,7 @@ export class GanttCanvas {
    * Returns which connector was clicked (start, end) or null
    */
   private hitTestConnector(x: number, y: number): { task: GanttTask; edge: 'start' | 'end' } | null {
-    // Only check connectors for hovered task (dots only visible on hover)
+    // Only check connectors for hovered task (chevrons only visible on hover)
     if (!this.state.hoveredTaskId) return null;
 
     const task = this.state.tasks.find(t => t.id === this.state.hoveredTaskId);
@@ -3708,39 +3708,47 @@ export class GanttCanvas {
     const rowIndex = this.state.tasks.indexOf(task);
     if (rowIndex < 0) return null;
 
-    // Hit area radius - needs to be generous to account for visual perception
-    const hitRadius = this.connectorRadius + 20;
     const dayWidth = this.viewport.getDayWidth();
 
-    // Calculate task bar position (must match renderer exactly - use config.taskBarPadding)
+    // Calculate task bar position (must match renderer exactly)
     const rowY = this.viewport.rowToY(rowIndex);
     const barTop = rowY + this.config.taskBarPadding;
     const centerY = barTop + this.config.taskBarHeight / 2;
 
-    // Calculate connector positions - must match rendering logic
+    // Calculate task bar bounds
     const taskStartX = this.viewport.dateToX(task.startDate);
     const rawEndX = this.viewport.dateToX(task.endDate);
     const calculatedWidth = rawEndX - taskStartX;
     const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
     const taskEndX = taskStartX + taskWidth;
 
-    // Calculate distances to each connector
-    const distToStart = Math.abs(x - taskStartX);
-    const distToEnd = Math.abs(x - taskEndX);
+    // Chevron hit areas are OUTSIDE the bar (must match Renderer.drawConnectorDots)
+    // Chevron params: offset=6, width=8, height=12
+    const chevronOffset = 6;
+    const chevronWidth = 8;
+    const chevronHeight = 12;
 
-    // Check if within Y range of the bar
-    if (y < centerY - hitRadius || y > centerY + hitRadius) {
+    // Check if within Y range of chevrons
+    if (y < centerY - chevronHeight / 2 - 5 || y > centerY + chevronHeight / 2 + 5) {
       return null;
     }
 
-    // Return the CLOSER connector if within hit range
-    if (distToStart <= hitRadius && distToEnd <= hitRadius) {
-      // Both in range - pick closer one
-      return { task, edge: distToEnd < distToStart ? 'end' : 'start' };
-    } else if (distToEnd <= hitRadius) {
-      return { task, edge: 'end' };
-    } else if (distToStart <= hitRadius) {
+    // Start chevron is to the LEFT of the bar (from taskStartX-offset-chevronWidth to taskStartX-offset)
+    const startChevronLeft = taskStartX - chevronOffset - chevronWidth;
+    const startChevronRight = taskStartX - chevronOffset + 4; // Small overlap for easier clicking
+
+    // End chevron is to the RIGHT of the bar (from taskEndX+offset to taskEndX+offset+chevronWidth)
+    const endChevronLeft = taskEndX + chevronOffset - 4; // Small overlap for easier clicking
+    const endChevronRight = taskEndX + chevronOffset + chevronWidth;
+
+    // Check if click is in start chevron area
+    if (x >= startChevronLeft && x <= startChevronRight) {
       return { task, edge: 'start' };
+    }
+
+    // Check if click is in end chevron area
+    if (x >= endChevronLeft && x <= endChevronRight) {
+      return { task, edge: 'end' };
     }
 
     return null;
