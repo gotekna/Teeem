@@ -2369,7 +2369,7 @@ export function GanttCanvasView({
 
       {/* Dependency Editor Dialog */}
       <Dialog open={depEditorOpen} onOpenChange={setDepEditorOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Dependencies</DialogTitle>
             <p className="text-sm text-muted-foreground">
@@ -2377,54 +2377,81 @@ export function GanttCanvasView({
             </p>
           </DialogHeader>
 
-          <div className="flex-1 overflow-y-auto space-y-4">
-            {/* Visual Guide - How to create dependencies */}
-            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-              <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">💡 Quick Tip: Create dependencies by dragging on the Gantt</p>
-              <div className="flex items-center justify-center gap-3 py-2">
-                {/* Task A box */}
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center">
-                    <div className="bg-indigo-500 text-white text-xs px-3 py-1.5 rounded font-medium">
-                      Task A
+          <div className="flex-1 flex gap-4 min-h-0">
+            {/* Left Sidebar - Info Panel */}
+            <div className="w-64 shrink-0 space-y-4 overflow-y-auto">
+              {/* Visual Guide */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">💡 Drag to connect on Gantt</p>
+                <div className="flex flex-col items-center gap-1 py-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center">
+                      <div className="bg-indigo-500 text-white text-[10px] px-2 py-1 rounded font-medium">A</div>
+                      <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full -ml-0.5 ring-1 ring-white" />
                     </div>
-                    <div className="w-2 h-2 bg-indigo-500 rounded-full -ml-1 ring-2 ring-white dark:ring-gray-800" />
-                  </div>
-                  <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">PREDECESSOR</span>
-                </div>
-                {/* Arrow */}
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center">
-                    <div className="w-10 h-0.5 bg-indigo-400 dark:bg-indigo-500" />
-                    <div className="w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-l-[8px] border-l-indigo-400 dark:border-l-indigo-500" />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">then</span>
-                </div>
-                {/* Task B box */}
-                <div className="flex flex-col items-center gap-1">
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-purple-500 rounded-full -mr-1 ring-2 ring-white dark:ring-gray-800 z-10" />
-                    <div className="bg-purple-500 text-white text-xs px-3 py-1.5 rounded font-medium">
-                      Task B
+                    <div className="w-6 h-0.5 bg-indigo-400" />
+                    <div className="w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-indigo-400" />
+                    <div className="flex items-center">
+                      <div className="w-1.5 h-1.5 bg-purple-500 rounded-full -mr-0.5 ring-1 ring-white z-10" />
+                      <div className="bg-purple-500 text-white text-[10px] px-2 py-1 rounded font-medium">B</div>
                     </div>
                   </div>
-                  <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">SUCCESSOR</span>
+                  <div className="flex gap-8 text-[9px]">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-medium">PRED</span>
+                    <span className="text-purple-600 dark:text-purple-400 font-medium">SUCC</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-blue-700 dark:text-blue-300 text-center">
+                  Drag from right dot → left dot
+                </p>
+              </div>
+
+              {/* Predecessors Info */}
+              <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3">
+                <h4 className="text-xs font-semibold text-indigo-800 dark:text-indigo-200 mb-1">Predecessors</h4>
+                <p className="text-[10px] text-indigo-700 dark:text-indigo-300">
+                  Tasks that must <strong>finish before</strong> this task can start. Controls when this task begins.
+                </p>
+              </div>
+
+              {/* Successors Info */}
+              <div className="bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+                <h4 className="text-xs font-semibold text-purple-800 dark:text-purple-200 mb-1">Successors</h4>
+                <p className="text-[10px] text-purple-700 dark:text-purple-300">
+                  Tasks that <strong>wait for</strong> this task. When this task moves, successors may cascade.
+                </p>
+              </div>
+
+              {/* Dependency Types */}
+              <div className="bg-muted/50 rounded-lg p-3">
+                <h4 className="text-xs font-semibold mb-2">Dependency Types</h4>
+                <div className="space-y-1.5 text-[10px]">
+                  <div><strong>FS</strong> - Finish-to-Start (most common)</div>
+                  <div><strong>SS</strong> - Start-to-Start</div>
+                  <div><strong>FF</strong> - Finish-to-Finish</div>
+                  <div><strong>SF</strong> - Start-to-Finish (rare)</div>
                 </div>
               </div>
-              <p className="text-[11px] text-blue-700 dark:text-blue-300 text-center">
-                Drag from Task A's <strong>right dot</strong> → Task B's <strong>left dot</strong> = "Task A must finish before Task B starts"
-              </p>
+
+              {/* Lag Info */}
+              <div className="bg-muted/50 rounded-lg p-3">
+                <h4 className="text-xs font-semibold mb-1">Lag (Days)</h4>
+                <p className="text-[10px] text-muted-foreground">
+                  <strong>+3</strong> = wait 3 days after<br/>
+                  <strong>-2</strong> = overlap by 2 days
+                </p>
+              </div>
             </div>
 
-            {/* Predecessors Section */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold">Predecessors</h3>
-                <span className="text-xs text-muted-foreground">— Tasks that must finish before this task can start</span>
-              </div>
-              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                <strong>Predecessors</strong> control when this task starts. If Task A is a predecessor of Task B, then Task B waits for Task A to complete before starting.
-              </p>
+            {/* Main Content - Predecessors & Successors */}
+            <div className="flex-1 overflow-y-auto space-y-4 min-w-0">
+              {/* Predecessors Section */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-indigo-500" />
+                  <h3 className="text-sm font-semibold">Predecessors</h3>
+                  <span className="text-xs text-muted-foreground">({depEditorLinks.filter(l => l.predecessorId).length})</span>
+                </div>
 
               {/* Header row */}
               <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
@@ -2557,17 +2584,15 @@ export function GanttCanvasView({
                   <div className="h-8 w-8" />
                 </div>
               </div>
-            </div>
-
-            {/* Successors Section (Editable) */}
-            <div className="space-y-2 border-t pt-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-semibold">Successors</h3>
-                <span className="text-xs text-muted-foreground">— Tasks that wait for this task to complete</span>
               </div>
-              <p className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                <strong>Successors</strong> are tasks that depend on this task. When this task moves, successors may cascade (move automatically).
-              </p>
+
+              {/* Successors Section (Editable) */}
+              <div className="space-y-2 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-purple-500" />
+                  <h3 className="text-sm font-semibold">Successors</h3>
+                  <span className="text-xs text-muted-foreground">({depEditorSuccessorLinks.filter(l => l.predecessorId).length})</span>
+                </div>
 
               {/* Header row */}
               <div className="grid grid-cols-[60px_1fr_180px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
@@ -2705,6 +2730,7 @@ export function GanttCanvasView({
                     No tasks depend on this task yet. Add one above.
                   </p>
                 )}
+              </div>
               </div>
             </div>
           </div>

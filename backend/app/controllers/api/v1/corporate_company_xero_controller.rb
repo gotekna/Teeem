@@ -1333,25 +1333,58 @@ module Api
         nil
       end
 
-      # Helper to fetch bank account balance from Xero
+      # Helper to fetch bank account balance from Xero using Bank Summary Report
       def fetch_bank_account_balance(client, connection, bank_account_id)
         begin
-          # Fetch the account to get balance
-          result = client.get(
+          # First get the account name to match in the report
+          account_result = client.get(
             "Accounts/#{bank_account_id}",
             tenant_id: connection.xero_tenant_id,
             access_token: connection.access_token
           )
 
-          if result[:success] && result[:data]["Accounts"]&.any?
-            account = result[:data]["Accounts"].first
-            {
-              xero_balance: account["BankAccountBalance"]&.to_f,
-              statement_balance: account["ReportingCodeBankStatement"]&.to_f || account["BankAccountBalance"]&.to_f
-            }
-          else
-            {}
+          account_name = nil
+          if account_result[:success] && account_result[:data]["Accounts"]&.any?
+            account_name = account_result[:data]["Accounts"].first["Name"]
           end
+
+          return {} unless account_name
+
+          # Fetch Bank Summary Report which contains balances
+          result = client.get(
+            "Reports/BankSummary",
+            tenant_id: connection.xero_tenant_id,
+            access_token: connection.access_token
+          )
+
+          if result[:success] && result[:data]["Reports"]&.any?
+            report = result[:data]["Reports"].first
+            rows = report["Rows"] || []
+
+            # Find the account row in the report
+            rows.each do |row|
+              next unless row["RowType"] == "Section"
+
+              (row["Rows"] || []).each do |r|
+                cells = r["Cells"] || []
+                next if cells.empty?
+
+                row_account_name = cells[0]["Value"]
+                if row_account_name == account_name
+                  # Columns: Account Name | Opening | Cash Received | Cash Spent | Closing
+                  opening_balance = cells[1]["Value"].to_f rescue 0.0
+                  closing_balance = cells[4]["Value"].to_f rescue 0.0
+
+                  return {
+                    statement_balance: opening_balance,
+                    xero_balance: closing_balance
+                  }
+                end
+              end
+            end
+          end
+
+          {}
         rescue StandardError => e
           Rails.logger.warn("[XeroBankTransactions] Could not fetch balance: #{e.message}")
           {}
