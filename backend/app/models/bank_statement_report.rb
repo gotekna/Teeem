@@ -463,7 +463,7 @@ class BankStatementReport < ApplicationRecord
       document_date: period_end,
       expected_sharepoint_path: "#{sharepoint_path}/#{filename}",
       sharepoint_file_id: sharepoint_file_id,
-      cloudinary_url: sharepoint_url,
+      sharepoint_download_url: sharepoint_url,
       storage_type: "sharepoint",
       ai_verification_status: "verified",  # System-generated, no AI needed
       documentable: self  # Link back to BankStatementReport

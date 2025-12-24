@@ -579,23 +579,56 @@ export class Renderer {
     barHeight: number,
     hoveredEdge?: 'left' | 'right' | null
   ): void {
-    const handleWidth = 4;
-    const handleHeight = barHeight - 4;
-    const handleY = barY + 2;
+    const handleWidth = 6;
+    const handleHeight = barHeight;
+    const handleY = barY;
+    const handleX = startX + taskWidth - handleWidth;
 
-    // Left handle
-    const leftActive = hoveredEdge === 'left';
-    this.ctx.fillStyle = leftActive ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.5)';
+    // Right handle only - more visible
+    const isActive = hoveredEdge === 'right';
+
+    // Draw handle bar
+    this.ctx.fillStyle = isActive ? 'rgba(59, 130, 246, 0.9)' : 'rgba(255, 255, 255, 0.6)';
     this.ctx.beginPath();
-    this.ctx.roundRect(startX + 2, handleY, handleWidth, handleHeight, 2);
+    this.ctx.roundRect(handleX, handleY, handleWidth, handleHeight, [0, 3, 3, 0]);
     this.ctx.fill();
 
-    // Right handle
-    const rightActive = hoveredEdge === 'right';
-    this.ctx.fillStyle = rightActive ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.5)';
+    // Draw grip lines
+    this.ctx.strokeStyle = isActive ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.3)';
+    this.ctx.lineWidth = 1;
+    const lineX1 = handleX + 2;
+    const lineX2 = handleX + 4;
+    const lineY1 = handleY + barHeight * 0.3;
+    const lineY2 = handleY + barHeight * 0.7;
     this.ctx.beginPath();
-    this.ctx.roundRect(startX + taskWidth - handleWidth - 2, handleY, handleWidth, handleHeight, 2);
-    this.ctx.fill();
+    this.ctx.moveTo(lineX1, lineY1);
+    this.ctx.lineTo(lineX1, lineY2);
+    this.ctx.moveTo(lineX2, lineY1);
+    this.ctx.lineTo(lineX2, lineY2);
+    this.ctx.stroke();
+
+    // Draw tooltip flag when active
+    if (isActive) {
+      const tooltipText = 'Duration';
+      this.ctx.font = 'bold 10px system-ui, sans-serif';
+      const metrics = this.ctx.measureText(tooltipText);
+      const tooltipWidth = metrics.width + 10;
+      const tooltipHeight = 18;
+      const tooltipX = handleX + handleWidth + 4;
+      const tooltipY = barY + (barHeight - tooltipHeight) / 2;
+
+      // Draw flag background
+      this.ctx.fillStyle = '#1e40af';
+      this.ctx.beginPath();
+      this.ctx.roundRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight, 3);
+      this.ctx.fill();
+
+      // Draw flag text
+      this.ctx.fillStyle = '#ffffff';
+      this.ctx.textAlign = 'left';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(tooltipText, tooltipX + 5, tooltipY + tooltipHeight / 2);
+    }
   }
 
   /**

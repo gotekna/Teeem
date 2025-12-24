@@ -2940,8 +2940,8 @@ export class GanttCanvas {
           newEnd.setHours(0, 0, 0, 0);
           newEnd = this.snapToWorkingDay(newEnd, daysDelta >= 0);
 
-          // Don't allow end to go before start (minimum 1 day)
-          if (newEnd > this.resizeOriginalStart!) {
+          // Don't allow end to go before start (minimum 0-day duration = same day)
+          if (newEnd >= this.resizeOriginalStart!) {
             this.resizeCurrentStart = new Date(this.resizeOriginalStart);
             this.resizeCurrentEnd = newEnd;
             this.markDirty();
@@ -3609,17 +3609,19 @@ export class GanttCanvas {
 
     const task = this.state.tasks[rowIndex];
 
-    // Calculate task bar bounds
+    // Calculate task bar bounds (must match Renderer.drawTaskBars logic)
     const taskStartX = this.viewport.dateToX(task.startDate);
     const taskEndX = this.viewport.dateToX(task.endDate);
+    const dayWidth = this.viewport.getDayWidth();
+    const calculatedWidth = taskEndX - taskStartX;
+    // Task bar extends by dayWidth to include the end date visually
+    const taskWidth = calculatedWidth < dayWidth ? dayWidth : calculatedWidth + dayWidth;
+    const actualRightEdge = taskStartX + taskWidth;
 
-    // Check left edge
-    if (x >= taskStartX - this.resizeHandleWidth / 2 && x <= taskStartX + this.resizeHandleWidth / 2) {
-      return { task, edge: 'left' };
-    }
-
-    // Check right edge
-    if (x >= taskEndX - this.resizeHandleWidth / 2 && x <= taskEndX + this.resizeHandleWidth / 2) {
+    // Check right edge only (left edge removed for simpler UX)
+    // Use larger hit zone for easier targeting
+    const hitZone = Math.max(this.resizeHandleWidth, 12);
+    if (x >= actualRightEdge - hitZone && x <= actualRightEdge + 4) {
       return { task, edge: 'right' };
     }
 
@@ -9663,7 +9665,7 @@ export class GanttCanvas {
     } else if (this.resizeState.edge === 'right' && this.resizeState.originalEndDate) {
       const newEnd = new Date(this.resizeState.originalEndDate);
       newEnd.setDate(newEnd.getDate() + daysDelta);
-      if (newEnd > task.startDate) {
+      if (newEnd >= task.startDate) {
         task.endDate = newEnd;
       }
     }

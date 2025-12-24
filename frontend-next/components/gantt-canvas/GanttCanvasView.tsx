@@ -145,11 +145,11 @@ const DEFAULT_COLUMNS: ColumnConfig[] = [
   { id: 'progress', label: 'Progress', shortLabel: '%', width: 50, visible: true, align: 'center' },
   { id: 'status', label: 'Status', width: 80, visible: true, align: 'left' },
   { id: 'supplier', label: 'Supplier', width: 100, visible: true, align: 'left' },
-  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 40, visible: false, align: 'center' },
-  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 40, visible: false, align: 'center' },
+  { id: 'confirm', label: 'Confirm', shortLabel: '✓', width: 28, visible: false, align: 'center' },
+  { id: 'supplierConfirm', label: 'Supplier Confirm', shortLabel: 'S✓', width: 28, visible: false, align: 'center' },
   { id: 'dependencies', label: 'Dependencies', width: 80, visible: true, align: 'left' },
-  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 40, visible: true, align: 'center' },
-  { id: 'complete', label: 'Done', shortLabel: '✓', width: 40, visible: true, align: 'center' },
+  { id: 'hold', label: 'Hold', shortLabel: '📌', width: 28, visible: true, align: 'center' },
+  { id: 'complete', label: 'Done', shortLabel: '✓', width: 28, visible: true, align: 'center' },
 ];
 
 // ============================================================================
@@ -254,6 +254,10 @@ export function GanttCanvasView({
 
   // Collapsed headers state - stores row IDs of collapsed header rows
   const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
+
+  // Duration editing state
+  const [editingDurationTaskId, setEditingDurationTaskId] = React.useState<string | null>(null);
+  const [editingDurationValue, setEditingDurationValue] = React.useState<string>('');
 
   // Filter to show only grouped tasks (headers + their children)
   const [showOnlyGrouped, setShowOnlyGrouped] = React.useState(false);
@@ -719,6 +723,91 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, onTaskDrag]);
 
+  // Handle task resize - update duration
+  const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
+    // Skip API save in static mode
+    if (isStaticMode || !templateId) return;
+
+    try {
+      // Calculate duration in days
+      const durationMs = newEndDate.getTime() - newStartDate.getTime();
+      const durationDays = Math.round(durationMs / (1000 * 60 * 60 * 24));
+
+      // Format dates as YYYY-MM-DD
+      const startStr = newStartDate.toISOString().split('T')[0];
+      const endStr = newEndDate.toISOString().split('T')[0];
+
+      // Save to API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: {
+          manually_positioned: true,
+          manual_start_date: startStr,
+          duration_days: durationDays
+        }
+      });
+
+      // Update local state
+      setTasks(prev => prev.map(t =>
+        t.id === task.id
+          ? {
+              ...t,
+              startDate: newStartDate,
+              endDate: newEndDate,
+              duration: durationDays,
+              rowData: t.rowData ? {
+                ...t.rowData,
+                manually_positioned: true,
+                manual_start_date: startStr,
+                duration_days: durationDays
+              } : undefined
+            }
+          : t
+      ));
+
+      // Also update rows for proper re-render
+      setRows(prev => prev.map(r =>
+        String(r.id) === task.id
+          ? { ...r, manually_positioned: true, manual_start_date: startStr, duration_days: durationDays }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to save task resize:', err);
+    }
+  }, [templateId, isStaticMode]);
+
+  // Handle duration edit - save new duration
+  const handleDurationSave = React.useCallback(async (taskId: string, newDuration: number) => {
+    if (isStaticMode || !templateId || newDuration < 0) return;
+
+    try {
+      // Save to API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${taskId}`, {
+        row: { duration_days: newDuration }
+      });
+
+      // Update local state
+      setRows(prev => prev.map(r =>
+        String(r.id) === taskId
+          ? { ...r, duration_days: newDuration }
+          : r
+      ));
+
+      // Update tasks state
+      setTasks(prev => prev.map(t => {
+        if (t.id === taskId) {
+          const newEndDate = new Date(t.startDate);
+          newEndDate.setDate(newEndDate.getDate() + newDuration);
+          return { ...t, duration: newDuration, endDate: newEndDate };
+        }
+        return t;
+      }));
+    } catch (err) {
+      console.error('Failed to save duration:', err);
+    }
+
+    setEditingDurationTaskId(null);
+  }, [templateId, isStaticMode]);
+
   // Handle reset manual position (from context menu)
   const handleResetManualPosition = React.useCallback(async (task: GanttTask) => {
     // Skip API save in static mode
@@ -817,6 +906,44 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, rows]);
 
+  // Handle confirm toggle (require_supervisor_check)
+  const handleConfirmToggle = React.useCallback(async (task: GanttTask, checked: boolean) => {
+    if (isStaticMode || !templateId) return;
+
+    try {
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: { require_supervisor_check: checked }
+      });
+
+      setRows(prev => prev.map(r =>
+        String(r.id) === task.id
+          ? { ...r, require_supervisor_check: checked }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to toggle confirm:', err);
+    }
+  }, [templateId, isStaticMode]);
+
+  // Handle supplier confirm toggle (require_supplier_confirm)
+  const handleSupplierConfirmToggle = React.useCallback(async (task: GanttTask, checked: boolean) => {
+    if (isStaticMode || !templateId) return;
+
+    try {
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: { require_supplier_confirm: checked }
+      });
+
+      setRows(prev => prev.map(r =>
+        String(r.id) === task.id
+          ? { ...r, require_supplier_confirm: checked }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to toggle supplier confirm:', err);
+    }
+  }, [templateId, isStaticMode]);
+
   // Load data from API (only when not using static mode)
   const loadData = React.useCallback(async () => {
     if (isStaticMode || !templateId) return;
@@ -892,6 +1019,9 @@ export function GanttCanvasView({
     // Always register drag handler to save manual positions
     gantt.onTaskDragHandler(handleTaskDrag);
 
+    // Register resize handler to save duration changes
+    gantt.onTaskResizeHandler(handleTaskResize);
+
     // Register reset manual position handler (context menu)
     gantt.onResetManualPositionHandler(handleResetManualPosition);
 
@@ -913,7 +1043,7 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleResetManualPosition]);
+  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {
@@ -1391,29 +1521,84 @@ export function GanttCanvasView({
                       case 'endDate':
                         return <div className="truncate px-1 text-muted-foreground">{endStr}</div>;
                       case 'duration':
-                        return <div className="truncate px-1 text-muted-foreground text-center">{duration}</div>;
+                        if (editingDurationTaskId === task.id) {
+                          return (
+                            <input
+                              type="number"
+                              min="0"
+                              autoFocus
+                              value={editingDurationValue}
+                              onChange={(e) => setEditingDurationValue(e.target.value)}
+                              onBlur={() => {
+                                const val = parseInt(editingDurationValue, 10);
+                                if (!isNaN(val) && val >= 0) {
+                                  handleDurationSave(task.id, val);
+                                } else {
+                                  setEditingDurationTaskId(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  const val = parseInt(editingDurationValue, 10);
+                                  if (!isNaN(val) && val >= 0) {
+                                    handleDurationSave(task.id, val);
+                                  }
+                                } else if (e.key === 'Escape') {
+                                  setEditingDurationTaskId(null);
+                                }
+                              }}
+                              className="w-full h-5 px-1 text-center text-xs border rounded bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          );
+                        }
+                        return (
+                          <div
+                            className="truncate px-1 text-muted-foreground text-center cursor-pointer hover:bg-muted/50 rounded"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingDurationTaskId(task.id);
+                              setEditingDurationValue(String(duration));
+                            }}
+                            title="Click to edit duration"
+                          >
+                            {duration}
+                          </div>
+                        );
                       case 'progress':
                         return <div className="truncate px-1 text-muted-foreground text-center">{task.progress || 0}%</div>;
                       case 'status':
                         return <div className="truncate px-1 text-muted-foreground">{task.status || '-'}</div>;
                       case 'confirm':
+                        const isConfirmed = row?.require_supervisor_check === true;
                         return (
                           <div className="flex justify-center">
-                            {row?.require_supervisor_check ? (
-                              <Check className="h-3 w-3 text-green-500" />
-                            ) : (
-                              <X className="h-3 w-3 text-muted-foreground/30" />
-                            )}
+                            <input
+                              type="checkbox"
+                              checked={isConfirmed}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleConfirmToggle(task, !isConfirmed);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                              title={isConfirmed ? 'Supervisor check required - click to disable' : 'Click to require supervisor check'}
+                            />
                           </div>
                         );
                       case 'supplierConfirm':
+                        const isSupplierConfirmed = row?.require_supplier_confirm === true;
                         return (
                           <div className="flex justify-center">
-                            {row?.require_supplier_confirm ? (
-                              <Check className="h-3 w-3 text-blue-500" />
-                            ) : (
-                              <X className="h-3 w-3 text-muted-foreground/30" />
-                            )}
+                            <input
+                              type="checkbox"
+                              checked={isSupplierConfirmed}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleSupplierConfirmToggle(task, !isSupplierConfirmed);
+                              }}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                              title={isSupplierConfirmed ? 'Supplier confirm required - click to disable' : 'Click to require supplier confirm'}
+                            />
                           </div>
                         );
                       case 'supplier':
