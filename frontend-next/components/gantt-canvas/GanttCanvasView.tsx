@@ -302,6 +302,10 @@ export function GanttCanvasView({
     unlockedSuccessors: []
   });
 
+  // Track which locked tasks have "Break" selected (affects visibility of their downstream tasks)
+  // Key: task id, Value: 'break' | 'cascade' | undefined
+  const [lockedTaskDecisions, setLockedTaskDecisions] = React.useState<Record<number, 'break' | 'cascade'>>({});
+
   // Undo history - stores previous task states for session-based undo
   // Key: taskId, Value: { startDate, endDate, duration, manuallyPositioned, manualStartDate }
   const [undoHistory, setUndoHistory] = React.useState<Map<string, {
@@ -832,6 +836,16 @@ export function GanttCanvasView({
 
     // If there are successors, show the cascade dialog
     if (successorInfo.length > 0) {
+      // Reset decisions - default all to 'break'
+      const defaultDecisions: Record<number, 'break' | 'cascade'> = {};
+      lockedSuccessors.forEach(s => {
+        defaultDecisions[s.id] = 'break';
+        s.downstreamTasks?.forEach((dt: any) => {
+          defaultDecisions[dt.id] = 'break';
+        });
+      });
+      setLockedTaskDecisions(defaultDecisions);
+
       setCascadeDialog({
         isOpen: true,
         task,
@@ -1279,35 +1293,58 @@ export function GanttCanvasView({
     );
   }, [rows]);
 
-  // Handle confirm toggle (require_supervisor_check) - show dialog first
-  const handleConfirmToggle = React.useCallback((task: GanttTask, checked: boolean) => {
+  // Handle confirm toggle (require_supervisor_check) - NO DIALOG, direct toggle
+  const handleConfirmToggle = React.useCallback(async (task: GanttTask, checked: boolean) => {
     if (isStaticMode || !templateId) return;
 
     const row = rows.find(r => String(r.id) === task.id);
     if (!row) return;
 
-    // Find affected successors
-    const successors = findSuccessors(String(row.task_number));
+    // Get current task position to lock it in place
+    const currentTask = tasks.find(t => t.id === task.id);
+    // Use local date (not UTC) to avoid timezone issues
+    const startDate = currentTask?.startDate;
+    const currentDateStr = startDate
+      ? `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+      : null;
 
-    console.log('🔒 CONFIRM TOGGLE:', {
+    console.log('🔒 CONFIRM TOGGLE (direct):', {
       task: task.name,
       taskNumber: row.task_number,
       currentValue: row.require_supervisor_check,
       newValue: checked,
-      action: checked ? 'CHECKING (locking)' : 'UNCHECKING (unlocking)',
-      successorCount: successors.length,
-      successors: successors.map(s => ({ id: s.id, name: s.name, taskNumber: s.task_number }))
+      currentDate: currentDateStr,
+      action: checked ? 'CHECKING (locking)' : 'UNCHECKING (unlocking)'
     });
 
-    // Show confirmation dialog
-    setConfirmDialog({
-      isOpen: true,
-      type: 'confirm',
-      task,
-      isChecking: checked,
-      affectedSuccessors: successors
-    });
-  }, [templateId, isStaticMode, rows, findSuccessors]);
+    try {
+      // When confirming, also save position so task doesn't move
+      // DON'T set manually_positioned - just save the date, isLocked handles the rest
+      const updateData: any = { require_supervisor_check: checked };
+      if (checked && currentDateStr) {
+        updateData.manual_start_date = currentDateStr;
+        console.log(`🔒 Locking task at position: ${currentDateStr}`);
+      }
+
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        row: updateData
+      });
+
+      setRows(prev => prev.map(r =>
+        String(r.id) === task.id
+          ? {
+              ...r,
+              require_supervisor_check: checked,
+              ...(checked && currentDateStr ? {
+                manual_start_date: currentDateStr
+              } : {})
+            }
+          : r
+      ));
+    } catch (err) {
+      console.error('Failed to toggle confirm:', err);
+    }
+  }, [templateId, isStaticMode, rows, tasks]);
 
   // Handle supplier confirm toggle (require_supplier_confirm) - show dialog first
   const handleSupplierConfirmToggle = React.useCallback((task: GanttTask, checked: boolean) => {
@@ -1346,24 +1383,48 @@ export function GanttCanvasView({
     const { type, task, isChecking, affectedSuccessors } = confirmDialog;
     const fieldName = type === 'confirm' ? 'require_supervisor_check' : 'require_supplier_confirm';
 
+    // Find the current task position from the tasks state
+    const currentTask = tasks.find(t => t.id === task.id);
+    // Use local date (not UTC) to avoid timezone issues
+    const startDate = currentTask?.startDate;
+    const currentDateStr = startDate
+      ? `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`
+      : null;
+
     console.log('✅ EXECUTING CONFIRM TOGGLE:', {
       type,
       task: task.name,
+      taskId: task.id,
       isChecking,
       fieldName,
+      currentDate: currentDateStr,
       affectedSuccessors: affectedSuccessors.length
     });
 
     try {
+      // When CONFIRMING (locking), also save the current position so it doesn't move
+      // DON'T set manually_positioned - just save the date, isLocked handles the rest
+      const updateData: any = { [fieldName]: isChecking };
+      if (isChecking && currentDateStr) {
+        updateData.manual_start_date = currentDateStr;
+        console.log(`🔒 Locking task at position: ${currentDateStr}`);
+      }
+
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
-        row: { [fieldName]: isChecking }
+        row: updateData
       });
 
       console.log(`✅ Saved ${fieldName}=${isChecking} for task ${task.id}`);
 
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, [fieldName]: isChecking }
+          ? {
+              ...r,
+              [fieldName]: isChecking,
+              ...(isChecking && currentDateStr ? {
+                manual_start_date: currentDateStr
+              } : {})
+            }
           : r
       ));
 
@@ -1372,7 +1433,7 @@ export function GanttCanvasView({
     } catch (err) {
       console.error(`Failed to toggle ${type}:`, err);
     }
-  }, [confirmDialog, templateId]);
+  }, [confirmDialog, templateId, tasks]);
 
   // Initialize canvas engine - recreated when data changes
   // Note: Using rows in dependencies causes recreation, but this is needed for proper handler binding
@@ -2272,110 +2333,100 @@ export function GanttCanvasView({
 
       {/* Cascade Dependencies Dialog - shown when moving a task with successors */}
       <Dialog open={cascadeDialog.isOpen} onOpenChange={(open) => setCascadeDialog(prev => ({ ...prev, isOpen: open }))}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-yellow-500" />
+        <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500" />
               Cascade Dependencies
             </DialogTitle>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* Task being moved */}
-            <div className="p-3 bg-muted rounded-lg">
-              <p className="text-sm">
-                Moving <span className="font-semibold">{cascadeDialog.task?.name}</span> to{' '}
-                <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded">
-                  {cascadeDialog.newStartDate?.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
-                </span>
-              </p>
+          <div className="flex-1 overflow-y-auto space-y-2 py-2">
+            {/* Task being moved - compact */}
+            <div className="p-2 bg-muted rounded text-xs">
+              Moving <span className="font-semibold">{cascadeDialog.task?.name}</span> to{' '}
+              <span className="font-mono bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">
+                {cascadeDialog.newStartDate?.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
             </div>
 
             {/* Affected successors */}
-            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                ⚠️ {cascadeDialog.successors.length} task{cascadeDialog.successors.length > 1 ? 's' : ''} depend on this task
+            <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded">
+              <p className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200 mb-1.5">
+                ⚠️ {cascadeDialog.successors.length} dependent task{cascadeDialog.successors.length > 1 ? 's' : ''}
               </p>
 
-              {/* Unlocked successors - will cascade */}
+              {/* Unlocked successors - will cascade - compact inline */}
               {cascadeDialog.unlockedSuccessors.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-xs font-semibold text-green-700 dark:text-green-300 flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                <div className="mb-1.5">
+                  <div className="text-[10px] font-semibold text-green-700 dark:text-green-300 flex items-center gap-1 mb-0.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
                     Will Cascade ({cascadeDialog.unlockedSuccessors.length}):
                   </div>
-                  <div className="mt-2 space-y-2 ml-3">
+                  <div className="flex flex-wrap gap-1 ml-2">
                     {cascadeDialog.unlockedSuccessors.map((s: any) => (
-                      <div key={s.id} className="p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                        <div className="flex items-center gap-2 text-xs">
-                          <input
-                            type="checkbox"
-                            defaultChecked={true}
-                            className="h-3.5 w-3.5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-                          />
-                          <span className="font-medium">#{s.task_number} {s.name}</span>
-                          {s.downstreamCount > 0 && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-300">
-                              +{s.downstreamCount} downstream
-                            </span>
-                          )}
-                        </div>
-                        {s.downstreamCount > 0 && (
-                          <div className="mt-1 ml-5 text-[10px] text-green-600 dark:text-green-400">
-                            {s.downstreamTasks?.slice(0, 3).map((dt: any) => (
-                              <span key={dt.id} className="mr-2">→ #{dt.task_number}</span>
-                            ))}
-                            {s.downstreamCount > 3 && <span>+{s.downstreamCount - 3} more</span>}
-                          </div>
-                        )}
-                      </div>
+                      <span key={s.id} className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 dark:bg-green-900/40 rounded text-[9px] text-green-700 dark:text-green-300">
+                        #{s.task_number} {s.name.length > 15 ? s.name.slice(0, 15) + '...' : s.name}
+                        {s.downstreamCount > 0 && <span className="font-semibold">+{s.downstreamCount}</span>}
+                      </span>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Locked tasks - ALL at same level, sorted by task number */}
+              {/* Locked tasks - grid layout with parent-child relationships */}
               {(() => {
-                // Collect ALL locked tasks (direct + downstream) into flat list
+                // Build flat list with parent info for fading
                 const allLockedTasks: any[] = [];
+                const childToParentMap: Record<number, number> = {};
+
                 cascadeDialog.lockedSuccessors.forEach(s => {
-                  allLockedTasks.push({ ...s, isDirect: true });
+                  allLockedTasks.push({ ...s, isDirect: true, parentId: null });
                   s.downstreamTasks?.forEach((dt: any) => {
-                    allLockedTasks.push({ ...dt, isDirect: false });
+                    childToParentMap[dt.id] = s.id;
+                    allLockedTasks.push({ ...dt, isDirect: false, parentId: s.id });
                   });
                 });
-                // Sort by task_number (lower = higher in schedule)
-                allLockedTasks.sort((a, b) => {
-                  const numA = parseInt(a.task_number) || 0;
-                  const numB = parseInt(b.task_number) || 0;
-                  return numA - numB;
-                });
+
+                // Sort by task number
+                allLockedTasks.sort((a, b) => (parseInt(a.task_number) || 0) - (parseInt(b.task_number) || 0));
 
                 if (allLockedTasks.length === 0) return null;
 
                 return (
-                  <div className="mt-3">
-                    <div className="text-xs font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-orange-500" />
+                  <div>
+                    <div className="text-[10px] font-semibold text-orange-700 dark:text-orange-300 flex items-center gap-1 mb-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
                       Locked Tasks ({allLockedTasks.length}):
                     </div>
-                    <div className="mt-2 space-y-2 ml-3">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {allLockedTasks.map((task: any) => {
-                        const lockType = task.require_supplier_confirm ? 'Supplier Confirmed'
-                          : task.finance_approved ? 'Finance Approved'
+                        const lockType = task.require_supplier_confirm ? 'Supplier'
+                          : task.finance_approved ? 'Finance'
                           : task.require_supervisor_check ? 'Confirmed'
-                          : task.is_completed ? 'Completed' : 'Locked';
+                          : task.is_completed ? 'Done' : 'Locked';
                         const canUnlock = !task.is_completed;
-                        const fieldName = task.require_supplier_confirm ? 'require_supplier_confirm'
-                          : task.finance_approved ? 'finance_approved'
-                          : 'require_supervisor_check';
+                        const decision = lockedTaskDecisions[task.id] || 'break';
+
+                        // Check if this is a child and its parent has "break" selected
+                        const parentId = childToParentMap[task.id];
+                        const parentDecision = parentId ? (lockedTaskDecisions[parentId] || 'break') : null;
+                        const isFaded = parentId && parentDecision === 'break';
 
                         return (
-                          <div key={task.id} className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-800">
+                          <div
+                            key={task.id}
+                            className={`p-1.5 rounded border transition-opacity duration-200 ${
+                              isFaded
+                                ? 'opacity-30 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700'
+                                : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                            }`}
+                          >
                             {/* Task header */}
-                            <div className="flex items-center gap-2 text-xs mb-2">
-                              <span className="font-medium">#{task.task_number} {task.name}</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                            <div className="flex items-center gap-1 text-[10px] mb-1">
+                              {!task.isDirect && <span className="text-muted-foreground text-[8px]">↳</span>}
+                              <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
+                              <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
                                 task.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                                 : task.finance_approved ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                                 : task.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
@@ -2385,113 +2436,103 @@ export function GanttCanvasView({
                               </span>
                             </div>
 
-                            {/* Two checkbox options */}
-                            <div className="space-y-2 text-xs">
-                              <label className="flex items-center gap-2 cursor-pointer p-2 bg-red-50 dark:bg-red-900/30 rounded border border-red-200 dark:border-red-700">
-                                <input
-                                  type="checkbox"
-                                  name={`task-${task.id}-break`}
-                                  defaultChecked={true}
-                                  className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                                  onChange={(e) => {
-                                    const cascadeCheckbox = document.querySelector(`input[name="task-${task.id}-cascade"]`) as HTMLInputElement;
-                                    if (cascadeCheckbox && e.target.checked) cascadeCheckbox.checked = false;
-                                  }}
-                                />
-                                <div>
-                                  <span className="font-medium text-red-700 dark:text-red-300">Break dependency</span>
-                                  <p className="text-[10px] text-red-600 dark:text-red-400">Task stays {lockType}, dependency removed</p>
-                                </div>
-                              </label>
+                            {/* Options - only show if not faded */}
+                            {isFaded ? (
+                              <div className="text-[9px] text-muted-foreground italic">Not affected</div>
+                            ) : (
+                              <div className="flex gap-1">
+                                <label className={`flex items-center gap-1 cursor-pointer px-1.5 py-0.5 rounded flex-1 border ${decision === 'break' ? 'bg-red-100 dark:bg-red-900/50 border-red-300 dark:border-red-700' : 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-800'}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={decision === 'break'}
+                                    className="h-3 w-3 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'break' }));
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <span className="text-[9px] font-medium text-red-700 dark:text-red-300">Break</span>
+                                    <p className="text-[8px] text-red-600 dark:text-red-400 leading-tight">Stays locked, dep removed</p>
+                                  </div>
+                                </label>
 
-                              <label className={`flex items-center gap-2 p-2 rounded border ${canUnlock ? 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700' : 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50'}`}>
-                                <input
-                                  type="checkbox"
-                                  name={`task-${task.id}-cascade`}
-                                  disabled={!canUnlock}
-                                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
-                                  onChange={(e) => {
-                                    if (e.target.checked && canUnlock) {
-                                      // Just toggle the break checkbox - actual save happens on Move button
-                                      const breakCheckbox = document.querySelector(`input[name="task-${task.id}-break"]`) as HTMLInputElement;
-                                      if (breakCheckbox) breakCheckbox.checked = false;
-                                    }
-                                  }}
-                              />
-                              <div>
-                                <span className={`font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Clear {lockType} & cascade</span>
-                                <p className={`text-[10px] ${canUnlock ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
-                                  {canUnlock ? 'Remove lock, task will move with parent' : 'Completed tasks cannot be changed'}
-                                </p>
+                                <label className={`flex items-center gap-1 px-1.5 py-0.5 rounded flex-1 border ${!canUnlock ? 'cursor-not-allowed bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 opacity-50' : decision === 'cascade' ? 'cursor-pointer bg-green-100 dark:bg-green-900/50 border-green-300 dark:border-green-700' : 'cursor-pointer bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-800'}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={decision === 'cascade'}
+                                    disabled={!canUnlock}
+                                    className="h-3 w-3 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                                    onChange={(e) => {
+                                      if (e.target.checked && canUnlock) {
+                                        setLockedTaskDecisions(prev => ({ ...prev, [task.id]: 'cascade' }));
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <span className={`text-[9px] font-medium ${canUnlock ? 'text-green-700 dark:text-green-300' : 'text-gray-500'}`}>Clear & Cascade</span>
+                                    <p className={`text-[8px] leading-tight ${canUnlock ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}`}>
+                                      {canUnlock ? 'Unlocks, moves with flow' : 'Completed - locked'}
+                                    </p>
+                                  </div>
+                                </label>
                               </div>
-                            </label>
+                            )}
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
                 );
               })()}
             </div>
 
-            {/* Explanation */}
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>What will happen:</strong></p>
-              <ul className="ml-3 space-y-0.5">
-                <li>• Unlocked tasks will automatically move to maintain dependencies</li>
-                <li>• Locked tasks (Confirmed/Supplier Confirmed) stay in place</li>
-                <li>• Dependencies to locked tasks will be broken</li>
-              </ul>
+            {/* Compact legend */}
+            <div className="text-[9px] text-muted-foreground flex gap-3 pt-1 border-t">
+              <span><span className="text-green-600">●</span> Cascade = moves with parent</span>
+              <span><span className="text-red-600">●</span> Break = stays in place, dependency removed</span>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCascadeDialog(prev => ({ ...prev, isOpen: false }))}>
-              Cancel Move
+          <DialogFooter className="pt-2">
+            <Button variant="outline" size="sm" onClick={() => setCascadeDialog(prev => ({ ...prev, isOpen: false }))}>
+              Cancel
             </Button>
-            <Button
+            <Button size="sm"
               onClick={async () => {
                 if (cascadeDialog.task && cascadeDialog.newStartDate) {
                   // Get the moved task's task_number to identify which predecessor to remove
                   const movedTaskRow = rows.find(r => String(r.id) === cascadeDialog.task?.id);
                   const movedTaskNumber = movedTaskRow?.task_number;
 
-                  // Collect all locked tasks
-                  const allLockedTasks: any[] = [];
-                  cascadeDialog.lockedSuccessors.forEach(s => {
-                    allLockedTasks.push({ ...s, isDirect: true });
-                    s.downstreamTasks?.forEach((dt: any) => {
-                      allLockedTasks.push({ ...dt, isDirect: false });
-                    });
-                  });
+                  // Process each direct locked successor and its children
+                  for (const parentTask of cascadeDialog.lockedSuccessors) {
+                    const parentDecision = lockedTaskDecisions[parentTask.id] || 'break';
 
-                  for (const task of allLockedTasks) {
-                    const breakCheckbox = document.querySelector(`input[name="task-${task.id}-break"]`) as HTMLInputElement;
-                    const cascadeCheckbox = document.querySelector(`input[name="task-${task.id}-cascade"]`) as HTMLInputElement;
-
-                    if (breakCheckbox?.checked && !cascadeCheckbox?.checked) {
-                      // BREAK DEPENDENCY: Remove the predecessor link and mark as broken
-                      console.log(`🔗 Breaking dependency on task #${task.task_number}`);
+                    if (parentDecision === 'break') {
+                      // BREAK DEPENDENCY on parent - children are not affected (stay connected to parent)
+                      console.log(`🔗 Breaking dependency on task #${parentTask.task_number}`);
                       try {
-                        // Remove the predecessor that points to the moved task
-                        const currentPreds = task.predecessor_ids || [];
+                        const currentPreds = parentTask.predecessor_ids || [];
                         const updatedPreds = currentPreds.filter((p: any) => p.id !== movedTaskNumber);
 
-                        // Save current position as manual_start_date so it doesn't move
-                        const currentTask = tasks.find(t => t.id === String(task.id));
-                        const currentDateStr = currentTask?.startDate?.toISOString().split('T')[0] ?? null;
+                        const currentTask = tasks.find(t => t.id === String(parentTask.id));
+                        const taskStartDate = currentTask?.startDate;
+                        const currentDateStr = taskStartDate
+                          ? `${taskStartDate.getFullYear()}-${String(taskStartDate.getMonth() + 1).padStart(2, '0')}-${String(taskStartDate.getDate()).padStart(2, '0')}`
+                          : null;
 
-                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${parentTask.id}`, {
                           row: {
                             predecessor_ids: updatedPreds,
                             manually_positioned: true,
                             manual_start_date: currentDateStr,
-                            dependency_broken: true  // Mark as broken for visual indicator
+                            dependency_broken: true
                           }
                         });
                         setRows(prev => prev.map(r =>
-                          r.id === task.id ? {
+                          r.id === parentTask.id ? {
                             ...r,
                             predecessor_ids: updatedPreds,
                             manually_positioned: true,
@@ -2502,21 +2543,79 @@ export function GanttCanvasView({
                       } catch (err) {
                         console.error('Failed to break dependency:', err);
                       }
-                    } else if (cascadeCheckbox?.checked) {
-                      // CLEAR & CASCADE: Clear the lock for this task
-                      const fieldName = task.require_supplier_confirm ? 'require_supplier_confirm'
-                        : task.finance_approved ? 'finance_approved'
+                      // Children stay connected to this parent - no action needed for them
+                    } else {
+                      // CLEAR & CASCADE on parent - then process children
+                      const fieldName = parentTask.require_supplier_confirm ? 'require_supplier_confirm'
+                        : parentTask.finance_approved ? 'finance_approved'
                         : 'require_supervisor_check';
-                      console.log(`🔓 Clearing ${fieldName} on task #${task.task_number}`);
+                      console.log(`🔓 Clearing ${fieldName} on task #${parentTask.task_number}`);
                       try {
-                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${parentTask.id}`, {
                           row: { [fieldName]: false }
                         });
                         setRows(prev => prev.map(r =>
-                          r.id === task.id ? { ...r, [fieldName]: false } : r
+                          r.id === parentTask.id ? { ...r, [fieldName]: false } : r
                         ));
                       } catch (err) {
                         console.error('Failed to clear lock:', err);
+                      }
+
+                      // Now process children since parent is cascading
+                      for (const childTask of (parentTask.downstreamTasks || [])) {
+                        const childDecision = lockedTaskDecisions[childTask.id] || 'break';
+
+                        if (childDecision === 'break') {
+                          // Break child dependency
+                          console.log(`🔗 Breaking dependency on child task #${childTask.task_number}`);
+                          try {
+                            const currentPreds = childTask.predecessor_ids || [];
+                            // Remove predecessor that points to the parent (not the original moved task)
+                            const updatedPreds = currentPreds.filter((p: any) => p.id !== parentTask.task_number);
+
+                            const currentTask = tasks.find(t => t.id === String(childTask.id));
+                            const taskStartDate = currentTask?.startDate;
+                            const currentDateStr = taskStartDate
+                              ? `${taskStartDate.getFullYear()}-${String(taskStartDate.getMonth() + 1).padStart(2, '0')}-${String(taskStartDate.getDate()).padStart(2, '0')}`
+                              : null;
+
+                            await api.patch(`/api/v1/sm_templates/${templateId}/rows/${childTask.id}`, {
+                              row: {
+                                predecessor_ids: updatedPreds,
+                                manually_positioned: true,
+                                manual_start_date: currentDateStr,
+                                dependency_broken: true
+                              }
+                            });
+                            setRows(prev => prev.map(r =>
+                              r.id === childTask.id ? {
+                                ...r,
+                                predecessor_ids: updatedPreds,
+                                manually_positioned: true,
+                                manual_start_date: currentDateStr,
+                                dependency_broken: true
+                              } : r
+                            ));
+                          } catch (err) {
+                            console.error('Failed to break child dependency:', err);
+                          }
+                        } else {
+                          // Clear & cascade child
+                          const childFieldName = childTask.require_supplier_confirm ? 'require_supplier_confirm'
+                            : childTask.finance_approved ? 'finance_approved'
+                            : 'require_supervisor_check';
+                          console.log(`🔓 Clearing ${childFieldName} on child task #${childTask.task_number}`);
+                          try {
+                            await api.patch(`/api/v1/sm_templates/${templateId}/rows/${childTask.id}`, {
+                              row: { [childFieldName]: false }
+                            });
+                            setRows(prev => prev.map(r =>
+                              r.id === childTask.id ? { ...r, [childFieldName]: false } : r
+                            ));
+                          } catch (err) {
+                            console.error('Failed to clear child lock:', err);
+                          }
+                        }
                       }
                     }
                   }

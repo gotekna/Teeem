@@ -9,10 +9,17 @@ import {
   FileText,
   Activity,
   AlertCircle,
+  Lock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { XeroConnectionStatus, TenantStats } from "./types";
+
+interface XeroHealthData {
+  organisation: {
+    locked_date: string | null;
+  };
+}
 
 interface XeroOverviewCardProps {
   companyId: string;
@@ -31,6 +38,7 @@ interface XeroOverviewCardProps {
 export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
   const [status, setStatus] = React.useState<XeroConnectionStatus | null>(null);
   const [tenantStats, setTenantStats] = React.useState<TenantStats | null>(null);
+  const [healthData, setHealthData] = React.useState<XeroHealthData | null>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
@@ -43,12 +51,20 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
         );
         setStatus(statusResponse);
 
-        // Load tenant stats if connected
+        // Load tenant stats and health data if connected
         if (statusResponse.connected && statusResponse.xero_tenant_id) {
-          const statsResponse = await api.get<{ success: boolean; data: { tenants: TenantStats[] } }>("/api/v1/xero/sync_stats");
+          const [statsResponse, healthResponse] = await Promise.all([
+            api.get<{ success: boolean; data: { tenants: TenantStats[] } }>("/api/v1/xero/sync_stats"),
+            api.get<{ success: boolean; health: XeroHealthData }>(`/api/v1/companies/${companyId}/xero/health`)
+          ]);
+
           if (statsResponse.success && statsResponse.data?.tenants) {
             const tenant = statsResponse.data.tenants.find(t => t.tenant_id === statusResponse.xero_tenant_id);
             setTenantStats(tenant || null);
+          }
+
+          if (healthResponse.success && healthResponse.health) {
+            setHealthData(healthResponse.health);
           }
         }
       } catch (error) {
@@ -111,6 +127,24 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
     if (diffHours < 24) return `${diffHours} hours ago`;
     return `${diffDays} days ago`;
   };
+
+  const formatLockedDate = (dateStr: string | null | undefined): string | null => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      // Format as "15 January 2025"
+      return date.toLocaleDateString('en-AU', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const lockedDateFormatted = formatLockedDate(healthData?.organisation?.locked_date);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -175,6 +209,27 @@ export function XeroOverviewCard({ companyId }: XeroOverviewCardProps) {
           <p className="text-xs text-muted-foreground mt-1">Daily limit used</p>
         </CardContent>
       </Card>
+
+      {/* Locked Date Banner */}
+      {lockedDateFormatted && (
+        <Card className="md:col-span-2 lg:col-span-4 border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
+          <CardContent className="pt-6 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg shrink-0">
+                <Lock className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="font-medium text-blue-900 dark:text-blue-100">
+                  Books Locked To: {lockedDateFormatted}
+                </p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  Transactions up to this date cannot be modified in Xero
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Health Alert (if needed) */}
       {status.needs_attention && (
