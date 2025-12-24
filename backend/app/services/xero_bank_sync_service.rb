@@ -243,16 +243,28 @@ class XeroBankSyncService
     # Try to get first transaction date for date_opened
     date_opened = fetch_first_transaction_date(xero_account["AccountID"])
 
+    # For closed accounts, get last transaction date as close date
+    date_closed = nil
+    if is_closed
+      date_closed = fetch_last_transaction_date(xero_account["AccountID"]) || Date.today
+    end
+
+    # Store original bank name if not already in standardized format
+    # Standardized format: "NAB 083-052 305422840"
+    is_standardized_name = xero_name.match?(/^[A-Z]{2,7}\s+\d{3}[- ]?\d{3}\s+\d+$/)
+    bank_feed_name = is_standardized_name ? nil : xero_name
+
     company.bank_accounts.create!(
       institution_name: institution_name,
       bank_code: bank_code,
       bsb: parsed[:bsb],
       account_number: parsed[:account_number],
-      account_name: xero_name, # Store original Xero name as official name
+      account_name: xero_name,
+      bank_feed_name: bank_feed_name, # Original official bank account name
       xero_account_id: xero_account["AccountID"],
       status: is_closed ? "closed" : "active",
       date_opened: date_opened,
-      date_closed: is_closed ? Date.today : nil
+      date_closed: date_closed
     )
   rescue ActiveRecord::RecordInvalid => e
     Rails.logger.error("[XeroBankSync] Failed to create bank account from Xero: #{e.message}")
@@ -269,7 +281,15 @@ class XeroBankSyncService
 
     changes = {}
 
-    # Store original Xero name as official account name (if not already set or different)
+    # Store original bank account name in bank_feed_name (before we rename it)
+    # Only if blank and current Xero name is NOT already our standardized format
+    # Standardized format: "NAB 083-052 305422840" (BANK BSB-BSB ACCOUNT)
+    is_standardized_name = xero_name.match?(/^[A-Z]{2,7}\s+\d{3}[- ]?\d{3}\s+\d+$/)
+    if local_account.bank_feed_name.blank? && !is_standardized_name
+      changes[:bank_feed_name] = xero_name
+    end
+
+    # Store Xero name as account_name (keeps in sync with Xero)
     if local_account.account_name != xero_name
       changes[:account_name] = xero_name
     end
