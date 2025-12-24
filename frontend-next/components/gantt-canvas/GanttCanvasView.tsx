@@ -762,12 +762,8 @@ export function GanttCanvasView({
       // Format dates as YYYY-MM-DD
       const startStr = newStartDate.toISOString().split('T')[0];
 
-      // Save to API - will return cascaded_rows if dependencies were updated
-      const response = await api.patch<{
-        success: boolean;
-        row: SmTemplateRow;
-        cascaded_rows?: SmTemplateRow[];
-      }>(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      // Save to API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
           manually_positioned: true,
           manual_start_date: startStr,
@@ -809,17 +805,13 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, loadData]);
 
-  // Handle duration edit - save new duration and cascade dependencies
+  // Handle duration edit - save new duration and recalculate dependent task dates
   const handleDurationSave = React.useCallback(async (taskId: string, newDuration: number) => {
     if (isStaticMode || !templateId || newDuration < 0) return;
 
     try {
-      // Save to API - will return cascaded_rows if dependencies were updated
-      const response = await api.patch<{
-        success: boolean;
-        row: SmTemplateRow;
-        cascaded_rows?: SmTemplateRow[];
-      }>(`/api/v1/sm_templates/${templateId}/rows/${taskId}`, {
+      // Save to API
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${taskId}`, {
         row: { duration_days: newDuration }
       });
 
