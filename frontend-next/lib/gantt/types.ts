@@ -128,6 +128,8 @@ export interface SmTemplateRow {
   is_completed: boolean | null;
   completed_at: string | null;
   predecessor_ids_backup: ApiPredecessor[] | null;
+  // Broken dependency indicator (locked task that had its dependency removed)
+  dependency_broken: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -464,11 +466,16 @@ export function convertRowToTask(
   let startDate: Date;
   let endDate: Date;
 
-  // If manually positioned OR completed with manual_start_date, use the manual start date
-  // Completed tasks use manual_start_date to position at their completion date without needing the "hold" flag
-  if ((row.manually_positioned || row.is_completed) && row.manual_start_date) {
+  // Check if task is LOCKED - locked tasks NEVER recalculate from predecessors
+  // Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
+  const isLocked = row.require_supervisor_check || row.require_supplier_confirm ||
+                   row.finance_approved || row.is_completed;
+
+  // If manually positioned OR locked with manual_start_date, use the manual start date
+  // Locked tasks should NEVER move based on predecessor changes
+  if ((row.manually_positioned || isLocked) && row.manual_start_date) {
     startDate = skipToNextWorkingDay(new Date(row.manual_start_date));
-  } else if (taskDateMap && row.predecessor_ids?.length > 0) {
+  } else if (taskDateMap && row.predecessor_ids?.length > 0 && !isLocked) {
     // Find the latest required start date from all predecessors
     let latestRequiredStart = projectStartDate;
     for (const pred of row.predecessor_ids) {

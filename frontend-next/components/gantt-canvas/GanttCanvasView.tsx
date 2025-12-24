@@ -2410,34 +2410,11 @@ export function GanttCanvasView({
                                   name={`task-${task.id}-cascade`}
                                   disabled={!canUnlock}
                                   className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
-                                  onChange={async (e) => {
+                                  onChange={(e) => {
                                     if (e.target.checked && canUnlock) {
+                                      // Just toggle the break checkbox - actual save happens on Move button
                                       const breakCheckbox = document.querySelector(`input[name="task-${task.id}-break"]`) as HTMLInputElement;
                                       if (breakCheckbox) breakCheckbox.checked = false;
-                                      console.log(`🔓 Unlocking task #${task.task_number} - clearing ${fieldName}`);
-                                      try {
-                                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
-                                          row: { [fieldName]: false }
-                                        });
-                                        setRows(prev => prev.map(r =>
-                                          r.id === task.id ? { ...r, [fieldName]: false } : r
-                                        ));
-                                        // Remove from locked and add to unlocked
-                                        setCascadeDialog(prev => {
-                                          // Remove this task from all locked successors and their downstream
-                                          const updatedLockedSuccessors = prev.lockedSuccessors.map(ls => ({
-                                            ...ls,
-                                            downstreamTasks: ls.downstreamTasks?.filter((dt: any) => dt.id !== task.id) || []
-                                          })).filter(ls => ls.id !== task.id);
-                                          return {
-                                            ...prev,
-                                            lockedSuccessors: updatedLockedSuccessors,
-                                            unlockedSuccessors: [...prev.unlockedSuccessors, { ...task, [fieldName]: false }]
-                                          };
-                                        });
-                                      } catch (err) {
-                                        console.error('Failed to unlock task:', err);
-                                      }
                                     }
                                   }}
                               />
@@ -2476,13 +2453,82 @@ export function GanttCanvasView({
             <Button
               onClick={async () => {
                 if (cascadeDialog.task && cascadeDialog.newStartDate) {
+                  // Get the moved task's task_number to identify which predecessor to remove
+                  const movedTaskRow = rows.find(r => String(r.id) === cascadeDialog.task?.id);
+                  const movedTaskNumber = movedTaskRow?.task_number;
+
+                  // Collect all locked tasks
+                  const allLockedTasks: any[] = [];
+                  cascadeDialog.lockedSuccessors.forEach(s => {
+                    allLockedTasks.push({ ...s, isDirect: true });
+                    s.downstreamTasks?.forEach((dt: any) => {
+                      allLockedTasks.push({ ...dt, isDirect: false });
+                    });
+                  });
+
+                  for (const task of allLockedTasks) {
+                    const breakCheckbox = document.querySelector(`input[name="task-${task.id}-break"]`) as HTMLInputElement;
+                    const cascadeCheckbox = document.querySelector(`input[name="task-${task.id}-cascade"]`) as HTMLInputElement;
+
+                    if (breakCheckbox?.checked && !cascadeCheckbox?.checked) {
+                      // BREAK DEPENDENCY: Remove the predecessor link and mark as broken
+                      console.log(`🔗 Breaking dependency on task #${task.task_number}`);
+                      try {
+                        // Remove the predecessor that points to the moved task
+                        const currentPreds = task.predecessor_ids || [];
+                        const updatedPreds = currentPreds.filter((p: any) => p.id !== movedTaskNumber);
+
+                        // Save current position as manual_start_date so it doesn't move
+                        const currentTask = tasks.find(t => t.id === String(task.id));
+                        const currentDateStr = currentTask?.startDate?.toISOString().split('T')[0] ?? null;
+
+                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+                          row: {
+                            predecessor_ids: updatedPreds,
+                            manually_positioned: true,
+                            manual_start_date: currentDateStr,
+                            dependency_broken: true  // Mark as broken for visual indicator
+                          }
+                        });
+                        setRows(prev => prev.map(r =>
+                          r.id === task.id ? {
+                            ...r,
+                            predecessor_ids: updatedPreds,
+                            manually_positioned: true,
+                            manual_start_date: currentDateStr,
+                            dependency_broken: true
+                          } : r
+                        ));
+                      } catch (err) {
+                        console.error('Failed to break dependency:', err);
+                      }
+                    } else if (cascadeCheckbox?.checked) {
+                      // CLEAR & CASCADE: Clear the lock for this task
+                      const fieldName = task.require_supplier_confirm ? 'require_supplier_confirm'
+                        : task.finance_approved ? 'finance_approved'
+                        : 'require_supervisor_check';
+                      console.log(`🔓 Clearing ${fieldName} on task #${task.task_number}`);
+                      try {
+                        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+                          row: { [fieldName]: false }
+                        });
+                        setRows(prev => prev.map(r =>
+                          r.id === task.id ? { ...r, [fieldName]: false } : r
+                        ));
+                      } catch (err) {
+                        console.error('Failed to clear lock:', err);
+                      }
+                    }
+                  }
+
+                  // Now execute the move
                   await executeDragMove(cascadeDialog.task, cascadeDialog.newStartDate);
                   setCascadeDialog(prev => ({ ...prev, isOpen: false }));
                 }
               }}
               className="bg-yellow-600 hover:bg-yellow-700"
             >
-              Move & Cascade
+              Move
             </Button>
           </DialogFooter>
         </DialogContent>

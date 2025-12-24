@@ -35,10 +35,21 @@ class SmTemplateCascadeService
       # Skip if already processed
       next if updated_rows.include?(successor)
 
-      # For templates, we CASCADE ALL successors
-      # Clear manually_positioned so frontend recalculates from predecessors
-      # Store the old date in a backup field for undo capability
+      # CRITICAL: Skip LOCKED tasks - they NEVER move based on predecessor changes
+      # Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
+      is_locked = successor.require_supervisor_check ||
+                  successor.require_supplier_confirm ||
+                  successor.try(:finance_approved) ||
+                  successor.is_completed
 
+      if is_locked
+        Rails.logger.info "[SmTemplateCascade] SKIPPING locked successor #{successor.id} (task_number: #{successor.task_number})"
+        # Don't cascade through locked tasks - the chain stops here
+        next
+      end
+
+      # For unlocked successors: Clear manually_positioned so frontend recalculates from predecessors
+      # Store the old date in a backup field for undo capability
       if successor.manually_positioned?
         Rails.logger.info "[SmTemplateCascade] Clearing manually_positioned on successor #{successor.id}"
         # Save the old date for potential undo/restore

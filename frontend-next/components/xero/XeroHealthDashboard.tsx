@@ -151,9 +151,22 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
   const formatSyncTime = (dateStr: string | null) => {
     if (!dateStr) return "Never";
     try {
-      return formatDistanceToNow(new Date(dateStr), { addSuffix: true });
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "Unknown";
+      return formatDistanceToNow(date, { addSuffix: true });
     } catch {
       return "Unknown";
+    }
+  };
+
+  const formatDate = (dateStr: string | null, formatStr: string = "d MMMM yyyy") => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return null;
+      return format(date, formatStr);
+    } catch {
+      return null;
     }
   };
 
@@ -170,7 +183,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
   return (
     <div className="space-y-6">
       {/* Locked Date Banner */}
-      {health.organisation.locked_date && (
+      {health.organisation.locked_date && formatDate(health.organisation.locked_date) && (
         <Card className="border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30">
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -179,7 +192,7 @@ export function XeroHealthDashboard({ companyId }: XeroHealthDashboardProps) {
               </div>
               <div>
                 <p className="font-medium text-blue-900 dark:text-blue-100">
-                  Books Locked To: {format(new Date(health.organisation.locked_date), "d MMMM yyyy")}
+                  Books Locked To: {formatDate(health.organisation.locked_date)}
                 </p>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   Transactions up to this date cannot be modified in Xero

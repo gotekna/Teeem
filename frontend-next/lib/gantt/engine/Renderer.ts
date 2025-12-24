@@ -357,6 +357,27 @@ export class Renderer {
       this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
       this.ctx.fill();
 
+      // Draw hatched pattern for broken dependency tasks (locked but detached from flow)
+      if (task.rowData?.dependency_broken) {
+        this.ctx.save();
+        // Clip to task bar shape
+        this.ctx.beginPath();
+        this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
+        this.ctx.clip();
+
+        // Draw diagonal hatching pattern
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        this.ctx.lineWidth = 2;
+        const spacing = 8;
+        for (let i = -barHeight; i < taskWidth + barHeight; i += spacing) {
+          this.ctx.beginPath();
+          this.ctx.moveTo(startX + i, barY);
+          this.ctx.lineTo(startX + i + barHeight, barY + barHeight);
+          this.ctx.stroke();
+        }
+        this.ctx.restore();
+      }
+
       // Check if task is on critical path
       const isCritical = criticalTaskIds?.has(task.id);
 

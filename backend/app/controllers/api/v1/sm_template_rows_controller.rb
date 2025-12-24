@@ -205,7 +205,7 @@ module Api
           :photo_entity_tab_id, :linked_po_task_id,
           :require_supplier_confirm, :is_master,
           # Manual positioning
-          :manually_positioned, :manual_start_date,
+          :manually_positioned, :manual_start_date, :dependency_broken,
           predecessor_ids: [ :id, :type, :lag ],
           linked_task_ids: [],
           spawn_office_tasks: [],
@@ -298,6 +298,8 @@ module Api
           manually_positioned: row.manually_positioned,
           manual_start_date: row.manual_start_date,
           previous_manual_start_date: row.previous_manual_start_date,
+          # Broken dependency indicator (locked task detached from flow)
+          dependency_broken: row.dependency_broken,
           created_at: row.created_at,
           updated_at: row.updated_at
         }
