@@ -169,8 +169,8 @@ module Api
                 pricebook_item = PricebookItem.find_by(id: item_params[:pricebook_item_id])
                 if pricebook_item
                   line_item.pricebook_item_id = pricebook_item.id
-                  line_item.description ||= pricebook_item.name
-                  line_item.unit_price = pricebook_item.active_price || item_params[:unit_price] || 0
+                  line_item.description ||= pricebook_item.item_name
+                  line_item.unit_price = pricebook_item.current_price || item_params[:unit_price] || 0
 
                   # Track default supplier from pricebook item
                   if pricebook_item.default_supplier_id.present?
@@ -269,8 +269,8 @@ module Api
             description: pricebook_item.item_name,
             quantity: quantity.to_i,
             unit_price: pricebook_item.current_price || 0,
-            gst_code: pricebook_item.gst_code || "GST",
-            line_number: purchase_order.line_items.count + 1
+            gst_code: pricebook_item.gst_code || "GST"
+            # line_number auto-set by PurchaseOrderLineItem.set_line_number callback
           )
 
           # Recalculate supplier from ALL line items' default suppliers (most common wins)
