@@ -314,7 +314,6 @@ export function convertRowToTask(
 
   if (taskDateMap && row.predecessor_ids?.length > 0) {
     // Find the latest end date from predecessors
-    // Note: pred.id IS the task_number, taskDateMap is keyed by task_number
     let latestEnd = projectStartDate;
     for (const pred of row.predecessor_ids) {
       const predDates = taskDateMap.get(pred.id);
@@ -338,10 +337,8 @@ export function convertRowToTask(
   endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + (row.duration_days || 1));
 
-  // IMPORTANT: Use task_number as the canonical ID (not database row.id)
-  // This ensures consistency with predecessor_ids which reference task_number
   return {
-    id: String(row.task_number),
+    id: String(row.id),
     name: row.name,
     startDate,
     endDate,
@@ -369,10 +366,9 @@ export function convertRowsToTasks(
   const sortedRows = [...rows].sort((a, b) => a.sequence_order - b.sequence_order);
 
   // Calculate dates for each row
-  // Use task_number as key (matches predecessor_ids which reference task_number)
   for (const row of sortedRows) {
     const task = convertRowToTask(row, projectStartDate, taskDateMap);
-    taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
+    taskDateMap.set(row.id, { start: task.startDate, end: task.endDate });
   }
 
   // Second pass: convert all rows with the complete date map
@@ -381,8 +377,6 @@ export function convertRowsToTasks(
 
 /**
  * Convert predecessor data to GanttDependencies
- * IMPORTANT: Uses task_number for both fromId and toId (not database row.id)
- * This ensures dependencies match GanttTask.id which is also task_number
  */
 export function convertToDependencies(rows: SmTemplateRow[]): GanttDependency[] {
   const dependencies: GanttDependency[] = [];
@@ -392,9 +386,9 @@ export function convertToDependencies(rows: SmTemplateRow[]): GanttDependency[] 
 
     for (const pred of row.predecessor_ids) {
       dependencies.push({
-        id: `${pred.id}-${row.task_number}`,
-        fromId: String(pred.id),           // pred.id IS the task_number
-        toId: String(row.task_number),     // Use task_number (not row.id)
+        id: `${pred.id}-${row.id}`,
+        fromId: String(pred.id),
+        toId: String(row.id),
         type: pred.type || 'FS',
         lag: pred.lag || 0,
       });

@@ -322,16 +322,14 @@ export function GanttCanvasView({
   const [depEditorLinks, setDepEditorLinks] = React.useState<PredecessorLink[]>([]);
 
   // Task items for combobox (memoized)
-  // IMPORTANT: Uses task_number as id (not database row id) because
-  // predecessor_ids references task_number for cross-template compatibility
   const taskComboItems = React.useMemo((): ComboboxItem[] => {
     return tasks
       .filter(t => t.id !== depEditorTask?.id)
       .map(t => {
-        const taskNum = t.rowData?.task_number;
+        const rowNum = tasks.findIndex(task => task.id === t.id) + 1;
         return {
-          id: taskNum ? String(taskNum) : t.id,  // Use task_number as id
-          label: `${taskNum || '?'}. ${t.name}`,
+          id: t.id,
+          label: `${rowNum}. ${t.name}`,
         };
       });
   }, [tasks, depEditorTask]);
@@ -533,10 +531,7 @@ export function GanttCanvasView({
       }));
 
       // Call API to update dependencies
-      // Use rowData.id (database row ID) for API, not task.id (which is task_number)
-      const dbRowId = depEditorTask.rowData?.id;
-      if (!dbRowId) throw new Error('Missing row ID for API call');
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${dbRowId}`, {
+      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
         row: { predecessor_ids: predecessorData }
       });
 
@@ -1161,14 +1156,14 @@ export function GanttCanvasView({
           <DialogHeader>
             <DialogTitle>Edit Predecessors</DialogTitle>
             <p className="text-sm text-muted-foreground">
-              Task {depEditorTask?.rowData?.task_number || depEditorTask?.id}: {depEditorTask?.name}
+              Row {depEditorTask ? tasks.findIndex(t => t.id === depEditorTask.id) + 1 : ''}: {depEditorTask?.name}
             </p>
           </DialogHeader>
 
           <div className="space-y-2">
             {/* Header row */}
             <div className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 text-xs font-medium text-muted-foreground px-1">
-              <span>Task #</span>
+              <span>Row #</span>
               <span>Task</span>
               <span>Type</span>
               <span>Lag</span>
@@ -1178,27 +1173,27 @@ export function GanttCanvasView({
             {/* Predecessor rows - min height for 8 rows without scrolling */}
             <div className="space-y-2 min-h-[360px]">
               {depEditorLinks.map((link, index) => {
-                // Find task by task_number (predecessorId IS the task_number)
-                const predecessorTask = tasks.find(t => String(t.rowData?.task_number) === link.predecessorId);
-                // Show the task_number in the input field
-                const taskNumDisplay = link.predecessorId || '';
+                const predecessorTask = tasks.find(t => t.id === link.predecessorId);
+                const predecessorRowNum = predecessorTask
+                  ? tasks.findIndex(t => t.id === link.predecessorId) + 1
+                  : '';
 
                 return (
                   <div key={index} className="grid grid-cols-[60px_1fr_150px_60px_32px] gap-2 items-center">
-                    {/* Task # input - enter task_number directly */}
+                    {/* Row # input */}
                     <Input
                       type="number"
                       min={1}
-                      value={taskNumDisplay}
+                      max={tasks.length}
+                      value={predecessorRowNum}
                       onChange={(e) => {
-                        const taskNum = e.target.value;
-                        if (taskNum) {
-                          // Find task with this task_number
-                          const task = tasks.find(t => String(t.rowData?.task_number) === taskNum);
+                        const rowNum = parseInt(e.target.value, 10);
+                        if (rowNum >= 1 && rowNum <= tasks.length) {
+                          const task = tasks[rowNum - 1];
                           if (task && task.id !== depEditorTask?.id) {
-                            updatePredecessorLink(index, { predecessorId: taskNum });
+                            updatePredecessorLink(index, { predecessorId: task.id });
                           }
-                        } else {
+                        } else if (!e.target.value) {
                           updatePredecessorLink(index, { predecessorId: '' });
                         }
                       }}
@@ -1255,13 +1250,13 @@ export function GanttCanvasView({
                 <Input
                   type="number"
                   min={1}
+                  max={tasks.length}
                   onChange={(e) => {
-                    const taskNum = e.target.value;
-                    if (taskNum) {
-                      // Find task with this task_number
-                      const task = tasks.find(t => String(t.rowData?.task_number) === taskNum);
+                    const rowNum = parseInt(e.target.value, 10);
+                    if (rowNum >= 1 && rowNum <= tasks.length) {
+                      const task = tasks[rowNum - 1];
                       if (task && task.id !== depEditorTask?.id) {
-                        setDepEditorLinks(prev => [...prev, { predecessorId: taskNum, type: 'FS', lag: 0 }]);
+                        setDepEditorLinks(prev => [...prev, { predecessorId: task.id, type: 'FS', lag: 0 }]);
                         (e.target as HTMLInputElement).value = '';
                       }
                     }
