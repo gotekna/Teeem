@@ -755,7 +755,7 @@ module Api
           lock_type: task.lock_type,
           is_hold_task: task.is_hold_task,
           hold_reason: task.hold_reason&.name,
-          color: task.color || task.hold_reason&.color,
+          color: task.hold_reason&.color,
           parent_id: task.parent_task_id,
           # PO-Task One Entity integration
           purchase_order_id: task.purchase_order_id,
