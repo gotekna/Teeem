@@ -23,6 +23,40 @@ connection_health_monitor:
   schedule: every 5 minutes
 
 # ============================================
+# PERFORMANCE OBSERVATORY
+# Zero-impact performance monitoring for API requests and Web Vitals
+# ============================================
+# Flush performance metrics from memory buffer to database
+# Runs every 30 seconds to ensure timely data availability
+# Buffer auto-flushes at 80% capacity as additional safety
+flush_performance_buffer:
+  class: FlushPerformanceBufferJob
+  queue: low
+  schedule: every 30 seconds
+
+# Cleanup old performance data (90+ days retention)
+# Runs daily at 4am Brisbane time (off-peak)
+cleanup_performance_data:
+  class: CleanupPerformanceDataJob
+  queue: low
+  schedule: every day at 4:00 am
+
+# Refresh materialized views and run anomaly detection
+# Views pre-aggregate metrics for fast dashboard queries
+# Anomaly detector uses z-score analysis to find issues
+refresh_performance_mv:
+  class: RefreshPerformanceMvJob
+  queue: low
+  schedule: every 5 minutes
+
+# Calculate SLO snapshots and error budgets daily
+# Runs at 1am to ensure previous day's data is complete
+calculate_slo_snapshots:
+  class: CalculateSloSnapshotsJob
+  queue: low
+  schedule: every day at 1:00 am
+
+# ============================================
 # TOKEN REFRESH (every 15 minutes)
 # Proactively refresh OAuth tokens before expiry
 # Uses 15-minute buffer to catch expirations early

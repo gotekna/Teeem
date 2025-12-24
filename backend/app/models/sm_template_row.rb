@@ -47,6 +47,7 @@ class SmTemplateRow < ApplicationRecord
   validate :supplier_required_if_auto_po
   validate :subtask_names_match_count
   validate :predecessor_ids_valid
+  validate :no_circular_dependencies
 
   # Scopes
   scope :active, -> { where(is_active: true) }
@@ -177,16 +178,81 @@ class SmTemplateRow < ApplicationRecord
   def predecessor_ids_valid
     return if predecessor_ids.blank?
 
+    # Get valid task numbers in same template(s) for referential validation
+    template_ids = sm_template_ids || []
+    valid_task_numbers = if template_ids.any?
+      SmTemplateRow.where("sm_template_ids && ARRAY[?]::integer[]", template_ids)
+                   .where.not(id: id)
+                   .pluck(:task_number)
+    else
+      SmTemplateRow.where.not(id: id).pluck(:task_number)
+    end
+
     predecessor_ids.each_with_index do |pred, idx|
+      # Check structure
       unless pred.is_a?(Hash) && pred["id"].present?
         errors.add(:predecessor_ids, "entry #{idx} must have an id")
         next
       end
 
+      pred_id = pred["id"] || pred[:id]
+
+      # Check predecessor exists
+      unless valid_task_numbers.include?(pred_id)
+        errors.add(:predecessor_ids, "entry #{idx} references non-existent task #{pred_id}")
+      end
+
+      # Check dependency type is valid
       if pred["type"].present? && !DEPENDENCY_TYPES.include?(pred["type"])
         errors.add(:predecessor_ids, "entry #{idx} has invalid type '#{pred['type']}'")
       end
+
+      # Check lag is numeric
+      lag = pred["lag"] || pred[:lag]
+      if lag.present? && !lag.is_a?(Numeric) && !lag.to_s.match?(/\A-?\d+\z/)
+        errors.add(:predecessor_ids, "entry #{idx} has non-numeric lag '#{lag}'")
+      end
     end
+  end
+
+  def no_circular_dependencies
+    return if predecessor_ids.blank?
+
+    # Get all rows in same template(s) to build the dependency graph
+    template_ids = sm_template_ids || []
+    return if template_ids.empty?
+
+    all_rows = SmTemplateRow.where("sm_template_ids && ARRAY[?]::integer[]", template_ids)
+
+    # Build dependency graph: task_number -> [predecessor_task_numbers]
+    predecessor_map = {}
+    all_rows.each do |row|
+      next if row.predecessor_ids.blank?
+      predecessor_map[row.task_number] = row.predecessor_ids.map { |p| p["id"] || p[:id] }.compact
+    end
+
+    # Update with our proposed changes (what we're trying to save)
+    predecessor_map[task_number] = predecessor_ids.map { |p| p["id"] || p[:id] }.compact
+
+    # DFS cycle detection
+    if has_cycle_in_graph?(task_number, predecessor_map, Set.new, Set.new)
+      errors.add(:predecessor_ids, "would create a circular dependency")
+    end
+  end
+
+  def has_cycle_in_graph?(node, graph, visiting, visited)
+    return false if visited.include?(node)
+    return true if visiting.include?(node)
+
+    visiting.add(node)
+
+    (graph[node] || []).each do |pred|
+      return true if has_cycle_in_graph?(pred, graph, visiting, visited)
+    end
+
+    visiting.delete(node)
+    visited.add(node)
+    false
   end
 
   def format_predecessor(pred_data)

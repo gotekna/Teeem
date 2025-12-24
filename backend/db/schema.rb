@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_072204) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4056,6 +4056,129 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
     t.index ["legacy_corporate_document_id"], name: "index_people_documents_on_legacy_corporate_document_id"
   end
 
+  create_table "performance_anomalies", force: :cascade do |t|
+    t.string "anomaly_type", null: false
+    t.string "severity", null: false
+    t.string "endpoint"
+    t.string "metric_name"
+    t.string "table_name"
+    t.float "observed_value", null: false
+    t.float "expected_value"
+    t.float "threshold"
+    t.float "z_score"
+    t.string "status", default: "open"
+    t.text "description"
+    t.jsonb "context", default: {}
+    t.datetime "detected_at", null: false
+    t.datetime "resolved_at"
+    t.bigint "acknowledged_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["acknowledged_by_id"], name: "index_performance_anomalies_on_acknowledged_by_id"
+    t.index ["anomaly_type"], name: "index_performance_anomalies_on_anomaly_type"
+    t.index ["detected_at"], name: "index_performance_anomalies_on_detected_at"
+    t.index ["endpoint", "detected_at"], name: "index_performance_anomalies_on_endpoint_and_detected_at"
+    t.index ["severity"], name: "index_performance_anomalies_on_severity"
+    t.index ["status"], name: "index_performance_anomalies_on_status"
+  end
+
+  create_table "performance_requests", force: :cascade do |t|
+    t.string "endpoint", null: false
+    t.string "method", null: false
+    t.integer "duration_ms", null: false
+    t.integer "db_time_ms"
+    t.integer "view_time_ms"
+    t.integer "status_code"
+    t.bigint "user_id"
+    t.bigint "organization_id"
+    t.string "controller_action"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_performance_requests_on_created_at"
+    t.index ["endpoint", "created_at"], name: "index_performance_requests_on_endpoint_and_created_at"
+    t.index ["endpoint"], name: "index_performance_requests_on_endpoint"
+    t.index ["organization_id"], name: "index_performance_requests_on_organization_id"
+    t.index ["status_code"], name: "index_performance_requests_on_status_code", where: "(status_code >= 400)"
+    t.index ["user_id"], name: "index_performance_requests_on_user_id"
+  end
+
+  create_table "performance_slo_snapshots", force: :cascade do |t|
+    t.bigint "performance_slo_id", null: false
+    t.date "snapshot_date", null: false
+    t.integer "total_events", default: 0
+    t.integer "good_events", default: 0
+    t.integer "bad_events", default: 0
+    t.float "compliance_percent"
+    t.float "error_budget_remaining"
+    t.float "error_budget_consumed"
+    t.float "observed_value"
+    t.boolean "slo_met"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["performance_slo_id", "snapshot_date"], name: "idx_slo_snapshots_slo_date", unique: true
+    t.index ["performance_slo_id"], name: "index_performance_slo_snapshots_on_performance_slo_id"
+    t.index ["slo_met"], name: "index_performance_slo_snapshots_on_slo_met"
+    t.index ["snapshot_date"], name: "index_performance_slo_snapshots_on_snapshot_date"
+  end
+
+  create_table "performance_slos", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "sli_type", null: false
+    t.string "endpoint"
+    t.string "metric_name"
+    t.float "target_value", null: false
+    t.string "target_unit"
+    t.string "comparison", default: "lte"
+    t.float "error_budget_percent", default: 0.1
+    t.boolean "active", default: true
+    t.string "owner"
+    t.text "description"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_performance_slos_on_active"
+    t.index ["endpoint"], name: "index_performance_slos_on_endpoint"
+    t.index ["sli_type"], name: "index_performance_slos_on_sli_type"
+  end
+
+  create_table "performance_slow_queries", force: :cascade do |t|
+    t.text "query_fingerprint", null: false
+    t.integer "duration_ms", null: false
+    t.string "table_name"
+    t.string "operation"
+    t.text "caller_location"
+    t.bigint "user_id"
+    t.string "endpoint"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_performance_slow_queries_on_created_at"
+    t.index ["duration_ms"], name: "index_performance_slow_queries_on_duration_ms"
+    t.index ["table_name", "created_at"], name: "index_performance_slow_queries_on_table_name_and_created_at"
+    t.index ["table_name"], name: "index_performance_slow_queries_on_table_name"
+    t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
+  end
+
+  create_table "performance_vitals", force: :cascade do |t|
+    t.string "metric_name", null: false
+    t.float "value", null: false
+    t.string "page_path"
+    t.string "session_id"
+    t.string "user_agent"
+    t.bigint "user_id"
+    t.string "rating"
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_at"], name: "index_performance_vitals_on_created_at"
+    t.index ["metric_name", "created_at"], name: "index_performance_vitals_on_metric_name_and_created_at"
+    t.index ["metric_name"], name: "index_performance_vitals_on_metric_name"
+    t.index ["page_path"], name: "index_performance_vitals_on_page_path"
+    t.index ["rating"], name: "index_performance_vitals_on_rating"
+    t.index ["user_id"], name: "index_performance_vitals_on_user_id"
+  end
+
   create_table "permissions", force: :cascade do |t|
     t.string "name", null: false
     t.text "description"
@@ -6369,6 +6492,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_23_215000) do
   add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
+  add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
+  add_foreign_key "performance_requests", "organizations"
+  add_foreign_key "performance_requests", "users"
+  add_foreign_key "performance_slo_snapshots", "performance_slos"
+  add_foreign_key "performance_slow_queries", "users"
+  add_foreign_key "performance_vitals", "users"
   add_foreign_key "plan_category_plan_types", "plan_categories"
   add_foreign_key "plan_category_plan_types", "plan_types"
   add_foreign_key "plan_folder_scans", "job_plans"

@@ -117,6 +117,7 @@ export interface SmTemplateRow {
   linked_po_task_name: string | null;
   require_supplier_confirm: boolean;
   is_master: boolean;
+  category: string | null;
   // Multi-template support
   sm_template_ids: number[];
   created_at: string;
@@ -360,6 +361,7 @@ export function convertRowsToTasks(
   projectStartDate: Date
 ): GanttTask[] {
   // First pass: create date map based on sequence order
+  // Key by task_number (not row.id) because predecessor_ids reference task_number
   const taskDateMap = new Map<number, { start: Date; end: Date }>();
 
   // Sort by sequence order
@@ -368,11 +370,51 @@ export function convertRowsToTasks(
   // Calculate dates for each row
   for (const row of sortedRows) {
     const task = convertRowToTask(row, projectStartDate, taskDateMap);
-    taskDateMap.set(row.id, { start: task.startDate, end: task.endDate });
+    taskDateMap.set(row.task_number, { start: task.startDate, end: task.endDate });
   }
 
   // Second pass: convert all rows with the complete date map
-  return sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
+  const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
+
+  // Third pass: update header tasks to span their children
+  // Header rows have category === 'Header' and children have parent_row_id pointing to them
+  const headerIds = new Set(
+    sortedRows.filter(r => r.category === 'Header').map(r => r.id)
+  );
+
+  if (headerIds.size > 0) {
+    // Build map of header ID -> child tasks
+    const headerChildrenMap = new Map<number, GanttTask[]>();
+    for (const task of tasks) {
+      const row = sortedRows.find(r => String(r.id) === task.id);
+      if (row?.parent_row_id && headerIds.has(row.parent_row_id)) {
+        const children = headerChildrenMap.get(row.parent_row_id) || [];
+        children.push(task);
+        headerChildrenMap.set(row.parent_row_id, children);
+      }
+    }
+
+    // Update header task dates to span their children
+    for (const task of tasks) {
+      const row = sortedRows.find(r => String(r.id) === task.id);
+      if (row?.category === 'Header') {
+        const children = headerChildrenMap.get(row.id);
+        if (children && children.length > 0) {
+          // Find min start and max end from children
+          let minStart = children[0].startDate;
+          let maxEnd = children[0].endDate;
+          for (const child of children) {
+            if (child.startDate < minStart) minStart = child.startDate;
+            if (child.endDate > maxEnd) maxEnd = child.endDate;
+          }
+          task.startDate = new Date(minStart);
+          task.endDate = new Date(maxEnd);
+        }
+      }
+    }
+  }
+
+  return tasks;
 }
 
 /**
@@ -381,13 +423,23 @@ export function convertRowsToTasks(
 export function convertToDependencies(rows: SmTemplateRow[]): GanttDependency[] {
   const dependencies: GanttDependency[] = [];
 
+  // Build lookup: task_number -> row.id (for converting predecessor references)
+  const taskNumToRowId = new Map<number, number>();
+  for (const row of rows) {
+    taskNumToRowId.set(row.task_number, row.id);
+  }
+
   for (const row of rows) {
     if (!row.predecessor_ids) continue;
 
     for (const pred of row.predecessor_ids) {
+      // pred.id is task_number, need to convert to row.id for matching task.id
+      const fromRowId = taskNumToRowId.get(pred.id);
+      if (!fromRowId) continue; // Skip if predecessor doesn't exist
+
       dependencies.push({
-        id: `${pred.id}-${row.id}`,
-        fromId: String(pred.id),
+        id: `${fromRowId}-${row.id}`,
+        fromId: String(fromRowId),
         toId: String(row.id),
         type: pred.type || 'FS',
         lag: pred.lag || 0,

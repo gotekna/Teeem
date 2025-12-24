@@ -215,4 +215,42 @@ namespace :financial_reports do
 
     puts "\n✅ Reports created for Tekna Admin!"
   end
+
+  desc "Generate all financial reports for all Xero-connected companies"
+  task generate_all: :environment do
+    puts "Generating financial reports for all Xero-connected companies..."
+
+    companies = CorporateCompany.with_xero
+    puts "Found #{companies.count} companies with Xero connection"
+
+    companies.each do |company|
+      puts "\n=== #{company.name} ==="
+
+      # Bank Statements
+      begin
+        result = BankStatementReport.generate_historical!(company)
+        puts "  Bank Statements: #{result[:created]} created"
+      rescue StandardError => e
+        puts "  Bank Statements: ERROR - #{e.message[0..80]}"
+      end
+
+      # P&L Reports
+      begin
+        result = ProfitLossReport.generate_historical!(company)
+        puts "  P&L Reports: #{result[:created]} created"
+      rescue StandardError => e
+        puts "  P&L Reports: ERROR - #{e.message[0..80]}"
+      end
+
+      # Balance Sheet Reports
+      begin
+        result = BalanceSheetReport.generate_historical!(company)
+        puts "  Balance Sheets: #{result[:created]} created"
+      rescue StandardError => e
+        puts "  Balance Sheets: ERROR - #{e.message[0..80]}"
+      end
+    end
+
+    puts "\n✅ All financial reports generated!"
+  end
 end

@@ -46,6 +46,12 @@ module Backend
     # Enable Rack::Attack for rate limiting
     config.middleware.use Rack::Attack
 
+    # Performance Observatory - Request Timing Middleware
+    # Captures request duration with zero production impact (~0.1ms overhead)
+    # All writes are async via Performance::Buffer
+    require_relative "../app/middleware/request_timing_middleware"
+    config.middleware.use RequestTimingMiddleware
+
     # Configure ActiveRecord encryption to use environment variables
     config.active_record.encryption.primary_key = ENV["ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY"]
     config.active_record.encryption.deterministic_key = ENV["ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY"]

@@ -146,6 +146,25 @@ Rails.application.routes.draw do
       get "health/pricebook/missing_items", to: "health#missing_items"
       get "pricebook/price_health_check", to: "pricebook_items#price_health_check"
 
+      # Performance Observatory - Metrics Ingestion
+      post "metrics", to: "metrics#create"              # Receive frontend Web Vitals
+      get "metrics/buffer_status", to: "metrics#buffer_status"  # Debug buffer status
+
+      # Performance Observatory - Dashboard API
+      get "performance", to: "performance#index"        # Main dashboard data
+      get "performance/endpoints", to: "performance#endpoints"  # Endpoint stats
+      get "performance/vitals", to: "performance#vitals"        # Web Vitals summary
+      get "performance/slow_queries", to: "performance#slow_queries"  # Slow query analysis
+      get "performance/anomalies", to: "performance#anomalies"  # Detected anomalies
+      post "performance/anomalies/:id/acknowledge", to: "performance#acknowledge_anomaly"
+      post "performance/anomalies/:id/resolve", to: "performance#resolve_anomaly"
+      post "performance/anomalies/:id/false_positive", to: "performance#mark_false_positive"
+      get "performance/slos", to: "performance#slos"  # SLO list with status
+      get "performance/slos/:id", to: "performance#show_slo"  # SLO details with trend
+      get "performance/predictions", to: "performance#predictions"  # Performance predictions
+      get "performance/budgets", to: "performance#budgets"  # Budget compliance summary
+      get "performance/budgets/:endpoint", to: "performance#show_budget", constraints: { endpoint: /.*/ }  # Budget for endpoint
+
       # Geocoding proxy (uses Mapbox on backend to avoid CORS issues)
       get "geocode/search", to: "geocode#search"
 

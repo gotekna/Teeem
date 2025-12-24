@@ -460,7 +460,7 @@
 .bg-primary:hover,
 button.bg-primary,
 a.bg-primary,
-[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]) {
+[class*="bg-primary"]:not([class*="bg-primary/"]):not([class*="bg-primary-"]):not([class*="]:bg-primary"]) {
   color: hsl(var(--primary-foreground)) !important;
 }
 

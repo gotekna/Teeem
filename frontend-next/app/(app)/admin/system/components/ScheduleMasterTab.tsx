@@ -137,6 +137,7 @@ export function ScheduleMasterTab() {
   // Gantt Preview state
   const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
   const [ganttRows, setGanttRows] = React.useState<SmTemplateRow[]>([]);
+  const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
   const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
@@ -175,24 +176,33 @@ export function ScheduleMasterTab() {
       const loadedTemplates = data?.sm_templates || [];
       setTemplates(loadedTemplates);
 
-      // Auto-select "Schedule Master LIVE" template for Gantt Preview if not already selected
+      // Auto-select template for Gantt Preview if not already selected
       if (!ganttTemplateId && loadedTemplates.length > 0) {
-        const scheduleMasterLive = loadedTemplates.find(t =>
-          t.name.toLowerCase().includes('schedule master live') ||
-          (t.row_count === 165 && t.name.toLowerCase().includes('schedule'))
-        );
-        if (scheduleMasterLive) {
-          loadGanttRows(scheduleMasterLive.id);
+        // Try to find a template in priority order:
+        // 1. "PO Schedule Master" (current default)
+        // 2. Any template with "schedule master" in name
+        // 3. First template in list
+        const autoSelectTemplate = loadedTemplates.find(t =>
+          t.name.toLowerCase() === 'po schedule master'
+        ) || loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('schedule master')
+        ) || loadedTemplates[0];
+
+        if (autoSelectTemplate) {
+          loadGanttRows(autoSelectTemplate.id);
         }
       }
 
-      // Auto-select template with "LIVE" in name for Data View
+      // Auto-select template for Data View (same priority as Gantt)
       if (!dataViewTemplateId && loadedTemplates.length > 0) {
-        const liveTemplate = loadedTemplates.find(t =>
-          t.name.toLowerCase().includes('live') && !t.name.toLowerCase().includes('copy')
-        );
-        if (liveTemplate) {
-          loadDataViewRows(liveTemplate.id);
+        const autoSelectTemplate = loadedTemplates.find(t =>
+          t.name.toLowerCase() === 'po schedule master'
+        ) || loadedTemplates.find(t =>
+          t.name.toLowerCase().includes('schedule master')
+        ) || loadedTemplates[0];
+
+        if (autoSelectTemplate) {
+          loadDataViewRows(autoSelectTemplate.id);
         }
       }
     } catch (error) {
@@ -761,63 +771,23 @@ export function ScheduleMasterTab() {
           <SMGanttTab />
         </TabsContent>
 
-        <TabsContent value="gantt-preview" className="mt-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">Gantt Preview</h2>
-                <p className="text-sm text-muted-foreground">
-                  Preview schedule templates as a Gantt chart
-                </p>
-              </div>
-              <Select
-                value={ganttTemplateId ? String(ganttTemplateId) : ""}
-                onValueChange={(value) => loadGanttRows(parseInt(value))}
-              >
-                <SelectTrigger className="w-[300px]">
-                  <SelectValue placeholder="Select a template to preview" />
-                </SelectTrigger>
-                <SelectContent>
-                  {templates.map((template) => (
-                    <SelectItem key={template.id} value={String(template.id)}>
-                      {template.name} ({template.row_count} tasks)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <TabsContent value="gantt-preview" className="mt-0 h-[calc(100vh-200px)]">
+          {loadingRows === ganttTemplateId && (
+            <div className="flex items-center justify-center h-full">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
+          )}
 
-            {loadingRows === ganttTemplateId && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            )}
-
-            {ganttTemplateId && loadingRows !== ganttTemplateId && (
-              <Card>
-                <CardContent className="p-0">
-                  <div className="h-[600px]">
-                    <GanttCanvasView
-                      templateId={ganttTemplateId}
-                      className="h-full"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {!ganttTemplateId && (
-              <Card>
-                <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium mb-2">Select a template</h3>
-                  <p className="text-center max-w-md">
-                    Choose a schedule template from the dropdown above to preview it as a Gantt chart.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+          {loadingRows !== ganttTemplateId && (
+            <GanttCanvasView
+              templateId={ganttTemplateId ?? undefined}
+              templates={templates}
+              onTemplateChange={loadGanttRows}
+              className="h-full"
+              isFullscreen={ganttFullscreen}
+              onFullscreenChange={setGanttFullscreen}
+            />
+          )}
         </TabsContent>
 
         {/* Data View Tab - Full TeeemTableView */}

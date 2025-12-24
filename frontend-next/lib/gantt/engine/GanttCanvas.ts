@@ -12,6 +12,7 @@ import { Renderer } from './Renderer';
 import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
+import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -759,6 +760,9 @@ export class GanttCanvas {
     this.state.tasks = tasks;
     this.markDirty();
 
+    // Update viewport content height for scroll limiting
+    this.viewport.setContentHeight(tasks.length * this.config.rowHeight);
+
     // Update SelectionManager task order for range selection (Day 2 Refactor)
     this.selectionManager.updateTaskOrderFromTasks(tasks);
 
@@ -822,7 +826,7 @@ export class GanttCanvas {
    * Scroll to today
    */
   scrollToToday(): void {
-    const today = new Date();
+    const today = getTodayInCompanyTimezone();
     const x = this.viewport.dateToX(today);
     this.viewport.scrollTo(x - this.containerWidth / 2, this.state.viewportState.scrollY);
     this.markDirty();
@@ -1557,8 +1561,7 @@ export class GanttCanvas {
    * @returns true if the date is before today
    */
   wouldViolateTodayConstraint(taskId: string, proposedStartDate: Date): boolean {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     const proposed = new Date(proposedStartDate);
     proposed.setHours(0, 0, 0, 0);
@@ -1579,8 +1582,7 @@ export class GanttCanvas {
       return false;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     const taskStart = new Date(task.startDate);
     taskStart.setHours(0, 0, 0, 0);
@@ -1593,8 +1595,7 @@ export class GanttCanvas {
    * (scheduled before today but not started)
    */
   getTasksViolatingTodayConstraint(): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     return this.state.tasks.filter(task => {
       if (task.status === 'in-progress' || task.status === 'completed') {
@@ -2170,6 +2171,9 @@ export class GanttCanvas {
     this.containerWidth = rect.width;
     this.containerHeight = rect.height;
 
+    // Update viewport container size for scroll limiting
+    this.viewport.setContainerSize(rect.width, rect.height);
+
     // Set canvas size accounting for device pixel ratio
     this.canvas.width = rect.width * this.dpr;
     this.canvas.height = rect.height * this.dpr;
@@ -2466,6 +2470,12 @@ export class GanttCanvas {
     this.renderer.drawTimeScale(this.containerWidth);
     this.renderer.drawTodayMarker(this.containerHeight);
 
+    // CLIP: Prevent task bars, baselines, and dependencies from rendering in header area
+    this.ctx.save();
+    this.ctx.beginPath();
+    this.ctx.rect(0, this.config.headerHeight, this.containerWidth, this.containerHeight - this.config.headerHeight);
+    this.ctx.clip();
+
     // Draw baselines first (below task bars)
     if (this.baselineEnabled && this.baselineData.size > 0) {
       this.renderer.drawBaselines(this.state.tasks, this.baselineData, this.containerHeight);
@@ -2517,6 +2527,9 @@ export class GanttCanvas {
       );
     }
 
+    // RESTORE: End clipping region for task area
+    this.ctx.restore();
+
     // Draw selection count badge
     this.renderer.drawSelectionBadge(this.state.selectedTaskIds.size, this.containerWidth);
 
@@ -2550,6 +2563,9 @@ export class GanttCanvas {
     } else {
       this.minimapBounds = null;
     }
+
+    // Notify scroll listeners if scroll position changed
+    this.notifyScrollListeners();
   }
 
   private setupEventListeners(): void {
@@ -3780,8 +3796,7 @@ export class GanttCanvas {
    * @returns The created task
    */
   createTask(overrides?: Partial<GanttTask>): GanttTask {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
 
     const endDate = new Date(today);
     endDate.setDate(endDate.getDate() + 1);
@@ -4252,8 +4267,7 @@ export class GanttCanvas {
    * Find overdue tasks (end date before today, not completed)
    */
   findOverdueTasks(): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
     return this.state.tasks.filter(t => {
       return t.status !== 'completed' && t.endDate < today;
     });
@@ -4263,8 +4277,7 @@ export class GanttCanvas {
    * Find tasks due soon (within N days)
    */
   findTasksDueSoon(days: number = 7): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + days);
 
@@ -4277,8 +4290,7 @@ export class GanttCanvas {
    * Find tasks starting soon (within N days)
    */
   findTasksStartingSoon(days: number = 7): GanttTask[] {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = getTodayInCompanyTimezone();
     const futureDate = new Date(today);
     futureDate.setDate(futureDate.getDate() + days);
 
@@ -6117,8 +6129,8 @@ export class GanttCanvas {
     const guides: SnapGuide[] = [];
     const proposedX = this.dateToX(proposedDate);
 
-    // Add snap guide for today
-    const todayX = this.dateToX(new Date());
+    // Add snap guide for today (company timezone)
+    const todayX = this.dateToX(getTodayInCompanyTimezone());
     if (this.shouldSnap(Math.abs(proposedX - todayX))) {
       guides.push({ type: 'today', x: todayX, label: 'Today' });
     }
@@ -11160,6 +11172,39 @@ export class GanttCanvas {
   getHeaderHeight(): number { return this.config.headerHeight; }
 
   // =========================================================================
+  // FEATURE 68b: SCROLL POSITION ACCESS
+  // =========================================================================
+  /** Get current scroll position */
+  getScrollPosition(): { scrollX: number; scrollY: number } {
+    const state = this.viewport.getState();
+    return {
+      scrollX: state.scrollX,
+      scrollY: state.scrollY,
+    };
+  }
+
+  /** Callback for scroll events */
+  private scrollCallback: ((scrollX: number, scrollY: number) => void) | null = null;
+  private lastNotifiedScrollY: number = 0;
+
+  /** Register a callback to be notified when scroll position changes */
+  onScrollHandler(callback: (scrollX: number, scrollY: number) => void): void {
+    this.scrollCallback = callback;
+  }
+
+  /** Internal method to notify scroll listeners - call this in render loop */
+  private notifyScrollListeners(): void {
+    if (this.scrollCallback) {
+      const state = this.viewport.getState();
+      // Only notify if scrollY changed (for sidebar sync)
+      if (state.scrollY !== this.lastNotifiedScrollY) {
+        this.lastNotifiedScrollY = state.scrollY;
+        this.scrollCallback(state.scrollX, state.scrollY);
+      }
+    }
+  }
+
+  // =========================================================================
   // FEATURE 69: STICKY HEADER (STAYS VISIBLE ON SCROLL)
   // =========================================================================
   private stickyHeaderEnabled: boolean = true;
@@ -11716,9 +11761,8 @@ export class GanttCanvas {
       return { hasConflict: false, conflictType: null, conflictingTaskId: null, message: '' };
     }
 
-    // Check today constraint
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Check today constraint (company timezone)
+    const today = getTodayInCompanyTimezone();
     if (newStartDate < today) {
       return {
         hasConflict: true,
@@ -15168,7 +15212,7 @@ ${this.getAutomatedTestResults()}
   // FEATURE 585: TIMELINE COVERAGE DATA
   getTimelineCoverageData(): { startDate: Date; endDate: Date; totalDays: number; workingDays: number } {
     if (this.state.tasks.length === 0) {
-      const today = new Date();
+      const today = getTodayInCompanyTimezone();
       return { startDate: today, endDate: today, totalDays: 0, workingDays: 0 };
     }
 

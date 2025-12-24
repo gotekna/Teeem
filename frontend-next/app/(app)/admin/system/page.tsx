@@ -65,7 +65,7 @@ import { GoldStandardTab } from "./components/GoldStandardTab";
 import { DeveloperToolsTab } from "./components/DeveloperToolsTab";
 import { UserManualTab } from "./components/UserManualTab";
 import { InspiringQuotesTab } from "./components/InspiringQuotesTab";
-import { PerformanceTab } from "./components/PerformanceTab";
+// PerformanceTab removed - SSoT is now /system-health → Performance tab
 import { DocumentTypesTab } from "./components/DocumentTypesTab";
 import { ContactTypesTab } from "./components/ContactTypesTab";
 // FoldersTabsConfigTab removed - use Entity Configuration > Corporate > Documents (SSoT)
@@ -119,7 +119,7 @@ const MAIN_TABS = [
   { id: "supervisor-checklist", label: "Supervisor Checklist", icon: ClipboardCheck },
   { id: "user-manual", label: "User Manual", icon: BookOpen },
   { id: "inspiring-quotes", label: "Inspiring Quotes", icon: Sparkles },
-  { id: "performance", label: "Performance", icon: BarChart },
+  // { id: "performance" } - Removed, SSoT is /system-health → Performance tab
   { id: "scheduled-jobs", label: "Scheduled Jobs", icon: Clock },
   { id: "email-accounts", label: "Email Accounts", icon: Mail },
   { id: "pdf-fields", label: "PDF Fields", icon: FileText },
@@ -864,9 +864,7 @@ function SystemAdminPageContent() {
           <TabsContent value="inspiring-quotes" className="flex-1 min-h-0 overflow-auto">
             <InspiringQuotesTab />
           </TabsContent>
-          <TabsContent value="performance" className="flex-1 min-h-0 overflow-auto">
-            <PerformanceTab />
-          </TabsContent>
+          {/* Performance tab removed - SSoT is /system-health → Performance tab */}
           <TabsContent value="scheduled-jobs" className="flex-1 min-h-0 overflow-auto">
             <ScheduledJobsTab />
           </TabsContent>

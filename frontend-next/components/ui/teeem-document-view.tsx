@@ -189,11 +189,13 @@ export function TeeemDocumentView<T extends DocumentItem>({
     prevDocumentRef.current = selectedDocument;
   }, [selectedDocument]);
 
-  // Handle escape key to exit fullscreen
+  // Handle escape key to exit fullscreen (but keep showing full PDF)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFullscreen) {
         setIsFullscreen(false);
+        // Keep showFullPdf true so PDF fills the preview area after exit
+        setShowFullPdf(true);
       }
     };
 
@@ -672,7 +674,11 @@ export function TeeemDocumentView<T extends DocumentItem>({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsFullscreen(false)}
+              onClick={() => {
+                setIsFullscreen(false);
+                // Keep showFullPdf true so PDF fills the preview area after exit
+                setShowFullPdf(true);
+              }}
             >
               <X className="h-4 w-4 mr-1" />
               Close

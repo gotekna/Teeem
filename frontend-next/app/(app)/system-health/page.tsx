@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   RefreshCw,
   Loader2,
@@ -13,6 +14,7 @@ import {
   Building2,
   Brain,
   Trophy,
+  Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -29,6 +31,7 @@ import {
   HealthLeaderboard,
   LeaderboardEntry,
 } from "@/components/health";
+import { PerformanceTab } from "@/app/(app)/admin/system/components/PerformanceTab";
 
 // API response from new unified /api/v1/health/unified endpoint
 interface UnifiedHealthApiResponse {
@@ -415,10 +418,10 @@ export default function SystemHealthPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight font-serif flex items-center gap-2">
             <Heart className="h-6 w-6 text-red-500" />
-            TEEEM Health Check
+            TEEEM System Health
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Monitor and fix data quality issues across the system
+            Monitor data quality and application performance
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -437,7 +440,21 @@ export default function SystemHealthPage() {
         </div>
       </div>
 
-      {/* Overall Health Score */}
+      {/* Tabs */}
+      <Tabs defaultValue="health" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="health" className="gap-2">
+            <Heart className="h-4 w-4" />
+            Data Health
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="gap-2">
+            <Activity className="h-4 w-4" />
+            Performance
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="health" className="space-y-6">
+          {/* Overall Health Score */}
       <Card className={cn("bg-gradient-to-br", getHealthBg(overallScore))}>
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
@@ -519,15 +536,21 @@ export default function SystemHealthPage() {
         <InfrastructurePanel metrics={infrastructureMetrics} loading={refreshing} />
       </div>
 
-      {/* Leaderboard */}
-      <HealthLeaderboard
-        systemPoints={healthData.leaderboard?.system_points ?? 0}
-        humansPoints={healthData.leaderboard?.humans_points ?? 0}
-        entries={leaderboardEntries}
-        currentUserPoints={userKudos}
-        loading={refreshing}
-        timeframe="This Week"
-      />
+          {/* Leaderboard */}
+          <HealthLeaderboard
+            systemPoints={healthData.leaderboard?.system_points ?? 0}
+            humansPoints={healthData.leaderboard?.humans_points ?? 0}
+            entries={leaderboardEntries}
+            currentUserPoints={userKudos}
+            loading={refreshing}
+            timeframe="This Week"
+          />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <PerformanceTab />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -22,20 +22,19 @@ git branch --show-current
 git status --short
 ```
 
-### Step 2 - Ensure on Live Branch
+### Step 2 - ALWAYS Pull and Check for Stashes
+**CRITICAL: Always run these - don't skip!**
 ```bash
-git checkout Live
 git pull origin Live
-```
-
-### Step 3 - Pop Any Stashed Changes
-
-**Include any stashed work from other chats:**
-```bash
 git stash list
-# If there are stashes from other chats, pop them:
-git stash pop
 ```
+*If stashes exist, pop them: `git stash pop`*
+
+### Step 3 - Verify Backend Changes Before Commit
+**IMPORTANT: If `git status --short` shows ANY backend/ files, note them here.**
+**After commit, verify they were included with `git diff --name-only HEAD~1 HEAD | grep backend/`**
+
+If backend files were shown in status but NOT in the committed diff, STOP and investigate.
 
 ### Step 4 - Auto-Generate Commit Message and Commit
 
@@ -65,6 +64,13 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 git push origin Live
 ```
 *Vercel auto-deploys frontend from this push*
+
+### Step 5.5 - Verify Backend Changes Were Committed
+**CRITICAL: If Step 1 showed backend/ files, verify they're in the commit:**
+```bash
+git diff --name-only HEAD~1 HEAD | grep backend/
+```
+**If backend files were in `git status` but NOT in the commit diff, STOP and investigate!**
 
 ### Step 6 - Pre-Flight Checks (Fail Fast)
 

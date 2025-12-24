@@ -22,7 +22,8 @@ class ProfitLossReportService
     return { success: false, error: "No report data available" } unless @report.report_data.present?
 
     pdf_content = build_pdf
-    filename = generate_filename
+    # SSoT: Use DocumentType template if available, fallback to hardcoded format
+    filename = @report.generate_file_name || generate_filename
 
     # Upload to SharePoint
     sharepoint_result = upload_to_sharepoint(pdf_content, filename)

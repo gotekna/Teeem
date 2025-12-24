@@ -34,6 +34,7 @@ import {
   ExternalLink,
   FolderOpen,
   Download,
+  ArrowLeft,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -125,27 +126,17 @@ interface JobPlansTabProps {
 export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
   const { toast } = useToast();
 
-  // Plans tab always runs in fullscreen mode
-  const [isFullscreenTab, setIsFullscreenTab] = useState(true);
+  // Plans tab ALWAYS runs in fullscreen mode to maximize plan viewing area
+  // This hides the parent tabs and gives full screen real estate for plans
+  const isFullscreenTab = true;
 
-  // Handle escape key to exit fullscreen tab mode
+  // Lock body scroll when in fullscreen tab mode
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isFullscreenTab) {
-        setIsFullscreenTab(false);
-      }
-    };
-
-    if (isFullscreenTab) {
-      document.addEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "hidden";
-    }
-
+    document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [isFullscreenTab]);
+  }, []);
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [tabs, setTabs] = useState<PlanTab[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
@@ -1082,38 +1073,29 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     </div>
   );
 
-  // Fullscreen mode - covers entire screen
-  if (isFullscreenTab) {
-    return (
-      <div className="fixed inset-0 z-[100] bg-background flex flex-col">
-        {/* Header bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
-          <div className="flex items-center gap-3">
-            <FileText className="h-5 w-5 text-muted-foreground" />
-            <span className="font-medium">{jobTitle}</span>
-            <Badge variant="secondary">Plans</Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsFullscreenTab(false)}
-            >
-              <X className="h-4 w-4 mr-1" />
-              Exit Fullscreen
-              <span className="ml-2 text-xs text-muted-foreground">(Esc)</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Main content - full remaining height */}
-        <div className="flex-1 min-h-0">
-          {mainContent}
+  // Plans always renders in fullscreen mode to maximize viewing area
+  return (
+    <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+      {/* Header bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b bg-card shrink-0">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.history.back()}
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <span className="font-medium">{jobTitle}</span>
+          <Badge variant="secondary">Plans</Badge>
         </div>
       </div>
-    );
-  }
 
-  // Normal mode (non-fullscreen)
-  return mainContent;
+      {/* Main content - full remaining height */}
+      <div className="flex-1 min-h-0">
+        {mainContent}
+      </div>
+    </div>
+  );
 }
