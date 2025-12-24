@@ -1344,14 +1344,15 @@ export default function JobDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Plans tab renders fullscreen overlay - always mounted to ensure consistent hook calls */}
-      <div style={{ display: activeTab === "plans" ? "contents" : "none" }}>
+      {/* Plans tab - only mount when active, key forces fresh mount each time */}
+      {activeTab === "plans" && (
         <JobPlansTab
+          key={`plans-${job.id}`}
           jobId={job.id}
           jobCode={String(job.id).padStart(4, "0")}
           jobTitle={job.name}
         />
-      </div>
+      )}
     </div>
   );
 }

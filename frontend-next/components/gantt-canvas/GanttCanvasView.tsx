@@ -249,6 +249,45 @@ export function GanttCanvasView({
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
 
+  // Collapsed headers state - stores row IDs of collapsed header rows
+  const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
+
+  // Toggle header collapse state
+  const toggleHeaderCollapse = React.useCallback((headerId: number) => {
+    setCollapsedHeaders(prev => {
+      const next = new Set(prev);
+      if (next.has(headerId)) {
+        next.delete(headerId);
+      } else {
+        next.add(headerId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Filter visible tasks (hide children of collapsed headers)
+  const visibleTasks = React.useMemo(() => {
+    return tasks.filter(task => {
+      const row = rows.find(r => String(r.id) === task.id);
+      if (!row) return true;
+      // If this task has a parent and that parent is collapsed, hide it
+      if (row.parent_row_id && collapsedHeaders.has(row.parent_row_id)) {
+        return false;
+      }
+      return true;
+    });
+  }, [tasks, rows, collapsedHeaders]);
+
+  // Check if a row is a header (category === 'Header')
+  const isHeaderRow = React.useCallback((row: SmTemplateRow | undefined) => {
+    return row?.category === 'Header';
+  }, []);
+
+  // Get child count for a header
+  const getChildCount = React.useCallback((headerId: number) => {
+    return rows.filter(r => r.parent_row_id === headerId).length;
+  }, [rows]);
+
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
   const toggleFullscreen = React.useCallback(() => {
@@ -686,6 +725,13 @@ export function GanttCanvasView({
     }
   }, [isDarkMode]);
 
+  // Sync visible tasks to canvas when headers are collapsed/expanded
+  React.useEffect(() => {
+    if (ganttRef.current && visibleTasks.length > 0) {
+      ganttRef.current.setTasks(visibleTasks);
+    }
+  }, [visibleTasks]);
+
   // Load holidays from API and add to canvas
   React.useEffect(() => {
     if (!ganttRef.current) return;
@@ -1048,21 +1094,45 @@ export function GanttCanvasView({
               className="flex-1 overflow-hidden"
               style={{ overflowY: 'hidden' }}
             >
-              <div style={{ height: tasks.length * 40 }}>
-                {tasks.map((task, index) => {
+              <div style={{ height: visibleTasks.length * 40 }}>
+                {visibleTasks.map((task, index) => {
                   const row = rows.find(r => String(r.id) === task.id);
                   const startStr = task.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
                   const endStr = task.endDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
                   const duration = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24));
+                  const isHeader = isHeaderRow(row);
+                  const childCount = isHeader && row ? getChildCount(row.id) : 0;
+                  const isCollapsed = row ? collapsedHeaders.has(row.id) : false;
 
                   // Render cell content based on column id
                   const renderCell = (col: ColumnConfig) => {
                     switch (col.id) {
                       case 'name':
                         return (
-                          <div className="truncate px-2 font-medium" title={task.name}>
-                            <span className="text-muted-foreground mr-1">{index + 1}.</span>
-                            {task.name}
+                          <div className={cn("truncate px-2 flex items-center", isHeader && "font-bold")} title={task.name}>
+                            {isHeader && childCount > 0 ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (row) toggleHeaderCollapse(row.id);
+                                }}
+                                className="mr-1 hover:bg-muted rounded p-0.5 flex-shrink-0"
+                              >
+                                {isCollapsed ? (
+                                  <ChevronRight className="h-3 w-3" />
+                                ) : (
+                                  <ChevronDown className="h-3 w-3" />
+                                )}
+                              </button>
+                            ) : (
+                              <span className="text-muted-foreground mr-1">{index + 1}.</span>
+                            )}
+                            <span className={isHeader ? "text-primary" : ""}>{task.name}</span>
+                            {isHeader && childCount > 0 && (
+                              <span className="text-muted-foreground text-[10px] ml-2">
+                                ({isCollapsed ? childCount : childCount})
+                              </span>
+                            )}
                           </div>
                         );
                       case 'startDate':
@@ -1128,7 +1198,9 @@ export function GanttCanvasView({
                       key={task.id}
                       className={cn(
                         "flex items-center border-b text-xs hover:bg-muted/30 px-2",
-                        index % 2 === 0 ? "bg-background" : "bg-muted/10"
+                        isHeader
+                          ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
+                          : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 40 }}
                     >

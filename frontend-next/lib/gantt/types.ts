@@ -374,7 +374,47 @@ export function convertRowsToTasks(
   }
 
   // Second pass: convert all rows with the complete date map
-  return sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
+  const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
+
+  // Third pass: update header tasks to span their children
+  // Header rows have category === 'Header' and children have parent_row_id pointing to them
+  const headerIds = new Set(
+    sortedRows.filter(r => r.category === 'Header').map(r => r.id)
+  );
+
+  if (headerIds.size > 0) {
+    // Build map of header ID -> child tasks
+    const headerChildrenMap = new Map<number, GanttTask[]>();
+    for (const task of tasks) {
+      const row = sortedRows.find(r => String(r.id) === task.id);
+      if (row?.parent_row_id && headerIds.has(row.parent_row_id)) {
+        const children = headerChildrenMap.get(row.parent_row_id) || [];
+        children.push(task);
+        headerChildrenMap.set(row.parent_row_id, children);
+      }
+    }
+
+    // Update header task dates to span their children
+    for (const task of tasks) {
+      const row = sortedRows.find(r => String(r.id) === task.id);
+      if (row?.category === 'Header') {
+        const children = headerChildrenMap.get(row.id);
+        if (children && children.length > 0) {
+          // Find min start and max end from children
+          let minStart = children[0].startDate;
+          let maxEnd = children[0].endDate;
+          for (const child of children) {
+            if (child.startDate < minStart) minStart = child.startDate;
+            if (child.endDate > maxEnd) maxEnd = child.endDate;
+          }
+          task.startDate = new Date(minStart);
+          task.endDate = new Date(maxEnd);
+        }
+      }
+    }
+  }
+
+  return tasks;
 }
 
 /**
