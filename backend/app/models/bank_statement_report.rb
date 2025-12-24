@@ -453,7 +453,7 @@ class BankStatementReport < ApplicationRecord
     )
 
     doc.assign_attributes(
-      corporate_company_id: company_id,
+      company_id: company_id,
       document_type_id: document_type_id,
       display_name: display_name,
       file_name: filename,
