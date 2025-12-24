@@ -2815,10 +2815,7 @@ export class GanttCanvas {
 
       // Only trigger if date actually changed
       if (originalDate.getTime() !== newDate.getTime()) {
-        console.log('[GanttCanvas] Calling onTaskDrag handler for', this.dragTask.name);
         this.onTaskDrag?.(this.dragTask, newDate);
-      } else {
-        console.log('[GanttCanvas] No date change, skipping onTaskDrag');
       }
 
       this.isDragging = false;
@@ -3587,15 +3584,6 @@ export class GanttCanvas {
 
     // Use SpatialIndex for O(1) hit testing
     const hits = this.spatialIndex.queryPoint(world.x, world.y);
-
-    // Debug logging
-    console.log('[GanttCanvas hitTest]', {
-      screen: { x, y },
-      world,
-      hits: hits.length,
-      firstTask: this.state.tasks[0] ? { id: this.state.tasks[0].id, name: this.state.tasks[0].name } : null,
-      taskCount: this.state.tasks.length
-    });
 
     if (hits.length > 0) {
       const taskId = hits[0];

@@ -718,14 +718,12 @@ export function GanttCanvasView({
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
     // Use ref to get current templateId (avoids stale closure)
     const currentTemplateId = templateIdRef.current;
-    console.log('[GanttCanvasView] handleTaskDrag called', { taskId: task.id, taskName: task.name, newStartDate, templateId: currentTemplateId, isStaticMode });
 
     // Call external handler if provided
     onTaskDrag?.(task, newStartDate);
 
     // Skip API save in static mode
     if (isStaticMode || !currentTemplateId) {
-      console.log('[GanttCanvasView] Skipping API save - isStaticMode:', isStaticMode, 'templateId:', currentTemplateId);
       return;
     }
 
@@ -1269,7 +1267,7 @@ export function GanttCanvasView({
       <div className={cn("flex items-center justify-center h-full min-h-[400px]", className)}>
         <div className="flex flex-col items-center gap-4">
           <p className="text-sm text-destructive">{error}</p>
-          <Button onClick={loadData} variant="outline">
+          <Button onClick={() => loadData()} variant="outline">
             <RefreshCw className="h-4 w-4 mr-2" />
             Retry
           </Button>
