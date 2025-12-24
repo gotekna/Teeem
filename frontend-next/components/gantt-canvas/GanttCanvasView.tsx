@@ -677,6 +677,32 @@ export function GanttCanvasView({
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
 
+  // Load data from API (only when not using static mode)
+  // NOTE: Defined early because handleTaskResize and handleDurationSave depend on it
+  const loadData = React.useCallback(async () => {
+    if (isStaticMode || !templateId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await api.get<ApiResponse>(
+        `/api/v1/sm_templates/${templateId}/rows`
+      );
+
+      if (response.success && response.rows) {
+        setRows(response.rows);
+      } else {
+        setError("Failed to load template rows");
+      }
+    } catch (err) {
+      console.error("Error loading Gantt data:", err);
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, [templateId, isStaticMode]);
+
   // Handle task drag - save manual position
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
     // Call external handler if provided
@@ -723,7 +749,7 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, onTaskDrag]);
 
-  // Handle task resize - update duration
+  // Handle task resize - update duration and cascade dependencies
   const handleTaskResize = React.useCallback(async (task: GanttTask, newStartDate: Date, newEndDate: Date) => {
     // Skip API save in static mode
     if (isStaticMode || !templateId) return;
@@ -735,10 +761,13 @@ export function GanttCanvasView({
 
       // Format dates as YYYY-MM-DD
       const startStr = newStartDate.toISOString().split('T')[0];
-      const endStr = newEndDate.toISOString().split('T')[0];
 
-      // Save to API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      // Save to API - will return cascaded_rows if dependencies were updated
+      const response = await api.patch<{
+        success: boolean;
+        row: SmTemplateRow;
+        cascaded_rows?: SmTemplateRow[];
+      }>(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
           manually_positioned: true,
           manual_start_date: startStr,
@@ -746,7 +775,7 @@ export function GanttCanvasView({
         }
       });
 
-      // Update local state
+      // Update local state for the resized task
       setTasks(prev => prev.map(t =>
         t.id === task.id
           ? {
@@ -764,24 +793,33 @@ export function GanttCanvasView({
           : t
       ));
 
-      // Also update rows for proper re-render
+      // Update rows for the resized task
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
           ? { ...r, manually_positioned: true, manual_start_date: startStr, duration_days: durationDays }
           : r
       ));
+
+      // Always reload data after resize to recalculate all dependent task dates
+      // The frontend calculates dates from predecessors, so we need a full recalc
+      console.log('Reloading data to recalculate dependent task dates...');
+      await loadData();
     } catch (err) {
       console.error('Failed to save task resize:', err);
     }
-  }, [templateId, isStaticMode]);
+  }, [templateId, isStaticMode, loadData]);
 
-  // Handle duration edit - save new duration
+  // Handle duration edit - save new duration and cascade dependencies
   const handleDurationSave = React.useCallback(async (taskId: string, newDuration: number) => {
     if (isStaticMode || !templateId || newDuration < 0) return;
 
     try {
-      // Save to API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${taskId}`, {
+      // Save to API - will return cascaded_rows if dependencies were updated
+      const response = await api.patch<{
+        success: boolean;
+        row: SmTemplateRow;
+        cascaded_rows?: SmTemplateRow[];
+      }>(`/api/v1/sm_templates/${templateId}/rows/${taskId}`, {
         row: { duration_days: newDuration }
       });
 
@@ -801,12 +839,16 @@ export function GanttCanvasView({
         }
         return t;
       }));
+
+      // Always reload data after duration change to recalculate all dependent task dates
+      console.log('Reloading data to recalculate dependent task dates...');
+      await loadData();
     } catch (err) {
       console.error('Failed to save duration:', err);
     }
 
     setEditingDurationTaskId(null);
-  }, [templateId, isStaticMode]);
+  }, [templateId, isStaticMode, loadData]);
 
   // Handle reset manual position (from context menu)
   const handleResetManualPosition = React.useCallback(async (task: GanttTask) => {
@@ -941,31 +983,6 @@ export function GanttCanvasView({
       ));
     } catch (err) {
       console.error('Failed to toggle supplier confirm:', err);
-    }
-  }, [templateId, isStaticMode]);
-
-  // Load data from API (only when not using static mode)
-  const loadData = React.useCallback(async () => {
-    if (isStaticMode || !templateId) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await api.get<ApiResponse>(
-        `/api/v1/sm_templates/${templateId}/rows`
-      );
-
-      if (response.success && response.rows) {
-        setRows(response.rows);
-      } else {
-        setError("Failed to load template rows");
-      }
-    } catch (err) {
-      console.error("Error loading Gantt data:", err);
-      setError(err instanceof Error ? err.message : "Failed to load data");
-    } finally {
-      setLoading(false);
     }
   }, [templateId, isStaticMode]);
 

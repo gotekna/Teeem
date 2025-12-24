@@ -53,10 +53,22 @@ module Api
       def update
         @row.updated_by = current_user
 
+        # Track if we need to cascade dependencies
+        timing_changed = will_timing_change?
+
         if @row.update(row_params)
+          updated_rows = [@row]
+
+          # Cascade to dependent rows if timing changed
+          if timing_changed
+            cascade_service = SmTemplateCascadeService.new(@row, @template)
+            updated_rows = cascade_service.cascade_successors
+          end
+
           render json: {
             success: true,
-            row: row_json(@row)
+            row: row_json(@row),
+            cascaded_rows: updated_rows.length > 1 ? updated_rows.map { |r| row_json(r) } : nil
           }
         else
           render json: {
@@ -148,6 +160,31 @@ module Api
 
       def set_row
         @row = @template.sm_template_rows.find(params[:id])
+      end
+
+      # Check if the update will change timing (triggers cascade)
+      def will_timing_change?
+        return false unless params[:row]
+
+        rp = params[:row]
+
+        # Duration change affects successors
+        if rp[:duration_days].present? && rp[:duration_days].to_i != @row.duration_days
+          return true
+        end
+
+        # Manual start date change affects successors
+        if rp[:manual_start_date].present?
+          new_date = Date.parse(rp[:manual_start_date]) rescue nil
+          return true if new_date && new_date != @row.manual_start_date
+        end
+
+        # Start day offset change affects successors
+        if rp[:start_day_offset].present? && rp[:start_day_offset].to_i != @row.start_day_offset
+          return true
+        end
+
+        false
       end
 
       def row_params
