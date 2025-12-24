@@ -803,17 +803,31 @@ export function GanttCanvasView({
       });
 
       // Call API to update dependencies
-      // If task is LOCKED (supplier confirmed), also set require_supervisor_check = true
-      // because the task can't move to follow the new dependencies - user needs to be informed
+      // If task is FULLY LOCKED (both confirm AND supplier confirm), remove dependencies
+      // and mark as dependency_broken - the task stays where it is but shows checkered
       const isLocked = depEditorTask.rowData?.require_supplier_confirm === true;
+      const isFullyLocked = isLocked && depEditorTask.rowData?.require_supervisor_check === true;
 
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
-        row: {
-          predecessor_ids: predecessorData,
-          // Only set confirm if task is locked and can't follow dependencies
-          ...(isLocked && { require_supervisor_check: true })
-        }
-      });
+      if (isFullyLocked && predecessorData.length > 0) {
+        // Task is fully locked - remove dependencies and mark as broken
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
+          row: {
+            predecessor_ids: [],
+            dependency_broken: true
+          }
+        });
+      } else {
+        // Normal case - save the dependencies
+        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
+          row: {
+            predecessor_ids: predecessorData,
+            // Clear dependency_broken if we're setting dependencies
+            dependency_broken: false,
+            // Set confirm if task is locked and can't follow dependencies
+            ...(isLocked && predecessorData.length > 0 && { require_supervisor_check: true })
+          }
+        });
+      }
 
       // Now save successor changes - update each successor task's predecessor_ids
       // Get the current task's task_number for the predecessor reference
@@ -915,13 +929,14 @@ export function GanttCanvasView({
         t.id === depEditorTask.id
           ? {
               ...t,
-              predecessorIds: validLinks.map(l => l.predecessorId),
+              predecessorIds: isFullyLocked ? [] : validLinks.map(l => l.predecessorId),
               rowData: t.rowData ? {
                 ...t.rowData,
-                predecessor_display: buildPredDisplay(),
-                predecessor_ids: predecessorData,
+                predecessor_display: isFullyLocked ? 'None' : buildPredDisplay(),
+                predecessor_ids: isFullyLocked ? [] : predecessorData,
+                dependency_broken: isFullyLocked,
                 // Only set confirm if task is locked and can't follow dependencies
-                ...(isLocked && { require_supervisor_check: true })
+                ...(isLocked && !isFullyLocked && { require_supervisor_check: true })
               } : undefined
             }
           : t

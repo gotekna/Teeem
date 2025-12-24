@@ -357,32 +357,9 @@ export class Renderer {
       this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
       this.ctx.fill();
 
-      // Draw hatched pattern for broken dependency tasks (locked but detached from flow)
+      // Draw CHECKERED pattern when dependency is broken/removed
+      // This indicates the task is not following its predecessors as designed
       if (task.rowData?.dependency_broken) {
-        this.ctx.save();
-        // Clip to task bar shape
-        this.ctx.beginPath();
-        this.ctx.roundRect(startX, barY, taskWidth, barHeight, 4);
-        this.ctx.clip();
-
-        // Draw diagonal hatching pattern
-        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-        this.ctx.lineWidth = 2;
-        const spacing = 8;
-        for (let i = -barHeight; i < taskWidth + barHeight; i += spacing) {
-          this.ctx.beginPath();
-          this.ctx.moveTo(startX + i, barY);
-          this.ctx.lineTo(startX + i + barHeight, barY + barHeight);
-          this.ctx.stroke();
-        }
-        this.ctx.restore();
-      }
-
-      // Draw CHECKERED pattern for "user applied logic" on LOCKED tasks
-      // Only show checkered when BOTH: require_supervisor_check = true AND task is locked (supplier confirmed)
-      // This indicates the task's dates were manually set and don't follow dependencies exactly
-      const isLockedWithUserLogic = task.rowData?.require_supervisor_check && task.rowData?.require_supplier_confirm;
-      if (isLockedWithUserLogic) {
         this.ctx.save();
         // Clip to task bar shape
         this.ctx.beginPath();

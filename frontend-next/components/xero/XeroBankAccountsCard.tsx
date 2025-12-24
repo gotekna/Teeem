@@ -355,38 +355,10 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
           ))}
         </div>
 
-        {/* Selected Account Header - Xero Style */}
+        {/* Account Controls - Compact Layout */}
         {selectedAccountDetails && (
-          <div className="mb-6">
-            {/* Account Name & Number */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-semibold">
-                  {selectedAccountDetails.name}
-                </h2>
-                <span className="text-muted-foreground">
-                  {selectedAccountDetails.bank_account_number || ""}
-                </span>
-              </div>
-              {/* Date Range Picker */}
-              <div className="flex items-center gap-2">
-                <Input
-                  type="date"
-                  value={dateRange.from}
-                  onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                  className="w-36"
-                />
-                <span className="text-muted-foreground">to</span>
-                <Input
-                  type="date"
-                  value={dateRange.to}
-                  onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                  className="w-36"
-                />
-              </div>
-            </div>
-
-            {/* Balance Info - Xero Style */}
+          <div className="mb-4">
+            {/* Balance & Controls Row */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div>
@@ -408,20 +380,34 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                 </div>
               </div>
 
-              {/* Search/Filter Toggle */}
-              <Button
-                variant={showFilters ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <Search className="h-4 w-4 mr-2" />
-                Search
-                {hasActiveFilters && (
-                  <span className="ml-2 bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
-                    !
-                  </span>
-                )}
-              </Button>
+              {/* Date Range & Search */}
+              <div className="flex items-center gap-3">
+                <Input
+                  type="date"
+                  value={dateRange.from}
+                  onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
+                  className="w-32 h-8 text-sm"
+                />
+                <span className="text-muted-foreground text-sm">to</span>
+                <Input
+                  type="date"
+                  value={dateRange.to}
+                  onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
+                  className="w-32 h-8 text-sm"
+                />
+                <Button
+                  variant={showFilters ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  <Search className="h-4 w-4 mr-1" />
+                  {hasActiveFilters && (
+                    <span className="bg-primary text-primary-foreground rounded-full w-4 h-4 text-xs flex items-center justify-center">
+                      !
+                    </span>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* Search/Filter Panel - Xero Style */}
