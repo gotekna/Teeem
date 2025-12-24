@@ -3699,7 +3699,10 @@ export class GanttCanvas {
    */
   private hitTestConnector(x: number, y: number): { task: GanttTask; edge: 'start' | 'end' } | null {
     // Only check connectors for hovered task (dots only visible on hover)
-    if (!this.state.hoveredTaskId) return null;
+    if (!this.state.hoveredTaskId) {
+      console.log('[hitTestConnector] No hoveredTaskId');
+      return null;
+    }
 
     const task = this.state.tasks.find(t => t.id === this.state.hoveredTaskId);
     if (!task) return null;
@@ -3727,21 +3730,28 @@ export class GanttCanvas {
     const distToStart = Math.abs(x - taskStartX);
     const distToEnd = Math.abs(x - taskEndX);
 
+    console.log('[hitTestConnector] mouse:', { x, y }, 'taskStartX:', taskStartX, 'taskEndX:', taskEndX, 'centerY:', centerY, 'distToStart:', distToStart, 'distToEnd:', distToEnd, 'hitRadius:', hitRadius);
+
     // Check if within Y range of the bar
     if (y < centerY - hitRadius || y > centerY + hitRadius) {
+      console.log('[hitTestConnector] Y out of range. y:', y, 'range:', centerY - hitRadius, 'to', centerY + hitRadius);
       return null;
     }
 
     // Return the CLOSER connector if within hit range
     if (distToStart <= hitRadius && distToEnd <= hitRadius) {
       // Both in range - pick closer one
+      console.log('[hitTestConnector] Both in range, picking:', distToEnd < distToStart ? 'end' : 'start');
       return { task, edge: distToEnd < distToStart ? 'end' : 'start' };
     } else if (distToEnd <= hitRadius) {
+      console.log('[hitTestConnector] End connector hit');
       return { task, edge: 'end' };
     } else if (distToStart <= hitRadius) {
+      console.log('[hitTestConnector] Start connector hit');
       return { task, edge: 'start' };
     }
 
+    console.log('[hitTestConnector] No hit - distToStart:', distToStart, 'distToEnd:', distToEnd, 'hitRadius:', hitRadius);
     return null;
   }
 
