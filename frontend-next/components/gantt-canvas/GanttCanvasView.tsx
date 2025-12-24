@@ -2390,9 +2390,10 @@ export function GanttCanvasView({
                       )}
                       style={{ height: 28 }}
                       onClick={() => {
-                        // Select and scroll to show this task's bar in the Gantt
+                        // Select and scroll horizontally to show this task's bar
+                        // Only horizontal scroll - keeps sidebar rows in place
                         setSelectedTaskId(task.id);
-                        ganttRef.current?.scrollToTask(task.id, true);
+                        ganttRef.current?.scrollToTaskHorizontalOnly(task.id, true);
                       }}
                     >
                       {visibleColumns.map(col => (

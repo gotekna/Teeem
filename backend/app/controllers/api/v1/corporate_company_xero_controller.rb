@@ -1264,6 +1264,38 @@ module Api
 
           Rails.logger.info("[XeroBankTransactions] After date filtering: #{transactions.count} transactions (#{from_date} to #{to_date})")
 
+          # Also fetch Payments that used this bank account
+          # Xero's "Account transactions" view combines BankTransactions + Payments + BankTransfers
+          payments = []
+          begin
+            payments_result = client.get(
+              "Payments",
+              tenant_id: connection.xero_tenant_id,
+              access_token: connection.access_token,
+              params: {
+                where: "Account.AccountID=Guid(\"#{bank_account_id}\")",
+                order: "Date DESC"
+              }
+            )
+
+            if payments_result[:success]
+              all_payments = payments_result[:data]["Payments"] || []
+              Rails.logger.info("[XeroBankTransactions] Received #{all_payments.count} payments from Xero for this bank account")
+
+              # Filter payments by date
+              payments = all_payments.select do |pmt|
+                pmt_date = parse_xero_date_to_date(pmt["Date"])
+                next false unless pmt_date
+                pmt_date >= from_date_obj && pmt_date <= to_date_obj
+              end
+              Rails.logger.info("[XeroBankTransactions] After date filtering: #{payments.count} payments")
+            else
+              Rails.logger.warn("[XeroBankTransactions] Failed to fetch payments: #{payments_result[:error]}")
+            end
+          rescue StandardError => e
+            Rails.logger.warn("[XeroBankTransactions] Error fetching payments: #{e.message}")
+          end
+
           # Format transactions for display
           formatted_transactions = transactions.map do |tx|
             # Calculate total amount from line items or use SubTotal
@@ -1293,17 +1325,56 @@ module Api
             }
           end
 
+          # Format payments for display
+          formatted_payments = payments.map do |pmt|
+            # Payments can be for Invoices (money in) or Bills (money out)
+            is_payment_out = pmt["PaymentType"] == "ACCPAY" # Account Payable = bill payment = money out
+            amount = pmt["Amount"].to_f
+            invoice_number = pmt["Invoice"]&.dig("InvoiceNumber")
+            invoice_type = pmt["Invoice"]&.dig("Type") # ACCPAY or ACCREC
+
+            # Determine description
+            contact_name = pmt["Invoice"]&.dig("Contact", "Name")
+            description = if invoice_number
+                            "Payment: #{contact_name || 'Unknown'}"
+                          else
+                            "Payment"
+                          end
+
+            {
+              transaction_id: pmt["PaymentID"],
+              date: parse_xero_date(pmt["Date"]),
+              type: is_payment_out ? "PAYMENT_OUT" : "PAYMENT_IN",
+              reference: invoice_number,
+              description: description,
+              amount: is_payment_out ? -amount.abs : amount.abs,
+              contact_name: contact_name,
+              status: pmt["Status"] == "AUTHORISED" ? "AUTHORISED" : pmt["Status"],
+              is_reconciled: pmt["IsReconciled"],
+              source: "PAYMENT",
+              line_items: []
+            }
+          end
+
+          # Combine and sort by date (newest first)
+          all_transactions = formatted_transactions + formatted_payments
+          all_transactions.sort_by! { |tx| tx[:date] || "" }.reverse!
+
+          Rails.logger.info("[XeroBankTransactions] Total combined: #{all_transactions.count} (#{formatted_transactions.count} transactions + #{formatted_payments.count} payments)")
+
           # Try to get account balance
           balance_info = fetch_bank_account_balance(client, connection, bank_account_id)
 
           render json: {
             success: true,
-            transactions: formatted_transactions,
+            transactions: all_transactions,
             balance: balance_info,
             meta: {
               from_date: from_date,
               to_date: to_date,
-              count: formatted_transactions.count
+              count: all_transactions.count,
+              bank_transactions_count: formatted_transactions.count,
+              payments_count: formatted_payments.count
             }
           }
         rescue StandardError => e

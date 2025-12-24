@@ -394,7 +394,7 @@ const defaultConfig: GanttConfig = {
   headerHeight: 50,
   taskBarHeight: 18,
   taskBarPadding: 5,
-  dayWidth: 40,
+  dayWidth: 25,  // Matches preferred zoom level
   minDayWidth: 10,
   maxDayWidth: 100,
   colors: defaultLightColors,
@@ -885,8 +885,9 @@ export class GanttCanvas {
   }
 
   /**
-   * Scroll horizontally only to show a task's bar (keeps vertical position)
-   * Used when clicking a row in the sidebar - shows the task bar without moving the row list
+   * Scroll horizontally to show a task's bar, keeping the current vertical position
+   * Used when clicking a row in the sidebar - only moves horizontally to show the task bar
+   * The sidebar rows stay in place since we preserve the Y scroll position
    */
   scrollToTaskHorizontalOnly(taskId: string, select: boolean = false): void {
     const taskIndex = this.state.tasks.findIndex(t => t.id === taskId);
@@ -897,8 +898,11 @@ export class GanttCanvas {
     // Calculate horizontal scroll position to show the task bar
     const x = this.viewport.dateToX(task.startDate);
 
-    // Keep current vertical scroll, only scroll horizontally
+    // Keep the current Y position - DO NOT change vertical scroll
+    // This keeps sidebar rows exactly where they are
     const currentY = this.state.viewportState.scrollY;
+
+    // Only scroll horizontally, keep vertical position unchanged
     this.viewport.scrollTo(x - this.containerWidth / 3, currentY);
 
     // Optionally select the task
