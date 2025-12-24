@@ -35,23 +35,22 @@ class SmTemplateCascadeService
       # Skip if already processed
       next if updated_rows.include?(successor)
 
-      # For templates, we CASCADE ALL successors (no locks like jobs have)
-      # The manually_positioned flag is just stored for undo, not for blocking cascade
+      # For templates, we CASCADE ALL successors
+      # Clear manually_positioned so frontend recalculates from predecessors
+      # Store the old date in a backup field for undo capability
 
-      # Calculate new start based on all predecessors
-      new_start_offset = calculate_start_offset(successor)
-
-      Rails.logger.info "[SmTemplateCascade] Successor #{successor.id}: current offset=#{successor.start_day_offset}, new offset=#{new_start_offset}"
-
-      # Update if changed
-      if new_start_offset != successor.start_day_offset
-        successor.update!(start_day_offset: new_start_offset)
+      if successor.manually_positioned?
+        Rails.logger.info "[SmTemplateCascade] Clearing manually_positioned on successor #{successor.id}"
+        successor.update!(
+          manually_positioned: false,
+          manual_start_date: nil
+          # TODO: Could store old date in a backup field for undo
+        )
         updated_rows << successor
-        Rails.logger.info "[SmTemplateCascade] Updated successor #{successor.id} to offset #{new_start_offset}"
-
-        # Add this task's successors to the queue
-        rows_to_process.concat(find_direct_successors(successor))
       end
+
+      # Add this task's successors to the queue (they may also need clearing)
+      rows_to_process.concat(find_direct_successors(successor))
     end
 
     Rails.logger.info "[SmTemplateCascade] Cascade complete. Updated #{updated_rows.count} rows total"

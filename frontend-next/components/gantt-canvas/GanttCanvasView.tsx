@@ -679,11 +679,14 @@ export function GanttCanvasView({
 
   // Load data from API (only when not using static mode)
   // NOTE: Defined early because handleTaskResize and handleDurationSave depend on it
-  const loadData = React.useCallback(async () => {
+  // silent=true skips loading spinner (for background refreshes after edits)
+  const loadData = React.useCallback(async (silent = false) => {
     if (isStaticMode || !templateId) return;
 
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       setError(null);
 
       const response = await api.get<ApiResponse>(
@@ -699,7 +702,9 @@ export function GanttCanvasView({
       console.error("Error loading Gantt data:", err);
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, [templateId, isStaticMode]);
 
@@ -796,10 +801,8 @@ export function GanttCanvasView({
           : r
       ));
 
-      // Always reload data after resize to recalculate all dependent task dates
-      // The frontend calculates dates from predecessors, so we need a full recalc
-      console.log('Reloading data to recalculate dependent task dates...');
-      await loadData();
+      // Silent reload to recalculate all dependent task dates (no loading spinner)
+      await loadData(true);
     } catch (err) {
       console.error('Failed to save task resize:', err);
     }
@@ -832,9 +835,8 @@ export function GanttCanvasView({
         return t;
       }));
 
-      // Always reload data after duration change to recalculate all dependent task dates
-      console.log('Reloading data to recalculate dependent task dates...');
-      await loadData();
+      // Silent reload to recalculate all dependent task dates (no loading spinner)
+      await loadData(true);
     } catch (err) {
       console.error('Failed to save duration:', err);
     }
@@ -978,45 +980,16 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode]);
 
-  // Initialize canvas engine
+  // Initialize canvas engine (only once on mount)
   React.useEffect(() => {
     if (!containerRef.current || loading || error) return;
-
-    // Get tasks and dependencies based on mode
-    let taskList: GanttTask[];
-    let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
-
-    if (isStaticMode && staticTasks) {
-      // Static mode - use provided data directly
-      taskList = staticTasks;
-      dependencies = (staticDependencies || []).map((d, i) => ({
-        id: `dep-${i}`,
-        fromId: d.fromId,
-        toId: d.toId,
-        type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
-        lag: 0,
-      }));
-    } else {
-      // API mode - convert rows to tasks
-      // Use company timezone for consistent date handling
-      const today = getTodayInCompanyTimezone();
-      const projectStartDate = new Date(today);
-      // First task starts today
-      taskList = convertRowsToTasks(rows, projectStartDate);
-      dependencies = convertToDependencies(rows);
-    }
-
-    // Store tasks for sidebar
-    setTasks(taskList);
+    // Skip if canvas already exists
+    if (ganttRef.current) return;
 
     // Create canvas instance
     const gantt = new GanttCanvas(containerRef.current, {
       darkMode: isDarkMode,
     });
-
-    // Set data
-    gantt.setTasks(taskList);
-    gantt.setDependencies(dependencies);
 
     // Set event handlers
     if (onTaskClick) {
@@ -1052,7 +1025,44 @@ export function GanttCanvasView({
       gantt.destroy();
       ganttRef.current = null;
     };
-  }, [rows, staticTasks, staticDependencies, isStaticMode, loading, error, isDarkMode, onTaskClick, onTaskDoubleClick, handleTaskDrag, handleTaskResize, handleResetManualPosition]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error]); // Only re-create on initial load
+
+  // Update tasks/dependencies when data changes (separate from canvas creation)
+  React.useEffect(() => {
+    if (!ganttRef.current) return;
+
+    // Get tasks and dependencies based on mode
+    let taskList: GanttTask[];
+    let dependencies: Array<{ id: string; fromId: string; toId: string; type: "FS" | "SS" | "FF" | "SF"; lag?: number }>;
+
+    if (isStaticMode && staticTasks) {
+      // Static mode - use provided data directly
+      taskList = staticTasks;
+      dependencies = (staticDependencies || []).map((d, i) => ({
+        id: `dep-${i}`,
+        fromId: d.fromId,
+        toId: d.toId,
+        type: (d.type || "FS") as "FS" | "SS" | "FF" | "SF",
+        lag: 0,
+      }));
+    } else {
+      // API mode - convert rows to tasks
+      // Use company timezone for consistent date handling
+      const today = getTodayInCompanyTimezone();
+      const projectStartDate = new Date(today);
+      // First task starts today
+      taskList = convertRowsToTasks(rows, projectStartDate);
+      dependencies = convertToDependencies(rows);
+    }
+
+    // Store tasks for sidebar
+    setTasks(taskList);
+
+    // Update canvas with new data (no recreation)
+    ganttRef.current.setTasks(taskList);
+    ganttRef.current.setDependencies(dependencies);
+  }, [rows, staticTasks, staticDependencies, isStaticMode]);
 
   // Update dark mode when theme changes
   React.useEffect(() => {
