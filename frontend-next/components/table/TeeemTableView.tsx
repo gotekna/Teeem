@@ -529,7 +529,13 @@ const VirtualizedGroupTable = memo(function VirtualizedGroupTable({
                                 isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
                                 "hover:bg-muted/30 cursor-pointer"
                               )}
-                              onClick={() => !isEditMode && onRowClick?.(row)}
+                              onClick={() => {
+                                console.log("🟣 TeeemTableView row clicked, isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
+                                if (!isEditMode && onRowClick) {
+                                  console.log("🟣 Calling onRowClick with row:", row.id);
+                                  onRowClick(row);
+                                }
+                              }}
                               onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
                               onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
                             >
@@ -4226,7 +4232,13 @@ export default function TeeemTableView({
           isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
           "hover:bg-muted/30 cursor-pointer"
         )}
-        onClick={() => !isEditMode && onRowClick?.(row)}
+        onClick={() => {
+          console.log("🟣 TeeemTableView row clicked (VR), isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
+          if (!isEditMode && onRowClick) {
+            console.log("🟣 Calling onRowClick with row:", row.id);
+            onRowClick(row);
+          }
+        }}
         onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
         onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
       >
@@ -4414,7 +4426,13 @@ export default function TeeemTableView({
                   isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
-                onClick={() => !isEditMode && onRowClick?.(row)}
+                onClick={() => {
+                  console.log("🟣 TeeemTableView row clicked (Grouped), isEditMode:", isEditMode, "hasOnRowClick:", !!onRowClick);
+                  if (!isEditMode && onRowClick) {
+                    console.log("🟣 Calling onRowClick with row:", row.id);
+                    onRowClick(row);
+                  }
+                }}
                 onDoubleClick={() => !isEditMode && onRowDoubleClick?.(row)}
                 onMouseEnter={() => handleRowMouseEnter(row.id, globalIndex)}
               >
