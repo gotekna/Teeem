@@ -342,6 +342,45 @@ export class Renderer {
       const barY = y + taskBarPadding;
       const barHeight = taskBarHeight;
 
+      // Check if this is a header/summary task (MS Project style)
+      const isHeader = task.rowData?.category === 'Header';
+
+      if (isHeader) {
+        // MS Project style summary bar: thin black bar with downward triangles at ends
+        const summaryBarHeight = 6;
+        const summaryY = barY + (barHeight - summaryBarHeight) / 2;
+        const triangleSize = 8;
+
+        // Draw the thin black bar
+        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.fillRect(startX, summaryY, taskWidth, summaryBarHeight);
+
+        // Draw downward triangle at start
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX, summaryY);
+        this.ctx.lineTo(startX + triangleSize, summaryY);
+        this.ctx.lineTo(startX, summaryY + triangleSize + summaryBarHeight);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw downward triangle at end
+        this.ctx.beginPath();
+        this.ctx.moveTo(startX + taskWidth - triangleSize, summaryY);
+        this.ctx.lineTo(startX + taskWidth, summaryY);
+        this.ctx.lineTo(startX + taskWidth, summaryY + triangleSize + summaryBarHeight);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Draw header name to the right of the bar
+        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(task.name, startX + taskWidth + 8, barY + barHeight / 2);
+
+        continue; // Skip normal task bar rendering for headers
+      }
+
       // Get task color based on status
       const taskColor = this.getTaskColor(task);
 
