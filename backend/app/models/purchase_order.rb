@@ -39,7 +39,8 @@ class PurchaseOrder < ApplicationRecord
   accepts_nested_attributes_for :line_items, allow_destroy: true
 
   # Validations
-  validates :purchase_order_number, presence: true, uniqueness: true
+  # purchase_order_number is generated from ID after create, so only validate on update
+  validates :purchase_order_number, presence: true, uniqueness: true, on: :update
   validates :job_id, presence: true
   validates :status, presence: true, inclusion: {
     in: %w[draft pending approved sent received invoiced paid cancelled]
@@ -69,7 +70,7 @@ class PurchaseOrder < ApplicationRecord
   }, prefix: :payment
 
   # Callbacks
-  before_validation :generate_po_number, if: :new_record?
+  after_create :generate_po_number_from_id
   before_save :calculate_totals
   before_save :calculate_variances
   after_create :log_po_created
@@ -332,27 +333,13 @@ class PurchaseOrder < ApplicationRecord
 
   private
 
-  def generate_po_number
+  # Generate PO number from the database ID (SSoT: id = PO number)
+  # This ensures PO-002120 always corresponds to id 2120
+  def generate_po_number_from_id
     return if purchase_order_number.present?
 
-    # Use an advisory lock to prevent race conditions
-    # The lock ensures only one transaction can generate a PO number at a time
-    PurchaseOrder.transaction do
-      # Acquire exclusive lock (lock ID: arbitrary large number for PO generation)
-      PurchaseOrder.connection.execute("SELECT pg_advisory_xact_lock(123456789)")
-
-      # Find the highest PO number within the locked transaction
-      max_number = PurchaseOrder.where("purchase_order_number LIKE 'PO-%'")
-                                 .pluck(:purchase_order_number)
-                                 .map { |num| num.match(/PO-(\d+)/)&.captures&.first&.to_i }
-                                 .compact
-                                 .max || 0
-
-      next_number = max_number + 1
-      self.purchase_order_number = "PO-#{next_number.to_s.rjust(6, '0')}"
-
-      # Lock is automatically released at end of transaction
-    end
+    # Use update_column to skip callbacks and validations (we're in after_create)
+    update_column(:purchase_order_number, "PO-#{id.to_s.rjust(6, '0')}")
   end
 
   # Update the job's live profit when this PO changes
