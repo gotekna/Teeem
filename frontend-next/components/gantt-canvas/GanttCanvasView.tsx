@@ -538,13 +538,21 @@ export function GanttCanvasView({
     const others = visible.filter(c => c.id !== 'name');
     const allVisible = nameCol ? [nameCol, ...others] : others;
 
-    // When sidebar is hidden, only show permanent columns in specific order
+    // When sidebar is hidden, only show permanent columns with fixed narrow widths
     if (!showSidebar) {
-      // Get permanent columns from current columns state (preserves width settings)
-      // Fall back to DEFAULT_COLUMNS if not found
+      // Use fixed widths in collapsed mode to ensure all columns fit
+      const collapsedWidths: Record<string, number> = {
+        name: 150,           // Narrower name to fit other columns
+        hold: 28,
+        confirm: 28,
+        supplierConfirm: 28,
+        complete: 28,
+      };
       return PERMANENT_COLUMN_IDS.map(id => {
-        const col = columns.find(c => c.id === id);
-        return col || DEFAULT_COLUMNS.find(c => c.id === id);
+        const col = columns.find(c => c.id === id) || DEFAULT_COLUMNS.find(c => c.id === id);
+        if (!col) return undefined;
+        // Override width with fixed collapsed width
+        return { ...col, width: collapsedWidths[id] || col.width };
       }).filter((c): c is ColumnConfig => c !== undefined);
     }
     return allVisible;
@@ -2139,7 +2147,7 @@ export function GanttCanvasView({
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 260, maxWidth: showSidebar ? 600 : 280 }}>
+        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 280, maxWidth: showSidebar ? 600 : 300 }}>
             {/* Sidebar Header - Draggable Columns */}
             <DndContext
               sensors={columnDragSensors}

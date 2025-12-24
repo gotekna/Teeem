@@ -49,6 +49,18 @@ const safeFormatDate = (dateValue: string | Date | null | undefined, formatStr: 
   return format(date, formatStr);
 };
 
+// Get financial year from date (July 1 - June 30)
+const getFinancialYear = (date: Date): string => {
+  const month = date.getMonth(); // 0-11
+  const year = date.getFullYear();
+  // FY starts July 1st, so Jan-June is previous FY
+  if (month < 6) { // Jan-June
+    return `FY${(year - 1).toString().slice(-2)}/${year.toString().slice(-2)}`;
+  } else { // July-Dec
+    return `FY${year.toString().slice(-2)}/${(year + 1).toString().slice(-2)}`;
+  }
+};
+
 interface AccountBalance {
   statement_balance?: number;
   xero_balance?: number;
@@ -114,18 +126,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   React.useEffect(() => {
     applyFilters();
   }, [transactions, searchText, minAmount, maxAmount, statusFilter, monthFilter, fyFilter]);
-
-  // Get financial year from date (July 1 - June 30)
-  const getFinancialYear = (date: Date): string => {
-    const month = date.getMonth(); // 0-11
-    const year = date.getFullYear();
-    // FY starts July 1st, so Jan-June is previous FY
-    if (month < 6) { // Jan-June
-      return `FY${(year - 1).toString().slice(-2)}/${year.toString().slice(-2)}`;
-    } else { // July-Dec
-      return `FY${year.toString().slice(-2)}/${(year + 1).toString().slice(-2)}`;
-    }
-  };
 
   // Get unique months and FYs from transactions
   const availableMonths = React.useMemo(() => {
