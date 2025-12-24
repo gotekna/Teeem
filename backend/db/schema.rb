@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_223828) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_24_231456) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2835,6 +2835,297 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_223828) do
     t.index ["model_class"], name: "index_foundations_on_model_class"
     t.index ["slug"], name: "index_foundations_on_slug", unique: true
     t.index ["table_type"], name: "index_foundations_on_table_type"
+  end
+
+  create_table "gl_account_balances", force: :cascade do |t|
+    t.bigint "gl_account_id", null: false
+    t.bigint "gl_period_id", null: false
+    t.decimal "opening_balance", precision: 15, scale: 2, default: "0.0"
+    t.decimal "period_debits", precision: 15, scale: 2, default: "0.0"
+    t.decimal "period_credits", precision: 15, scale: 2, default: "0.0"
+    t.decimal "closing_balance", precision: 15, scale: 2, default: "0.0"
+    t.decimal "net_movement", precision: 15, scale: 2, default: "0.0"
+    t.decimal "ytd_debits", precision: 15, scale: 2, default: "0.0"
+    t.decimal "ytd_credits", precision: 15, scale: 2, default: "0.0"
+    t.decimal "ytd_balance", precision: 15, scale: 2, default: "0.0"
+    t.datetime "calculated_at"
+    t.integer "transaction_count", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["calculated_at"], name: "index_gl_account_balances_on_calculated_at"
+    t.index ["gl_account_id", "gl_period_id"], name: "index_gl_account_balances_on_gl_account_id_and_gl_period_id", unique: true
+    t.index ["gl_account_id"], name: "index_gl_account_balances_on_gl_account_id"
+    t.index ["gl_period_id"], name: "index_gl_account_balances_on_gl_period_id"
+  end
+
+  create_table "gl_accounts", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.string "external_account_id"
+    t.datetime "external_synced_at"
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "description"
+    t.string "account_type", null: false
+    t.string "account_class"
+    t.string "system_account"
+    t.string "tax_type"
+    t.boolean "is_bank_account", default: false
+    t.boolean "is_system_account", default: false
+    t.boolean "active", default: true
+    t.boolean "show_in_expense_claims", default: false
+    t.bigint "parent_account_id"
+    t.integer "display_order"
+    t.string "currency_code", default: "AUD"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_class"], name: "index_gl_accounts_on_account_class"
+    t.index ["account_type"], name: "index_gl_accounts_on_account_type"
+    t.index ["active"], name: "index_gl_accounts_on_active"
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_accounts_unique_code", unique: true
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "external_account_id"], name: "idx_gl_accounts_unique_external", unique: true, where: "(external_account_id IS NOT NULL)"
+    t.index ["corporate_company_id"], name: "index_gl_accounts_on_corporate_company_id"
+    t.index ["is_bank_account"], name: "index_gl_accounts_on_is_bank_account"
+    t.index ["parent_account_id"], name: "index_gl_accounts_on_parent_account_id"
+  end
+
+  create_table "gl_budgets", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_account_id", null: false
+    t.bigint "gl_period_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "budget_type", default: "monthly"
+    t.string "tracking_category"
+    t.string "tracking_option"
+    t.bigint "job_id"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["budget_type"], name: "index_gl_budgets_on_budget_type"
+    t.index ["corporate_company_id"], name: "index_gl_budgets_on_corporate_company_id"
+    t.index ["gl_account_id", "gl_period_id", "tracking_category", "tracking_option", "job_id"], name: "idx_gl_budgets_unique", unique: true
+    t.index ["gl_account_id"], name: "index_gl_budgets_on_gl_account_id"
+    t.index ["gl_period_id"], name: "index_gl_budgets_on_gl_period_id"
+    t.index ["job_id"], name: "index_gl_budgets_on_job_id"
+  end
+
+  create_table "gl_currencies", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "symbol"
+    t.boolean "is_base_currency", default: false
+    t.boolean "active", default: true
+    t.integer "decimal_places", default: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "code"], name: "index_gl_currencies_on_corporate_company_id_and_code", unique: true
+    t.index ["corporate_company_id", "is_base_currency"], name: "idx_gl_currencies_base_currency", unique: true, where: "(is_base_currency = true)"
+    t.index ["corporate_company_id"], name: "index_gl_currencies_on_corporate_company_id"
+  end
+
+  create_table "gl_exchange_rates", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_currency_id", null: false
+    t.date "effective_date", null: false
+    t.decimal "rate", precision: 15, scale: 6, null: false
+    t.string "source"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "gl_currency_id", "effective_date"], name: "idx_gl_exchange_rates_unique", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_exchange_rates_on_corporate_company_id"
+    t.index ["gl_currency_id", "effective_date"], name: "index_gl_exchange_rates_on_gl_currency_id_and_effective_date"
+    t.index ["gl_currency_id"], name: "index_gl_exchange_rates_on_gl_currency_id"
+  end
+
+  create_table "gl_journal_entries", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_period_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.string "entry_number"
+    t.date "entry_date", null: false
+    t.string "description"
+    t.string "source_type", null: false
+    t.string "source_id"
+    t.string "external_source_id"
+    t.string "source_number"
+    t.decimal "total_debits", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_credits", precision: 15, scale: 2, default: "0.0"
+    t.string "currency_code", default: "AUD"
+    t.decimal "exchange_rate", precision: 15, scale: 6, default: "1.0"
+    t.string "status", default: "posted"
+    t.datetime "voided_at"
+    t.string "void_reason"
+    t.bigint "job_id"
+    t.datetime "external_created_at"
+    t.datetime "external_synced_at"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "entry_date"], name: "idx_gl_journal_entries_date_lookup"
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "source_type", "external_source_id"], name: "idx_gl_journal_entries_unique_external", unique: true, where: "(external_source_id IS NOT NULL)"
+    t.index ["corporate_company_id"], name: "index_gl_journal_entries_on_corporate_company_id"
+    t.index ["created_by_id"], name: "index_gl_journal_entries_on_created_by_id"
+    t.index ["entry_date"], name: "index_gl_journal_entries_on_entry_date"
+    t.index ["entry_number"], name: "index_gl_journal_entries_on_entry_number"
+    t.index ["gl_period_id"], name: "index_gl_journal_entries_on_gl_period_id"
+    t.index ["job_id"], name: "index_gl_journal_entries_on_job_id"
+    t.index ["source_type"], name: "index_gl_journal_entries_on_source_type"
+    t.index ["status"], name: "index_gl_journal_entries_on_status"
+  end
+
+  create_table "gl_ledger_lines", force: :cascade do |t|
+    t.bigint "gl_journal_entry_id", null: false
+    t.bigint "gl_account_id", null: false
+    t.decimal "debit", precision: 15, scale: 2, default: "0.0"
+    t.decimal "credit", precision: 15, scale: 2, default: "0.0"
+    t.string "description"
+    t.string "reference"
+    t.string "tax_type"
+    t.decimal "tax_amount", precision: 15, scale: 2, default: "0.0"
+    t.string "tracking_category_1"
+    t.string "tracking_option_1"
+    t.string "tracking_category_2"
+    t.string "tracking_option_2"
+    t.bigint "job_id"
+    t.bigint "contact_id"
+    t.decimal "running_balance", precision: 15, scale: 2
+    t.integer "line_number"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_gl_ledger_lines_on_contact_id", where: "(contact_id IS NOT NULL)"
+    t.index ["gl_account_id", "created_at"], name: "index_gl_ledger_lines_on_gl_account_id_and_created_at"
+    t.index ["gl_account_id"], name: "index_gl_ledger_lines_on_gl_account_id"
+    t.index ["gl_journal_entry_id"], name: "index_gl_ledger_lines_on_gl_journal_entry_id"
+    t.index ["job_id"], name: "index_gl_ledger_lines_on_job_id", where: "(job_id IS NOT NULL)"
+  end
+
+  create_table "gl_opening_balances", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_account_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.date "effective_date", null: false
+    t.decimal "balance", precision: 15, scale: 2, default: "0.0"
+    t.string "source"
+    t.string "financial_year"
+    t.decimal "reconciled_balance", precision: 15, scale: 2
+    t.date "reconciled_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id"], name: "index_gl_opening_balances_on_corporate_company_id"
+    t.index ["effective_date"], name: "index_gl_opening_balances_on_effective_date"
+    t.index ["financial_year"], name: "index_gl_opening_balances_on_financial_year"
+    t.index ["gl_account_id", "effective_date"], name: "index_gl_opening_balances_on_gl_account_id_and_effective_date", unique: true
+    t.index ["gl_account_id"], name: "index_gl_opening_balances_on_gl_account_id"
+  end
+
+  create_table "gl_periods", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.string "financial_year", null: false
+    t.integer "period_number", null: false
+    t.string "period_name"
+    t.date "period_start", null: false
+    t.date "period_end", null: false
+    t.string "status", default: "open"
+    t.datetime "closed_at"
+    t.bigint "closed_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["closed_by_id"], name: "index_gl_periods_on_closed_by_id"
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "financial_year", "period_number"], name: "idx_gl_periods_unique", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_periods_on_corporate_company_id"
+    t.index ["financial_year"], name: "index_gl_periods_on_financial_year"
+    t.index ["period_start", "period_end"], name: "index_gl_periods_on_period_start_and_period_end"
+    t.index ["status"], name: "index_gl_periods_on_status"
+  end
+
+  create_table "gl_provider_credentials", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "provider", null: false
+    t.string "tenant_id", null: false
+    t.string "tenant_name"
+    t.text "access_token_encrypted"
+    t.text "refresh_token_encrypted"
+    t.datetime "token_expires_at"
+    t.string "status", default: "pending"
+    t.string "error_message"
+    t.datetime "connected_at"
+    t.datetime "disconnected_at"
+    t.datetime "last_sync_at"
+    t.datetime "last_full_sync_at"
+    t.string "last_sync_status"
+    t.boolean "sync_enabled", default: true
+    t.boolean "two_way_sync", default: false
+    t.jsonb "sync_settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "provider", "tenant_id"], name: "idx_gl_provider_credentials_unique", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_provider_credentials_on_corporate_company_id"
+    t.index ["provider"], name: "index_gl_provider_credentials_on_provider"
+    t.index ["status"], name: "index_gl_provider_credentials_on_status"
+    t.index ["sync_enabled"], name: "index_gl_provider_credentials_on_sync_enabled"
+  end
+
+  create_table "gl_sync_logs", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_provider_credential_id"
+    t.string "external_provider", null: false
+    t.string "external_tenant_id", null: false
+    t.string "sync_type", null: false
+    t.string "status", null: false
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.integer "records_processed", default: 0
+    t.integer "records_created", default: 0
+    t.integer "records_updated", default: 0
+    t.integer "records_skipped", default: 0
+    t.integer "records_failed", default: 0
+    t.integer "total_records"
+    t.text "error_message"
+    t.jsonb "error_details", default: {}
+    t.jsonb "details", default: {}
+    t.datetime "sync_from"
+    t.datetime "sync_to"
+    t.string "trigger"
+    t.bigint "triggered_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "created_at"], name: "idx_gl_sync_logs_lookup"
+    t.index ["corporate_company_id"], name: "index_gl_sync_logs_on_corporate_company_id"
+    t.index ["gl_provider_credential_id"], name: "index_gl_sync_logs_on_gl_provider_credential_id"
+    t.index ["started_at"], name: "index_gl_sync_logs_on_started_at"
+    t.index ["status"], name: "index_gl_sync_logs_on_status"
+    t.index ["sync_type"], name: "index_gl_sync_logs_on_sync_type"
+    t.index ["triggered_by_id"], name: "index_gl_sync_logs_on_triggered_by_id"
+  end
+
+  create_table "gl_tax_rates", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.string "external_tax_type"
+    t.string "code", null: false
+    t.string "name", null: false
+    t.string "tax_type"
+    t.decimal "rate", precision: 5, scale: 2, null: false
+    t.bigint "gl_account_id"
+    t.boolean "active", default: true
+    t.boolean "can_apply_to_expenses", default: true
+    t.boolean "can_apply_to_revenue", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_gl_tax_rates_on_active"
+    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_tax_rates_unique", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_tax_rates_on_corporate_company_id"
+    t.index ["gl_account_id"], name: "index_gl_tax_rates_on_gl_account_id"
+    t.index ["tax_type"], name: "index_gl_tax_rates_on_tax_type"
   end
 
   create_table "gold_standard_table", force: :cascade do |t|
@@ -6421,6 +6712,35 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_223828) do
   add_foreign_key "folder_template_items", "folder_template_items", column: "parent_id"
   add_foreign_key "folder_template_items", "folder_templates"
   add_foreign_key "folder_templates", "users", column: "created_by_id"
+  add_foreign_key "gl_account_balances", "gl_accounts"
+  add_foreign_key "gl_account_balances", "gl_periods"
+  add_foreign_key "gl_accounts", "corporate_companies"
+  add_foreign_key "gl_accounts", "gl_accounts", column: "parent_account_id"
+  add_foreign_key "gl_budgets", "corporate_companies"
+  add_foreign_key "gl_budgets", "gl_accounts"
+  add_foreign_key "gl_budgets", "gl_periods"
+  add_foreign_key "gl_budgets", "jobs"
+  add_foreign_key "gl_currencies", "corporate_companies"
+  add_foreign_key "gl_exchange_rates", "corporate_companies"
+  add_foreign_key "gl_exchange_rates", "gl_currencies"
+  add_foreign_key "gl_journal_entries", "corporate_companies"
+  add_foreign_key "gl_journal_entries", "gl_periods"
+  add_foreign_key "gl_journal_entries", "jobs"
+  add_foreign_key "gl_journal_entries", "users", column: "created_by_id"
+  add_foreign_key "gl_ledger_lines", "contacts"
+  add_foreign_key "gl_ledger_lines", "gl_accounts"
+  add_foreign_key "gl_ledger_lines", "gl_journal_entries"
+  add_foreign_key "gl_ledger_lines", "jobs"
+  add_foreign_key "gl_opening_balances", "corporate_companies"
+  add_foreign_key "gl_opening_balances", "gl_accounts"
+  add_foreign_key "gl_periods", "corporate_companies"
+  add_foreign_key "gl_periods", "users", column: "closed_by_id"
+  add_foreign_key "gl_provider_credentials", "corporate_companies"
+  add_foreign_key "gl_sync_logs", "corporate_companies"
+  add_foreign_key "gl_sync_logs", "gl_provider_credentials"
+  add_foreign_key "gl_sync_logs", "users", column: "triggered_by_id"
+  add_foreign_key "gl_tax_rates", "corporate_companies"
+  add_foreign_key "gl_tax_rates", "gl_accounts"
   add_foreign_key "grok_plans", "users"
   add_foreign_key "health_kudos_events", "users", on_delete: :nullify
   add_foreign_key "imap_credentials", "users"

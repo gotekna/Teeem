@@ -296,7 +296,11 @@ export default function PurchaseOrderDetailPage() {
         (response.sm_tasks && response.sm_tasks.length > 0 ? response.sm_tasks[0].sm_template_row_id : null);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
-      const reqDate = response.required_date || "";
+      // SSoT: Auto-populate required_date from linked task's start_date if not already set
+      const linkedTaskStartDate = response.sm_tasks && response.sm_tasks.length > 0
+        ? response.sm_tasks[0].start_date
+        : null;
+      const reqDate = response.required_date || linkedTaskStartDate || "";
       const payDueDate = response.due_date || "";
       const ordDate = response.ordered_date || "";
       const note = response.special_instructions || "";
@@ -415,7 +419,11 @@ export default function PurchaseOrderDetailPage() {
         (response.sm_tasks && response.sm_tasks.length > 0 ? response.sm_tasks[0].sm_template_row_id : null);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
-      const reqDate = response.required_date || "";
+      // SSoT: Auto-populate required_date from linked task's start_date if not already set
+      const linkedTaskStartDate = response.sm_tasks && response.sm_tasks.length > 0
+        ? response.sm_tasks[0].start_date
+        : null;
+      const reqDate = response.required_date || linkedTaskStartDate || "";
       const payDueDate = response.due_date || "";
       const ordDate = response.ordered_date || "";
       const note = response.special_instructions || "";

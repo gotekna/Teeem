@@ -2570,20 +2570,20 @@ export class GanttCanvas {
 
     this.renderer.drawTaskBars(this.state.tasks, this.state.selectedTaskIds, this.state.hoveredTaskId, this.state.hoveredEdge, this.containerHeight, criticalTasks);
 
-    // Draw dependency lines if visible
-    if (this.dependenciesVisible) {
-      const brokenDeps = this.getBrokenDependencyIds();
-      this.renderer.drawDependencies(
-        this.state.tasks,
-        this.state.dependencies,
-        this.state.lastSelectedTaskId,
-        this.containerHeight,
-        criticalDeps,
-        this.highlightedDeps.size > 0 ? this.highlightedDeps : undefined,
-        this.highlightedDeps.size > 0 ? this.highlightPhase : undefined,
-        brokenDeps.size > 0 ? brokenDeps : undefined
-      );
-    }
+    // Draw dependency lines
+    // When toggle is OFF, still show highlighted deps for selected task (black/yellow & black/white)
+    const brokenDeps = this.getBrokenDependencyIds();
+    this.renderer.drawDependencies(
+      this.state.tasks,
+      this.state.dependencies,
+      this.state.lastSelectedTaskId,
+      this.containerHeight,
+      criticalDeps,
+      this.highlightedDeps.size > 0 ? this.highlightedDeps : undefined,
+      this.highlightedDeps.size > 0 ? this.highlightPhase : undefined,
+      brokenDeps.size > 0 ? brokenDeps : undefined,
+      !this.dependenciesVisible // hideNonHighlighted: when toggle is OFF, hide normal lines
+    );
 
     // Draw drag preview overlay
     if (this.isDragging && this.dragTask && this.dragCurrentDate) {

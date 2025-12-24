@@ -1017,7 +1017,8 @@ export class Renderer {
     criticalDependencyIds?: Set<string>,
     flashingDepIds?: Set<string>,
     flashPhase?: number,
-    brokenDepIds?: Set<string>
+    brokenDepIds?: Set<string>,
+    hideNonHighlighted: boolean = false
   ): void {
     const taskMap = new Map(tasks.map((t, i) => [t.id, { task: t, index: i }]));
 
@@ -1052,13 +1053,15 @@ export class Renderer {
     };
 
     // Draw non-highlighted dependencies first (so highlighted ones are on top)
-    dependencies.forEach((dep) => {
-      const isHighlighted = highlightedPredecessors.has(dep.id) || highlightedSuccessors.has(dep.id);
-      if (isHighlighted) return; // Skip, will draw later
+    // Skip this section entirely if hideNonHighlighted is true (toggle is OFF)
+    if (!hideNonHighlighted) {
+      dependencies.forEach((dep) => {
+        const isHighlighted = highlightedPredecessors.has(dep.id) || highlightedSuccessors.has(dep.id);
+        if (isHighlighted) return; // Skip, will draw later
 
-      const from = taskMap.get(dep.fromId);
-      const to = taskMap.get(dep.toId);
-      if (!from || !to) return;
+        const from = taskMap.get(dep.fromId);
+        const to = taskMap.get(dep.toId);
+        if (!from || !to) return;
 
       // Virtual scrolling: skip if both tasks are outside visible range
       if (!shouldRenderDep(from.index, to.index)) return;
@@ -1080,9 +1083,14 @@ export class Renderer {
           this.drawDependencyLine(fromX, fromY, toX, toY, dep.type, false, undefined, tasks, from.index, to.index);
         }
       }
-    });
+      });
+    } // End of hideNonHighlighted check
 
     // Draw highlighted dependencies on top with distinct styles for predecessors vs successors
+    // Debug: log what we're trying to highlight
+    if (highlightedTaskId && (highlightedPredecessors.size > 0 || highlightedSuccessors.size > 0)) {
+      console.log('[Deps] Highlighting for task:', highlightedTaskId, 'predecessors:', highlightedPredecessors.size, 'successors:', highlightedSuccessors.size);
+    }
     dependencies.forEach((dep) => {
       const isPredecessor = highlightedPredecessors.has(dep.id);
       const isSuccessor = highlightedSuccessors.has(dep.id);
@@ -1090,15 +1098,20 @@ export class Renderer {
 
       const from = taskMap.get(dep.fromId);
       const to = taskMap.get(dep.toId);
-      if (!from || !to) return;
+      if (!from || !to) {
+        console.log('[Deps] Skipping dep - task not found:', dep.fromId, '->', dep.toId, 'from:', !!from, 'to:', !!to);
+        return;
+      }
+      const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
+      const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
+      const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
+      console.log('[Deps] Drawing striped line:', from.task.name, '->', to.task.name, isPredecessor ? 'PRED' : 'SUCC',
+        'coords:', { fromX: Math.round(fromX), fromY: Math.round(fromY), toX: Math.round(toX), toY: Math.round(toY) },
+        'indices:', from.index, '->', to.index);
 
       // Virtual scrolling: skip if both tasks are outside visible range
       // (but we still render highlighted ones for UX - user clicked on a task)
       if (!shouldRenderDep(from.index, to.index)) return;
-
-      const { fromX, toX } = this.getDependencyEndpoints(dep, from.task, to.task);
-      const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
-      const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
       // Predecessors: black/yellow stripes, Successors: black/white dashed
       if (isPredecessor) {
@@ -1108,7 +1121,7 @@ export class Renderer {
       }
     });
 
-    // Draw flashing dependencies with animation effect
+    // Draw flashing dependencies with animation effect (uses striped pattern)
     if (flashingDepIds && flashingDepIds.size > 0 && flashPhase !== undefined) {
       dependencies.forEach((dep) => {
         if (!flashingDepIds.has(dep.id)) return;
@@ -1121,32 +1134,24 @@ export class Renderer {
         const fromY = this.viewport.rowToY(from.index) + this.config.rowHeight / 2;
         const toY = this.viewport.rowToY(to.index) + this.config.rowHeight / 2;
 
-        // Animated glow effect using flashPhase (0-1)
+        // Determine if this is a predecessor or successor relative to highlighted task
+        const isPredecessor = highlightedPredecessors.has(dep.id);
+
+        // Draw striped line with glow effect
         this.ctx.save();
 
-        // Outer glow - pulses with flashPhase
-        const glowOpacity = 0.3 + flashPhase * 0.5;
-        const glowWidth = 6 + flashPhase * 4;
-        this.ctx.strokeStyle = `rgba(251, 191, 36, ${glowOpacity})`; // amber glow
-        this.ctx.lineWidth = glowWidth;
-        this.ctx.lineCap = 'round';
-        this.ctx.shadowColor = '#fbbf24';
-        this.ctx.shadowBlur = 10 + flashPhase * 10;
+        // Glow effect (pulses with flashPhase)
+        const glowOpacity = 0.2 + flashPhase * 0.3;
+        const glowColor = isPredecessor ? `rgba(251, 191, 36, ${glowOpacity})` : `rgba(200, 200, 200, ${glowOpacity})`;
+        this.ctx.shadowColor = isPredecessor ? '#fbbf24' : '#cccccc';
+        this.ctx.shadowBlur = 4 + flashPhase * 6;
 
-        // Draw glow path
-        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type, tasks, from.index, to.index);
-        this.ctx.stroke();
-
-        // Inner line - bright amber
-        this.ctx.shadowBlur = 0;
-        this.ctx.strokeStyle = '#f59e0b';
-        this.ctx.lineWidth = 2 + flashPhase;
-        this.drawDependencyPath(fromX, fromY, toX, toY, dep.type, tasks, from.index, to.index);
-        this.ctx.stroke();
-
-        // Draw arrowhead
-        this.ctx.fillStyle = '#f59e0b';
-        this.drawDependencyArrowhead(toX, toY, dep.type, from.index < to.index);
+        // Draw striped line - predecessors: black/yellow, successors: black/white
+        if (isPredecessor) {
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#fbbf24', tasks, from.index, to.index);
+        } else {
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', '#ffffff', tasks, from.index, to.index);
+        }
 
         this.ctx.restore();
       });
