@@ -88,6 +88,8 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   const [minAmount, setMinAmount] = React.useState("");
   const [maxAmount, setMaxAmount] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [monthFilter, setMonthFilter] = React.useState<string>("all");
+  const [fyFilter, setFyFilter] = React.useState<string>("all");
 
   // Meta info for debugging
   const [meta, setMeta] = React.useState<{
@@ -111,7 +113,42 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   // Apply filters when transactions or filter criteria change
   React.useEffect(() => {
     applyFilters();
-  }, [transactions, searchText, minAmount, maxAmount, statusFilter]);
+  }, [transactions, searchText, minAmount, maxAmount, statusFilter, monthFilter, fyFilter]);
+
+  // Get financial year from date (July 1 - June 30)
+  const getFinancialYear = (date: Date): string => {
+    const month = date.getMonth(); // 0-11
+    const year = date.getFullYear();
+    // FY starts July 1st, so Jan-June is previous FY
+    if (month < 6) { // Jan-June
+      return `FY${(year - 1).toString().slice(-2)}/${year.toString().slice(-2)}`;
+    } else { // July-Dec
+      return `FY${year.toString().slice(-2)}/${(year + 1).toString().slice(-2)}`;
+    }
+  };
+
+  // Get unique months and FYs from transactions
+  const availableMonths = React.useMemo(() => {
+    const months = new Set<string>();
+    transactions.forEach(tx => {
+      const date = parseXeroDate(tx.date);
+      if (date) {
+        months.add(format(date, "MMMM yyyy"));
+      }
+    });
+    return Array.from(months).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+  }, [transactions]);
+
+  const availableFYs = React.useMemo(() => {
+    const fys = new Set<string>();
+    transactions.forEach(tx => {
+      const date = parseXeroDate(tx.date);
+      if (date) {
+        fys.add(getFinancialYear(date));
+      }
+    });
+    return Array.from(fys).sort().reverse();
+  }, [transactions]);
 
   const applyFilters = () => {
     let filtered = [...transactions];
@@ -152,6 +189,24 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
       });
     }
 
+    // Month filter
+    if (monthFilter !== "all") {
+      filtered = filtered.filter(tx => {
+        const date = parseXeroDate(tx.date);
+        if (!date) return false;
+        return format(date, "MMMM yyyy") === monthFilter;
+      });
+    }
+
+    // FY filter
+    if (fyFilter !== "all") {
+      filtered = filtered.filter(tx => {
+        const date = parseXeroDate(tx.date);
+        if (!date) return false;
+        return getFinancialYear(date) === fyFilter;
+      });
+    }
+
     setFilteredTransactions(filtered);
   };
 
@@ -160,6 +215,8 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
     setMinAmount("");
     setMaxAmount("");
     setStatusFilter("all");
+    setMonthFilter("all");
+    setFyFilter("all");
   };
 
   const loadBankAccounts = async () => {
@@ -327,7 +384,28 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   }
 
   const selectedAccountDetails = bankAccounts.find(a => a.account_id === selectedAccount);
-  const hasActiveFilters = searchText || minAmount || maxAmount || statusFilter !== "all";
+  const hasActiveFilters = searchText || minAmount || maxAmount || statusFilter !== "all" || monthFilter !== "all" || fyFilter !== "all";
+
+  // Calculate running balance for each transaction (sorted by date, newest first)
+  const transactionsWithBalance = React.useMemo(() => {
+    const endBalance = accountBalance.xero_balance || 0;
+
+    // Sort by date descending (newest first)
+    const sorted = [...filteredTransactions].sort((a, b) => {
+      const dateA = parseXeroDate(a.date);
+      const dateB = parseXeroDate(b.date);
+      if (!dateA || !dateB) return 0;
+      return dateB.getTime() - dateA.getTime(); // Descending
+    });
+
+    // Calculate running balance backwards from the end balance
+    let runningBalance = endBalance;
+    return sorted.map(tx => {
+      const balanceAfter = runningBalance;
+      runningBalance -= tx.amount; // Go backwards
+      return { ...tx, balance: balanceAfter };
+    });
+  }, [filteredTransactions, accountBalance.xero_balance]);
 
   return (
     <Card>
@@ -382,18 +460,18 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
 
               {/* Date Range & Search */}
               <div className="flex items-center gap-3">
-                <Input
+                <input
                   type="date"
                   value={dateRange.from}
                   onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-                  className="w-32 h-8 text-sm"
+                  className="w-36 h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <span className="text-muted-foreground text-sm">to</span>
-                <Input
+                <input
                   type="date"
                   value={dateRange.to}
                   onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-                  className="w-32 h-8 text-sm"
+                  className="w-36 h-8 text-sm px-2 border rounded-md bg-background cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
                 />
                 <Button
                   variant={showFilters ? "secondary" : "outline"}
@@ -413,10 +491,10 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
             {/* Search/Filter Panel - Xero Style */}
             {showFilters && (
               <div className="mt-4 p-4 border rounded-lg bg-muted/30">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
                   {/* Description/Contact Search */}
-                  <div className="md:col-span-2">
-                    <label className="text-sm text-muted-foreground mb-1 block">Description or contact name</label>
+                  <div className="col-span-2">
+                    <label className="text-sm text-muted-foreground mb-1 block">Description</label>
                     <Input
                       type="text"
                       placeholder="Search..."
@@ -425,25 +503,59 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                     />
                   </div>
 
+                  {/* Month Filter */}
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Month</label>
+                    <Select value={monthFilter} onValueChange={setMonthFilter}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Months</SelectItem>
+                        {availableMonths.map(month => (
+                          <SelectItem key={month} value={month}>{month}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* FY Filter */}
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">FY</label>
+                    <Select value={fyFilter} onValueChange={setFyFilter}>
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All FYs</SelectItem>
+                        {availableFYs.map(fy => (
+                          <SelectItem key={fy} value={fy}>{fy}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Min Amount */}
                   <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Min Amount</label>
+                    <label className="text-sm text-muted-foreground mb-1 block">Min $</label>
                     <Input
                       type="number"
-                      placeholder="0.00"
+                      placeholder="0"
                       value={minAmount}
                       onChange={(e) => setMinAmount(e.target.value)}
+                      className="h-9"
                     />
                   </div>
 
                   {/* Max Amount */}
                   <div>
-                    <label className="text-sm text-muted-foreground mb-1 block">Max Amount</label>
+                    <label className="text-sm text-muted-foreground mb-1 block">Max $</label>
                     <Input
                       type="number"
-                      placeholder="0.00"
+                      placeholder="0"
                       value={maxAmount}
                       onChange={(e) => setMaxAmount(e.target.value)}
+                      className="h-9"
                     />
                   </div>
 
@@ -451,7 +563,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                   <div>
                     <label className="text-sm text-muted-foreground mb-1 block">Status</label>
                     <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-9">
                         <SelectValue placeholder="All" />
                       </SelectTrigger>
                       <SelectContent>
@@ -465,7 +577,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                 </div>
 
                 {/* Filter Actions */}
-                <div className="flex justify-end gap-2 mt-4">
+                <div className="flex justify-end gap-2 mt-3">
                   <Button variant="ghost" size="sm" onClick={clearFilters}>
                     Clear
                   </Button>
@@ -492,7 +604,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : filteredTransactions.length === 0 ? (
+        ) : transactionsWithBalance.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>{hasActiveFilters ? "No transactions match your filters" : "No transactions found for this date range"}</p>
             {hasActiveFilters && (
@@ -511,20 +623,18 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                       Date <ChevronDown className="h-3 w-3 opacity-50" />
                     </span>
                   </th>
-                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Description</th>
-                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Reference</th>
-                  <th className="py-2 px-3 text-right font-medium text-blue-600 dark:text-blue-400">Spent</th>
-                  <th className="py-2 px-3 text-right font-medium text-blue-600 dark:text-blue-400">Received</th>
-                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Source</th>
-                  <th className="py-2 px-3 text-left font-medium text-blue-600 dark:text-blue-400">Status</th>
+                  <th className="py-2 px-3 text-left font-medium">Description</th>
+                  <th className="py-2 px-3 text-left font-medium">Reference</th>
+                  <th className="py-2 px-3 text-right font-medium">Spent</th>
+                  <th className="py-2 px-3 text-right font-medium">Received</th>
+                  <th className="py-2 px-3 text-right font-medium">Balance</th>
+                  <th className="py-2 px-3 text-left font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((tx) => {
+                {transactionsWithBalance.map((tx) => {
                   const isSpend = tx.amount < 0;
                   const isReconciled = tx.status === "AUTHORISED" || tx.status === "RECONCILED";
-                  // Determine source - if it has a bank feed reference it's from bank feed
-                  const source = tx.reference ? "Bank Feed" : "Manual";
 
                   return (
                     <tr key={tx.transaction_id} className="border-b hover:bg-muted/30">
@@ -545,8 +655,8 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                       <td className="py-2 px-3 text-right font-mono">
                         {!isSpend && tx.amount > 0 ? formatCurrency(tx.amount) : ""}
                       </td>
-                      <td className="py-2 px-3 text-muted-foreground text-sm">
-                        {source}
+                      <td className="py-2 px-3 text-right font-mono font-medium">
+                        {formatCurrency(tx.balance)}
                       </td>
                       <td className="py-2 px-3">
                         {isReconciled ? (

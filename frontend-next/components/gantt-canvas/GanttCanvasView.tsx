@@ -2072,7 +2072,7 @@ export function GanttCanvasView({
                   className="space-y-0.5"
                 >
                   {columns.map((col, index) => {
-                    const isPermanent = col.id === 'name';
+                    const isPermanent = PERMANENT_COLUMN_IDS.includes(col.id);
                     return (
                       <SortableItem
                         key={col.id}
@@ -2139,7 +2139,7 @@ export function GanttCanvasView({
       {/* Main Content - Sidebar + Canvas */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Sidebar Table - always shows Name column, toggles other columns */}
-        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 160, maxWidth: showSidebar ? 600 : 200 }}>
+        <div className="flex flex-col border-r bg-background" style={{ width: 'auto', minWidth: showSidebar ? 200 : 260, maxWidth: showSidebar ? 600 : 280 }}>
             {/* Sidebar Header - Draggable Columns */}
             <DndContext
               sensors={columnDragSensors}
