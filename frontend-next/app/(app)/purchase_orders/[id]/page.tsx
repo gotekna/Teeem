@@ -308,8 +308,8 @@ export default function PurchaseOrderDetailPage() {
     try {
       setLoadingTasks(true);
       // Fetch SmTasks for this specific job (LOCAL schedule master)
-      const response = await api.get<{ entries: SmTask[] }>(`/api/v1/sm_tasks?job_id=${purchaseOrder.job_id}`);
-      setSmTasks(response?.entries || []);
+      const response = await api.get<{ tasks: SmTask[] }>(`/api/v1/sm_tasks?job_id=${purchaseOrder.job_id}`);
+      setSmTasks(response?.tasks || []);
     } catch (err) {
       console.error("Failed to load SmTasks:", err);
     } finally {
