@@ -39,6 +39,7 @@ import {
   Expand,
   ChevronDown,
   ChevronRight,
+  Layers,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -252,6 +253,9 @@ export function GanttCanvasView({
   // Collapsed headers state - stores row IDs of collapsed header rows
   const [collapsedHeaders, setCollapsedHeaders] = React.useState<Set<number>>(new Set());
 
+  // Filter to show only grouped tasks (headers + their children)
+  const [showOnlyGrouped, setShowOnlyGrouped] = React.useState(false);
+
   // Toggle header collapse state
   const toggleHeaderCollapse = React.useCallback((headerId: number) => {
     setCollapsedHeaders(prev => {
@@ -265,18 +269,34 @@ export function GanttCanvasView({
     });
   }, []);
 
-  // Filter visible tasks (hide children of collapsed headers)
+  // Get set of header IDs for quick lookup
+  const headerIds = React.useMemo(() => {
+    return new Set(rows.filter(r => r.category === 'Header').map(r => r.id));
+  }, [rows]);
+
+  // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
   const visibleTasks = React.useMemo(() => {
     return tasks.filter(task => {
       const row = rows.find(r => String(r.id) === task.id);
       if (!row) return true;
+
       // If this task has a parent and that parent is collapsed, hide it
       if (row.parent_row_id && collapsedHeaders.has(row.parent_row_id)) {
         return false;
       }
+
+      // If showOnlyGrouped is enabled, only show headers and their children
+      if (showOnlyGrouped) {
+        const isHeader = row.category === 'Header';
+        const isChild = Boolean(row.parent_row_id);
+        if (!isHeader && !isChild) {
+          return false; // Hide orphan tasks
+        }
+      }
+
       return true;
     });
-  }, [tasks, rows, collapsedHeaders]);
+  }, [tasks, rows, collapsedHeaders, showOnlyGrouped]);
 
   // Check if a row is a header (category === 'Header')
   const isHeaderRow = React.useCallback((row: SmTemplateRow | undefined) => {
@@ -965,6 +985,16 @@ export function GanttCanvasView({
             {showSidebar ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
           </Button>
 
+          {/* Grouped Tasks Filter Toggle */}
+          <Button
+            variant={showOnlyGrouped ? "default" : "ghost"}
+            size="icon"
+            onClick={() => setShowOnlyGrouped(!showOnlyGrouped)}
+            title={showOnlyGrouped ? "Show All Tasks" : "Show Only Grouped Tasks"}
+          >
+            <Layers className="h-4 w-4" />
+          </Button>
+
           {/* Fullscreen Toggle */}
           {showFullscreenButton && (
             <Button
@@ -1103,6 +1133,7 @@ export function GanttCanvasView({
                   const isHeader = isHeaderRow(row);
                   const childCount = isHeader && row ? getChildCount(row.id) : 0;
                   const isCollapsed = row ? collapsedHeaders.has(row.id) : false;
+                  const isChild = Boolean(row?.parent_row_id);
 
                   // Render cell content based on column id
                   const renderCell = (col: ColumnConfig) => {
@@ -1200,7 +1231,9 @@ export function GanttCanvasView({
                         "flex items-center border-b text-xs hover:bg-muted/30 px-2",
                         isHeader
                           ? "bg-primary/10 dark:bg-primary/20 border-l-4 border-l-primary"
-                          : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
+                          : isChild
+                            ? "bg-primary/5 dark:bg-primary/10 border-l-2 border-l-primary/30"
+                            : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
                       style={{ height: 40 }}
                     >
