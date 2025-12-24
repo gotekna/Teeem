@@ -151,27 +151,17 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
     return Array.from(fys).sort().reverse();
   }, [transactions]);
 
-  // Calculate running balance for each transaction (sorted by date, newest first)
+  // Sort transactions by date (newest first)
   // IMPORTANT: This useMemo must be BEFORE all early returns to satisfy React's rules of hooks
-  const transactionsWithBalance = React.useMemo(() => {
-    const endBalance = accountBalance.xero_balance || 0;
-
+  const sortedTransactions = React.useMemo(() => {
     // Sort by date descending (newest first)
-    const sorted = [...filteredTransactions].sort((a, b) => {
+    return [...filteredTransactions].sort((a, b) => {
       const dateA = parseXeroDate(a.date);
       const dateB = parseXeroDate(b.date);
       if (!dateA || !dateB) return 0;
       return dateB.getTime() - dateA.getTime(); // Descending
     });
-
-    // Calculate running balance backwards from the end balance
-    let runningBalance = endBalance;
-    return sorted.map(tx => {
-      const balanceAfter = runningBalance;
-      runningBalance -= tx.amount; // Go backwards
-      return { ...tx, balance: balanceAfter };
-    });
-  }, [filteredTransactions, accountBalance.xero_balance]);
+  }, [filteredTransactions]);
 
   const applyFilters = () => {
     let filtered = [...transactions];
@@ -632,7 +622,7 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
           </div>
-        ) : transactionsWithBalance.length === 0 ? (
+        ) : sortedTransactions.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <p>{hasActiveFilters ? "No transactions match your filters" : "No transactions found for this date range"}</p>
             {hasActiveFilters && (
@@ -655,12 +645,11 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                   <th className="py-2 px-3 text-left font-medium">Reference</th>
                   <th className="py-2 px-3 text-right font-medium">Spent</th>
                   <th className="py-2 px-3 text-right font-medium">Received</th>
-                  <th className="py-2 px-3 text-right font-medium">Balance</th>
                   <th className="py-2 px-3 text-left font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {transactionsWithBalance.map((tx) => {
+                {sortedTransactions.map((tx) => {
                   const isSpend = tx.amount < 0;
                   const isReconciled = tx.status === "AUTHORISED" || tx.status === "RECONCILED";
 
@@ -682,9 +671,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
                       </td>
                       <td className="py-2 px-3 text-right font-mono">
                         {!isSpend && tx.amount > 0 ? formatCurrency(tx.amount) : ""}
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono font-medium">
-                        {formatCurrency(tx.balance)}
                       </td>
                       <td className="py-2 px-3">
                         {isReconciled ? (

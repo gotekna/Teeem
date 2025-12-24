@@ -836,7 +836,8 @@ export class GanttCanvas {
     const today = getTodayInCompanyTimezone();
     const x = this.viewport.dateToX(today);
     const scrollX = position === 'center' ? x - this.containerWidth / 2 : x - 50; // 50px margin from left
-    this.viewport.scrollTo(Math.max(0, scrollX), this.state.viewportState.scrollY);
+    // Use viewport.getState() for ACTUAL scroll position (this.state.viewportState is stale)
+    this.viewport.scrollTo(Math.max(0, scrollX), this.viewport.getState().scrollY);
     this.markDirty();
   }
 
@@ -848,7 +849,8 @@ export class GanttCanvas {
   scrollToDate(date: Date, center: boolean = true): void {
     const x = this.viewport.dateToX(date);
     const scrollX = center ? x - this.containerWidth / 2 : x;
-    this.viewport.scrollTo(scrollX, this.state.viewportState.scrollY);
+    // Use viewport.getState() for ACTUAL scroll position (this.state.viewportState is stale)
+    this.viewport.scrollTo(scrollX, this.viewport.getState().scrollY);
     this.markDirty();
   }
 
@@ -900,7 +902,9 @@ export class GanttCanvas {
 
     // Keep the current Y position - DO NOT change vertical scroll
     // This keeps sidebar rows exactly where they are
-    const currentY = this.state.viewportState.scrollY;
+    // CRITICAL: Use viewport.getState() to get the ACTUAL scroll position
+    // (this.state.viewportState is a stale copy that doesn't update when scrolling)
+    const currentY = this.viewport.getState().scrollY;
 
     // Only scroll horizontally, keep vertical position unchanged
     this.viewport.scrollTo(x - this.containerWidth / 3, currentY);
@@ -7547,8 +7551,8 @@ export class GanttCanvas {
     this.state.viewportState.startDate = adjustedStart;
     this.viewport.setStartDate(adjustedStart);
 
-    // Scroll to start
-    this.viewport.scrollTo(0, this.state.viewportState.scrollY);
+    // Scroll to start - use viewport.getState() for ACTUAL scroll position
+    this.viewport.scrollTo(0, this.viewport.getState().scrollY);
     this.markDirty();
   }
 
@@ -7580,7 +7584,8 @@ export class GanttCanvas {
   centerOnDate(date: Date): void {
     const x = this.viewport.dateToX(date);
     const scrollX = x - this.containerWidth / 2;
-    this.viewport.scrollTo(scrollX, this.state.viewportState.scrollY);
+    // Use viewport.getState() for ACTUAL scroll position (this.state.viewportState is stale)
+    this.viewport.scrollTo(scrollX, this.viewport.getState().scrollY);
     this.markDirty();
   }
 
