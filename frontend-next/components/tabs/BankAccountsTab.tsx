@@ -15,6 +15,8 @@ import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { CorporateCompany } from "@/lib/types/corporate";
 import { toast } from "sonner";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 
 interface BankAccountsTabProps {
   company: CorporateCompany;
@@ -22,11 +24,18 @@ interface BankAccountsTabProps {
   entityId?: string;
 }
 
+interface SelectedBankAccount {
+  id: number | string;
+  account_name?: string;
+  xero_account_id?: string;
+}
+
 export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [entries, setEntries] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
+  const [selectedAccount, setSelectedAccount] = React.useState<SelectedBankAccount | null>(null);
 
   const effectiveCompanyId = companyId || String(company.id);
 
@@ -147,6 +156,15 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleRowClick = (row: any) => {
+    setSelectedAccount({
+      id: row.id,
+      account_name: row.account_name,
+      xero_account_id: row.xero_account_id
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -169,6 +187,7 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
         onRowUpdate={handleRowUpdate}
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}
+        onRowClick={handleRowClick}
         leftActions={
           <Button
             variant="outline"
@@ -190,6 +209,25 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
           </Button>
         }
       />
+
+      {/* Bank Transactions Sheet */}
+      <Sheet open={!!selectedAccount} onOpenChange={(open) => !open && setSelectedAccount(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-4xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>
+              {selectedAccount?.account_name || "Bank Transactions"}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-4">
+            {selectedAccount && (
+              <XeroStatementView
+                companyId={effectiveCompanyId}
+                tabKey="bank-statement"
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

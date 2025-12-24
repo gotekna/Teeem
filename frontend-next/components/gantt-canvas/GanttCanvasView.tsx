@@ -1118,7 +1118,7 @@ export function GanttCanvasView({
               >
                 <div
                   className="flex items-center border-b bg-muted/50 px-2 text-xs font-medium text-muted-foreground"
-                  style={{ height: 60, minHeight: 60 }}
+                  style={{ height: 50, minHeight: 50 }}
                 >
                   {visibleColumns.map((col) => (
                     <SortableColumnHeader
@@ -1138,7 +1138,7 @@ export function GanttCanvasView({
               className="flex-1 overflow-hidden"
               style={{ overflowY: 'hidden' }}
             >
-              <div style={{ height: visibleTasks.length * 40 }}>
+              <div style={{ height: visibleTasks.length * 28 }}>
                 {visibleTasks.map((task, index) => {
                   const row = rows.find(r => String(r.id) === task.id);
                   const startStr = task.startDate.toLocaleDateString('en-AU', { day: '2-digit', month: 'short' });
@@ -1249,7 +1249,7 @@ export function GanttCanvasView({
                             ? "bg-primary/5 dark:bg-primary/10 border-l-2 border-l-primary/30"
                             : (index % 2 === 0 ? "bg-background" : "bg-muted/10")
                       )}
-                      style={{ height: 40 }}
+                      style={{ height: 28 }}
                     >
                       {visibleColumns.map(col => (
                         <div key={col.id} style={{ width: col.width, minWidth: col.width, flexShrink: 0 }} className="truncate px-1">
