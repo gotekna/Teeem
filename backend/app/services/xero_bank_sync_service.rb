@@ -71,7 +71,7 @@ class XeroBankSyncService
 
       # Rename Xero account to standardized format if enabled
       if rename_xero && local_account&.persisted?
-        rename_result = rename_xero_account_to_standard(xero_account)
+        rename_result = rename_xero_account_to_standard(xero_account, local_account)
         if rename_result[:renamed]
           renamed_count += 1
           result[:new_xero_name] = rename_result[:new_name]
@@ -344,8 +344,8 @@ class XeroBankSyncService
     false
   end
 
-  # Rename Xero account to standardized format: {BANK_CODE} {BSB} {ACCOUNT_NUMBER}
-  def rename_xero_account_to_standard(xero_account)
+  # Rename Xero account to standardized format: {BANK_CODE} {BSB} {ACCOUNT_NUMBER} - {STATEMENT_NAME}
+  def rename_xero_account_to_standard(xero_account, local_account = nil)
     xero_account_id = xero_account["AccountID"]
     current_name = xero_account["Name"]
     bank_account_number = xero_account["BankAccountNumber"]
@@ -369,6 +369,11 @@ class XeroBankSyncService
 
     # Build standardized name: "{BANK_CODE} {BSB} {ACCOUNT_NUMBER}"
     new_name = "#{bank_code} #{formatted_bsb} #{parsed[:account_number]}"
+
+    # Append statement name (company name from bank statement) if available
+    if local_account&.bank_feed_name.present?
+      new_name += " - #{local_account.bank_feed_name}"
+    end
 
     # Skip if already has the correct name
     if current_name == new_name
