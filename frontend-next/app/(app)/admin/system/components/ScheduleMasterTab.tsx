@@ -125,8 +125,9 @@ const ALL_COLUMNS = [
   // Scheduling
   "duration_days", "predecessor_ids", "predecessor_ids_backup",
   // Locking & Status (prevents cascade, confirms completion)
-  "hold", "hold_date", "dependency_broken",
-  "confirm", "supplier_confirm",
+  "hold", "hold_date", "hold_at", "dependency_broken",
+  "confirm", "confirmed_at",
+  "supplier_confirm", "supplier_confirmed_at",
   "completed", "completed_at",
   // Assignment & Supplier
   "supplier_id", "trade", "stage", "assigned_role", "cost_centre",
@@ -878,6 +879,13 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold Date</Badge>Fixed start date when hold=true</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["hold_at"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "hold_at", !!v)} />
+                    <Checkbox checked={columnStatus.delete["hold_at"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "hold_at", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>hold_at</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold At</Badge>Timestamp when hold was enabled</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "dependency_broken", !!v)} />
                     <Checkbox checked={columnStatus.delete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "dependency_broken", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <CopyableCode>dependency_broken</CopyableCode>
@@ -892,11 +900,25 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirm</Badge>Supervisor sign-off (LOCKS from cascade)</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "confirmed_at", !!v)} />
+                    <Checkbox checked={columnStatus.delete["confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "confirmed_at", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>confirmed_at</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirmed At</Badge>Timestamp when supervisor confirmed</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "supplier_confirm", !!v)} />
                     <Checkbox checked={columnStatus.delete["supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "supplier_confirm", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <CopyableCode>supplier_confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirm</Badge>Supplier confirmation (LOCKS from cascade)</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["supplier_confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "supplier_confirmed_at", !!v)} />
+                    <Checkbox checked={columnStatus.delete["supplier_confirmed_at"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "supplier_confirmed_at", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>supplier_confirmed_at</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirmed At</Badge>Timestamp when supplier confirmed</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["completed"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "completed", !!v)} />

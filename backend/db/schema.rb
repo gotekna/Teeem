@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_175003) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5579,6 +5579,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_175003) do
     t.jsonb "predecessor_ids_backup"
     t.date "previous_manual_start_date"
     t.boolean "dependency_broken", default: false
+    t.datetime "confirmed_at"
+    t.datetime "supplier_confirmed_at"
+    t.datetime "hold_at"
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["confirm"], name: "index_sm_template_rows_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
