@@ -3,7 +3,7 @@
 module Api
   module V1
     class PaymentPortalController < ApplicationController
-      skip_before_action :authenticate_request, only: [:show, :create_checkout, :success, :webhook]
+      skip_before_action :authorize_request, only: [:show, :create_checkout, :success, :webhook]
       before_action :set_payment_link, only: [:show, :create_checkout]
 
       # GET /api/v1/pay/:token
