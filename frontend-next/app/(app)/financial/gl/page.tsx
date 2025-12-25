@@ -86,7 +86,7 @@ interface ChartOfAccounts {
 
 export default function GlPage() {
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
+  const [syncingTenantId, setSyncingTenantId] = useState<string | null>(null);
   const [providers, setProviders] = useState<Provider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -169,7 +169,7 @@ export default function GlPage() {
     const targetProvider = provider || selectedProvider;
     if (!targetProvider || targetProvider.provider === "standalone") return;
 
-    setSyncing(true);
+    setSyncingTenantId(targetProvider.tenant_id);
     setError(null);
 
     try {
@@ -194,7 +194,7 @@ export default function GlPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sync failed");
     } finally {
-      setSyncing(false);
+      setSyncingTenantId(null);
     }
   };
 
@@ -268,12 +268,12 @@ export default function GlPage() {
         </div>
         {selectedProvider && selectedProvider.connected && (
           <div className="flex items-center gap-2">
-            {syncing && <Spinner className="h-5 w-5" />}
+            {syncingTenantId === selectedProvider.tenant_id && <Spinner className="h-5 w-5" />}
             <Button
               onClick={() => triggerSync("full")}
-              disabled={syncing}
+              disabled={syncingTenantId !== null}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
               Sync from Xero
             </Button>
           </div>
@@ -437,10 +437,10 @@ export default function GlPage() {
                             <Button
                               size="sm"
                               onClick={() => triggerSync("full", provider)}
-                              disabled={syncing}
+                              disabled={syncingTenantId !== null}
                             >
-                              <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? "animate-spin" : ""}`} />
-                              Sync
+                              <RefreshCw className={`h-3 w-3 mr-1 ${syncingTenantId === provider.tenant_id ? "animate-spin" : ""}`} />
+                              {syncingTenantId === provider.tenant_id ? "Syncing..." : "Sync"}
                             </Button>
                           )}
                         </div>
