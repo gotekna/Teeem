@@ -44,6 +44,7 @@ import {
   Activity,
   Settings2,
   Receipt,
+  Cube,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -83,6 +84,7 @@ import { PdfFieldsTab } from "./components/PdfFieldsTab";
 import { AiProcessingTab } from "./components/AiProcessingTab";
 import { XeroHealthTab } from "./components/XeroHealthTab";
 import { CostTab } from "./components/CostTab";
+import { UnrealEngineTab } from "./components/UnrealEngineTab";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 
 const TIMEZONES = [
@@ -125,6 +127,7 @@ const MAIN_TABS = [
   { id: "pdf-fields", label: "PDF Fields", icon: FileText },
   { id: "ai-processing", label: "AI Processing", icon: Brain },
   { id: "xero-health", label: "Xero Health", icon: Activity },
+  { id: "unreal-engine", label: "Unreal Engine", icon: Cube },
 ];
 
 const COMPANY_TABS = [
@@ -880,6 +883,9 @@ function SystemAdminPageContent() {
           </TabsContent>
           <TabsContent value="xero-health" className="flex-1 min-h-0 overflow-auto">
             <XeroHealthTab />
+          </TabsContent>
+          <TabsContent value="unreal-engine" className="flex-1 min-h-0 overflow-auto">
+            <UnrealEngineTab />
           </TabsContent>
         </div>
       </Tabs>
