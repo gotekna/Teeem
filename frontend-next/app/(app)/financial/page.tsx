@@ -1591,12 +1591,12 @@ export default function FinancialPage() {
           overdue_payables: kpis.payables?.due_soon || 0,
         });
       } else {
-        // Fallback to mock data if API fails
+        // SSoT: No fallback data - show zeros if API fails
         setSummary({
-          revenue: 1245000, revenue_change: 12.5, expenses: 892000, expenses_change: 8.2,
-          profit: 353000, profit_margin: 28.4, cash_on_hand: 423000,
-          accounts_receivable: 185000, accounts_payable: 67000,
-          overdue_receivables: 42000, overdue_payables: 12000,
+          revenue: 0, revenue_change: 0, expenses: 0, expenses_change: 0,
+          profit: 0, profit_margin: 0, cash_on_hand: 0,
+          accounts_receivable: 0, accounts_payable: 0,
+          overdue_receivables: 0, overdue_payables: 0,
         });
       }
 
@@ -1611,10 +1611,8 @@ export default function FinancialPage() {
           last_reconciled: a.last_reconciled || null,
         })));
       } else {
-        setBankAccounts([
-          { id: 1, name: "NAB Business Account", account_number: "****7890", balance: 423000, unreconciled_count: 12, last_reconciled: "2024-12-20" },
-          { id: 2, name: "NAB Savings Account", account_number: "****4321", balance: 150000, unreconciled_count: 0, last_reconciled: "2024-12-24" },
-        ]);
+        // SSoT: No fallback data
+        setBankAccounts([]);
       }
 
       // Process Receivables
@@ -1633,16 +1631,8 @@ export default function FinancialPage() {
           })),
         });
       } else {
-        setReceivables({
-          total: 185000, overdue: 42000, overdue_percent: 22.7, average_days: 28,
-          aging: [
-            { label: "Current", amount: 85000, count: 12, percent: 46 },
-            { label: "1-30", amount: 58000, count: 8, percent: 31 },
-            { label: "31-60", amount: 24000, count: 4, percent: 13 },
-            { label: "61-90", amount: 12000, count: 2, percent: 6.5 },
-            { label: "90+", amount: 6000, count: 1, percent: 3.5 },
-          ],
-        });
+        // SSoT: No fallback data
+        setReceivables({ total: 0, overdue: 0, overdue_percent: 0, average_days: 0, aging: [] });
       }
 
       // Process Payables
@@ -1661,16 +1651,8 @@ export default function FinancialPage() {
           })),
         });
       } else {
-        setPayables({
-          total: 67000, overdue: 12000, overdue_percent: 17.9, average_days: 22,
-          aging: [
-            { label: "Current", amount: 35000, count: 8, percent: 52 },
-            { label: "1-30", amount: 20000, count: 5, percent: 30 },
-            { label: "31-60", amount: 8000, count: 2, percent: 12 },
-            { label: "61-90", amount: 3000, count: 1, percent: 4.5 },
-            { label: "90+", amount: 1000, count: 1, percent: 1.5 },
-          ],
-        });
+        // SSoT: No fallback data
+        setPayables({ total: 0, overdue: 0, overdue_percent: 0, average_days: 0, aging: [] });
       }
 
       // Process Receivables by Customer
@@ -1686,10 +1668,8 @@ export default function FinancialPage() {
           email: c.email,
         })));
       } else {
-        setReceivablesContacts([
-          { contact_id: 1, contact_name: "Acme Construction", total: 65000, current: 40000, overdue: 25000, oldest_days: 45, phone: "0412 345 678" },
-          { contact_id: 2, contact_name: "BuildRight Pty Ltd", total: 48000, current: 30000, overdue: 18000, oldest_days: 62 },
-        ]);
+        // SSoT: No fallback data
+        setReceivablesContacts([]);
       }
 
       // Process Payables by Supplier
@@ -1703,10 +1683,8 @@ export default function FinancialPage() {
           oldest_days: c.oldest_bill_days || c.oldest_days || 0,
         })));
       } else {
-        setPayablesContacts([
-          { contact_id: 101, contact_name: "Bunnings Trade", total: 18000, current: 12000, overdue: 6000, oldest_days: 35 },
-          { contact_id: 102, contact_name: "Reece Plumbing", total: 15000, current: 10000, overdue: 5000, oldest_days: 42 },
-        ]);
+        // SSoT: No fallback data
+        setPayablesContacts([]);
       }
 
       // Process Cash Flow Forecast
@@ -1720,12 +1698,8 @@ export default function FinancialPage() {
           running_balance: w.running_balance || w.closing_balance || 0,
         })));
       } else {
-        const today = new Date();
-        setCashForecast([
-          { week_start: today.toISOString(), week_end: new Date(today.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString(), inflows: 45000, outflows: 32000, net: 13000, running_balance: 436000 },
-          { week_start: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), week_end: new Date(today.getTime() + 13 * 24 * 60 * 60 * 1000).toISOString(), inflows: 28000, outflows: 85000, net: -57000, running_balance: 379000 },
-          { week_start: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(), week_end: new Date(today.getTime() + 20 * 24 * 60 * 60 * 1000).toISOString(), inflows: 62000, outflows: 25000, net: 37000, running_balance: 416000 },
-        ]);
+        // SSoT: No fallback data
+        setCashForecast([]);
       }
 
       // Process BAS Periods
@@ -1740,10 +1714,8 @@ export default function FinancialPage() {
           status: p.status,
         })));
       } else {
-        setBasPeriods([
-          { period: "Q2", financial_year: "FY2025", label: "Q2 FY2025", start_date: "2024-10-01", end_date: "2024-12-31", due_date: "2025-02-28", status: "current" },
-          { period: "Q1", financial_year: "FY2025", label: "Q1 FY2025", start_date: "2024-07-01", end_date: "2024-09-30", due_date: "2024-10-28", status: "lodged" },
-        ]);
+        // SSoT: No fallback data
+        setBasPeriods([]);
       }
 
       // Process BAS Data
@@ -1760,10 +1732,11 @@ export default function FinancialPage() {
           total_payable: b.total_payable || ((b.gst?.net || 0) + (b.payg?.withholding || 0) + (b.payg?.instalment || 0)),
         });
       } else {
+        // SSoT: No fallback data
         setBasData({
-          gst_collected: 113636, gst_paid: 72727, net_gst: 40909,
-          total_sales: 1250000, total_purchases: 800000,
-          payg_withholding: 54000, payg_instalment: 11250, total_payable: 106159,
+          gst_collected: 0, gst_paid: 0, net_gst: 0,
+          total_sales: 0, total_purchases: 0,
+          payg_withholding: 0, payg_instalment: 0, total_payable: 0,
         });
       }
 
@@ -1782,10 +1755,8 @@ export default function FinancialPage() {
           budget_variance: j.budget_variance || j.variance || 0,
         })));
       } else {
-        setJobs([
-          { job_id: 1, job_number: "J-2024-0042", job_title: "Smith Residence", revenue: 450000, cost: 312000, profit: 138000, margin: 30.7, status: "active", budget: 420000, budget_variance: 30000 },
-          { job_id: 2, job_number: "J-2024-0038", job_title: "Commercial Fitout", revenue: 285000, cost: 198000, profit: 87000, margin: 30.5, status: "active", budget: 275000, budget_variance: 10000 },
-        ]);
+        // SSoT: No fallback data
+        setJobs([]);
       }
 
       // Fetch Xero Sync Status (separate call for specific company)
