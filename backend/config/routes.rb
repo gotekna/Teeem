@@ -2358,6 +2358,39 @@ Rails.application.routes.draw do
           end
         end
 
+        # AI-Enhanced PO-Invoice Matching
+        scope :po_invoice_matcher do
+          get ":bill_inbox_id/suggestions", to: "po_invoice_matcher#suggestions"
+          post ":bill_inbox_id/confirm", to: "po_invoice_matcher#confirm"
+          post ":bill_inbox_id/reject", to: "po_invoice_matcher#reject"
+          get "stats", to: "po_invoice_matcher#stats"
+          get "unmatched", to: "po_invoice_matcher#unmatched"
+          post "batch_suggest", to: "po_invoice_matcher#batch_suggest"
+        end
+
+        # Late Payment Prediction
+        resources :payment_predictions, only: [:index, :show], param: :invoice_id do
+          collection do
+            get :summary
+            get :contact_behaviors
+            get "contact/:contact_id", action: :contact_history, as: :contact
+            get :high_risk
+            post :batch
+          end
+        end
+
+        # Transaction Anomaly Detection
+        resources :anomalies, only: [:index] do
+          collection do
+            get :summary
+            get :trend
+            get :high_risk
+            post :analyze
+            post :mark_reviewed
+            get :reviews
+          end
+        end
+
         # Cash Flow Forecasting
         controller :cash_flow do
           get "cash_flow/forecast", action: :forecast

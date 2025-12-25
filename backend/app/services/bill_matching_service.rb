@@ -3,13 +3,19 @@
 # Matches incoming bills to existing Purchase Orders
 # Creates internal tasks for mismatches or variance review
 #
+# SSoT: Uses Gl::AiPoInvoiceMatcher for AI-enhanced matching
+# Rule-based matching is tried first, then AI suggestions
+#
 class BillMatchingService
   # Default variance thresholds (can be overridden by company rules)
   DEFAULT_VARIANCE_THRESHOLD_PERCENT = 5.0
   DEFAULT_VARIANCE_THRESHOLD_AMOUNT = 100.0
 
-  def initialize(bill_inbox)
+  def initialize(bill_inbox, enable_ai: true)
     @bill = bill_inbox
+    @enable_ai = enable_ai
+    @match_confidence = nil
+    @match_source = nil
   end
 
   def match!
@@ -45,13 +51,15 @@ class BillMatchingService
   end
 
   def find_matching_po
-    return nil unless @bill.supplier.present? || @bill.supplier_abn_raw.present?
+    return nil unless @bill.supplier.present? || @bill.supplier_abn_raw.present? || @enable_ai
 
     # Strategy 1: Match by PO number in extraction
     if po_number_from_invoice.present?
       po = PurchaseOrder.find_by(purchase_order_number: po_number_from_invoice)
       if po
         Rails.logger.info "[BillMatching] Matched by PO number: #{po_number_from_invoice}"
+        @match_confidence = 100
+        @match_source = "po_number"
         return po
       end
     end
@@ -63,6 +71,8 @@ class BillMatchingService
         # Return the best match (closest amount)
         best_match = candidates.min_by { |po| (po.total - @bill.total_amount).abs }
         Rails.logger.info "[BillMatching] Matched by supplier + amount: PO #{best_match.purchase_order_number}"
+        @match_confidence = 85
+        @match_source = "supplier_amount"
         return best_match
       end
     end
@@ -73,10 +83,34 @@ class BillMatchingService
       if candidates.any?
         best_match = candidates.min_by { |po| (po.total - @bill.total_amount.to_d).abs }
         Rails.logger.info "[BillMatching] Matched by ABN + amount: PO #{best_match.purchase_order_number}"
+        @match_confidence = 75
+        @match_source = "abn_amount"
         return best_match
       end
     end
 
+    # Strategy 4: AI-enhanced matching (when rules fail)
+    if @enable_ai
+      ai_match = try_ai_match
+      return ai_match if ai_match
+    end
+
+    nil
+  end
+
+  def try_ai_match
+    return nil unless @enable_ai
+
+    matcher = Gl::AiPoInvoiceMatcher.new(@bill, corporate_company: @bill.corporate_company)
+    result = matcher.find_best_match
+    return nil unless result && result[:confidence] >= 60
+
+    Rails.logger.info "[BillMatching] AI match found: PO #{result[:po].purchase_order_number} (#{result[:confidence]}% confidence)"
+    @match_confidence = result[:confidence]
+    @match_source = result[:source]
+    result[:po]
+  rescue StandardError => e
+    Rails.logger.warn "[BillMatching] AI matching failed: #{e.message}"
     nil
   end
 
@@ -142,6 +176,8 @@ class BillMatchingService
       match_status: variance[:status],
       variance_amount: variance[:amount],
       variance_reason: variance[:reason],
+      match_confidence: @match_confidence,
+      match_source: @match_source,
       status: "matched"
     )
 

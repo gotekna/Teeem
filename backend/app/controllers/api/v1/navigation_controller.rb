@@ -58,6 +58,12 @@ module Api
         # User's collapse preference, or default from NavigationItem
         is_collapsed = collapse_prefs.key?(item.id) ? collapse_prefs[item.id] : item.is_collapsed_default
 
+        # Inject email accounts as children for Email nav item
+        email_account_children = []
+        if item.href == "/email"
+          email_account_children = build_email_account_nav_items
+        end
+
         {
           id: item.id,
           name: item.name,
@@ -66,8 +72,8 @@ module Api
           badge_key: item.badge_key,
           position: item.position,
           is_collapsed: is_collapsed,
-          has_children: visible_children.any?,
-          children: visible_children.map { |child| child_item_json(child, collapse_prefs) }
+          has_children: visible_children.any? || email_account_children.any?,
+          children: visible_children.map { |child| child_item_json(child, collapse_prefs) } + email_account_children
         }
       end
 
@@ -99,6 +105,46 @@ module Api
           badge_key: grandchild.badge_key,
           position: grandchild.position
         }
+      end
+
+      def build_email_account_nav_items
+        accounts = []
+        position = 0
+
+        # IMAP accounts for current user
+        current_user.imap_credentials.active.each do |cred|
+          accounts << {
+            id: "imap_#{cred.id}",
+            name: cred.email_address || cred.name,
+            href: "/email?account=#{cred.id}",
+            icon: "mail",
+            badge_key: nil,
+            position: position += 1,
+            has_children: false,
+            children: []
+          }
+        end
+
+        # MS365 org accounts (with user mailbox access)
+        OrganizationMicrosoftAppCredential.connected.each do |org_cred|
+          user_mailbox_access = org_cred.sync_config&.dig("user_mailbox_access") || {}
+          user_emails = user_mailbox_access[current_user.id.to_s] || []
+
+          user_emails.each do |email|
+            accounts << {
+              id: "ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+              name: email,
+              href: "/email?account=ms365_#{org_cred.id}_#{Digest::MD5.hexdigest(email)[0..7]}",
+              icon: "mail",
+              badge_key: nil,
+              position: position += 1,
+              has_children: false,
+              children: []
+            }
+          end
+        end
+
+        accounts
       end
     end
   end

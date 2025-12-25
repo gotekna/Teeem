@@ -111,7 +111,6 @@ class SmTemplateCopyService
         duration_days: row.duration_days,
         trade: row.trade,
         stage: row.stage,
-        supplier_id: row.supplier_id,
         checklist_id: row.checklist_id,
         status: "not_started",
         # Spawn/cert settings from template

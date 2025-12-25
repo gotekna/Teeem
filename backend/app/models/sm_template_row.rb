@@ -24,7 +24,6 @@ class SmTemplateRow < ApplicationRecord
   belongs_to :parent_row, class_name: "SmTemplateRow", optional: true
   has_many :children, class_name: "SmTemplateRow", foreign_key: :parent_row_id, dependent: :nullify
 
-  belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
 
   # PO hierarchy - link this task's PO to another task's PO
@@ -55,7 +54,6 @@ class SmTemplateRow < ApplicationRecord
   end
   validates :cert_lag_days, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :subtask_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }, if: :has_subtasks?
-  validate :supplier_required_if_auto_po
   validate :subtask_names_match_count
   validate :predecessor_ids_valid
   validate :no_circular_dependencies
@@ -168,12 +166,6 @@ class SmTemplateRow < ApplicationRecord
     # Task numbers are now globally unique (not per-template)
     max_number = SmTemplateRow.maximum(:task_number) || 0
     self.task_number = max_number + 1
-  end
-
-  def supplier_required_if_auto_po
-    if create_po_on_job_start? && supplier_id.blank?
-      errors.add(:supplier_id, "must be present when Auto PO is enabled")
-    end
   end
 
   def subtask_names_match_count

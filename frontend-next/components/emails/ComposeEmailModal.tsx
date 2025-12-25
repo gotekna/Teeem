@@ -70,6 +70,7 @@ interface ComposeEmailModalProps {
   defaultSubject?: string;
   defaultBody?: string;
   replyToMessageId?: string;
+  defaultFromAccountId?: string; // Account ID to send from (for replies)
   onSent?: () => void;
 }
 
@@ -80,6 +81,7 @@ export function ComposeEmailModal({
   defaultSubject = "",
   defaultBody = "",
   replyToMessageId,
+  defaultFromAccountId,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -187,10 +189,20 @@ export function ComposeEmailModal({
       );
       setAccounts(activeAccounts);
 
-      // Auto-select default account (Outlook) or first account
-      const defaultAccount = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
-      if (defaultAccount) {
-        setFormData((prev) => ({ ...prev, credential_id: String(defaultAccount.id) }));
+      // If a specific account was requested (e.g., for replies), use that
+      // Otherwise, fall back to default account or first account
+      let accountToSelect: EmailAccount | undefined;
+
+      if (defaultFromAccountId) {
+        accountToSelect = activeAccounts.find((a) => String(a.id) === defaultFromAccountId);
+      }
+
+      if (!accountToSelect) {
+        accountToSelect = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
+      }
+
+      if (accountToSelect) {
+        setFormData((prev) => ({ ...prev, credential_id: String(accountToSelect!.id) }));
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);

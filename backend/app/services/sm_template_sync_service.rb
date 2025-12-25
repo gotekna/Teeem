@@ -23,7 +23,6 @@ class SmTemplateSyncService
   SAFE_SYNC_FIELDS = %i[
     name
     description
-    supplier_id
     trade
     stage
     checklist_id
@@ -152,7 +151,6 @@ class SmTemplateSyncService
       duration_days: template_row.duration_days,
       trade: template_row.trade,
       stage: template_row.stage,
-      supplier_id: template_row.supplier_id,
       checklist_id: template_row.checklist_id,
       require_photo: template_row.require_photo,
       require_voice_note: template_row.require_voice_note,

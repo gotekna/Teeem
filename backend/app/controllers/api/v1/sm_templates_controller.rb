@@ -208,8 +208,6 @@ module Api
           stage: row.stage,
           category: row.category,
           assigned_role: row.assigned_role,
-          supplier_id: row.supplier_id,
-          supplier_name: row.supplier&.name,
           require_photo: row.require_photo,
           require_certificate: row.require_certificate,
           confirm: row.confirm,

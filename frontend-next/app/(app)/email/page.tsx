@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useTransition, useMemo, memo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -96,7 +97,97 @@ const FOLDER_ICONS: Record<string, typeof Inbox> = {
   folder: FileText,
 };
 
+// Memoized email list item for performance
+const EmailListItem = memo(function EmailListItem({
+  email,
+  isSelected,
+  onClick,
+}: {
+  email: Email;
+  isSelected: boolean;
+  onClick: (email: Email) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "px-3 py-2.5 cursor-pointer border-l-2",
+        isSelected
+          ? "bg-primary/10 border-l-primary"
+          : "hover:bg-muted/50 border-l-transparent",
+        !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
+      )}
+      onClick={() => onClick(email)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <span className={cn(
+              "text-sm truncate",
+              !email.is_read ? "font-semibold" : "font-medium"
+            )}>
+              {email.from_name || email.from_email || email.from_address}
+            </span>
+            {email.has_attachments && (
+              <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+            )}
+          </div>
+          <p className={cn(
+            "text-sm truncate",
+            !email.is_read ? "font-medium" : ""
+          )}>
+            {email.subject || "(No subject)"}
+          </p>
+          <p className="text-xs text-muted-foreground truncate mt-0.5">
+            {email.snippet || email.body_preview}
+          </p>
+        </div>
+        <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+          {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// Memoized folder button component for performance
+const FolderButton = memo(function FolderButton({
+  folder,
+  accountId,
+  isSelected,
+  onSelect,
+}: {
+  folder: EmailFolder;
+  accountId: string;
+  isSelected: boolean;
+  onSelect: (accountId: string, folder: EmailFolder) => void;
+}) {
+  const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
+  const depth = folder.depth || 0;
+
+  return (
+    <button
+      onClick={() => onSelect(accountId, folder)}
+      className={cn(
+        "w-full flex items-center gap-2 py-1.5 text-sm hover:bg-muted/50 rounded-sm",
+        isSelected && "bg-primary/10 text-primary font-medium"
+      )}
+      style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: '12px' }}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1 text-left truncate">{folder.name}</span>
+      {folder.unread_count !== undefined && folder.unread_count > 0 && (
+        <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center shrink-0">
+          {folder.unread_count}
+        </Badge>
+      )}
+    </button>
+  );
+});
+
 export default function EmailPage() {
+  const searchParams = useSearchParams();
+  const accountParam = searchParams.get("account");
+
   const [emails, setEmails] = useState<Email[]>([]);
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [accountFolders, setAccountFolders] = useState<Record<string, EmailFolder[]>>({});
@@ -117,7 +208,8 @@ export default function EmailPage() {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; messageId?: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; messageId?: string; fromAccountId?: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const fetchEmails = useCallback(async (page = 1) => {
     if (!selectedAccount) {
@@ -223,14 +315,25 @@ export default function EmailPage() {
       const activeAccounts = (response.data || []).filter(a => a.is_active);
       setAccounts(activeAccounts);
 
-      // Auto-expand and select first account
+      // Check if URL has account param, otherwise use default
       if (activeAccounts.length > 0) {
-        const defaultAccount = activeAccounts.find(a => a.is_default) || activeAccounts[0];
-        const accountId = String(defaultAccount.id);
+        let accountToSelect: EmailAccount | undefined;
+
+        if (accountParam) {
+          // Find account matching URL param
+          accountToSelect = activeAccounts.find(a => String(a.id) === accountParam);
+        }
+
+        if (!accountToSelect) {
+          // Fall back to default or first account
+          accountToSelect = activeAccounts.find(a => a.is_default) || activeAccounts[0];
+        }
+
+        const accountId = String(accountToSelect.id);
         setSelectedAccount(accountId);
         setExpandedAccounts(new Set([accountId]));
-        // Fetch folders for default account (pass account for ms365 type)
-        fetchFolders(accountId, defaultAccount);
+        // Fetch folders for selected account (pass account for ms365 type)
+        fetchFolders(accountId, accountToSelect);
       }
     } catch (error) {
       console.error("Failed to fetch accounts:", error);
@@ -240,6 +343,19 @@ export default function EmailPage() {
   useEffect(() => {
     fetchAccounts();
   }, []);
+
+  // Handle URL account param changes (e.g., clicking different mailbox in nav)
+  useEffect(() => {
+    if (accountParam && accounts.length > 0) {
+      const matchingAccount = accounts.find(a => String(a.id) === accountParam);
+      if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
+        const accountId = String(matchingAccount.id);
+        setSelectedAccount(accountId);
+        setExpandedAccounts(new Set([accountId]));
+        fetchFolders(accountId, matchingAccount);
+      }
+    }
+  }, [accountParam, accounts]);
 
   useEffect(() => {
     if (selectedAccount) {
@@ -273,7 +389,7 @@ export default function EmailPage() {
     }
   };
 
-  const handleEmailClick = async (email: Email) => {
+  const handleEmailClick = useCallback(async (email: Email) => {
     if (!email || !email.id) {
       console.error("Invalid email object:", email);
       return;
@@ -296,12 +412,13 @@ export default function EmailPage() {
         // Keep showing the preview data even if full fetch fails
       }
     }
-  };
+  }, []);
 
   const handleReply = (email: Email) => {
     setReplyTo({
       to: email.from_email || email.from_address,
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
+      fromAccountId: selectedAccount, // Reply from the same account that received the email
     });
     setComposeOpen(true);
   };
@@ -324,11 +441,18 @@ export default function EmailPage() {
     setExpandedAccounts(newExpanded);
   };
 
-  const selectAccountFolder = (accountId: string, folder: EmailFolder) => {
-    setSelectedAccount(accountId);
-    setSelectedFolder(folder.name);
+  const selectAccountFolder = useCallback((accountId: string, folder: EmailFolder) => {
+    // Update folder selection immediately for instant UI feedback
     setSelectedFolderId(folder.id);
-  };
+    setSelectedFolder(folder.name);
+
+    // Use transition for account change (triggers email fetch) to avoid blocking UI
+    if (selectedAccount !== accountId) {
+      startTransition(() => {
+        setSelectedAccount(accountId);
+      });
+    }
+  }, [selectedAccount]);
 
   const getSelectedAccountName = () => {
     const account = accounts.find(a => String(a.id) === selectedAccount);
@@ -407,30 +531,15 @@ export default function EmailPage() {
                         No folders found
                       </div>
                     ) : (
-                      (accountFolders[String(account.id)] || []).map((folder) => {
-                        const Icon = FOLDER_ICONS[folder.type] || FOLDER_ICONS.folder;
-                        const isSelected = selectedAccount === String(account.id) && selectedFolderId === folder.id;
-                        const depth = folder.depth || 0;
-                        return (
-                          <button
-                            key={folder.id}
-                            onClick={() => selectAccountFolder(String(account.id), folder)}
-                            className={cn(
-                              "w-full flex items-center gap-2 py-1.5 text-sm hover:bg-muted/50 transition-colors rounded-sm",
-                              isSelected && "bg-primary/10 text-primary font-medium"
-                            )}
-                            style={{ paddingLeft: `${12 + depth * 16}px`, paddingRight: '12px' }}
-                          >
-                            <Icon className="h-4 w-4 shrink-0" />
-                            <span className="flex-1 text-left truncate">{folder.name}</span>
-                            {folder.unread_count !== undefined && folder.unread_count > 0 && (
-                              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 min-w-[20px] text-center shrink-0">
-                                {folder.unread_count}
-                              </Badge>
-                            )}
-                          </button>
-                        );
-                      })
+                      (accountFolders[String(account.id)] || []).map((folder) => (
+                        <FolderButton
+                          key={folder.id}
+                          folder={folder}
+                          accountId={String(account.id)}
+                          isSelected={selectedAccount === String(account.id) && selectedFolderId === folder.id}
+                          onSelect={selectAccountFolder}
+                        />
+                      ))
                     )}
                   </div>
                 )}
@@ -497,45 +606,12 @@ export default function EmailPage() {
           ) : (
             <div className="divide-y">
               {emails.map((email) => (
-                <div
+                <EmailListItem
                   key={email.id}
-                  className={cn(
-                    "px-3 py-2.5 cursor-pointer transition-colors border-l-2",
-                    selectedEmail?.id === email.id
-                      ? "bg-primary/10 border-l-primary"
-                      : "hover:bg-muted/50 border-l-transparent",
-                    !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
-                  )}
-                  onClick={() => handleEmailClick(email)}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className={cn(
-                          "text-sm truncate",
-                          !email.is_read ? "font-semibold" : "font-medium"
-                        )}>
-                          {email.from_name || email.from_email || email.from_address}
-                        </span>
-                        {email.has_attachments && (
-                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-                        )}
-                      </div>
-                      <p className={cn(
-                        "text-sm truncate",
-                        !email.is_read ? "font-medium" : ""
-                      )}>
-                        {email.subject || "(No subject)"}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {email.snippet || email.body_preview}
-                      </p>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-                      {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
-                    </div>
-                  </div>
-                </div>
+                  email={email}
+                  isSelected={selectedEmail?.id === email.id}
+                  onClick={handleEmailClick}
+                />
               ))}
             </div>
           )}
@@ -655,6 +731,7 @@ export default function EmailPage() {
         onOpenChange={setComposeOpen}
         defaultTo={replyTo?.to || ""}
         defaultSubject={replyTo?.subject || ""}
+        defaultFromAccountId={replyTo?.fromAccountId}
         onSent={() => {
           fetchEmails();
           setReplyTo(null);

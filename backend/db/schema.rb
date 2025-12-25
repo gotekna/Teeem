@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -610,11 +610,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
     t.jsonb "comparison_data"
     t.jsonb "contact_comparison_data", default: {}
     t.string "sharepoint_file_id"
+    t.integer "match_confidence"
+    t.string "match_source", limit: 30
     t.index ["approved_by_id"], name: "index_bill_inboxes_on_approved_by_id"
     t.index ["corporate_company_id", "status"], name: "index_bill_inboxes_on_corporate_company_id_and_status"
     t.index ["corporate_company_id"], name: "index_bill_inboxes_on_corporate_company_id"
     t.index ["email_message_id"], name: "index_bill_inboxes_on_email_message_id", unique: true, where: "(email_message_id IS NOT NULL)"
     t.index ["external_invoice_id"], name: "index_bill_inboxes_on_external_invoice_id"
+    t.index ["match_source"], name: "index_bill_inboxes_on_match_source"
     t.index ["match_status"], name: "index_bill_inboxes_on_match_status"
     t.index ["matched_purchase_order_id"], name: "index_bill_inboxes_on_matched_purchase_order_id"
     t.index ["sharepoint_file_id"], name: "index_bill_inboxes_on_sharepoint_file_id"
@@ -2925,6 +2928,59 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
     t.index ["corporate_company_id"], name: "index_gl_ai_categorization_learnings_on_corporate_company_id"
     t.index ["transaction_description"], name: "idx_ai_learning_description_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["user_chosen_account_id"], name: "index_gl_ai_categorization_learnings_on_user_chosen_account_id"
+  end
+
+  create_table "gl_ai_po_match_attempts", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "bill_inbox_id"
+    t.bigint "matched_po_id"
+    t.boolean "successful", default: false
+    t.integer "suggestions_count", default: 0
+    t.integer "best_confidence"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bill_inbox_id"], name: "index_gl_ai_po_match_attempts_on_bill_inbox_id"
+    t.index ["corporate_company_id", "created_at"], name: "idx_ai_po_attempts_rate_limit"
+    t.index ["corporate_company_id"], name: "index_gl_ai_po_match_attempts_on_corporate_company_id"
+    t.index ["matched_po_id"], name: "index_gl_ai_po_match_attempts_on_matched_po_id"
+  end
+
+  create_table "gl_ai_po_match_learnings", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "bill_inbox_id", null: false
+    t.bigint "purchase_order_id", null: false
+    t.bigint "user_id"
+    t.boolean "was_accepted", null: false
+    t.string "bill_supplier_name", limit: 255
+    t.decimal "bill_amount", precision: 15, scale: 2
+    t.string "po_supplier_name", limit: 255
+    t.decimal "po_amount", precision: 15, scale: 2
+    t.jsonb "match_data", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bill_inbox_id"], name: "index_gl_ai_po_match_learnings_on_bill_inbox_id"
+    t.index ["bill_supplier_name"], name: "idx_ai_po_learnings_supplier_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["corporate_company_id", "was_accepted"], name: "idx_ai_po_learnings_acceptance"
+    t.index ["corporate_company_id"], name: "index_gl_ai_po_match_learnings_on_corporate_company_id"
+    t.index ["purchase_order_id"], name: "index_gl_ai_po_match_learnings_on_purchase_order_id"
+    t.index ["user_id"], name: "index_gl_ai_po_match_learnings_on_user_id"
+  end
+
+  create_table "gl_anomaly_reviews", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "transaction_type", limit: 50, null: false
+    t.bigint "transaction_id", null: false
+    t.string "status", limit: 30, default: "acknowledged", null: false
+    t.integer "anomaly_score"
+    t.text "notes"
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "transaction_type", "transaction_id"], name: "idx_anomaly_reviews_transaction", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_anomaly_reviews_on_corporate_company_id"
+    t.index ["reviewed_by_id"], name: "index_gl_anomaly_reviews_on_reviewed_by_id"
+    t.index ["status"], name: "index_gl_anomaly_reviews_on_status"
   end
 
   create_table "gl_bank_reconciliations", force: :cascade do |t|
@@ -5578,7 +5634,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
 
   create_table "sm_template_rows", force: :cascade do |t|
     t.bigint "parent_row_id"
-    t.bigint "supplier_id"
     t.integer "task_number", null: false
     t.string "name", null: false
     t.text "description"
@@ -5652,7 +5707,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
     t.index ["sm_template_ids"], name: "index_sm_template_rows_on_sm_template_ids", using: :gin
     t.index ["stage"], name: "index_sm_template_rows_on_stage"
     t.index ["supplier_confirm"], name: "index_sm_template_rows_on_supplier_confirm", where: "(supplier_confirm = true)"
-    t.index ["supplier_id"], name: "index_sm_template_rows_on_supplier_id"
     t.index ["task_number"], name: "index_sm_template_rows_on_task_number"
     t.index ["trade"], name: "index_sm_template_rows_on_trade"
     t.index ["updated_by_id"], name: "index_sm_template_rows_on_updated_by_id"
@@ -7127,6 +7181,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
   add_foreign_key "gl_ai_categorization_learnings", "corporate_companies"
   add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "ai_suggested_account_id"
   add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "user_chosen_account_id"
+  add_foreign_key "gl_ai_po_match_attempts", "bill_inboxes"
+  add_foreign_key "gl_ai_po_match_attempts", "corporate_companies"
+  add_foreign_key "gl_ai_po_match_attempts", "purchase_orders", column: "matched_po_id"
+  add_foreign_key "gl_ai_po_match_learnings", "bill_inboxes"
+  add_foreign_key "gl_ai_po_match_learnings", "corporate_companies"
+  add_foreign_key "gl_ai_po_match_learnings", "purchase_orders"
+  add_foreign_key "gl_ai_po_match_learnings", "users"
+  add_foreign_key "gl_anomaly_reviews", "corporate_companies"
+  add_foreign_key "gl_anomaly_reviews", "users", column: "reviewed_by_id"
   add_foreign_key "gl_bank_reconciliations", "corporate_companies"
   add_foreign_key "gl_bank_reconciliations", "gl_accounts"
   add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
@@ -7346,7 +7409,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
   add_foreign_key "sm_spawn_logs", "tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
-  add_foreign_key "sm_template_rows", "contacts", column: "supplier_id"
   add_foreign_key "sm_template_rows", "sm_template_rows", column: "parent_row_id"
   add_foreign_key "sm_template_rows", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_template_rows", "users", column: "created_by_id"
