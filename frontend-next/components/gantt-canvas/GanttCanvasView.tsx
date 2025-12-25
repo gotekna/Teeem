@@ -1117,7 +1117,7 @@ export function GanttCanvasView({
         endDate: new Date(task.endDate),
         duration: row?.duration_days || 1,
         manuallyPositioned: row?.hold || false,
-        manualStartDate: row?.manual_start_date || null
+        manualStartDate: row?.hold_date || null
       });
       return next;
     });
@@ -1130,7 +1130,7 @@ export function GanttCanvasView({
       await api.patch(`/api/v1/sm_templates/${currentTemplateId}/rows/${task.id}`, {
         row: {
           hold: true,
-          manual_start_date: dateStr
+          hold_date: dateStr
         }
       });
 
@@ -1143,7 +1143,7 @@ export function GanttCanvasView({
               rowData: t.rowData ? {
                 ...t.rowData,
                 hold: true,
-                manual_start_date: dateStr
+                hold_date: dateStr
               } : undefined
             }
           : t
@@ -1152,7 +1152,7 @@ export function GanttCanvasView({
       // Also update rows for proper re-render
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, hold: true, manual_start_date: dateStr }
+          ? { ...r, hold: true, hold_date: dateStr }
           : r
       ));
     } catch (err) {
@@ -1250,7 +1250,7 @@ export function GanttCanvasView({
         endDate: new Date(task.endDate),
         duration: row?.duration_days || 1,
         manuallyPositioned: row?.hold || false,
-        manualStartDate: row?.manual_start_date || null
+        manualStartDate: row?.hold_date || null
       });
       return next;
     });
@@ -1267,7 +1267,7 @@ export function GanttCanvasView({
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
           hold: true,
-          manual_start_date: startStr,
+          hold_date: startStr,
           duration_days: durationDays
         }
       });
@@ -1283,7 +1283,7 @@ export function GanttCanvasView({
               rowData: t.rowData ? {
                 ...t.rowData,
                 hold: true,
-                manual_start_date: startStr,
+                hold_date: startStr,
                 duration_days: durationDays
               } : undefined
             }
@@ -1293,7 +1293,7 @@ export function GanttCanvasView({
       // Update rows for the resized task
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, hold: true, manual_start_date: startStr, duration_days: durationDays }
+          ? { ...r, hold: true, hold_date: startStr, duration_days: durationDays }
           : r
       ));
 
@@ -1362,7 +1362,7 @@ export function GanttCanvasView({
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
           hold: false,
-          manual_start_date: null
+          hold_date: null
         }
       });
 
@@ -1374,7 +1374,7 @@ export function GanttCanvasView({
               rowData: t.rowData ? {
                 ...t.rowData,
                 hold: false,
-                manual_start_date: null
+                hold_date: null
               } : undefined
             }
           : t
@@ -1383,7 +1383,7 @@ export function GanttCanvasView({
       // Also update rows for proper re-render
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, hold: false, manual_start_date: null }
+          ? { ...r, hold: false, hold_date: null }
           : r
       ));
     } catch (err) {
@@ -1413,7 +1413,7 @@ export function GanttCanvasView({
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
           hold: previousState.manuallyPositioned,
-          manual_start_date: previousState.manuallyPositioned ? startStr : null,
+          hold_date: previousState.manuallyPositioned ? startStr : null,
           duration_days: previousState.duration
         }
       });
@@ -1486,7 +1486,7 @@ export function GanttCanvasView({
           row: {
             is_completed: true,
             completed_at: today,
-            manual_start_date: today,
+            hold_date: today,
             predecessor_ids_backup: row.predecessor_ids || [],
             predecessor_ids: []
           }
@@ -1507,7 +1507,7 @@ export function GanttCanvasView({
               ...r,
               is_completed: true,
               completed_at: today,
-              manual_start_date: today,
+              hold_date: today,
               predecessor_ids_backup: r.predecessor_ids || [],
               predecessor_ids: []
             };
@@ -1528,7 +1528,7 @@ export function GanttCanvasView({
             is_completed: false,
             completed_at: null,
             hold: false,
-            manual_start_date: null,
+            hold_date: null,
             predecessor_ids: row.predecessor_ids_backup || []
           }
         });
@@ -1541,7 +1541,7 @@ export function GanttCanvasView({
                 is_completed: false,
                 completed_at: null,
                 hold: false,
-                manual_start_date: null,
+                hold_date: null,
                 predecessor_ids: r.predecessor_ids_backup || []
               }
             : r
@@ -1581,7 +1581,7 @@ export function GanttCanvasView({
       // DON'T set hold - just save the date, isLocked handles the rest
       const updateData: any = { confirm: checked };
       if (checked && currentDateStr) {
-        updateData.manual_start_date = currentDateStr;
+        updateData.hold_date = currentDateStr;
       }
 
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
@@ -1594,7 +1594,7 @@ export function GanttCanvasView({
               ...r,
               confirm: checked,
               ...(checked && currentDateStr ? {
-                manual_start_date: currentDateStr
+                hold_date: currentDateStr
               } : {})
             }
           : r
@@ -1646,7 +1646,7 @@ export function GanttCanvasView({
       // DON'T set hold - just save the date, isLocked handles the rest
       const updateData: any = { [fieldName]: isChecking };
       if (isChecking && currentDateStr) {
-        updateData.manual_start_date = currentDateStr;
+        updateData.hold_date = currentDateStr;
       }
 
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
@@ -1659,7 +1659,7 @@ export function GanttCanvasView({
               ...r,
               [fieldName]: isChecking,
               ...(isChecking && currentDateStr ? {
-                manual_start_date: currentDateStr
+                hold_date: currentDateStr
               } : {})
             }
           : r
@@ -3211,13 +3211,13 @@ export function GanttCanvasView({
                         apiPayload: {
                           predecessor_ids: updatedPreds,
                           hold: true,
-                          manual_start_date: currentDateStr,
+                          hold_date: currentDateStr,
                           dependency_broken: true
                         },
                         rowUpdate: {
                           predecessor_ids: updatedPreds,
                           hold: true,
-                          manual_start_date: currentDateStr,
+                          hold_date: currentDateStr,
                           dependency_broken: true
                         }
                       });
@@ -3250,13 +3250,13 @@ export function GanttCanvasView({
                             apiPayload: {
                               predecessor_ids: updatedPreds,
                               hold: true,
-                              manual_start_date: currentDateStr,
+                              hold_date: currentDateStr,
                               dependency_broken: true
                             },
                             rowUpdate: {
                               predecessor_ids: updatedPreds,
                               hold: true,
-                              manual_start_date: currentDateStr,
+                              hold_date: currentDateStr,
                               dependency_broken: true
                             }
                           });
