@@ -155,7 +155,7 @@ module Gl
           .where(gl_account: account)
           .where(gl_journal_entries: { status: 'posted' })
           .where(gl_journal_entries: { entry_date: from_date..to_date })
-          .pick('COALESCE(SUM(credit) - SUM(debit), 0)')
+          .pick(Arel.sql('COALESCE(SUM(credit) - SUM(debit), 0)'))
 
         # Revenue/Income accounts have credit normal, so credits increase the balance
         # Expense accounts have debit normal, so debits increase (we negate)

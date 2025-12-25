@@ -255,9 +255,9 @@ module Gl
         .where(gl_journal_entries: { status: 'posted' })
         .where(gl_journal_entries: { entry_date: period.period_start..period.period_end })
         .pick(
-          'COALESCE(SUM(gl_ledger_lines.debit), 0)',
-          'COALESCE(SUM(gl_ledger_lines.credit), 0)',
-          'COUNT(*)'
+          Arel.sql('COALESCE(SUM(gl_ledger_lines.debit), 0)'),
+          Arel.sql('COALESCE(SUM(gl_ledger_lines.credit), 0)'),
+          Arel.sql('COUNT(*)')
         )
 
       debits = totals&.first || 0
