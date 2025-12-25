@@ -535,11 +535,12 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
 
       def journalize_invoice(xero_invoice)
-        # Skip if already journalized
-        return if Gl::JournalEntry.exists?(
+        # Skip if already journalized (include source_type to match unique constraint)
+        return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
           corporate_company: corporate_company,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
+          source_type: 'invoice',
           external_source_id: xero_invoice['InvoiceID']
         )
 
@@ -586,14 +587,17 @@ module Gl
           record_processed!(failed: true)
           log_error("Failed to journalize invoice #{xero_invoice['InvoiceNumber']}: #{journal.errors.full_messages.join(', ')}")
         end
+      rescue ActiveRecord::RecordNotUnique
+        record_processed!(skipped: true)
       end
 
       def journalize_bill(xero_bill)
-        # Skip if already journalized
-        return if Gl::JournalEntry.exists?(
+        # Skip if already journalized (include source_type to match unique constraint)
+        return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
           corporate_company: corporate_company,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
+          source_type: 'bill',
           external_source_id: xero_bill['InvoiceID']
         )
 
@@ -651,14 +655,17 @@ module Gl
           record_processed!(failed: true)
           log_error("Failed to journalize bill #{xero_bill['InvoiceNumber']}: #{journal.errors.full_messages.join(', ')}")
         end
+      rescue ActiveRecord::RecordNotUnique
+        record_processed!(skipped: true)
       end
 
       def journalize_payment(xero_payment)
-        # Skip if already journalized
-        return if Gl::JournalEntry.exists?(
+        # Skip if already journalized (include source_type to match unique constraint)
+        return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
           corporate_company: corporate_company,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
+          source_type: 'payment',
           external_source_id: xero_payment['PaymentID']
         )
 
@@ -709,14 +716,18 @@ module Gl
           record_processed!(failed: true)
           log_error("Failed to journalize payment #{xero_payment['PaymentID']}: #{journal.errors.full_messages.join(', ')}")
         end
+      rescue ActiveRecord::RecordNotUnique
+        # Already exists (race condition or constraint mismatch) - skip gracefully
+        record_processed!(skipped: true)
       end
 
       def journalize_bank_transaction(xero_tx)
-        # Skip if already journalized
-        return if Gl::JournalEntry.exists?(
+        # Skip if already journalized (include source_type to match unique constraint)
+        return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
           corporate_company: corporate_company,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
+          source_type: 'bank_transaction',
           external_source_id: xero_tx['BankTransactionID']
         )
 
@@ -791,14 +802,17 @@ module Gl
           record_processed!(failed: true)
           log_error("Failed to journalize bank tx #{xero_tx['BankTransactionID']}: #{journal.errors.full_messages.join(', ')}")
         end
+      rescue ActiveRecord::RecordNotUnique
+        record_processed!(skipped: true)
       end
 
       def journalize_credit_note(xero_cn)
-        # Skip if already journalized
-        return if Gl::JournalEntry.exists?(
+        # Skip if already journalized (include source_type to match unique constraint)
+        return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
           corporate_company: corporate_company,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
+          source_type: 'credit_note',
           external_source_id: xero_cn['CreditNoteID']
         )
 
@@ -870,14 +884,17 @@ module Gl
           record_processed!(failed: true)
           log_error("Failed to journalize credit note #{xero_cn['CreditNoteNumber']}: #{journal.errors.full_messages.join(', ')}")
         end
+      rescue ActiveRecord::RecordNotUnique
+        record_processed!(skipped: true)
       end
 
       def import_manual_journal(xero_journal)
-        # Skip if already imported
-        return if Gl::JournalEntry.exists?(
+        # Skip if already imported (include source_type to match unique constraint)
+        return record_processed!(skipped: true) if Gl::JournalEntry.exists?(
           corporate_company: corporate_company,
           external_provider: provider_code,
           external_tenant_id: tenant_id,
+          source_type: 'manual_journal',
           external_source_id: xero_journal['ManualJournalID']
         )
 
@@ -923,6 +940,8 @@ module Gl
           record_processed!(failed: true)
           log_error("Failed to import manual journal #{xero_journal['ManualJournalID']}: #{journal.errors.full_messages.join(', ')}")
         end
+      rescue ActiveRecord::RecordNotUnique
+        record_processed!(skipped: true)
       end
 
       # ═══════════════════════════════════════════════════════════════
