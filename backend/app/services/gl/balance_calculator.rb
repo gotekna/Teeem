@@ -248,26 +248,27 @@ module Gl
     end
 
     def period_movements(account, period)
-      result = Gl::LedgerLine
+      # Use pick to avoid ORDER BY conflict with aggregate functions
+      totals = Gl::LedgerLine
         .joins(:gl_journal_entry)
         .where(gl_account: account)
         .where(gl_journal_entries: { status: 'posted' })
         .where(gl_journal_entries: { entry_date: period.period_start..period.period_end })
-        .select(
-          'SUM(gl_ledger_lines.debit) as total_debits',
-          'SUM(gl_ledger_lines.credit) as total_credits',
-          'COUNT(*) as line_count'
+        .pick(
+          'COALESCE(SUM(gl_ledger_lines.debit), 0)',
+          'COALESCE(SUM(gl_ledger_lines.credit), 0)',
+          'COUNT(*)'
         )
-        .first
 
-      debits = result.total_debits || 0
-      credits = result.total_credits || 0
+      debits = totals&.first || 0
+      credits = totals&.second || 0
+      count = totals&.third || 0
 
       {
-        debits: debits,
-        credits: credits,
-        net: debits - credits,
-        count: result.line_count || 0
+        debits: debits.to_d,
+        credits: credits.to_d,
+        net: debits.to_d - credits.to_d,
+        count: count
       }
     end
 
