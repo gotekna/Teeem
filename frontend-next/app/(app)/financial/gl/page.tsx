@@ -270,11 +270,11 @@ export default function GlPage() {
           <div className="flex items-center gap-2">
             {syncingTenantId === selectedProvider.tenant_id && <Spinner className="h-5 w-5" />}
             <Button
-              onClick={() => triggerSync("full")}
+              onClick={() => triggerSync("accounts")}
               disabled={syncingTenantId !== null}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
-              Sync from Xero
+              Sync Accounts
             </Button>
           </div>
         )}
@@ -436,7 +436,7 @@ export default function GlPage() {
                           {provider.connected && (
                             <Button
                               size="sm"
-                              onClick={() => triggerSync("full", provider)}
+                              onClick={() => triggerSync("accounts", provider)}
                               disabled={syncingTenantId !== null}
                             >
                               <RefreshCw className={`h-3 w-3 mr-1 ${syncingTenantId === provider.tenant_id ? "animate-spin" : ""}`} />
