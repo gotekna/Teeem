@@ -562,7 +562,7 @@ function XeroSyncStatusCard({
                 Manage Xero
               </Button>
             </Link>
-            <Link href="/financial/gl">
+            <Link href="/financial/tas">
               <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
                 <Briefcase className="h-4 w-4 mr-1" />
                 T.A.S.
@@ -1884,7 +1884,7 @@ export default function FinancialPage() {
                   <p className="text-sm text-muted-foreground">Choose a company from the dropdown to see connection details and access the GL system</p>
                 </div>
               </div>
-              <Link href="/financial/gl">
+              <Link href="/financial/tas">
                 <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
                   <Briefcase className="h-4 w-4 mr-1" />
                   T.A.S.

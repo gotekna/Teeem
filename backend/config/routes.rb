@@ -938,9 +938,6 @@ Rails.application.routes.draw do
         end
       end
 
-      # Task Templates for Schedule Master
-      resources :task_templates
-
       # Setup data management
       post "setup/pull_from_local", to: "setup#pull_from_local"
       post "setup/sync_users", to: "setup#sync_users"

@@ -71,7 +71,6 @@ export interface SmTemplateRow {
   description: string | null;
   sequence_order: number;
   duration_days: number;
-  start_day_offset: number | null;
   predecessor_ids: ApiPredecessor[];
   predecessor_display: string;
   predecessor_display_names: string[];
@@ -513,13 +512,8 @@ export function convertRowToTask(
     }
     startDate = skipToNextWorkingDay(new Date(latestRequiredStart));
   } else {
-    // Fallback: use start_day_offset or sequence order * 7 days
-    const offsetDays = row.start_day_offset ?? ((row.sequence_order - 1) * 7);
-    if (offsetDays === 0) {
-      startDate = skipToNextWorkingDay(new Date(projectStartDate));
-    } else {
-      startDate = addWorkingDays(projectStartDate, offsetDays);
-    }
+    // No predecessors - start at project start date (today)
+    startDate = skipToNextWorkingDay(new Date(projectStartDate));
   }
 
   // Calculate end date based on duration (in working days)

@@ -193,7 +193,7 @@ export function BrandGuidelinesTab() {
                 <p><strong>Short Name:</strong> T.A.S.</p>
                 <p><strong>Icon:</strong> DollarSign (lucide-react)</p>
                 <p><strong>Navigation:</strong> Finance → T.A.S.</p>
-                <p><strong>URL:</strong> /financial/gl</p>
+                <p><strong>URL:</strong> /financial/tas</p>
               </div>
             </CardContent>
           </Card>
