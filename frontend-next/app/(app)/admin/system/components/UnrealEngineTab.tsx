@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   ExternalLink,
   Play,
-  Cube,
+  Box,
   Home,
   Camera,
   Palette,
@@ -218,7 +218,7 @@ export function UnrealEngineTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Cube className="h-5 w-5" />
+            <Box className="h-5 w-5" />
             Unreal Engine Integration
           </CardTitle>
           <CardDescription>

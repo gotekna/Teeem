@@ -2859,15 +2859,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_105321) do
   end
 
   create_table "gl_accounts", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
     t.bigint "corporate_company_id", null: false
     t.string "external_provider"
     t.string "external_tenant_id"
     t.string "external_account_id"
     t.datetime "external_synced_at"
-    t.string "code", null: false
-    t.string "name", null: false
+    t.string "code", default: "", null: false
+    t.string "name", default: "", null: false
     t.string "description"
-    t.string "account_type", null: false
+    t.string "account_type", default: "asset", null: false
     t.string "account_class"
     t.string "system_account"
     t.string "tax_type"
@@ -2878,13 +2880,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_105321) do
     t.bigint "parent_account_id"
     t.integer "display_order"
     t.string "currency_code", default: "AUD"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
     t.index ["account_class"], name: "index_gl_accounts_on_account_class"
     t.index ["account_type"], name: "index_gl_accounts_on_account_type"
     t.index ["active"], name: "index_gl_accounts_on_active"
     t.index ["corporate_company_id", "external_provider", "external_tenant_id", "code"], name: "idx_gl_accounts_unique_code", unique: true
-    t.index ["corporate_company_id", "external_provider", "external_tenant_id", "external_account_id"], name: "idx_gl_accounts_unique_external", unique: true, where: "(external_account_id IS NOT NULL)"
     t.index ["corporate_company_id"], name: "index_gl_accounts_on_corporate_company_id"
     t.index ["is_bank_account"], name: "index_gl_accounts_on_is_bank_account"
     t.index ["parent_account_id"], name: "index_gl_accounts_on_parent_account_id"

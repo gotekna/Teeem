@@ -185,6 +185,7 @@ interface XeroSyncStatus {
     invoices: number;
     bills: number;
     bank_accounts: number;
+    gl_accounts: number; // SSoT: from Gl::Account table, matches GL page
   };
 }
 
@@ -530,6 +531,10 @@ function XeroSyncStatusCard({
               </div>
               {status.counts && (
                 <div className="flex gap-4 text-xs text-muted-foreground pt-1">
+                  <span className="flex items-center gap-1">
+                    <Briefcase className="h-3 w-3" />
+                    {status.counts.gl_accounts} GL Accounts
+                  </span>
                   <span className="flex items-center gap-1">
                     <Users className="h-3 w-3" />
                     {status.counts.contacts} Contacts
@@ -1789,8 +1794,8 @@ export default function FinancialPage() {
           // API returns status fields at top level (not nested under 'data')
           const xeroStatusRes = await api.get<XeroSyncStatus & { success: boolean }>(`/api/v1/companies/${selectedCompany}/xero/status`);
           if (xeroStatusRes?.success) {
-            // Also fetch tab stats for counts
-            const tabStatsRes = await api.get<{ success: boolean; contacts?: number; invoices?: number; bills?: number; bank_accounts?: number }>(`/api/v1/companies/${selectedCompany}/xero/tab_stats`).catch(() => null);
+            // Also fetch tab stats for counts (includes GL accounts for SSoT consistency with GL page)
+            const tabStatsRes = await api.get<{ success: boolean; contacts?: number; invoices?: number; bills?: number; bank_accounts?: number; gl_accounts?: number }>(`/api/v1/companies/${selectedCompany}/xero/tab_stats`).catch(() => null);
             // Extract status fields from response (excluding 'success')
             const { success: _, ...statusData } = xeroStatusRes;
             setXeroSyncStatus({
@@ -1800,6 +1805,7 @@ export default function FinancialPage() {
                 invoices: tabStatsRes.invoices || 0,
                 bills: tabStatsRes.bills || 0,
                 bank_accounts: tabStatsRes.bank_accounts || 0,
+                gl_accounts: tabStatsRes.gl_accounts || 0, // SSoT: from Gl::Account table
               } : undefined,
             });
           } else {

@@ -1805,9 +1805,25 @@ module Api
       # GET /api/v1/companies/:company_id/xero/tab_stats
       # Returns counts for each Xero sub-tab to display as badges
       # Used by XeroTabRenderer to show document/record counts on tabs
+      #
+      # SSoT: Includes GL account count from Gl::Account table to show unified sync status
+      # This ensures Financial Dashboard and GL page show consistent data.
       def tab_stats
         connection = @company.corporate_company_xero_connection
         xero_tenant_id = connection&.xero_tenant_id
+
+        # GL accounts synced (SSoT: from Gl::Account table, same source as GL page)
+        gl_accounts_count = 0
+        if xero_tenant_id.present?
+          gl_accounts_count = begin
+            ::Gl::Account.where(
+              external_provider: 'xero',
+              external_tenant_id: xero_tenant_id
+            ).count
+          rescue ActiveRecord::StatementInvalid
+            0
+          end
+        end
 
         # Bank tab stats - count bank accounts and statements
         bank_accounts = @company.bank_accounts.where.not(xero_account_id: nil)
@@ -1864,6 +1880,13 @@ module Api
 
         render json: {
           success: true,
+          # Top-level counts for Financial Dashboard XeroSyncStatusCard
+          # SSoT: These are the same data sources used by their respective detail pages
+          contacts: contacts_count,
+          invoices: invoices_count,
+          bills: bills_count,
+          bank_accounts: bank_accounts.count,
+          gl_accounts: gl_accounts_count,
           stats: {
             # Connection tab - no count needed
             connection: nil,
@@ -1885,7 +1908,9 @@ module Api
             # Invoices tab
             invoices: invoices_count > 0 ? invoices_count : nil,
             # Bills & POs tab
-            bills: bills_count > 0 ? bills_count : nil
+            bills: bills_count > 0 ? bills_count : nil,
+            # GL accounts synced (SSoT: from Gl::Account, matches GL page)
+            gl_accounts: gl_accounts_count > 0 ? gl_accounts_count : nil
           }
         }
       end
