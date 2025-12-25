@@ -18,7 +18,7 @@ module Gl
       full incremental
       accounts invoices bills payments
       bank_transactions credit_notes
-      contacts tax_rates
+      contacts tax_rates currencies
       manual_journals
     ].freeze
     STATUSES = %w[started in_progress completed failed cancelled].freeze
