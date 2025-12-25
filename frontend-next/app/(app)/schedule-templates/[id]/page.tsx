@@ -66,7 +66,6 @@ interface SmTemplateRow {
   description: string | null;
   sequence_order: number;
   duration_days: number;
-  start_day_offset: number | null;
   predecessor_ids: Array<{ id: number; type: string; lag: number }>;
   predecessor_display: string;
   trade: string | null;

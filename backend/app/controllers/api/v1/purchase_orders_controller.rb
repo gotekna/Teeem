@@ -104,17 +104,9 @@ module Api
       # POST /api/v1/purchase_orders
       def create
         schedule_task_id = params[:purchase_order][:schedule_task_id]
-        task_template_id = params[:purchase_order][:task_template_id]
-        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id, :task_template_id))
+        @purchase_order = PurchaseOrder.new(purchase_order_params.except(:schedule_task_id))
 
         ActiveRecord::Base.transaction do
-          # If task_template_id provided, use it to populate description
-          if task_template_id.present?
-            task_template = TaskTemplate.find(task_template_id)
-            @purchase_order.description ||= task_template.name
-            @purchase_order.ted_task ||= task_template.category
-          end
-
           if @purchase_order.save
             # Link SmTask to this PO if provided (SmTask is THE ONE - SSoT)
             if schedule_task_id.present?

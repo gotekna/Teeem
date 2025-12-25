@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_25_200941) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_25_202458) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5446,7 +5446,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_200941) do
     t.text "description"
     t.decimal "sequence_order", precision: 10, scale: 2, null: false
     t.integer "duration_days", default: 1, null: false
-    t.integer "start_day_offset", default: 0
     t.jsonb "predecessor_ids", default: []
     t.string "trade"
     t.string "stage"
@@ -5867,24 +5866,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_200941) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
-  end
-
-  create_table "task_templates", force: :cascade do |t|
-    t.string "name", null: false
-    t.string "task_type", null: false
-    t.string "category", null: false
-    t.integer "default_duration_days", default: 1
-    t.integer "sequence_order", default: 0
-    t.integer "predecessor_template_codes", default: [], array: true
-    t.text "description"
-    t.boolean "is_milestone", default: false
-    t.boolean "requires_photo", default: false
-    t.boolean "is_standard", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["category"], name: "index_task_templates_on_category"
-    t.index ["sequence_order"], name: "index_task_templates_on_sequence_order"
-    t.index ["task_type"], name: "index_task_templates_on_task_type"
   end
 
   create_table "tasks", force: :cascade do |t|

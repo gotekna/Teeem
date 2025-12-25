@@ -459,6 +459,10 @@ export default function GlPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
+          {/* T.A.S. Logo Badge */}
+          <div className="w-10 h-10 bg-foreground text-background flex items-center justify-center shrink-0">
+            <span className="text-xl font-bold">$</span>
+          </div>
           <div>
             <h1 className="text-2xl font-bold">T.A.S.</h1>
             <p className="text-muted-foreground">Teeem Accounting System</p>

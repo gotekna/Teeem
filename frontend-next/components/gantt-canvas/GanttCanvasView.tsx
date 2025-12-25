@@ -344,7 +344,7 @@ export function GanttCanvasView({
 
   // Collapse all headers
   const collapseAllHeaders = React.useCallback(() => {
-    const allHeaderIds = rows.filter(r => r.category === 'Header').map(r => r.id);
+    const allHeaderIds = rows.filter(r => r.header === 'Header').map(r => r.id);
     setCollapsedHeaders(new Set(allHeaderIds));
   }, [rows]);
 
@@ -355,7 +355,7 @@ export function GanttCanvasView({
 
   // Get set of header IDs for quick lookup
   const headerIds = React.useMemo(() => {
-    return new Set(rows.filter(r => r.category === 'Header').map(r => r.id));
+    return new Set(rows.filter(r => r.header === 'Header').map(r => r.id));
   }, [rows]);
 
   // Filter visible tasks (hide children of collapsed headers, optionally show only grouped)
@@ -371,7 +371,7 @@ export function GanttCanvasView({
 
       // If showOnlyGrouped is enabled, only show headers and their children
       if (showOnlyGrouped) {
-        const isHeader = row.category === 'Header';
+        const isHeader = row.header === 'Header';
         const isChild = Boolean(row.parent_row_id);
         if (!isHeader && !isChild) {
           return false; // Hide orphan tasks
@@ -382,9 +382,9 @@ export function GanttCanvasView({
     });
   }, [tasks, rows, collapsedHeaders, showOnlyGrouped]);
 
-  // Check if a row is a header (category === 'Header')
+  // Check if a row is a header (header === 'Header')
   const isHeaderRow = React.useCallback((row: SmTemplateRow | undefined) => {
-    return row?.category === 'Header';
+    return row?.header === 'Header';
   }, []);
 
   // Get child count for a header
@@ -785,8 +785,8 @@ export function GanttCanvasView({
       );
 
       if (response.success && response.rows) {
-        // Backend returns rows sorted by start_day_offset (dependency order)
-        // with sequence_order as tiebreaker - SSoT for sort order is backend
+        // Backend returns rows sorted by sequence_order
+        // Scheduling is calculated client-side from predecessor_ids
         setRows(response.rows);
       } else {
         setError("Failed to load template rows");

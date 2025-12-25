@@ -8,10 +8,9 @@ module Api
 
       # GET /api/v1/sm_templates/:sm_template_id/rows
       def index
-        # Sort by start_day_offset (dependency order) with sequence_order as tiebreaker
-        # This is the SSoT - dependencies drive the schedule, NOT manual sequence
+        # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_template_rows.active
-                         .order(Arel.sql("COALESCE(start_day_offset, 0) ASC, COALESCE(sequence_order, 0) ASC"))
+                         .order(Arel.sql("COALESCE(sequence_order, 0) ASC"))
 
         render json: {
           success: true,
@@ -56,41 +55,16 @@ module Api
       def update
         @row.updated_by = current_user
 
-        # Track if we need to cascade dependencies
-        timing_changed = will_timing_change?
-
-        # Check if predecessor_ids are changing (need to recalculate THIS row's start)
-        predecessors_changing = params[:row]&.key?(:predecessor_ids)
-
         # Auto-clear dependency_broken when predecessors are re-added
         clear_dependency_broken_if_needed
 
         if @row.update(row_params)
-          updated_rows = [@row]
-
-          # If predecessors changed, recalculate THIS row's start_day_offset first
-          if predecessors_changing && !@row.manually_positioned?
-            cascade_service = SmTemplateCascadeService.new(@row, @template)
-            new_offset = cascade_service.send(:calculate_start_offset, @row)
-            if new_offset != @row.start_day_offset
-              Rails.logger.info "[SmTemplateRows] Recalculating start_day_offset for row #{@row.id}: #{@row.start_day_offset} → #{new_offset}"
-              @row.update!(start_day_offset: new_offset)
-            end
-          end
-
-          # Cascade to dependent rows if timing changed
-          if timing_changed
-            cascade_service ||= SmTemplateCascadeService.new(@row, @template)
-            updated_rows = cascade_service.cascade_successors
-          end
-
           # Reload to get fresh data after any updates
           @row.reload
 
           render json: {
             success: true,
-            row: row_json(@row),
-            cascaded_rows: updated_rows.length > 1 ? updated_rows.map { |r| r.reload; row_json(r) } : nil
+            row: row_json(@row)
           }
         else
           render json: {
@@ -184,39 +158,6 @@ module Api
         @row = @template.sm_template_rows.find(params[:id])
       end
 
-      # Check if the update will change timing (triggers cascade)
-      def will_timing_change?
-        return false unless params[:row]
-
-        rp = params[:row]
-
-        # Duration change affects successors
-        if rp[:duration_days].present? && rp[:duration_days].to_i != @row.duration_days
-          return true
-        end
-
-        # Manual start date change affects successors
-        if rp[:manual_start_date].present?
-          new_date = Date.parse(rp[:manual_start_date]) rescue nil
-          return true if new_date && new_date != @row.manual_start_date
-        end
-
-        # Start day offset change affects successors
-        if rp[:start_day_offset].present? && rp[:start_day_offset].to_i != @row.start_day_offset
-          return true
-        end
-
-        # Predecessor changes affect THIS row's start date (and potentially successors)
-        if rp[:predecessor_ids].present?
-          old_preds = @row.predecessor_ids || []
-          new_preds = rp[:predecessor_ids] || []
-          # Compare by serializing to handle hash ordering differences
-          return true if old_preds.to_json != new_preds.to_json
-        end
-
-        false
-      end
-
       # Clear dependency_broken flag when predecessors are re-added
       def clear_dependency_broken_if_needed
         return unless params[:row]
@@ -233,8 +174,8 @@ module Api
       def row_params
         params.require(:row).permit(
           :name, :description, :task_number, :sequence_order,
-          :duration_days, :start_day_offset,
-          :trade, :stage, :category, :assigned_role, :cost_centre,
+          :duration_days,
+          :trade, :stage, :header, :assigned_role, :cost_centre,
           :supplier_id, :checklist_id, :parent_row_id,
           :require_photo, :require_certificate, :require_supervisor_check,
           :po_required, :critical_po, :create_po_on_job_start,
@@ -266,8 +207,8 @@ module Api
       def bulk_row_params(data)
         data.permit(
           :name, :description, :task_number, :sequence_order,
-          :duration_days, :start_day_offset,
-          :trade, :stage, :assigned_role,
+          :duration_days,
+          :trade, :stage, :header, :assigned_role,
           :supplier_id, :parent_row_id,
           :require_photo, :require_certificate, :require_supervisor_check,
           :po_required, :critical_po,
@@ -288,13 +229,12 @@ module Api
           description: row.description,
           sequence_order: row.sequence_order,
           duration_days: row.duration_days,
-          start_day_offset: row.start_day_offset,
           predecessor_ids: row.predecessor_ids,
           predecessor_display: row.predecessor_display,
           predecessor_display_names: row.predecessor_display_names,
           trade: row.trade,
           stage: row.stage,
-          category: row.category,
+          header: row.header,
           cost_centre: row.cost_centre,
           assigned_role: row.assigned_role,
           supplier_id: row.supplier_id,

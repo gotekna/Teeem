@@ -55,7 +55,6 @@ interface SmTemplateRow {
   task_number: number;
   name: string;
   duration_days: number;
-  start_day_offset: number;
   sequence_order: number;
   predecessor_ids: Array<{ id: number; type?: string; lag?: number }>;
   trade?: string;
@@ -80,47 +79,8 @@ interface SmTemplate {
   updated_at: string;
 }
 
-interface TaskTemplate {
-  id: number;
-  name: string;
-  task_type: string;
-  category: string;
-  default_duration_days: number;
-  description: string | null;
-  is_milestone: boolean;
-  requires_photo: boolean;
-  sequence_order: number;
-  is_standard: boolean;
-  predecessor_template_codes: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-const TASK_CATEGORIES = [
-  "Site Works",
-  "Foundation",
-  "Frame",
-  "Roof",
-  "Lock Up",
-  "Fit Out",
-  "Services",
-  "Finishing",
-  "External",
-  "Other",
-];
-
-const TASK_TYPES = [
-  "construction",
-  "inspection",
-  "approval",
-  "procurement",
-  "admin",
-  "other",
-];
-
 const VALID_SUBTABS = [
   "schedule-templates",
-  "task-templates",
   "display-settings",
   "gantt-preview",
   "data-view",
@@ -134,7 +94,7 @@ const ALL_COLUMNS = [
   // Core Identity
   "task_number", "name", "description", "sequence_order", "header",
   // Scheduling
-  "duration_days", "start_day_offset", "predecessor_ids", "manually_positioned",
+  "duration_days", "predecessor_ids", "manually_positioned",
   "manual_start_date", "dependency_broken", "predecessor_ids_backup",
   // Assignment & Supplier
   "supplier_id", "trade", "stage", "assigned_role", "cost_centre",
@@ -223,26 +183,6 @@ export function ScheduleMasterTab() {
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
 
-  // Task Templates state
-  const [taskTemplates, setTaskTemplates] = React.useState<TaskTemplate[]>([]);
-  const [taskTemplatesLoading, setTaskTemplatesLoading] = React.useState(true);
-  const [showTaskDialog, setShowTaskDialog] = React.useState(false);
-  const [editingTaskTemplate, setEditingTaskTemplate] = React.useState<TaskTemplate | null>(null);
-  const [savingTask, setSavingTask] = React.useState(false);
-  const [deletingTask, setDeletingTask] = React.useState<number | null>(null);
-
-  const [taskFormData, setTaskFormData] = React.useState({
-    name: "",
-    task_type: "construction",
-    category: "Other",
-    default_duration_days: 1,
-    description: "",
-    is_milestone: false,
-    requires_photo: false,
-    sequence_order: 0,
-    is_standard: true,
-  });
-
   // Column status tracking (persisted to localStorage)
   const [columnStatus, setColumnStatus] = React.useState<ColumnStatus>({
     complete: {},
@@ -287,7 +227,6 @@ export function ScheduleMasterTab() {
 
   React.useEffect(() => {
     loadTemplates();
-    loadTaskTemplates();
   }, []);
 
   const loadTemplates = async () => {
@@ -480,114 +419,6 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Task Templates functions
-  const loadTaskTemplates = async () => {
-    try {
-      const data = await api.get<{ task_templates: TaskTemplate[] }>("/api/v1/task_templates");
-      setTaskTemplates(data?.task_templates || []);
-    } catch (error) {
-      console.error("Failed to load task templates:", error);
-      setTaskTemplates([]);
-    } finally {
-      setTaskTemplatesLoading(false);
-    }
-  };
-
-  const handleOpenAddTaskDialog = () => {
-    setTaskFormData({
-      name: "",
-      task_type: "construction",
-      category: "Other",
-      default_duration_days: 1,
-      description: "",
-      is_milestone: false,
-      requires_photo: false,
-      sequence_order: taskTemplates.length + 1,
-      is_standard: true,
-    });
-    setEditingTaskTemplate(null);
-    setShowTaskDialog(true);
-  };
-
-  const handleOpenEditTaskDialog = (template: TaskTemplate) => {
-    setTaskFormData({
-      name: template.name,
-      task_type: template.task_type || "construction",
-      category: template.category || "Other",
-      default_duration_days: template.default_duration_days || 1,
-      description: template.description || "",
-      is_milestone: template.is_milestone || false,
-      requires_photo: template.requires_photo || false,
-      sequence_order: template.sequence_order || 0,
-      is_standard: template.is_standard !== false,
-    });
-    setEditingTaskTemplate(template);
-    setShowTaskDialog(true);
-  };
-
-  const handleSaveTaskTemplate = async () => {
-    if (!taskFormData.name) {
-      toast({ title: "Error", description: "Task name is required", variant: "destructive" });
-      return;
-    }
-
-    setSavingTask(true);
-    try {
-      if (editingTaskTemplate) {
-        await api.patch(`/api/v1/task_templates/${editingTaskTemplate.id}`, {
-          task_template: taskFormData,
-        });
-        toast({ title: "Success", description: "Task template updated successfully" });
-      } else {
-        await api.post("/api/v1/task_templates", {
-          task_template: taskFormData,
-        });
-        toast({ title: "Success", description: "Task template created successfully" });
-      }
-      setShowTaskDialog(false);
-      loadTaskTemplates();
-    } catch (error) {
-      console.error("Failed to save task template:", error);
-      toast({ title: "Error", description: "Failed to save task template", variant: "destructive" });
-    } finally {
-      setSavingTask(false);
-    }
-  };
-
-  const handleDeleteTaskTemplate = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this task template? This cannot be undone.")) return;
-
-    setDeletingTask(id);
-    try {
-      await api.delete(`/api/v1/task_templates/${id}`);
-      toast({ title: "Success", description: "Task template deleted successfully" });
-      loadTaskTemplates();
-    } catch (error) {
-      console.error("Failed to delete task template:", error);
-      toast({ title: "Error", description: "Failed to delete task template", variant: "destructive" });
-    } finally {
-      setDeletingTask(null);
-    }
-  };
-
-  // Group task templates by category
-  const taskTemplatesByCategory = React.useMemo(() => {
-    if (!Array.isArray(taskTemplates)) return {};
-
-    const grouped: Record<string, TaskTemplate[]> = {};
-    taskTemplates.forEach((template) => {
-      const cat = template.category || "Other";
-      if (!grouped[cat]) grouped[cat] = [];
-      grouped[cat].push(template);
-    });
-    // Sort each category by sequence_order (create new sorted arrays)
-    const sorted: Record<string, TaskTemplate[]> = {};
-    Object.keys(grouped).forEach((cat) => {
-      sorted[cat] = [...grouped[cat]].sort((a, b) => (a.sequence_order || 0) - (b.sequence_order || 0));
-    });
-    return sorted;
-  }, [taskTemplates]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -603,10 +434,6 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
             Schedule Templates
-          </TabsTrigger>
-          <TabsTrigger value="task-templates">
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Task Templates
           </TabsTrigger>
           <TabsTrigger value="display-settings">
             <Settings className="h-4 w-4 mr-2" />
@@ -752,11 +579,6 @@ export function ScheduleMasterTab() {
                                   <Badge variant="outline" className="text-xs">
                                     {row.duration_days} days
                                   </Badge>
-                                  {row.start_day_offset > 0 && (
-                                    <Badge variant="secondary" className="text-xs">
-                                      +{row.start_day_offset} offset
-                                    </Badge>
-                                  )}
                                   {row.po_required && (
                                     <Badge variant="outline" className="text-xs text-orange-600 dark:text-orange-400">
                                       PO
@@ -784,108 +606,6 @@ export function ScheduleMasterTab() {
                     </CardContent>
                   )}
                 </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
-        {/* Task Templates Tab */}
-        <TabsContent value="task-templates" className="space-y-6 mt-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Task Templates</h2>
-              <p className="text-sm text-muted-foreground">
-                Define reusable task templates for purchase orders and schedules.
-              </p>
-            </div>
-            <Button onClick={handleOpenAddTaskDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              New Task Template
-            </Button>
-          </div>
-
-          {taskTemplatesLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : taskTemplates.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                <ClipboardList className="h-12 w-12 mb-4 opacity-50" />
-                <h3 className="text-lg font-medium mb-2">No task templates yet</h3>
-                <p className="text-center max-w-md mb-4">
-                  Create task templates to standardize tasks across your projects.
-                </p>
-                <Button onClick={handleOpenAddTaskDialog}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Task Template
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(taskTemplatesByCategory).map(([category, categoryTasks]) => (
-                <div key={category}>
-                  <h3 className="text-sm font-medium text-muted-foreground mb-3">{category}</h3>
-                  <div className="grid gap-3">
-                    {categoryTasks.map((template) => (
-                      <Card key={template.id} className="overflow-hidden">
-                        <div className="flex items-center gap-4 p-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">{template.name}</span>
-                              {template.is_milestone && (
-                                <Badge variant="secondary" className="text-xs">
-                                  <Flag className="h-3 w-3 mr-1" />
-                                  Milestone
-                                </Badge>
-                              )}
-                              {template.requires_photo && (
-                                <Badge variant="outline" className="text-xs">
-                                  <Camera className="h-3 w-3 mr-1" />
-                                  Photo
-                                </Badge>
-                              )}
-                            </div>
-                            {template.description && (
-                              <p className="text-sm text-muted-foreground mt-1 truncate">
-                                {template.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Badge variant="outline">
-                              {template.default_duration_days} days
-                            </Badge>
-                            <Badge variant="secondary" className="capitalize">
-                              {template.task_type}
-                            </Badge>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenEditTaskDialog(template)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-destructive"
-                              onClick={() => handleDeleteTaskTemplate(template.id)}
-                              disabled={deletingTask === template.id}
-                            >
-                              {deletingTask === template.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
               ))}
             </div>
           )}
@@ -1072,13 +792,6 @@ export function ScheduleMasterTab() {
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">duration_days</code>
                     <Badge variant="outline" className="text-xs w-fit">integer</Badge>
                     <span className="text-muted-foreground">How many working days the task takes</span>
-                  </div>
-                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["start_day_offset"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "start_day_offset", !!v)} />
-                    <Checkbox checked={columnStatus.delete["start_day_offset"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "start_day_offset", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">start_day_offset</code>
-                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
-                    <span className="text-muted-foreground">Days after job start (used for initial positioning)</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["predecessor_ids"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "predecessor_ids", !!v)} />
@@ -1630,159 +1343,6 @@ export function ScheduleMasterTab() {
                 "Update Template"
               ) : (
                 "Create Template"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Task Template Dialog */}
-      <Dialog open={showTaskDialog} onOpenChange={setShowTaskDialog}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {editingTaskTemplate ? "Edit Task Template" : "New Task Template"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingTaskTemplate
-                ? "Update the task template details."
-                : "Create a new task template for your projects."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="task-name">Task Name</Label>
-              <Input
-                id="task-name"
-                placeholder="e.g., Pour Slab"
-                value={taskFormData.name}
-                onChange={(e) => setTaskFormData({ ...taskFormData, name: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="task-type">Task Type</Label>
-                <Select
-                  value={taskFormData.task_type}
-                  onValueChange={(value) => setTaskFormData({ ...taskFormData, task_type: value })}
-                >
-                  <SelectTrigger id="task-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_TYPES.map((type) => (
-                      <SelectItem key={type} value={type} className="capitalize">
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="task-category">Category</Label>
-                <Select
-                  value={taskFormData.category}
-                  onValueChange={(value) => setTaskFormData({ ...taskFormData, category: value })}
-                >
-                  <SelectTrigger id="task-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TASK_CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="task-duration">Default Duration (days)</Label>
-                <Input
-                  id="task-duration"
-                  type="number"
-                  min={1}
-                  value={taskFormData.default_duration_days}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, default_duration_days: parseInt(e.target.value) || 1 })}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="task-sequence">Sequence Order</Label>
-                <Input
-                  id="task-sequence"
-                  type="number"
-                  min={0}
-                  value={taskFormData.sequence_order}
-                  onChange={(e) => setTaskFormData({ ...taskFormData, sequence_order: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="task-description">Description</Label>
-              <Input
-                id="task-description"
-                placeholder="Brief description of this task"
-                value={taskFormData.description}
-                onChange={(e) => setTaskFormData({ ...taskFormData, description: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Milestone</Label>
-                  <p className="text-sm text-muted-foreground">Mark this as a key milestone</p>
-                </div>
-                <Switch
-                  checked={taskFormData.is_milestone}
-                  onCheckedChange={(checked) => setTaskFormData({ ...taskFormData, is_milestone: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Requires Photo</Label>
-                  <p className="text-sm text-muted-foreground">Photo evidence required on completion</p>
-                </div>
-                <Switch
-                  checked={taskFormData.requires_photo}
-                  onCheckedChange={(checked) => setTaskFormData({ ...taskFormData, requires_photo: checked })}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Standard Task</Label>
-                  <p className="text-sm text-muted-foreground">Include in standard task lists</p>
-                </div>
-                <Switch
-                  checked={taskFormData.is_standard}
-                  onCheckedChange={(checked) => setTaskFormData({ ...taskFormData, is_standard: checked })}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTaskDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSaveTaskTemplate} disabled={savingTask}>
-              {savingTask ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
-                </>
-              ) : editingTaskTemplate ? (
-                "Update Task Template"
-              ) : (
-                "Create Task Template"
               )}
             </Button>
           </DialogFooter>

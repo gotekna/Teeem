@@ -117,7 +117,7 @@ export interface SmTemplateRow {
   require_supplier_confirm: boolean;
   finance_approved: boolean;
   is_master: boolean;
-  category: string | null;
+  header: string | null;
   // Multi-template support
   sm_template_ids: number[];
   // Manual positioning (held dates)
@@ -565,10 +565,10 @@ export function convertRowsToTasks(
   const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
 
   // Third pass: update header tasks to span their children
-  // Header rows have category === 'Header' and children have parent_row_id pointing to them
+  // Header rows have header === 'Header' and children have parent_row_id pointing to them
   // If a header has dependencies, shift its children accordingly
   const headerIds = new Set(
-    sortedRows.filter(r => r.category === 'Header').map(r => r.id)
+    sortedRows.filter(r => r.header === 'Header').map(r => r.id)
   );
 
   if (headerIds.size > 0) {
@@ -587,7 +587,7 @@ export function convertRowsToTasks(
     // If header has dependencies, shift children first
     for (const task of tasks) {
       const row = sortedRows.find(r => String(r.id) === task.id);
-      if (row?.category === 'Header') {
+      if (row?.header === 'Header') {
         const children = headerChildrenMap.get(row.id);
         if (children && children.length > 0) {
           // Find current min start from children
