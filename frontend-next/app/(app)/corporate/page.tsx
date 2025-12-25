@@ -1438,6 +1438,16 @@ export default function CorporateDashboardPage() {
                                           )}
                                           <Building2 className="h-3.5 w-3.5 text-blue-600 flex-shrink-0" />
                                           <span className="text-sm truncate">{company.name}</span>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              router.push(`/financial?company=${company.id}`);
+                                            }}
+                                            className="p-0.5 rounded hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                                            title="Open Financial Dashboard"
+                                          >
+                                            <DollarSign className="h-3.5 w-3.5 text-green-600" />
+                                          </button>
                                         </div>
                                         <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                                           {company.hierarchy_level === 0 && (
