@@ -2307,6 +2307,137 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/sync_all_companies
+      # Syncs all corporate companies with Xero connections
+      # Used from the Corporate page to sync all 10 companies at once
+      def sync_all_companies
+        begin
+          Rails.logger.info("[Xero] Starting sync_all_companies")
+
+          # Get all corporate companies with Xero connections
+          companies_with_xero = CorporateCompany.joins(:corporate_company_xero_connection)
+            .includes(:corporate_company_xero_connection)
+            .where(corporate_company_xero_connections: { xero_tenant_id: XeroCredential.pluck(:tenant_id) })
+
+          if companies_with_xero.empty?
+            return render json: {
+              success: false,
+              error: "No companies are connected to Xero"
+            }, status: :bad_request
+          end
+
+          results = []
+          successful = 0
+          failed = 0
+
+          companies_with_xero.find_each do |company|
+            connection = company.corporate_company_xero_connection
+            next unless connection&.connected?
+
+            begin
+              Rails.logger.info("[Xero] Syncing company #{company.id}: #{company.name}")
+
+              # Refresh tokens if needed
+              if connection.needs_refresh?
+                unless connection.refresh_tokens!
+                  results << {
+                    company_id: company.id,
+                    company_name: company.name,
+                    success: false,
+                    error: "Token refresh failed"
+                  }
+                  failed += 1
+                  next
+                end
+              end
+
+              # 1. Sync Xero bank accounts and transactions
+              bank_result = { success: true }
+              tx_result = { success: true }
+              begin
+                sync_service = XeroBankSyncService.new(company)
+                bank_result = sync_service.sync_bank_accounts(auto_create: true)
+                tx_result = sync_service.sync_transactions(
+                  from_date: 3.months.ago.to_date,
+                  to_date: Date.today
+                )
+              rescue StandardError => e
+                Rails.logger.warn("[Xero] Bank sync failed for #{company.name}: #{e.message}")
+                bank_result = { success: false, error: e.message }
+              end
+
+              # 2. Sync Monthly P&L data
+              pl_result = { success: true }
+              begin
+                pl_sync_service = CorporateCompanyXeroSyncService.new(company)
+                pl_result = pl_sync_service.sync_all(force: false)
+              rescue StandardError => e
+                Rails.logger.warn("[Xero] P&L sync failed for #{company.name}: #{e.message}")
+                pl_result = { success: false, error: e.message }
+              end
+
+              # 3. Sync GL data (if adapter available)
+              gl_result = { success: true, skipped: true }
+              begin
+                if defined?(Gl::Adapters) && Gl::Adapters.respond_to?(:for)
+                  adapter = Gl::Adapters.for(company)
+                  if adapter && !adapter.standalone?
+                    gl_sync_service = Gl::SyncService.new(adapter)
+                    gl_sync_service.sync_incremental
+                    gl_result = { success: true, synced: true }
+                  end
+                end
+              rescue StandardError => e
+                Rails.logger.warn("[Xero] GL sync failed for #{company.name}: #{e.message}")
+                gl_result = { success: false, error: e.message }
+              end
+
+              # Update connection sync time
+              connection.sync_successful! if bank_result[:success] && tx_result[:success]
+
+              results << {
+                company_id: company.id,
+                company_name: company.name,
+                xero_tenant_name: connection.xero_tenant_name,
+                success: true,
+                bank_accounts_synced: bank_result[:auto_created_count] || 0,
+                transactions_synced: tx_result[:total_transactions_synced] || 0,
+                pl_synced: pl_result[:success],
+                gl_synced: gl_result[:success] && !gl_result[:skipped]
+              }
+              successful += 1
+
+            rescue StandardError => e
+              Rails.logger.error("[Xero] Sync failed for company #{company.id}: #{e.message}")
+              results << {
+                company_id: company.id,
+                company_name: company.name,
+                success: false,
+                error: e.message
+              }
+              failed += 1
+            end
+          end
+
+          render json: {
+            success: true,
+            data: {
+              total_companies: companies_with_xero.count,
+              successful: successful,
+              failed: failed,
+              results: results
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("[Xero] sync_all_companies error: #{e.message}")
+          Rails.logger.error(e.backtrace.first(5).join("\n"))
+          render json: {
+            success: false,
+            error: "Failed to sync companies: #{e.message}"
+          }, status: :internal_server_error
+        end
+      end
+
       private
 
       # Calculate Xero data statistics for sync dashboard

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_25_001130) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_25_105321) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6019,6 +6019,34 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_001130) do
     t.index ["status"], name: "index_trinity_on_status"
   end
 
+  create_table "unreal_measurements", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "job_plan_id"
+    t.bigint "pricebook_item_id"
+    t.bigint "job_colour_selection_id"
+    t.string "session_id", null: false
+    t.string "measurement_type", null: false
+    t.decimal "value", precision: 15, scale: 4, null: false
+    t.string "unit", null: false
+    t.string "category"
+    t.string "subcategory"
+    t.text "notes"
+    t.jsonb "geometry_data", default: {}
+    t.bigint "synced_to_po_id"
+    t.datetime "synced_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_unreal_measurements_on_category"
+    t.index ["job_colour_selection_id"], name: "index_unreal_measurements_on_job_colour_selection_id"
+    t.index ["job_id", "session_id"], name: "index_unreal_measurements_on_job_id_and_session_id"
+    t.index ["job_id"], name: "index_unreal_measurements_on_job_id"
+    t.index ["job_plan_id"], name: "index_unreal_measurements_on_job_plan_id"
+    t.index ["measurement_type"], name: "index_unreal_measurements_on_measurement_type"
+    t.index ["pricebook_item_id"], name: "index_unreal_measurements_on_pricebook_item_id"
+    t.index ["session_id"], name: "index_unreal_measurements_on_session_id"
+    t.index ["synced_to_po_id"], name: "index_unreal_measurements_on_synced_to_po_id"
+  end
+
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -7170,6 +7198,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_001130) do
   add_foreign_key "tasks", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
   add_foreign_key "tasks", "users", column: "updated_by_id", on_delete: :nullify
+  add_foreign_key "unreal_measurements", "job_colour_selections"
+  add_foreign_key "unreal_measurements", "job_plans"
+  add_foreign_key "unreal_measurements", "jobs"
+  add_foreign_key "unreal_measurements", "pricebook", column: "pricebook_item_id"
+  add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"

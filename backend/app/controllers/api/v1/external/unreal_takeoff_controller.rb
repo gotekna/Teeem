@@ -22,14 +22,12 @@ module Api
             job: {
               id: job.id,
               name: job.name,
-              title: job.title,
-              job_number: job.job_number,
               contract_price: job.contract_price,
-              site_address: job.site_address,
+              site_address: [job.street_number, job.street_name, job.street_type].compact.join(" "),
               suburb: job.suburb,
               state: job.state,
               postcode: job.postcode,
-              status: job.status,
+              status: job.job_status&.name,
               plans_count: job.job_plans.count,
               colour_selections_count: job.job_colour_selections.count
             }
@@ -71,7 +69,7 @@ module Api
           render json: {
             success: true,
             job_id: job.id,
-            job_name: job.title,
+            job_name: job.name,
             plans_count: plans.count,
             plans: plans
           }

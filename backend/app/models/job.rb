@@ -34,6 +34,7 @@ class Job < ApplicationRecord
   has_many :contacts, through: :job_contacts
   has_many :job_specifications, dependent: :destroy
   has_many :job_colour_selections, dependent: :destroy
+  has_many :unreal_measurements, dependent: :destroy
   has_many :rain_logs, dependent: :destroy
   has_many :external_invoices, dependent: :nullify
   has_many :job_documents, dependent: :destroy

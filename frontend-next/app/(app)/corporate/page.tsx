@@ -38,6 +38,8 @@ import {
   Maximize2,
   X,
   Settings,
+  DollarSign,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -232,30 +234,47 @@ function StatCard({ name, value, icon: Icon, href, alert, alertColor }: StatCard
 interface QuickActionProps {
   label: string;
   icon?: React.ElementType;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   variant?: "primary" | "secondary" | "outline";
   color?: string;
+  loading?: boolean;
+  disabled?: boolean;
 }
 
-function QuickAction({ label, icon: Icon, href, variant = "outline", color }: QuickActionProps) {
+function QuickAction({ label, icon: Icon, href, onClick, variant = "outline", color, loading, disabled }: QuickActionProps) {
   const router = useRouter();
 
   const getButtonClass = () => {
     if (color === "green") return "bg-green-600 hover:bg-green-700 text-white";
     if (color === "indigo") return "bg-indigo-600 hover:bg-indigo-700 text-white";
     if (color === "blue") return "bg-blue-600 hover:bg-blue-700 text-white";
+    if (color === "purple") return "bg-purple-600 hover:bg-purple-700 text-white";
     if (variant === "primary") return "bg-primary hover:bg-primary/90 text-primary-foreground";
     return "";
+  };
+
+  const handleClick = () => {
+    if (onClick) {
+      onClick();
+    } else if (href) {
+      router.push(href);
+    }
   };
 
   return (
     <Button
       variant={variant === "outline" ? "outline" : "default"}
       className={cn("justify-start h-10", getButtonClass())}
-      onClick={() => router.push(href)}
+      onClick={handleClick}
+      disabled={disabled || loading}
     >
-      {Icon && <Icon className="h-4 w-4 mr-2" />}
-      {label}
+      {loading ? (
+        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+      ) : (
+        Icon && <Icon className="h-4 w-4 mr-2" />
+      )}
+      {loading ? "Syncing..." : label}
     </Button>
   );
 }
@@ -527,6 +546,39 @@ export default function CorporateDashboardPage() {
     default_accountant: "",
     default_accountant_contact: "",
   });
+
+  // Xero sync state
+  const [syncingXero, setSyncingXero] = React.useState(false);
+
+  // Handle sync all Xero companies
+  const handleSyncAllXero = async () => {
+    setSyncingXero(true);
+    try {
+      interface SyncData {
+        total_companies: number;
+        successful: number;
+        failed: number;
+      }
+      interface SyncResponse {
+        success: boolean;
+        data?: SyncData;
+        error?: string;
+      }
+      const response = await api.post<SyncResponse>('/api/v1/xero/sync_all_companies');
+      if (response?.success && response?.data) {
+        const data = response.data;
+        alert(`Xero Sync Complete!\n\nTotal: ${data.total_companies} companies\nSuccessful: ${data.successful}\nFailed: ${data.failed}`);
+      } else {
+        alert(`Xero Sync Failed: ${response?.error || 'Unknown error'}`);
+      }
+    } catch (error: unknown) {
+      console.error('Xero sync error:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Xero Sync Error: ${message}`);
+    } finally {
+      setSyncingXero(false);
+    }
+  };
 
   // Load initial data
   React.useEffect(() => {
@@ -1249,6 +1301,8 @@ export default function CorporateDashboardPage() {
             <QuickAction label="Compliance Calendar" icon={Calendar} href="/corporate/compliance-calendar" />
             <QuickAction label="Minute Templates" icon={FileText} href="/corporate/minute-templates" />
             <QuickAction label="Xero Integration" icon={ExternalLink} href="/xero" />
+            <QuickAction label="Sync All Xero" icon={RefreshCw} onClick={handleSyncAllXero} loading={syncingXero} color="purple" />
+            <QuickAction label="Financial Dashboard" icon={DollarSign} href="/financial" color="green" />
             <QuickAction label="ASIC Logins" icon={Key} href="/corporate/asic-logins" />
             <QuickAction label="Document Types" icon={FileText} href="/corporate/document-types" />
             <QuickAction label="Consolidation" icon={ArrowLeftRight} href="/corporate/consolidation" />

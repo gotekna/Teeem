@@ -1426,6 +1426,7 @@ Rails.application.routes.draw do
           get :unlinked_contacts
           post :link_unlinked_contact
           post :auto_match_contacts
+          post :sync_all_companies
         end
         member do
           get :sync_contacts_status
@@ -2429,6 +2430,85 @@ Rails.application.routes.draw do
           # Dashboard
           get "eofy/dashboard", action: :dashboard
         end
+
+        # Personal Tax (Individual/Sole Trader Tax Returns)
+        controller :personal_tax do
+          # Full Tax Return
+          get "personal_tax", action: :show
+          get "personal_tax/summary", action: :summary
+          get "personal_tax/estimate", action: :estimate
+          # Income Items
+          get "personal_tax/income", action: :income
+          get "personal_tax/income/:item", action: :income_item
+          # Deduction Items
+          get "personal_tax/deductions", action: :deductions
+          get "personal_tax/deductions/:item", action: :deduction_item
+          # Schedules
+          get "personal_tax/rental", action: :rental
+          get "personal_tax/business", action: :business
+          get "personal_tax/capital_gains", action: :capital_gains
+          # Work-Related Expenses
+          get "personal_tax/car_expenses", action: :car_expenses
+          get "personal_tax/home_office", action: :home_office
+          # Tax Calculation
+          post "personal_tax/calculate", action: :calculate
+          # Tips & Guidance
+          get "personal_tax/tips", action: :tips
+          get "personal_tax/due_dates", action: :due_dates
+          # Export
+          post "personal_tax/export", action: :export
+        end
+
+        # Financial Dashboard
+        controller :dashboard do
+          # Main Dashboard
+          get "dashboard", action: :index
+          get "dashboard/kpis", action: :kpis
+          # Cash Position
+          get "dashboard/cash", action: :cash
+          # Revenue & Expenses
+          get "dashboard/revenue_expenses", action: :revenue_expenses
+          # AR/AP
+          get "dashboard/ar_ap", action: :ar_ap
+          # Bank Accounts
+          get "dashboard/bank_accounts", action: :bank_accounts
+          # Alerts
+          get "dashboard/alerts", action: :alerts
+          post "dashboard/alerts/:id/dismiss", action: :dismiss_alert
+          # Activity
+          get "dashboard/activity", action: :activity
+          # Charts
+          get "dashboard/charts", action: :charts
+          get "dashboard/charts/:chart_type", action: :chart
+          # Quick Actions
+          get "dashboard/quick_actions", action: :quick_actions
+          # Widgets
+          get "dashboard/widgets", action: :widgets
+          post "dashboard/widgets/configure", action: :configure_widgets
+          # Refresh
+          post "dashboard/refresh", action: :refresh
+        end
+
+        # Multi-Company Consolidation
+        controller :consolidation do
+          # Main Consolidation
+          get "consolidation", action: :index
+          get "consolidation/entities", action: :entities
+          # Consolidated Reports
+          get "consolidation/profit_loss", action: :profit_loss
+          get "consolidation/balance_sheet", action: :balance_sheet
+          get "consolidation/trial_balance", action: :trial_balance
+          # Eliminations
+          get "consolidation/eliminations", action: :eliminations
+          get "consolidation/intercompany", action: :intercompany
+          # Entity Comparison
+          get "consolidation/comparison", action: :comparison
+          get "consolidation/contribution", action: :contribution
+          # Adjustments
+          get "consolidation/adjustments", action: :adjustments
+          # Export
+          post "consolidation/export", action: :export
+        end
       end
 
       # Pay Now Requests (admin/supervisor interface)
@@ -2585,6 +2665,17 @@ Rails.application.routes.draw do
         post "unreal_line_items", to: "unreal_purchase_orders#create_line_item"
         # Unreal Engine Job Lookup
         get "unreal_jobs/:id", to: "unreal_purchase_orders#show_job"
+
+        # Unreal 3D Takeoff (quantity & colour selection)
+        get "unreal_takeoff/jobs/:id", to: "unreal_takeoff#show_job"
+        get "unreal_takeoff/plans/:job_id", to: "unreal_takeoff#plans"
+        get "unreal_takeoff/plans/:id/download", to: "unreal_takeoff#download_plan"
+        get "unreal_takeoff/plans/:id/image", to: "unreal_takeoff#plan_image"
+        get "unreal_takeoff/colours/:job_id", to: "unreal_takeoff#colours"
+        get "unreal_takeoff/measurements/:job_id", to: "unreal_takeoff#measurements"
+        post "unreal_takeoff/measurements", to: "unreal_takeoff#create_measurements"
+        post "unreal_takeoff/sync_to_po", to: "unreal_takeoff#sync_to_po"
+        delete "unreal_takeoff/sessions/:session_id", to: "unreal_takeoff#delete_session"
       end
     end
   end
