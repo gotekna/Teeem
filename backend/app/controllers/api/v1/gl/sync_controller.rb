@@ -153,10 +153,15 @@ module Api
             company = connection&.corporate_company
 
             # Count synced GL accounts for this tenant
-            account_count = ::Gl::Account.where(
-              external_provider: 'xero',
-              external_tenant_id: xc.tenant_id
-            ).count
+            # Note: GL accounts table may not have external_provider/tenant columns yet
+            account_count = begin
+              ::Gl::Account.where(
+                external_provider: 'xero',
+                external_tenant_id: xc.tenant_id
+              ).count
+            rescue ActiveRecord::StatementInvalid
+              0
+            end
 
             data << {
               id: "xero_#{xc.id}",
