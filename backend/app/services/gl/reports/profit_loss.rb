@@ -149,20 +149,20 @@ module Gl
       end
 
       def calculate_movements(account, from_date, to_date)
-        result = Gl::LedgerLine
+        # Use pick to avoid ORDER BY conflict with aggregate functions
+        net = Gl::LedgerLine
           .joins(:gl_journal_entry)
           .where(gl_account: account)
           .where(gl_journal_entries: { status: 'posted' })
           .where(gl_journal_entries: { entry_date: from_date..to_date })
-          .select('SUM(credit) - SUM(debit) as net')
-          .first
+          .pick('COALESCE(SUM(credit) - SUM(debit), 0)')
 
         # Revenue/Income accounts have credit normal, so credits increase the balance
         # Expense accounts have debit normal, so debits increase (we negate)
         if account.account_type == 'revenue'
-          result&.net || 0
+          net.to_d
         else
-          -(result&.net || 0)
+          -net.to_d
         end
       end
 
