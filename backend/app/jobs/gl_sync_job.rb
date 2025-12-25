@@ -67,6 +67,7 @@ class GlSyncJob < ApplicationJob
 
   def get_adapter
     if @provider.present? && @provider != 'standalone'
+      # First try GL::ProviderCredential
       credential = ::Gl::ProviderCredential.find_by(
         corporate_company: @corporate_company,
         provider: @provider,
@@ -75,6 +76,16 @@ class GlSyncJob < ApplicationJob
 
       if credential
         ::Gl::Adapters.for(@corporate_company, credential: credential)
+      elsif @provider == 'xero' && @tenant_id.present?
+        # Fallback for Xero: use existing XeroCredential
+        xero_cred = XeroCredential.find_by(tenant_id: @tenant_id, status: 'connected')
+        if xero_cred
+          Rails.logger.info("[GlSyncJob] Using XeroCredential fallback for #{@tenant_id}")
+          ::Gl::Adapters::Xero.new(@corporate_company, xero_credential: xero_cred)
+        else
+          Rails.logger.warn("[GlSyncJob] No XeroCredential found for #{@tenant_id}")
+          nil
+        end
       else
         Rails.logger.warn("[GlSyncJob] No credential found for #{@provider}/#{@tenant_id}")
         nil

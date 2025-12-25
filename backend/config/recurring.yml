@@ -125,6 +125,14 @@ corporate_xero_data_sync:
   queue: low
   schedule: at 6am every day
 
+# GL Backup Sync - catches any webhook failures
+# SSoT: Webhooks are primary for GL sync, this is BACKUP only
+# Syncs tenants that are stale (>4 hours since last sync)
+gl_sync_backup:
+  class: GlSyncBackupJob
+  queue: low
+  schedule: every 6 hours at minute 15
+
 # ============================================
 # CORPORATE FINANCIAL REPORTS
 # ============================================

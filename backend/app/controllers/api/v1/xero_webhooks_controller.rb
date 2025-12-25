@@ -86,6 +86,14 @@ module Api
           handle_invoice_event(event_type, resource_id, tenant_id)
         when "PAYMENT"
           handle_payment_event(event_type, resource_id, tenant_id)
+        when "ACCOUNT"
+          handle_account_event(event_type, resource_id, tenant_id)
+        when "BANK_TRANSACTION"
+          handle_bank_transaction_event(event_type, resource_id, tenant_id)
+        when "CREDIT_NOTE"
+          handle_credit_note_event(event_type, resource_id, tenant_id)
+        when "MANUAL_JOURNAL"
+          handle_manual_journal_event(event_type, resource_id, tenant_id)
         else
           Rails.logger.info("Unhandled Xero webhook category: #{event_category}")
         end
@@ -146,6 +154,9 @@ module Api
             tenant_id: tenant_id,
             action: "sync_from_xero"
           ) if defined?(XeroInvoiceSyncJob)
+
+          # Also sync to GL (creates journal entries)
+          queue_gl_sync(tenant_id, 'invoices', invoice_id)
         end
       rescue StandardError => e
         Rails.logger.warn("Invoice sync job not available: #{e.message}")
@@ -160,9 +171,78 @@ module Api
             tenant_id: tenant_id,
             action: "sync_from_xero"
           ) if defined?(XeroPaymentSyncJob)
+
+          # Also sync to GL
+          queue_gl_sync(tenant_id, 'payments', payment_id)
         end
       rescue StandardError => e
         Rails.logger.warn("Payment sync job not available: #{e.message}")
+      end
+
+      # ═══════════════════════════════════════════════════════════════
+      # GL SYNC HANDLERS - Keep GL in sync with Xero changes
+      # ═══════════════════════════════════════════════════════════════
+
+      def handle_account_event(event_type, account_id, tenant_id)
+        case event_type
+        when "CREATE", "UPDATE"
+          queue_gl_sync(tenant_id, 'accounts', account_id)
+          Rails.logger.info("Queued GL account sync for #{account_id}")
+        when "DELETE"
+          # Mark account as inactive in GL
+          gl_account = Gl::Account.find_by(
+            external_provider: 'xero',
+            external_tenant_id: tenant_id,
+            external_id: account_id
+          )
+          gl_account&.update!(active: false)
+          Rails.logger.info("Marked GL account #{account_id} as inactive")
+        end
+      end
+
+      def handle_bank_transaction_event(event_type, transaction_id, tenant_id)
+        case event_type
+        when "CREATE", "UPDATE"
+          queue_gl_sync(tenant_id, 'bank_transactions', transaction_id)
+          Rails.logger.info("Queued GL bank transaction sync for #{transaction_id}")
+        end
+      end
+
+      def handle_credit_note_event(event_type, credit_note_id, tenant_id)
+        case event_type
+        when "CREATE", "UPDATE"
+          queue_gl_sync(tenant_id, 'credit_notes', credit_note_id)
+          Rails.logger.info("Queued GL credit note sync for #{credit_note_id}")
+        end
+      end
+
+      def handle_manual_journal_event(event_type, journal_id, tenant_id)
+        case event_type
+        when "CREATE", "UPDATE"
+          queue_gl_sync(tenant_id, 'manual_journals', journal_id)
+          Rails.logger.info("Queued GL manual journal sync for #{journal_id}")
+        end
+      end
+
+      def queue_gl_sync(tenant_id, sync_type, resource_id = nil)
+        # Find corporate company for this tenant
+        xero_cred = XeroCredential.find_by(tenant_id: tenant_id)
+        return unless xero_cred
+
+        connection = xero_cred.corporate_company_xero_connections.first
+        corporate_company = connection&.corporate_company
+        return unless corporate_company
+
+        # Queue the GL sync job
+        GlSyncJob.perform_later(
+          corporate_company.id,
+          'xero',
+          tenant_id,
+          sync_type,
+          resource_id
+        )
+      rescue StandardError => e
+        Rails.logger.warn("GL sync queue failed: #{e.message}")
       end
     end
   end

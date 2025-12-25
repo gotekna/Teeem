@@ -88,6 +88,7 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
 
       def sync_accounts
+        count = 0
         with_sync_log('accounts') do
           accounts = fetch_accounts
           @sync_log.begin_processing!(total: accounts.size)
@@ -95,7 +96,9 @@ module Gl
           accounts.each do |xero_account|
             sync_single_account(xero_account)
           end
+          count = accounts.size
         end
+        count
       end
 
       def sync_account(external_id)
@@ -110,6 +113,7 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
 
       def sync_invoices(since: nil)
+        count = 0
         with_sync_log('invoices') do
           invoices = fetch_invoices(modified_since: since)
           @sync_log.begin_processing!(total: invoices.size)
@@ -117,10 +121,13 @@ module Gl
           invoices.each do |xero_invoice|
             sync_single_invoice(xero_invoice)
           end
+          count = invoices.size
         end
+        count
       end
 
       def sync_bills(since: nil)
+        count = 0
         with_sync_log('bills') do
           bills = fetch_bills(modified_since: since)
           @sync_log.begin_processing!(total: bills.size)
@@ -128,10 +135,13 @@ module Gl
           bills.each do |xero_bill|
             sync_single_bill(xero_bill)
           end
+          count = bills.size
         end
+        count
       end
 
       def sync_payments(since: nil)
+        count = 0
         with_sync_log('payments') do
           payments = fetch_payments(modified_since: since)
           @sync_log.begin_processing!(total: payments.size)
@@ -139,10 +149,13 @@ module Gl
           payments.each do |xero_payment|
             sync_single_payment(xero_payment)
           end
+          count = payments.size
         end
+        count
       end
 
       def sync_bank_transactions(since: nil)
+        count = 0
         with_sync_log('bank_transactions') do
           transactions = fetch_bank_transactions(modified_since: since)
           @sync_log.begin_processing!(total: transactions.size)
@@ -150,10 +163,13 @@ module Gl
           transactions.each do |xero_tx|
             sync_single_bank_transaction(xero_tx)
           end
+          count = transactions.size
         end
+        count
       end
 
       def sync_credit_notes(since: nil)
+        count = 0
         with_sync_log('credit_notes') do
           credit_notes = fetch_credit_notes(modified_since: since)
           @sync_log.begin_processing!(total: credit_notes.size)
@@ -161,10 +177,13 @@ module Gl
           credit_notes.each do |xero_cn|
             sync_single_credit_note(xero_cn)
           end
+          count = credit_notes.size
         end
+        count
       end
 
       def sync_manual_journals(since: nil)
+        count = 0
         with_sync_log('manual_journals') do
           journals = fetch_manual_journals(modified_since: since)
           @sync_log.begin_processing!(total: journals.size)
@@ -172,7 +191,9 @@ module Gl
           journals.each do |xero_journal|
             sync_single_manual_journal(xero_journal)
           end
+          count = journals.size
         end
+        count
       end
 
       # ═══════════════════════════════════════════════════════════════
@@ -181,11 +202,12 @@ module Gl
 
       def sync_contacts(since: nil)
         # Contacts sync is handled by existing XeroContactSyncService
-        # We just need to ensure they're linked properly
-        true
+        # GL doesn't need to store contacts - just return 0
+        0
       end
 
       def sync_tax_rates
+        count = 0
         with_sync_log('tax_rates') do
           tax_rates = fetch_tax_rates
           @sync_log.begin_processing!(total: tax_rates.size)
@@ -193,10 +215,13 @@ module Gl
           tax_rates.each do |xero_rate|
             upsert_tax_rate(transform_tax_rate(xero_rate))
           end
+          count = tax_rates.size
         end
+        count
       end
 
       def sync_currencies
+        count = 0
         with_sync_log('currencies') do
           currencies = fetch_currencies
           @sync_log.begin_processing!(total: currencies.size)
@@ -204,7 +229,9 @@ module Gl
           currencies.each do |xero_currency|
             sync_single_currency(xero_currency)
           end
+          count = currencies.size
         end
+        count
       end
 
       # ═══════════════════════════════════════════════════════════════
