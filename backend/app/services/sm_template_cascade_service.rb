@@ -10,7 +10,61 @@
 #   service = SmTemplateCascadeService.new(row, template)
 #   result = service.cascade_successors
 #
+#   # Or recalculate entire template:
+#   SmTemplateCascadeService.recalculate_all(template)
+#
 class SmTemplateCascadeService
+  # Recalculate ALL rows in a template in dependency order
+  # This fixes data where offsets haven't been properly cascaded
+  def self.recalculate_all(template)
+    all_rows = template.sm_template_rows.active.to_a
+    rows_by_task_number = all_rows.index_by(&:task_number)
+
+    # Build dependency graph to find processing order
+    # Process rows with no predecessors first, then their successors
+    processed = Set.new
+    updated = []
+
+    # Rows without dependencies start at their current offset (or 0)
+    roots = all_rows.select { |r| r.predecessor_ids.blank? }
+
+    queue = roots.dup
+    while queue.any?
+      row = queue.shift
+      next if processed.include?(row.id)
+
+      # Check if all predecessors are processed
+      pred_ids = (row.predecessor_ids || []).map { |p| p["id"] || p[:id] }
+      pred_rows = pred_ids.map { |id| rows_by_task_number[id] }.compact
+      unless pred_rows.all? { |pr| processed.include?(pr.id) }
+        queue.push(row) # Re-queue, predecessors not ready
+        next
+      end
+
+      # Calculate this row's start based on predecessors
+      if pred_rows.any?
+        service = new(row, template)
+        new_offset = service.send(:calculate_start_offset, row)
+        if new_offset != row.start_day_offset
+          Rails.logger.info "[SmTemplateCascade] Recalculate: #{row.name} offset #{row.start_day_offset} → #{new_offset}"
+          row.update!(start_day_offset: new_offset)
+          updated << row
+        end
+      end
+
+      processed.add(row.id)
+
+      # Add successors to queue
+      successors = all_rows.select do |r|
+        next false if r.predecessor_ids.blank?
+        r.predecessor_ids.any? { |p| (p["id"] || p[:id]) == row.task_number }
+      end
+      queue.concat(successors)
+    end
+
+    Rails.logger.info "[SmTemplateCascade] Recalculated #{updated.length} rows"
+    updated
+  end
   attr_reader :row, :template, :all_rows
 
   def initialize(row, template)
@@ -138,8 +192,19 @@ class SmTemplateCascadeService
     if row.category == 'Header'
       children = @all_rows.select { |r| r.parent_row_id == row.id }
       if children.any?
-        max_child_end = children.map { |c| (c.start_day_offset || 0) + (c.duration_days || 1) }.max
-        return max_child_end
+        # Calculate each child's effective end
+        # If child offset < header offset, treat child offset as RELATIVE to header
+        max_child_end = children.map do |c|
+          child_offset = c.start_day_offset || 0
+          child_duration = c.duration_days || 1
+
+          # If child offset seems to be relative (less than header start), add header offset
+          effective_child_start = child_offset < start_offset ? start_offset + child_offset : child_offset
+          effective_child_start + child_duration
+        end.max
+
+        # Ensure header end is at least header_start + 1
+        return [max_child_end, start_offset + 1].max
       end
     end
 
@@ -149,12 +214,20 @@ class SmTemplateCascadeService
 
   # Calculate effective duration (for Headers: span of children)
   def calculate_effective_duration(row)
+    start_offset = row.start_day_offset || 0
+
     if row.category == 'Header'
       children = @all_rows.select { |r| r.parent_row_id == row.id }
       if children.any?
-        min_start = children.map { |c| c.start_day_offset || 0 }.min
-        max_end = children.map { |c| (c.start_day_offset || 0) + (c.duration_days || 1) }.max
-        return max_end - min_start
+        # Handle relative vs absolute child offsets
+        effective_ends = children.map do |c|
+          child_offset = c.start_day_offset || 0
+          child_duration = c.duration_days || 1
+          effective_start = child_offset < start_offset ? start_offset + child_offset : child_offset
+          effective_start + child_duration
+        end
+        max_end = effective_ends.max
+        return [max_end - start_offset, 1].max
       end
     end
 

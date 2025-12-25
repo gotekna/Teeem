@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_24_231456) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_25_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2941,6 +2941,87 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_231456) do
     t.index ["gl_currency_id"], name: "index_gl_exchange_rates_on_gl_currency_id"
   end
 
+  create_table "gl_invoice_lines", force: :cascade do |t|
+    t.bigint "gl_invoice_id", null: false
+    t.bigint "gl_account_id"
+    t.string "external_line_id"
+    t.integer "line_number", default: 1
+    t.string "item_code"
+    t.text "description"
+    t.decimal "quantity", precision: 15, scale: 4, default: "1.0"
+    t.decimal "unit_price", precision: 15, scale: 4, default: "0.0"
+    t.decimal "discount_rate", precision: 5, scale: 2, default: "0.0"
+    t.decimal "discount_amount", precision: 15, scale: 2, default: "0.0"
+    t.decimal "line_amount", precision: 15, scale: 2, default: "0.0"
+    t.decimal "tax_amount", precision: 15, scale: 2, default: "0.0"
+    t.bigint "gl_tax_rate_id"
+    t.string "tax_type"
+    t.bigint "job_id"
+    t.string "tracking_category_1"
+    t.string "tracking_option_1"
+    t.string "tracking_category_2"
+    t.string "tracking_option_2"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gl_account_id"], name: "index_gl_invoice_lines_on_gl_account_id"
+    t.index ["gl_invoice_id", "line_number"], name: "index_gl_invoice_lines_on_gl_invoice_id_and_line_number"
+    t.index ["gl_invoice_id"], name: "index_gl_invoice_lines_on_gl_invoice_id"
+    t.index ["gl_tax_rate_id"], name: "index_gl_invoice_lines_on_gl_tax_rate_id"
+    t.index ["job_id"], name: "idx_gl_inv_lines_job"
+  end
+
+  create_table "gl_invoices", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.string "external_invoice_id"
+    t.datetime "external_synced_at"
+    t.datetime "external_updated_at"
+    t.string "invoice_number"
+    t.string "invoice_type", null: false
+    t.string "reference"
+    t.date "invoice_date", null: false
+    t.date "due_date"
+    t.bigint "contact_id"
+    t.string "external_contact_id"
+    t.string "contact_name"
+    t.decimal "subtotal", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_tax", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total", precision: 15, scale: 2, default: "0.0"
+    t.decimal "amount_due", precision: 15, scale: 2, default: "0.0"
+    t.decimal "amount_paid", precision: 15, scale: 2, default: "0.0"
+    t.string "currency_code", default: "AUD"
+    t.decimal "exchange_rate", precision: 15, scale: 6, default: "1.0"
+    t.string "status", default: "draft"
+    t.datetime "approved_at"
+    t.bigint "approved_by_id"
+    t.bigint "job_id"
+    t.bigint "gl_journal_entry_id"
+    t.boolean "journalized", default: false
+    t.boolean "sync_enabled", default: true
+    t.boolean "pending_push", default: false
+    t.boolean "created_in_teeem", default: false
+    t.datetime "teeem_updated_at"
+    t.string "sync_error"
+    t.jsonb "sync_metadata", default: {}
+    t.text "description"
+    t.text "notes"
+    t.boolean "has_attachments", default: false
+    t.jsonb "tracking_data", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
+    t.index ["contact_id", "invoice_type"], name: "idx_gl_inv_contact_type"
+    t.index ["contact_id"], name: "index_gl_invoices_on_contact_id"
+    t.index ["corporate_company_id", "invoice_date"], name: "idx_gl_inv_company_date"
+    t.index ["corporate_company_id", "invoice_type", "status"], name: "idx_gl_inv_company_type_status"
+    t.index ["corporate_company_id"], name: "index_gl_invoices_on_corporate_company_id"
+    t.index ["external_provider", "external_tenant_id", "external_invoice_id"], name: "idx_gl_invoices_external", unique: true
+    t.index ["gl_journal_entry_id"], name: "idx_gl_invoices_journal"
+    t.index ["job_id"], name: "idx_gl_invoices_job"
+    t.index ["pending_push"], name: "idx_gl_inv_pending_push"
+  end
+
   create_table "gl_journal_entries", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.bigint "gl_period_id", null: false
@@ -3022,6 +3103,55 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_231456) do
     t.index ["financial_year"], name: "index_gl_opening_balances_on_financial_year"
     t.index ["gl_account_id", "effective_date"], name: "index_gl_opening_balances_on_gl_account_id_and_effective_date", unique: true
     t.index ["gl_account_id"], name: "index_gl_opening_balances_on_gl_account_id"
+  end
+
+  create_table "gl_payment_allocations", force: :cascade do |t|
+    t.bigint "gl_payment_id", null: false
+    t.bigint "gl_invoice_id", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gl_invoice_id"], name: "index_gl_payment_allocations_on_gl_invoice_id"
+    t.index ["gl_payment_id", "gl_invoice_id"], name: "idx_on_gl_payment_id_gl_invoice_id_7319dc604d", unique: true
+    t.index ["gl_payment_id"], name: "index_gl_payment_allocations_on_gl_payment_id"
+  end
+
+  create_table "gl_payments", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.string "external_payment_id"
+    t.datetime "external_synced_at"
+    t.datetime "external_updated_at"
+    t.string "payment_number"
+    t.string "payment_type", null: false
+    t.date "payment_date", null: false
+    t.string "reference"
+    t.bigint "contact_id"
+    t.string "external_contact_id"
+    t.string "contact_name"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "currency_code", default: "AUD"
+    t.decimal "exchange_rate", precision: 15, scale: 6, default: "1.0"
+    t.bigint "gl_account_id"
+    t.string "bank_account_code"
+    t.string "bank_account_name"
+    t.string "status", default: "pending"
+    t.bigint "gl_journal_entry_id"
+    t.boolean "journalized", default: false
+    t.boolean "sync_enabled", default: true
+    t.boolean "pending_push", default: false
+    t.boolean "created_in_teeem", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "idx_gl_pay_contact"
+    t.index ["contact_id"], name: "index_gl_payments_on_contact_id"
+    t.index ["corporate_company_id", "payment_type", "payment_date"], name: "idx_gl_pay_company_type_date"
+    t.index ["corporate_company_id"], name: "index_gl_payments_on_corporate_company_id"
+    t.index ["external_provider", "external_tenant_id", "external_payment_id"], name: "idx_gl_payments_external", unique: true
+    t.index ["gl_account_id"], name: "index_gl_payments_on_gl_account_id"
+    t.index ["gl_journal_entry_id"], name: "idx_gl_pay_journal"
+    t.index ["gl_journal_entry_id"], name: "index_gl_payments_on_gl_journal_entry_id"
   end
 
   create_table "gl_periods", force: :cascade do |t|
@@ -6723,6 +6853,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_231456) do
   add_foreign_key "gl_currencies", "corporate_companies"
   add_foreign_key "gl_exchange_rates", "corporate_companies"
   add_foreign_key "gl_exchange_rates", "gl_currencies"
+  add_foreign_key "gl_invoice_lines", "gl_accounts"
+  add_foreign_key "gl_invoice_lines", "gl_invoices"
+  add_foreign_key "gl_invoice_lines", "gl_tax_rates"
+  add_foreign_key "gl_invoice_lines", "jobs"
+  add_foreign_key "gl_invoices", "contacts"
+  add_foreign_key "gl_invoices", "corporate_companies"
+  add_foreign_key "gl_invoices", "gl_journal_entries"
+  add_foreign_key "gl_invoices", "jobs"
+  add_foreign_key "gl_invoices", "users", column: "approved_by_id"
   add_foreign_key "gl_journal_entries", "corporate_companies"
   add_foreign_key "gl_journal_entries", "gl_periods"
   add_foreign_key "gl_journal_entries", "jobs"
@@ -6733,6 +6872,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_24_231456) do
   add_foreign_key "gl_ledger_lines", "jobs"
   add_foreign_key "gl_opening_balances", "corporate_companies"
   add_foreign_key "gl_opening_balances", "gl_accounts"
+  add_foreign_key "gl_payment_allocations", "gl_invoices"
+  add_foreign_key "gl_payment_allocations", "gl_payments"
+  add_foreign_key "gl_payments", "contacts"
+  add_foreign_key "gl_payments", "corporate_companies"
+  add_foreign_key "gl_payments", "gl_accounts"
+  add_foreign_key "gl_payments", "gl_journal_entries"
   add_foreign_key "gl_periods", "corporate_companies"
   add_foreign_key "gl_periods", "users", column: "closed_by_id"
   add_foreign_key "gl_provider_credentials", "corporate_companies"

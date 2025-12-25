@@ -2243,6 +2243,31 @@ Rails.application.routes.draw do
           get "sync/logs/:id", action: :log_detail
           get "sync/providers", action: :providers
         end
+
+        # Invoices and Bills
+        resources :invoices, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :approve
+            post :void
+          end
+          collection do
+            get :summary
+            get :overdue
+          end
+        end
+
+        # Payments
+        resources :payments, only: [ :index, :show, :create, :update ] do
+          member do
+            post :complete
+            post :void
+            post :allocate
+          end
+          collection do
+            get :unallocated
+            get :summary
+          end
+        end
       end
 
       # Pay Now Requests (admin/supervisor interface)
