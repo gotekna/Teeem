@@ -50,6 +50,12 @@ module Gl
         'WAGEPAYABLELIABILITY' => nil
       }.freeze
 
+      # Allow passing xero_credential directly for companies without GL::ProviderCredential
+      def initialize(corporate_company, credential: nil, xero_credential: nil)
+        super(corporate_company, credential: credential)
+        @explicit_xero_credential = xero_credential
+      end
+
       # ═══════════════════════════════════════════════════════════════
       # PROVIDER INFO
       # ═══════════════════════════════════════════════════════════════
@@ -60,6 +66,21 @@ module Gl
 
       def provider_code
         'xero'
+      end
+
+      # Override connected? to check xero_credential
+      def connected?
+        credential&.connected? || xero_credential&.usable?
+      end
+
+      # Override tenant_id to get from xero_credential if no GL credential
+      def tenant_id
+        credential&.tenant_id || xero_credential&.tenant_id
+      end
+
+      # Override tenant_name to get from xero_credential if no GL credential
+      def tenant_name
+        credential&.tenant_name || xero_credential&.tenant_name
       end
 
       # ═══════════════════════════════════════════════════════════════
@@ -279,18 +300,36 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
 
       def api_client
-        @api_client ||= XeroApiClient.new(
-          xero_credential,
-          tenant_id: tenant_id
-        )
+        @api_client ||= XeroApiClient.new
+      end
+
+      def api_get(endpoint, params = {})
+        api_client.get(endpoint, params.merge(tenant_id: tenant_id))
+      end
+
+      def api_post(endpoint, data = {})
+        api_client.post(endpoint, data, tenant_id: tenant_id)
+      end
+
+      def api_put(endpoint, data = {})
+        api_client.put(endpoint, data.merge(tenant_id: tenant_id))
       end
 
       def xero_credential
-        # Use existing XeroCredential if no GL credential
-        @xero_credential ||= credential&.xero_credential || XeroCredential.find_by(
-          corporate_company: corporate_company,
-          xero_tenant_id: tenant_id
-        )
+        # Use existing XeroCredential
+        # Priority: 1) Explicit, 2) From GL ProviderCredential, 3) From CorporateCompanyXeroConnection
+        @xero_credential ||= @explicit_xero_credential || credential&.xero_credential || find_xero_credential_for_company
+      end
+
+      def find_xero_credential_for_company
+        # Find first connected XeroCredential through CorporateCompanyXeroConnection
+        connection = CorporateCompanyXeroConnection
+          .joins(:xero_credential)
+          .where(corporate_company: corporate_company)
+          .where(xero_credentials: { status: 'connected' })
+          .first
+
+        connection&.xero_credential
       end
 
       # ═══════════════════════════════════════════════════════════════
@@ -298,14 +337,16 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
 
       def fetch_accounts
-        api_client.get('Accounts')
+        response = api_get('Accounts')
+        extract_data(response, 'Accounts')
       rescue StandardError => e
         log_error("Failed to fetch accounts: #{e.message}")
         []
       end
 
       def fetch_account(account_id)
-        api_client.get("Accounts/#{account_id}")
+        response = api_get("Accounts/#{account_id}")
+        extract_data(response, 'Accounts')&.first
       rescue StandardError
         nil
       end
@@ -313,7 +354,8 @@ module Gl
       def fetch_invoices(modified_since: nil)
         params = { where: 'Type=="ACCREC"' }
         params[:if_modified_since] = modified_since.iso8601 if modified_since
-        api_client.get('Invoices', params)
+        response = api_get('Invoices', params)
+        extract_data(response, 'Invoices')
       rescue StandardError => e
         log_error("Failed to fetch invoices: #{e.message}")
         []
@@ -322,7 +364,8 @@ module Gl
       def fetch_bills(modified_since: nil)
         params = { where: 'Type=="ACCPAY"' }
         params[:if_modified_since] = modified_since.iso8601 if modified_since
-        api_client.get('Invoices', params)
+        response = api_get('Invoices', params)
+        extract_data(response, 'Invoices')
       rescue StandardError => e
         log_error("Failed to fetch bills: #{e.message}")
         []
@@ -331,7 +374,8 @@ module Gl
       def fetch_payments(modified_since: nil)
         params = {}
         params[:if_modified_since] = modified_since.iso8601 if modified_since
-        api_client.get('Payments', params)
+        response = api_get('Payments', params)
+        extract_data(response, 'Payments')
       rescue StandardError => e
         log_error("Failed to fetch payments: #{e.message}")
         []
@@ -340,16 +384,25 @@ module Gl
       def fetch_bank_transactions(modified_since: nil)
         params = {}
         params[:if_modified_since] = modified_since.iso8601 if modified_since
-        api_client.get('BankTransactions', params)
+        response = api_get('BankTransactions', params)
+        extract_data(response, 'BankTransactions')
       rescue StandardError => e
         log_error("Failed to fetch bank transactions: #{e.message}")
         []
       end
 
+      # Extract data from API response
+      def extract_data(response, key)
+        return [] unless response.is_a?(Hash) && response[:success]
+
+        response[:data][key] || []
+      end
+
       def fetch_credit_notes(modified_since: nil)
         params = {}
         params[:if_modified_since] = modified_since.iso8601 if modified_since
-        api_client.get('CreditNotes', params)
+        response = api_get('CreditNotes', params)
+        extract_data(response, 'CreditNotes')
       rescue StandardError => e
         log_error("Failed to fetch credit notes: #{e.message}")
         []
@@ -358,21 +411,24 @@ module Gl
       def fetch_manual_journals(modified_since: nil)
         params = {}
         params[:if_modified_since] = modified_since.iso8601 if modified_since
-        api_client.get('ManualJournals', params)
+        response = api_get('ManualJournals', params)
+        extract_data(response, 'ManualJournals')
       rescue StandardError => e
         log_error("Failed to fetch manual journals: #{e.message}")
         []
       end
 
       def fetch_tax_rates
-        api_client.get('TaxRates')
+        response = api_get('TaxRates')
+        extract_data(response, 'TaxRates')
       rescue StandardError => e
         log_error("Failed to fetch tax rates: #{e.message}")
         []
       end
 
       def fetch_currencies
-        api_client.get('Currencies')
+        response = api_get('Currencies')
+        extract_data(response, 'Currencies')
       rescue StandardError => e
         log_error("Failed to fetch currencies: #{e.message}")
         []
