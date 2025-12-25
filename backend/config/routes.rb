@@ -2490,6 +2490,10 @@ Rails.application.routes.draw do
           get "bas/transactions", action: :transactions
           post "bas/mark_lodged", action: :mark_lodged
           get "bas/chart_data", action: :chart_data
+          # SBR Integration (ATO direct lodgement)
+          post "bas/lodge_to_ato", action: :lodge_to_ato
+          get "bas/lodgements", action: :lodgements
+          get "bas/sbr_status", action: :sbr_status
         end
 
         # EOFY (End of Financial Year)

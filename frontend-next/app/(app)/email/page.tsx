@@ -475,76 +475,56 @@ export default function EmailPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto py-2">
-          {accounts.length === 0 ? (
+          {!selectedAccount ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>No mailboxes connected</p>
-              <p className="text-xs mt-1">Go to Admin → System → Email Accounts</p>
+              <p>Select a mailbox</p>
+              <p className="text-xs mt-1">Choose from Email in the sidebar</p>
             </div>
           ) : (
-            accounts.map((account) => (
-              <div key={String(account.id)} className="mb-1">
-                {/* Account Header */}
-                <button
-                  onClick={() => toggleAccountExpanded(String(account.id), account)}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors",
-                    selectedAccount === String(account.id) && "bg-muted"
-                  )}
-                >
-                  {expandedAccounts.has(String(account.id)) ? (
-                    <ChevronDown className="h-4 w-4 shrink-0" />
-                  ) : (
-                    <ChevronUp className="h-4 w-4 shrink-0 rotate-180" />
-                  )}
-                  <Mail className="h-4 w-4 shrink-0" />
-                  <div className="truncate flex-1 text-left">
-                    {account.type === "ms365" ? (
-                      <>
-                        <span className="font-medium">{account.name}</span>
-                        {account.email_address && (
-                          <span className="text-xs text-muted-foreground ml-1">
-                            ({account.email_address})
-                          </span>
-                        )}
-                      </>
-                    ) : (
-                      <span>{account.email_address || account.name}</span>
-                    )}
+            (() => {
+              const account = accounts.find(a => String(a.id) === selectedAccount);
+              if (!account) return null;
+              return (
+                <div className="mb-1">
+                  {/* Account Header */}
+                  <div className="px-3 py-2 text-sm font-medium flex items-center gap-2">
+                    <Mail className="h-4 w-4 shrink-0" />
+                    <span className="truncate">
+                      {account.email_address || account.name}
+                    </span>
                   </div>
-                </button>
 
-                {/* Folders */}
-                {expandedAccounts.has(String(account.id)) && (
-                  <div className="ml-4 border-l pl-2">
+                  {/* Folders */}
+                  <div className="mt-1">
                     {account.needs_mailbox_config ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
                         <p>Mailbox not configured</p>
                         <p className="mt-1">Configure in Admin → System → Microsoft</p>
                       </div>
-                    ) : loadingFolders.has(String(account.id)) ? (
+                    ) : loadingFolders.has(selectedAccount) ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
                         Loading folders...
                       </div>
-                    ) : (accountFolders[String(account.id)] || []).length === 0 ? (
+                    ) : (accountFolders[selectedAccount] || []).length === 0 ? (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
                         No folders found
                       </div>
                     ) : (
-                      (accountFolders[String(account.id)] || []).map((folder) => (
+                      (accountFolders[selectedAccount] || []).map((folder) => (
                         <FolderButton
                           key={folder.id}
                           folder={folder}
-                          accountId={String(account.id)}
-                          isSelected={selectedAccount === String(account.id) && selectedFolderId === folder.id}
+                          accountId={selectedAccount}
+                          isSelected={selectedFolderId === folder.id}
                           onSelect={selectAccountFolder}
                         />
                       ))
                     )}
                   </div>
-                )}
-              </div>
-            ))
+                </div>
+              );
+            })()
           )}
         </div>
       </div>

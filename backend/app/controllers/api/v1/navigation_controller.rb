@@ -112,7 +112,7 @@ module Api
         position = 0
 
         # IMAP accounts for current user
-        current_user.imap_credentials.active.each do |cred|
+        current_user.imap_credentials.where(is_active: true).each do |cred|
           accounts << {
             id: "imap_#{cred.id}",
             name: cred.email_address || cred.name,

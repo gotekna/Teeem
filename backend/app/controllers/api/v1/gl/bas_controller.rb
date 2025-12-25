@@ -256,17 +256,98 @@ module Api
         end
 
         # POST /api/v1/gl/bas/mark_lodged
-        # Mark BAS as lodged
+        # Mark BAS as lodged (manual tracking)
         def mark_lodged
-          # Would create a record tracking lodgement
+          lodgement = ::Gl::BasLodgement.create!(
+            corporate_company: current_company,
+            period_code: params[:quarter] || current_quarter_code,
+            period_year: current_financial_year,
+            status: "lodged",
+            is_amendment: params[:amendment] == true,
+            lodgement_reference: params[:reference],
+            lodged_at: Time.current,
+            lodged_by: current_user,
+            data: bas_service.generate
+          )
+
+          render json: {
+            success: true,
+            data: lodgement_json(lodgement),
+            message: "BAS marked as lodged"
+          }
+        rescue ActiveRecord::RecordInvalid => e
+          render json: {
+            success: false,
+            error: e.message
+          }, status: :unprocessable_entity
+        end
+
+        # POST /api/v1/gl/bas/lodge_to_ato
+        # Lodge BAS directly to ATO via SBR
+        def lodge_to_ato
+          unless Sbr::Client.configured?
+            return render json: {
+              success: false,
+              error: "SBR not configured. Register as DSP at https://softwaredevelopers.ato.gov.au/",
+              help: "See TEEEM_DOCS/ATO_SBR_INTEGRATION_GUIDE.md for setup instructions"
+            }, status: :service_unavailable
+          end
+
+          lodger = Sbr::BasLodger.new(current_company)
+          lodgement = lodger.lodge(
+            period: params[:quarter] || current_quarter_code,
+            year: current_financial_year,
+            amendment: params[:amendment] == true
+          )
+
+          render json: {
+            success: lodgement.lodged?,
+            data: lodgement_json(lodgement),
+            message: lodgement.lodged? ? "BAS lodged to ATO successfully" : "BAS lodgement failed"
+          }
+        rescue Sbr::BasLodger::ValidationError => e
+          render json: { success: false, error: e.message }, status: :unprocessable_entity
+        rescue Sbr::BasLodger::AlreadyLodgedError => e
+          render json: { success: false, error: e.message }, status: :conflict
+        rescue NotImplementedError => e
+          render json: {
+            success: false,
+            error: e.message,
+            help: "See TEEEM_DOCS/ATO_SBR_INTEGRATION_GUIDE.md for setup instructions"
+          }, status: :service_unavailable
+        end
+
+        # GET /api/v1/gl/bas/lodgements
+        # List all BAS lodgements
+        def lodgements
+          lodgements = ::Gl::BasLodgement
+            .where(corporate_company: current_company)
+            .includes(:lodged_by)
+            .order(period_year: :desc, period_code: :desc)
+            .limit(params[:limit] || 20)
+
           render json: {
             success: true,
             data: {
-              period: period_params,
-              lodged_at: Time.current,
-              lodged_by: current_user&.name,
-              reference: params[:reference],
-              note: 'BAS lodgement tracking will be persisted when database model is added'
+              lodgements: lodgements.map { |l| lodgement_json(l) },
+              count: lodgements.count,
+              sbr_configured: Sbr::Client.configured?
+            }
+          }
+        end
+
+        # GET /api/v1/gl/bas/sbr_status
+        # Check SBR configuration status
+        def sbr_status
+          render json: {
+            success: true,
+            data: {
+              sbr_configured: Sbr::Client.configured?,
+              sbr_environment: Sbr::Client.configured? ? Sbr::Client.environment : nil,
+              company_abn: current_company.abn.present?,
+              can_lodge: Sbr::Client.configured? && current_company.abn.present?,
+              setup_guide: "TEEEM_DOCS/ATO_SBR_INTEGRATION_GUIDE.md",
+              missing_config: missing_sbr_config
             }
           }
         end
@@ -487,6 +568,44 @@ module Api
             quarter: params[:quarter],
             financial_year: params[:financial_year]
           }
+        end
+
+        def current_quarter_code
+          case Date.current.month
+          when 7, 8, 9 then "Q1"
+          when 10, 11, 12 then "Q2"
+          when 1, 2, 3 then "Q3"
+          when 4, 5, 6 then "Q4"
+          end
+        end
+
+        def current_financial_year
+          # Australian FY: July 1 - June 30
+          today = Date.current
+          today.month >= 7 ? today.year : today.year - 1
+        end
+
+        def lodgement_json(lodgement)
+          {
+            id: lodgement.id,
+            period: lodgement.period_display,
+            period_code: lodgement.period_code,
+            period_year: lodgement.period_year,
+            status: lodgement.status,
+            is_amendment: lodgement.is_amendment,
+            lodgement_reference: lodgement.lodgement_reference,
+            lodged_at: lodgement.lodged_at,
+            lodged_by: lodgement.lodged_by&.name,
+            net_amount: lodgement.net_amount,
+            gst_payable: lodgement.gst_payable,
+            can_amend: lodgement.can_amend?,
+            created_at: lodgement.created_at
+          }
+        end
+
+        def missing_sbr_config
+          %w[SBR_ENVIRONMENT SBR_DSP_ID SBR_SOFTWARE_ID SBR_CERT_PATH SBR_CERT_PASSWORD]
+            .reject { |key| ENV[key].present? }
         end
       end
     end

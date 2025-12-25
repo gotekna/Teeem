@@ -3013,6 +3013,27 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
     t.index ["gl_account_id"], name: "index_gl_bank_reconciliations_on_gl_account_id"
   end
 
+  create_table "gl_bas_lodgements", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "period_code", limit: 10, null: false
+    t.integer "period_year", null: false
+    t.string "status", limit: 20, default: "pending", null: false
+    t.boolean "is_amendment", default: false
+    t.string "lodgement_reference", limit: 100
+    t.datetime "lodged_at"
+    t.text "error_message"
+    t.jsonb "ato_response", default: {}
+    t.jsonb "data", default: {}
+    t.bigint "lodged_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "period_code", "period_year", "is_amendment", "created_at"], name: "idx_bas_lodgements_period"
+    t.index ["corporate_company_id"], name: "index_gl_bas_lodgements_on_corporate_company_id"
+    t.index ["lodged_by_id"], name: "index_gl_bas_lodgements_on_lodged_by_id"
+    t.index ["lodgement_reference"], name: "index_gl_bas_lodgements_on_lodgement_reference", unique: true, where: "(lodgement_reference IS NOT NULL)"
+    t.index ["status"], name: "index_gl_bas_lodgements_on_status"
+  end
+
   create_table "gl_budgets", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.bigint "gl_account_id", null: false
@@ -7193,6 +7214,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
   add_foreign_key "gl_bank_reconciliations", "corporate_companies"
   add_foreign_key "gl_bank_reconciliations", "gl_accounts"
   add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
+  add_foreign_key "gl_bas_lodgements", "corporate_companies"
+  add_foreign_key "gl_bas_lodgements", "users", column: "lodged_by_id"
   add_foreign_key "gl_budgets", "corporate_companies"
   add_foreign_key "gl_budgets", "gl_accounts"
   add_foreign_key "gl_budgets", "gl_periods"
