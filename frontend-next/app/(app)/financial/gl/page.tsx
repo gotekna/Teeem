@@ -320,17 +320,24 @@ export default function GlPage() {
     }
   };
 
+  // Full sync result state
+  const [fullSyncResult, setFullSyncResult] = useState<"success" | "partial" | "failed" | null>(null);
+
   // Run full sync with step-by-step progress
   const runFullSync = async (provider: Provider) => {
     setFullSyncProvider(provider);
     setFullSyncRunning(true);
     setShowSyncProgress(true);
     setSyncingTenantId(provider.tenant_id);
+    setFullSyncResult(null);
     setError(null);
 
     // Initialize all steps as pending
     const steps = initializeSyncSteps();
     setSyncSteps(steps);
+
+    let successCount = 0;
+    let failCount = 0;
 
     // Run each step sequentially
     for (const step of steps) {
@@ -345,13 +352,24 @@ export default function GlPage() {
           status: "completed",
           count: result.count,
         });
+        successCount++;
       } else {
         updateSyncStep(step.id, {
           status: "failed",
           error: result.error,
         });
+        failCount++;
         // Continue with remaining steps even if one fails
       }
+    }
+
+    // Determine overall result
+    if (failCount === 0) {
+      setFullSyncResult("success");
+    } else if (successCount > 0) {
+      setFullSyncResult("partial");
+    } else {
+      setFullSyncResult("failed");
     }
 
     // Refresh data after full sync
@@ -975,7 +993,37 @@ export default function GlPage() {
 
           {/* Summary */}
           {!fullSyncRunning && syncSteps.length > 0 && (
-            <div className="border-t pt-4">
+            <div className="border-t pt-4 space-y-3">
+              {/* Result Banner */}
+              {fullSyncResult === "success" && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50 border border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                  <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <div>
+                    <div className="font-medium text-green-700 dark:text-green-300">Sync Complete</div>
+                    <div className="text-xs text-green-600 dark:text-green-400">All entities synced successfully</div>
+                  </div>
+                </div>
+              )}
+              {fullSyncResult === "partial" && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+                  <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <div className="font-medium text-amber-700 dark:text-amber-300">Partial Sync</div>
+                    <div className="text-xs text-amber-600 dark:text-amber-400">Some entities failed - check errors above</div>
+                  </div>
+                </div>
+              )}
+              {fullSyncResult === "failed" && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
+                  <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                  <div>
+                    <div className="font-medium text-red-700 dark:text-red-300">Sync Failed</div>
+                    <div className="text-xs text-red-600 dark:text-red-400">All sync attempts failed - check connection</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Counts */}
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-4">
                   <span className="flex items-center gap-1 text-green-600">

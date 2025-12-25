@@ -364,11 +364,10 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
 
       def fetch_accounts
-        response = api_get('Accounts')
-        extract_data(response, 'Accounts')
-      rescue StandardError => e
-        log_error("Failed to fetch accounts: #{e.message}")
-        []
+        with_retry('Fetch accounts') do
+          response = api_get('Accounts')
+          extract_data(response, 'Accounts')
+        end
       end
 
       def fetch_account(account_id)
@@ -379,43 +378,39 @@ module Gl
       end
 
       def fetch_invoices(modified_since: nil)
-        params = { where: 'Type=="ACCREC"' }
-        params[:if_modified_since] = modified_since.iso8601 if modified_since
-        response = api_get('Invoices', params)
-        extract_data(response, 'Invoices')
-      rescue StandardError => e
-        log_error("Failed to fetch invoices: #{e.message}")
-        []
+        with_retry('Fetch invoices') do
+          params = { where: 'Type=="ACCREC"' }
+          params[:if_modified_since] = modified_since.iso8601 if modified_since
+          response = api_get('Invoices', params)
+          extract_data(response, 'Invoices')
+        end
       end
 
       def fetch_bills(modified_since: nil)
-        params = { where: 'Type=="ACCPAY"' }
-        params[:if_modified_since] = modified_since.iso8601 if modified_since
-        response = api_get('Invoices', params)
-        extract_data(response, 'Invoices')
-      rescue StandardError => e
-        log_error("Failed to fetch bills: #{e.message}")
-        []
+        with_retry('Fetch bills') do
+          params = { where: 'Type=="ACCPAY"' }
+          params[:if_modified_since] = modified_since.iso8601 if modified_since
+          response = api_get('Invoices', params)
+          extract_data(response, 'Invoices')
+        end
       end
 
       def fetch_payments(modified_since: nil)
-        params = {}
-        params[:if_modified_since] = modified_since.iso8601 if modified_since
-        response = api_get('Payments', params)
-        extract_data(response, 'Payments')
-      rescue StandardError => e
-        log_error("Failed to fetch payments: #{e.message}")
-        []
+        with_retry('Fetch payments') do
+          params = {}
+          params[:if_modified_since] = modified_since.iso8601 if modified_since
+          response = api_get('Payments', params)
+          extract_data(response, 'Payments')
+        end
       end
 
       def fetch_bank_transactions(modified_since: nil)
-        params = {}
-        params[:if_modified_since] = modified_since.iso8601 if modified_since
-        response = api_get('BankTransactions', params)
-        extract_data(response, 'BankTransactions')
-      rescue StandardError => e
-        log_error("Failed to fetch bank transactions: #{e.message}")
-        []
+        with_retry('Fetch bank transactions') do
+          params = {}
+          params[:if_modified_since] = modified_since.iso8601 if modified_since
+          response = api_get('BankTransactions', params)
+          extract_data(response, 'BankTransactions')
+        end
       end
 
       # Extract data from API response
@@ -425,40 +420,54 @@ module Gl
         response[:data][key] || []
       end
 
+      # Retry helper for API calls - retries once on failure
+      def with_retry(operation_name, max_retries: 1)
+        retries = 0
+        begin
+          yield
+        rescue StandardError => e
+          retries += 1
+          if retries <= max_retries
+            log_error("#{operation_name} failed (attempt #{retries}), retrying: #{e.message}")
+            sleep(1) # Brief pause before retry
+            retry
+          else
+            log_error("#{operation_name} failed after #{retries} attempts: #{e.message}")
+            raise # Re-raise to let caller handle
+          end
+        end
+      end
+
       def fetch_credit_notes(modified_since: nil)
-        params = {}
-        params[:if_modified_since] = modified_since.iso8601 if modified_since
-        response = api_get('CreditNotes', params)
-        extract_data(response, 'CreditNotes')
-      rescue StandardError => e
-        log_error("Failed to fetch credit notes: #{e.message}")
-        []
+        with_retry('Fetch credit notes') do
+          params = {}
+          params[:if_modified_since] = modified_since.iso8601 if modified_since
+          response = api_get('CreditNotes', params)
+          extract_data(response, 'CreditNotes')
+        end
       end
 
       def fetch_manual_journals(modified_since: nil)
-        params = {}
-        params[:if_modified_since] = modified_since.iso8601 if modified_since
-        response = api_get('ManualJournals', params)
-        extract_data(response, 'ManualJournals')
-      rescue StandardError => e
-        log_error("Failed to fetch manual journals: #{e.message}")
-        []
+        with_retry('Fetch manual journals') do
+          params = {}
+          params[:if_modified_since] = modified_since.iso8601 if modified_since
+          response = api_get('ManualJournals', params)
+          extract_data(response, 'ManualJournals')
+        end
       end
 
       def fetch_tax_rates
-        response = api_get('TaxRates')
-        extract_data(response, 'TaxRates')
-      rescue StandardError => e
-        log_error("Failed to fetch tax rates: #{e.message}")
-        []
+        with_retry('Fetch tax rates') do
+          response = api_get('TaxRates')
+          extract_data(response, 'TaxRates')
+        end
       end
 
       def fetch_currencies
-        response = api_get('Currencies')
-        extract_data(response, 'Currencies')
-      rescue StandardError => e
-        log_error("Failed to fetch currencies: #{e.message}")
-        []
+        with_retry('Fetch currencies') do
+          response = api_get('Currencies')
+          extract_data(response, 'Currencies')
+        end
       end
 
       # ═══════════════════════════════════════════════════════════════
