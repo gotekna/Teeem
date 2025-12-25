@@ -30,7 +30,6 @@ import {
   XCircle,
   Clock,
   AlertCircle,
-  Play,
   History,
   Building2,
 } from "lucide-react";
@@ -271,19 +270,11 @@ export default function GlPage() {
           <div className="flex items-center gap-2">
             {syncing && <Spinner className="h-5 w-5" />}
             <Button
-              onClick={() => triggerSync("accounts")}
-              disabled={syncing}
-              variant="outline"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
-              Sync Accounts
-            </Button>
-            <Button
               onClick={() => triggerSync("full")}
               disabled={syncing}
             >
-              <Play className="h-4 w-4 mr-2" />
-              Full Sync
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+              Sync from Xero
             </Button>
           </div>
         )}
@@ -445,7 +436,7 @@ export default function GlPage() {
                           {provider.connected && (
                             <Button
                               size="sm"
-                              onClick={() => triggerSync("accounts", provider)}
+                              onClick={() => triggerSync("full", provider)}
                               disabled={syncing}
                             >
                               <RefreshCw className={`h-3 w-3 mr-1 ${syncing ? "animate-spin" : ""}`} />
