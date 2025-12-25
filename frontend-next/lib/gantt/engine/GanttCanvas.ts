@@ -81,7 +81,7 @@ export interface GanttTask {
   supplierName?: string;
   /** Hold state for paused tasks */
   holdState?: HoldState;
-  /** Original row data from API (for accessing manually_positioned etc) */
+  /** Original row data from API (for accessing hold etc) */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rowData?: any;
 }
@@ -5896,7 +5896,7 @@ export class GanttCanvas {
     this.contextMenuTask = task;
 
     // Build menu items for task
-    const isManuallyPositioned = task.rowData?.manually_positioned === true;
+    const isManuallyPositioned = task.rowData?.hold === true;
     this.contextMenuItems = [
       { id: 'edit', label: 'Edit Task' },
       { id: 'start', label: task.status === 'in-progress' ? 'Mark Not Started' : 'Start Task' },

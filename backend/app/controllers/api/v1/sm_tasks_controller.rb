@@ -617,7 +617,7 @@ module Api
           :progress_percentage,
           :confirm,
           :supplier_confirm,
-          :manually_positioned,
+          :hold,
           :purchase_order_id,
           :assigned_user_id,
           :supplier_id,
@@ -694,7 +694,7 @@ module Api
           lock_type: task.lock_type,
           confirm: task.confirm,
           supplier_confirm: task.supplier_confirm,
-          manually_positioned: task.manually_positioned,
+          hold: task.hold,
           # Hold
           is_hold_task: task.is_hold_task,
           hold_reason_id: task.hold_reason_id,

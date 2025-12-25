@@ -107,9 +107,9 @@ class SmTask < ApplicationRecord
   before_save :sync_supplier_from_po, if: -> { purchase_order_id_changed? && purchase_order_id.present? }
 
   # Lock hierarchy check (Rule 9.22)
-  # Priority: supplier_confirm > confirm > started > completed > manually_positioned
+  # Priority: supplier_confirm > confirm > started > completed > hold
   def locked?
-    supplier_confirm? || confirm? || status_started? || status_completed? || manually_positioned?
+    supplier_confirm? || confirm? || status_started? || status_completed? || hold?
   end
 
   def lock_type
@@ -117,7 +117,7 @@ class SmTask < ApplicationRecord
     return "confirm" if confirm?
     return "started" if status_started?
     return "completed" if status_completed?
-    return "manually_positioned" if manually_positioned?
+    return "hold" if hold?
     nil
   end
 
@@ -127,7 +127,7 @@ class SmTask < ApplicationRecord
     when "confirm" then 2
     when "started" then 3
     when "completed" then 4
-    when "manually_positioned" then 5
+    when "hold" then 5
     else nil
     end
   end
@@ -137,7 +137,7 @@ class SmTask < ApplicationRecord
     # Started and completed cannot be unlocked
     return false if status_started? || status_completed?
     # Others can be cleared
-    supplier_confirm? || confirm? || manually_positioned?
+    supplier_confirm? || confirm? || hold?
   end
 
   # Clear all clearable locks
@@ -146,8 +146,8 @@ class SmTask < ApplicationRecord
     update!(
       supplier_confirm: false,
       confirm: false,
-      manually_positioned: false,
-      manually_positioned_at: nil
+      hold: false,
+      hold_at: nil
     )
   end
 

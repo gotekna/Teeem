@@ -508,7 +508,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         align: 'center',
         resize: true,
         template: (task) => {
-          const checked = task.$manuallyPositioned || task.manually_positioned ? 'checked' : ''
+          const checked = task.$hold || task.hold ? 'checked' : ''
           return `<input type="checkbox" class="gantt-lock-checkbox" data-task-id="${task.id}" ${checked} />`
         }
       },
@@ -1159,7 +1159,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         classes.push('task-supplier-confirm')
       } else if (task.confirm) {
         classes.push('task-confirm')
-      } else if (task.$manuallyPositioned) {
+      } else if (task.$hold) {
         // Only show manually positioned color if no status checkboxes are set
         classes.push('manually-positioned-task')
       }
@@ -1186,7 +1186,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         classes.push(`highlighted-task highlighted-task-color-${colorIndex}`)
       }
 
-      if (task.$manuallyPositioned) {
+      if (task.$hold) {
         classes.push('manually-positioned-row')
       }
 
@@ -1604,8 +1604,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
           if (revertedStart.getTime() === originalStartDate.getTime()) {
             // Task is back at original position - don't mark as manually positioned
             console.log('↩️ Task reverted to original position - not marking as manually positioned')
-            task.$manuallyPositioned = false
-            task.manually_positioned = false
+            task.$hold = false
+            task.hold = false
             manuallyPositionedTasks.current.delete(task.id)
             // updateTask already called above (line 1353), no need to call again
           }
@@ -1690,7 +1690,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                 // Check if this successor is locked (has any status checkbox checked OR Lock checkbox checked)
                 const isLocked = successorTask.confirm || successorTask.supplier_confirm ||
                                 successorTask.start || successorTask.complete ||
-                                successorTask.$manuallyPositioned || successorTask.manually_positioned
+                                successorTask.$hold || successorTask.hold
                 if (isLocked) {
                   console.log('🔒 Found locked successor:', successorTask.id, successorTask.text)
                   lockedSuccessors.push(successorTask)
@@ -1728,7 +1728,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                 // Check if this successor is NOT locked
                 const isLocked = successorTask.confirm || successorTask.supplier_confirm ||
                                 successorTask.start || successorTask.complete ||
-                                successorTask.$manuallyPositioned || successorTask.manually_positioned
+                                successorTask.$hold || successorTask.hold
 
                 if (!isLocked) {
                   console.log(`🔎 Checking Task #${successorTask.id} "${successorTask.text}" for locked successors...`)
@@ -2013,8 +2013,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                 task.$dependenciesBroken = true
 
                 // Auto-check the lock checkbox
-                task.manually_positioned = true
-                task.$manuallyPositioned = true
+                task.hold = true
+                task.$hold = true
                 manuallyPositionedTasks.current.add(task.id)
 
                 // Calculate day offset
@@ -2028,7 +2028,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                 const updateData = {
                   duration: task.duration,
                   start_date: dayOffset,
-                  manually_positioned: true,
+                  hold: true,
                   dependencies_broken: true,  // Mark as broken
                   predecessor_ids: [] // Empty - dependencies removed
                 }
@@ -2065,7 +2065,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
               console.log('✅ Dependencies exist but not violated - allowing move')
 
               // Mark as manually positioned but keep dependencies
-              task.$manuallyPositioned = true
+              task.$hold = true
               manuallyPositionedTasks.current.add(task.id)
 
               const projectStartDate = getToday()
@@ -2078,7 +2078,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
               const updateData = {
                 duration: task.duration,
                 start_date: dayOffset,
-                manually_positioned: true,
+                hold: true,
                 predecessor_ids: task.predecessor_ids || []
               }
 
@@ -2133,7 +2133,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
               const updateData = {
                 duration: task.duration,
                 start_date: dayOffset,
-                manually_positioned: false,  // ✅ Let backend cascade to successors!
+                hold: false,  // ✅ Let backend cascade to successors!
                 predecessor_ids: task.predecessor_ids || []  // ✅ RULE #9: ALWAYS preserve predecessor_ids
               }
               console.log('💾 DRAG HANDLER: Saving task to trigger cascade:', updateData)
@@ -2144,14 +2144,14 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
               }, 200)
             } else {
               // No predecessors AND no successors - truly independent task
-              task.$manuallyPositioned = true
+              task.$hold = true
               manuallyPositionedTasks.current.add(task.id)
               console.log('🟤 Marked task', task.id, 'as manually positioned (no predecessors or successors)')
 
               const updateData = {
                 duration: task.duration,
                 start_date: dayOffset,
-                manually_positioned: true,
+                hold: true,
                 predecessor_ids: task.predecessor_ids || []  // ✅ RULE #9: ALWAYS preserve predecessor_ids
               }
               console.log('💾 Saving manually positioned task (no deps):', updateData)
@@ -2948,7 +2948,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
               schedule_template_row: {
                 start_date: dayOffset,
                 duration: testTask.duration,
-                manually_positioned: true
+                hold: true
               }
             })
             console.log('🧪 Backend cascade response:', data)
@@ -2967,7 +2967,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                 date.setDate(date.getDate() + task.start_date)
                 ganttTask.start_date = date
                 ganttTask.duration = task.duration
-                ganttTask.manually_positioned = task.manually_positioned
+                ganttTask.hold = task.hold
                 gantt.updateTask(ganttTask.id)
               }
             })
@@ -3038,7 +3038,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
           try {
             await api.patch(`/api/v1/schedule_templates/${templateId}/rows/${testTask.id}`, {
               schedule_template_row: {
-                manually_positioned: false
+                hold: false
               }
             })
             await updateProgress('✅ Unlocked task - cascade will recalculate position')
@@ -3114,8 +3114,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
           if (willHaveAnyChecked) {
             // Lock the task at its current position
-            task.manually_positioned = true
-            task.$manuallyPositioned = true
+            task.hold = true
+            task.$hold = true
             manuallyPositionedTasks.current.add(taskId)
 
             // Calculate day offset for saving
@@ -3140,7 +3140,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
             // Save to backend - CRITICAL: Preserve predecessor_ids AND lock position
             const updateData = {
               [field]: checked,
-              manually_positioned: task.manually_positioned,
+              hold: task.hold,
               start_date: dayOffset,  // Lock at current position!
               predecessor_ids: task.predecessor_ids || []  // Preserve dependencies!
             }
@@ -3186,8 +3186,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         if (task) {
           if (checked) {
             // User wants to lock the task at its current position
-            task.manually_positioned = true
-            task.$manuallyPositioned = true
+            task.hold = true
+            task.$hold = true
             manuallyPositionedTasks.current.add(taskId)
 
             // Calculate day offset for saving
@@ -3202,7 +3202,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
             // Save to backend - CRITICAL: Preserve predecessor_ids
             const updateData = {
-              manually_positioned: true,
+              hold: true,
               start_date: dayOffset,
               predecessor_ids: task.predecessor_ids || []  // Preserve dependencies!
             }
@@ -3219,8 +3219,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
             console.log('🔓 Unlocking task', taskId)
 
             // Clear manual positioning flags
-            task.manually_positioned = false
-            task.$manuallyPositioned = false
+            task.hold = false
+            task.$hold = false
             manuallyPositionedTasks.current.delete(taskId)
             pendingUnlocks.current.add(taskId) // Prevent re-locking during data reload
 
@@ -3233,7 +3233,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
             // Also update the original task to prevent it from being restored as manually positioned
             if (originalTask) {
-              originalTask.manually_positioned = false
+              originalTask.hold = false
               console.log('✅ Updated original task manually_positioned flag to false')
             }
 
@@ -3298,7 +3298,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
             // Save to backend (start_date: 0 means auto-calculate from today)
             // CRITICAL: Preserve predecessor_ids
             const updateData = {
-              manually_positioned: false,
+              hold: false,
               start_date: 0,
               predecessor_ids: task.predecessor_ids || []  // Preserve dependencies!
             }
@@ -3456,7 +3456,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         align: 'center',
         resize: true,
         template: (task) => {
-          const checked = task.$manuallyPositioned || task.manually_positioned ? 'checked' : ''
+          const checked = task.$hold || task.hold ? 'checked' : ''
           return `<input type="checkbox" class="gantt-lock-checkbox" data-task-id="${task.id}" ${checked} />`
         }
       }
@@ -3714,7 +3714,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
     // For manually positioned tasks, check if this is a duration or supplier change (inline edit)
     // Duration and supplier changes should be allowed even for manually positioned tasks
     const originalTask = tasks.find(t => t.id === task.id)
-    if (task.$manuallyPositioned && originalTask) {
+    if (task.$hold && originalTask) {
       // Check if duration or supplier changed (inline edit)
       const durationChanged = originalTask.duration !== duration
       const supplierChanged = originalTask.supplier !== supplier
@@ -3843,7 +3843,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
     // ANTI-FLICKER: Create signature of task data to detect real changes
     // Only reload if actual task data changed, not just array reference
     const currentSignature = validTasks.map(t =>
-      `${t.id}:${t.name}:${t.duration}:${t.start_date}:${t.manually_positioned}:${JSON.stringify(t.predecessor_ids)}`
+      `${t.id}:${t.name}:${t.duration}:${t.start_date}:${t.hold}:${JSON.stringify(t.predecessor_ids)}`
     ).join('|')
 
     const signatureChanged = lastTasksSignature.current !== currentSignature
@@ -3932,7 +3932,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
       }
 
       // If task is manually positioned, use its start_date from backend
-      if (task.manually_positioned && task.start_date !== undefined) {
+      if (task.hold && task.start_date !== undefined) {
         // Backend stores start_date as integer day offset from project start (today)
         const manualDate = new Date(projectStartDate)
         manualDate.setDate(manualDate.getDate() + task.start_date)
@@ -4044,12 +4044,12 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
       // If task is manually positioned from backend, add to our tracking set
       // BUT: Skip if task is pending unlock (prevents race condition during data reload)
-      if (task.manually_positioned && !pendingUnlocks.current.has(task.id)) {
+      if (task.hold && !pendingUnlocks.current.has(task.id)) {
         manuallyPositionedTasks.current.add(task.id)
       }
 
       // If task is no longer manually positioned, remove from tracking set
-      if (!task.manually_positioned) {
+      if (!task.hold) {
         if (manuallyPositionedTasks.current.has(task.id)) {
           manuallyPositionedTasks.current.delete(task.id)
           console.log('🔓 Removed task', task.id, 'from manually positioned set (backend update)')
@@ -4071,8 +4071,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
         predecessor_ids: task.predecessor_ids || [], // Store the actual predecessor array for lightbox
         supplier: task.supplier_name || task.assigned_role || '',
         type: gantt.config.types.task,
-        $manuallyPositioned: manuallyPositionedTasks.current.has(task.id), // Restore manual position flag
-        manually_positioned: task.manually_positioned || false,
+        $hold: manuallyPositionedTasks.current.has(task.id), // Restore manual position flag
+        hold: task.hold || false,
         confirm: task.confirm || false,
         supplier_confirm: task.supplier_confirm || false,
         start: task.start || false,
@@ -4262,7 +4262,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
       duration: movedTask.duration,
       start_date: movedTaskDayOffset,
       predecessor_ids: movedTask.predecessor_ids || [],
-      manually_positioned: true
+      hold: true
     }, { skipReload: true })
 
     // Cascade selected tasks
@@ -4514,7 +4514,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
                 gantt.eachTask((task) => {
                   const updateData = {
-                    manually_positioned: false,
+                    hold: false,
                     confirm: false,
                     supplier_confirm: false,
                     start: false,
@@ -5711,8 +5711,8 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                   const task = gantt.getTask(dialogTask.id)
 
                   // Keep the task locked at current position
-                  task.manually_positioned = true
-                  task.$manuallyPositioned = true
+                  task.hold = true
+                  task.$hold = true
                   manuallyPositionedTasks.current.add(task.id)
 
                   // Calculate day offset for saving
@@ -5734,7 +5734,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                   // CRITICAL: Preserve predecessor_ids
                   onUpdateTaskRef.current(task.id, {
                     [field]: checked,
-                    manually_positioned: true,
+                    hold: true,
                     predecessor_ids: task.predecessor_ids || []  // Preserve dependencies!
                   })
 
@@ -5754,7 +5754,7 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
 
                   // Get task reference to access its properties
                   const task = gantt.getTask(dialogTask.id)
-                  console.log('🔵 Got task from gantt:', { id: task.id, manually_positioned: task.manually_positioned })
+                  console.log('🔵 Got task from gantt:', { id: task.id, hold: task.hold })
 
                   // CRITICAL: Set isSaving flag FIRST to block ALL auto-saves
                   isSaving.current = true
@@ -5770,22 +5770,22 @@ export default function DHtmlxGanttView({ isOpen, onClose, tasks, templateId, ca
                     // This prevents gantt.updateTask() from triggering unwanted auto-saves
                     console.log('🔵 Calling onUpdateTask with:', {
                       [field]: checked,
-                      manually_positioned: false,
+                      hold: false,
                       start_date: 0,
                       predecessor_ids: task.predecessor_ids || []
                     })
 
                     const responseData = await onUpdateTaskRef.current(task.id, {
                       [field]: checked,
-                      manually_positioned: false,
+                      hold: false,
                       start_date: 0,  // 0 means auto-calculate from today
                       predecessor_ids: task.predecessor_ids || []  // Preserve dependencies!
                     })
                     console.log('✅ Backend save completed, response:', responseData)
 
                     // NOW update local task with confirmed backend data
-                    task.manually_positioned = false
-                    task.$manuallyPositioned = false
+                    task.hold = false
+                    task.$hold = false
                     task[field] = checked
                     manuallyPositionedTasks.current.delete(task.id)
                     console.log('🔵 Updated local task properties with backend data')

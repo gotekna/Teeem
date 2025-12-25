@@ -176,7 +176,7 @@ namespace :setup do
           require_photo: row[:require_photo] == "true",
           require_certificate: row[:require_certificate] == "true",
           cert_lag_days: row[:cert_lag_days].present? ? row[:cert_lag_days].to_i : nil,
-          require_supervisor_check: row[:require_supervisor_check] == "true",
+          confirm: row[:confirm] == "true",
           auto_complete_predecessors: row[:auto_complete_predecessors] == "true",
           has_subtasks: row[:has_subtasks] == "true",
           subtask_count: row[:subtask_count].present? ? row[:subtask_count].to_i : nil,
@@ -305,7 +305,7 @@ namespace :setup do
         "predecessor_ids", "po_required", "create_po_on_job_start", "critical_po",
         "price_book_item_ids", "documentation_category_ids",
         "tags", "require_photo", "require_certificate", "cert_lag_days",
-        "require_supervisor_check", "auto_complete_predecessors",
+        "confirm", "auto_complete_predecessors",
         "has_subtasks", "subtask_count", "subtask_names", "sequence_order",
         "linked_task_ids", "linked_template_id"
       ]
@@ -328,7 +328,7 @@ namespace :setup do
           row.require_photo,
           row.require_certificate,
           row.cert_lag_days,
-          row.require_supervisor_check,
+          row.confirm,
           row.auto_complete_predecessors,
           row.has_subtasks,
           row.subtask_count,

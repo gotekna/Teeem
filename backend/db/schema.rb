@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_175003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2627,6 +2627,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.datetime "local_updated_at"
     t.boolean "sync_conflict", default: false, null: false
     t.bigint "warehouse_contact_id"
+    t.string "payment_link_token"
+    t.boolean "payment_portal_enabled", default: true
+    t.datetime "last_payment_reminder_at"
+    t.integer "payment_reminder_count", default: 0
     t.index ["contact_id"], name: "index_external_invoices_on_contact_id"
     t.index ["created_in_teeem"], name: "index_external_invoices_on_created_in_teeem"
     t.index ["external_contact_id"], name: "index_external_invoices_on_external_contact_id"
@@ -2635,6 +2639,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.index ["invoice_type"], name: "index_external_invoices_on_invoice_type"
     t.index ["job_id", "contact_id", "status"], name: "idx_ext_inv_job_contact_status"
     t.index ["job_id"], name: "index_external_invoices_on_job_id"
+    t.index ["payment_link_token"], name: "index_external_invoices_on_payment_link_token", unique: true, where: "(payment_link_token IS NOT NULL)"
     t.index ["pending_push"], name: "index_external_invoices_on_pending_push"
     t.index ["source", "tenant_id", "external_id"], name: "idx_external_invoices_unique", unique: true
     t.index ["source"], name: "index_external_invoices_on_source"
@@ -4535,6 +4540,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.index ["week_start_date"], name: "index_pay_now_weekly_limits_on_week_start_date"
   end
 
+  create_table "payment_links", force: :cascade do |t|
+    t.bigint "invoice_id", null: false
+    t.bigint "contact_id", null: false
+    t.string "token", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.string "currency", default: "AUD", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "expires_at"
+    t.datetime "paid_at"
+    t.string "stripe_payment_intent_id"
+    t.string "stripe_checkout_session_id"
+    t.jsonb "metadata", default: {}
+    t.integer "view_count", default: 0
+    t.datetime "last_viewed_at"
+    t.string "created_by_type"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_payment_links_on_contact_id"
+    t.index ["created_by_type", "created_by_id"], name: "index_payment_links_on_created_by_type_and_created_by_id"
+    t.index ["expires_at"], name: "index_payment_links_on_expires_at"
+    t.index ["invoice_id"], name: "index_payment_links_on_invoice_id"
+    t.index ["status"], name: "index_payment_links_on_status"
+    t.index ["token"], name: "index_payment_links_on_token", unique: true
+  end
+
   create_table "payments", force: :cascade do |t|
     t.bigint "purchase_order_id", null: false
     t.decimal "amount", precision: 15, scale: 2, null: false
@@ -5512,7 +5543,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.integer "call_time_days"
     t.boolean "require_photo", default: false
     t.boolean "require_certificate", default: false
-    t.boolean "require_supervisor_check", default: false
+    t.boolean "confirm", default: false
     t.boolean "po_required", default: false
     t.boolean "critical_po", default: false
     t.boolean "create_po_on_job_start", default: false
@@ -5537,30 +5568,30 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.bigint "photo_entity_tab_id"
     t.integer "linked_po_task_id"
     t.string "cost_centre"
-    t.boolean "require_supplier_confirm", default: false
+    t.boolean "supplier_confirm", default: false
     t.boolean "is_master", default: false
     t.string "header"
     t.jsonb "sm_template_ids", default: []
-    t.boolean "manually_positioned"
-    t.date "manual_start_date"
-    t.boolean "is_completed", default: false
+    t.boolean "hold"
+    t.date "hold_date"
+    t.boolean "completed", default: false
     t.date "completed_at"
     t.jsonb "predecessor_ids_backup"
     t.date "previous_manual_start_date"
     t.boolean "dependency_broken", default: false
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
+    t.index ["confirm"], name: "index_sm_template_rows_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
     t.index ["dependency_broken"], name: "index_sm_template_rows_on_dependency_broken", where: "(dependency_broken = true)"
     t.index ["header"], name: "index_sm_template_rows_on_header"
+    t.index ["hold"], name: "index_sm_template_rows_on_hold", where: "(hold = true)"
     t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_template_rows_on_linked_po_task_id"
-    t.index ["manually_positioned"], name: "index_sm_template_rows_on_manually_positioned", where: "(manually_positioned = true)"
     t.index ["parent_row_id"], name: "index_sm_template_rows_on_parent_row_id"
-    t.index ["require_supervisor_check"], name: "index_sm_template_rows_on_require_supervisor_check", where: "(require_supervisor_check = true)"
-    t.index ["require_supplier_confirm"], name: "index_sm_template_rows_on_require_supplier_confirm", where: "(require_supplier_confirm = true)"
     t.index ["sm_template_ids"], name: "index_sm_template_rows_on_sm_template_ids", using: :gin
     t.index ["stage"], name: "index_sm_template_rows_on_stage"
+    t.index ["supplier_confirm"], name: "index_sm_template_rows_on_supplier_confirm", where: "(supplier_confirm = true)"
     t.index ["supplier_id"], name: "index_sm_template_rows_on_supplier_id"
     t.index ["task_number"], name: "index_sm_template_rows_on_task_number"
     t.index ["trade"], name: "index_sm_template_rows_on_trade"
@@ -5790,6 +5821,56 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
   end
 
+  create_table "stripe_configurations", force: :cascade do |t|
+    t.bigint "organization_id"
+    t.boolean "enabled", default: false, null: false
+    t.string "stripe_account_id"
+    t.string "webhook_endpoint_id"
+    t.string "webhook_secret_encrypted"
+    t.decimal "surcharge_percentage", precision: 5, scale: 2, default: "0.0"
+    t.decimal "minimum_payment", precision: 15, scale: 2, default: "0.0"
+    t.jsonb "payment_methods_enabled", default: {"card"=>true, "bank_transfer"=>false}
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["organization_id"], name: "index_stripe_configurations_on_organization_id"
+    t.index ["stripe_account_id"], name: "index_stripe_configurations_on_stripe_account_id", unique: true, where: "(stripe_account_id IS NOT NULL)"
+  end
+
+  create_table "stripe_payments", force: :cascade do |t|
+    t.bigint "payment_link_id"
+    t.bigint "invoice_id", null: false
+    t.bigint "contact_id", null: false
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.decimal "stripe_fee", precision: 15, scale: 2
+    t.decimal "net_amount", precision: 15, scale: 2
+    t.string "currency", default: "AUD", null: false
+    t.string "status", null: false
+    t.string "payment_method"
+    t.string "card_brand"
+    t.string "card_last4"
+    t.string "stripe_payment_intent_id"
+    t.string "stripe_charge_id"
+    t.string "stripe_receipt_url"
+    t.string "failure_reason"
+    t.datetime "paid_at"
+    t.datetime "refunded_at"
+    t.decimal "refunded_amount", precision: 15, scale: 2
+    t.jsonb "stripe_metadata", default: {}
+    t.jsonb "metadata", default: {}
+    t.string "ip_address"
+    t.string "user_agent"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_stripe_payments_on_contact_id"
+    t.index ["invoice_id"], name: "index_stripe_payments_on_invoice_id"
+    t.index ["paid_at"], name: "index_stripe_payments_on_paid_at"
+    t.index ["payment_link_id"], name: "index_stripe_payments_on_payment_link_id"
+    t.index ["status"], name: "index_stripe_payments_on_status"
+    t.index ["stripe_charge_id"], name: "index_stripe_payments_on_stripe_charge_id"
+    t.index ["stripe_payment_intent_id"], name: "index_stripe_payments_on_stripe_payment_intent_id"
+  end
+
   create_table "subcontractor_accounts", force: :cascade do |t|
     t.bigint "portal_user_id", null: false
     t.string "account_tier", default: "free", null: false
@@ -5934,8 +6015,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.boolean "passed"
     t.boolean "confirm", default: false
     t.boolean "supplier_confirm", default: false
-    t.boolean "manually_positioned", default: false
-    t.datetime "manually_positioned_at", precision: nil
+    t.boolean "hold", default: false
+    t.datetime "hold_at", precision: nil
     t.string "confirm_status", limit: 50
     t.datetime "confirm_requested_at", precision: nil
     t.datetime "supplier_confirmed_at", precision: nil
@@ -5966,7 +6047,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
     t.boolean "call_reminder_sent", default: false
     t.boolean "require_photo", default: false
     t.boolean "require_certificate", default: false
-    t.boolean "require_supervisor_check", default: false
+    t.boolean "require_confirm", default: false
     t.boolean "po_required", default: false
     t.boolean "critical_po", default: false
     t.bigint "created_by_id"
@@ -7118,6 +7199,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
   add_foreign_key "pay_now_requests", "users", column: "approved_by_builder_id"
   add_foreign_key "pay_now_requests", "users", column: "reviewed_by_supervisor_id"
   add_foreign_key "pay_now_weekly_limits", "users", column: "set_by_id"
+  add_foreign_key "payment_links", "contacts"
+  add_foreign_key "payment_links", "external_invoices", column: "invoice_id"
   add_foreign_key "payments", "purchase_orders"
   add_foreign_key "payments", "users", column: "created_by_id"
   add_foreign_key "performance_anomalies", "users", column: "acknowledged_by_id"
@@ -7215,6 +7298,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "specification_templates", "job_types"
+  add_foreign_key "stripe_configurations", "organizations"
+  add_foreign_key "stripe_payments", "contacts"
+  add_foreign_key "stripe_payments", "external_invoices", column: "invoice_id"
+  add_foreign_key "stripe_payments", "payment_links"
   add_foreign_key "subcontractor_accounts", "contacts", column: "invited_by_contact_id"
   add_foreign_key "subcontractor_accounts", "portal_users"
   add_foreign_key "subcontractor_invoices", "accounting_integrations"

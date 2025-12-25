@@ -14,7 +14,7 @@ class SmCascadeService
     "confirm" => 2,
     "started" => 3,
     "completed" => 4,
-    "manually_positioned" => 5
+    "hold" => 5
   }.freeze
 
   attr_reader :task, :construction, :options, :calendar
@@ -111,8 +111,8 @@ class SmCascadeService
         successor.update!(
           supplier_confirm: false,
           confirm: false,
-          manually_positioned: false,
-          manually_positioned_at: nil,
+          hold: false,
+          hold_at: nil,
           confirm_status: successor.supplier_confirm? ? "moved_after_confirm" : nil,
           updated_by_id: cascade_params[:user_id]
         )
@@ -234,14 +234,14 @@ class SmCascadeService
     task.confirm? ||
     task.status_started? ||
     task.status_completed? ||
-    task.manually_positioned?
+    task.hold?
   end
 
   def unlockable?(task)
     # Started and completed cannot be unlocked
     return false if task.status_started? || task.status_completed?
     # Others can be cleared
-    task.supplier_confirm? || task.confirm? || task.manually_positioned?
+    task.supplier_confirm? || task.confirm? || task.hold?
   end
 
   def get_lock_type(task)
@@ -249,7 +249,7 @@ class SmCascadeService
     return "confirm" if task.confirm?
     return "started" if task.status_started?
     return "completed" if task.status_completed?
-    return "manually_positioned" if task.manually_positioned?
+    return "hold" if task.hold?
     nil
   end
 

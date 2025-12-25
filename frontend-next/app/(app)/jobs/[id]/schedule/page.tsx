@@ -50,7 +50,7 @@ interface SmTask {
   lock_type?: "position" | "dates" | "full";
   confirm: boolean;
   supplier_confirm: boolean;
-  manually_positioned: boolean;
+  hold: boolean;
   is_hold_task: boolean;
   hold_reason?: string;
   purchase_order_id?: number;

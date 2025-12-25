@@ -268,7 +268,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
 
       day_name = actual_date.strftime("%A").downcase
       is_working_day = working_days[day_name] == true
-      is_locked = task.supplier_confirm? || task.confirm? || task.start? || task.complete? || task.manually_positioned?
+      is_locked = task.supplier_confirm? || task.confirm? || task.start? || task.complete? || task.hold?
 
       if is_locked
         total_locked_tasks += 1

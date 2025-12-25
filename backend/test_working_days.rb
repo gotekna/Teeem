@@ -28,7 +28,7 @@ task1 = ScheduleTemplateRow.create!(
   start_date: 0,  # Thursday
   duration: 2,    # Ends Friday
   predecessor_ids: [],
-  manually_positioned: false
+  hold: false
 )
 
 # Task 2: Should start Monday (skips weekend)
@@ -40,7 +40,7 @@ task2 = ScheduleTemplateRow.create!(
   start_date: 10,  # Placeholder
   duration: 3,
   predecessor_ids: [ { id: 1, type: "FS", lag: 2 } ],  # +2 lag would land on Sunday
-  manually_positioned: false
+  hold: false
 )
 
 # Task 3: Locked task on Saturday (should NOT move)
@@ -52,7 +52,7 @@ task3 = ScheduleTemplateRow.create!(
   duration: 1,
   predecessor_ids: [],
   supplier_confirm: true,  # LOCKED
-  manually_positioned: false
+  hold: false
 )
 
 # Task 4: Manually positioned on Sunday (should be skipped in cascade)
@@ -63,7 +63,7 @@ task4 = ScheduleTemplateRow.create!(
   start_date: 7,  # Sunday
   duration: 1,
   predecessor_ids: [ { id: 1, type: "FS", lag: 0 } ],
-  manually_positioned: true  # Should be skipped
+  hold: true  # Should be skipped
 )
 
 # Task 5: Regular task that should cascade
@@ -74,7 +74,7 @@ task5 = ScheduleTemplateRow.create!(
   start_date: 10,
   duration: 2,
   predecessor_ids: [ { id: 2, type: "FS", lag: 0 } ],
-  manually_positioned: false
+  hold: false
 )
 
 puts "✅ Created test schedule template: #{template.name} (ID: #{template.id})"
@@ -97,7 +97,7 @@ puts "CASCADE RESULTS (AFTER):"
 puts "Affected #{affected.length} tasks"
 affected.each do |t|
   t.reload
-  locked = t.supplier_confirm? || t.confirm? || t.start? || t.complete? || t.manually_positioned?
+  locked = t.supplier_confirm? || t.confirm? || t.start? || t.complete? || t.hold?
 
   # Calculate what day of week this would be
   reference_date = Date.today

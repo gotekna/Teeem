@@ -28,8 +28,9 @@ class CreatePaymentLinksAndPayments < ActiveRecord::Migration[8.0]
     add_index :payment_links, :expires_at
     add_index :payment_links, [:created_by_type, :created_by_id]
 
-    # Payments - Record of all payment attempts and completions
-    create_table :payments do |t|
+    # Stripe Payments - Record of all Stripe payment attempts and completions
+    # Named stripe_payments to avoid conflict with existing payments table (PO payments)
+    create_table :stripe_payments do |t|
       t.references :payment_link, foreign_key: true
       t.references :invoice, null: false, foreign_key: { to_table: :external_invoices }
       t.references :contact, null: false, foreign_key: true
@@ -56,10 +57,10 @@ class CreatePaymentLinksAndPayments < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :payments, :status
-    add_index :payments, :stripe_payment_intent_id
-    add_index :payments, :stripe_charge_id
-    add_index :payments, :paid_at
+    add_index :stripe_payments, :status
+    add_index :stripe_payments, :stripe_payment_intent_id
+    add_index :stripe_payments, :stripe_charge_id
+    add_index :stripe_payments, :paid_at
 
     # Stripe Configuration - Organization-level Stripe settings
     create_table :stripe_configurations do |t|

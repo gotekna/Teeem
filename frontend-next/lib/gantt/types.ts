@@ -84,7 +84,7 @@ export interface SmTemplateRow {
   parent_row_id: number | null;
   require_photo: boolean;
   require_certificate: boolean;
-  require_supervisor_check: boolean;
+  confirm: boolean;
   po_required: boolean;
   critical_po: boolean;
   create_po_on_job_start: boolean;
@@ -114,15 +114,15 @@ export interface SmTemplateRow {
   photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
-  require_supplier_confirm: boolean;
+  supplier_confirm: boolean;
   finance_approved: boolean;
   is_master: boolean;
   header: string | null;
   // Multi-template support
   sm_template_ids: number[];
   // Manual positioning (held dates)
-  manually_positioned: boolean | null;
-  manual_start_date: string | null;
+  hold: boolean | null;
+  hold_date: string | null;
   // Completion tracking
   is_completed: boolean | null;
   completed_at: string | null;
@@ -467,13 +467,13 @@ export function convertRowToTask(
 
   // Check if task is LOCKED - locked tasks NEVER recalculate from predecessors
   // Lock types: Confirmed, Supplier Confirmed, Finance Approved, Completed
-  const isLocked = row.require_supervisor_check || row.require_supplier_confirm ||
+  const isLocked = row.confirm || row.supplier_confirm ||
                    row.finance_approved || row.is_completed;
 
-  // If manually positioned OR locked with manual_start_date, use the manual start date
+  // If manually positioned OR locked with hold_date, use the manual start date
   // Locked tasks should NEVER move based on predecessor changes
-  if ((row.manually_positioned || isLocked) && row.manual_start_date) {
-    startDate = skipToNextWorkingDay(new Date(row.manual_start_date));
+  if ((row.hold || isLocked) && row.hold_date) {
+    startDate = skipToNextWorkingDay(new Date(row.hold_date));
   } else if (taskDateMap && row.predecessor_ids?.length > 0 && !isLocked) {
     // Find the latest required start date from all predecessors
     let latestRequiredStart = projectStartDate;

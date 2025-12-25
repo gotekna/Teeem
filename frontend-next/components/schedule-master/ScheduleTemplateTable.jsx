@@ -30,7 +30,7 @@ export const SCHEDULE_TEMPLATE_COLUMNS = [
   { key: 'predecessors', label: 'Predecessors', resizable: true, sortable: false, filterable: false, width: 100 },
   { key: 'duration', label: 'Duration', resizable: true, sortable: true, filterable: false, width: 80, column_type: 'whole_number' },
   { key: 'start_date', label: 'Start Date', resizable: true, sortable: true, filterable: false, width: 110, column_type: 'whole_number' },
-  { key: 'manually_positioned', label: 'Lock', resizable: true, sortable: false, filterable: false, width: 70, column_type: 'boolean' },
+  { key: 'hold', label: 'Lock', resizable: true, sortable: false, filterable: false, width: 70, column_type: 'boolean' },
   { key: 'po_required', label: 'PO Req', resizable: true, sortable: false, filterable: true, filterType: 'boolean', width: 80, column_type: 'boolean' },
   { key: 'create_po_on_job_start', label: 'Auto PO', resizable: true, sortable: false, filterable: true, filterType: 'boolean', width: 80, column_type: 'boolean' },
   { key: 'priceItems', label: 'Price Items', resizable: true, sortable: false, filterable: false, width: 100 },
@@ -190,15 +190,15 @@ export default function ScheduleTemplateTable({
           </div>
         )
 
-      case 'manually_positioned':
+      case 'hold':
         return (
           <div className="flex justify-center">
             <input
               type="checkbox"
-              checked={entry.manually_positioned || false}
-              onChange={(e) => onUpdateRow(entry.id, { manually_positioned: e.target.checked })}
+              checked={entry.hold || false}
+              onChange={(e) => onUpdateRow(entry.id, { hold: e.target.checked })}
               className="h-4 w-4"
-              title={entry.manually_positioned ? 'Locked - prevents cascade updates' : 'Unlocked - allows cascade updates'}
+              title={entry.hold ? 'Locked - prevents cascade updates' : 'Unlocked - allows cascade updates'}
             />
           </div>
         )
@@ -322,11 +322,11 @@ export default function ScheduleTemplateTable({
           <div className="flex items-center gap-1">
             <input
               type="checkbox"
-              checked={entry.require_supervisor_check || false}
-              onChange={(e) => onUpdateRow(entry.id, { require_supervisor_check: e.target.checked })}
+              checked={entry.confirm || false}
+              onChange={(e) => onUpdateRow(entry.id, { confirm: e.target.checked })}
               className="h-4 w-4"
             />
-            {entry.require_supervisor_check && (
+            {entry.confirm && (
               <button
                 onClick={() => setActiveModal({ type: 'checklist', rowId: entry.id })}
                 className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap"

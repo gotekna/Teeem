@@ -149,7 +149,7 @@ interface SyncLinkedTask {
   lock_type?: string;
   confirm?: boolean;
   supplier_confirm?: boolean;
-  manually_positioned?: boolean;
+  hold?: boolean;
   is_blocker: boolean;
   blocker_reason?: string;
   predecessor_count: number;

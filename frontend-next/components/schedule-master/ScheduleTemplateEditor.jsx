@@ -986,7 +986,7 @@ export default function ScheduleTemplateEditor() {
       require_photo: false,
       require_certificate: false,
       cert_lag_days: 10,
-      require_supervisor_check: false,
+      confirm: false,
       auto_complete_predecessors: false,
       has_subtasks: false,
       subtask_count: 0,
@@ -1788,19 +1788,19 @@ export default function ScheduleTemplateEditor() {
             // Boolean columns
             aVal = a[sortBy === 'autoPo' ? 'create_po_on_job_start' :
                      sortBy === 'poRequired' ? 'po_required' :
-                     sortBy === 'lock' ? 'manually_positioned' :
+                     sortBy === 'lock' ? 'hold' :
                      sortBy === 'critical' ? 'critical_po' :
                      sortBy === 'photo' ? 'require_photo' :
                      sortBy === 'cert' ? 'require_certificate' :
-                     sortBy === 'supCheck' ? 'require_supervisor_check' :
+                     sortBy === 'supCheck' ? 'confirm' :
                      'auto_complete_predecessors'] ? 1 : 0
             bVal = b[sortBy === 'autoPo' ? 'create_po_on_job_start' :
                      sortBy === 'poRequired' ? 'po_required' :
-                     sortBy === 'lock' ? 'manually_positioned' :
+                     sortBy === 'lock' ? 'hold' :
                      sortBy === 'critical' ? 'critical_po' :
                      sortBy === 'photo' ? 'require_photo' :
                      sortBy === 'cert' ? 'require_certificate' :
-                     sortBy === 'supCheck' ? 'require_supervisor_check' :
+                     sortBy === 'supCheck' ? 'confirm' :
                      'auto_complete_predecessors'] ? 1 : 0
             break
           case 'certLag':
@@ -2720,7 +2720,7 @@ function ScheduleTemplateRow({
   // Update start_date in database when it changes due to predecessors/duration
   // Skip auto-updates for manually positioned tasks
   useEffect(() => {
-    if (row.manually_positioned) {
+    if (row.hold) {
       // Skip auto-calculation for manually positioned tasks
       return
     }
@@ -2738,7 +2738,7 @@ function ScheduleTemplateRow({
       }, 100)
       return () => clearTimeout(timer)
     }
-  }, [calculatedStartDate, row.start_date, row.manually_positioned, onUpdate, isApplyingCascadeRef])
+  }, [calculatedStartDate, row.start_date, row.hold, onUpdate, isApplyingCascadeRef])
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -2916,10 +2916,10 @@ function ScheduleTemplateRow({
           <td key={key} style={{ width: `${cellWidth}px`, minWidth: `${cellWidth}px` }} className="px-3 py-3 border-r border-gray-200 dark:border-gray-700 text-center">
             <input
               type="checkbox"
-              checked={row.manually_positioned || false}
-              onChange={(e) => handleFieldChange('manually_positioned', e.target.checked)}
+              checked={row.hold || false}
+              onChange={(e) => handleFieldChange('hold', e.target.checked)}
               className="h-4 w-4"
-              title={row.manually_positioned ? 'Locked - prevents cascade updates' : 'Unlocked - allows cascade updates'}
+              title={row.hold ? 'Locked - prevents cascade updates' : 'Unlocked - allows cascade updates'}
             />
           </td>
         )
@@ -3042,11 +3042,11 @@ function ScheduleTemplateRow({
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={row.require_supervisor_check}
-                onChange={(e) => handleFieldChange('require_supervisor_check', e.target.checked)}
+                checked={row.confirm}
+                onChange={(e) => handleFieldChange('confirm', e.target.checked)}
                 className="h-4 w-4"
               />
-              {row.require_supervisor_check && (
+              {row.confirm && (
                 <button
                   onClick={handleOpenChecklistModal}
                   className="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer whitespace-nowrap"

@@ -5,7 +5,7 @@ class PaymentLink < ApplicationRecord
   belongs_to :invoice, class_name: "ExternalInvoice"
   belongs_to :contact
   belongs_to :created_by, polymorphic: true, optional: true
-  has_many :payments, dependent: :nullify
+  has_many :stripe_payments, dependent: :nullify
 
   # Constants
   STATUSES = %w[active expired paid cancelled].freeze

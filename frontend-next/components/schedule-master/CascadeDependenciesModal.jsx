@@ -373,7 +373,7 @@ export default function CascadeDependenciesModal({
                     ? 'Started'
                     : task.complete
                     ? 'Completed'
-                    : task.manually_positioned || task.$manuallyPositioned
+                    : task.hold || task.$hold
                     ? 'Locked'
                     : 'Locked'
 
@@ -599,7 +599,7 @@ export default function CascadeDependenciesModal({
                     ? 'Started'
                     : task.complete
                     ? 'Completed'
-                    : task.manually_positioned || task.$manuallyPositioned
+                    : task.hold || task.$hold
                     ? 'Locked'
                     : 'Locked'
 
@@ -654,7 +654,7 @@ export default function CascadeDependenciesModal({
                           <label className="flex items-center gap-2 text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 rounded px-2 py-1">
                             <input
                               type="checkbox"
-                              checked={task.supplier_confirm || task.confirm || task.start || task.complete || task.manually_positioned || task.$manuallyPositioned}
+                              checked={task.supplier_confirm || task.confirm || task.start || task.complete || task.hold || task.$hold}
                               onChange={() => handleUnlockTask(task)}
                               className="h-3 w-3 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                               title={`Currently ${lockReason} - untick to unlock this task and allow it to cascade`}

@@ -125,7 +125,7 @@ class PoScheduleSyncService
         lock_type: task.lock_type,
         confirm: task.confirm?,
         supplier_confirm: task.supplier_confirm?,
-        manually_positioned: task.manually_positioned?,
+        hold: task.hold?,
 
         # Blocker info
         is_blocker: task_is_blocker?(task),

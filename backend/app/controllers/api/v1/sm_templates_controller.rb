@@ -212,7 +212,7 @@ module Api
           supplier_name: row.supplier&.name,
           require_photo: row.require_photo,
           require_certificate: row.require_certificate,
-          require_supervisor_check: row.require_supervisor_check,
+          confirm: row.confirm,
           po_required: row.po_required,
           critical_po: row.critical_po,
           create_po_on_job_start: row.create_po_on_job_start,

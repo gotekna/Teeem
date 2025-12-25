@@ -125,9 +125,9 @@ const ALL_COLUMNS = [
   // Scheduling
   "duration_days", "predecessor_ids", "predecessor_ids_backup",
   // Locking & Status (prevents cascade, confirms completion)
-  "manually_positioned", "manual_start_date", "dependency_broken",
-  "require_supervisor_check", "require_supplier_confirm",
-  "is_completed", "completed_at",
+  "hold", "hold_date", "dependency_broken",
+  "confirm", "supplier_confirm",
+  "completed", "completed_at",
   // Assignment & Supplier
   "supplier_id", "trade", "stage", "assigned_role", "cost_centre",
   // PO Settings
@@ -864,18 +864,18 @@ export function ScheduleMasterTab() {
                     <span>Description</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["manually_positioned"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "manually_positioned", !!v)} />
-                    <Checkbox checked={columnStatus.delete["manually_positioned"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "manually_positioned", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <CopyableCode>manually_positioned</CopyableCode>
+                    <Checkbox checked={columnStatus.complete["hold"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "hold", !!v)} />
+                    <Checkbox checked={columnStatus.delete["hold"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "hold", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>hold</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold</Badge>Task is pinned to manual_start_date</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold</Badge>Task is pinned to hold_date</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["manual_start_date"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "manual_start_date", !!v)} />
-                    <Checkbox checked={columnStatus.delete["manual_start_date"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "manual_start_date", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <CopyableCode>manual_start_date</CopyableCode>
+                    <Checkbox checked={columnStatus.complete["hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "hold_date", !!v)} />
+                    <Checkbox checked={columnStatus.delete["hold_date"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "hold_date", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>hold_date</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground">Fixed start date when manually_positioned=true</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Hold Date</Badge>Fixed start date when hold=true</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "dependency_broken", !!v)} />
@@ -885,23 +885,23 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">Task was detached from dependency chain</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["require_supervisor_check"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "require_supervisor_check", !!v)} />
-                    <Checkbox checked={columnStatus.delete["require_supervisor_check"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "require_supervisor_check", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <CopyableCode>require_supervisor_check</CopyableCode>
+                    <Checkbox checked={columnStatus.complete["confirm"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "confirm", !!v)} />
+                    <Checkbox checked={columnStatus.delete["confirm"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "confirm", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Confirm</Badge>Supervisor sign-off (LOCKS from cascade)</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["require_supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "require_supplier_confirm", !!v)} />
-                    <Checkbox checked={columnStatus.delete["require_supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "require_supplier_confirm", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <CopyableCode>require_supplier_confirm</CopyableCode>
+                    <Checkbox checked={columnStatus.complete["supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "supplier_confirm", !!v)} />
+                    <Checkbox checked={columnStatus.delete["supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "supplier_confirm", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>supplier_confirm</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Supplier Confirm</Badge>Supplier confirmation (LOCKS from cascade)</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "is_completed", !!v)} />
-                    <Checkbox checked={columnStatus.delete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "is_completed", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <CopyableCode>is_completed</CopyableCode>
+                    <Checkbox checked={columnStatus.complete["completed"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "completed", !!v)} />
+                    <Checkbox checked={columnStatus.delete["completed"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "completed", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <CopyableCode>completed</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed</Badge>Task completed (LOCKS from cascade)</span>
                   </div>

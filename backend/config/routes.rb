@@ -1498,6 +1498,34 @@ Rails.application.routes.draw do
       get "external_invoices/by_contact/:contact_id", to: "external_invoices#by_contact", as: :external_invoices_by_contact
       get "external_invoices/by_external_id/:external_id", to: "external_invoices#by_external_id", as: :external_invoice_by_external_id
 
+      # Payment Portal (Stripe-powered invoice payments)
+      # Public routes (no auth required)
+      get "pay/:token", to: "payment_portal#show", as: :payment_link_show
+      post "pay/:token/checkout", to: "payment_portal#create_checkout", as: :payment_checkout
+      get "pay/:token/success", to: "payment_portal#success", as: :payment_success
+      post "pay/webhook", to: "payment_portal#webhook", as: :stripe_webhook
+
+      # Admin payment management (requires auth)
+      resources :payment_links, only: [ :index, :create, :show ], controller: "payment_portal" do
+        collection do
+          get :index, action: :payment_links_index
+        end
+        member do
+          post :cancel
+          post :refresh_amount
+        end
+      end
+      # Stripe payments (separate from PO payments which use /payments)
+      resources :stripe_payments, only: [ :index, :show ], controller: "payment_portal" do
+        collection do
+          get :index, action: :payments
+          get :stats
+        end
+        member do
+          post :refund
+        end
+      end
+
       # Warehouse Bank Transactions (Xero bank statement data)
       resources :warehouse_bank_transactions, only: [ :index, :show ] do
         collection do

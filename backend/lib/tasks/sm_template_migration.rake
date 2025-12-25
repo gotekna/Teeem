@@ -100,7 +100,7 @@ namespace :sm do
             # Requirements
             require_photo: old_row.require_photo || false,
             require_certificate: old_row.require_certificate || false,
-            require_supervisor_check: old_row.require_supervisor_check || false,
+            confirm: old_row.confirm || false,
             cert_lag_days: old_row.cert_lag_days || 0,
 
             # PO - disable auto-PO if no supplier (fixes validation)

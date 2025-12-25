@@ -78,7 +78,7 @@ interface SmTemplateRow {
   parent_row_id: number | null;
   require_photo: boolean;
   require_certificate: boolean;
-  require_supervisor_check: boolean;
+  confirm: boolean;
   po_required: boolean;
   critical_po: boolean;
   create_po_on_job_start: boolean;
@@ -108,7 +108,7 @@ interface SmTemplateRow {
   photo_entity_tab_id: number | null;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
-  require_supplier_confirm: boolean;
+  supplier_confirm: boolean;
   is_master: boolean;
   // Multi-template support
   sm_template_ids: number[];
@@ -203,7 +203,7 @@ export default function ScheduleTemplateDetailPage() {
       complete_entity_tab_ids: row.complete_entity_tab_ids || [],
       photo_entity_tab_id: row.photo_entity_tab_id,
       linked_po_task_id: row.linked_po_task_id,
-      require_supplier_confirm: row.require_supplier_confirm,
+      supplier_confirm: row.supplier_confirm,
       is_master: row.is_master,
     });
     setShowEditDialog(true);
@@ -605,11 +605,11 @@ export default function ScheduleTemplateDetailPage() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="require_supplier_confirm"
-                    checked={editForm.require_supplier_confirm ?? false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, require_supplier_confirm: !!checked })}
+                    id="supplier_confirm"
+                    checked={editForm.supplier_confirm ?? false}
+                    onCheckedChange={(checked) => setEditForm({ ...editForm, supplier_confirm: !!checked })}
                   />
-                  <Label htmlFor="require_supplier_confirm" className="text-sm">Require Supplier Confirm</Label>
+                  <Label htmlFor="supplier_confirm" className="text-sm">Require Supplier Confirm</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox

@@ -31,7 +31,7 @@ export interface SmTask {
 
   // Lock status
   locked: boolean;
-  lock_type?: 'supplier_confirm' | 'confirm' | 'started' | 'completed' | 'manually_positioned';
+  lock_type?: 'supplier_confirm' | 'confirm' | 'started' | 'completed' | 'hold';
 
   // Hold status
   is_hold_task: boolean;

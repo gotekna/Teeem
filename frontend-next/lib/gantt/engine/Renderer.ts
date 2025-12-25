@@ -1214,17 +1214,17 @@ export class Renderer {
     }
 
     // 2. Purple for supplier confirmed tasks (beats confirm and hold)
-    if (task.rowData?.require_supplier_confirm) {
+    if (task.rowData?.supplier_confirm) {
       return '#8b5cf6'; // Purple - supplier confirmed
     }
 
     // 3. Green for confirmed tasks (beats hold)
-    if (task.rowData?.require_supervisor_check) {
+    if (task.rowData?.confirm) {
       return '#22c55e'; // Green - supervisor confirmed
     }
 
     // 4. Light brown for manually positioned (held) tasks
-    if (task.rowData?.manually_positioned) {
+    if (task.rowData?.hold) {
       return '#D4A574'; // Light brown / tan color
     }
 

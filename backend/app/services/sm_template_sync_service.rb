@@ -51,7 +51,7 @@ class SmTemplateSyncService
     status
     confirm
     supplier_confirm
-    manually_positioned
+    hold
   ].freeze
 
   def initialize(job, template_row, options = {})

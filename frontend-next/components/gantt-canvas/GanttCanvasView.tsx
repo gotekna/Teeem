@@ -841,8 +841,8 @@ export function GanttCanvasView({
       // Call API to update dependencies
       // If task is FULLY LOCKED (both confirm AND supplier confirm), remove dependencies
       // and mark as dependency_broken - the task stays where it is but shows checkered
-      const isLocked = depEditorTask.rowData?.require_supplier_confirm === true;
-      const isFullyLocked = isLocked && depEditorTask.rowData?.require_supervisor_check === true;
+      const isLocked = depEditorTask.rowData?.supplier_confirm === true;
+      const isFullyLocked = isLocked && depEditorTask.rowData?.confirm === true;
 
       if (isFullyLocked && predecessorData.length > 0) {
         // Task is fully locked - remove dependencies and mark as broken
@@ -860,7 +860,7 @@ export function GanttCanvasView({
             // Clear dependency_broken if we're setting dependencies
             dependency_broken: false,
             // Set confirm if task is locked and can't follow dependencies
-            ...(isLocked && predecessorData.length > 0 && { require_supervisor_check: true })
+            ...(isLocked && predecessorData.length > 0 && { confirm: true })
           }
         });
       }
@@ -972,7 +972,7 @@ export function GanttCanvasView({
                 predecessor_ids: isFullyLocked ? [] : predecessorData,
                 dependency_broken: isFullyLocked,
                 // Only set confirm if task is locked and can't follow dependencies
-                ...(isLocked && !isFullyLocked && { require_supervisor_check: true })
+                ...(isLocked && !isFullyLocked && { confirm: true })
               } : undefined
             }
           : t
@@ -1056,7 +1056,7 @@ export function GanttCanvasView({
       const downstreamSuccessors = findAllSuccessorsRecursive(String(s.task_number), new Set(visited));
       // Get ALL locked downstream tasks (confirmed, supplier confirmed, finance approved, completed)
       const lockedDownstream = downstreamSuccessors.filter(ds =>
-        ds.require_supervisor_check || ds.require_supplier_confirm || ds.finance_approved || ds.is_completed
+        ds.confirm || ds.supplier_confirm || ds.finance_approved || ds.is_completed
       );
 
       return {
@@ -1070,10 +1070,10 @@ export function GanttCanvasView({
 
     // Categorize successors (include finance_approved as a lock)
     const lockedSuccessors = successorInfo.filter(s =>
-      s.require_supervisor_check || s.require_supplier_confirm || s.finance_approved || s.is_completed
+      s.confirm || s.supplier_confirm || s.finance_approved || s.is_completed
     );
     const unlockedSuccessors = successorInfo.filter(s =>
-      !s.require_supervisor_check && !s.require_supplier_confirm && !s.finance_approved && !s.is_completed
+      !s.confirm && !s.supplier_confirm && !s.finance_approved && !s.is_completed
     );
 
     // If there are successors, show the cascade dialog
@@ -1116,7 +1116,7 @@ export function GanttCanvasView({
         startDate: new Date(task.startDate),
         endDate: new Date(task.endDate),
         duration: row?.duration_days || 1,
-        manuallyPositioned: row?.manually_positioned || false,
+        manuallyPositioned: row?.hold || false,
         manualStartDate: row?.manual_start_date || null
       });
       return next;
@@ -1129,7 +1129,7 @@ export function GanttCanvasView({
       // Save manual position to API
       await api.patch(`/api/v1/sm_templates/${currentTemplateId}/rows/${task.id}`, {
         row: {
-          manually_positioned: true,
+          hold: true,
           manual_start_date: dateStr
         }
       });
@@ -1142,7 +1142,7 @@ export function GanttCanvasView({
               startDate: newStartDate,
               rowData: t.rowData ? {
                 ...t.rowData,
-                manually_positioned: true,
+                hold: true,
                 manual_start_date: dateStr
               } : undefined
             }
@@ -1152,7 +1152,7 @@ export function GanttCanvasView({
       // Also update rows for proper re-render
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, manually_positioned: true, manual_start_date: dateStr }
+          ? { ...r, hold: true, manual_start_date: dateStr }
           : r
       ));
     } catch (err) {
@@ -1249,7 +1249,7 @@ export function GanttCanvasView({
         startDate: new Date(task.startDate),
         endDate: new Date(task.endDate),
         duration: row?.duration_days || 1,
-        manuallyPositioned: row?.manually_positioned || false,
+        manuallyPositioned: row?.hold || false,
         manualStartDate: row?.manual_start_date || null
       });
       return next;
@@ -1266,7 +1266,7 @@ export function GanttCanvasView({
       // Save to API
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
-          manually_positioned: true,
+          hold: true,
           manual_start_date: startStr,
           duration_days: durationDays
         }
@@ -1282,7 +1282,7 @@ export function GanttCanvasView({
               duration: durationDays,
               rowData: t.rowData ? {
                 ...t.rowData,
-                manually_positioned: true,
+                hold: true,
                 manual_start_date: startStr,
                 duration_days: durationDays
               } : undefined
@@ -1293,7 +1293,7 @@ export function GanttCanvasView({
       // Update rows for the resized task
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, manually_positioned: true, manual_start_date: startStr, duration_days: durationDays }
+          ? { ...r, hold: true, manual_start_date: startStr, duration_days: durationDays }
           : r
       ));
 
@@ -1361,7 +1361,7 @@ export function GanttCanvasView({
       // Clear manual position via API
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
-          manually_positioned: false,
+          hold: false,
           manual_start_date: null
         }
       });
@@ -1373,7 +1373,7 @@ export function GanttCanvasView({
               ...t,
               rowData: t.rowData ? {
                 ...t.rowData,
-                manually_positioned: false,
+                hold: false,
                 manual_start_date: null
               } : undefined
             }
@@ -1383,7 +1383,7 @@ export function GanttCanvasView({
       // Also update rows for proper re-render
       setRows(prev => prev.map(r =>
         String(r.id) === task.id
-          ? { ...r, manually_positioned: false, manual_start_date: null }
+          ? { ...r, hold: false, manual_start_date: null }
           : r
       ));
     } catch (err) {
@@ -1412,7 +1412,7 @@ export function GanttCanvasView({
 
       await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
         row: {
-          manually_positioned: previousState.manuallyPositioned,
+          hold: previousState.manuallyPositioned,
           manual_start_date: previousState.manuallyPositioned ? startStr : null,
           duration_days: previousState.duration
         }
@@ -1527,7 +1527,7 @@ export function GanttCanvasView({
           row: {
             is_completed: false,
             completed_at: null,
-            manually_positioned: false,
+            hold: false,
             manual_start_date: null,
             predecessor_ids: row.predecessor_ids_backup || []
           }
@@ -1540,7 +1540,7 @@ export function GanttCanvasView({
                 ...r,
                 is_completed: false,
                 completed_at: null,
-                manually_positioned: false,
+                hold: false,
                 manual_start_date: null,
                 predecessor_ids: r.predecessor_ids_backup || []
               }
@@ -1564,7 +1564,7 @@ export function GanttCanvasView({
     );
   }, [rows]);
 
-  // Handle confirm toggle (require_supervisor_check) - NO DIALOG, direct toggle
+  // Handle confirm toggle (confirm) - NO DIALOG, direct toggle
   const handleConfirmToggle = React.useCallback(async (task: GanttTask, checked: boolean) => {
     if (isStaticMode || !templateId) return;
 
@@ -1578,8 +1578,8 @@ export function GanttCanvasView({
 
     try {
       // When confirming, also save position so task doesn't move
-      // DON'T set manually_positioned - just save the date, isLocked handles the rest
-      const updateData: any = { require_supervisor_check: checked };
+      // DON'T set hold - just save the date, isLocked handles the rest
+      const updateData: any = { confirm: checked };
       if (checked && currentDateStr) {
         updateData.manual_start_date = currentDateStr;
       }
@@ -1592,7 +1592,7 @@ export function GanttCanvasView({
         String(r.id) === task.id
           ? {
               ...r,
-              require_supervisor_check: checked,
+              confirm: checked,
               ...(checked && currentDateStr ? {
                 manual_start_date: currentDateStr
               } : {})
@@ -1609,7 +1609,7 @@ export function GanttCanvasView({
     }
   }, [templateId, isStaticMode, rows, tasks, toast]);
 
-  // Handle supplier confirm toggle (require_supplier_confirm) - show dialog first
+  // Handle supplier confirm toggle (supplier_confirm) - show dialog first
   const handleSupplierConfirmToggle = React.useCallback((task: GanttTask, checked: boolean) => {
     if (isStaticMode || !templateId) return;
 
@@ -1634,7 +1634,7 @@ export function GanttCanvasView({
     if (!confirmDialog.task || !templateId) return;
 
     const { type, task, isChecking, affectedSuccessors } = confirmDialog;
-    const fieldName = type === 'confirm' ? 'require_supervisor_check' : 'require_supplier_confirm';
+    const fieldName = type === 'confirm' ? 'confirm' : 'supplier_confirm';
 
     // Find the current task position from the tasks state
     const currentTask = tasks.find(t => t.id === task.id);
@@ -1643,7 +1643,7 @@ export function GanttCanvasView({
 
     try {
       // When CONFIRMING (locking), also save the current position so it doesn't move
-      // DON'T set manually_positioned - just save the date, isLocked handles the rest
+      // DON'T set hold - just save the date, isLocked handles the rest
       const updateData: any = { [fieldName]: isChecking };
       if (isChecking && currentDateStr) {
         updateData.manual_start_date = currentDateStr;
@@ -2447,7 +2447,7 @@ export function GanttCanvasView({
                       case 'status':
                         return <div className="truncate px-1 text-muted-foreground">{task.status || '-'}</div>;
                       case 'confirm':
-                        const isConfirmed = row?.require_supervisor_check === true;
+                        const isConfirmed = row?.confirm === true;
                         return (
                           <div className="flex justify-center">
                             <input
@@ -2463,7 +2463,7 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'supplierConfirm':
-                        const isSupplierConfirmed = row?.require_supplier_confirm === true;
+                        const isSupplierConfirmed = row?.supplier_confirm === true;
                         return (
                           <div className="flex justify-center">
                             <input
@@ -2519,7 +2519,7 @@ export function GanttCanvasView({
                           </button>
                         );
                       case 'hold':
-                        const isHeld = row?.manually_positioned === true;
+                        const isHeld = row?.hold === true;
                         return (
                           <div className="flex justify-center">
                             <input
@@ -3068,9 +3068,9 @@ export function GanttCanvasView({
                     </div>
                     <div className="grid grid-cols-2 gap-1.5">
                       {allLockedTasks.map((task: any) => {
-                        const lockType = task.require_supplier_confirm ? 'Supplier'
+                        const lockType = task.supplier_confirm ? 'Supplier'
                           : task.finance_approved ? 'Finance'
-                          : task.require_supervisor_check ? 'Confirmed'
+                          : task.confirm ? 'Confirmed'
                           : task.is_completed ? 'Done' : 'Locked';
                         const canUnlock = !task.is_completed;
                         const decision = lockedTaskDecisions[task.id] || 'break';
@@ -3094,9 +3094,9 @@ export function GanttCanvasView({
                               {!task.isDirect && <span className="text-muted-foreground text-[8px]">↳</span>}
                               <span className="font-medium truncate flex-1">#{task.task_number} {task.name}</span>
                               <span className={`px-1 py-0.5 rounded text-[9px] whitespace-nowrap ${
-                                task.require_supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
+                                task.supplier_confirm ? 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300'
                                 : task.finance_approved ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                                : task.require_supervisor_check ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                : task.confirm ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                                 : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
                               }`}>
                                 {lockType}
@@ -3210,13 +3210,13 @@ export function GanttCanvasView({
                         id: parentTask.id,
                         apiPayload: {
                           predecessor_ids: updatedPreds,
-                          manually_positioned: true,
+                          hold: true,
                           manual_start_date: currentDateStr,
                           dependency_broken: true
                         },
                         rowUpdate: {
                           predecessor_ids: updatedPreds,
-                          manually_positioned: true,
+                          hold: true,
                           manual_start_date: currentDateStr,
                           dependency_broken: true
                         }
@@ -3224,9 +3224,9 @@ export function GanttCanvasView({
                       // Children stay connected to this parent - no action needed for them
                     } else {
                       // CLEAR & CASCADE on parent - then process children
-                      const fieldName = parentTask.require_supplier_confirm ? 'require_supplier_confirm'
+                      const fieldName = parentTask.supplier_confirm ? 'supplier_confirm'
                         : parentTask.finance_approved ? 'finance_approved'
-                        : 'require_supervisor_check';
+                        : 'confirm';
 
                       pendingUpdates.push({
                         id: parentTask.id,
@@ -3249,22 +3249,22 @@ export function GanttCanvasView({
                             id: childTask.id,
                             apiPayload: {
                               predecessor_ids: updatedPreds,
-                              manually_positioned: true,
+                              hold: true,
                               manual_start_date: currentDateStr,
                               dependency_broken: true
                             },
                             rowUpdate: {
                               predecessor_ids: updatedPreds,
-                              manually_positioned: true,
+                              hold: true,
                               manual_start_date: currentDateStr,
                               dependency_broken: true
                             }
                           });
                         } else {
                           // Clear & cascade child
-                          const childFieldName = childTask.require_supplier_confirm ? 'require_supplier_confirm'
+                          const childFieldName = childTask.supplier_confirm ? 'supplier_confirm'
                             : childTask.finance_approved ? 'finance_approved'
-                            : 'require_supervisor_check';
+                            : 'confirm';
 
                           pendingUpdates.push({
                             id: childTask.id,
