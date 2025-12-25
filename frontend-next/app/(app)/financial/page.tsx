@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,7 +61,10 @@ import {
   Target,
   Zap,
   TrendingUp as TrendUp,
+  FileCheck,
+  ExternalLink,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -165,6 +169,23 @@ interface JobProfitability {
   status: string;
   budget: number;
   budget_variance: number;
+}
+
+interface XeroSyncStatus {
+  connected: boolean;
+  display_status: "connected" | "warning" | "error" | "disconnected";
+  message: string;
+  xero_tenant_name: string | null;
+  last_sync_at: string | null;
+  days_since_sync: number;
+  needs_attention: boolean;
+  action_required: string | null;
+  counts?: {
+    contacts: number;
+    invoices: number;
+    bills: number;
+    bank_accounts: number;
+  };
 }
 
 // API Response Types (flexible to handle different backend response formats)
@@ -446,6 +467,109 @@ function FollowUpPriority({ days, amount }: { days: number; amount: number }) {
   );
 }
 
+function XeroSyncStatusCard({
+  status,
+  companyId,
+}: {
+  status: XeroSyncStatus;
+  companyId: string;
+}) {
+  const statusColor = {
+    connected: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800",
+    warning: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800",
+    error: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+    disconnected: "bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800",
+  };
+
+  const statusIcon = {
+    connected: <CheckCircle2 className="h-5 w-5 text-green-600" />,
+    warning: <AlertTriangle className="h-5 w-5 text-yellow-600" />,
+    error: <AlertCircle className="h-5 w-5 text-red-600" />,
+    disconnected: <AlertCircle className="h-5 w-5 text-gray-500" />,
+  };
+
+  return (
+    <Card className={cn("border", statusColor[status.display_status])}>
+      <CardContent className="pt-4 pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5">
+              {statusIcon[status.display_status]}
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Xero Integration</span>
+                {status.xero_tenant_name && (
+                  <span className="text-sm text-muted-foreground">({status.xero_tenant_name})</span>
+                )}
+              </div>
+              <div className="flex items-center gap-4 text-sm">
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "font-normal",
+                    status.display_status === "connected" && "border-green-500 text-green-700",
+                    status.display_status === "warning" && "border-yellow-500 text-yellow-700",
+                    status.display_status === "error" && "border-red-500 text-red-700",
+                    status.display_status === "disconnected" && "border-gray-400 text-gray-600"
+                  )}
+                >
+                  {status.connected ? "Connected" : "Disconnected"}
+                </Badge>
+                {status.last_sync_at && (
+                  <span className="text-muted-foreground flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    Last sync: {formatDate(status.last_sync_at)}
+                  </span>
+                )}
+                {status.needs_attention && (
+                  <Badge variant="destructive" className="animate-pulse">
+                    Needs Attention
+                  </Badge>
+                )}
+              </div>
+              {status.counts && (
+                <div className="flex gap-4 text-xs text-muted-foreground pt-1">
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    {status.counts.contacts} Contacts
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FileText className="h-3 w-3" />
+                    {status.counts.invoices} Invoices
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Receipt className="h-3 w-3" />
+                    {status.counts.bills} Bills
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <CreditCard className="h-3 w-3" />
+                    {status.counts.bank_accounts} Bank Accounts
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href={`/corporate/${companyId}?tab=xero`}>
+              <Button variant="outline" size="sm">
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Manage Xero
+              </Button>
+            </Link>
+            <Link href="/financial/gl">
+              <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+                <Briefcase className="h-4 w-4 mr-1" />
+                TEEEM GL
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ============================================================================
 // Tab Components
 // ============================================================================
@@ -711,13 +835,112 @@ function AgedReportsTab({
   payables,
   receivablesContacts,
   payablesContacts,
+  selectedCompany,
 }: {
   receivables: AgedSummary | null;
   payables: AgedSummary | null;
   receivablesContacts: AgedContact[];
   payablesContacts: AgedContact[];
+  selectedCompany: string;
 }) {
   const [activeTab, setActiveTab] = React.useState("receivables");
+  const [selectedPayables, setSelectedPayables] = React.useState<Set<number>>(new Set());
+  const [processingPayment, setProcessingPayment] = React.useState(false);
+  const [generatingAba, setGeneratingAba] = React.useState(false);
+
+  // Toggle selection for a payable contact
+  const togglePayableSelection = (contactId: number) => {
+    setSelectedPayables((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactId)) {
+        next.delete(contactId);
+      } else {
+        next.add(contactId);
+      }
+      return next;
+    });
+  };
+
+  // Select/deselect all payables
+  const toggleAllPayables = () => {
+    if (selectedPayables.size === payablesContacts.length) {
+      setSelectedPayables(new Set());
+    } else {
+      setSelectedPayables(new Set(payablesContacts.map((c) => c.contact_id)));
+    }
+  };
+
+  // Get total amount for selected payables
+  const selectedTotal = React.useMemo(() => {
+    return payablesContacts
+      .filter((c) => selectedPayables.has(c.contact_id))
+      .reduce((sum, c) => sum + c.total, 0);
+  }, [payablesContacts, selectedPayables]);
+
+  // Create payment batch and generate ABA file
+  const handleCreateBankFile = async () => {
+    if (selectedPayables.size === 0) return;
+
+    setGeneratingAba(true);
+    try {
+      const companyId = selectedCompany !== "all" ? selectedCompany : "1";
+
+      // Create a new payment batch
+      const batchRes = await api.post<{ success: boolean; data: { id: number } }>(
+        `/api/v1/companies/${companyId}/bill_payment_batches`,
+        {
+          description: `Payment batch ${new Date().toLocaleDateString("en-AU")}`,
+          payment_date: new Date().toISOString().split("T")[0],
+          contact_ids: Array.from(selectedPayables),
+        }
+      );
+
+      if (batchRes?.success && batchRes.data?.id) {
+        const batchId = batchRes.data.id;
+
+        // Generate ABA file
+        await api.post(`/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/generate_aba`);
+
+        // Download the ABA file
+        window.open(`/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/download_aba`, "_blank");
+
+        setSelectedPayables(new Set());
+      }
+    } catch (error) {
+      console.error("Error creating bank file:", error);
+    } finally {
+      setGeneratingAba(false);
+    }
+  };
+
+  // Pay selected bills
+  const handlePaySelected = async () => {
+    if (selectedPayables.size === 0) return;
+
+    setProcessingPayment(true);
+    try {
+      const companyId = selectedCompany !== "all" ? selectedCompany : "1";
+
+      // Create a payment batch for review
+      const batchRes = await api.post<{ success: boolean; data: { id: number } }>(
+        `/api/v1/companies/${companyId}/bill_payment_batches`,
+        {
+          description: `Payment batch ${new Date().toLocaleDateString("en-AU")}`,
+          payment_date: new Date().toISOString().split("T")[0],
+          contact_ids: Array.from(selectedPayables),
+        }
+      );
+
+      if (batchRes?.success && batchRes.data?.id) {
+        // Navigate to payment batch for review/approval
+        window.location.href = `/financial/payments/${batchRes.data.id}`;
+      }
+    } catch (error) {
+      console.error("Error creating payment batch:", error);
+    } finally {
+      setProcessingPayment(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -819,7 +1042,13 @@ function AgedReportsTab({
                         <TableRow key={contact.contact_id}>
                           <TableCell>
                             <div>
-                              <p className="font-medium">{contact.contact_name}</p>
+                              <Link
+                                href={`/contacts/${contact.contact_id}`}
+                                className="font-medium text-primary hover:underline inline-flex items-center gap-1"
+                              >
+                                {contact.contact_name}
+                                <ExternalLink className="h-3 w-3 opacity-50" />
+                              </Link>
                               {contact.phone && (
                                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                                   <Phone className="h-3 w-3" /> {contact.phone}
@@ -909,18 +1138,53 @@ function AgedReportsTab({
                   <div className="flex items-center justify-between">
                     <div>
                       <CardTitle>By Supplier</CardTitle>
-                      <CardDescription>Plan your payment schedule</CardDescription>
+                      <CardDescription>Select suppliers to pay and generate bank file</CardDescription>
                     </div>
-                    <Button variant="outline" size="sm">
-                      <Banknote className="h-4 w-4 mr-2" />
-                      Schedule Payments
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {selectedPayables.size > 0 && (
+                        <Badge variant="secondary" className="text-sm">
+                          {selectedPayables.size} selected • {formatCurrency(selectedTotal)}
+                        </Badge>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePaySelected}
+                        disabled={selectedPayables.size === 0 || processingPayment}
+                      >
+                        {processingPayment ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Banknote className="h-4 w-4 mr-2" />
+                        )}
+                        Pay Selected
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleCreateBankFile}
+                        disabled={selectedPayables.size === 0 || generatingAba}
+                      >
+                        {generatingAba ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileCheck className="h-4 w-4 mr-2" />
+                        )}
+                        Create Bank File
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedPayables.size === payablesContacts.length && payablesContacts.length > 0}
+                            onCheckedChange={toggleAllPayables}
+                            aria-label="Select all suppliers"
+                          />
+                        </TableHead>
                         <TableHead>Supplier</TableHead>
                         <TableHead className="text-right">Total</TableHead>
                         <TableHead className="text-right">Current</TableHead>
@@ -930,8 +1194,28 @@ function AgedReportsTab({
                     </TableHeader>
                     <TableBody>
                       {payablesContacts.map((contact) => (
-                        <TableRow key={contact.contact_id}>
-                          <TableCell className="font-medium">{contact.contact_name}</TableCell>
+                        <TableRow
+                          key={contact.contact_id}
+                          className={cn(
+                            selectedPayables.has(contact.contact_id) && "bg-primary/5"
+                          )}
+                        >
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedPayables.has(contact.contact_id)}
+                              onCheckedChange={() => togglePayableSelection(contact.contact_id)}
+                              aria-label={`Select ${contact.contact_name}`}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Link
+                              href={`/contacts/${contact.contact_id}`}
+                              className="font-medium text-primary hover:underline inline-flex items-center gap-1"
+                            >
+                              {contact.contact_name}
+                              <ExternalLink className="h-3 w-3 opacity-50" />
+                            </Link>
+                          </TableCell>
                           <TableCell className="text-right font-mono">{formatCurrency(contact.total)}</TableCell>
                           <TableCell className="text-right font-mono">{formatCurrency(contact.current)}</TableCell>
                           <TableCell className="text-right font-mono text-red-600">{formatCurrency(contact.overdue)}</TableCell>
@@ -1245,6 +1529,7 @@ export default function FinancialPage() {
   const [cashForecast, setCashForecast] = React.useState<CashFlowWeek[]>([]);
   const [basPeriods, setBasPeriods] = React.useState<BasPeriod[]>([]);
   const [basData, setBasData] = React.useState<BasData | null>(null);
+  const [xeroSyncStatus, setXeroSyncStatus] = React.useState<XeroSyncStatus | null>(null);
 
   // Fetch data from real GL API endpoints
   const fetchData = React.useCallback(async () => {
@@ -1253,7 +1538,7 @@ export default function FinancialPage() {
 
     try {
       // Fetch companies list
-      const companiesRes = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/corporate_companies").catch(() => null);
+      const companiesRes = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/companies").catch(() => null);
       if (companiesRes?.companies) {
         setCompanies(companiesRes.companies);
       }
@@ -1498,6 +1783,35 @@ export default function FinancialPage() {
         ]);
       }
 
+      // Fetch Xero Sync Status (separate call for specific company)
+      if (selectedCompany !== "all") {
+        try {
+          // API returns status fields at top level (not nested under 'data')
+          const xeroStatusRes = await api.get<XeroSyncStatus & { success: boolean }>(`/api/v1/companies/${selectedCompany}/xero/status`);
+          if (xeroStatusRes?.success) {
+            // Also fetch tab stats for counts
+            const tabStatsRes = await api.get<{ success: boolean; contacts?: number; invoices?: number; bills?: number; bank_accounts?: number }>(`/api/v1/companies/${selectedCompany}/xero/tab_stats`).catch(() => null);
+            // Extract status fields from response (excluding 'success')
+            const { success: _, ...statusData } = xeroStatusRes;
+            setXeroSyncStatus({
+              ...statusData,
+              counts: tabStatsRes?.success ? {
+                contacts: tabStatsRes.contacts || 0,
+                invoices: tabStatsRes.invoices || 0,
+                bills: tabStatsRes.bills || 0,
+                bank_accounts: tabStatsRes.bank_accounts || 0,
+              } : undefined,
+            });
+          } else {
+            setXeroSyncStatus(null);
+          }
+        } catch {
+          setXeroSyncStatus(null);
+        }
+      } else {
+        setXeroSyncStatus(null);
+      }
+
     } catch (error) {
       console.error("Error fetching financial data:", error);
       // Set fallback data on error
@@ -1571,6 +1885,39 @@ export default function FinancialPage() {
         </div>
       </div>
 
+      {/* Xero Sync Status */}
+      {xeroSyncStatus && selectedCompany !== "all" && (
+        <XeroSyncStatusCard
+          status={xeroSyncStatus}
+          companyId={selectedCompany}
+        />
+      )}
+
+      {/* Show prompt to select company when "All Companies" is selected */}
+      {selectedCompany === "all" && companies.length > 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
+                  <Briefcase className="h-5 w-5 text-indigo-600" />
+                </div>
+                <div>
+                  <p className="font-medium">Select a company to view Xero sync status</p>
+                  <p className="text-sm text-muted-foreground">Choose a company from the dropdown to see connection details and access the GL system</p>
+                </div>
+              </div>
+              <Link href="/financial/gl">
+                <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
+                  <Briefcase className="h-4 w-4 mr-1" />
+                  TEEEM GL System
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6">
@@ -1615,6 +1962,7 @@ export default function FinancialPage() {
               payables={payables}
               receivablesContacts={receivablesContacts}
               payablesContacts={payablesContacts}
+              selectedCompany={selectedCompany}
             />
           </TabsContent>
 
