@@ -93,7 +93,6 @@ interface ClaimStage {
   retainage_percentage: number | null;
   retainage_amount: number | null;
   retainage_held: boolean;
-  retainage_released: boolean;
   retainage_released_at: string | null;
   retainage_status: "none" | "held" | "released";
   net_payable: number | null;
@@ -500,6 +499,40 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
         </div>
       )}
 
+      {/* Retainage Summary - only show if there's retainage */}
+      {summary && hasRetainage && (summary.total_retainage_held > 0 || summary.total_retainage_released > 0) && (
+        <Card className="border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-900/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Lock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+              Retainage (Retention)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-xs text-muted-foreground">Held</div>
+                <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
+                  {formatCurrency(summary.total_retainage_held)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Released</div>
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {formatCurrency(summary.total_retainage_released)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Net Receivable</div>
+                <div className="text-lg font-bold">
+                  {formatCurrency(summary.net_receivable)}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Progress Bar */}
       {summary && (
         <Card>
@@ -546,6 +579,9 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                   <th className="px-4 py-3 font-medium">Stage</th>
                   <th className="px-4 py-3 font-medium text-right">Expected</th>
                   <th className="px-4 py-3 font-medium">Xero Invoice</th>
+                  {hasRetainage && (
+                    <th className="px-4 py-3 font-medium text-right">Retainage</th>
+                  )}
                   <th className="px-4 py-3 font-medium text-right">Payment</th>
                 </tr>
               </thead>
@@ -676,6 +712,74 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                         </div>
                       )}
                     </td>
+
+                    {/* Retainage - only show column if any stage has retainage */}
+                    {hasRetainage && (
+                      <td className="px-4 py-3 text-right">
+                        {stage.retainage_percentage && stage.retainage_percentage > 0 ? (
+                          <div className="flex flex-col items-end gap-1">
+                            {/* Retainage Status Badge */}
+                            {stage.retainage_status === "held" ? (
+                              <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                                <Lock className="h-3 w-3 mr-1" />
+                                Held
+                              </Badge>
+                            ) : stage.retainage_status === "released" ? (
+                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <Unlock className="h-3 w-3 mr-1" />
+                                Released
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                <ShieldCheck className="h-3 w-3 mr-1" />
+                                None
+                              </Badge>
+                            )}
+                            {/* Retainage Amount */}
+                            {stage.retainage_amount && stage.retainage_amount > 0 && (
+                              <div className="flex items-center gap-1 text-xs">
+                                <span className="text-muted-foreground">
+                                  {stage.retainage_percentage}%
+                                </span>
+                                <span className={cn(
+                                  "font-mono font-medium",
+                                  stage.retainage_status === "held"
+                                    ? "text-orange-600 dark:text-orange-400"
+                                    : "text-green-600 dark:text-green-400"
+                                )}>
+                                  {formatCurrency(stage.retainage_amount)}
+                                </span>
+                              </div>
+                            )}
+                            {/* Release Date */}
+                            {stage.retainage_released_at && (
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(stage.retainage_released_at)}
+                              </span>
+                            )}
+                            {/* Release Button */}
+                            {stage.retainage_held && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs mt-1"
+                                onClick={() => handleReleaseRetainage(stage)}
+                                disabled={releasingRetainageId === stage.id}
+                              >
+                                {releasingRetainageId === stage.id ? (
+                                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                ) : (
+                                  <Unlock className="h-3 w-3 mr-1" />
+                                )}
+                                Release
+                              </Button>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
+                      </td>
+                    )}
 
                     {/* Payment Status */}
                     <td className="px-4 py-3 text-right">

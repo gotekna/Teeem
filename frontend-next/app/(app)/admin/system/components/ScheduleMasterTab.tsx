@@ -910,7 +910,7 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.delete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "completed_at", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <CopyableCode>completed_at</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Done At</Badge>Timestamp when marked complete</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed At</Badge>Timestamp when marked complete</span>
                   </div>
                 </div>
               </CardContent>
