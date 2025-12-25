@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class SyncController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate_company, except: [:providers]
 
         # GET /api/v1/gl/sync/status
         def status
