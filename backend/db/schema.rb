@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_223003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2396,6 +2396,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "email_rules", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "imap_credential_id"
+    t.string "name", null: false
+    t.integer "priority", default: 0
+    t.boolean "is_active", default: true
+    t.boolean "stop_processing", default: false
+    t.jsonb "conditions", default: {}
+    t.jsonb "actions", default: {}
+    t.integer "emails_matched", default: 0
+    t.datetime "last_matched_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["imap_credential_id", "is_active"], name: "index_email_rules_on_imap_credential_id_and_is_active"
+    t.index ["imap_credential_id"], name: "index_email_rules_on_imap_credential_id"
+    t.index ["user_id", "priority"], name: "index_email_rules_on_user_id_and_priority"
+    t.index ["user_id"], name: "index_email_rules_on_user_id"
+  end
+
   create_table "email_sync_statuses", id: :bigint, default: nil, force: :cascade do |t|
     t.bigint "user_id", null: false
     t.string "status", default: "pending"
@@ -2462,6 +2481,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
     t.datetime "contacts_matched_at"
     t.string "source_type", default: "outlook"
     t.bigint "imap_credential_id"
+    t.string "labels", default: [], array: true
+    t.bigint "uid"
+    t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
+    t.index ["labels"], name: "index_email_warehouse_on_labels", using: :gin
   end
 
   create_table "emails", id: :bigint, default: nil, force: :cascade do |t|
@@ -7175,6 +7198,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_223000) do
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
+  add_foreign_key "email_rules", "imap_credentials"
+  add_foreign_key "email_rules", "users"
   add_foreign_key "entity_tab_document_types", "document_types"
   add_foreign_key "entity_tab_document_types", "entity_tabs"
   add_foreign_key "entity_tabs", "entity_tabs", column: "parent_id"

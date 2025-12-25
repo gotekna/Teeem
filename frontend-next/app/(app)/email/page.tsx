@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback, useTransition, useMemo, memo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,7 @@ import {
   Star,
   ChevronDown,
   ChevronUp,
+  Settings2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
@@ -186,6 +187,7 @@ const FolderButton = memo(function FolderButton({
 
 export default function EmailPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const accountParam = searchParams.get("account");
 
   const [emails, setEmails] = useState<Email[]>([]);
@@ -526,6 +528,18 @@ export default function EmailPage() {
               );
             })()
           )}
+        </div>
+
+        {/* Rules Link */}
+        <div className="p-3 border-t">
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => router.push("/email/rules")}
+          >
+            <Settings2 className="h-4 w-4 mr-2" />
+            Email Rules
+          </Button>
         </div>
       </div>
 

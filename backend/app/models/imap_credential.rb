@@ -1,6 +1,7 @@
 class ImapCredential < ApplicationRecord
   belongs_to :user
   has_many :email_warehouse, dependent: :nullify
+  has_many :email_rules, dependent: :destroy
 
   # Encrypt password at rest
   encrypts :encrypted_password

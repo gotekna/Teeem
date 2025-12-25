@@ -890,6 +890,23 @@ Rails.application.routes.draw do
         end
         member do
           post :sync
+          get :reveal_password
+          post :create_folder
+          delete :delete_folder
+          post :move_email
+        end
+      end
+
+      # Email Rules (inbox rules like Office 365)
+      resources :email_rules do
+        collection do
+          post :test
+          post :reorder
+          get :condition_types
+          get :action_types
+        end
+        member do
+          post :apply
         end
       end
 

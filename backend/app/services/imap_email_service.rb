@@ -139,6 +139,7 @@ class ImapEmailService
             internet_message_id: email_data[:internet_message_id],
             source_type: "imap",
             imap_credential: credential,
+            uid: email_data[:uid],
             subject: email_data[:subject],
             body_text: email_data[:body_text],
             body_html: email_data[:body_html],
@@ -160,6 +161,9 @@ class ImapEmailService
 
           # Attach files if present
           attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
+
+          # Apply email rules to newly synced email
+          apply_rules_to_email(email)
 
           results[:synced] += 1
           results[:new_emails] << email
@@ -255,6 +259,102 @@ class ImapEmailService
   rescue => e
     Rails.logger.error "[ImapEmailService] Error listing folders: #{e.message}"
     []
+  end
+
+  # Create a new folder on IMAP server
+  # @param folder_name [String] Name of the folder to create
+  # @return [Boolean] Success status
+  def create_folder(folder_name)
+    with_imap_connection do |imap|
+      imap.create(folder_name)
+    end
+    true
+  rescue Net::IMAP::NoResponseError => e
+    Rails.logger.warn "[ImapEmailService] Folder creation failed: #{e.message}"
+    false
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error creating folder: #{e.message}"
+    false
+  end
+
+  # Delete a folder on IMAP server
+  # @param folder_name [String] Name of the folder to delete
+  # @return [Boolean] Success status
+  def delete_folder(folder_name)
+    with_imap_connection do |imap|
+      imap.delete(folder_name)
+    end
+    true
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error deleting folder: #{e.message}"
+    false
+  end
+
+  # Move email to a different folder
+  # @param uid [Integer] UID of the email
+  # @param destination_folder [String] Target folder name
+  # @param source_folder [String] Source folder name (default: INBOX)
+  # @return [Boolean] Success status
+  def move_email(uid, destination_folder, source_folder: "INBOX")
+    with_imap_connection do |imap|
+      imap.select(source_folder)
+      # Copy then delete (IMAP MOVE command isn't universally supported)
+      imap.uid_copy(uid, destination_folder)
+      imap.uid_store(uid, "+FLAGS", [:Deleted])
+      imap.expunge
+    end
+    true
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error moving email: #{e.message}"
+    false
+  end
+
+  # Delete email by UID
+  # @param uid [Integer] UID of the email
+  # @param folder [String] Folder containing the email (default: INBOX)
+  # @return [Boolean] Success status
+  def delete_email(uid, folder: "INBOX")
+    with_imap_connection do |imap|
+      imap.select(folder)
+      imap.uid_store(uid, "+FLAGS", [:Deleted])
+      imap.expunge
+    end
+    true
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error deleting email: #{e.message}"
+    false
+  end
+
+  # Set flags on email
+  # @param uid [Integer] UID of the email
+  # @param flags [Array<Symbol>] Flags to set (e.g., [:Seen, :Flagged])
+  # @param folder [String] Folder containing the email (default: INBOX)
+  # @return [Boolean] Success status
+  def set_flags(uid, flags, folder: "INBOX")
+    with_imap_connection do |imap|
+      imap.select(folder)
+      imap.uid_store(uid, "+FLAGS", flags)
+    end
+    true
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error setting flags: #{e.message}"
+    false
+  end
+
+  # Remove flags from email
+  # @param uid [Integer] UID of the email
+  # @param flags [Array<Symbol>] Flags to remove
+  # @param folder [String] Folder containing the email (default: INBOX)
+  # @return [Boolean] Success status
+  def remove_flags(uid, flags, folder: "INBOX")
+    with_imap_connection do |imap|
+      imap.select(folder)
+      imap.uid_store(uid, "-FLAGS", flags)
+    end
+    true
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error removing flags: #{e.message}"
+    false
   end
 
   private
@@ -411,6 +511,16 @@ class ImapEmailService
     end
   rescue => e
     Rails.logger.error "[ImapEmailService] Error attaching files: #{e.message}"
+  end
+
+  def apply_rules_to_email(email)
+    return unless email && credential.user
+
+    rule_service = EmailRuleService.new(credential.user)
+    rule_service.apply_rules(email)
+  rescue => e
+    Rails.logger.warn "[ImapEmailService] Error applying rules to email #{email.id}: #{e.message}"
+    # Don't raise - rules failing shouldn't stop sync
   end
 
   def save_sent_email_to_warehouse(mail)

@@ -1,5 +1,5 @@
 class Api::V1::ImapCredentialsController < ApplicationController
-  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password]
+  before_action :set_credential, only: [:show, :update, :destroy, :sync, :reveal_password, :create_folder, :delete_folder, :move_email]
 
   # GET /api/v1/imap_credentials
   # List user's IMAP accounts
@@ -365,6 +365,117 @@ class Api::V1::ImapCredentialsController < ApplicationController
     render json: {
       success: false,
       error: "Failed to send email: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/imap_credentials/:id/create_folder
+  # Create a new folder on the IMAP server
+  def create_folder
+    folder_name = params[:folder_name]
+
+    unless folder_name.present?
+      return render json: {
+        success: false,
+        error: "Folder name is required"
+      }, status: :unprocessable_entity
+    end
+
+    service = ImapEmailService.new(@credential)
+
+    if service.create_folder(folder_name)
+      render json: {
+        success: true,
+        message: "Folder '#{folder_name}' created successfully"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Failed to create folder. It may already exist."
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to create folder: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # DELETE /api/v1/imap_credentials/:id/delete_folder
+  # Delete a folder on the IMAP server
+  def delete_folder
+    folder_name = params[:folder_name]
+
+    unless folder_name.present?
+      return render json: {
+        success: false,
+        error: "Folder name is required"
+      }, status: :unprocessable_entity
+    end
+
+    # Prevent deletion of standard folders
+    protected_folders = %w[INBOX Sent Drafts Trash Junk Spam Archive]
+    if protected_folders.any? { |f| folder_name.downcase.include?(f.downcase) }
+      return render json: {
+        success: false,
+        error: "Cannot delete protected system folder"
+      }, status: :unprocessable_entity
+    end
+
+    service = ImapEmailService.new(@credential)
+
+    if service.delete_folder(folder_name)
+      render json: {
+        success: true,
+        message: "Folder '#{folder_name}' deleted successfully"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Failed to delete folder"
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to delete folder: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # POST /api/v1/imap_credentials/:id/move_email
+  # Move an email to a different folder
+  def move_email
+    uid = params[:uid]
+    destination_folder = params[:destination_folder]
+    source_folder = params[:source_folder] || "INBOX"
+
+    unless uid.present? && destination_folder.present?
+      return render json: {
+        success: false,
+        error: "UID and destination folder are required"
+      }, status: :unprocessable_entity
+    end
+
+    service = ImapEmailService.new(@credential)
+
+    if service.move_email(uid.to_i, destination_folder, source_folder: source_folder)
+      # Update local record if it exists
+      email = EmailWarehouse.find_by(imap_credential: @credential, uid: uid.to_i)
+      email&.update!(folder_name: destination_folder)
+
+      render json: {
+        success: true,
+        message: "Email moved to '#{destination_folder}'"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Failed to move email"
+      }, status: :unprocessable_entity
+    end
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to move email: #{e.message}"
     }, status: :unprocessable_entity
   end
 
