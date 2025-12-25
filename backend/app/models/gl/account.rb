@@ -11,11 +11,11 @@ module Gl
     belongs_to :parent_account, class_name: 'Gl::Account', optional: true
 
     has_many :child_accounts, class_name: 'Gl::Account', foreign_key: :parent_account_id, dependent: :nullify
-    has_many :ledger_lines, class_name: 'Gl::LedgerLine', dependent: :restrict_with_error
-    has_many :account_balances, class_name: 'Gl::AccountBalance', dependent: :destroy
-    has_many :opening_balances, class_name: 'Gl::OpeningBalance', dependent: :destroy
-    has_many :budgets, class_name: 'Gl::Budget', dependent: :destroy
-    has_many :tax_rates, class_name: 'Gl::TaxRate', dependent: :nullify
+    has_many :ledger_lines, class_name: 'Gl::LedgerLine', foreign_key: 'gl_account_id', dependent: :restrict_with_error
+    has_many :account_balances, class_name: 'Gl::AccountBalance', foreign_key: 'gl_account_id', dependent: :destroy
+    has_many :opening_balances, class_name: 'Gl::OpeningBalance', foreign_key: 'gl_account_id', dependent: :destroy
+    has_many :budgets, class_name: 'Gl::Budget', foreign_key: 'gl_account_id', dependent: :destroy
+    has_many :tax_rates, class_name: 'Gl::TaxRate', foreign_key: 'gl_account_id', dependent: :nullify
 
     # ═══════════════════════════════════════════════════════════════
     # CONSTANTS

@@ -9,7 +9,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     belongs_to :corporate_company
 
-    has_many :exchange_rates, class_name: 'Gl::ExchangeRate', dependent: :destroy
+    has_many :exchange_rates, class_name: 'Gl::ExchangeRate', foreign_key: 'gl_currency_id', dependent: :destroy
 
     # ═══════════════════════════════════════════════════════════════
     # CONSTANTS

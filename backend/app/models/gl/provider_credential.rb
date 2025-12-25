@@ -20,7 +20,7 @@ module Gl
     # ═══════════════════════════════════════════════════════════════
     belongs_to :corporate_company
 
-    has_many :sync_logs, class_name: 'Gl::SyncLog', dependent: :destroy
+    has_many :sync_logs, class_name: 'Gl::SyncLog', foreign_key: 'gl_provider_credential_id', dependent: :destroy
 
     # ═══════════════════════════════════════════════════════════════
     # CONSTANTS

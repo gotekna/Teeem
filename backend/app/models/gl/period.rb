@@ -10,9 +10,9 @@ module Gl
     belongs_to :corporate_company
     belongs_to :closed_by, class_name: 'User', optional: true
 
-    has_many :journal_entries, class_name: 'Gl::JournalEntry', dependent: :restrict_with_error
-    has_many :account_balances, class_name: 'Gl::AccountBalance', dependent: :destroy
-    has_many :budgets, class_name: 'Gl::Budget', dependent: :destroy
+    has_many :journal_entries, class_name: 'Gl::JournalEntry', foreign_key: 'gl_period_id', dependent: :restrict_with_error
+    has_many :account_balances, class_name: 'Gl::AccountBalance', foreign_key: 'gl_period_id', dependent: :destroy
+    has_many :budgets, class_name: 'Gl::Budget', foreign_key: 'gl_period_id', dependent: :destroy
 
     # ═══════════════════════════════════════════════════════════════
     # CONSTANTS

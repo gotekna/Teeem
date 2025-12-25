@@ -12,7 +12,7 @@ module Gl
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: 'User', optional: true
 
-    has_many :ledger_lines, class_name: 'Gl::LedgerLine', dependent: :destroy
+    has_many :ledger_lines, class_name: 'Gl::LedgerLine', foreign_key: 'gl_journal_entry_id', dependent: :destroy
     accepts_nested_attributes_for :ledger_lines, allow_destroy: true
 
     # ═══════════════════════════════════════════════════════════════
