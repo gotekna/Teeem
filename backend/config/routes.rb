@@ -514,6 +514,8 @@ Rails.application.routes.draw do
           get :available_documents
           post :attach_documents
           get :generate_pdf
+          get :schedule_sync_preview
+          post :schedule_sync
         end
         # Payments nested under purchase orders
         resources :payments, only: [ :index, :create ]
@@ -2267,6 +2269,129 @@ Rails.application.routes.draw do
             get :unallocated
             get :summary
           end
+        end
+
+        # Bank Reconciliations
+        resources :reconciliations, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :load_transactions
+            post :auto_match
+            post :match
+            post :unmatch
+            post :exclude
+            post :include
+            post :adjustment
+            post :complete
+            post :reopen
+            get :suggestions
+          end
+          collection do
+            get :rules
+            post :rules, action: :create_rule
+          end
+        end
+        patch "reconciliations/rules/:id", to: "reconciliations#update_rule"
+        delete "reconciliations/rules/:id", to: "reconciliations#destroy_rule"
+
+        # Cash Flow Forecasting
+        controller :cash_flow do
+          get "cash_flow/forecast", action: :forecast
+          get "cash_flow/summary", action: :summary
+          get "cash_flow/inflows", action: :inflows
+          get "cash_flow/outflows", action: :outflows
+          get "cash_flow/recurring", action: :recurring
+          get "cash_flow/weekly", action: :weekly
+          get "cash_flow/daily", action: :daily
+          get "cash_flow/warnings", action: :warnings
+          post "cash_flow/scenario", action: :scenario
+          get "cash_flow/chart_data", action: :chart_data
+          get "cash_flow/aging", action: :aging
+          get "cash_flow/collection_forecast", action: :collection_forecast
+          get "cash_flow/payment_schedule", action: :payment_schedule
+        end
+
+        # Job Costing
+        resources :job_costing, only: [ :index, :show ], param: :job_id do
+          member do
+            get :summary
+            get :costs
+            get :transactions
+            get :profit_loss
+            get :budget_comparison
+            get :monthly_trend
+            get :wip
+          end
+          collection do
+            get :compare
+            get "summary", action: :all_jobs_summary
+            get :cost_categories
+            get :budget_variance
+            get :wip_report
+            get :rankings
+          end
+        end
+
+        # Multi-Currency
+        resources :currencies, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :set_as_base
+          end
+          collection do
+            post :setup_defaults
+            get :convert
+            # Exchange Rates
+            get :rates
+            post "rates", action: :set_rate
+            post "rates/fetch", action: :fetch_rates
+            post "rates/import", action: :import_rates
+            get "rates/history", action: :rate_history
+            get "rates/stale", action: :rates_stale
+            # Revaluation
+            get "revaluation/preview", action: :revaluation_preview
+            post "revaluation/run", action: :run_revaluation
+            get :gain_loss
+          end
+        end
+
+        # Aged Reports (AR/AP)
+        controller :aged_reports do
+          # Receivables
+          get "aged_reports/receivables", action: :receivables
+          get "aged_reports/receivables/summary", action: :receivables_summary
+          get "aged_reports/receivables/aging", action: :receivables_aging
+          get "aged_reports/receivables/by_customer", action: :receivables_by_customer
+          get "aged_reports/receivables/customer/:contact_id", action: :receivables_for_customer
+          get "aged_reports/receivables/follow_up", action: :receivables_follow_up
+          # Payables
+          get "aged_reports/payables", action: :payables
+          get "aged_reports/payables/summary", action: :payables_summary
+          get "aged_reports/payables/aging", action: :payables_aging
+          get "aged_reports/payables/by_supplier", action: :payables_by_supplier
+          get "aged_reports/payables/supplier/:contact_id", action: :payables_for_supplier
+          get "aged_reports/payables/due_within/:days", action: :payables_due_within
+          get "aged_reports/payables/payment_schedule", action: :payables_payment_schedule
+          # Combined
+          get "aged_reports/dashboard", action: :dashboard
+          get "aged_reports/comparison", action: :comparison
+          get "aged_reports/critical", action: :critical
+          get "aged_reports/chart_data", action: :chart_data
+        end
+
+        # BAS (Business Activity Statement) Preparation
+        controller :bas do
+          get "bas", action: :index
+          get "bas/preview", action: :preview
+          get "bas/gst", action: :gst
+          get "bas/payg", action: :payg
+          get "bas/periods", action: :periods
+          get "bas/history", action: :history
+          post "bas/validate", action: :validate
+          post "bas/export", action: :export
+          get "bas/comparison", action: :comparison
+          get "bas/gst_reconciliation", action: :gst_reconciliation
+          get "bas/transactions", action: :transactions
+          post "bas/mark_lodged", action: :mark_lodged
+          get "bas/chart_data", action: :chart_data
         end
       end
 

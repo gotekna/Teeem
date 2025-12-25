@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_25_000300) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_25_001130) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2890,6 +2890,36 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_000300) do
     t.index ["parent_account_id"], name: "index_gl_accounts_on_parent_account_id"
   end
 
+  create_table "gl_bank_reconciliations", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_account_id", null: false
+    t.string "external_provider"
+    t.string "external_tenant_id"
+    t.date "statement_date", null: false
+    t.date "period_start"
+    t.date "period_end"
+    t.decimal "statement_opening_balance", precision: 15, scale: 2
+    t.decimal "statement_closing_balance", precision: 15, scale: 2, null: false
+    t.decimal "gl_opening_balance", precision: 15, scale: 2
+    t.decimal "gl_closing_balance", precision: 15, scale: 2
+    t.decimal "reconciled_balance", precision: 15, scale: 2
+    t.decimal "difference", precision: 15, scale: 2, default: "0.0"
+    t.string "status", default: "in_progress"
+    t.datetime "completed_at"
+    t.bigint "completed_by_id"
+    t.integer "matched_count", default: 0
+    t.integer "unmatched_count", default: 0
+    t.integer "adjustment_count", default: 0
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["completed_by_id"], name: "index_gl_bank_reconciliations_on_completed_by_id"
+    t.index ["corporate_company_id", "status"], name: "idx_gl_recon_company_status"
+    t.index ["corporate_company_id"], name: "index_gl_bank_reconciliations_on_corporate_company_id"
+    t.index ["gl_account_id", "statement_date"], name: "idx_gl_recon_account_date", unique: true
+    t.index ["gl_account_id"], name: "index_gl_bank_reconciliations_on_gl_account_id"
+  end
+
   create_table "gl_budgets", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.bigint "gl_account_id", null: false
@@ -3201,6 +3231,53 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_000300) do
     t.index ["provider"], name: "index_gl_provider_credentials_on_provider"
     t.index ["status"], name: "index_gl_provider_credentials_on_status"
     t.index ["sync_enabled"], name: "index_gl_provider_credentials_on_sync_enabled"
+  end
+
+  create_table "gl_reconciliation_lines", force: :cascade do |t|
+    t.bigint "gl_bank_reconciliation_id", null: false
+    t.bigint "gl_ledger_line_id"
+    t.string "external_transaction_id"
+    t.date "transaction_date"
+    t.string "description"
+    t.decimal "amount", precision: 15, scale: 2
+    t.string "reference"
+    t.string "status", default: "unmatched"
+    t.string "match_type"
+    t.decimal "match_confidence", precision: 5, scale: 2
+    t.bigint "gl_account_id"
+    t.text "adjustment_reason"
+    t.jsonb "matched_transaction_ids", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["external_transaction_id"], name: "idx_gl_recon_lines_external"
+    t.index ["gl_account_id"], name: "index_gl_reconciliation_lines_on_gl_account_id"
+    t.index ["gl_bank_reconciliation_id", "status"], name: "idx_gl_recon_lines_status"
+    t.index ["gl_bank_reconciliation_id"], name: "index_gl_reconciliation_lines_on_gl_bank_reconciliation_id"
+    t.index ["gl_ledger_line_id"], name: "index_gl_reconciliation_lines_on_gl_ledger_line_id"
+  end
+
+  create_table "gl_reconciliation_rules", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "gl_account_id"
+    t.string "name", null: false
+    t.string "rule_type", null: false
+    t.string "match_field"
+    t.string "match_operator"
+    t.string "match_value"
+    t.decimal "amount_tolerance", precision: 15, scale: 2, default: "0.0"
+    t.bigint "target_account_id"
+    t.string "tax_type"
+    t.text "default_description"
+    t.integer "times_used", default: 0
+    t.datetime "last_used_at"
+    t.boolean "active", default: true
+    t.integer "priority", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "active", "priority"], name: "idx_gl_recon_rules_active"
+    t.index ["corporate_company_id"], name: "index_gl_reconciliation_rules_on_corporate_company_id"
+    t.index ["gl_account_id"], name: "index_gl_reconciliation_rules_on_gl_account_id"
+    t.index ["target_account_id"], name: "index_gl_reconciliation_rules_on_target_account_id"
   end
 
   create_table "gl_sync_logs", force: :cascade do |t|
@@ -6846,6 +6923,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_000300) do
   add_foreign_key "gl_account_balances", "gl_periods"
   add_foreign_key "gl_accounts", "corporate_companies"
   add_foreign_key "gl_accounts", "gl_accounts", column: "parent_account_id"
+  add_foreign_key "gl_bank_reconciliations", "corporate_companies"
+  add_foreign_key "gl_bank_reconciliations", "gl_accounts"
+  add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
   add_foreign_key "gl_budgets", "corporate_companies"
   add_foreign_key "gl_budgets", "gl_accounts"
   add_foreign_key "gl_budgets", "gl_periods"
@@ -6881,6 +6961,12 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_000300) do
   add_foreign_key "gl_periods", "corporate_companies"
   add_foreign_key "gl_periods", "users", column: "closed_by_id"
   add_foreign_key "gl_provider_credentials", "corporate_companies"
+  add_foreign_key "gl_reconciliation_lines", "gl_accounts"
+  add_foreign_key "gl_reconciliation_lines", "gl_bank_reconciliations"
+  add_foreign_key "gl_reconciliation_lines", "gl_ledger_lines"
+  add_foreign_key "gl_reconciliation_rules", "corporate_companies"
+  add_foreign_key "gl_reconciliation_rules", "gl_accounts"
+  add_foreign_key "gl_reconciliation_rules", "gl_accounts", column: "target_account_id"
   add_foreign_key "gl_sync_logs", "corporate_companies"
   add_foreign_key "gl_sync_logs", "gl_provider_credentials"
   add_foreign_key "gl_sync_logs", "users", column: "triggered_by_id"

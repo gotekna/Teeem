@@ -785,6 +785,8 @@ export function GanttCanvasView({
       );
 
       if (response.success && response.rows) {
+        // Backend returns rows sorted by start_day_offset (dependency order)
+        // with sequence_order as tiebreaker - SSoT for sort order is backend
         setRows(response.rows);
       } else {
         setError("Failed to load template rows");

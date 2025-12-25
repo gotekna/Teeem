@@ -8,7 +8,10 @@ module Api
 
       # GET /api/v1/sm_templates/:sm_template_id/rows
       def index
-        @rows = @template.sm_template_rows.active.in_sequence
+        # Sort by start_day_offset (dependency order) with sequence_order as tiebreaker
+        # This is the SSoT - dependencies drive the schedule, NOT manual sequence
+        @rows = @template.sm_template_rows.active
+                         .order(Arel.sql("COALESCE(start_day_offset, 0) ASC, COALESCE(sequence_order, 0) ASC"))
 
         render json: {
           success: true,

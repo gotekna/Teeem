@@ -41,7 +41,20 @@ import {
   Trash2,
   ChevronsUpDown,
   Check,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Lock,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -110,6 +123,85 @@ interface SmTask {
   sequence_order: number;
   sm_template_row_id: number;
   start_date?: string; // SSoT: Used to auto-populate PO required_date
+}
+
+// Schedule Sync Preview Types
+interface SyncTaskPredecessor {
+  id: number;
+  name: string;
+  end_date?: string;
+  status: string;
+}
+
+interface SyncLinkedTask {
+  id: number;
+  task_number: number;
+  name: string;
+  start_date?: string;
+  end_date?: string;
+  duration_days?: number;
+  status: string;
+  trade?: string;
+  stage?: string;
+  supplier_id?: number;
+  supplier_name?: string;
+  locked: boolean;
+  lock_type?: string;
+  confirm?: boolean;
+  supplier_confirm?: boolean;
+  manually_positioned?: boolean;
+  is_blocker: boolean;
+  blocker_reason?: string;
+  predecessor_count: number;
+  predecessors: SyncTaskPredecessor[];
+  date_matches: boolean;
+  date_diff_days?: number;
+  supplier_matches: boolean;
+}
+
+interface SyncPreviewData {
+  po: {
+    id: number;
+    purchase_order_number: string;
+    required_date?: string;
+    effective_required_date?: string;
+    supplier_id?: number;
+    supplier_name?: string;
+    status: string;
+  };
+  linked_tasks: SyncLinkedTask[];
+  sync_available: boolean;
+  blockers: {
+    type: string;
+    task_id?: number;
+    task_name?: string;
+    message: string;
+    severity: string;
+  }[];
+  sync_preview?: {
+    will_update: {
+      required_date?: {
+        from?: string;
+        to: string;
+        diff_days?: number;
+      };
+      supplier?: {
+        from?: string;
+        to?: string;
+      };
+    };
+    nothing_to_sync: boolean;
+    source_task?: {
+      id: number;
+      name: string;
+      task_number: number;
+    };
+  };
+  summary: {
+    status: string;
+    message: string;
+    can_sync: boolean;
+  };
 }
 
 // ComboboxDropdown item type for tasks
@@ -229,6 +321,13 @@ export default function PurchaseOrderDetailPage() {
   // Local SmTasks for this job (for task/description lookup)
   const [taskItems, setTaskItems] = useState<TaskComboboxItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
+
+  // Schedule Sync modal state
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [syncPreview, setSyncPreview] = useState<SyncPreviewData | null>(null);
+  const [loadingSyncPreview, setLoadingSyncPreview] = useState(false);
+  const [executingSync, setExecutingSync] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Editable fields
   const [description, setDescription] = useState("");
@@ -386,6 +485,74 @@ export default function PurchaseOrderDetailPage() {
     } finally {
       setLoadingTasks(false);
     }
+  };
+
+  // Load Schedule Sync preview data
+  const loadSyncPreview = async () => {
+    if (!purchaseOrder) return;
+    try {
+      setLoadingSyncPreview(true);
+      setSyncError(null);
+      const response = await api.get<{ success: boolean; data: SyncPreviewData }>(
+        `/api/v1/purchase_orders/${recordId}/schedule_sync_preview`
+      );
+      if (response.success) {
+        setSyncPreview(response.data);
+      } else {
+        setSyncError("Failed to load sync preview");
+      }
+    } catch (err) {
+      console.error("Failed to load sync preview:", err);
+      setSyncError(err instanceof Error ? err.message : "Failed to load sync preview");
+    } finally {
+      setLoadingSyncPreview(false);
+    }
+  };
+
+  // Open sync modal and load preview
+  const openSyncModal = async () => {
+    setSyncModalOpen(true);
+    await loadSyncPreview();
+  };
+
+  // Execute the sync
+  const executeSync = async () => {
+    if (!purchaseOrder) return;
+    try {
+      setExecutingSync(true);
+      setSyncError(null);
+      const response = await api.post<{ success: boolean; data: { message: string; changes: Record<string, unknown> }; error?: string }>(
+        `/api/v1/purchase_orders/${recordId}/schedule_sync`
+      );
+      if (!response) {
+        setSyncError("Sync failed - no response from server");
+        return;
+      }
+      if (response.success) {
+        // Reload the PO data to reflect changes
+        await loadPurchaseOrder();
+        setSyncModalOpen(false);
+        setSyncPreview(null);
+      } else {
+        setSyncError(response.error || "Sync failed");
+      }
+    } catch (err) {
+      console.error("Failed to execute sync:", err);
+      setSyncError(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setExecutingSync(false);
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateStr: string | undefined | null): string => {
+    if (!dateStr) return "Not set";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-AU", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
   };
 
   // Helper to check if a line item is blank (no meaningful data)
@@ -753,6 +920,15 @@ export default function PurchaseOrderDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          <Button
+            onClick={openSyncModal}
+            variant="outline"
+            disabled={saving || loadingSyncPreview}
+            title="Sync dates from Schedule Master"
+          >
+            <RefreshCw className={cn("h-4 w-4 mr-2", loadingSyncPreview && "animate-spin")} />
+            Sync with Schedule
+          </Button>
           {hasChanges() && (
             <>
               <Button onClick={handleDiscard} variant="outline" disabled={saving}>
@@ -1144,6 +1320,227 @@ export default function PurchaseOrderDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Schedule Sync Modal */}
+      <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              Sync with Schedule Master
+            </DialogTitle>
+            <DialogDescription>
+              Compare and sync PO dates with linked Schedule Master task
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingSyncPreview ? (
+            <div className="flex items-center justify-center py-8">
+              <Spinner className="h-8 w-8" />
+            </div>
+          ) : syncError ? (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+              <div className="flex items-center gap-2 text-destructive">
+                <XCircle className="h-5 w-5" />
+                <span>{syncError}</span>
+              </div>
+            </div>
+          ) : syncPreview ? (
+            <div className="space-y-6">
+              {/* No linked tasks */}
+              {syncPreview.linked_tasks.length === 0 ? (
+                <div className="bg-muted/50 rounded-lg p-6 text-center">
+                  <AlertTriangle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-muted-foreground">No Schedule Master tasks linked to this PO</p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Link a task using the task dropdown in the header
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Linked Task Info */}
+                  {syncPreview.linked_tasks.map((task) => (
+                    <div key={task.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold flex items-center gap-2">
+                            #{task.task_number} {task.name}
+                            {task.locked && (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                <Lock className="h-3 w-3 mr-1" />
+                                {task.lock_type}
+                              </Badge>
+                            )}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            {task.trade} {task.stage && `• ${task.stage}`}
+                          </p>
+                        </div>
+                        <Badge variant={task.status === "completed" ? "default" : "outline"}>
+                          {task.status}
+                        </Badge>
+                      </div>
+
+                      {/* Task dates */}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Start Date:</span>{" "}
+                          <span className="font-medium">{formatDate(task.start_date)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">End Date:</span>{" "}
+                          <span className="font-medium">{formatDate(task.end_date)}</span>
+                        </div>
+                      </div>
+
+                      {/* Predecessors */}
+                      {task.predecessors.length > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Predecessors ({task.predecessor_count}):</span>
+                          <ul className="mt-1 space-y-1">
+                            {task.predecessors.map((pred) => (
+                              <li key={pred.id} className="flex items-center gap-2 text-muted-foreground">
+                                <span>• {pred.name}</span>
+                                <span className="text-xs">(ends {formatDate(pred.end_date)})</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Blocker warning */}
+                      {task.is_blocker && task.blocker_reason && (
+                        <div className="bg-destructive/10 border border-destructive/20 rounded p-3 flex items-start gap-2">
+                          <XCircle className="h-4 w-4 text-destructive mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-destructive">Sync Blocked</p>
+                            <p className="text-sm text-destructive/80">{task.blocker_reason}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Comparison Table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="text-left p-3 font-medium">Field</th>
+                          <th className="text-left p-3 font-medium">PO Value</th>
+                          <th className="text-left p-3 font-medium">Task Value</th>
+                          <th className="text-center p-3 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-t">
+                          <td className="p-3">Required Date</td>
+                          <td className="p-3">{formatDate(syncPreview.po.required_date)}</td>
+                          <td className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</td>
+                          <td className="p-3 text-center">
+                            {syncPreview.linked_tasks[0]?.date_matches ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
+                            ) : (
+                              <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
+                            )}
+                          </td>
+                        </tr>
+                        <tr className="border-t">
+                          <td className="p-3">Supplier</td>
+                          <td className="p-3">{syncPreview.po.supplier_name || "Not set"}</td>
+                          <td className="p-3">{syncPreview.linked_tasks[0]?.supplier_name || "Not set"}</td>
+                          <td className="p-3 text-center">
+                            {syncPreview.linked_tasks[0]?.supplier_matches ? (
+                              <CheckCircle2 className="h-5 w-5 text-green-600 inline" />
+                            ) : (
+                              <AlertTriangle className="h-5 w-5 text-amber-500 inline" />
+                            )}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Sync Preview */}
+                  {syncPreview.sync_preview && !syncPreview.sync_preview.nothing_to_sync && (
+                    <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">
+                        Sync Preview
+                      </h4>
+                      <p className="text-sm text-blue-700 dark:text-blue-300">
+                        Will sync from: <strong>{syncPreview.sync_preview.source_task?.name}</strong>
+                      </p>
+                      <ul className="mt-2 space-y-1 text-sm text-blue-700 dark:text-blue-300">
+                        {syncPreview.sync_preview.will_update.required_date && (
+                          <li>
+                            • Required Date: {formatDate(syncPreview.sync_preview.will_update.required_date.from)} → {formatDate(syncPreview.sync_preview.will_update.required_date.to)}
+                            {syncPreview.sync_preview.will_update.required_date.diff_days && (
+                              <span className="text-xs ml-1">
+                                ({syncPreview.sync_preview.will_update.required_date.diff_days > 0 ? "+" : ""}
+                                {syncPreview.sync_preview.will_update.required_date.diff_days} days)
+                              </span>
+                            )}
+                          </li>
+                        )}
+                        {syncPreview.sync_preview.will_update.supplier && (
+                          <li>
+                            • Supplier: {syncPreview.sync_preview.will_update.supplier.from || "Not set"} → {syncPreview.sync_preview.will_update.supplier.to}
+                          </li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Already in sync */}
+                  {syncPreview.sync_preview?.nothing_to_sync && (
+                    <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3">
+                      <CheckCircle2 className="h-6 w-6 text-green-600" />
+                      <div>
+                        <p className="font-medium text-green-800 dark:text-green-200">Already in Sync</p>
+                        <p className="text-sm text-green-700 dark:text-green-300">
+                          PO dates match the linked Schedule Master task
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Summary */}
+                  <div className={cn(
+                    "rounded-lg p-4",
+                    syncPreview.summary.status === "ready" && "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800",
+                    syncPreview.summary.status === "blocked" && "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800",
+                    syncPreview.summary.status === "in_sync" && "bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-800"
+                  )}>
+                    <p className="text-sm font-medium">{syncPreview.summary.message}</p>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSyncModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={executeSync}
+              disabled={!syncPreview?.summary.can_sync || executingSync}
+            >
+              {executingSync ? (
+                <>
+                  <Spinner className="h-4 w-4 mr-2" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Sync from Schedule
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

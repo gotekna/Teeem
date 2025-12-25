@@ -1,7 +1,7 @@
 module Api
   module V1
     class PurchaseOrdersController < ApplicationController
-      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf ]
+      before_action :set_purchase_order, only: [ :show, :update, :destroy, :approve, :send_to_supplier, :mark_received, :attach_documents, :available_documents, :generate_pdf, :schedule_sync_preview, :schedule_sync ]
 
       # GET /api/v1/purchase_orders
       # Params: construction_id, supplier_id, status, search, sort_by, sort_direction, page, per_page
@@ -423,6 +423,33 @@ module Api
         render json: { error: e.message }, status: :unprocessable_entity
       rescue => e
         render json: { error: "Failed to generate PDF: #{e.message}" }, status: :internal_server_error
+      end
+
+      # GET /api/v1/purchase_orders/:id/schedule_sync_preview
+      # Preview sync with Schedule Master - shows comparison, blockers, and what would change
+      # SSoT: Schedule Master (SmTask) is the source of truth for dates
+      def schedule_sync_preview
+        service = PoScheduleSyncService.new(@purchase_order)
+        render json: { success: true, data: service.preview }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
+      # POST /api/v1/purchase_orders/:id/schedule_sync
+      # Execute sync from Schedule Master - updates PO dates from linked task(s)
+      # Direction: Task → PO (safe - no cascade storms)
+      def schedule_sync
+        service = PoScheduleSyncService.new(@purchase_order)
+        result = service.execute!
+        render json: { success: true, data: result }
+      rescue PoScheduleSyncService::SyncBlockedError => e
+        render json: { success: false, error: e.message, blocked: true }, status: :unprocessable_entity
+      rescue PoScheduleSyncService::NoLinkedTasksError => e
+        render json: { success: false, error: e.message, no_tasks: true }, status: :unprocessable_entity
+      rescue PoScheduleSyncService::NoSyncableTaskError => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      rescue => e
+        render json: { success: false, error: e.message }, status: :internal_server_error
       end
 
       private
