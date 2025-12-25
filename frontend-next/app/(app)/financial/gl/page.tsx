@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -32,6 +38,15 @@ import {
   AlertCircle,
   History,
   Building2,
+  Layers,
+  FileText,
+  Receipt,
+  CreditCard,
+  Landmark,
+  Users,
+  Percent,
+  Coins,
+  FileSpreadsheet,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -84,6 +99,32 @@ interface ChartOfAccounts {
   expenses: Account[];
 }
 
+// Sync step types - matches backend SYNC_TYPES (SSoT: backend/app/models/gl/sync_log.rb)
+type SyncStepStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+
+interface SyncStep {
+  id: string;
+  name: string;
+  icon: React.ReactNode;
+  status: SyncStepStatus;
+  count?: number;
+  error?: string;
+}
+
+// Define the sync steps with icons (order matters - dependencies first)
+const SYNC_STEP_DEFINITIONS = [
+  { id: "accounts", name: "Chart of Accounts", icon: <BookOpen className="h-4 w-4" /> },
+  { id: "tax_rates", name: "Tax Rates", icon: <Percent className="h-4 w-4" /> },
+  { id: "currencies", name: "Currencies", icon: <Coins className="h-4 w-4" /> },
+  { id: "contacts", name: "Contacts", icon: <Users className="h-4 w-4" /> },
+  { id: "invoices", name: "Sales Invoices", icon: <FileText className="h-4 w-4" /> },
+  { id: "bills", name: "Bills", icon: <Receipt className="h-4 w-4" /> },
+  { id: "payments", name: "Payments", icon: <CreditCard className="h-4 w-4" /> },
+  { id: "bank_transactions", name: "Bank Transactions", icon: <Landmark className="h-4 w-4" /> },
+  { id: "credit_notes", name: "Credit Notes", icon: <FileSpreadsheet className="h-4 w-4" /> },
+  { id: "manual_journals", name: "Manual Journals", icon: <Layers className="h-4 w-4" /> },
+] as const;
+
 export default function GlPage() {
   const [loading, setLoading] = useState(true);
   const [syncingTenantId, setSyncingTenantId] = useState<string | null>(null);
@@ -94,6 +135,12 @@ export default function GlPage() {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("companies");
+
+  // Full sync progress modal state
+  const [showSyncProgress, setShowSyncProgress] = useState(false);
+  const [syncSteps, setSyncSteps] = useState<SyncStep[]>([]);
+  const [fullSyncRunning, setFullSyncRunning] = useState(false);
+  const [fullSyncProvider, setFullSyncProvider] = useState<Provider | null>(null);
 
   // Fetch available providers
   const fetchProviders = useCallback(async () => {
@@ -198,6 +245,118 @@ export default function GlPage() {
     }
   };
 
+  // Initialize sync steps for a provider
+  const initializeSyncSteps = (): SyncStep[] => {
+    return SYNC_STEP_DEFINITIONS.map((def) => ({
+      id: def.id,
+      name: def.name,
+      icon: def.icon,
+      status: "pending" as SyncStepStatus,
+    }));
+  };
+
+  // Update a specific sync step's status
+  const updateSyncStep = (stepId: string, updates: Partial<SyncStep>) => {
+    setSyncSteps((prev) =>
+      prev.map((step) =>
+        step.id === stepId ? { ...step, ...updates } : step
+      )
+    );
+  };
+
+  // Run a single sync step
+  const runSyncStep = async (
+    stepId: string,
+    provider: Provider
+  ): Promise<{ success: boolean; count?: number; error?: string }> => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        error?: string;
+        data?: { synced?: number; created?: number; updated?: number };
+      }>(`/api/v1/gl/sync/${stepId}`, {
+        provider: provider.provider,
+        tenant_id: provider.tenant_id,
+        background: "false",
+      });
+
+      if (response?.success) {
+        const count =
+          response.data?.synced ||
+          response.data?.created ||
+          response.data?.updated ||
+          0;
+        return { success: true, count };
+      } else {
+        return { success: false, error: response?.error || "Sync failed" };
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Sync failed";
+      // Check if it's a 404 (endpoint not implemented) - skip gracefully
+      if (errorMessage.includes("404") || errorMessage.includes("Not Found")) {
+        return { success: true, count: 0 }; // Skip but don't fail
+      }
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  // Run full sync with step-by-step progress
+  const runFullSync = async (provider: Provider) => {
+    setFullSyncProvider(provider);
+    setFullSyncRunning(true);
+    setShowSyncProgress(true);
+    setSyncingTenantId(provider.tenant_id);
+    setError(null);
+
+    // Initialize all steps as pending
+    const steps = initializeSyncSteps();
+    setSyncSteps(steps);
+
+    // Run each step sequentially
+    for (const step of steps) {
+      // Update status to running
+      updateSyncStep(step.id, { status: "running" });
+
+      // Run the sync step
+      const result = await runSyncStep(step.id, provider);
+
+      if (result.success) {
+        updateSyncStep(step.id, {
+          status: "completed",
+          count: result.count,
+        });
+      } else {
+        updateSyncStep(step.id, {
+          status: "failed",
+          error: result.error,
+        });
+        // Continue with remaining steps even if one fails
+      }
+    }
+
+    // Refresh data after full sync
+    await Promise.all([fetchProviders(), fetchAccounts(), fetchSyncLogs()]);
+
+    setFullSyncRunning(false);
+    setSyncingTenantId(null);
+  };
+
+  // Get status icon for sync step
+  const getSyncStepIcon = (status: SyncStepStatus) => {
+    switch (status) {
+      case "completed":
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case "failed":
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      case "running":
+        return <RefreshCw className="h-5 w-5 text-blue-500 animate-spin" />;
+      case "skipped":
+        return <Clock className="h-5 w-5 text-gray-400" />;
+      default:
+        return <Clock className="h-5 w-5 text-gray-300" />;
+    }
+  };
+
   // Initial load
   useEffect(() => {
     const init = async () => {
@@ -270,11 +429,19 @@ export default function GlPage() {
           <div className="flex items-center gap-2">
             {syncingTenantId === selectedProvider.tenant_id && <Spinner className="h-5 w-5" />}
             <Button
+              variant="outline"
               onClick={() => triggerSync("accounts")}
               disabled={syncingTenantId !== null}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
-              Sync Accounts
+              Quick Sync
+            </Button>
+            <Button
+              onClick={() => runFullSync(selectedProvider)}
+              disabled={syncingTenantId !== null}
+            >
+              <Layers className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
+              Full Sync
             </Button>
           </div>
         )}
@@ -428,20 +595,31 @@ export default function GlPage() {
                         <div className="flex items-center gap-2">
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="ghost"
                             onClick={() => setSelectedProvider(provider)}
                           >
                             Select
                           </Button>
                           {provider.connected && (
-                            <Button
-                              size="sm"
-                              onClick={() => triggerSync("accounts", provider)}
-                              disabled={syncingTenantId !== null}
-                            >
-                              <RefreshCw className={`h-3 w-3 mr-1 ${syncingTenantId === provider.tenant_id ? "animate-spin" : ""}`} />
-                              {syncingTenantId === provider.tenant_id ? "Syncing..." : "Sync"}
-                            </Button>
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => triggerSync("accounts", provider)}
+                                disabled={syncingTenantId !== null}
+                              >
+                                <RefreshCw className={`h-3 w-3 mr-1 ${syncingTenantId === provider.tenant_id ? "animate-spin" : ""}`} />
+                                Quick
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => runFullSync(provider)}
+                                disabled={syncingTenantId !== null}
+                              >
+                                <Layers className={`h-3 w-3 mr-1 ${syncingTenantId === provider.tenant_id ? "animate-spin" : ""}`} />
+                                Full
+                              </Button>
+                            </>
                           )}
                         </div>
                       </TableCell>
@@ -690,6 +868,103 @@ export default function GlPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Full Sync Progress Modal */}
+      <Dialog open={showSyncProgress} onOpenChange={(open) => {
+        if (!fullSyncRunning) {
+          setShowSyncProgress(open);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5" />
+              Full Sync
+              {fullSyncProvider && (
+                <Badge variant="secondary" className="ml-2">
+                  {fullSyncProvider.tenant_name}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-4">
+            {syncSteps.map((step) => (
+              <div
+                key={step.id}
+                className={`flex items-center justify-between p-3 rounded-lg border ${
+                  step.status === "running"
+                    ? "bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800"
+                    : step.status === "completed"
+                    ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+                    : step.status === "failed"
+                    ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800"
+                    : "bg-gray-50 border-gray-200 dark:bg-gray-800/50 dark:border-gray-700"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-gray-500 dark:text-gray-400">
+                    {step.icon}
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">{step.name}</div>
+                    {step.error && (
+                      <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                        {step.error}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {step.status === "completed" && step.count !== undefined && (
+                    <Badge variant="secondary" className="text-xs">
+                      {step.count}
+                    </Badge>
+                  )}
+                  {getSyncStepIcon(step.status)}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary */}
+          {!fullSyncRunning && syncSteps.length > 0 && (
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1 text-green-600">
+                    <CheckCircle className="h-4 w-4" />
+                    {syncSteps.filter((s) => s.status === "completed").length} completed
+                  </span>
+                  {syncSteps.filter((s) => s.status === "failed").length > 0 && (
+                    <span className="flex items-center gap-1 text-red-600">
+                      <XCircle className="h-4 w-4" />
+                      {syncSteps.filter((s) => s.status === "failed").length} failed
+                    </span>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSyncProgress(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Running indicator */}
+          {fullSyncRunning && (
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Spinner className="h-4 w-4" />
+                Syncing... please wait
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

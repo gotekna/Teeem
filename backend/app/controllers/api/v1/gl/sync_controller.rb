@@ -82,20 +82,52 @@ module Api
 
         # POST /api/v1/gl/sync/accounts
         def accounts
-          adapter = get_adapter
-          return render_not_connected unless adapter.connected?
+          sync_entity(:sync_accounts, 'Chart of accounts')
+        end
 
-          adapter.sync_accounts
+        # POST /api/v1/gl/sync/tax_rates
+        def tax_rates
+          sync_entity(:sync_tax_rates, 'Tax rates')
+        end
 
-          render json: {
-            success: true,
-            message: 'Chart of accounts synced'
-          }
-        rescue StandardError => e
-          render json: {
-            success: false,
-            error: "Sync failed: #{e.message}"
-          }, status: :unprocessable_entity
+        # POST /api/v1/gl/sync/currencies
+        def currencies
+          sync_entity(:sync_currencies, 'Currencies')
+        end
+
+        # POST /api/v1/gl/sync/contacts
+        def contacts
+          sync_entity(:sync_contacts, 'Contacts')
+        end
+
+        # POST /api/v1/gl/sync/invoices
+        def invoices
+          sync_entity(:sync_invoices, 'Invoices')
+        end
+
+        # POST /api/v1/gl/sync/bills
+        def bills
+          sync_entity(:sync_bills, 'Bills')
+        end
+
+        # POST /api/v1/gl/sync/payments
+        def payments
+          sync_entity(:sync_payments, 'Payments')
+        end
+
+        # POST /api/v1/gl/sync/bank_transactions
+        def bank_transactions
+          sync_entity(:sync_bank_transactions, 'Bank transactions')
+        end
+
+        # POST /api/v1/gl/sync/credit_notes
+        def credit_notes
+          sync_entity(:sync_credit_notes, 'Credit notes')
+        end
+
+        # POST /api/v1/gl/sync/manual_journals
+        def manual_journals
+          sync_entity(:sync_manual_journals, 'Manual journals')
         end
 
         # POST /api/v1/gl/sync/recalculate_balances
@@ -284,6 +316,42 @@ module Api
           render json: {
             success: false,
             error: 'Provider not connected'
+          }, status: :unprocessable_entity
+        end
+
+        # Generic sync entity handler
+        def sync_entity(method, entity_name)
+          adapter = get_adapter
+          return render_not_connected unless adapter.connected?
+
+          # Check if adapter responds to this method
+          unless adapter.respond_to?(method)
+            return render json: {
+              success: true,
+              message: "#{entity_name} sync not supported for this provider",
+              data: { synced: 0 }
+            }
+          end
+
+          result = adapter.send(method)
+
+          # Try to extract count from result
+          synced = case result
+                   when Integer then result
+                   when Hash then result[:synced] || result[:count] || 0
+                   when Array then result.length
+                   else 0
+                   end
+
+          render json: {
+            success: true,
+            message: "#{entity_name} synced",
+            data: { synced: synced }
+          }
+        rescue StandardError => e
+          render json: {
+            success: false,
+            error: "#{entity_name} sync failed: #{e.message}"
           }, status: :unprocessable_entity
         end
 

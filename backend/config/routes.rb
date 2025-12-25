@@ -2241,6 +2241,15 @@ Rails.application.routes.draw do
           post "sync/full", action: :full
           post "sync/incremental", action: :incremental
           post "sync/accounts", action: :accounts
+          post "sync/tax_rates", action: :tax_rates
+          post "sync/currencies", action: :currencies
+          post "sync/contacts", action: :contacts
+          post "sync/invoices", action: :invoices
+          post "sync/bills", action: :bills
+          post "sync/payments", action: :payments
+          post "sync/bank_transactions", action: :bank_transactions
+          post "sync/credit_notes", action: :credit_notes
+          post "sync/manual_journals", action: :manual_journals
           post "sync/recalculate_balances", action: :recalculate_balances
           get "sync/logs", action: :logs
           get "sync/logs/:id", action: :log_detail
