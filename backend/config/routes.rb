@@ -2393,6 +2393,42 @@ Rails.application.routes.draw do
           post "bas/mark_lodged", action: :mark_lodged
           get "bas/chart_data", action: :chart_data
         end
+
+        # EOFY (End of Financial Year)
+        controller :eofy do
+          # Status & Checklist
+          get "eofy/status", action: :status
+          get "eofy/checklist", action: :checklist
+          post "eofy/checklist/:key", action: :update_checklist
+          post "eofy/run_checks", action: :run_checks
+          # Year Closure
+          get "eofy/can_close", action: :can_close
+          post "eofy/close", action: :close_year
+          post "eofy/reopen", action: :reopen_year
+          # Adjustments
+          get "eofy/adjustments", action: :adjustments
+          post "eofy/adjustments", action: :create_adjustment
+          # Report Package
+          get "eofy/package", action: :package
+          get "eofy/profit_loss", action: :profit_loss
+          get "eofy/balance_sheet", action: :balance_sheet
+          get "eofy/trial_balance", action: :trial_balance
+          get "eofy/gst_summary", action: :gst_summary
+          get "eofy/depreciation", action: :depreciation
+          get "eofy/payg", action: :payg
+          get "eofy/comparatives", action: :comparatives
+          get "eofy/metrics", action: :metrics
+          post "eofy/export", action: :export
+          # Tax Return
+          get "eofy/tax_return", action: :tax_return
+          get "eofy/tax_summary", action: :tax_summary
+          get "eofy/tax_estimate", action: :tax_estimate
+          post "eofy/tax_return/calculate", action: :calculate_tax
+          # Financial Years
+          get "eofy/years", action: :years
+          # Dashboard
+          get "eofy/dashboard", action: :dashboard
+        end
       end
 
       # Pay Now Requests (admin/supervisor interface)
