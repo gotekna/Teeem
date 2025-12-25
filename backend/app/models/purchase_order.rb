@@ -20,6 +20,16 @@ class PurchaseOrder < ApplicationRecord
   # SSoT: SmTask is THE ONE task system
   # SSoT: SmTask.purchase_order_id is THE ONE link between PO and task
   has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
+
+  # Virtual attribute for Foundation table display - returns first linked task name
+  def schedule_master_name
+    sm_tasks.first&.name
+  end
+
+  # Virtual attribute for Foundation - returns first linked task ID
+  def schedule_master_id
+    sm_tasks.first&.id
+  end
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
