@@ -143,12 +143,45 @@ module Api
 
         # GET /api/v1/gl/sync/providers
         def providers
-          credentials = ::Gl::ProviderCredential
-            .where(corporate_company: @corporate_company)
+          data = []
+
+          # Get ALL Xero credentials with their associated company connections
+          # This allows syncing any company's Xero data, not just the current user's company
+          XeroCredential.includes(:corporate_company_xero_connections).order(:tenant_name).each do |xc|
+            # Find associated company through connection
+            connection = xc.corporate_company_xero_connections.first
+            company = connection&.corporate_company
+
+            # Count synced GL accounts for this tenant
+            account_count = ::Gl::Account.where(
+              external_provider: 'xero',
+              external_tenant_id: xc.tenant_id
+            ).count
+
+            data << {
+              id: "xero_#{xc.id}",
+              provider: 'xero',
+              tenant_id: xc.tenant_id,
+              tenant_name: xc.tenant_name,
+              status: xc.status,
+              connected: xc.usable?,
+              last_sync_at: nil,
+              sync_enabled: true,
+              two_way_sync: false,
+              source: 'xero_credential',
+              company_id: company&.id,
+              company_name: company&.name,
+              account_count: account_count
+            }
+          end
+
+          # Also check GL::ProviderCredential for any that aren't Xero
+          gl_credentials = ::Gl::ProviderCredential
+            .where.not(provider: 'xero')
             .order(:provider, :tenant_name)
 
-          data = credentials.map do |cred|
-            {
+          gl_credentials.each do |cred|
+            data << {
               id: cred.id,
               provider: cred.provider,
               tenant_id: cred.tenant_id,
@@ -157,22 +190,13 @@ module Api
               connected: cred.connected?,
               last_sync_at: cred.last_sync_at,
               sync_enabled: cred.sync_enabled,
-              two_way_sync: cred.two_way_sync
+              two_way_sync: cred.two_way_sync,
+              source: 'gl_provider_credential',
+              company_id: cred.corporate_company_id,
+              company_name: cred.corporate_company&.name,
+              account_count: 0
             }
           end
-
-          # Add standalone option
-          data.unshift({
-            id: nil,
-            provider: 'standalone',
-            tenant_id: 'local',
-            tenant_name: 'TEEEM Standalone',
-            status: 'connected',
-            connected: true,
-            last_sync_at: nil,
-            sync_enabled: true,
-            two_way_sync: false
-          })
 
           render json: { success: true, data: data }
         end
@@ -187,6 +211,7 @@ module Api
 
         def get_adapter
           if params[:provider].present? && params[:provider] != 'standalone'
+            # First try GL::ProviderCredential
             credential = ::Gl::ProviderCredential.find_by(
               corporate_company: @corporate_company,
               provider: params[:provider],
@@ -195,11 +220,37 @@ module Api
 
             if credential
               ::Gl::Adapters.for(@corporate_company, credential: credential)
+            elsif params[:provider] == 'xero'
+              # Fallback: Use existing XeroCredential via CorporateCompanyXeroConnection
+              xero_credential = find_xero_credential
+              if xero_credential
+                ::Gl::Adapters::Xero.new(@corporate_company, xero_credential: xero_credential)
+              else
+                ::Gl::Adapters::Standalone.new(@corporate_company)
+              end
             else
               ::Gl::Adapters::Standalone.new(@corporate_company)
             end
           else
             ::Gl::Adapters::Standalone.new(@corporate_company)
+          end
+        end
+
+        def find_xero_credential
+          # Find XeroCredential for this company via CorporateCompanyXeroConnection
+          connection = CorporateCompanyXeroConnection
+            .joins(:xero_credential)
+            .where(corporate_company: @corporate_company)
+            .first
+
+          xc = connection&.xero_credential
+          return xc if xc&.usable?
+
+          # If tenant_id provided, try to match
+          if params[:tenant_id].present?
+            XeroCredential.find_by(tenant_id: params[:tenant_id], status: 'connected')
+          else
+            nil
           end
         end
 
