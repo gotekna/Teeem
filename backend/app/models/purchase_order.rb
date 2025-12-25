@@ -18,9 +18,8 @@ class PurchaseOrder < ApplicationRecord
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
   has_many :payments, dependent: :destroy
   # SSoT: SmTask is THE ONE task system
+  # SSoT: SmTask.purchase_order_id is THE ONE link between PO and task
   has_many :sm_tasks, class_name: "SmTask", dependent: :nullify
-  # Direct link to Schedule Master template row (THE marriage that can't be broken)
-  belongs_to :sm_template_row, class_name: "SmTemplateRow", optional: true
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
@@ -198,18 +197,8 @@ class PurchaseOrder < ApplicationRecord
   def effective_required_date
     return required_date if required_date.present?
 
-    # Fallback 1: Check sm_tasks linked via purchase_order_id
-    if sm_tasks.any?
-      return sm_tasks.first.start_date
-    end
-
-    # Fallback 2: Check task via sm_template_row_id (legacy link)
-    if sm_template_row_id.present? && job.present?
-      task = job.sm_tasks.find_by(sm_template_row_id: sm_template_row_id)
-      return task&.start_date
-    end
-
-    nil
+    # Fallback: Check sm_tasks linked via purchase_order_id (SSoT)
+    sm_tasks.first&.start_date
   end
 
   # Check if PO delivery timing aligns with linked tasks (SSoT: uses SmTask)

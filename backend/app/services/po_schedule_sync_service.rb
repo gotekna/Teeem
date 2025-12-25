@@ -86,22 +86,9 @@ class PoScheduleSyncService
   private
 
   # Find all tasks linked to this PO
-  # Checks both direct link (purchase_order_id) and template link (sm_template_row_id)
+  # SSoT: SmTask.purchase_order_id is THE ONE link between PO and task
   def find_linked_tasks
-    tasks = []
-
-    # Direct link via purchase_order_id
-    tasks += purchase_order.sm_tasks.includes(:predecessors, :supplier).to_a
-
-    # Template link via sm_template_row_id (if no direct links)
-    if tasks.empty? && purchase_order.sm_template_row_id.present? && purchase_order.job.present?
-      template_task = purchase_order.job.sm_tasks
-        .includes(:predecessors, :supplier)
-        .find_by(sm_template_row_id: purchase_order.sm_template_row_id)
-      tasks << template_task if template_task
-    end
-
-    tasks.compact.uniq
+    purchase_order.sm_tasks.includes(:predecessors, :supplier).to_a
   end
 
   # Current PO state for comparison

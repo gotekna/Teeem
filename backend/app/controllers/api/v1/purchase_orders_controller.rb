@@ -457,7 +457,6 @@ module Api
           :supplier_id,
           :status,
           :description,
-          :sm_template_row_id,
           :delivery_address,
           :special_instructions,
           :budget,

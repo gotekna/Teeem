@@ -206,7 +206,7 @@ interface SyncPreviewData {
 
 // ComboboxDropdown item type for tasks
 interface TaskComboboxItem extends ComboboxItem {
-  sm_template_row_id: number;
+  taskId: number; // SmTask.id - SSoT link
   start_date?: string; // SSoT: Used to auto-populate PO required_date
 }
 
@@ -229,8 +229,7 @@ interface PurchaseOrder {
   job?: Job;
   job_id?: number;
   line_items: LineItem[];
-  sm_template_row_id?: number; // SSoT link to Schedule Master
-  sm_tasks?: SmTask[]; // Linked tasks via has_many
+  sm_tasks?: SmTask[]; // SSoT: Linked tasks via SmTask.purchase_order_id
 }
 
 const STATUS_OPTIONS = [
@@ -331,7 +330,7 @@ export default function PurchaseOrderDetailPage() {
 
   // Editable fields
   const [description, setDescription] = useState("");
-  const [smTemplateRowId, setSmTemplateRowId] = useState<number | null>(null); // SSoT link
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null); // SSoT: SmTask.id
   const [status, setStatus] = useState("draft");
   const [budget, setBudget] = useState("");
   const [requiredDate, setRequiredDate] = useState("");
@@ -344,7 +343,7 @@ export default function PurchaseOrderDetailPage() {
   // Original state for change tracking
   const [originalState, setOriginalState] = useState<{
     description: string;
-    smTemplateRowId: number | null;
+    selectedTaskId: number | null;
     status: string;
     budget: string;
     requiredDate: string;
@@ -382,27 +381,27 @@ export default function PurchaseOrderDetailPage() {
     }
   }, [purchaseOrder?.job_id]);
 
-  // SSoT: Auto-populate required date from linked task via sm_template_row_id
+  // SSoT: Auto-populate required date from linked task
   // This runs after taskItems are loaded, since loadPurchaseOrder runs before tasks load
   useEffect(() => {
     // Only auto-populate if:
-    // 1. We have a smTemplateRowId set
+    // 1. We have a selectedTaskId set
     // 2. requiredDate is still empty
     // 3. taskItems are loaded
     // 4. No direct sm_tasks are linked (those are handled in loadPurchaseOrder)
     if (
-      smTemplateRowId &&
+      selectedTaskId &&
       !requiredDate &&
       taskItems.length > 0 &&
       (!purchaseOrder?.sm_tasks || purchaseOrder.sm_tasks.length === 0)
     ) {
-      const matchingTask = taskItems.find((t) => t.sm_template_row_id === smTemplateRowId);
+      const matchingTask = taskItems.find((t) => t.taskId === selectedTaskId);
       if (matchingTask?.start_date) {
-        console.log('[PO Detail] Auto-populating required date from sm_template_row_id task:', matchingTask.start_date);
+        console.log('[PO Detail] Auto-populating required date from linked task:', matchingTask.start_date);
         setRequiredDate(matchingTask.start_date);
       }
     }
-  }, [taskItems, smTemplateRowId, requiredDate, purchaseOrder?.sm_tasks]);
+  }, [taskItems, selectedTaskId, requiredDate, purchaseOrder?.sm_tasks]);
 
   const loadPurchaseOrder = async () => {
     try {
@@ -412,9 +411,10 @@ export default function PurchaseOrderDetailPage() {
 
       // Initialize editable fields
       const desc = response.description || "";
-      // Fallback: if sm_template_row_id is null but there are linked sm_tasks, use the first task's sm_template_row_id
-      const templateRowId = response.sm_template_row_id ||
-        (response.sm_tasks && response.sm_tasks.length > 0 ? response.sm_tasks[0].sm_template_row_id : null);
+      // SSoT: Get linked task ID from sm_tasks (SmTask.purchase_order_id is THE link)
+      const linkedTaskId = response.sm_tasks && response.sm_tasks.length > 0
+        ? response.sm_tasks[0].id
+        : null;
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       // SSoT: Auto-populate required_date from linked task's start_date if not already set
@@ -433,7 +433,7 @@ export default function PurchaseOrderDetailPage() {
       const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
 
       setDescription(desc);
-      setSmTemplateRowId(templateRowId);
+      setSelectedTaskId(linkedTaskId);
       setStatus(stat);
       setBudget(budg);
       setRequiredDate(reqDate);
@@ -446,7 +446,7 @@ export default function PurchaseOrderDetailPage() {
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
-        smTemplateRowId: templateRowId,
+        selectedTaskId: linkedTaskId,
         status: stat,
         budget: budg,
         requiredDate: reqDate,
@@ -472,11 +472,11 @@ export default function PurchaseOrderDetailPage() {
       setLoadingTasks(true);
       // Fetch SmTasks for this specific job (nested under jobs)
       const response = await api.get<{ sm_tasks: SmTask[] }>(`/api/v1/jobs/${purchaseOrder.job_id}/sm_tasks`);
-      // Convert to ComboboxItem format
+      // Convert to ComboboxItem format - SSoT: Use SmTask.id as the key
       const items: TaskComboboxItem[] = (response?.sm_tasks || []).map((task) => ({
-        id: String(task.sm_template_row_id), // Use sm_template_row_id as the key for matching
+        id: String(task.id), // Use SmTask.id as the key (SSoT)
         label: task.name,
-        sm_template_row_id: task.sm_template_row_id,
+        taskId: task.id, // SmTask.id for linking
         start_date: task.start_date, // SSoT: For auto-populating PO required_date
       }));
       setTaskItems(items);
@@ -571,7 +571,7 @@ export default function PurchaseOrderDetailPage() {
       const updateData = {
         purchase_order: {
           description,
-          sm_template_row_id: smTemplateRowId,
+          schedule_task_id: selectedTaskId, // SSoT: SmTask.id for linking
           status,
           budget: budget ? parseFloat(budget) : null,
           required_date: requiredDate || null,
@@ -603,9 +603,10 @@ export default function PurchaseOrderDetailPage() {
 
       // Initialize editable fields
       const desc = response.description || "";
-      // Fallback: if sm_template_row_id is null but there are linked sm_tasks, use the first task's sm_template_row_id
-      const templateRowId = response.sm_template_row_id ||
-        (response.sm_tasks && response.sm_tasks.length > 0 ? response.sm_tasks[0].sm_template_row_id : null);
+      // SSoT: Get linked task ID from sm_tasks (SmTask.purchase_order_id is THE link)
+      const linkedTaskId = response.sm_tasks && response.sm_tasks.length > 0
+        ? response.sm_tasks[0].id
+        : null;
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       // SSoT: Auto-populate required_date from linked task's start_date if not already set
@@ -624,7 +625,7 @@ export default function PurchaseOrderDetailPage() {
       const itemsWithBlank = [...sortedItems, { description: "", quantity: 0, unit_price: 0 }];
 
       setDescription(desc);
-      setSmTemplateRowId(templateRowId);
+      setSelectedTaskId(linkedTaskId);
       setStatus(stat);
       setBudget(budg);
       setRequiredDate(reqDate);
@@ -637,7 +638,7 @@ export default function PurchaseOrderDetailPage() {
       // Store original state for change tracking (with sorted items)
       setOriginalState({
         description: desc,
-        smTemplateRowId: templateRowId,
+        selectedTaskId: linkedTaskId,
         status: stat,
         budget: budg,
         requiredDate: reqDate,
@@ -662,7 +663,7 @@ export default function PurchaseOrderDetailPage() {
     // Compare simple fields
     if (
       description !== originalState.description ||
-      smTemplateRowId !== originalState.smTemplateRowId ||
+      selectedTaskId !== originalState.selectedTaskId ||
       status !== originalState.status ||
       budget !== originalState.budget ||
       requiredDate !== originalState.requiredDate ||
@@ -700,10 +701,11 @@ export default function PurchaseOrderDetailPage() {
     return false;
   }, [
     description,
-    smTemplateRowId,
+    selectedTaskId,
     status,
     budget,
     requiredDate,
+    dueDate,
     orderedDate,
     notes,
     selectedSupplier,
@@ -716,7 +718,7 @@ export default function PurchaseOrderDetailPage() {
     if (!originalState) return;
 
     setDescription(originalState.description);
-    setSmTemplateRowId(originalState.smTemplateRowId);
+    setSelectedTaskId(originalState.selectedTaskId);
     setStatus(originalState.status);
     setBudget(originalState.budget);
     setRequiredDate(originalState.requiredDate);
@@ -832,10 +834,10 @@ export default function PurchaseOrderDetailPage() {
             <div className="min-w-[300px]">
               <ComboboxDropdown<TaskComboboxItem>
                 items={taskItems}
-                selectedItem={taskItems.find((t) => t.sm_template_row_id === smTemplateRowId)}
+                selectedItem={taskItems.find((t) => t.taskId === selectedTaskId)}
                 onSelect={(item) => {
                   setDescription(item.label);
-                  setSmTemplateRowId(item.sm_template_row_id); // SSoT link
+                  setSelectedTaskId(item.taskId); // SSoT: SmTask.id
                   // Auto-populate required date from task's start_date (SSoT)
                   if (item.start_date) {
                     setRequiredDate(item.start_date);

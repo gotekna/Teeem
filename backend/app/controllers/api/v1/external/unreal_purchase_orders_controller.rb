@@ -62,21 +62,41 @@ module Api
           end
 
           ActiveRecord::Base.transaction do
-            # Create the PO shell using SM template row data
+            # SSoT: Find or create SmTask first, then link PO to the task (not template)
+            # This ensures PO always links to a job-level SmTask, never directly to template
+            sm_task = job.sm_tasks.find_by(sm_template_row_id: sm_template_row.id)
+
+            if sm_task.nil?
+              # Task doesn't exist - use SmTemplateSyncService to create it
+              sync_result = SmTemplateSyncService.new(job, sm_template_row).sync!
+
+              unless sync_result[:success]
+                return render json: {
+                  success: false,
+                  error: "Failed to sync task from template: #{sync_result[:error]}"
+                }, status: :unprocessable_entity
+              end
+
+              sm_task = sync_result[:task]
+              Rails.logger.info "[Unreal PO] Created SmTask #{sm_task.id} from template row #{sm_template_row.id}"
+            end
+
+            # Create the PO shell linked to the SmTask (via task's data)
             purchase_order = PurchaseOrder.new(
               job_id: job.id,
-              description: sm_template_row.name,
-              ted_task: sm_template_row.trade,
+              description: sm_task.name,
+              ted_task: sm_task.trade,
               special_instructions: estimator_notes,
               status: "draft",
               source: "unreal_engine",
-              unreal_task_template_id: sm_template_row_id,
-              supplier_id: sm_template_row.supplier_id
+              supplier_id: sm_task.supplier_id
             )
 
             if purchase_order.save
-              # Log the creation
-              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} for job #{job.id} from SmTemplateRow #{sm_template_row_id}"
+              # Link the task to this PO (SSoT: SmTask.purchase_order_id is THE link)
+              sm_task.update!(purchase_order_id: purchase_order.id)
+
+              Rails.logger.info "[Unreal PO] Created PO #{purchase_order.purchase_order_number} linked to SmTask #{sm_task.id}"
 
               render json: {
                 success: true,
@@ -84,11 +104,12 @@ module Api
                 purchase_order_number: purchase_order.purchase_order_number,
                 job_id: job.id,
                 job_title: job.title,
-                task_name: sm_template_row.name,
-                task_trade: sm_template_row.trade,
-                supplier_id: sm_template_row.supplier_id,
+                sm_task_id: sm_task.id,
+                task_name: sm_task.name,
+                task_trade: sm_task.trade,
+                supplier_id: sm_task.supplier_id,
                 status: purchase_order.status,
-                message: "Purchase order created successfully from SM template '#{sm_template_row.name}'"
+                message: "Purchase order created and linked to task '#{sm_task.name}'"
               }, status: :created
             else
               render json: {
