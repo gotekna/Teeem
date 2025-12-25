@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -886,6 +887,9 @@ export default function GlPage() {
                 </Badge>
               )}
             </DialogTitle>
+            <DialogDescription>
+              Syncing all GL data from Xero. Each entity type will be synced sequentially.
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-4">
