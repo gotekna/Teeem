@@ -193,6 +193,25 @@ class PurchaseOrder < ApplicationRecord
     (invoiced_amount / total * 100).round(2)
   end
 
+  # SSoT: Get effective required date (falls back to linked task's start_date)
+  # Used for table display to show when materials are needed
+  def effective_required_date
+    return required_date if required_date.present?
+
+    # Fallback 1: Check sm_tasks linked via purchase_order_id
+    if sm_tasks.any?
+      return sm_tasks.first.start_date
+    end
+
+    # Fallback 2: Check task via sm_template_row_id (legacy link)
+    if sm_template_row_id.present? && job.present?
+      task = job.sm_tasks.find_by(sm_template_row_id: sm_template_row_id)
+      return task&.start_date
+    end
+
+    nil
+  end
+
   # Check if PO delivery timing aligns with linked tasks (SSoT: uses SmTask)
   def delivery_aligned_with_tasks?
     return true if sm_tasks.empty?

@@ -48,16 +48,23 @@ class SmTemplateCascadeService
         next
       end
 
-      # For unlocked successors: Clear manually_positioned so frontend recalculates from predecessors
-      # Store the old date in a backup field for undo capability
-      if successor.manually_positioned?
-        Rails.logger.info "[SmTemplateCascade] Clearing manually_positioned on successor #{successor.id}"
-        # Save the old date for potential undo/restore
-        successor.update!(
-          manually_positioned: false,
-          previous_manual_start_date: successor.manual_start_date,
-          manual_start_date: nil
-        )
+      # Recalculate successor's start_day_offset based on its predecessors
+      new_offset = calculate_start_offset(successor)
+      old_offset = successor.start_day_offset || 0
+
+      if new_offset != old_offset || successor.manually_positioned?
+        Rails.logger.info "[SmTemplateCascade] Updating successor #{successor.id}: start_day_offset #{old_offset} → #{new_offset}"
+
+        update_attrs = { start_day_offset: new_offset }
+
+        # Clear manually_positioned if it was set
+        if successor.manually_positioned?
+          update_attrs[:manually_positioned] = false
+          update_attrs[:previous_manual_start_date] = successor.manual_start_date
+          update_attrs[:manual_start_date] = nil
+        end
+
+        successor.update!(update_attrs)
         updated_rows << successor
       end
 
@@ -99,8 +106,9 @@ class SmTemplateCascadeService
       next 0 unless predecessor
 
       pred_start = predecessor.start_day_offset || 0
-      pred_duration = predecessor.duration_days || 1
-      pred_end = pred_start + pred_duration
+
+      # For Headers, calculate effective end from children (not the header row's own duration)
+      pred_end = calculate_effective_end(predecessor)
 
       case pred_type
       when "FS" # Finish-to-Start (most common)
@@ -110,9 +118,9 @@ class SmTemplateCascadeService
       when "FF" # Finish-to-Finish
         # Successor finishes when predecessor finishes + lag
         # So successor starts at: pred_end + lag - successor_duration
-        pred_end + pred_lag - (successor.duration_days || 1)
+        pred_end + pred_lag - (calculate_effective_duration(successor))
       when "SF" # Start-to-Finish (rare)
-        pred_start + pred_lag - (successor.duration_days || 1)
+        pred_start + pred_lag - (calculate_effective_duration(successor))
       else
         pred_end
       end
@@ -120,5 +128,36 @@ class SmTemplateCascadeService
 
     # Ensure non-negative
     [latest_start || 0, 0].max
+  end
+
+  # Calculate effective end offset (for Headers: max end of all children)
+  def calculate_effective_end(row)
+    start_offset = row.start_day_offset || 0
+
+    # If it's a Header, find the latest end among all children
+    if row.category == 'Header'
+      children = @all_rows.select { |r| r.parent_row_id == row.id }
+      if children.any?
+        max_child_end = children.map { |c| (c.start_day_offset || 0) + (c.duration_days || 1) }.max
+        return max_child_end
+      end
+    end
+
+    # Regular task: start + duration
+    start_offset + (row.duration_days || 1)
+  end
+
+  # Calculate effective duration (for Headers: span of children)
+  def calculate_effective_duration(row)
+    if row.category == 'Header'
+      children = @all_rows.select { |r| r.parent_row_id == row.id }
+      if children.any?
+        min_start = children.map { |c| c.start_day_offset || 0 }.min
+        max_end = children.map { |c| (c.start_day_offset || 0) + (c.duration_days || 1) }.max
+        return max_end - min_start
+      end
+    end
+
+    row.duration_days || 1
   end
 end

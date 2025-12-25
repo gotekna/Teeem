@@ -2483,20 +2483,20 @@ export function GanttCanvasView({
                           </div>
                         );
                       case 'dependencies':
-                        // SSoT FIX: Compute display using visual row numbers (matching Edit dialog)
-                        // instead of task_numbers from backend predecessor_display
+                        // SSoT FIX: Use STABLE row numbers from full task list (rows)
+                        // NOT visibleTasks which changes when headers collapse
+                        // rows is SmTemplateRow[] with task_number directly (not in rowData)
                         const predecessorIds = task.rowData?.predecessor_ids || [];
                         const depDisplay = predecessorIds.length > 0
                           ? predecessorIds.map((pred: { id: number; type?: string; lag?: number }) => {
-                              // Find the predecessor task by task_number
-                              const predTask = visibleTasks.find(t => t.rowData?.task_number === pred.id);
-                              // Get visual row number (1-based index in visible tasks)
-                              const visualRowNum = predTask
-                                ? visibleTasks.findIndex(t => t.id === predTask.id) + 1
-                                : pred.id; // Fallback to task_number if not found
+                              // Find the predecessor task by task_number in FULL rows list
+                              // Note: rows is SmTemplateRow[] so use t.task_number directly
+                              const predRowIndex = rows.findIndex(t => t.task_number === pred.id);
+                              // Get stable row number (1-based index in FULL task list)
+                              const stableRowNum = predRowIndex >= 0 ? predRowIndex + 1 : pred.id;
                               const depType = pred.type || 'FS';
                               const lag = pred.lag || 0;
-                              let result = `${visualRowNum}${depType}`;
+                              let result = `${stableRowNum}${depType}`;
                               if (lag !== 0) {
                                 result += lag > 0 ? `+${lag}` : `${lag}`;
                               }

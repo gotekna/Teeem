@@ -838,6 +838,12 @@ module Api
             json[:xero_link_summary] = record.xero_link_summary
           end
 
+          # SSoT: PurchaseOrder required_date comes from linked task's start_date
+          # This ensures table shows when materials are needed without data duplication
+          if record.class.name == "PurchaseOrder"
+            json[:required_date] = record.effective_required_date
+          end
+
           return json
         end
 

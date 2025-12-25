@@ -2206,6 +2206,45 @@ Rails.application.routes.draw do
         end
       end
 
+      # General Ledger (GL) System
+      namespace :gl do
+        # Chart of Accounts
+        resources :accounts, only: [ :index, :show, :create, :update ] do
+          member do
+            get :ledger
+          end
+          collection do
+            get :chart
+            get :bank_accounts
+          end
+        end
+
+        # Financial Reports
+        controller :reports do
+          get "reports/profit_loss", action: :profit_loss
+          get "reports/profit_loss_ytd", action: :profit_loss_ytd
+          get "reports/profit_loss_monthly", action: :profit_loss_monthly
+          get "reports/balance_sheet", action: :balance_sheet
+          get "reports/trial_balance", action: :trial_balance
+          get "reports/trial_balance_comparative", action: :trial_balance_comparative
+          get "reports/bank_statement", action: :bank_statement
+          get "reports/bank_summary", action: :bank_summary
+          get "reports/account_ledger", action: :account_ledger
+        end
+
+        # Sync Operations
+        controller :sync do
+          get "sync/status", action: :status
+          post "sync/full", action: :full
+          post "sync/incremental", action: :incremental
+          post "sync/accounts", action: :accounts
+          post "sync/recalculate_balances", action: :recalculate_balances
+          get "sync/logs", action: :logs
+          get "sync/logs/:id", action: :log_detail
+          get "sync/providers", action: :providers
+        end
+      end
+
       # Pay Now Requests (admin/supervisor interface)
       resources :pay_now_requests, only: [ :index, :show ] do
         member do

@@ -23,7 +23,7 @@ module Gl
     ].freeze
     STATUSES = %w[started in_progress completed failed cancelled].freeze
     TRIGGERS = %w[manual scheduled webhook initial].freeze
-    PROVIDERS = %w[xero quickbooks myob].freeze
+    PROVIDERS = %w[xero quickbooks myob standalone].freeze
 
     # ═══════════════════════════════════════════════════════════════
     # VALIDATIONS

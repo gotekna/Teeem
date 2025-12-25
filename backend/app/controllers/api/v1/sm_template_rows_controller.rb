@@ -56,22 +56,38 @@ module Api
         # Track if we need to cascade dependencies
         timing_changed = will_timing_change?
 
+        # Check if predecessor_ids are changing (need to recalculate THIS row's start)
+        predecessors_changing = params[:row]&.key?(:predecessor_ids)
+
         # Auto-clear dependency_broken when predecessors are re-added
         clear_dependency_broken_if_needed
 
         if @row.update(row_params)
           updated_rows = [@row]
 
+          # If predecessors changed, recalculate THIS row's start_day_offset first
+          if predecessors_changing && !@row.manually_positioned?
+            cascade_service = SmTemplateCascadeService.new(@row, @template)
+            new_offset = cascade_service.send(:calculate_start_offset, @row)
+            if new_offset != @row.start_day_offset
+              Rails.logger.info "[SmTemplateRows] Recalculating start_day_offset for row #{@row.id}: #{@row.start_day_offset} → #{new_offset}"
+              @row.update!(start_day_offset: new_offset)
+            end
+          end
+
           # Cascade to dependent rows if timing changed
           if timing_changed
-            cascade_service = SmTemplateCascadeService.new(@row, @template)
+            cascade_service ||= SmTemplateCascadeService.new(@row, @template)
             updated_rows = cascade_service.cascade_successors
           end
+
+          # Reload to get fresh data after any updates
+          @row.reload
 
           render json: {
             success: true,
             row: row_json(@row),
-            cascaded_rows: updated_rows.length > 1 ? updated_rows.map { |r| row_json(r) } : nil
+            cascaded_rows: updated_rows.length > 1 ? updated_rows.map { |r| r.reload; row_json(r) } : nil
           }
         else
           render json: {
@@ -185,6 +201,14 @@ module Api
         # Start day offset change affects successors
         if rp[:start_day_offset].present? && rp[:start_day_offset].to_i != @row.start_day_offset
           return true
+        end
+
+        # Predecessor changes affect THIS row's start date (and potentially successors)
+        if rp[:predecessor_ids].present?
+          old_preds = @row.predecessor_ids || []
+          new_preds = rp[:predecessor_ids] || []
+          # Compare by serializing to handle hash ordering differences
+          return true if old_preds.to_json != new_preds.to_json
         end
 
         false
