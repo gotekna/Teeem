@@ -516,7 +516,8 @@ module Gl
           external_source_id: xero_invoice['InvoiceID']
         )
 
-        date = Date.parse(xero_invoice['Date'])
+        date = parse_xero_date(xero_invoice['Date'])
+        return record_processed!(skipped: true) unless date
         period = period_for(date)
 
         journal = Gl::JournalEntry.new(
@@ -572,7 +573,8 @@ module Gl
         # Skip if not approved/authorised
         return record_processed!(skipped: true) unless xero_bill['Status'].in?(%w[AUTHORISED PAID])
 
-        date = Date.parse(xero_bill['Date'])
+        date = parse_xero_date(xero_bill['Date'])
+        return record_processed!(skipped: true) unless date
         period = period_for(date)
         contact_name = xero_bill.dig('Contact', 'Name') || 'Unknown Supplier'
 
@@ -633,7 +635,8 @@ module Gl
           external_source_id: xero_payment['PaymentID']
         )
 
-        date = Date.parse(xero_payment['Date'])
+        date = parse_xero_date(xero_payment['Date'])
+        return record_processed!(skipped: true) unless date
         period = period_for(date)
 
         # Determine if this is a payment received (ACCREC) or payment made (ACCPAY)
@@ -693,7 +696,8 @@ module Gl
         # Skip reconciled transfers (handled separately)
         return record_processed!(skipped: true) if xero_tx['IsReconciled'] == false && xero_tx['Status'] == 'DELETED'
 
-        date = Date.parse(xero_tx['Date'])
+        date = parse_xero_date(xero_tx['Date'])
+        return record_processed!(skipped: true) unless date
         period = period_for(date)
         tx_type = xero_tx['Type'] # RECEIVE, SPEND, RECEIVE-OVERPAYMENT, etc.
         is_receive = tx_type.start_with?('RECEIVE')
@@ -774,7 +778,8 @@ module Gl
         # Skip if not approved
         return record_processed!(skipped: true) unless xero_cn['Status'].in?(%w[AUTHORISED PAID])
 
-        date = Date.parse(xero_cn['Date'])
+        date = parse_xero_date(xero_cn['Date'])
+        return record_processed!(skipped: true) unless date
         period = period_for(date)
         cn_type = xero_cn['Type'] # ACCRECCREDIT (sales) or ACCPAYCREDIT (purchase)
         is_sales = cn_type == 'ACCRECCREDIT'
@@ -852,7 +857,8 @@ module Gl
         # Skip if not posted
         return record_processed!(skipped: true) unless xero_journal['Status'] == 'POSTED'
 
-        date = Date.parse(xero_journal['Date'])
+        date = parse_xero_date(xero_journal['Date'])
+        return record_processed!(skipped: true) unless date
         period = period_for(date)
 
         journal = Gl::JournalEntry.new(
@@ -936,6 +942,28 @@ module Gl
       # ═══════════════════════════════════════════════════════════════
       # HELPERS
       # ═══════════════════════════════════════════════════════════════
+
+      # Parse Xero date - handles both /Date(timestamp)/ format and ISO strings
+      def parse_xero_date(date_value)
+        return nil if date_value.blank?
+
+        # Handle Xero's /Date(1234567890000+0000)/ format
+        if date_value.is_a?(String) && date_value.start_with?('/Date(')
+          # Extract timestamp (milliseconds)
+          match = date_value.match(%r{/Date\((\d+)([+-]\d+)?\)/})
+          if match
+            timestamp_ms = match[1].to_i
+            return Time.at(timestamp_ms / 1000).to_date
+          end
+        end
+
+        # Try standard parsing
+        Date.parse(date_value.to_s)
+      rescue ArgumentError, TypeError
+        # Fallback to today if parsing fails
+        log_error("Could not parse date: #{date_value.inspect}, using today")
+        Date.current
+      end
 
       def find_system_account(system_account_type)
         Gl::Account.find_by(
