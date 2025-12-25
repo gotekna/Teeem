@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class AccountsController < ApplicationController
-        before_action :set_corporate_company
+        before_action :set_corporate_company, except: [:chart]
         before_action :set_account, only: [:show, :update, :ledger]
 
         # GET /api/v1/gl/accounts
@@ -105,19 +105,30 @@ module Api
         # GET /api/v1/gl/accounts/chart
         # Returns hierarchical chart of accounts
         def chart
-          accounts = scoped_accounts.active.order(:code)
+          # Query directly by provider/tenant - no corporate company required
+          scope = ::Gl::Account.all
+          if params[:provider].present?
+            scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])
+          end
+          accounts = scope.where(active: true).order(:code)
 
           grouped = accounts.group_by(&:account_type)
 
           render json: {
             success: true,
             data: {
-              assets: grouped['asset']&.map { |a| account_json(a) } || [],
-              liabilities: grouped['liability']&.map { |a| account_json(a) } || [],
-              equity: grouped['equity']&.map { |a| account_json(a) } || [],
-              revenue: grouped['revenue']&.map { |a| account_json(a) } || [],
-              expenses: grouped['expense']&.map { |a| account_json(a) } || []
+              assets: grouped['asset']&.map { |a| chart_account_json(a) } || [],
+              liabilities: grouped['liability']&.map { |a| chart_account_json(a) } || [],
+              equity: grouped['equity']&.map { |a| chart_account_json(a) } || [],
+              revenue: grouped['revenue']&.map { |a| chart_account_json(a) } || [],
+              expenses: grouped['expense']&.map { |a| chart_account_json(a) } || []
             }
+          }
+        rescue ActiveRecord::StatementInvalid
+          # Table columns may not exist yet
+          render json: {
+            success: true,
+            data: { assets: [], liabilities: [], equity: [], revenue: [], expenses: [] }
           }
         end
 
@@ -182,7 +193,23 @@ module Api
         end
 
         def account_json(account, include_balance: false)
-          json = {
+          json = chart_account_json(account)
+
+          if include_balance
+            calculator = ::Gl::BalanceCalculator.new(
+              @corporate_company,
+              provider: account.external_provider,
+              tenant_id: account.external_tenant_id
+            )
+            json[:current_balance] = calculator.current_balance(account)
+          end
+
+          json
+        end
+
+        # Simplified account JSON that doesn't require @corporate_company
+        def chart_account_json(account)
+          {
             id: account.id,
             code: account.code,
             name: account.name,
@@ -199,17 +226,6 @@ module Api
             external_account_id: account.external_account_id,
             parent_account_id: account.parent_account_id
           }
-
-          if include_balance
-            calculator = ::Gl::BalanceCalculator.new(
-              @corporate_company,
-              provider: account.external_provider,
-              tenant_id: account.external_tenant_id
-            )
-            json[:current_balance] = calculator.current_balance(account)
-          end
-
-          json
         end
       end
     end

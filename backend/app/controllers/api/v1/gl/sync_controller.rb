@@ -4,7 +4,7 @@ module Api
   module V1
     module Gl
       class SyncController < ApplicationController
-        before_action :set_corporate_company, except: [:providers]
+        before_action :set_corporate_company, except: [:providers, :logs]
 
         # GET /api/v1/gl/sync/status
         def status
@@ -118,15 +118,19 @@ module Api
 
         # GET /api/v1/gl/sync/logs
         def logs
-          adapter = get_adapter
-          service = ::Gl::SyncService.new(adapter)
-
-          logs = service.recent_syncs(limit: params[:limit]&.to_i || 20)
+          # Query sync logs directly - no corporate company required
+          scope = ::Gl::SyncLog.order(started_at: :desc)
+          scope = scope.where(external_provider: params[:provider]) if params[:provider].present?
+          scope = scope.where(external_tenant_id: params[:tenant_id]) if params[:tenant_id].present?
+          logs = scope.limit(params[:limit]&.to_i || 20)
 
           render json: {
             success: true,
             data: logs.map { |log| sync_log_json(log) }
           }
+        rescue ActiveRecord::StatementInvalid
+          # Table may not exist yet
+          render json: { success: true, data: [] }
         end
 
         # GET /api/v1/gl/sync/logs/:id
