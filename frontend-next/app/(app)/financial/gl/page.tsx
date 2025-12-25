@@ -48,6 +48,7 @@ import {
   Percent,
   Coins,
   FileSpreadsheet,
+  Settings,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -459,30 +460,41 @@ export default function GlPage() {
             </Button>
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">TEEEM GL</h1>
-            <p className="text-muted-foreground">General Ledger synced from Xero</p>
+            <h1 className="text-2xl font-bold">T.A.S.</h1>
+            <p className="text-muted-foreground">Teeem Accounting System</p>
           </div>
         </div>
-        {selectedProvider && selectedProvider.connected && (
-          <div className="flex items-center gap-2">
-            {syncingTenantId === selectedProvider.tenant_id && <Spinner className="h-5 w-5" />}
-            <Button
-              variant="outline"
-              onClick={() => triggerSync("accounts")}
-              disabled={syncingTenantId !== null}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
-              Quick Sync
-            </Button>
-            <Button
-              onClick={() => runFullSync(selectedProvider)}
-              disabled={syncingTenantId !== null}
-            >
-              <Layers className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
-              Full Sync
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Sync System Button - shows all company sync statuses */}
+          <Button
+            variant="outline"
+            onClick={() => setActiveTab("companies")}
+            className={activeTab === "companies" ? "bg-muted" : ""}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            Sync System
+          </Button>
+          {selectedProvider && selectedProvider.connected && (
+            <>
+              {syncingTenantId === selectedProvider.tenant_id && <Spinner className="h-5 w-5" />}
+              <Button
+                variant="outline"
+                onClick={() => triggerSync("accounts")}
+                disabled={syncingTenantId !== null}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
+                Quick Sync
+              </Button>
+              <Button
+                onClick={() => runFullSync(selectedProvider)}
+                disabled={syncingTenantId !== null}
+              >
+                <Layers className={`h-4 w-4 mr-2 ${syncingTenantId === selectedProvider.tenant_id ? "animate-spin" : ""}`} />
+                Full Sync
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Summary Stats */}

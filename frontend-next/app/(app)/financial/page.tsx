@@ -565,7 +565,7 @@ function XeroSyncStatusCard({
             <Link href="/financial/gl">
               <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
                 <Briefcase className="h-4 w-4 mr-1" />
-                TEEEM GL
+                T.A.S.
               </Button>
             </Link>
           </div>
@@ -1887,7 +1887,7 @@ export default function FinancialPage() {
               <Link href="/financial/gl">
                 <Button size="sm" className="bg-indigo-600 hover:bg-indigo-700">
                   <Briefcase className="h-4 w-4 mr-1" />
-                  TEEEM GL System
+                  T.A.S.
                 </Button>
               </Link>
             </div>
