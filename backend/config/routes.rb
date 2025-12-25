@@ -371,12 +371,14 @@ Rails.application.routes.draw do
             post :reset_from_template
             post :reorder
             post :sync_payments
+            get :retainage_summary
           end
           member do
             post :match
             delete :unmatch
             post :create_invoice
             post :generate_pdf
+            post :release_retainage
           end
         end
       end

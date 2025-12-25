@@ -4,7 +4,7 @@ module Api
   module V1
     class JobClaimStagesController < ApplicationController
       before_action :set_job
-      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :generate_pdf]
+      before_action :set_stage, only: [:show, :update, :destroy, :match, :unmatch, :create_invoice, :generate_pdf, :release_retainage]
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
@@ -16,6 +16,8 @@ module Api
         total_expected = stages.sum { |s| s.expected_amount.to_d }
         total_invoiced = stages.sum { |s| s.amount_invoiced.to_d }
         total_paid = stages.sum { |s| s.amount_paid.to_d }
+        total_retainage_held = JobClaimStage.total_retainage_held_for_job(@job.id)
+        total_retainage_released = stages.sum { |s| s.retainage_released? ? s.retainage_amount.to_d : 0 }
 
         render json: {
           success: true,
@@ -28,7 +30,11 @@ module Api
               total_invoiced: total_invoiced.to_f,
               total_paid: total_paid.to_f,
               remaining: (contract - total_paid).to_f,
-              paid_percentage: contract.positive? ? ((total_paid / contract) * 100).round(1) : 0
+              paid_percentage: contract.positive? ? ((total_paid / contract) * 100).round(1) : 0,
+              # Retainage summary
+              total_retainage_held: total_retainage_held.to_f,
+              total_retainage_released: total_retainage_released.to_f,
+              net_receivable: (total_invoiced - total_paid - total_retainage_held).to_f
             },
             available_invoices: available_invoices_json
           }
@@ -404,6 +410,56 @@ module Api
         end
       end
 
+      # POST /api/v1/jobs/:job_id/claim_stages/:id/release_retainage
+      # Release held retainage for a stage
+      def release_retainage
+        unless @stage.retainage_held?
+          return render json: { success: false, error: "No retainage held on this stage" },
+                        status: :unprocessable_entity
+        end
+
+        # Optionally link to a release invoice
+        release_invoice = nil
+        if params[:release_invoice_id].present?
+          release_invoice = Gl::Invoice.find_by(id: params[:release_invoice_id])
+        end
+
+        if @stage.release_retainage!(release_invoice: release_invoice)
+          render json: {
+            success: true,
+            data: {
+              stage: stage_json(@stage.reload),
+              message: "Retainage released successfully",
+              released_amount: @stage.retainage_amount.to_f
+            }
+          }
+        else
+          render json: { success: false, error: "Failed to release retainage" },
+                 status: :unprocessable_entity
+        end
+      end
+
+      # GET /api/v1/jobs/:job_id/claim_stages/retainage_summary
+      # Get retainage summary for a job
+      def retainage_summary
+        stages_with_retainage = @job.job_claim_stages.with_retainage.includes(:external_invoice)
+
+        held = stages_with_retainage.retainage_held
+        released = stages_with_retainage.retainage_released
+
+        render json: {
+          success: true,
+          data: {
+            total_retainage_percentage: @job.default_retainage_percentage&.to_f || 0,
+            stages_with_retainage: stages_with_retainage.count,
+            total_held: held.sum(:retainage_amount).to_f,
+            total_released: released.sum(:retainage_amount).to_f,
+            held_stages: held.map { |s| { id: s.id, name: s.name, amount: s.retainage_amount.to_f } },
+            released_stages: released.map { |s| { id: s.id, name: s.name, amount: s.retainage_amount.to_f, released_at: s.retainage_released_at } }
+          }
+        }
+      end
+
       private
 
       def set_job
@@ -420,7 +476,8 @@ module Api
 
       def stage_params
         params.require(:job_claim_stage).permit(
-          :name, :percentage, :expected_amount, :sequence_order, :description
+          :name, :percentage, :expected_amount, :sequence_order, :description,
+          :retainage_percentage
         )
       end
 
@@ -454,6 +511,14 @@ module Api
           variance_amount: stage.variance_amount&.to_f,
           variance_percent: stage.variance_percent,
           has_variance: stage.has_variance?,
+
+          # Retainage
+          retainage_percentage: stage.retainage_percentage&.to_f,
+          retainage_amount: stage.retainage_amount&.to_f,
+          retainage_status: stage.retainage_status,
+          retainage_released_at: stage.retainage_released_at,
+          retainage_held: stage.retainage_held?,
+          net_payable: stage.net_payable&.to_f,
 
           # Invoice details (if matched)
           invoice: invoice ? {

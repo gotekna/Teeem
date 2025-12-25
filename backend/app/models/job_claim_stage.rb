@@ -5,10 +5,12 @@ class JobClaimStage < ApplicationRecord
   belongs_to :job
   belongs_to :claim_stage_template, optional: true
   belongs_to :external_invoice, optional: true
+  belongs_to :retainage_release_invoice, class_name: "Gl::Invoice", optional: true
 
   # Status constants
   MATCH_STATUSES = %w[unmatched auto_matched manual_matched].freeze
   PAYMENT_STATUSES = %w[pending partial paid].freeze
+  RETAINAGE_STATUSES = %w[none held released].freeze
 
   # Validations
   validates :name, presence: true
@@ -18,9 +20,13 @@ class JobClaimStage < ApplicationRecord
   validates :payment_status, inclusion: { in: PAYMENT_STATUSES }
   validates :external_invoice_id, uniqueness: { scope: :job_id, message: "is already linked to another stage" },
                                   allow_nil: true
+  validates :retainage_percentage, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # Scopes
   scope :ordered, -> { order(:sequence_order) }
+  scope :with_retainage, -> { where("retainage_percentage > 0") }
+  scope :retainage_held, -> { where("retainage_amount > 0 AND retainage_released_at IS NULL") }
+  scope :retainage_released, -> { where.not(retainage_released_at: nil) }
   scope :unmatched, -> { where(match_status: "unmatched") }
   scope :matched, -> { where(match_status: %w[auto_matched manual_matched]) }
   scope :pending_payment, -> { where(payment_status: "pending") }
@@ -30,6 +36,8 @@ class JobClaimStage < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults, on: :create
+  before_validation :apply_default_retainage, on: :create
+  before_save :calculate_retainage_amount
   after_save :sync_payment_from_invoice, if: :saved_change_to_external_invoice_id?
 
   # Instance Methods
@@ -121,7 +129,67 @@ class JobClaimStage < ApplicationRecord
     variance_amount.present? && variance_amount.abs > 0.01
   end
 
+  # Retainage Methods
+
+  # Check if this stage has retainage configured
+  def has_retainage?
+    retainage_percentage.present? && retainage_percentage > 0
+  end
+
+  # Check if retainage is currently held
+  def retainage_held?
+    has_retainage? && retainage_amount > 0 && retainage_released_at.nil?
+  end
+
+  # Check if retainage has been released
+  def retainage_released?
+    retainage_released_at.present?
+  end
+
+  # Get retainage status
+  def retainage_status
+    return "none" unless has_retainage?
+    return "released" if retainage_released?
+    "held"
+  end
+
+  # Calculate net payable (amount invoiced minus held retainage)
+  def net_payable
+    return amount_invoiced unless has_retainage? && retainage_held?
+    amount_invoiced - retainage_amount
+  end
+
+  # Release retainage (optionally linked to a release invoice)
+  def release_retainage!(release_invoice: nil)
+    return false unless retainage_held?
+
+    transaction do
+      self.retainage_released_at = Time.current
+      self.retainage_release_invoice = release_invoice if release_invoice
+      save!
+    end
+
+    true
+  end
+
+  # Calculate total retainage held across all stages for a job
+  def self.total_retainage_held_for_job(job_id)
+    where(job_id: job_id).retainage_held.sum(:retainage_amount)
+  end
+
   private
+
+  def apply_default_retainage
+    return if retainage_percentage.present?
+    return unless job&.default_retainage_percentage.present?
+    self.retainage_percentage = job.default_retainage_percentage
+  end
+
+  def calculate_retainage_amount
+    return unless has_retainage? && amount_invoiced.present? && amount_invoiced > 0
+    return if retainage_released? # Don't recalculate if already released
+    self.retainage_amount = (amount_invoiced * retainage_percentage / 100).round(2)
+  end
 
   def set_defaults
     self.match_status ||= "unmatched"

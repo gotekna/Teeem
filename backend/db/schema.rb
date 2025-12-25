@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_26_100000) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3655,6 +3655,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_100000) do
     t.decimal "amount_paid", precision: 12, scale: 2, default: "0.0"
     t.date "payment_date"
     t.boolean "is_custom", default: false, null: false
+    t.decimal "retainage_percentage", precision: 5, scale: 2, default: "0.0"
+    t.decimal "retainage_amount", precision: 15, scale: 2, default: "0.0"
+    t.datetime "retainage_released_at"
+    t.bigint "retainage_release_invoice_id"
     t.index ["claim_stage_template_id"], name: "index_job_claim_stages_on_claim_stage_template_id"
     t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
     t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
@@ -3662,6 +3666,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_100000) do
     t.index ["job_id"], name: "index_job_claim_stages_on_job_id"
     t.index ["match_status"], name: "index_job_claim_stages_on_match_status"
     t.index ["payment_status"], name: "index_job_claim_stages_on_payment_status"
+    t.index ["retainage_release_invoice_id"], name: "index_job_claim_stages_on_retainage_release_invoice_id"
+    t.index ["retainage_released_at"], name: "idx_unreleased_retainage", where: "((retainage_amount > (0)::numeric) AND (retainage_released_at IS NULL))"
   end
 
   create_table "job_claims", force: :cascade do |t|
@@ -4031,6 +4037,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_100000) do
     t.boolean "finance_approval_required"
     t.date "finance_approval_date"
     t.decimal "external_sales_fee", precision: 15, scale: 2
+    t.decimal "default_retainage_percentage", precision: 5, scale: 2, default: "0.0"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -7038,6 +7045,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_100000) do
   add_foreign_key "job_activities", "users"
   add_foreign_key "job_claim_stages", "claim_stage_templates"
   add_foreign_key "job_claim_stages", "external_invoices"
+  add_foreign_key "job_claim_stages", "gl_invoices", column: "retainage_release_invoice_id"
   add_foreign_key "job_claim_stages", "jobs"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
