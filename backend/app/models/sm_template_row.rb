@@ -48,7 +48,7 @@ class SmTemplateRow < ApplicationRecord
   validate :duration_positive_for_tasks
 
   def duration_positive_for_tasks
-    return if category == 'Header' # Headers can have 0 duration
+    return if header == 'Header' # Headers can have 0 duration
     if duration_days.present? && duration_days <= 0
       errors.add(:duration_days, 'must be greater than 0 for tasks')
     end

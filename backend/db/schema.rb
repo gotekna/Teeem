@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_25_105321) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_25_200941) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -5490,7 +5490,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_105321) do
     t.string "cost_centre"
     t.boolean "require_supplier_confirm", default: false
     t.boolean "is_master", default: false
-    t.string "category"
+    t.string "header"
     t.jsonb "sm_template_ids", default: []
     t.boolean "manually_positioned"
     t.date "manual_start_date"
@@ -5499,11 +5499,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_105321) do
     t.jsonb "predecessor_ids_backup"
     t.date "previous_manual_start_date"
     t.boolean "dependency_broken", default: false
-    t.index ["category"], name: "index_sm_template_rows_on_category"
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"
     t.index ["created_by_id"], name: "index_sm_template_rows_on_created_by_id"
     t.index ["dependency_broken"], name: "index_sm_template_rows_on_dependency_broken", where: "(dependency_broken = true)"
+    t.index ["header"], name: "index_sm_template_rows_on_header"
     t.index ["is_active"], name: "index_sm_template_rows_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_template_rows_on_linked_po_task_id"
     t.index ["manually_positioned"], name: "index_sm_template_rows_on_manually_positioned", where: "(manually_positioned = true)"

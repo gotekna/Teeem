@@ -24,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Trash2, ExternalLink, Star } from "lucide-react";
+import { Trash2, ExternalLink, Star, DollarSign } from "lucide-react";
 import Link from "next/link";
 
 export function BrandGuidelinesTab() {
@@ -140,6 +140,86 @@ export function BrandGuidelinesTab() {
                   <span className="text-[10px]">10px</span>
                   <span className="text-[11px] text-[#878787]">Small pills, tags</span>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <Separator />
+
+      {/* Product Branding */}
+      <section className="space-y-6">
+        <div>
+          <h3 className="text-xl font-medium mb-1">Product Branding</h3>
+          <p className="text-sm text-[#606060]">Internal product names and logos.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* T.A.S. */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <div className="w-8 h-8 bg-foreground text-background flex items-center justify-center">
+                  <DollarSign className="h-5 w-5" />
+                </div>
+                T.A.S.
+              </CardTitle>
+              <CardDescription>Teeem Accounting System</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-foreground text-background flex items-center justify-center">
+                    <DollarSign className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Primary Logo</p>
+                    <p className="text-[11px] text-[#878787]">$ in black square</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 border-2 border-foreground flex items-center justify-center">
+                    <DollarSign className="h-7 w-7" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Outline Variant</p>
+                    <p className="text-[11px] text-[#878787]">For light backgrounds</p>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4 border-t space-y-2 text-[11px]">
+                <p><strong>Full Name:</strong> Teeem Accounting System</p>
+                <p><strong>Short Name:</strong> T.A.S.</p>
+                <p><strong>Icon:</strong> DollarSign (lucide-react)</p>
+                <p><strong>Navigation:</strong> Finance → T.A.S.</p>
+                <p><strong>URL:</strong> /financial/gl</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Teeem Main */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Teeem (Parent Brand)</CardTitle>
+              <CardDescription>Main product branding</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-foreground text-background flex items-center justify-center font-serif font-bold text-xl">
+                    t
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Primary Logo</p>
+                    <p className="text-[11px] text-[#878787]">Lowercase t in black square</p>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-4 border-t space-y-2 text-[11px]">
+                <p><strong>Full Name:</strong> Teeem</p>
+                <p><strong>Pronunciation:</strong> &quot;Team&quot; with 3 e&apos;s</p>
+                <p><strong>Font:</strong> Hedvig Letters Serif (bold)</p>
               </div>
             </CardContent>
           </Card>

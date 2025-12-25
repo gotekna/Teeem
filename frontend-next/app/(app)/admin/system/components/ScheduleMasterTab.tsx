@@ -132,7 +132,7 @@ type SubTab = typeof VALID_SUBTABS[number];
 // All columns for tracking
 const ALL_COLUMNS = [
   // Core Identity
-  "task_number", "name", "description", "sequence_order", "category",
+  "task_number", "name", "description", "sequence_order", "header",
   // Scheduling
   "duration_days", "start_day_offset", "predecessor_ids", "manually_positioned",
   "manual_start_date", "dependency_broken", "predecessor_ids_backup",
@@ -1048,9 +1048,9 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">Controls display order in the list</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["category"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "category", !!v)} />
-                    <Checkbox checked={columnStatus.delete["category"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "category", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">category</code>
+                    <Checkbox checked={columnStatus.complete["header"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "header", !!v)} />
+                    <Checkbox checked={columnStatus.delete["header"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "header", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">header</code>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Header vs Task - allows section grouping</span>
                   </div>
