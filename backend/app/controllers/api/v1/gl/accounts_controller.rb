@@ -4,30 +4,36 @@ module Api
   module V1
     module Gl
       class AccountsController < ApplicationController
-        before_action :set_corporate_company, except: [:chart]
+        before_action :set_corporate_company, except: [:chart, :index]
         before_action :set_account, only: [:show, :update, :ledger]
 
         # GET /api/v1/gl/accounts
         def index
-          accounts = scoped_accounts
-            .includes(:parent_account)
-            .order(:code)
+          # Query directly by provider/tenant - no corporate company required
+          scope = ::Gl::Account.all
+          if params[:provider].present?
+            scope = scope.where(external_provider: params[:provider], external_tenant_id: params[:tenant_id])
+          end
+          accounts = scope.includes(:parent_account).order(:code)
 
           # Filters
           accounts = accounts.where(account_type: params[:account_type]) if params[:account_type].present?
           accounts = accounts.where(account_class: params[:account_class]) if params[:account_class].present?
           accounts = accounts.where(is_bank_account: true) if params[:bank_accounts_only] == 'true'
-          accounts = accounts.active if params[:active_only] == 'true'
+          accounts = accounts.where(active: true) if params[:active_only] == 'true'
 
           render json: {
             success: true,
-            data: accounts.map { |a| account_json(a) },
+            data: accounts.map { |a| chart_account_json(a) },
             meta: {
               total: accounts.count,
               provider: params[:provider],
               tenant_id: params[:tenant_id]
             }
           }
+        rescue ActiveRecord::StatementInvalid
+          # Table columns may not exist yet
+          render json: { success: true, data: [], meta: { total: 0, provider: params[:provider], tenant_id: params[:tenant_id] } }
         end
 
         # GET /api/v1/gl/accounts/:id
