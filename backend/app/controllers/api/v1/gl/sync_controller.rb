@@ -213,7 +213,24 @@ module Api
         private
 
         def set_corporate_company
-          @corporate_company = CorporateCompany.find(params[:corporate_company_id] || current_user&.corporate_company_id)
+          # Try to find by explicit param first
+          if params[:corporate_company_id].present?
+            @corporate_company = CorporateCompany.find(params[:corporate_company_id])
+            return
+          end
+
+          # Try to find via tenant_id from XeroCredential connection
+          if params[:tenant_id].present?
+            xero_cred = XeroCredential.find_by(tenant_id: params[:tenant_id])
+            if xero_cred
+              connection = xero_cred.corporate_company_xero_connections.first
+              @corporate_company = connection&.corporate_company
+              return if @corporate_company
+            end
+          end
+
+          # Fallback to current_user's company
+          @corporate_company = CorporateCompany.find(current_user&.corporate_company_id)
         rescue ActiveRecord::RecordNotFound
           render json: { success: false, error: 'Company not found' }, status: :not_found
         end
