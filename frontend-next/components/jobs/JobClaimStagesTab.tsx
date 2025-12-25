@@ -37,6 +37,9 @@ import {
   Plus,
   ExternalLink,
   FileDown,
+  Lock,
+  Unlock,
+  ShieldCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -86,6 +89,15 @@ interface ClaimStage {
   variance_percent: number | null;
   has_variance: boolean;
 
+  // Retainage
+  retainage_percentage: number | null;
+  retainage_amount: number | null;
+  retainage_held: boolean;
+  retainage_released: boolean;
+  retainage_released_at: string | null;
+  retainage_status: "none" | "held" | "released";
+  net_payable: number | null;
+
   // Invoice details
   invoice: {
     id: number;
@@ -120,6 +132,10 @@ interface Summary {
   total_paid: number;
   remaining: number;
   paid_percentage: number;
+  // Retainage
+  total_retainage_held: number;
+  total_retainage_released: number;
+  net_receivable: number;
 }
 
 interface JobClaimStagesTabProps {
@@ -138,6 +154,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [matchingStageId, setMatchingStageId] = React.useState<number | null>(null);
   const [creatingInvoiceId, setCreatingInvoiceId] = React.useState<number | null>(null);
   const [generatingPdfId, setGeneratingPdfId] = React.useState<number | null>(null);
+  const [releasingRetainageId, setReleasingRetainageId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
@@ -358,6 +375,58 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       setGeneratingPdfId(null);
     }
   };
+
+  const handleReleaseRetainage = async (stage: ClaimStage) => {
+    if (!stage.retainage_held) return;
+
+    setReleasingRetainageId(stage.id);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data?: {
+          stage: ClaimStage;
+          message: string;
+        };
+        error?: string;
+      }>(`/api/v1/jobs/${jobId}/claim_stages/${stage.id}/release_retainage`, {});
+
+      if (!response) {
+        toast({
+          title: "Error",
+          description: "No response from server",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (response.success && response.data) {
+        toast({
+          title: "Retainage Released",
+          description: response.data.message || `${formatCurrency(stage.retainage_amount || 0)} retainage released`,
+        });
+        loadData();
+      } else {
+        toast({
+          title: "Error",
+          description: response.error || "Failed to release retainage",
+          variant: "destructive",
+        });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to release retainage:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to release retainage";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setReleasingRetainageId(null);
+    }
+  };
+
+  // Check if any stages have retainage
+  const hasRetainage = stages.some(s => s.retainage_percentage && s.retainage_percentage > 0);
 
   if (loading) {
     return (

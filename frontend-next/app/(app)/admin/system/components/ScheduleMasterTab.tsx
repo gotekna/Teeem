@@ -903,7 +903,7 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.delete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "is_completed", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <CopyableCode>is_completed</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Done</Badge>Task completed (LOCKS from cascade)</span>
+                    <span className="text-muted-foreground"><Badge className="text-[10px] mr-1 px-1 py-0">Completed</Badge>Task completed (LOCKS from cascade)</span>
                   </div>
                   <div className="grid grid-cols-[24px_24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "completed_at", !!v)} />
