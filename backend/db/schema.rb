@@ -2894,6 +2894,39 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
     t.index ["parent_account_id"], name: "index_gl_accounts_on_parent_account_id"
   end
 
+  create_table "gl_ai_categorization_attempts", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "transaction_description", limit: 500, null: false
+    t.decimal "transaction_amount", precision: 15, scale: 2
+    t.bigint "suggested_account_id"
+    t.decimal "confidence", precision: 4, scale: 3
+    t.boolean "was_successful", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "created_at"], name: "idx_ai_attempts_rate_limit"
+    t.index ["corporate_company_id"], name: "index_gl_ai_categorization_attempts_on_corporate_company_id"
+    t.index ["suggested_account_id"], name: "index_gl_ai_categorization_attempts_on_suggested_account_id"
+  end
+
+  create_table "gl_ai_categorization_learnings", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "transaction_description", limit: 500, null: false
+    t.string "transaction_amount_type", limit: 10, null: false
+    t.string "transaction_reference", limit: 255
+    t.bigint "ai_suggested_account_id"
+    t.decimal "ai_confidence", precision: 4, scale: 3
+    t.bigint "user_chosen_account_id", null: false
+    t.boolean "was_accepted", default: false, null: false
+    t.datetime "feedback_date", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["ai_suggested_account_id"], name: "idx_on_ai_suggested_account_id_62739666b6"
+    t.index ["corporate_company_id", "transaction_amount_type", "was_accepted"], name: "idx_ai_learning_similar"
+    t.index ["corporate_company_id"], name: "index_gl_ai_categorization_learnings_on_corporate_company_id"
+    t.index ["transaction_description"], name: "idx_ai_learning_description_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["user_chosen_account_id"], name: "index_gl_ai_categorization_learnings_on_user_chosen_account_id"
+  end
+
   create_table "gl_bank_reconciliations", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.bigint "gl_account_id", null: false
@@ -2959,6 +2992,30 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
     t.index ["corporate_company_id", "code"], name: "index_gl_currencies_on_corporate_company_id_and_code", unique: true
     t.index ["corporate_company_id", "is_base_currency"], name: "idx_gl_currencies_base_currency", unique: true, where: "(is_base_currency = true)"
     t.index ["corporate_company_id"], name: "index_gl_currencies_on_corporate_company_id"
+  end
+
+  create_table "gl_duplicate_bill_reviews", force: :cascade do |t|
+    t.bigint "bill1_id", null: false
+    t.bigint "bill2_id", null: false
+    t.string "status", limit: 30, default: "pending", null: false
+    t.string "action_taken", limit: 30
+    t.bigint "kept_bill_id"
+    t.bigint "voided_bill_id"
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.text "notes"
+    t.integer "detection_score"
+    t.string "match_type", limit: 50
+    t.text "detection_reasoning"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["bill1_id", "bill2_id"], name: "idx_duplicate_bill_reviews_pair", unique: true
+    t.index ["bill1_id"], name: "index_gl_duplicate_bill_reviews_on_bill1_id"
+    t.index ["bill2_id"], name: "index_gl_duplicate_bill_reviews_on_bill2_id"
+    t.index ["kept_bill_id"], name: "index_gl_duplicate_bill_reviews_on_kept_bill_id"
+    t.index ["reviewed_by_id"], name: "index_gl_duplicate_bill_reviews_on_reviewed_by_id"
+    t.index ["status"], name: "idx_duplicate_bill_reviews_status"
+    t.index ["voided_bill_id"], name: "index_gl_duplicate_bill_reviews_on_voided_bill_id"
   end
 
   create_table "gl_exchange_rates", force: :cascade do |t|
@@ -7065,6 +7122,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
   add_foreign_key "gl_account_balances", "gl_periods"
   add_foreign_key "gl_accounts", "corporate_companies"
   add_foreign_key "gl_accounts", "gl_accounts", column: "parent_account_id"
+  add_foreign_key "gl_ai_categorization_attempts", "corporate_companies"
+  add_foreign_key "gl_ai_categorization_attempts", "gl_accounts", column: "suggested_account_id"
+  add_foreign_key "gl_ai_categorization_learnings", "corporate_companies"
+  add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "ai_suggested_account_id"
+  add_foreign_key "gl_ai_categorization_learnings", "gl_accounts", column: "user_chosen_account_id"
   add_foreign_key "gl_bank_reconciliations", "corporate_companies"
   add_foreign_key "gl_bank_reconciliations", "gl_accounts"
   add_foreign_key "gl_bank_reconciliations", "users", column: "completed_by_id"
@@ -7073,6 +7135,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_181815) do
   add_foreign_key "gl_budgets", "gl_periods"
   add_foreign_key "gl_budgets", "jobs"
   add_foreign_key "gl_currencies", "corporate_companies"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill1_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill2_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "kept_bill_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "voided_bill_id"
+  add_foreign_key "gl_duplicate_bill_reviews", "users", column: "reviewed_by_id"
   add_foreign_key "gl_exchange_rates", "corporate_companies"
   add_foreign_key "gl_exchange_rates", "gl_currencies"
   add_foreign_key "gl_invoice_lines", "gl_accounts"

@@ -2334,6 +2334,10 @@ Rails.application.routes.draw do
             post :complete
             post :reopen
             get :suggestions
+            # AI Categorization
+            get :ai_suggestions
+            post :accept_ai_suggestion
+            get :ai_stats
           end
           collection do
             get :rules
@@ -2342,6 +2346,17 @@ Rails.application.routes.draw do
         end
         patch "reconciliations/rules/:id", to: "reconciliations#update_rule"
         delete "reconciliations/rules/:id", to: "reconciliations#destroy_rule"
+
+        # Duplicate Bill Detection
+        resources :duplicate_bills, only: [:index, :show], param: :bill_id do
+          collection do
+            post :check
+            post :mark_not_duplicate
+            post :confirm_duplicate
+            get :reviews
+            get :stats
+          end
+        end
 
         # Cash Flow Forecasting
         controller :cash_flow do

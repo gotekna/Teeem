@@ -9,7 +9,7 @@ module Api
           load_transactions run_auto_match
           match_lines unmatch_line exclude_line include_line
           create_adjustment complete reopen
-          suggestions
+          suggestions ai_suggestions accept_ai_suggestion ai_stats
         ]
 
         # GET /api/v1/gl/reconciliations
@@ -154,7 +154,8 @@ module Api
             }, status: :unprocessable_entity
           end
 
-          matcher = ::Gl::ReconciliationMatcher.new(@reconciliation)
+          enable_ai = params[:enable_ai] != false
+          matcher = ::Gl::ReconciliationMatcher.new(@reconciliation, enable_ai: enable_ai)
           matches_found = matcher.auto_match_all
 
           @reconciliation.reload
@@ -163,7 +164,9 @@ module Api
             success: true,
             data: reconciliation_json(@reconciliation, include_lines: true),
             matches_found: matches_found,
-            message: "Auto-matched #{matches_found} transaction pairs"
+            ai_suggestions: matcher.ai_suggestions,
+            message: "Auto-matched #{matches_found} transaction pairs" +
+              (matcher.ai_suggestions.any? ? " (#{matcher.ai_suggestions.count} AI suggestions)" : "")
           }
         end
 
@@ -356,6 +359,122 @@ module Api
               error: 'Cannot reopen a locked reconciliation'
             }, status: :unprocessable_entity
           end
+        end
+
+        # GET /api/v1/gl/reconciliations/:id/ai_suggestions
+        # Get AI categorization suggestions for unmatched statement items
+        def ai_suggestions
+          unless ::Gl::AiTransactionCategorizationService.enabled?
+            return render json: {
+              success: false,
+              error: 'AI categorization is not enabled (ANTHROPIC_API_KEY not set)'
+            }, status: :unprocessable_entity
+          end
+
+          ai_service = ::Gl::AiTransactionCategorizationService.new(current_company)
+
+          suggestions = []
+          @reconciliation.lines.unmatched.statement_items.each do |line|
+            suggestion = ai_service.suggest_for_line(line)
+            next unless suggestion
+
+            suggestions << {
+              line_id: line.id,
+              line_description: line.description,
+              line_amount: line.amount,
+              line_date: line.transaction_date,
+              suggested_account: {
+                id: suggestion[:account_id],
+                code: suggestion[:account_code],
+                name: suggestion[:account_name]
+              },
+              confidence: suggestion[:confidence],
+              confidence_percent: (suggestion[:confidence] * 100).round,
+              reasoning: suggestion[:reasoning]
+            }
+          end
+
+          render json: {
+            success: true,
+            data: suggestions,
+            ai_enabled: true,
+            rate_limit_remaining: ::Gl::AiCategorizationAttempt.rate_limit_remaining(current_company)
+          }
+        end
+
+        # POST /api/v1/gl/reconciliations/:id/accept_ai_suggestion
+        # Accept an AI suggestion and create an adjustment entry
+        def accept_ai_suggestion
+          unless @reconciliation.can_edit?
+            return render json: {
+              success: false,
+              error: 'Cannot modify a completed or locked reconciliation'
+            }, status: :unprocessable_entity
+          end
+
+          line = @reconciliation.lines.find(params[:line_id])
+          account = current_company.gl_accounts.find(params[:account_id])
+
+          # Record feedback for learning
+          ai_service = ::Gl::AiTransactionCategorizationService.new(current_company)
+          ai_service.record_feedback(
+            transaction: {
+              description: line.description,
+              amount: line.amount,
+              reference: line.reference,
+              date: line.transaction_date
+            },
+            ai_suggestion: {
+              account_id: params[:account_id],
+              confidence: params[:confidence].to_f
+            },
+            user_choice: { account_id: account.id },
+            accepted: true
+          )
+
+          # Create adjustment with the suggested account
+          adjustment = line.create_adjustment!(
+            account: account,
+            reason: params[:reason] || "AI categorization (#{(params[:confidence].to_f * 100).round}% confidence)"
+          )
+
+          if adjustment
+            @reconciliation.reload
+
+            render json: {
+              success: true,
+              data: reconciliation_json(@reconciliation),
+              adjustment: line_json(adjustment),
+              message: "Applied AI suggestion: #{account.code} - #{account.name}"
+            }
+          else
+            render json: {
+              success: false,
+              error: 'Failed to apply AI suggestion'
+            }, status: :unprocessable_entity
+          end
+        end
+
+        # GET /api/v1/gl/reconciliations/:id/ai_stats
+        # Get AI categorization statistics
+        def ai_stats
+          stats = ::Gl::AiCategorizationAttempt.usage_stats(current_company)
+          learning_stats = ::Gl::AiCategorizationLearning.where(corporate_company: current_company)
+
+          render json: {
+            success: true,
+            data: {
+              usage: stats,
+              learning: {
+                total_feedback: learning_stats.count,
+                accepted: learning_stats.accepted.count,
+                rejected: learning_stats.rejected.count,
+                accuracy_rate: learning_stats.accuracy_rate
+              },
+              ai_enabled: ::Gl::AiTransactionCategorizationService.enabled?,
+              rate_limit_remaining: ::Gl::AiCategorizationAttempt.rate_limit_remaining(current_company)
+            }
+          }
         end
 
         # GET /api/v1/gl/reconciliations/:id/suggestions

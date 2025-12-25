@@ -7,9 +7,10 @@ module Gl
   # 1. Exact match - Same amount, same date, same reference
   # 2. Rule-based match - Apply configured reconciliation rules
   # 3. Fuzzy match - Same amount, date within range, similar description
+  # 4. AI-powered match - Claude-based categorization suggestions
   #
   class ReconciliationMatcher
-    attr_reader :reconciliation, :matches_found
+    attr_reader :reconciliation, :matches_found, :ai_suggestions
 
     # Minimum confidence score to auto-match
     AUTO_MATCH_THRESHOLD = 80
@@ -17,9 +18,14 @@ module Gl
     # Date range for fuzzy matching (days)
     FUZZY_DATE_RANGE = 7
 
-    def initialize(reconciliation)
+    # AI confidence threshold for auto-suggestions (0-1 scale → 0-100)
+    AI_SUGGESTION_THRESHOLD = 0.75
+
+    def initialize(reconciliation, enable_ai: true)
       @reconciliation = reconciliation
       @matches_found = 0
+      @ai_suggestions = []
+      @enable_ai = enable_ai && AiTransactionCategorizationService.enabled?
     end
 
     # Run all matching strategies on unmatched items
@@ -51,6 +57,12 @@ module Gl
 
       # Strategy 3: Fuzzy matches
       fuzzy_match(statement_items, gl_items)
+
+      # Strategy 4: AI categorization suggestions (doesn't auto-match, just suggests)
+      if @enable_ai
+        statement_items = reconciliation.lines.unmatched.statement_items.to_a
+        ai_categorize(statement_items)
+      end
 
       @matches_found
     end
@@ -199,6 +211,39 @@ module Gl
         "[ReconciliationMatcher] Matched: #{line1.description} <-> #{line2.description} " \
         "(#{match_type}, #{confidence}%)"
       )
+    end
+
+    # Strategy 4: AI-powered categorization suggestions
+    def ai_categorize(statement_items)
+      return if statement_items.empty?
+
+      company = reconciliation.corporate_company
+      ai_service = AiTransactionCategorizationService.new(company)
+
+      statement_items.each do |stmt|
+        next if stmt.matched?
+
+        suggestion = ai_service.suggest_for_line(stmt)
+        next unless suggestion
+
+        # Store the suggestion (doesn't auto-match - user must confirm)
+        @ai_suggestions << {
+          line_id: stmt.id,
+          line_description: stmt.description,
+          suggested_account_id: suggestion[:account_id],
+          suggested_account_code: suggestion[:account_code],
+          suggested_account_name: suggestion[:account_name],
+          confidence: suggestion[:confidence],
+          reasoning: suggestion[:reasoning]
+        }
+
+        Rails.logger.info(
+          "[ReconciliationMatcher] AI suggestion: #{stmt.description} → " \
+          "#{suggestion[:account_code]} (#{(suggestion[:confidence] * 100).round}%)"
+        )
+      end
+    rescue StandardError => e
+      Rails.logger.error("[ReconciliationMatcher] AI categorization error: #{e.message}")
     end
   end
 end

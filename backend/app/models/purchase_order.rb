@@ -365,10 +365,10 @@ class PurchaseOrder < ApplicationRecord
   # JSON representation for API - includes virtual attributes for Foundation
   def as_json(options = {})
     super(options).merge(
-      schedule_master_name: schedule_master_name,
-      schedule_master_id: schedule_master_id,
-      sm_template_row_name: sm_template_row_name,
-      sm_template_row_id_via_task: sm_template_row_id_via_task
+      'schedule_master_name' => schedule_master_name,
+      'schedule_master_id' => schedule_master_id,
+      'sm_template_row_name' => sm_template_row_name,
+      'sm_template_row_id_via_task' => sm_template_row_id_via_task
     )
   end
 
