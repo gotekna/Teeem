@@ -476,7 +476,8 @@ module Gl
 
       def sync_single_account(xero_account)
         type_info = ACCOUNT_TYPE_MAP[xero_account['Type']] || { type: 'expense', class: 'expense' }
-        system_account = SYSTEM_ACCOUNT_MAP[xero_account['SystemAccount']]
+        system_account = SYSTEM_ACCOUNT_MAP[xero_account['SystemAccount']] ||
+                         detect_system_account(xero_account['Code'], xero_account['Name'], type_info[:type])
 
         upsert_account(
           external_id: xero_account['AccountID'],
@@ -574,6 +575,11 @@ module Gl
 
         # DR Accounts Receivable
         ar_account = find_system_account('accounts_receivable')
+        unless ar_account
+          record_processed!(failed: true)
+          log_error("Cannot journalize invoice #{xero_invoice['InvoiceNumber']}: No 'accounts_receivable' system account configured. Sync accounts first.")
+          return
+        end
         journal.add_debit(ar_account, xero_invoice['Total'].to_d, description: xero_invoice['Contact']['Name'])
 
         # CR Revenue (per line item)
@@ -656,6 +662,11 @@ module Gl
 
         # CR Accounts Payable
         ap_account = find_system_account('accounts_payable')
+        unless ap_account
+          record_processed!(failed: true)
+          log_error("Cannot journalize bill #{xero_bill['InvoiceNumber']}: No 'accounts_payable' system account configured. Sync accounts first.")
+          return
+        end
         journal.add_credit(ap_account, xero_bill['Total'].to_d, description: contact_name)
 
         if journal.save
@@ -1018,6 +1029,35 @@ module Gl
         # Fallback to today if parsing fails
         log_error("Could not parse date: #{date_value.inspect}, using today")
         Date.current
+      end
+
+      # Auto-detect system accounts by code/name patterns when Xero doesn't set SystemAccount
+      # Xero standard account codes: 610 = AR, 800 = AP, 200 = Sales
+      def detect_system_account(code, name, account_type)
+        code_str = code.to_s
+        name_lower = name.to_s.downcase
+
+        # Accounts Receivable detection
+        if code_str == '610' || name_lower.include?('accounts receivable') || name_lower.include?('trade debtors')
+          return 'accounts_receivable' if account_type == 'asset'
+        end
+
+        # Accounts Payable detection
+        if code_str == '800' || name_lower.include?('accounts payable') || name_lower.include?('trade creditors')
+          return 'accounts_payable' if account_type == 'liability'
+        end
+
+        # Sales/Revenue detection (primary sales account)
+        if code_str == '200' || (name_lower == 'sales' && account_type == 'revenue')
+          return 'sales'
+        end
+
+        # GST accounts - fallback detection by name
+        if name_lower.include?('gst') && name_lower.include?('paid')
+          return 'gst_paid' if account_type == 'asset'
+        end
+
+        nil
       end
 
       def find_system_account(system_account_type)
