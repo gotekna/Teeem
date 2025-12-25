@@ -94,17 +94,18 @@ const ALL_COLUMNS = [
   // Core Identity
   "task_number", "name", "description", "sequence_order", "header",
   // Scheduling
-  "duration_days", "predecessor_ids", "manually_positioned",
-  "manual_start_date", "dependency_broken", "predecessor_ids_backup",
+  "duration_days", "predecessor_ids", "predecessor_ids_backup",
+  // Locking & Status (prevents cascade, confirms completion)
+  "manually_positioned", "manual_start_date", "dependency_broken",
+  "require_supervisor_check", "require_supplier_confirm",
+  "is_completed", "completed_at",
   // Assignment & Supplier
   "supplier_id", "trade", "stage", "assigned_role", "cost_centre",
   // PO Settings
   "po_required", "critical_po", "create_po_on_job_start", "linked_po_task_id",
   "price_book_item_ids", "order_time_days", "call_time_days",
   // Completion Requirements
-  "require_photo", "require_certificate", "require_supervisor_check",
-  "require_supplier_confirm", "cert_lag_days", "pass_fail_enabled",
-  "is_completed", "completed_at",
+  "require_photo", "require_certificate", "cert_lag_days", "pass_fail_enabled",
   // Subtasks
   "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids", "parent_row_id",
   // Documentation
@@ -801,32 +802,72 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">Array of {`{id, type, lag}`} - defines task dependencies (FS, SS, FF, SF)</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["predecessor_ids_backup"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "predecessor_ids_backup", !!v)} />
+                    <Checkbox checked={columnStatus.delete["predecessor_ids_backup"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "predecessor_ids_backup", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">predecessor_ids_backup</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Backup of dependencies before they were broken</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Locking & Status */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Locking & Status</CardTitle>
+                <CardDescription>Columns that lock/pin tasks and track completion</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["manually_positioned"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "manually_positioned", !!v)} />
                     <Checkbox checked={columnStatus.delete["manually_positioned"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "manually_positioned", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">manually_positioned</code>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Task is locked/pinned (won&apos;t auto-cascade)</span>
+                    <span className="text-muted-foreground">Task is pinned to manual_start_date (ignores predecessors)</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["manual_start_date"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "manual_start_date", !!v)} />
                     <Checkbox checked={columnStatus.delete["manual_start_date"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "manual_start_date", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">manual_start_date</code>
                     <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground">Override start date when manually positioned</span>
+                    <span className="text-muted-foreground">Fixed start date when manually_positioned=true</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "dependency_broken", !!v)} />
                     <Checkbox checked={columnStatus.delete["dependency_broken"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "dependency_broken", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">dependency_broken</code>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Dependencies were intentionally broken</span>
+                    <span className="text-muted-foreground">Task was detached from dependency chain</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["predecessor_ids_backup"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "predecessor_ids_backup", !!v)} />
-                    <Checkbox checked={columnStatus.delete["predecessor_ids_backup"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "predecessor_ids_backup", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">predecessor_ids_backup</code>
-                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Backup of dependencies before they were broken</span>
+                    <Checkbox checked={columnStatus.complete["require_supervisor_check"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "require_supervisor_check", !!v)} />
+                    <Checkbox checked={columnStatus.delete["require_supervisor_check"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "require_supervisor_check", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">require_supervisor_check</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Needs supervisor sign-off (LOCKS task from cascade)</span>
+                  </div>
+                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["require_supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "require_supplier_confirm", !!v)} />
+                    <Checkbox checked={columnStatus.delete["require_supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "require_supplier_confirm", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">require_supplier_confirm</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Needs supplier confirmation (LOCKS task from cascade)</span>
+                  </div>
+                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "is_completed", !!v)} />
+                    <Checkbox checked={columnStatus.delete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "is_completed", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">is_completed</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Task is done (LOCKS task from cascade)</span>
+                  </div>
+                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "completed_at", !!v)} />
+                    <Checkbox checked={columnStatus.delete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "completed_at", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">completed_at</code>
+                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
+                    <span className="text-muted-foreground">When task was completed</span>
                   </div>
                 </div>
               </CardContent>
@@ -944,7 +985,7 @@ export function ScheduleMasterTab() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Completion Requirements</CardTitle>
-                <CardDescription>What&apos;s needed to mark task complete</CardDescription>
+                <CardDescription>Evidence and documentation needed</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 text-sm">
@@ -963,20 +1004,6 @@ export function ScheduleMasterTab() {
                     <span className="text-muted-foreground">Certificate required (trades cert, inspection)</span>
                   </div>
                   <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["require_supervisor_check"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "require_supervisor_check", !!v)} />
-                    <Checkbox checked={columnStatus.delete["require_supervisor_check"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "require_supervisor_check", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">require_supervisor_check</code>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Supervisor must sign off</span>
-                  </div>
-                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["require_supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "require_supplier_confirm", !!v)} />
-                    <Checkbox checked={columnStatus.delete["require_supplier_confirm"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "require_supplier_confirm", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">require_supplier_confirm</code>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Supplier must confirm completion</span>
-                  </div>
-                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["cert_lag_days"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "cert_lag_days", !!v)} />
                     <Checkbox checked={columnStatus.delete["cert_lag_days"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "cert_lag_days", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">cert_lag_days</code>
@@ -989,20 +1016,6 @@ export function ScheduleMasterTab() {
                     <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">pass_fail_enabled</code>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Enable pass/fail status on task</span>
-                  </div>
-                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "is_completed", !!v)} />
-                    <Checkbox checked={columnStatus.delete["is_completed"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "is_completed", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">is_completed</code>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Task has been completed</span>
-                  </div>
-                  <div className="grid grid-cols-[28px_28px_160px_80px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("complete", "completed_at", !!v)} />
-                    <Checkbox checked={columnStatus.delete["completed_at"] || false} onCheckedChange={(v) => updateColumnStatus("delete", "completed_at", !!v)} className="data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded w-fit">completed_at</code>
-                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
-                    <span className="text-muted-foreground">When task was completed</span>
                   </div>
                 </div>
               </CardContent>
