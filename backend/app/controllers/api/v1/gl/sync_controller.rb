@@ -181,6 +181,20 @@ module Api
         def providers
           data = []
 
+          # Pre-fetch last sync times from SSoT (Gl::SyncLog) for all Xero tenants
+          last_syncs = ::Gl::SyncLog
+            .where(external_provider: 'xero', status: 'completed')
+            .group(:external_tenant_id)
+            .maximum(:completed_at)
+
+          # Pre-fetch last sync status for each tenant
+          last_sync_statuses = {}
+          ::Gl::SyncLog
+            .where(external_provider: 'xero')
+            .select('DISTINCT ON (external_tenant_id) external_tenant_id, status, completed_at, error_message')
+            .order('external_tenant_id, completed_at DESC NULLS LAST')
+            .each { |log| last_sync_statuses[log.external_tenant_id] = log }
+
           # Get ALL Xero credentials with their associated company connections
           # This allows syncing any company's Xero data, not just the current user's company
           XeroCredential.includes(:corporate_company_xero_connections).order(:tenant_name).each do |xc|
@@ -199,6 +213,14 @@ module Api
               0
             end
 
+            # Get sync status from SSoT (Gl::SyncLog)
+            last_log = last_sync_statuses[xc.tenant_id]
+            sync_status = if last_log
+                            last_log.status == 'completed' ? 'healthy' : last_log.status
+                          else
+                            'never_synced'
+                          end
+
             data << {
               id: "xero_#{xc.id}",
               provider: 'xero',
@@ -206,7 +228,9 @@ module Api
               tenant_name: xc.tenant_name,
               status: xc.status,
               connected: xc.usable?,
-              last_sync_at: nil,
+              last_sync_at: last_syncs[xc.tenant_id],
+              last_sync_status: sync_status,
+              last_sync_error: last_log&.status == 'failed' ? last_log.error_message : nil,
               sync_enabled: true,
               two_way_sync: false,
               source: 'xero_credential',

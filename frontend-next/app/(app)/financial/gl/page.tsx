@@ -60,6 +60,8 @@ interface Provider {
   status: string;
   connected: boolean;
   last_sync_at: string | null;
+  last_sync_status?: string;
+  last_sync_error?: string | null;
   sync_enabled: boolean;
   source: string;
   company_id?: number;
@@ -125,6 +127,23 @@ const SYNC_STEP_DEFINITIONS = [
   { id: "credit_notes", name: "Credit Notes", icon: <FileSpreadsheet className="h-4 w-4" /> },
   { id: "manual_journals", name: "Manual Journals", icon: <Layers className="h-4 w-4" /> },
 ] as const;
+
+// Helper to format time ago
+function formatTimeAgo(dateString: string): string {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 
 export default function GlPage() {
   const [loading, setLoading] = useState(true);
@@ -563,6 +582,7 @@ export default function GlPage() {
                     <TableHead>Xero Tenant</TableHead>
                     <TableHead>TEEEM Company</TableHead>
                     <TableHead>GL Accounts</TableHead>
+                    <TableHead>Last Sync</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -591,6 +611,28 @@ export default function GlPage() {
                       </TableCell>
                       <TableCell>
                         {provider.account_count || 0} accounts
+                      </TableCell>
+                      <TableCell>
+                        {provider.last_sync_at ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm">
+                              {formatTimeAgo(provider.last_sync_at)}
+                            </span>
+                            {provider.last_sync_status === "healthy" ? (
+                              <Badge variant="outline" className="w-fit text-xs bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <CheckCircle className="h-2.5 w-2.5 mr-1" />
+                                OK
+                              </Badge>
+                            ) : provider.last_sync_status === "failed" ? (
+                              <Badge variant="outline" className="w-fit text-xs bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400" title={provider.last_sync_error || "Sync failed"}>
+                                <XCircle className="h-2.5 w-2.5 mr-1" />
+                                Failed
+                              </Badge>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Never synced</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
