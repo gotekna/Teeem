@@ -49,7 +49,9 @@ import {
   Coins,
   FileSpreadsheet,
   Settings,
+  Repeat,
 } from "lucide-react";
+import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -589,6 +591,10 @@ export default function GlPage() {
             <BookOpen className="h-4 w-4" />
             Chart of Accounts
           </TabsTrigger>
+          <TabsTrigger value="recurring" className="flex items-center gap-2">
+            <Repeat className="h-4 w-4" />
+            Recurring Invoices
+          </TabsTrigger>
           <TabsTrigger value="summary" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
             Summary
@@ -783,6 +789,11 @@ export default function GlPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Recurring Invoices Tab */}
+        <TabsContent value="recurring">
+          <RecurringInvoicesTab />
         </TabsContent>
 
         {/* Summary Tab */}

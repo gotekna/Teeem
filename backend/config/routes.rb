@@ -2265,6 +2265,19 @@ Rails.application.routes.draw do
           end
         end
 
+        # Recurring Invoices
+        resources :recurring_invoices, only: [ :index, :show, :create, :update, :destroy ] do
+          member do
+            post :pause
+            post :resume
+            post :cancel
+            post :generate_now
+          end
+          collection do
+            get :summary
+          end
+        end
+
         # Payments
         resources :payments, only: [ :index, :show, :create, :update ] do
           member do

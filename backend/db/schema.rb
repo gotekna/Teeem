@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_25_205940) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_26_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3039,6 +3039,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_205940) do
     t.jsonb "tracking_data", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "recurring_invoice_id"
+    t.integer "recurring_sequence"
     t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
     t.index ["contact_id", "invoice_type"], name: "idx_gl_inv_contact_type"
     t.index ["contact_id"], name: "index_gl_invoices_on_contact_id"
@@ -3049,6 +3051,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_205940) do
     t.index ["gl_journal_entry_id"], name: "idx_gl_invoices_journal"
     t.index ["job_id"], name: "idx_gl_invoices_job"
     t.index ["pending_push"], name: "idx_gl_inv_pending_push"
+    t.index ["recurring_invoice_id"], name: "index_gl_invoices_on_recurring_invoice_id"
   end
 
   create_table "gl_journal_entries", force: :cascade do |t|
@@ -3277,6 +3280,49 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_205940) do
     t.index ["corporate_company_id"], name: "index_gl_reconciliation_rules_on_corporate_company_id"
     t.index ["gl_account_id"], name: "index_gl_reconciliation_rules_on_gl_account_id"
     t.index ["target_account_id"], name: "index_gl_reconciliation_rules_on_target_account_id"
+  end
+
+  create_table "gl_recurring_invoices", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "invoice_type", default: "sales_invoice", null: false
+    t.text "description"
+    t.bigint "contact_id"
+    t.string "contact_name"
+    t.bigint "job_id"
+    t.string "frequency", null: false
+    t.integer "frequency_interval", default: 1
+    t.integer "day_of_month"
+    t.integer "day_of_week"
+    t.date "start_date", null: false
+    t.date "end_date"
+    t.integer "occurrences_limit"
+    t.integer "occurrences_count", default: 0
+    t.date "next_generation_date"
+    t.datetime "last_generated_at"
+    t.integer "payment_terms_days", default: 14
+    t.string "currency_code", default: "AUD"
+    t.decimal "exchange_rate", precision: 12, scale: 6, default: "1.0"
+    t.text "notes"
+    t.jsonb "line_items_template", default: []
+    t.decimal "subtotal", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total_tax", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total", precision: 15, scale: 2, default: "0.0"
+    t.boolean "is_active", default: true
+    t.string "status", default: "active"
+    t.boolean "auto_approve", default: false
+    t.boolean "send_email_on_generation", default: false
+    t.string "email_to"
+    t.string "email_cc"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_gl_recurring_invoices_on_contact_id"
+    t.index ["created_by_id"], name: "index_gl_recurring_invoices_on_created_by_id"
+    t.index ["is_active", "status"], name: "index_gl_recurring_invoices_on_is_active_and_status"
+    t.index ["job_id"], name: "index_gl_recurring_invoices_on_job_id"
+    t.index ["next_generation_date"], name: "index_gl_recurring_invoices_on_next_generation_date"
+    t.index ["updated_by_id"], name: "index_gl_recurring_invoices_on_updated_by_id"
   end
 
   create_table "gl_sync_logs", force: :cascade do |t|
@@ -6945,6 +6991,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_205940) do
   add_foreign_key "gl_invoices", "contacts"
   add_foreign_key "gl_invoices", "corporate_companies"
   add_foreign_key "gl_invoices", "gl_journal_entries"
+  add_foreign_key "gl_invoices", "gl_recurring_invoices", column: "recurring_invoice_id"
   add_foreign_key "gl_invoices", "jobs"
   add_foreign_key "gl_invoices", "users", column: "approved_by_id"
   add_foreign_key "gl_journal_entries", "corporate_companies"
@@ -6972,6 +7019,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_25_205940) do
   add_foreign_key "gl_reconciliation_rules", "corporate_companies"
   add_foreign_key "gl_reconciliation_rules", "gl_accounts"
   add_foreign_key "gl_reconciliation_rules", "gl_accounts", column: "target_account_id"
+  add_foreign_key "gl_recurring_invoices", "contacts"
+  add_foreign_key "gl_recurring_invoices", "jobs"
+  add_foreign_key "gl_recurring_invoices", "users", column: "created_by_id"
+  add_foreign_key "gl_recurring_invoices", "users", column: "updated_by_id"
   add_foreign_key "gl_sync_logs", "corporate_companies"
   add_foreign_key "gl_sync_logs", "gl_provider_credentials"
   add_foreign_key "gl_sync_logs", "users", column: "triggered_by_id"

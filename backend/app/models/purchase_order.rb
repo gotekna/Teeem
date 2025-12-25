@@ -30,6 +30,18 @@ class PurchaseOrder < ApplicationRecord
   def schedule_master_id
     sm_tasks.first&.id
   end
+
+  # Virtual attribute for Foundation - returns the template row name via SmTask
+  # Path: PO → SmTask → SmTemplateRow.name
+  def sm_template_row_name
+    sm_tasks.first&.sm_template_row&.name
+  end
+
+  # Virtual attribute for Foundation - returns the template row ID via SmTask
+  def sm_template_row_id_via_task
+    sm_tasks.first&.sm_template_row_id
+  end
+
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
