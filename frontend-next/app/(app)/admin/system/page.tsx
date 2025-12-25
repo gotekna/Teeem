@@ -44,7 +44,7 @@ import {
   Activity,
   Settings2,
   Receipt,
-  Cube,
+  Box,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -127,7 +127,7 @@ const MAIN_TABS = [
   { id: "pdf-fields", label: "PDF Fields", icon: FileText },
   { id: "ai-processing", label: "AI Processing", icon: Brain },
   { id: "xero-health", label: "Xero Health", icon: Activity },
-  { id: "unreal-engine", label: "Unreal Engine", icon: Cube },
+  { id: "unreal-engine", label: "Unreal Engine", icon: Box },
 ];
 
 const COMPANY_TABS = [

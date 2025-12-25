@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +40,7 @@ import {
   Settings,
   BarChart3,
   Table,
+  BookOpen,
 } from "lucide-react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { GanttCanvasView } from "@/components/gantt-canvas";
@@ -114,9 +116,41 @@ const TASK_TYPES = [
   "other",
 ];
 
+const VALID_SUBTABS = [
+  "schedule-templates",
+  "task-templates",
+  "display-settings",
+  "gantt-preview",
+  "data-view",
+  "column-reference",
+] as const;
+
+type SubTab = typeof VALID_SUBTABS[number];
+
 export function ScheduleMasterTab() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = React.useState("schedule-templates");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Get subtab from URL, default to schedule-templates
+  const subtabParam = searchParams.get("subtab");
+  const initialTab: SubTab = VALID_SUBTABS.includes(subtabParam as SubTab)
+    ? (subtabParam as SubTab)
+    : "schedule-templates";
+
+  const [activeTab, setActiveTab] = React.useState<SubTab>(initialTab);
+
+  // Sync tab changes to URL
+  const handleTabChange = (value: string) => {
+    const newTab = value as SubTab;
+    setActiveTab(newTab);
+
+    // Update URL with new subtab
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("subtab", newTab);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
 
   // Schedule Templates state
   const [templates, setTemplates] = React.useState<SmTemplate[]>([]);
@@ -478,7 +512,7 @@ export function ScheduleMasterTab() {
 
   return (
     <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="schedule-templates">
             <Calendar className="h-4 w-4 mr-2" />
@@ -499,6 +533,10 @@ export function ScheduleMasterTab() {
           <TabsTrigger value="data-view">
             <Table className="h-4 w-4 mr-2" />
             Data View
+          </TabsTrigger>
+          <TabsTrigger value="column-reference">
+            <BookOpen className="h-4 w-4 mr-2" />
+            Column Reference
           </TabsTrigger>
         </TabsList>
 
@@ -845,6 +883,469 @@ export function ScheduleMasterTab() {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             )}
+          </div>
+        </TabsContent>
+
+        {/* Column Reference Tab */}
+        <TabsContent value="column-reference" className="mt-6">
+          <div className="space-y-8 max-w-5xl">
+            <div>
+              <h2 className="text-lg font-semibold mb-2">Schedule Master Column Reference</h2>
+              <p className="text-sm text-muted-foreground mb-6">
+                Complete documentation of all 50+ columns in the sm_template_rows table.
+              </p>
+            </div>
+
+            {/* Core Identity */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Core Identity</CardTitle>
+                <CardDescription>Basic task identification fields</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">task_number</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Display number for the task (globally unique)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">name</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Task name/description</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">description</code>
+                    <Badge variant="outline" className="text-xs w-fit">text</Badge>
+                    <span className="text-muted-foreground">Extended description of the task</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">sequence_order</code>
+                    <Badge variant="outline" className="text-xs w-fit">decimal</Badge>
+                    <span className="text-muted-foreground">Controls display order in the list</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">category</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Header vs Task - allows section grouping</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Scheduling */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Scheduling</CardTitle>
+                <CardDescription>Task timing and dependencies</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">duration_days</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">How many working days the task takes</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">start_day_offset</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Days after job start (used for initial positioning)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">predecessor_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Array of {`{id, type, lag}`} - defines task dependencies (FS, SS, FF, SF)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">manually_positioned</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Task is locked/pinned (won&apos;t auto-cascade)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">manual_start_date</code>
+                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
+                    <span className="text-muted-foreground">Override start date when manually positioned</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">dependency_broken</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Dependencies were intentionally broken</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">predecessor_ids_backup</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Backup of dependencies before they were broken</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Assignment & Supplier */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Assignment & Supplier</CardTitle>
+                <CardDescription>Who does the work</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">supplier_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">Contact who does the work</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">trade</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Trade category (Plumbing, Electrical, etc.)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">stage</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Construction stage (Foundation, Frame, etc.)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">assigned_role</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Internal role assignment (admin, site, supervisor, etc.)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">cost_centre</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Cost centre for accounting</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* PO Settings */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">PO (Purchase Order) Settings</CardTitle>
+                <CardDescription>Purchase order configuration</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">po_required</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">This task needs a PO created</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">critical_po</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">PO is critical path - high priority</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">create_po_on_job_start</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Auto-create PO when job starts</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">linked_po_task_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">Link this task&apos;s PO to another task&apos;s PO</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">price_book_item_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer[]</Badge>
+                    <span className="text-muted-foreground">Price book items to add to PO</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">order_time_days</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Lead time for ordering materials</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">call_time_days</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Days before to call/schedule supplier</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Completion Requirements */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Completion Requirements</CardTitle>
+                <CardDescription>What&apos;s needed to mark task complete</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">require_photo</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Photo evidence needed on completion</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">require_certificate</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Certificate required (trades cert, inspection)</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">require_supervisor_check</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Supervisor must sign off</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">require_supplier_confirm</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Supplier must confirm completion</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">cert_lag_days</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Days after task for cert to arrive</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">pass_fail_enabled</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Enable pass/fail status on task</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">is_completed</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Task has been completed</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">completed_at</code>
+                    <Badge variant="outline" className="text-xs w-fit">date</Badge>
+                    <span className="text-muted-foreground">When task was completed</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Subtasks */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Subtasks & Linked Tasks</CardTitle>
+                <CardDescription>Child tasks and task relationships</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">has_subtasks</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Task has child subtasks</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">subtask_count</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Number of subtasks</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">subtask_names</code>
+                    <Badge variant="outline" className="text-xs w-fit">string[]</Badge>
+                    <span className="text-muted-foreground">Names of each subtask</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">linked_task_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Other tasks linked to this one</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">parent_row_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">Parent row for hierarchical structure</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Documentation */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Documentation</CardTitle>
+                <CardDescription>Documents and photos linked to tasks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">documentation_category_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">integer[]</Badge>
+                    <span className="text-muted-foreground">Documentation tabs this task belongs to</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">show_in_docs_tab</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Show in documents tab</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">start_entity_tab_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">EntityTabs for docs SENT on task START</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">complete_entity_tab_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">EntityTabs for docs RECEIVED on COMPLETE</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">photo_entity_tab_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">EntityTab where photos are stored</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">plan_type_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Plan types to attach to this task</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Spawning Tasks */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Spawning Tasks</CardTitle>
+                <CardDescription>Auto-create related tasks</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">spawn_photo_task</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Create a photo task when this starts</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">spawn_scan_task</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Create a document scan task</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">spawn_office_tasks</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Array of office tasks to spawn</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Checklists */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Checklists</CardTitle>
+                <CardDescription>Supervisor checklist templates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">checklist_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">Supervisor checklist template to use</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Template Membership */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Template Membership</CardTitle>
+                <CardDescription>Which templates include this task</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">sm_template_ids</code>
+                    <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
+                    <span className="text-muted-foreground">Array of template IDs this row belongs to (multi-template support)</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Automation & AI */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Automation & AI</CardTitle>
+                <CardDescription>Automatic task behavior</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">auto_include</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Automatically include in new jobs</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">allow_duplicates</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Allow multiple instances of this task</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">ai_select</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">AI can recommend/select this task</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">is_master</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">This is a master/template task</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Display */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Display</CardTitle>
+                <CardDescription>Visual and organizational settings</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">tags</code>
+                    <Badge variant="outline" className="text-xs w-fit">string[]</Badge>
+                    <span className="text-muted-foreground">Tags for filtering/grouping</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">color</code>
+                    <Badge variant="outline" className="text-xs w-fit">string</Badge>
+                    <span className="text-muted-foreground">Custom color for Gantt bar</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">is_active</code>
+                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
+                    <span className="text-muted-foreground">Soft delete flag</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Audit */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Audit</CardTitle>
+                <CardDescription>Who created/modified and when</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 text-sm">
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">created_by_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">User who created</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">updated_by_id</code>
+                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
+                    <span className="text-muted-foreground">User who last updated</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">created_at</code>
+                    <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
+                    <span className="text-muted-foreground">Creation timestamp</span>
+                  </div>
+                  <div className="grid grid-cols-[140px_80px_1fr] gap-2 items-start">
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded">updated_at</code>
+                    <Badge variant="outline" className="text-xs w-fit">datetime</Badge>
+                    <span className="text-muted-foreground">Last update timestamp</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
