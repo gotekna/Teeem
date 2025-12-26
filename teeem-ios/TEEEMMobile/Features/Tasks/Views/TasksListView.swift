@@ -2,56 +2,76 @@ import SwiftUI
 
 struct TasksListView: View {
     @StateObject private var viewModel = TasksViewModel()
+    @EnvironmentObject var networkMonitor: NetworkMonitor
     @State private var searchText = ""
     @State private var selectedFilter: TaskFilter = .all
+    @Binding var navigateToTaskId: Int?
+    @State private var selectedTask: SMTask?
+
+    init(navigateToTaskId: Binding<Int?> = .constant(nil)) {
+        _navigateToTaskId = navigateToTaskId
+    }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading && viewModel.tasks.isEmpty {
-                    loadingView
-                } else if viewModel.tasks.isEmpty {
-                    emptyStateView
-                } else {
-                    tasksList
+        Group {
+            if viewModel.isLoading && viewModel.tasks.isEmpty {
+                loadingView
+            } else if viewModel.tasks.isEmpty {
+                emptyStateView
+            } else {
+                tasksList
+            }
+        }
+        .navigationTitle("My Tasks")
+        .searchable(text: $searchText, prompt: "Search tasks...")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if !networkMonitor.isConnected {
+                    OfflineIndicator()
                 }
             }
-            .navigationTitle("My Tasks")
-            .searchable(text: $searchText, prompt: "Search tasks...")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        ForEach(TaskFilter.allCases, id: \.self) { filter in
-                            Button {
-                                selectedFilter = filter
-                            } label: {
-                                HStack {
-                                    Text(filter.displayName)
-                                    if selectedFilter == filter {
-                                        Image(systemName: "checkmark")
-                                    }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    ForEach(TaskFilter.allCases, id: \.self) { filter in
+                        Button {
+                            selectedFilter = filter
+                        } label: {
+                            HStack {
+                                Text(filter.displayName)
+                                if selectedFilter == filter {
+                                    Image(systemName: "checkmark")
                                 }
                             }
                         }
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
                     }
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
                 }
             }
-            .refreshable {
-                await viewModel.loadTasks()
+        }
+        .refreshable {
+            await viewModel.loadTasks()
+        }
+        .task {
+            await viewModel.loadTasks()
+        }
+        .alert("Error", isPresented: $viewModel.showError) {
+            Button("OK", role: .cancel) {}
+            Button("Retry") {
+                Task { await viewModel.loadTasks() }
             }
-            .task {
-                await viewModel.loadTasks()
+        } message: {
+            Text(viewModel.errorMessage)
+        }
+        .onChange(of: navigateToTaskId) { _, taskId in
+            if let taskId = taskId,
+               let task = viewModel.tasks.first(where: { $0.id == taskId }) {
+                selectedTask = task
+                navigateToTaskId = nil
             }
-            .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .cancel) {}
-                Button("Retry") {
-                    Task { await viewModel.loadTasks() }
-                }
-            } message: {
-                Text(viewModel.errorMessage)
-            }
+        }
+        .navigationDestination(item: $selectedTask) { task in
+            TaskDetailView(task: task, viewModel: viewModel)
         }
     }
 

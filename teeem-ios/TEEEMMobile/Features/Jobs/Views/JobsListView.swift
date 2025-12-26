@@ -2,35 +2,41 @@ import SwiftUI
 
 struct JobsListView: View {
     @StateObject private var viewModel = JobsViewModel()
+    @EnvironmentObject var networkMonitor: NetworkMonitor
     @State private var searchText = ""
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading && viewModel.jobs.isEmpty {
-                    loadingView
-                } else if viewModel.jobs.isEmpty {
-                    emptyStateView
-                } else {
-                    jobsList
+        Group {
+            if viewModel.isLoading && viewModel.jobs.isEmpty {
+                loadingView
+            } else if viewModel.jobs.isEmpty {
+                emptyStateView
+            } else {
+                jobsList
+            }
+        }
+        .navigationTitle("Jobs")
+        .searchable(text: $searchText, prompt: "Search jobs...")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if !networkMonitor.isConnected {
+                    OfflineIndicator()
                 }
             }
-            .navigationTitle("Jobs")
-            .searchable(text: $searchText, prompt: "Search jobs...")
-            .refreshable {
-                await viewModel.loadJobs()
+        }
+        .refreshable {
+            await viewModel.loadJobs()
+        }
+        .task {
+            await viewModel.loadJobs()
+        }
+        .alert("Error", isPresented: $viewModel.showError) {
+            Button("OK", role: .cancel) {}
+            Button("Retry") {
+                Task { await viewModel.loadJobs() }
             }
-            .task {
-                await viewModel.loadJobs()
-            }
-            .alert("Error", isPresented: $viewModel.showError) {
-                Button("OK", role: .cancel) {}
-                Button("Retry") {
-                    Task { await viewModel.loadJobs() }
-                }
-            } message: {
-                Text(viewModel.errorMessage)
-            }
+        } message: {
+            Text(viewModel.errorMessage)
         }
     }
 

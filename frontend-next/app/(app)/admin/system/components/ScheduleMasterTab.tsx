@@ -126,6 +126,8 @@ interface SmScheduleMaster {
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
+  // Linked non-PO tasks (visibility follows this PO task)
+  linked_task_ids?: number[];
   // Photo storage location
   photo_entity_tab_id?: number | null;
   // Multi-template support
@@ -565,6 +567,7 @@ export function ScheduleMasterTab() {
         spawn_call_task: fullRow.spawn_call_task,
         order_time_days: fullRow.order_time_days,
         call_time_days: fullRow.call_time_days,
+        linked_task_ids: fullRow.linked_task_ids,
       });
       setShowEditSheet(true);
     }
@@ -1404,7 +1407,7 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["linked_task_ids"] || false} onCheckedChange={(v) => updateColumnStatus("linked_task_ids", !!v)} />
                     <CopyableCode>linked_task_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
-                    <span className="text-muted-foreground">Other tasks linked to this one</span>
+                    <span className="text-muted-foreground">Non-PO tasks that follow this PO task's visibility (only visible when PO task is on job)</span>
                   </div>
                 </div>
               </CardContent>
@@ -1892,6 +1895,42 @@ export function ScheduleMasterTab() {
                     </div>
                   </div>
                 </div>
+
+                {/* Linked Tasks - non-PO tasks that follow this PO task's visibility */}
+                {editRowForm.po_required && (
+                  <div className="border-t pt-3 mt-3">
+                    <div className="space-y-2">
+                      <Label>Linked Tasks</Label>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Non-PO tasks that only appear on jobs when this PO task is included
+                      </p>
+                      <MultipleSelector
+                        value={(editRowForm.linked_task_ids || []).map(id => {
+                          const linkedRow = dataViewRows.find(r => r.id === id);
+                          return { value: String(id), label: linkedRow?.name || `Task ${id}` };
+                        })}
+                        onChange={(options) => {
+                          setEditRowForm({
+                            ...editRowForm,
+                            linked_task_ids: options.map(o => parseInt(o.value))
+                          });
+                        }}
+                        defaultOptions={dataViewRows
+                          .filter(r => !r.po_required && r.id !== editingRow?.id)
+                          .map(r => ({
+                            value: String(r.id),
+                            label: r.name
+                          }))}
+                        placeholder="Select tasks to link..."
+                        emptyIndicator={
+                          <p className="text-center text-sm text-muted-foreground">
+                            No non-PO tasks available
+                          </p>
+                        }
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -2,25 +2,32 @@ import SwiftUI
 
 struct EmailListView: View {
     @StateObject private var viewModel = EmailViewModel()
+    @EnvironmentObject var networkMonitor: NetworkMonitor
     @State private var searchText = ""
     @State private var showCompose = false
     @State private var showFolders = false
+    @Binding var navigateToEmailId: Int?
+    @State private var selectedEmail: Email?
+
+    init(navigateToEmailId: Binding<Int?> = .constant(nil)) {
+        _navigateToEmailId = navigateToEmailId
+    }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.isLoading && viewModel.emails.isEmpty {
-                    loadingView
-                } else if viewModel.emails.isEmpty {
-                    emptyStateView
-                } else {
-                    emailList
-                }
+        Group {
+            if viewModel.isLoading && viewModel.emails.isEmpty {
+                loadingView
+            } else if viewModel.emails.isEmpty {
+                emptyStateView
+            } else {
+                emailList
             }
-            .navigationTitle(viewModel.selectedFolder?.name ?? "Inbox")
-            .searchable(text: $searchText, prompt: "Search emails...")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+        }
+        .navigationTitle(viewModel.selectedFolder?.name ?? "Inbox")
+        .searchable(text: $searchText, prompt: "Search emails...")
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                HStack(spacing: 8) {
                     Button {
                         showFolders = true
                     } label: {
@@ -38,60 +45,74 @@ struct EmailListView: View {
                             }
                         }
                     }
-                }
 
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 16) {
-                        Button {
-                            Task { await viewModel.syncEmails() }
-                        } label: {
-                            if viewModel.isSyncing {
-                                ProgressView()
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                        }
-
-                        Button {
-                            showCompose = true
-                        } label: {
-                            Image(systemName: "square.and.pencil")
-                        }
+                    if !networkMonitor.isConnected {
+                        OfflineIndicator()
                     }
                 }
             }
-            .refreshable {
-                await viewModel.loadEmails(refresh: true)
-            }
-            .task {
-                await viewModel.loadFolders()
-                await viewModel.loadEmails(refresh: true)
-            }
-            .sheet(isPresented: $showFolders) {
-                FolderListSheet(
-                    folders: viewModel.folders,
-                    selectedFolder: viewModel.selectedFolder,
-                    onSelect: { folder in
-                        Task { await viewModel.selectFolder(folder) }
-                        showFolders = false
+
+            ToolbarItem(placement: .topBarTrailing) {
+                HStack(spacing: 16) {
+                    Button {
+                        Task { await viewModel.syncEmails() }
+                    } label: {
+                        if viewModel.isSyncing {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "arrow.clockwise")
+                        }
                     }
-                )
-                .presentationDetents([.medium])
+
+                    Button {
+                        showCompose = true
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                }
             }
-            .sheet(isPresented: $showCompose) {
-                EmailComposeView(onSend: { _ in
-                    showCompose = false
-                    Task { await viewModel.loadEmails(refresh: true) }
-                })
+        }
+        .refreshable {
+            await viewModel.loadEmails(refresh: true)
+        }
+        .task {
+            await viewModel.loadFolders()
+            await viewModel.loadEmails(refresh: true)
+        }
+        .sheet(isPresented: $showFolders) {
+            FolderListSheet(
+                folders: viewModel.folders,
+                selectedFolder: viewModel.selectedFolder,
+                onSelect: { folder in
+                    Task { await viewModel.selectFolder(folder) }
+                    showFolders = false
+                }
+            )
+            .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showCompose) {
+            EmailComposeView(onSend: { _ in
+                showCompose = false
+                Task { await viewModel.loadEmails(refresh: true) }
+            })
+        }
+        .alert("Error", isPresented: .init(
+            get: { viewModel.error != nil },
+            set: { if !$0 { viewModel.error = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(viewModel.error ?? "")
+        }
+        .onChange(of: navigateToEmailId) { _, emailId in
+            if let emailId = emailId,
+               let email = viewModel.emails.first(where: { $0.id == emailId }) {
+                selectedEmail = email
+                navigateToEmailId = nil
             }
-            .alert("Error", isPresented: .init(
-                get: { viewModel.error != nil },
-                set: { if !$0 { viewModel.error = nil } }
-            )) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(viewModel.error ?? "")
-            }
+        }
+        .navigationDestination(item: $selectedEmail) { email in
+            EmailDetailView(email: email, viewModel: viewModel)
         }
     }
 

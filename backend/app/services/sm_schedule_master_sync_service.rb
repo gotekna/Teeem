@@ -140,6 +140,7 @@ class SmScheduleMasterSyncService
 
   # Sync a single template row to a task on the job
   # - If task has "job reality" (started, confirmed, etc): SKIP
+  # - If linked_task_ids exist but parent tasks don't: SKIP (visibility inheritance)
   # - If task exists and is safe: update safe fields only
   # - If task doesn't exist: create new task at end of schedule
   def sync!
@@ -156,6 +157,17 @@ class SmScheduleMasterSyncService
         action: :skipped,
         reason: skip_reason(existing_task),
         message: "Task skipped - has job-level changes that should not be overwritten"
+      }
+    end
+
+    # Check if this task is linked FROM a PO task - only create if PO parent is on job
+    if !existing_task && !po_parent_visible?
+      return {
+        success: true,
+        task: nil,
+        action: :skipped,
+        reason: "PO parent task not on job",
+        message: "Task skipped - linked PO task not present on this job"
       }
     end
 
@@ -289,6 +301,23 @@ class SmScheduleMasterSyncService
 
   def find_existing_task
     job.sm_tasks.find_by(sm_schedule_master_id: template_row.id)
+  end
+
+  # Check if this task's PO parent(s) are visible on the job
+  # PO tasks can have linked_task_ids pointing to non-PO tasks
+  # Non-PO tasks are only visible if their PO parent is on the job
+  def po_parent_visible?
+    # Find all PO tasks that link to this template row
+    po_parents = SmScheduleMaster.where(po_required: true)
+                                  .where("linked_task_ids @> ?", [template_row.id].to_json)
+
+    # If no PO parents link to this task, it's always visible
+    return true if po_parents.empty?
+
+    # Check if at least one PO parent exists on the job
+    po_parents.any? do |po_parent|
+      job.sm_tasks.exists?(sm_schedule_master_id: po_parent.id)
+    end
   end
 
   # Check if task has "job reality" that should not be overwritten
