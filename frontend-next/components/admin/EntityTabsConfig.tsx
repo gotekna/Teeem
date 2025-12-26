@@ -1290,13 +1290,13 @@ export function EntityTabsConfig({
                       <Label className="text-xs text-muted-foreground">Click to insert placeholder:</Label>
                       <div className="flex flex-wrap gap-1">
                         {(scope === "job" ? [
-                          { key: "{{JobCode}}", example: "069", color: "orange" },
-                          { key: "{{Category}}", example: "Residential", color: "orange" },
-                          { key: "{{JobName}}", example: "Smith Residence", color: "orange" },
+                          { key: "{{JobCode}}", example: "077", color: "orange" },
+                          { key: "{{Category}}", example: "Contract Drawings", color: "orange" },
+                          { key: "{{JobName}}", example: "Tulum Street Jimboomba", color: "orange" },
                         ] : [
                           { key: "{{CompanyGroup}}", example: "Tekna Group", color: "purple" },
                           { key: "{{CompanyCode}}", example: "TH", color: "purple" },
-                          { key: "{{EntityName}}", example: "ABC Pty Ltd", color: "purple" },
+                          { key: "{{EntityName}}", example: "Tekna Homes Pty Ltd", color: "purple" },
                         ]).map((placeholder) => (
                           <Badge
                             key={placeholder.key}

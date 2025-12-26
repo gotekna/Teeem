@@ -123,6 +123,10 @@ export function EmailSearchFilters({
         setFilter("unassigned", false);
       } else if (label === "Unread") {
         setFilter("unread", false);
+      } else if (["Sent", "Received", "CC'd", "BCC'd"].includes(label)) {
+        setFilter("direction", "");
+      } else if (["High importance", "Normal importance", "Low importance"].includes(label)) {
+        setFilter("importance", "");
       }
       onSearch();
     },
@@ -258,6 +262,66 @@ export function EmailSearchFilters({
                     </div>
                   </PopoverContent>
                 </Popover>
+              </div>
+
+              {/* Direction filter */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <ArrowUpRight className="h-3 w-3" />
+                  Direction
+                </Label>
+                <Select
+                  value={filters.direction}
+                  onValueChange={(value) => setFilter("direction", value as "" | "sent" | "received" | "cc" | "bcc")}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="All directions" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All directions</SelectItem>
+                    <SelectItem value="received">
+                      <span className="flex items-center gap-1.5">
+                        <ArrowDownLeft className="h-3 w-3" />
+                        Received
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="sent">
+                      <span className="flex items-center gap-1.5">
+                        <ArrowUpRight className="h-3 w-3" />
+                        Sent
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="cc">CC'd</SelectItem>
+                    <SelectItem value="bcc">BCC'd</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Importance filter */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <AlertCircle className="h-3 w-3" />
+                  Importance
+                </Label>
+                <Select
+                  value={filters.importance}
+                  onValueChange={(value) => setFilter("importance", value as "" | "high" | "normal" | "low")}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="All importance" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">All importance</SelectItem>
+                    <SelectItem value="high">
+                      <span className="flex items-center gap-1.5">
+                        <AlertCircle className="h-3 w-3 text-red-500" />
+                        High
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="normal">Normal</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Checkbox filters */}

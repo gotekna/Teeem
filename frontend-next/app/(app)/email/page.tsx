@@ -69,6 +69,8 @@ import { useEmailFilters } from "@/hooks/useEmailFilters";
 import { EmailSearchFilters } from "@/components/emails/EmailSearchFilters";
 import { useEmailState } from "@/components/emails/EmailActions";
 import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
+import { ClassificationBadge, type EmailClassificationType } from "@/components/emails/ClassificationBadge";
+import { ReadingPaneToggle, useReadingPanePosition, type ReadingPanePosition } from "@/components/emails/ReadingPaneToggle";
 import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
 import { cn } from "@/lib/utils";
 import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
@@ -123,6 +125,12 @@ interface Email {
     phone?: string;
     company_name?: string;
   }>;
+  // Classification fields
+  classification_type?: EmailClassificationType;
+  classification_confidence?: number;
+  // Direction and importance
+  direction?: "sent" | "received" | "cc" | "bcc";
+  importance?: "high" | "normal" | "low";
 }
 
 interface EmailAccount {
@@ -286,6 +294,12 @@ const EmailListItem = memo(function EmailListItem({
                 {email.has_attachments && (
                   <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                 )}
+                {/* Classification badge */}
+                <ClassificationBadge
+                  classificationType={email.classification_type}
+                  confidence={email.classification_confidence}
+                  compact
+                />
                 {/* Thread count badge */}
                 <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
               </div>
@@ -480,6 +494,9 @@ export default function EmailPage() {
 
   // Thread expansion state
   const threads = useEmailThreads();
+
+  // Reading pane position
+  const { position: readingPanePosition, setPosition: setReadingPanePosition } = useReadingPanePosition();
 
   // WebSocket for real-time email updates
   const handleNewEmail = useCallback(async (email: WebSocketEmail) => {
@@ -1176,8 +1193,8 @@ To: ${email.to_emails?.join(", ") || ""}
           )}
         </div>
 
-        {/* Rules Link */}
-        <div className="p-3 border-t">
+        {/* Rules & Settings Links */}
+        <div className="p-3 border-t space-y-1">
           <Button
             variant="ghost"
             className="w-full justify-start"
@@ -1186,11 +1203,28 @@ To: ${email.to_emails?.join(", ") || ""}
             <Settings2 className="h-4 w-4 mr-2" />
             Email Rules
           </Button>
+          <Button
+            variant="ghost"
+            className="w-full justify-start"
+            onClick={() => router.push("/email/settings")}
+          >
+            <Settings2 className="h-4 w-4 mr-2" />
+            Settings
+          </Button>
         </div>
       </div>
 
-      {/* Middle - Email List */}
-      <div className="w-[400px] border-r flex flex-col shrink-0">
+      {/* Main Content Area - List + Reading Pane */}
+      <div className={cn(
+        "flex-1 flex min-w-0",
+        readingPanePosition === "bottom" ? "flex-col" : "flex-row"
+      )}>
+        {/* Email List */}
+        <div className={cn(
+          "flex flex-col border-r",
+          readingPanePosition === "off" ? "flex-1" :
+          readingPanePosition === "bottom" ? "h-1/2 shrink-0" : "w-[400px] shrink-0"
+        )}>
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
           <div className="flex items-center gap-2 min-w-0">
@@ -1282,6 +1316,11 @@ To: ${email.to_emails?.join(", ") || ""}
             >
               <RefreshCw className={cn("h-3.5 w-3.5", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
             </Button>
+            {/* Reading pane position toggle */}
+            <ReadingPaneToggle
+              position={readingPanePosition}
+              onPositionChange={setReadingPanePosition}
+            />
           </div>
         </div>
 
@@ -1473,8 +1512,12 @@ To: ${email.to_emails?.join(", ") || ""}
         )}
       </div>
 
-      {/* Right - Reading Pane */}
-      <div className="flex-1 flex flex-col min-w-0 bg-background">
+      {/* Reading Pane - Hidden when position is "off" */}
+      {readingPanePosition !== "off" && (
+      <div className={cn(
+        "flex flex-col min-w-0 bg-background",
+        readingPanePosition === "bottom" ? "h-1/2 border-t" : "flex-1"
+      )}>
         {selectedEmail ? (
           <>
             {/* Email Header */}
@@ -1574,6 +1617,9 @@ To: ${email.to_emails?.join(", ") || ""}
           </div>
         )}
       </div>
+      )}
+
+      </div>{/* End Main Content Area wrapper */}
 
       {/* Compose Modal */}
       <ComposeEmailModal

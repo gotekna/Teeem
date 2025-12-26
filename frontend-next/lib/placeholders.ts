@@ -528,6 +528,8 @@ function escapeRegex(str: string): string {
  * Resolve SharePoint path placeholders with example values
  * Handles both {{double}} and {single} brace formats
  *
+ * IMPORTANT: Use REAL examples from the database, not made-up values!
+ *
  * @param template - The SharePoint path template
  * @returns Resolved path with example values
  */
@@ -536,20 +538,26 @@ export function resolveSharePointPath(template: string): string {
 
   let result = template;
 
-  // SharePoint-specific examples (using realistic job data)
+  // Real examples from TEEEM database
   const examples: Record<string, string> = {
-    // Double brace format
-    "{{JobCode}}": "069",
-    "{{Category}}": "Residential",
+    // Double brace format - Job examples
+    "{{JobCode}}": "077",
+    "{{Category}}": "Contract Drawings",
+    "{{CategoryCode}}": "ConD",
+    "{{JobName}}": "Tulum Street Jimboomba",
+    "{{JobTitle}}": "Tulum Street Jimboomba QLD",
+    // Double brace format - Company examples
     "{{CompanyGroup}}": "Tekna Group",
     "{{CompanyCode}}": "TH",
     "{{Folder}}": "Finance",
-    "{{ContactName}}": "John Smith",
-    "{{EntityName}}": "ABC Pty Ltd",
+    "{{ContactName}}": "Robert Harder",
+    "{{EntityName}}": "Tekna Homes Pty Ltd",
     // Single brace format (also common in paths)
-    "{JobCode}": "069",
-    "{Category}": "Residential",
-    "{JobName}": "Smith Residence",
+    "{JobCode}": "077",
+    "{Category}": "Contract Drawings",
+    "{CategoryCode}": "ConD",
+    "{JobName}": "Tulum Street Jimboomba",
+    "{JobTitle}": "Tulum Street Jimboomba QLD",
     "{Folder}": "Finance",
     "{CompanyGroup}": "Tekna Group",
     "{CompanyCode}": "TH",
