@@ -71,6 +71,11 @@ function TaskRow({ task }: TaskRowProps) {
           {task.job_name}
         </span>
       )}
+      {task.assigned_role && (
+        <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex capitalize">
+          {task.assigned_role}
+        </Badge>
+      )}
       {task.trade && (
         <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 hidden md:inline-flex">
           {task.trade}

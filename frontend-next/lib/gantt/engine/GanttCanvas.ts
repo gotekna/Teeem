@@ -79,8 +79,8 @@ export interface GanttTask {
   brokenPredecessorIds?: string[];
   supplierId?: number;
   supplierName?: string;
-  /** Task shape for visual differentiation (order/call tasks show as diamonds) */
-  shape?: 'task' | 'milestone' | 'order' | 'call';
+  /** Task shape for visual differentiation (order/call tasks show as diamonds, photo tasks show camera icon) */
+  shape?: 'task' | 'milestone' | 'order' | 'call' | 'photo';
   /** Hold state for paused tasks */
   holdState?: HoldState;
   /** Original row data from API (for accessing hold etc) */

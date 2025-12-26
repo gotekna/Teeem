@@ -45,8 +45,9 @@ export type HoldReason =
  * - milestone: Diamond shape for single-day events
  * - order: Diamond with order icon (spawned Order tasks)
  * - call: Diamond with phone icon (spawned Call tasks)
+ * - photo: Camera icon (spawned Photo tasks)
  */
-export type TaskShape = 'task' | 'milestone' | 'order' | 'call';
+export type TaskShape = 'task' | 'milestone' | 'order' | 'call' | 'photo';
 
 /**
  * Dependency types between tasks
@@ -543,6 +544,8 @@ export function convertRowToTask(
     shape = 'order';
   } else if (row.name.startsWith('Call ')) {
     shape = 'call';
+  } else if (row.name.startsWith('Photo ')) {
+    shape = 'photo';
   } else if (duration <= 1) {
     // Single-day tasks could be milestones (optional - keep as task for now)
     // shape = 'milestone';

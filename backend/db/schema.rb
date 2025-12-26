@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010015) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010016) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7529,6 +7529,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010015) do
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
     t.string "assigned_role"
+    t.boolean "is_photo_task", default: false, null: false
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"

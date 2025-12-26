@@ -10,7 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Archive, Trash2, Clock, Mail, MailOpen, AlertOctagon, FolderInput } from "lucide-react";
+import { Archive, Trash2, Clock, Mail, MailOpen, AlertOctagon, FolderInput, Reply, Forward } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +21,8 @@ interface QuickEmailActionsProps {
   onAction?: () => void;
   onSnooze?: () => void;
   onMove?: () => void;
+  onReply?: () => void;
+  onForward?: () => void;
   className?: string;
 }
 
@@ -35,6 +37,8 @@ export function QuickEmailActions({
   onAction,
   onSnooze,
   onMove,
+  onReply,
+  onForward,
   className,
 }: QuickEmailActionsProps) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -88,6 +92,16 @@ export function QuickEmailActions({
     onMove?.();
   };
 
+  const handleReply = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onReply?.();
+  };
+
+  const handleForward = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onForward?.();
+  };
+
   const handleSpam = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setLoading("spam");
@@ -110,6 +124,46 @@ export function QuickEmailActions({
         )}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Reply */}
+        {onReply && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 hover:bg-primary/10"
+                onClick={handleReply}
+                disabled={loading !== null}
+              >
+                <Reply className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              Reply (r)
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Forward */}
+        {onForward && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 hover:bg-primary/10"
+                onClick={handleForward}
+                disabled={loading !== null}
+              >
+                <Forward className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="text-xs">
+              Forward (f)
+            </TooltipContent>
+          </Tooltip>
+        )}
+
         {/* Archive */}
         <Tooltip>
           <TooltipTrigger asChild>

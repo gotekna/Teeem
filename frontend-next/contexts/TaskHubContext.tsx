@@ -619,11 +619,17 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     });
   }, [tasks, filters]);
 
-  // Computed: my tasks (assigned to current user)
+  // Computed: my tasks (assigned to user's roles - already filtered by API when activeView is 'my-tasks')
   const myTasks = useMemo(() => {
+    // When on my-tasks view, API already filters by assigned_role matching user's roles
+    // So all filteredTasks are "my tasks"
+    if (activeView === 'my-tasks') {
+      return filteredTasks;
+    }
+    // On other views, filter by assigned_user_id (for backwards compatibility)
     if (!user?.id) return [];
     return filteredTasks.filter(task => task.assigned_user_id === user.id);
-  }, [filteredTasks, user?.id]);
+  }, [filteredTasks, user?.id, activeView]);
 
   // Computed: overdue tasks
   const overdueTasks = useMemo(() => {

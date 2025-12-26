@@ -381,10 +381,66 @@ export class Renderer {
         continue; // Skip normal task bar rendering for headers
       }
 
-      // Check if this is an Order or Call task (diamond shape)
+      // Check if this is an Order, Call, or Photo task (special shapes)
       const isOrderTask = task.shape === 'order';
       const isCallTask = task.shape === 'call';
+      const isPhotoTask = task.shape === 'photo';
       const isDiamondShape = isOrderTask || isCallTask;
+
+      if (isPhotoTask) {
+        // Draw camera icon for Photo tasks
+        const iconSize = barHeight * 0.85;
+        const centerX = startX + taskWidth / 2;
+        const centerY = barY + barHeight / 2;
+
+        // Camera color - purple for Photo tasks
+        const cameraColor = this.config.darkMode ? '#a855f7' : '#9333ea'; // Purple
+
+        // Draw shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerX - iconSize / 2 + 2, centerY - iconSize / 2.5 + 2, iconSize, iconSize / 1.25, 3);
+        this.ctx.fill();
+
+        // Draw camera body
+        this.ctx.fillStyle = cameraColor;
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerX - iconSize / 2, centerY - iconSize / 2.5, iconSize, iconSize / 1.25, 3);
+        this.ctx.fill();
+
+        // Draw border
+        this.ctx.strokeStyle = this.config.darkMode ? '#7c3aed' : '#7c3aed';
+        this.ctx.lineWidth = 1.5;
+        this.ctx.stroke();
+
+        // Draw camera lens (circle in center)
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.beginPath();
+        const lensRadius = iconSize / 5;
+        this.ctx.arc(centerX, centerY, lensRadius, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Draw lens inner circle (for detail)
+        this.ctx.fillStyle = cameraColor;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, lensRadius / 2, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Draw viewfinder bump on top
+        this.ctx.fillStyle = cameraColor;
+        this.ctx.beginPath();
+        this.ctx.roundRect(centerX - iconSize / 6, centerY - iconSize / 2.5 - iconSize / 6, iconSize / 3, iconSize / 5, 1);
+        this.ctx.fill();
+
+        // Draw task name to the right
+        this.ctx.fillStyle = this.config.colors.taskBarText;
+        this.ctx.font = '11px Inter, system-ui, sans-serif';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(task.name, centerX + iconSize / 2 + 8, centerY);
+
+        continue; // Skip normal task bar rendering
+      }
 
       if (isDiamondShape) {
         // Draw diamond shape for Order/Call tasks

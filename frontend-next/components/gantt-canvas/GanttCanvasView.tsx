@@ -2272,6 +2272,19 @@ export function GanttCanvasView({
                       </svg>
                       <span className="text-muted-foreground">Call task (spawned)</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="12" viewBox="0 0 16 12">
+                        {/* Camera body */}
+                        <rect x="2" y="3" width="12" height="8" rx="1.5" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" />
+                        {/* Viewfinder bump */}
+                        <rect x="6" y="1" width="4" height="2" rx="0.5" fill="#9333ea" />
+                        {/* Lens outer */}
+                        <circle cx="8" cy="7" r="3" fill="white" />
+                        {/* Lens inner */}
+                        <circle cx="8" cy="7" r="1.5" fill="#9333ea" />
+                      </svg>
+                      <span className="text-muted-foreground">Photo task (spawned)</span>
+                    </div>
                   </div>
                 </div>
                 <div className="border-t pt-2 mt-2">

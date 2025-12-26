@@ -119,11 +119,12 @@ class SmTaskCompletionService
 
   def spawn_photo_task
     spawned = create_spawned_task(
-      name: "#{task.name} - Photos",
+      name: "Photo #{task.name}",
       description: "Take completion photos for: #{task.name}",
       spawn_type: "photo",
       duration_days: 1,
-      require_photo: true
+      require_photo: true,
+      is_photo_task: true
     )
     log_spawn(spawned, "photo", "parent_complete") if spawned
   end

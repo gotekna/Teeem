@@ -174,6 +174,8 @@ const EmailListItem = memo(function EmailListItem({
   onCheckboxChange,
   onQuickAction,
   onSnooze,
+  onReply,
+  onForward,
   // Thread props
   threadCount = 0,
   isExpanded = false,
@@ -194,6 +196,8 @@ const EmailListItem = memo(function EmailListItem({
   onCheckboxChange: (email: Email) => void;
   onQuickAction?: () => void;
   onSnooze?: (email: Email) => void;
+  onReply?: (email: Email) => void;
+  onForward?: (email: Email) => void;
   // Thread props
   threadCount?: number;
   isExpanded?: boolean;
@@ -293,6 +297,8 @@ const EmailListItem = memo(function EmailListItem({
               isRead={email.is_read}
               onAction={onQuickAction}
               onSnooze={() => onSnooze?.(email)}
+              onReply={() => onReply?.(email)}
+              onForward={() => onForward?.(email)}
               className="shrink-0"
             />
             <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 group-hover:hidden">
