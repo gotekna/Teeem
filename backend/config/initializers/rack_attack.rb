@@ -11,6 +11,17 @@ class Rack::Attack
     req.ip == "127.0.0.1" || req.ip == "::1" || req.ip == "localhost"
   end
 
+  # Whitelist WebSocket connections (ActionCable)
+  # WebSockets are long-lived connections, not request floods
+  safelist("allow-websocket") do |req|
+    req.path == "/cable"
+  end
+
+  # Whitelist health check endpoint
+  safelist("allow-health-check") do |req|
+    req.path == "/up" || req.path == "/version"
+  end
+
   # Disable rate limiting entirely for staging environment
   is_staging = ENV["HEROKU_APP_NAME"]&.include?("rob-dev")
   if is_staging
