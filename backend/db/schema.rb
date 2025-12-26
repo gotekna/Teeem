@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010032) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1486,6 +1486,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
     t.string "tpar_industry_code", limit: 10
     t.integer "team_size"
     t.decimal "daily_rate_per_person", precision: 10, scale: 2, default: "800.0"
+    t.index "lower((email)::text)", name: "idx_contacts_lower_email"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
@@ -2465,6 +2466,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
     t.boolean "is_internal", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["email_address", "recipient_type"], name: "idx_email_recipients_address_type"
   end
 
   create_table "email_rules", force: :cascade do |t|
@@ -2615,8 +2617,15 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
     t.string "labels", default: [], array: true
     t.bigint "uid"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
+    t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
+    t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
+    t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
     t.index ["labels"], name: "index_email_warehouse_on_labels", using: :gin
+    t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
+    t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
+    t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
+    t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
   end
 
   create_table "emails", id: :bigint, default: nil, force: :cascade do |t|
@@ -2670,6 +2679,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
     t.string "sharepoint_folder_path"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "display_code", limit: 3
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"
@@ -5485,6 +5495,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
     t.index ["user_id"], name: "index_job_activities_on_user_id"
   end
 
+  create_table "job_address_searches", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "search_term", null: false
+    t.string "term_type", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "term_type"], name: "idx_job_address_searches_job_type"
+    t.index ["job_id"], name: "index_job_address_searches_on_job_id"
+    t.index ["search_term"], name: "idx_job_address_searches_trgm", opclass: :gin_trgm_ops, using: :gin
+  end
+
   create_table "job_claim_stages", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -8195,6 +8216,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
     t.bigint "user_group_id"
     t.datetime "last_seen_at"
     t.boolean "can_view_confidential_fields", default: false, null: false
+    t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["role"], name: "index_users_on_role"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
@@ -9295,6 +9317,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
   add_foreign_key "intercompany_balances", "corporate_companies", column: "related_company_id"
   add_foreign_key "job_activities", "jobs"
   add_foreign_key "job_activities", "users"
+  add_foreign_key "job_address_searches", "jobs"
   add_foreign_key "job_claim_stages", "claim_stage_templates"
   add_foreign_key "job_claim_stages", "external_invoices"
   add_foreign_key "job_claim_stages", "gl_invoices", column: "retainage_release_invoice_id"

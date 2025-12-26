@@ -179,10 +179,15 @@ class Api::V1::EmailWarehouseController < ApplicationController
     per_page = [ (params[:per_page] || 50).to_i, 200 ].min
     total = emails.count
 
-    emails = emails.recent_first.offset((page - 1) * per_page).limit(per_page)
+    # Performance: Eager load job association and paginate
+    emails = emails.includes(:job).recent_first.offset((page - 1) * per_page).limit(per_page)
+
+    # Performance: Batch load all contacts for this page to avoid N+1
+    all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
     render json: {
-      emails: emails.map { |e| email_json(e) },
+      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
       pagination: {
         page: page,
         per_page: per_page,
@@ -210,7 +215,10 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.latest_in_thread
     end
 
-    emails = emails.recent_first
+    # Performance: Eager load and batch contacts
+    emails = emails.includes(:job).recent_first
+    all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
     # Also get suggested matches (unassigned emails that might match)
     suggested = []
@@ -220,7 +228,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     render json: {
       job_id: job.id,
-      emails: emails.map { |e| email_json(e, include_thread_count: true) },
+      emails: emails.map { |e| email_json(e, include_thread_count: true, contacts_cache: contacts_cache) },
       count: emails.count,
       suggested: suggested.map { |s| suggestion_json(s) }
     }
@@ -241,10 +249,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
     per_page = [ (params[:per_page] || 50).to_i, 200 ].min
     total = emails.count
 
-    emails = emails.offset((page - 1) * per_page).limit(per_page)
+    # Performance: Eager load and batch contacts
+    emails = emails.includes(:job).offset((page - 1) * per_page).limit(per_page)
+    all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
     render json: {
-      emails: emails.map { |e| email_json(e, include_suggestions: true) },
+      emails: emails.map { |e| email_json(e, include_suggestions: true, contacts_cache: contacts_cache) },
       pagination: {
         page: page,
         per_page: per_page,
@@ -355,11 +366,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
   def search
     return render json: { error: "Search query required" }, status: :bad_request if params[:q].blank?
 
-    emails = EmailWarehouse.search_text(params[:q]).latest_in_thread.recent_first.limit(100)
+    # Performance: Eager load and batch contacts
+    emails = EmailWarehouse.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(100)
+    all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
     render json: {
       query: params[:q],
-      emails: emails.map { |e| email_json(e) },
+      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
       count: emails.count
     }
   end
@@ -390,10 +404,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
     per_page = [ (params[:per_page] || 50).to_i, 200 ].min
     total = emails.count
 
-    emails = emails.offset((page - 1) * per_page).limit(per_page)
+    # Performance: Eager load and batch contacts
+    emails = emails.includes(:job).offset((page - 1) * per_page).limit(per_page)
+    all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
     render json: {
-      emails: emails.map { |e| email_json(e) },
+      emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
       pagination: {
         page: page,
         per_page: per_page,
@@ -765,7 +782,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     @email = EmailWarehouse.find(params[:id])
   end
 
-  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false)
+  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil)
     json = {
       id: email.id,
       subject: email.subject,
@@ -800,10 +817,17 @@ class Api::V1::EmailWarehouseController < ApplicationController
       # AI Summary
       ai_summary: email.ai_summary,
       # Contact matching
+      # Performance: Use contacts_cache if provided to avoid N+1 queries
       primary_contact_id: email.primary_contact_id,
       contact_ids: email.contact_ids || [],
-      primary_contact: email.primary_contact_id ? contact_summary(Contact.find_by(id: email.primary_contact_id)) : nil,
-      contacts: email.contact_ids.present? ? Contact.where(id: email.contact_ids).map { |c| contact_summary(c) } : []
+      primary_contact: email.primary_contact_id ? contact_summary(
+        contacts_cache ? contacts_cache[email.primary_contact_id] : Contact.find_by(id: email.primary_contact_id)
+      ) : nil,
+      contacts: email.contact_ids.present? ? (
+        contacts_cache ?
+          email.contact_ids.filter_map { |id| contact_summary(contacts_cache[id]) } :
+          Contact.where(id: email.contact_ids).map { |c| contact_summary(c) }
+      ) : []
     }
 
     if include_body

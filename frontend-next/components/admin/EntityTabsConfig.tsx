@@ -90,6 +90,22 @@ import type {
 } from "@/lib/types/entity-tabs";
 import { SCOPE_LABELS, GROUP_LABELS } from "@/lib/types/entity-tabs";
 
+// Generate display code from display name (max 3 chars)
+// Single word: first 3 letters (e.g., "Photo" -> "PHO")
+// Multi-word: first letter of each word (e.g., "Tax Returns" -> "TR", "Site Photo" -> "SP")
+function generateDisplayCode(displayName: string): string {
+  if (!displayName) return "";
+  const words = displayName.trim().split(/\s+/);
+  if (words.length === 1) {
+    return words[0].substring(0, 3).toUpperCase();
+  }
+  return words
+    .slice(0, 3)
+    .map((w) => w.charAt(0))
+    .join("")
+    .toUpperCase();
+}
+
 // Hook to fetch and manage entity types from API
 function useEntityTypes() {
   const [entityTypes, setEntityTypes] = React.useState<string[]>([]);
@@ -363,6 +379,7 @@ export function EntityTabsConfig({
   const openEditDialog = (tab: EntityTab) => {
     setFormData({
       display_name: tab.display_name,
+      display_code: tab.display_code || "",
       description: tab.description || "",
       tab_group: tab.tab_group || undefined,
       parent_id: tab.parent_id || undefined,
@@ -391,6 +408,7 @@ export function EntityTabsConfig({
         // Update existing
         const updateParams: EntityTabUpdateParams = {
           display_name: formData.display_name,
+          display_code: formData.display_code,
           description: formData.description,
           tab_group: formData.tab_group,
           // Use null (not undefined) so JSON serialization includes it
@@ -410,6 +428,7 @@ export function EntityTabsConfig({
           scope,
           tab_key: formData.tab_key || formData.display_name?.toLowerCase().replace(/\s+/g, "-") || "",
           display_name: formData.display_name || "",
+          display_code: formData.display_code,
           description: formData.description,
           tab_group: formData.tab_group,
           entity_filters: formData.entity_filters,
@@ -1143,17 +1162,45 @@ export function EntityTabsConfig({
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Display Name */}
-            <div className="space-y-2">
-              <Label htmlFor="display_name">Display Name</Label>
-              <Input
-                id="display_name"
-                value={formData.display_name || ""}
-                onChange={(e) =>
-                  setFormData((prev) => ({ ...prev, display_name: e.target.value }))
-                }
-                placeholder="e.g., Tax Returns"
-              />
+            {/* Display Name and Display Code */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="col-span-2 space-y-2">
+                <Label htmlFor="display_name">Display Name</Label>
+                <Input
+                  id="display_name"
+                  value={formData.display_name || ""}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setFormData((prev) => {
+                      // Auto-generate display_code if empty or matches auto-generated pattern
+                      const currentCode = prev.display_code || "";
+                      const shouldAutoGenerate = !currentCode || currentCode === generateDisplayCode(prev.display_name || "");
+                      return {
+                        ...prev,
+                        display_name: newName,
+                        display_code: shouldAutoGenerate ? generateDisplayCode(newName) : currentCode,
+                      };
+                    });
+                  }}
+                  placeholder="e.g., Tax Returns"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="display_code">Code (max 3)</Label>
+                <Input
+                  id="display_code"
+                  value={formData.display_code || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      display_code: e.target.value.toUpperCase().slice(0, 3),
+                    }))
+                  }
+                  placeholder="e.g., TAX"
+                  maxLength={3}
+                  className="font-mono uppercase"
+                />
+              </div>
             </div>
 
             {/* Tab Key (only for new tabs) */}

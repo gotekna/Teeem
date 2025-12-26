@@ -123,6 +123,7 @@ module Api
                 id: tab.id,
                 tab_key: tab.tab_key,
                 display_name: tab.display_name,
+                display_code: tab.display_code,
                 hierarchy_path: tab.hierarchy_path,
                 tab_group: tab.tab_group,
                 has_sharepoint_folder: tab.has_sharepoint_folder
@@ -190,6 +191,7 @@ module Api
           :scope,
           :tab_key,
           :display_name,
+          :display_code,
           :description,
           :tab_group,
           :parent_id,

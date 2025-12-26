@@ -159,6 +159,7 @@ class EntityTab < ApplicationRecord
       scope: scope,
       tab_key: tab_key,
       display_name: display_name,
+      display_code: display_code,
       description: description,
       tab_group: tab_group,
       parent_id: parent_id,

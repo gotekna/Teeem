@@ -276,6 +276,21 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
 ];
 
 // =============================================================================
+// TAB PLACEHOLDERS (Orange - the tab/folder context for documents)
+// =============================================================================
+
+export const TAB_PLACEHOLDERS: PlaceholderToken[] = [
+  {
+    code: "{Tab}",
+    example: "SP",
+    longCode: "{TabLong}",
+    longExample: "Site Photo",
+    color: "orange",
+    description: "Tab code/name (the folder context)",
+  },
+];
+
+// =============================================================================
 // PLAN TYPE PLACEHOLDERS (Blue - specific to plans/drawings)
 // =============================================================================
 
@@ -382,13 +397,14 @@ export const SHAREPOINT_PLACEHOLDERS: PlaceholderToken[] = [
 
 export const PLACEHOLDERS_BY_SCOPE: Record<PlaceholderScope, PlaceholderToken[]> = {
   company: [...COMPANY_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
-  job: [...JOB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
-  document: [...DOCUMENT_PLACEHOLDERS, ...PLAN_PLACEHOLDERS],
+  job: [...JOB_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS, ...DATE_PLACEHOLDERS],
+  document: [...DOCUMENT_PLACEHOLDERS, ...TAB_PLACEHOLDERS, ...PLAN_PLACEHOLDERS],
   sharepoint: SHAREPOINT_PLACEHOLDERS,
   all: [
     ...DOCUMENT_PLACEHOLDERS,
     ...COMPANY_PLACEHOLDERS,
     ...JOB_PLACEHOLDERS,
+    ...TAB_PLACEHOLDERS,
     ...PLAN_PLACEHOLDERS,
     ...DATE_PLACEHOLDERS,
   ],

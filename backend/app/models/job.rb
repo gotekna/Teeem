@@ -123,6 +123,12 @@ class Job < ApplicationRecord
   after_commit :sync_xero_tracking_option, on: :create
   before_update :track_status_and_stage_changes
   after_update :log_status_and_stage_changes
+  # Performance: Maintain JobAddressSearch for fast email matching
+  after_save :update_address_search_terms, if: :saved_change_to_name_or_title?
+  after_destroy :clear_address_search_terms
+
+  # Email matching association
+  has_many :job_address_searches, dependent: :destroy
 
   # Scopes
   scope :active, -> { joins(:job_status).where(job_status: { name: "Active Job" }) }
@@ -553,5 +559,54 @@ class Job < ApplicationRecord
     end
   rescue StandardError => e
     Rails.logger.error "Failed to create claim stages from template for job ##{id}: #{e.message}"
+  end
+
+  # Performance: Check if name or title changed (for address search update)
+  def saved_change_to_name_or_title?
+    saved_change_to_name? || (respond_to?(:saved_change_to_title?) && saved_change_to_title?)
+  end
+
+  # Performance: Update JobAddressSearch terms for fast email-to-job matching
+  # Part of 6-month email performance masterpiece plan
+  def update_address_search_terms
+    return unless JobAddressSearch.table_exists?
+
+    # Clear existing terms
+    job_address_searches.destroy_all
+
+    terms = []
+
+    # Job number (exact match)
+    if job_number.present?
+      terms << { term: job_number.to_s.downcase, type: 'job_number' }
+    end
+
+    # Full address from name field
+    if name.present?
+      terms << { term: name.downcase.strip, type: 'full_address' }
+
+      # Extract street name (e.g., "32 Mcilwraith Street" -> "mcilwraith")
+      street_match = name.match(/\d+\s+(.+?)\s+(Street|St|Road|Rd|Avenue|Ave|Drive|Dr|Court|Ct|Place|Pl|Crescent|Cres|Boulevard|Blvd|Lane|Ln|Way|Terrace|Tce|Circuit|Cct|Close|Cl)/i)
+      if street_match
+        terms << { term: street_match[1].downcase.strip, type: 'street_name' }
+      end
+    end
+
+    # Create new terms
+    terms.each do |term|
+      job_address_searches.create!(
+        search_term: term[:term],
+        term_type: term[:type]
+      )
+    end
+  rescue StandardError => e
+    Rails.logger.error "Failed to update address search terms for job ##{id}: #{e.message}"
+  end
+
+  # Performance: Clear address search terms when job is deleted
+  def clear_address_search_terms
+    job_address_searches.destroy_all if JobAddressSearch.table_exists?
+  rescue StandardError => e
+    Rails.logger.error "Failed to clear address search terms for job ##{id}: #{e.message}"
   end
 end

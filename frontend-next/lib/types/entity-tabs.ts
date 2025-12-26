@@ -11,6 +11,7 @@ export interface EntityTab {
   scope: EntityTabScope;
   tab_key: string;
   display_name: string;
+  display_code: string | null;
   description: string | null;
   tab_group: TabGroup | null;
   parent_id: number | null;
@@ -57,6 +58,7 @@ export interface EntityTabCreateParams {
   scope: EntityTabScope;
   tab_key: string;
   display_name: string;
+  display_code?: string;
   description?: string;
   tab_group?: TabGroup;
   parent_id?: number | null;
@@ -73,6 +75,7 @@ export interface EntityTabCreateParams {
 
 export interface EntityTabUpdateParams {
   display_name?: string;
+  display_code?: string;
   description?: string;
   tab_group?: TabGroup;
   parent_id?: number | null;  // null to remove parent (make root-level)
