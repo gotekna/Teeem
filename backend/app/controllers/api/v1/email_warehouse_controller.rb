@@ -130,6 +130,14 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.where(imap_credential_id: params[:imap_credential_id])
     end
 
+    # Filter by folder name or ID (e.g., "Sent Items", "Inbox", etc.)
+    if params[:folder_id].present?
+      emails = emails.where(folder_name: params[:folder_id])
+    end
+    if params[:folder_name].present?
+      emails = emails.where(folder_name: params[:folder_name])
+    end
+
     # Filter by Microsoft 365 credential (org-level app credentials)
     # Also validates user has access to this credential's mailboxes
     if params[:microsoft_credential_id].present?

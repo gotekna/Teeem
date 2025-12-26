@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010028) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010029) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -542,6 +542,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010028) do
     t.index ["status"], name: "index_bank_transactions_on_status"
     t.index ["xero_contact_id"], name: "index_bank_transactions_on_xero_contact_id"
     t.index ["xero_transaction_id"], name: "index_bank_transactions_on_xero_transaction_id", unique: true
+  end
+
+  create_table "basiq_credentials", force: :cascade do |t|
+    t.string "owner_type", null: false
+    t.bigint "owner_id", null: false
+    t.string "basiq_user_id", null: false
+    t.string "status", default: "pending", null: false
+    t.string "connected_institution_name"
+    t.string "connected_institution_id"
+    t.datetime "last_sync_at"
+    t.datetime "consent_expires_at"
+    t.string "last_error"
+    t.datetime "last_error_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["basiq_user_id"], name: "index_basiq_credentials_on_basiq_user_id", unique: true
+    t.index ["owner_type", "owner_id", "status"], name: "index_basiq_credentials_on_owner_type_and_owner_id_and_status"
+    t.index ["owner_type", "owner_id"], name: "index_basiq_credentials_on_owner"
+    t.index ["status"], name: "index_basiq_credentials_on_status"
   end
 
   create_table "batch_operations", force: :cascade do |t|

@@ -42,9 +42,15 @@ struct ContactRowView: View {
                 Text(contact.initials).font(.headline).foregroundColor(.white)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(contact.displayName).font(.headline)
-                if let company = contact.companyName, !company.isEmpty {
-                    Text(company).font(.subheadline).foregroundColor(.secondary)
+                Text(contact.displayName)
+                    .font(.headline)
+                    .lineLimit(2)
+                // Only show company as subtitle if it's different from displayName
+                if let company = contact.companyName, !company.isEmpty, company != contact.displayName {
+                    Text(company)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
             }
             Spacer()

@@ -108,6 +108,15 @@ interface SyncStatus {
   };
 }
 
+interface BasiqStatus {
+  connected: boolean;
+  status: string;
+  institution_name?: string;
+  last_sync_at?: string;
+  consent_expires_at?: string;
+  last_error?: string;
+}
+
 export default function BankFeedsTab() {
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<"accounts" | "transactions" | "reconciliations">("accounts");
@@ -129,6 +138,10 @@ export default function BankFeedsTab() {
 
   // Connect dialog state
   const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  // Basiq state
+  const [basiqStatus, setBasiqStatus] = useState<BasiqStatus | null>(null);
 
   // Fetch bank accounts
   const fetchBankAccounts = useCallback(async () => {
@@ -176,6 +189,64 @@ export default function BankFeedsTab() {
     }
   }, []);
 
+  // Fetch Basiq status
+  const fetchBasiqStatus = useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: BasiqStatus }>(
+        "/api/v1/basiq/status"
+      );
+      if (response?.success) {
+        setBasiqStatus(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch Basiq status:", err);
+    }
+  }, []);
+
+  // Connect to bank via Basiq
+  const connectBank = async () => {
+    setConnecting(true);
+    setError(null);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { consent_url: string; consent_id: string };
+        error?: string;
+      }>("/api/v1/basiq/connect", {});
+
+      if (response?.success && response.data?.consent_url) {
+        // Redirect to Basiq consent UI
+        window.location.href = response.data.consent_url;
+      } else {
+        setError(response?.error || "Failed to initiate bank connection");
+        setConnecting(false);
+      }
+    } catch (err) {
+      setError("Failed to connect to bank");
+      setConnecting(false);
+    }
+  };
+
+  // Disconnect bank
+  const disconnectBank = async () => {
+    if (!confirm("Are you sure you want to disconnect the bank feed?")) return;
+
+    try {
+      const response = await api.post<{ success: boolean; error?: string }>(
+        "/api/v1/basiq/disconnect",
+        {}
+      );
+      if (response?.success) {
+        setSuccessMessage("Bank feed disconnected");
+        fetchBasiqStatus();
+      } else {
+        setError(response?.error || "Failed to disconnect");
+      }
+    } catch (err) {
+      setError("Failed to disconnect bank feed");
+    }
+  };
+
   // Sync bank transactions
   const syncBankTransactions = async () => {
     setSyncing(true);
@@ -200,11 +271,11 @@ export default function BankFeedsTab() {
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchBankAccounts(), fetchReconciliations(), fetchSyncStatus()]);
+      await Promise.all([fetchBankAccounts(), fetchReconciliations(), fetchSyncStatus(), fetchBasiqStatus()]);
       setLoading(false);
     };
     init();
-  }, [fetchBankAccounts, fetchReconciliations, fetchSyncStatus]);
+  }, [fetchBankAccounts, fetchReconciliations, fetchSyncStatus, fetchBasiqStatus]);
 
   // Clear messages
   useEffect(() => {
@@ -644,65 +715,126 @@ export default function BankFeedsTab() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Link2 className="h-5 w-5" />
-              Connect Bank Feed
+              {basiqStatus?.connected ? "Bank Feed Connected" : "Connect Bank Feed"}
             </DialogTitle>
             <DialogDescription>
-              Connect your bank account via Open Banking to automatically import transactions.
+              {basiqStatus?.connected
+                ? `Connected to ${basiqStatus.institution_name || "your bank"} via Open Banking.`
+                : "Connect your bank account via Open Banking to automatically import transactions."}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Basiq Integration Placeholder */}
-            <Card className="border-dashed">
-              <CardContent className="pt-6">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
-                    <Landmark className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold">Open Banking Integration</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Connect to 120+ Australian banks via CDR/Open Banking
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="p-3 rounded-lg bg-muted/50">
-                      <Zap className="h-4 w-4 mx-auto mb-1 text-amber-500" />
-                      <p className="font-medium">Real-time</p>
-                      <p className="text-xs text-muted-foreground">Live transaction sync</p>
+            {basiqStatus?.connected ? (
+              /* Connected State */
+              <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/20">
+                <CardContent className="pt-6">
+                  <div className="text-center space-y-4">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
+                      <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />
                     </div>
-                    <div className="p-3 rounded-lg bg-muted/50">
-                      <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500" />
-                      <p className="font-medium">Secure</p>
-                      <p className="text-xs text-muted-foreground">Bank-grade security</p>
+                    <div>
+                      <h3 className="font-semibold text-green-700 dark:text-green-300">
+                        {basiqStatus.institution_name || "Bank Connected"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Transactions are being synced automatically
+                      </p>
                     </div>
+                    {basiqStatus.last_sync_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Last synced: {formatTimeAgo(basiqStatus.last_sync_at)}
+                      </p>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            ) : (
+              /* Not Connected State */
+              <>
+                <Card className="border-dashed">
+                  <CardContent className="pt-6">
+                    <div className="text-center space-y-4">
+                      <div className="w-16 h-16 mx-auto rounded-full bg-muted flex items-center justify-center">
+                        <Landmark className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">Open Banking Integration</h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Connect to 120+ Australian banks via CDR/Open Banking
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="p-3 rounded-lg bg-muted/50">
+                          <Zap className="h-4 w-4 mx-auto mb-1 text-amber-500" />
+                          <p className="font-medium">Real-time</p>
+                          <p className="text-xs text-muted-foreground">Live transaction sync</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-muted/50">
+                          <CheckCircle className="h-4 w-4 mx-auto mb-1 text-green-500" />
+                          <p className="font-medium">Secure</p>
+                          <p className="text-xs text-muted-foreground">Bank-grade security</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <div className="p-4 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                <div className="text-sm">
-                  <p className="font-medium text-blue-700 dark:text-blue-300">Coming Soon</p>
-                  <p className="text-blue-600 dark:text-blue-400 mt-1">
-                    Bank feed integration via Basiq is currently being configured.
-                    In the meantime, you can import transactions manually or sync from Xero.
-                  </p>
-                </div>
-              </div>
-            </div>
+                {basiqStatus?.status === "pending" && (
+                  <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+                    <div className="flex items-start gap-3">
+                      <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium text-amber-700 dark:text-amber-300">Connection Pending</p>
+                        <p className="text-amber-600 dark:text-amber-400 mt-1">
+                          Complete the bank authentication to finish connecting.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {basiqStatus?.last_error && (
+                  <div className="p-4 rounded-lg bg-red-50 border border-red-200 dark:bg-red-900/20 dark:border-red-800">
+                    <div className="flex items-start gap-3">
+                      <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                      <div className="text-sm">
+                        <p className="font-medium text-red-700 dark:text-red-300">Connection Error</p>
+                        <p className="text-red-600 dark:text-red-400 mt-1">
+                          {basiqStatus.last_error}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setConnectDialogOpen(false)}>
               Close
             </Button>
-            <Button disabled>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Connect Bank
-            </Button>
+            {basiqStatus?.connected ? (
+              <Button variant="destructive" onClick={disconnectBank}>
+                <Unlink className="h-4 w-4 mr-2" />
+                Disconnect
+              </Button>
+            ) : (
+              <Button onClick={connectBank} disabled={connecting}>
+                {connecting ? (
+                  <>
+                    <Spinner className="h-4 w-4 mr-2" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Connect Bank
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

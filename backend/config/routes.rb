@@ -1594,6 +1594,30 @@ Rails.application.routes.draw do
       # Xero rate limits (for API monitoring)
       get "xero/rate_limits", to: "xero_alerts#rate_limits"
 
+      # ============================================
+      # Basiq Open Banking Integration
+      # ============================================
+      # GET  /api/v1/basiq/status       - Check connection status
+      # POST /api/v1/basiq/connect      - Initiate bank connection
+      # GET  /api/v1/basiq/callback     - OAuth callback from Basiq consent UI
+      # POST /api/v1/basiq/disconnect   - Disconnect bank feed
+      # GET  /api/v1/basiq/accounts     - List connected bank accounts
+      # GET  /api/v1/basiq/transactions - List transactions
+      # POST /api/v1/basiq/sync         - Trigger manual sync
+      # GET  /api/v1/basiq/institutions - List supported banks
+      # GET  /api/v1/basiq/test         - Test API connection
+      # POST /api/v1/basiq/webhook      - Webhook endpoint
+      get "basiq/status", to: "basiq#status"
+      post "basiq/connect", to: "basiq#connect"
+      get "basiq/callback", to: "basiq#callback", as: :basiq_callback
+      post "basiq/disconnect", to: "basiq#disconnect"
+      get "basiq/accounts", to: "basiq#accounts"
+      get "basiq/transactions", to: "basiq#transactions"
+      post "basiq/sync", to: "basiq#sync"
+      get "basiq/institutions", to: "basiq#institutions"
+      get "basiq/test", to: "basiq#test"
+      post "basiq/webhook", to: "basiq#webhook"
+
       # Xero Duplicate Detection & Merge
       get "xero_duplicates/pending", to: "xero_duplicates#pending"
       get "xero_duplicates/for_contact/:contact_id", to: "xero_duplicates#for_contact"

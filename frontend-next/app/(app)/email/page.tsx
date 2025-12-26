@@ -746,6 +746,11 @@ export default function EmailPage() {
         params.append("imap_credential_id", selectedAccount);
       }
 
+      // Filter by folder if one is selected
+      if (selectedFolderId) {
+        params.append("folder_id", selectedFolderId);
+      }
+
       const response = await api.get<{ emails: Email[]; pagination: Pagination }>(
         `/api/v1/email_warehouse?${params.toString()}`
       );
@@ -757,7 +762,7 @@ export default function EmailPage() {
     } finally {
       setLoading(false);
     }
-  }, [toURLParams, selectedAccount]);
+  }, [toURLParams, selectedAccount, selectedFolderId]);
 
   const fetchFolders = async (accountId: string, account?: EmailAccount) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {
