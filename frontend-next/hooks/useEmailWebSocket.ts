@@ -1,8 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { createConsumer, Subscription } from "@rails/actioncable";
 import type { EmailListItem, EmailUserState } from "@/lib/email-types";
+
+// Singleton ActionCable consumer to prevent multiple connections
+let globalConsumer: ReturnType<typeof createConsumer> | null = null;
+let globalConsumerUrl: string | null = null;
+
+function getOrCreateConsumer(wsUrl: string): ReturnType<typeof createConsumer> {
+  // Reuse existing consumer if URL matches
+  if (globalConsumer && globalConsumerUrl === wsUrl) {
+    return globalConsumer;
+  }
+
+  // Disconnect old consumer if URL changed
+  if (globalConsumer) {
+    globalConsumer.disconnect();
+  }
+
+  globalConsumer = createConsumer(wsUrl);
+  globalConsumerUrl = wsUrl;
+  return globalConsumer;
+}
 
 // WebSocket event types (matches backend EmailChannel)
 export type EmailWebSocketEventType =
@@ -165,50 +185,78 @@ export function useEmailWebSocket(
   const [newEmailCount, setNewEmailCount] = useState(0);
 
   const subscriptionRef = useRef<Subscription | null>(null);
-  const consumerRef = useRef<ReturnType<typeof createConsumer> | null>(null);
   const failureCountRef = useRef(0);
   const lastFailureTimeRef = useRef(0);
   const isDisabledRef = useRef(false);
+
+  // Store callbacks in refs so they don't cause reconnections
+  // This is the key fix - callbacks changing won't trigger useEffect re-runs
+  const callbacksRef = useRef({
+    onNewEmail,
+    onNewEmails,
+    onStateChange,
+    onEmailDeleted,
+    onSyncStarted,
+    onSyncCompleted,
+  });
+
+  // Update refs when callbacks change (no effect re-run)
+  useEffect(() => {
+    callbacksRef.current = {
+      onNewEmail,
+      onNewEmails,
+      onStateChange,
+      onEmailDeleted,
+      onSyncStarted,
+      onSyncCompleted,
+    };
+  });
 
   // Max failures before disabling WebSocket entirely
   const MAX_FAILURES = 5;
   // Reset failure count after this many ms of no failures
   const FAILURE_RESET_MS = 60000;
 
-  // Handle incoming WebSocket messages
+  // Memoize WebSocket URL so it doesn't change between renders
+  const wsUrl = useMemo(() => {
+    return process.env.NEXT_PUBLIC_WS_URL || getWebSocketUrl();
+  }, []);
+
+  // Handle incoming WebSocket messages - uses refs so this callback is stable
   const handleReceived = useCallback(
     (data: EmailWebSocketEvent) => {
+      const callbacks = callbacksRef.current;
       switch (data.type) {
         case "new_email":
           setNewEmailCount((prev) => prev + 1);
-          onNewEmail?.(data.email);
+          callbacks.onNewEmail?.(data.email);
           break;
 
         case "new_emails":
           setNewEmailCount((prev) => prev + data.count);
-          onNewEmails?.(data.emails, data.count);
+          callbacks.onNewEmails?.(data.emails, data.count);
           break;
 
         case "email_state_changed":
-          onStateChange?.(data.email_id, data.changes);
+          callbacks.onStateChange?.(data.email_id, data.changes);
           break;
 
         case "email_deleted":
-          onEmailDeleted?.(data.email_id);
+          callbacks.onEmailDeleted?.(data.email_id);
           break;
 
         case "sync_started":
           setIsSyncing(true);
-          onSyncStarted?.(data.sync_type);
+          callbacks.onSyncStarted?.(data.sync_type);
           break;
 
         case "sync_completed":
           setIsSyncing(false);
-          onSyncCompleted?.(data.stats);
+          callbacks.onSyncCompleted?.(data.stats);
           break;
       }
     },
-    [onNewEmail, onNewEmails, onStateChange, onEmailDeleted, onSyncStarted, onSyncCompleted]
+    [] // No dependencies - uses refs
   );
 
   // Track connection failure
@@ -226,16 +274,15 @@ export function useEmailWebSocket(
     if (failureCountRef.current >= MAX_FAILURES) {
       console.warn(`[EmailWebSocket] Too many failures (${failureCountRef.current}), disabling WebSocket`);
       isDisabledRef.current = true;
-      // Clean up any existing connections
-      if (consumerRef.current) {
-        consumerRef.current.disconnect();
-        consumerRef.current = null;
+      // Unsubscribe from channel
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+        subscriptionRef.current = null;
       }
-      subscriptionRef.current = null;
     }
   }, []);
 
-  // Connect to WebSocket
+  // Connect to WebSocket - uses singleton consumer
   const connect = useCallback(() => {
     if (!enabled) return;
     if (isDisabledRef.current) {
@@ -244,13 +291,11 @@ export function useEmailWebSocket(
     }
     if (subscriptionRef.current) return; // Already connected
 
-    // Get the WebSocket URL from environment or construct from API URL
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || getWebSocketUrl();
-
     try {
-      consumerRef.current = createConsumer(wsUrl);
+      // Use singleton consumer to prevent multiple connections
+      const consumer = getOrCreateConsumer(wsUrl);
 
-      subscriptionRef.current = consumerRef.current.subscriptions.create(
+      subscriptionRef.current = consumer.subscriptions.create(
         { channel: "EmailChannel" },
         {
           connected() {
@@ -277,18 +322,15 @@ export function useEmailWebSocket(
       console.error("[EmailWebSocket] Failed to connect:", error);
       trackFailure();
     }
-  }, [enabled, handleReceived, trackFailure]);
+  }, [enabled, wsUrl, handleReceived, trackFailure]);
 
-  // Disconnect from WebSocket
+  // Disconnect from WebSocket (unsubscribe only, keep global consumer alive)
   const disconnect = useCallback(() => {
     if (subscriptionRef.current) {
       subscriptionRef.current.unsubscribe();
       subscriptionRef.current = null;
     }
-    if (consumerRef.current) {
-      consumerRef.current.disconnect();
-      consumerRef.current = null;
-    }
+    // Don't disconnect global consumer - other components may be using it
     setIsConnected(false);
     setIsSyncing(false);
   }, []);
