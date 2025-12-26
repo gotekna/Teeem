@@ -13,7 +13,7 @@ module Api
     #
     class BasiqController < ApplicationController
       before_action :require_organization, except: [:callback, :webhook]
-      skip_before_action :verify_authenticity_token, only: [:callback, :webhook]
+      # Note: API-only app doesn't have CSRF protection enabled
 
       # GET /api/v1/basiq/status
       # Check Basiq connection status for current organization

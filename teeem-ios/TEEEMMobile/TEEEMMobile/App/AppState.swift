@@ -12,16 +12,23 @@ class AppState: ObservableObject {
 
     func checkAuthStatus() async {
         isLoading = true
-        print("Checking auth status... isLoggedIn: \(authManager.isLoggedIn)")
-        if authManager.isLoggedIn {
+        let hasToken = authManager.isLoggedIn
+        print("🔐 Checking auth status... hasToken: \(hasToken)")
+
+        if hasToken {
             do {
                 currentUser = try await authManager.getCurrentUser()
                 isAuthenticated = true
-                print("Auth restored for user: \(currentUser?.displayName ?? "unknown")")
+                print("✅ Auth restored for user: \(currentUser?.displayName ?? "unknown")")
             } catch {
-                print("Auth check failed: \(error)")
+                print("❌ Auth check failed: \(error)")
+                // Token might be expired - clear it so user can log in fresh
+                authManager.logout()
                 isAuthenticated = false
             }
+        } else {
+            print("ℹ️ No stored token found")
+            isAuthenticated = false
         }
         isLoading = false
     }
