@@ -87,6 +87,11 @@ class SmTask < ApplicationRecord
   has_many :comments, class_name: "SmComment", dependent: :destroy
   has_many :activities, class_name: "SmActivity", dependent: :nullify
 
+  # Task Attachments (emails, documents, uploads)
+  has_many :sm_task_attachments, dependent: :destroy
+  has_many :attached_emails, through: :sm_task_attachments, source: :attachable, source_type: "EmailWarehouse"
+  has_many :attached_documents, through: :sm_task_attachments, source: :attachable, source_type: "CorporateCompanyDocument"
+
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
   validates :task_number, presence: true, uniqueness: { scope: :construction_id }

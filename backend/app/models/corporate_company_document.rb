@@ -35,6 +35,10 @@ class CorporateCompanyDocument < ApplicationRecord
   has_many :duplicate_reviews_as_existing, class_name: "DocumentDuplicateReview", foreign_key: :existing_document_id, dependent: :destroy
   has_many :duplicate_reviews_as_new, class_name: "DocumentDuplicateReview", foreign_key: :new_document_id, dependent: :nullify
 
+  # Task attachments
+  has_many :sm_task_attachments, as: :attachable, dependent: :destroy
+  has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
+
   # Active Storage for file upload
   has_one_attached :file
 

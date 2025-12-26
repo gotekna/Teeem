@@ -7,7 +7,8 @@ module Api
       before_action :set_sm_task, only: [
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
-        :working_drawings, :process_working_drawings, :override_page_category
+        :working_drawings, :process_working_drawings, :override_page_category,
+        :attachments, :add_attachment, :remove_attachment
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -609,6 +610,59 @@ module Api
         }
       end
 
+      # ===== Task Attachments =====
+
+      # GET /api/v1/sm_tasks/:id/attachments
+      def attachments
+        attachments = @task.sm_task_attachments.includes(:attachable, :added_by).recent
+
+        render json: {
+          success: true,
+          attachments: attachments.map { |a| attachment_to_json(a) }
+        }
+      end
+
+      # POST /api/v1/sm_tasks/:id/attachments
+      def add_attachment
+        attachment_type = params[:attachment_type]
+        attachable_id = params[:attachable_id]
+
+        attachable = case attachment_type
+        when "email"
+          EmailWarehouse.find(attachable_id)
+        when "document"
+          CorporateCompanyDocument.find(attachable_id)
+        else
+          return render json: { success: false, error: "Invalid attachment type" }, status: :unprocessable_entity
+        end
+
+        attachment = @task.sm_task_attachments.create!(
+          attachable: attachable,
+          attachment_type: attachment_type,
+          notes: params[:notes],
+          added_by: current_user
+        )
+
+        render json: {
+          success: true,
+          attachment: attachment_to_json(attachment)
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Attachable not found" }, status: :not_found
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/attachments/:attachment_id
+      def remove_attachment
+        attachment = @task.sm_task_attachments.find(params[:attachment_id])
+        attachment.destroy
+
+        render json: { success: true, message: "Attachment removed" }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Attachment not found" }, status: :not_found
+      end
+
       private
 
       def set_job
@@ -636,6 +690,7 @@ module Api
           :start_date,
           :end_date,
           :duration_days,
+          :required_by,
           :trade,
           :description,
           :notes,
@@ -652,6 +707,44 @@ module Api
           :sequence_order,
           documentation_category_ids: []
         )
+      end
+
+      def attachment_to_json(attachment)
+        base = {
+          id: attachment.id,
+          attachment_type: attachment.attachment_type,
+          notes: attachment.notes,
+          added_by: attachment.added_by&.name,
+          created_at: attachment.created_at
+        }
+
+        case attachment.attachable_type
+        when "EmailWarehouse"
+          email = attachment.attachable
+          base.merge(
+            email: {
+              id: email.id,
+              subject: email.subject,
+              from_email: email.from_email,
+              received_at: email.received_at,
+              has_attachments: email.email_attachments.any?
+            }
+          )
+        when "CorporateCompanyDocument"
+          doc = attachment.attachable
+          base.merge(
+            document: {
+              id: doc.id,
+              file_name: doc.file_name,
+              display_name: doc.display_name,
+              document_type: doc.document_type,
+              sharepoint_url: doc.sharepoint_url,
+              created_at: doc.created_at
+            }
+          )
+        else
+          base
+        end
       end
 
       def save_temp_file(uploaded_file)
@@ -777,7 +870,10 @@ module Api
           started_at: task.started_at,
           completed_at: task.completed_at,
           created_at: task.created_at,
-          updated_at: task.updated_at
+          updated_at: task.updated_at,
+          # Required by date (independent of schedule)
+          required_by: task.required_by,
+          attachments_count: task.sm_task_attachments.count
         }
 
         if include_dependencies

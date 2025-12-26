@@ -27,6 +27,10 @@ class EmailWarehouse < ApplicationRecord
   # Email User State (per-user pin, star, archive, reminders)
   has_many :email_user_states, dependent: :destroy
 
+  # Task attachments
+  has_many :sm_task_attachments, as: :attachable, dependent: :destroy
+  has_many :attached_tasks, through: :sm_task_attachments, source: :sm_task
+
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
 

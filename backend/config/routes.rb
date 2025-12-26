@@ -1205,6 +1205,10 @@ Rails.application.routes.draw do
           get :working_drawings
           post "working_drawings/process", to: "sm_tasks#process_working_drawings"
           patch "working_drawings/pages/:page_id/override", to: "sm_tasks#override_page_category"
+          # Task attachments
+          get :attachments
+          post :attachments, action: :add_attachment
+          delete "attachments/:attachment_id", action: :remove_attachment
         end
 
         # Dependencies (nested under sm_tasks)

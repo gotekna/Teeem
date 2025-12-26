@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import {
 import { api } from '@/lib/api';
 import { Loader2, Plus } from 'lucide-react';
 import { TaskAssignmentField } from './TaskAssignmentField';
+import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
 
 interface Job {
@@ -59,14 +61,18 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     start_date: new Date().toISOString().split('T')[0],
     duration_days: '1',
     trade: '',
+    started: false,
+    required_by: '',
   });
+
+  // Track pending attachments (before task is created)
+  const [pendingAttachments, setPendingAttachments] = React.useState<PendingAttachment[]>([]);
 
   // Load jobs and users when dialog opens
   React.useEffect(() => {
     if (open) {
       loadData();
     }
-     
   }, [open]);
 
   const loadData = async () => {
@@ -113,7 +119,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
 
     setSaving(true);
     try {
-      const response = await api.post<{ success: boolean; sm_task: unknown; message?: string }>(
+      // Determine status based on started checkbox
+      const status = formData.started ? 'started' : 'not_started';
+
+      const response = await api.post<{ success: boolean; sm_task: { id: number }; message?: string }>(
         `/api/v1/jobs/${formData.job_id}/sm_tasks`,
         {
           sm_task: {
@@ -124,16 +133,40 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             start_date: formData.start_date || new Date().toISOString().split('T')[0],
             duration_days: parseInt(formData.duration_days) || 1,
             trade: formData.trade || null,
-            status: 'not_started',
+            status: status,
+            required_by: formData.required_by || null,
           },
         }
       );
 
       if (response?.success) {
+        const taskId = response.sm_task?.id;
+
+        // Add pending attachments
+        if (taskId && pendingAttachments.length > 0) {
+          for (const attachment of pendingAttachments) {
+            if (attachment.type === 'upload' && attachment.file) {
+              // TODO: Implement file upload to SharePoint first, then attach
+              console.log('File upload not yet implemented:', attachment.file.name);
+            } else if (attachment.id) {
+              // Attach existing email/document
+              try {
+                await api.post(`/api/v1/sm_tasks/${taskId}/attachments`, {
+                  attachment_type: attachment.type,
+                  attachable_id: attachment.id,
+                });
+              } catch (attachError) {
+                console.error('Failed to attach:', attachError);
+              }
+            }
+          }
+        }
+
         toast({
           title: 'Success',
           description: 'Task created successfully',
         });
+
         // Reset form
         setFormData({
           name: '',
@@ -144,7 +177,10 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           start_date: new Date().toISOString().split('T')[0],
           duration_days: '1',
           trade: '',
+          started: false,
+          required_by: '',
         });
+        setPendingAttachments([]);
         onOpenChange(false);
         refresh();
       } else {
@@ -162,7 +198,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     }
   };
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -256,6 +292,35 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               </div>
             </div>
 
+            {/* Required By Date */}
+            <div className="space-y-2">
+              <Label htmlFor="required_by">Required By</Label>
+              <Input
+                id="required_by"
+                type="date"
+                value={formData.required_by}
+                onChange={(e) => handleChange('required_by', e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                When this task must be completed (independent of schedule)
+              </p>
+            </div>
+
+            {/* Started Checkbox */}
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="started"
+                checked={formData.started}
+                onCheckedChange={(checked) => handleChange('started', checked === true)}
+              />
+              <Label
+                htmlFor="started"
+                className="text-sm font-medium leading-none cursor-pointer"
+              >
+                Mark as Started
+              </Label>
+            </div>
+
             {/* Trade */}
             <div className="space-y-2">
               <Label htmlFor="trade">Trade</Label>
@@ -279,12 +344,21 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               />
             </div>
 
+            {/* Attachments */}
+            <div className="space-y-2">
+              <Label>Attachments</Label>
+              <AttachmentPicker
+                attachments={pendingAttachments}
+                onAdd={(attachment) => setPendingAttachments([...pendingAttachments, attachment])}
+                onRemove={(index) =>
+                  setPendingAttachments(pendingAttachments.filter((_, i) => i !== index))
+                }
+                jobId={formData.job_id}
+              />
+            </div>
+
             <DialogFooter className="pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={saving}>
