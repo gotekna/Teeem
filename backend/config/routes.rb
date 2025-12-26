@@ -313,6 +313,13 @@ Rails.application.routes.draw do
           end
         end
 
+        # Photo uploads (nested under jobs)
+        resources :photos, only: [], controller: "job_photos" do
+          collection do
+            post :upload
+          end
+        end
+
         # Rain logs (nested under jobs)
         resources :rain_logs, only: [ :index, :show, :create, :update, :destroy ] do
           collection do

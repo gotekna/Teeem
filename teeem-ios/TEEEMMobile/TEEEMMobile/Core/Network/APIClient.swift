@@ -55,6 +55,9 @@ class APIClient {
                 resourceName,                           // e.g., "jobs", "contacts"
                 "emails",                               // email_warehouse returns "emails"
                 "tasks",                                // sm_tasks endpoint returns "tasks"
+                "job_contacts",                         // jobs/:id/job_contacts
+                "purchase_orders",                      // purchase_orders endpoint
+                "job_plans",                            // jobs/:id/job_plans
                 "data"                                  // generic wrapper
             ]
 

@@ -37,6 +37,8 @@ import {
   Sparkles,
   Check,
   ArrowRight,
+  Camera,
+  ImagePlus,
 } from "lucide-react";
 import {
   Dialog,
@@ -189,6 +191,94 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
   const [aiStats, setAiStats] = useState<AIStats | null>(null);
   const [analyzingDocs, setAnalyzingDocs] = useState(false);
   const [approvingDoc, setApprovingDoc] = useState<number | null>(null);
+
+  // Photo upload state
+  const [showPhotoOptions, setShowPhotoOptions] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const photoLibraryInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if the current category is a photo category
+  const isPhotoCategory = (category: DocumentCategory | null): boolean => {
+    if (!category) return false;
+    const name = category.name?.toLowerCase() || "";
+    const folderPath = category.folder_path?.toLowerCase() || "";
+    return name.includes("photo") || folderPath.includes("photo");
+  };
+
+  // Generate photo filename based on category and current date/time
+  const generatePhotoFilename = (extension: string): string => {
+    const category = selectedSubCategory || selectedCategory;
+    const categoryName = category?.name?.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "") || "Photo";
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, ""); // HHMMSS
+    return `${categoryName}_${dateStr}_${timeStr}.${extension}`;
+  };
+
+  // Handle photo upload (from camera or library)
+  const handlePhotoUpload = async (file: File) => {
+    if (!file || !orgStatus.connected) return;
+
+    setUploadingPhoto(true);
+    setShowPhotoOptions(false);
+    setError(null);
+
+    try {
+      // Get the folder path from the current category
+      const category = selectedSubCategory || selectedCategory;
+      const folderPath = category?.folder_path || "06 Photo";
+
+      // Generate a proper filename based on category and date/time
+      const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const newFilename = generatePhotoFilename(extension);
+
+      // Upload to SharePoint with auto-generated filename
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("job_id", String(jobId));
+      formData.append("folder_path", folderPath);
+      formData.append("filename", newFilename); // Backend will use this filename
+
+      const response = await api.postFormData<{ success: boolean; message?: string; web_url?: string }>(
+        `/api/v1/jobs/${jobId}/photos/upload`,
+        formData
+      );
+
+      if (response?.success) {
+        setMessage({ type: "success", text: `Photo "${newFilename}" uploaded successfully!` });
+        // Refresh to show the new photo
+        await checkJobFolderStatus();
+      } else {
+        setError(response?.message || "Failed to upload photo");
+      }
+    } catch (err) {
+      console.error("Failed to upload photo:", err);
+      setError("Failed to upload photo. Please try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  // Handle camera capture
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handlePhotoUpload(file);
+    }
+    // Reset the input so the same file can be selected again
+    if (e.target) e.target.value = "";
+  };
+
+  // Handle photo library selection
+  const handlePhotoLibrarySelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handlePhotoUpload(file);
+    }
+    // Reset the input so the same file can be selected again
+    if (e.target) e.target.value = "";
+  };
 
   useEffect(() => {
     checkOrganizationStatus();
@@ -749,15 +839,64 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
             {/* Tasks Table */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Folder className="h-5 w-5 text-yellow-500" />
-                  {activeCategory?.name}
-                  {activeCategory?.folder_path && (
-                    <span className="text-xs text-muted-foreground font-normal">
-                      ({activeCategory.folder_path})
-                    </span>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Folder className="h-5 w-5 text-yellow-500" />
+                    {activeCategory?.name}
+                    {activeCategory?.folder_path && (
+                      <span className="text-xs text-muted-foreground font-normal">
+                        ({activeCategory.folder_path})
+                      </span>
+                    )}
+                  </CardTitle>
+                  {/* Add Photo button - only show for photo categories */}
+                  {isPhotoCategory(activeCategory) && orgStatus.connected && (
+                    <div className="relative">
+                      <Button
+                        size="sm"
+                        onClick={() => setShowPhotoOptions(!showPhotoOptions)}
+                        disabled={uploadingPhoto}
+                      >
+                        {uploadingPhoto ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Camera className="h-4 w-4 mr-2" />
+                            Add Photo
+                          </>
+                        )}
+                      </Button>
+                      {/* Dropdown menu for camera/library selection */}
+                      {showPhotoOptions && (
+                        <div className="absolute right-0 top-full mt-1 z-50 bg-background border rounded-md shadow-lg min-w-[180px]">
+                          <button
+                            className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center gap-2 text-sm"
+                            onClick={() => {
+                              cameraInputRef.current?.click();
+                              setShowPhotoOptions(false);
+                            }}
+                          >
+                            <Camera className="h-4 w-4" />
+                            Take Photo
+                          </button>
+                          <button
+                            className="w-full px-4 py-2.5 text-left hover:bg-muted flex items-center gap-2 text-sm border-t"
+                            onClick={() => {
+                              photoLibraryInputRef.current?.click();
+                              setShowPhotoOptions(false);
+                            }}
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                            Choose from Library
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </CardTitle>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {tasks.length === 0 ? (
@@ -1540,6 +1679,33 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden inputs for photo capture */}
+      {/* Camera input - uses capture="environment" for back camera on mobile */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleCameraCapture}
+      />
+      {/* Photo library input - standard file picker for images */}
+      <input
+        ref={photoLibraryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePhotoLibrarySelect}
+      />
+
+      {/* Click-outside handler for photo options dropdown */}
+      {showPhotoOptions && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowPhotoOptions(false)}
+        />
+      )}
     </div>
   );
 }

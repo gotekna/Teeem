@@ -59,6 +59,7 @@ class AuthManager {
             throw AuthError.serverError(error)
         }
         let result = try JSONDecoder().decode(LoginResponse.self, from: data)
+        print("💾 Storing auth token (length: \(result.token.count))")
         accessToken = result.token
         return result.user
     }

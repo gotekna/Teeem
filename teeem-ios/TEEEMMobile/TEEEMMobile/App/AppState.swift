@@ -34,9 +34,11 @@ class AppState: ObservableObject {
     }
 
     func login(email: String, password: String) async throws {
+        print("🔑 Attempting login for: \(email)")
         let user = try await authManager.login(email: email, password: password)
         currentUser = user
         isAuthenticated = true
+        print("✅ Login successful for: \(user.displayName)")
     }
 
     func logout() {
