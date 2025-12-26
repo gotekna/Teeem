@@ -545,10 +545,19 @@ interface TemplatePickerProps {
   onSelect: (template: EmailTemplate, applied: { subject: string; body_html: string; body_text: string }) => void;
   context?: Record<string, string>;
   trigger?: React.ReactNode;
+  /** Controlled open state (optional) */
+  open?: boolean;
+  /** Callback when open state changes (required if `open` is controlled) */
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function TemplatePicker({ onSelect, context = {}, trigger }: TemplatePickerProps) {
-  const [open, setOpen] = useState(false);
+export function TemplatePicker({ onSelect, context = {}, trigger, open: controlledOpen, onOpenChange }: TemplatePickerProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+
+  // Support both controlled and uncontrolled modes
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = isControlled ? (onOpenChange || (() => {})) : setInternalOpen;
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [quickReplies, setQuickReplies] = useState<EmailTemplate[]>([]);

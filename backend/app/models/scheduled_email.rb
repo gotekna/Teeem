@@ -8,6 +8,8 @@
 # - MS365 org mailboxes (account_type = "ms365", microsoft_credential_id set)
 #
 class ScheduledEmail < ApplicationRecord
+  include EmailAccountTypes
+
   belongs_to :imap_credential, optional: true
   belongs_to :created_by, class_name: "User", optional: true
 
@@ -16,7 +18,7 @@ class ScheduledEmail < ApplicationRecord
   validates :body, presence: true
   validates :scheduled_for, presence: true
   validates :status, presence: true, inclusion: { in: %w[pending sent cancelled failed] }
-  validates :account_type, inclusion: { in: %w[imap outlook ms365] }, allow_nil: true
+  validates :account_type, inclusion: { in: ACCOUNT_TYPES }, allow_nil: true
 
   # Scopes
   scope :pending, -> { where(status: "pending") }

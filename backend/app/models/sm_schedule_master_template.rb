@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# SmTemplate - Schedule Master template for SM Gantt system
+# SmScheduleMasterTemplate - Schedule Master template for SM Gantt system
 #
 # Templates are reusable schedules that can be copied to constructions
 # as sm_tasks. Separate from old schedule_templates (DHTMLX system).
@@ -10,7 +10,7 @@
 # - Use sm_schedule_master_rows method to get rows for this template
 # - A single row can be shared across templates (SSoT)
 #
-class SmTemplate < ApplicationRecord
+class SmScheduleMasterTemplate < ApplicationRecord
   # Associations
   # Note: has_many is replaced with a method that queries by JSONB containment
   belongs_to :created_by, class_name: "User", optional: true
@@ -52,6 +52,6 @@ class SmTemplate < ApplicationRecord
   def ensure_single_default
     return unless is_default? && is_default_changed?
 
-    SmTemplate.where.not(id: id).update_all(is_default: false)
+    SmScheduleMasterTemplate.where.not(id: id).update_all(is_default: false)
   end
 end

@@ -908,6 +908,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # Email Drafts (work-in-progress emails, synced across devices)
+      resources :email_drafts, only: [:index, :show, :create, :update, :destroy] do
+        collection do
+          delete :destroy_all
+        end
+      end
+
       # Email Snoozes (temporarily hide emails, bring back later)
       resources :email_snoozes, only: [:index, :show, :create] do
         collection do
@@ -1208,7 +1215,7 @@ Rails.application.routes.draw do
       end
 
       # SM Templates (Schedule Master templates for SM Gantt)
-      resources :sm_templates, only: [ :index, :show, :create, :update, :destroy ] do
+      resources :sm_templates, controller: "sm_schedule_master_templates", only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :set_default
           post :copy_to_job

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEditor, EditorContent, Editor } from "@tiptap/react";
+import { useEditor, EditorContent, Editor, Extension } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Link from "@tiptap/extension-link";
@@ -28,6 +28,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+
+// Slash command types
+export type SlashCommand = "template";
 
 interface RichTextEditorProps {
   value: string;
@@ -35,7 +39,57 @@ interface RichTextEditorProps {
   placeholder?: string;
   className?: string;
   minHeight?: number;
+  /**
+   * Called when a slash command is triggered (e.g., /template or /t)
+   * The editor will delete the slash command text when this is called.
+   */
+  onSlashCommand?: (command: SlashCommand) => void;
 }
+
+// Slash command extension - detects /template or /t and triggers callback
+const createSlashCommandExtension = (onSlashCommand?: (command: SlashCommand) => void) => {
+  return Extension.create({
+    name: "slashCommand",
+    addProseMirrorPlugins() {
+      return [
+        new Plugin({
+          key: new PluginKey("slashCommand"),
+          props: {
+            handleTextInput(view, from, to, text) {
+              if (!onSlashCommand) return false;
+
+              // Get the text before the cursor including the new character
+              const { state } = view;
+              const $from = state.doc.resolve(from);
+              const textBefore = $from.parent.textContent.slice(0, $from.parentOffset) + text;
+
+              // Check for /template or /t followed by space
+              const templateMatch = textBefore.match(/\/template\s$/);
+              const shortTemplateMatch = textBefore.match(/\/t\s$/);
+
+              if (templateMatch || shortTemplateMatch) {
+                // Delete the slash command text
+                const matchLength = templateMatch ? 10 : 3; // "/template " or "/t "
+                const deleteFrom = from - (matchLength - 1); // -1 because 'text' hasn't been inserted yet
+
+                // Use setTimeout to let the text be inserted first, then delete
+                setTimeout(() => {
+                  const tr = view.state.tr.delete(deleteFrom, from + 1);
+                  view.dispatch(tr);
+                  onSlashCommand("template");
+                }, 0);
+
+                return false; // Let the space be inserted, then we'll delete it
+              }
+
+              return false;
+            },
+          },
+        }),
+      ];
+    },
+  });
+};
 
 function ToolbarButton({
   onClick,
@@ -253,7 +307,14 @@ export function RichTextEditor({
   placeholder = "Type your message...",
   className,
   minHeight = 200,
+  onSlashCommand,
 }: RichTextEditorProps) {
+  // Memoize the slash command extension to prevent unnecessary re-renders
+  const slashCommandExtension = React.useMemo(
+    () => createSlashCommandExtension(onSlashCommand),
+    [onSlashCommand]
+  );
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -261,7 +322,9 @@ export function RichTextEditor({
         heading: false,
       }),
       Placeholder.configure({
-        placeholder,
+        placeholder: onSlashCommand
+          ? `${placeholder} (Type /template or /t for templates)`
+          : placeholder,
         emptyEditorClass: "is-editor-empty",
       }),
       Underline,
@@ -278,6 +341,7 @@ export function RichTextEditor({
           class: "max-w-full h-auto rounded",
         },
       }),
+      slashCommandExtension,
     ],
     content: value,
     editorProps: {

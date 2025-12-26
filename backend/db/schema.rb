@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010012) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2369,6 +2369,28 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
     t.jsonb "folder_paths", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "email_drafts", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "organization_id", null: false
+    t.bigint "imap_credential_id"
+    t.string "from_address"
+    t.text "to_addresses", null: false
+    t.text "cc_addresses"
+    t.text "bcc_addresses"
+    t.string "subject", limit: 998, null: false
+    t.text "body", null: false
+    t.string "reply_to_message_id"
+    t.jsonb "attachments", default: []
+    t.string "status", default: "draft", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["imap_credential_id"], name: "index_email_drafts_on_imap_credential_id"
+    t.index ["organization_id"], name: "index_email_drafts_on_organization_id"
+    t.index ["user_id", "status"], name: "idx_email_drafts_user_status"
+    t.index ["user_id", "updated_at"], name: "idx_email_drafts_user_recent"
+    t.index ["user_id"], name: "index_email_drafts_on_user_id"
   end
 
   create_table "email_job_proposals", id: :bigint, default: nil, force: :cascade do |t|
@@ -7403,6 +7425,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
     t.index ["updated_by_id"], name: "index_sm_schedule_master_on_updated_by_id"
   end
 
+  create_table "sm_schedule_master_templates", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_default", default: false
+    t.boolean "is_active", default: true
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_sm_schedule_master_templates_on_created_by_id"
+    t.index ["is_active"], name: "index_sm_schedule_master_templates_on_is_active"
+    t.index ["is_default"], name: "index_sm_schedule_master_templates_on_is_default"
+    t.index ["updated_by_id"], name: "index_sm_schedule_master_templates_on_updated_by_id"
+  end
+
   create_table "sm_settings", force: :cascade do |t|
     t.time "rollover_time", default: "2000-01-01 00:00:00", null: false
     t.string "rollover_timezone", limit: 50, default: "Australia/Brisbane", null: false
@@ -7508,21 +7545,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
     t.index ["trade"], name: "index_sm_tasks_on_trade"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
-  end
-
-  create_table "sm_templates", force: :cascade do |t|
-    t.string "name", null: false
-    t.text "description"
-    t.boolean "is_default", default: false
-    t.boolean "is_active", default: true
-    t.bigint "created_by_id"
-    t.bigint "updated_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_by_id"], name: "index_sm_templates_on_created_by_id"
-    t.index ["is_active"], name: "index_sm_templates_on_is_active"
-    t.index ["is_default"], name: "index_sm_templates_on_is_default"
-    t.index ["updated_by_id"], name: "index_sm_templates_on_updated_by_id"
   end
 
   create_table "sm_time_entries", force: :cascade do |t|
@@ -8886,6 +8908,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
   add_foreign_key "e_signature_requests", "users", column: "created_by_id"
   add_foreign_key "e_signature_signers", "contacts"
   add_foreign_key "e_signature_signers", "e_signature_requests"
+  add_foreign_key "email_drafts", "imap_credentials"
+  add_foreign_key "email_drafts", "organizations"
+  add_foreign_key "email_drafts", "users"
   add_foreign_key "email_label_assignments", "email_labels"
   add_foreign_key "email_label_assignments", "email_warehouse"
   add_foreign_key "email_labels", "users"
@@ -9349,6 +9374,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
   add_foreign_key "sm_schedule_master", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_master", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master", "users", column: "updated_by_id"
+  add_foreign_key "sm_schedule_master_templates", "users", column: "created_by_id"
+  add_foreign_key "sm_schedule_master_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
@@ -9365,8 +9392,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
   add_foreign_key "sm_tasks", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "updated_by_id", on_delete: :nullify
-  add_foreign_key "sm_templates", "users", column: "created_by_id"
-  add_foreign_key "sm_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_time_entries", "sm_resource_allocations", column: "allocation_id", on_delete: :nullify
   add_foreign_key "sm_time_entries", "sm_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade

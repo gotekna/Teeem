@@ -662,7 +662,7 @@ module Api
                 min_length: col.min_length,
                 default_value: col.default_value,
                 description: col.description,
-                searchable: col.searchable,
+                searchable: col.searchable != false, # SSoT: Never return NULL, default to true
                 is_title: col.is_title,
                 is_unique: col.is_unique,
                 required: col.required,

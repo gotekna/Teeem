@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { api } from "@/lib/api";
 import {
   DRAFTS_STORAGE_KEY,
   AUTO_SAVE_INTERVAL_MS,
@@ -11,8 +12,25 @@ import type { EmailDraft, AutoSaveConfig } from "@/lib/email-types";
 // Re-export types for backwards compatibility
 export type { EmailDraft } from "@/lib/email-types";
 
+// API response types
+interface DraftsApiResponse {
+  success: boolean;
+  data: EmailDraft[];
+  meta?: { total: number };
+}
+
+interface DraftApiResponse {
+  success: boolean;
+  data: EmailDraft;
+}
+
+interface DeleteApiResponse {
+  success: boolean;
+  message: string;
+}
+
 /**
- * Get all drafts from localStorage
+ * Get all drafts from localStorage (fallback/cache)
  */
 function getDraftsFromStorage(): EmailDraft[] {
   if (typeof window === "undefined") return [];
@@ -28,7 +46,7 @@ function getDraftsFromStorage(): EmailDraft[] {
 }
 
 /**
- * Save drafts to localStorage
+ * Save drafts to localStorage (cache)
  */
 function saveDraftsToStorage(drafts: EmailDraft[]): void {
   if (typeof window === "undefined") return;
@@ -46,33 +64,160 @@ function saveDraftsToStorage(drafts: EmailDraft[]): void {
 }
 
 /**
- * Generate a unique draft ID
+ * Generate a unique draft ID (for temporary local drafts)
  */
 function generateDraftId(): string {
   return `draft-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 /**
+ * Check if an ID is a server-generated ID (numeric) vs local temporary ID
+ */
+function isServerDraftId(id: string): boolean {
+  return /^\d+$/.test(id);
+}
+
+/**
  * Hook for managing email drafts
+ *
+ * Hybrid mode:
+ * - Loads from API first, falls back to localStorage
+ * - Saves to both API and localStorage for offline support
+ * - On mount, migrates localStorage-only drafts to API
  *
  * Usage:
  * const { drafts, saveDraft, deleteDraft, getDraft, hasDrafts } = useEmailDrafts();
  */
 export function useEmailDrafts() {
   const [drafts, setDrafts] = useState<EmailDraft[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const hasMigratedRef = useRef(false);
+
+  // Load drafts from API (with localStorage fallback)
+  const loadDrafts = useCallback(async () => {
+    try {
+      const response = await api.get<DraftsApiResponse>("/api/v1/email_drafts");
+      if (response.success && response.data) {
+        setDrafts(response.data);
+        // Update localStorage cache
+        saveDraftsToStorage(response.data);
+        setError(null);
+        return response.data;
+      }
+    } catch (err) {
+      console.warn("Failed to load drafts from API, using localStorage:", err);
+      // Fall back to localStorage
+      const localDrafts = getDraftsFromStorage();
+      setDrafts(localDrafts);
+      setError("Offline mode - drafts saved locally");
+      return localDrafts;
+    }
+    return [];
+  }, []);
+
+  // Migrate localStorage drafts to API (one-time on first load)
+  const migrateLocalDrafts = useCallback(async (apiDrafts: EmailDraft[]) => {
+    if (hasMigratedRef.current) return;
+    hasMigratedRef.current = true;
+
+    const localDrafts = getDraftsFromStorage();
+    if (localDrafts.length === 0) return;
+
+    // Find drafts that exist in localStorage but not in API
+    const apiDraftIds = new Set(apiDrafts.map(d => d.id));
+    const localOnlyDrafts = localDrafts.filter(d => !apiDraftIds.has(d.id) && !isServerDraftId(d.id));
+
+    if (localOnlyDrafts.length === 0) return;
+
+    console.log(`Migrating ${localOnlyDrafts.length} local drafts to API...`);
+
+    // Migrate each local draft to API
+    for (const draft of localOnlyDrafts) {
+      try {
+        await api.post<DraftApiResponse>("/api/v1/email_drafts", {
+          credential_id: draft.credential_id,
+          from_address: draft.from_address,
+          to: draft.to,
+          cc: draft.cc,
+          bcc: draft.bcc,
+          subject: draft.subject,
+          body: draft.body,
+          reply_to_message_id: draft.reply_to_message_id,
+          attachment_names: draft.attachment_names,
+        });
+      } catch (err) {
+        console.warn(`Failed to migrate draft ${draft.id}:`, err);
+      }
+    }
+
+    // Reload drafts from API after migration
+    await loadDrafts();
+  }, [loadDrafts]);
 
   // Load drafts on mount
   useEffect(() => {
-    setDrafts(getDraftsFromStorage());
-  }, []);
+    const init = async () => {
+      setIsLoading(true);
+      const apiDrafts = await loadDrafts();
+      await migrateLocalDrafts(apiDrafts);
+      setIsLoading(false);
+    };
+    init();
+  }, [loadDrafts, migrateLocalDrafts]);
 
   /**
    * Save a new or update existing draft
    */
-  const saveDraft = useCallback((draftData: Omit<EmailDraft, "id" | "created_at" | "updated_at">, existingId?: string): string => {
+  const saveDraft = useCallback(async (
+    draftData: Omit<EmailDraft, "id" | "created_at" | "updated_at">,
+    existingId?: string
+  ): Promise<string> => {
     const now = new Date().toISOString();
-    const id = existingId || generateDraftId();
 
+    // Prepare API payload
+    const payload = {
+      credential_id: draftData.credential_id,
+      from_address: draftData.from_address,
+      to: draftData.to,
+      cc: draftData.cc,
+      bcc: draftData.bcc,
+      subject: draftData.subject,
+      body: draftData.body,
+      reply_to_message_id: draftData.reply_to_message_id,
+      attachment_names: draftData.attachment_names || [],
+    };
+
+    try {
+      let response: DraftApiResponse | null;
+
+      if (existingId && isServerDraftId(existingId)) {
+        // Update existing API draft
+        response = await api.patch<DraftApiResponse>(`/api/v1/email_drafts/${existingId}`, payload);
+      } else {
+        // Create new draft
+        response = await api.post<DraftApiResponse>("/api/v1/email_drafts", payload);
+      }
+
+      if (response?.success && response.data) {
+        const savedDraft = response.data;
+
+        // Update local state
+        setDrafts((prev) => {
+          const filtered = prev.filter((d) => d.id !== savedDraft.id && d.id !== existingId);
+          const updated = [savedDraft, ...filtered];
+          saveDraftsToStorage(updated);
+          return updated;
+        });
+
+        return savedDraft.id;
+      }
+    } catch (err) {
+      console.warn("Failed to save draft to API, saving locally:", err);
+    }
+
+    // Fallback to localStorage only
+    const id = existingId || generateDraftId();
     const draft: EmailDraft = {
       ...draftData,
       id,
@@ -95,7 +240,17 @@ export function useEmailDrafts() {
   /**
    * Delete a draft by ID
    */
-  const deleteDraft = useCallback((id: string): void => {
+  const deleteDraft = useCallback(async (id: string): Promise<void> => {
+    // Try to delete from API first
+    if (isServerDraftId(id)) {
+      try {
+        await api.delete<DeleteApiResponse>(`/api/v1/email_drafts/${id}`);
+      } catch (err) {
+        console.warn("Failed to delete draft from API:", err);
+      }
+    }
+
+    // Always remove from local state and localStorage
     setDrafts((prev) => {
       const filtered = prev.filter((d) => d.id !== id);
       saveDraftsToStorage(filtered);
@@ -113,17 +268,23 @@ export function useEmailDrafts() {
   /**
    * Clear all drafts
    */
-  const clearAllDrafts = useCallback((): void => {
+  const clearAllDrafts = useCallback(async (): Promise<void> => {
+    try {
+      await api.delete<DeleteApiResponse>("/api/v1/email_drafts/destroy_all");
+    } catch (err) {
+      console.warn("Failed to clear drafts from API:", err);
+    }
+
     setDrafts([]);
     saveDraftsToStorage([]);
   }, []);
 
   /**
-   * Refresh drafts from storage
+   * Refresh drafts from API/storage
    */
-  const refreshDrafts = useCallback((): void => {
-    setDrafts(getDraftsFromStorage());
-  }, []);
+  const refreshDrafts = useCallback(async (): Promise<void> => {
+    await loadDrafts();
+  }, [loadDrafts]);
 
   return {
     drafts,
@@ -134,6 +295,8 @@ export function useEmailDrafts() {
     refreshDrafts,
     hasDrafts: drafts.length > 0,
     draftCount: drafts.length,
+    isLoading,
+    error,
   };
 }
 
@@ -179,37 +342,40 @@ export function useAutoSaveDraft(config: AutoSaveConfig) {
   );
 
   // Save draft function
-  const save = useCallback(() => {
+  const save = useCallback(async () => {
     if (!hasContent) return;
 
     setIsSaving(true);
-    const id = saveDraft(
-      {
-        credential_id: data.credential_id,
-        from_address: data.from_address,
-        to: data.to,
-        cc: data.cc,
-        bcc: data.bcc,
-        subject: data.subject,
-        body: data.body,
-        reply_to_message_id: data.reply_to_message_id,
-        attachment_names: data.attachment_names || [],
-      },
-      draftId
-    );
+    try {
+      const id = await saveDraft(
+        {
+          credential_id: data.credential_id,
+          from_address: data.from_address,
+          to: data.to,
+          cc: data.cc,
+          bcc: data.bcc,
+          subject: data.subject,
+          body: data.body,
+          reply_to_message_id: data.reply_to_message_id,
+          attachment_names: data.attachment_names || [],
+        },
+        draftId
+      );
 
-    setDraftId(id);
-    setLastSavedData(currentDataString);
-    setIsSaving(false);
-    onSave?.(id);
+      setDraftId(id);
+      setLastSavedData(currentDataString);
+      onSave?.(id);
 
-    return id;
+      return id;
+    } finally {
+      setIsSaving(false);
+    }
   }, [data, draftId, saveDraft, hasContent, currentDataString, onSave]);
 
   // Discard draft
-  const discard = useCallback(() => {
+  const discard = useCallback(async () => {
     if (draftId) {
-      deleteDraft(draftId);
+      await deleteDraft(draftId);
       setDraftId(undefined);
     }
     setLastSavedData("");

@@ -2,7 +2,7 @@
 
 module Api
   module V1
-    class SmTemplatesController < ApplicationController
+    class SmScheduleMasterTemplatesController < ApplicationController
       before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job ]
 
       # GET /api/v1/sm_templates

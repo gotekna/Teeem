@@ -8,99 +8,10 @@ import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
-import type { TableColumn, TableRow } from "@/components/table/types";
+import type { TableRow } from "@/components/table/types";
 
-// Define columns for financial transactions table
-const TRANSACTION_COLUMNS: TableColumn[] = [
-  {
-    key: "select",
-    label: "",
-    resizable: false,
-    sortable: false,
-    filterable: false,
-    width: 32,
-  },
-  {
-    key: "transaction_date",
-    label: "Date",
-    resizable: true,
-    sortable: true,
-    filterable: false,
-    width: 140,
-    tooltip: "Transaction date",
-  },
-  {
-    key: "transaction_type",
-    label: "Type",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 100,
-    tooltip: "Income or Expense",
-  },
-  {
-    key: "category",
-    label: "Category",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 150,
-    tooltip: "Transaction category",
-  },
-  {
-    key: "description",
-    label: "Description",
-    resizable: true,
-    sortable: false,
-    filterable: true,
-    filterType: "text",
-    width: 300,
-    tooltip: "Transaction description",
-  },
-  {
-    key: "construction_name",
-    label: "Job",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 180,
-    tooltip: "Linked construction job",
-  },
-  {
-    key: "amount",
-    label: "Amount",
-    resizable: true,
-    sortable: true,
-    filterable: false,
-    width: 120,
-    showSum: true,
-    sumType: "currency",
-    tooltip: "Transaction amount",
-  },
-  {
-    key: "status",
-    label: "Status",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 100,
-    tooltip: "Draft, Posted, or Synced",
-  },
-  {
-    key: "user_name",
-    label: "Created By",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 150,
-    tooltip: "User who created this transaction",
-  },
-];
+// SSoT: Columns are now fetched from Foundation API (ID: 199)
+// Removed hardcoded TRANSACTION_COLUMNS - 2024-12-27
 
 interface Construction {
   id: number;

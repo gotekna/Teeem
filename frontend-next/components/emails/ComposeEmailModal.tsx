@@ -43,7 +43,8 @@ import {
 } from "@/lib/email-constants";
 import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
 import { Calendar } from "@/components/ui/calendar";
-import { FileText } from "lucide-react";
+import { FileText, LayoutTemplate } from "lucide-react";
+import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import {
   Popover,
   PopoverContent,
@@ -108,6 +109,7 @@ export function ComposeEmailModal({
 
   // Schedule send state
   const [isScheduled, setIsScheduled] = useState(false);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [scheduledTime, setScheduledTime] = useState("09:00");
 
@@ -603,28 +605,62 @@ export function ComposeEmailModal({
                   onChange={(value) => setFormData({ ...formData, body: value })}
                   placeholder="Type your message..."
                   minHeight={180}
+                  onSlashCommand={(command) => {
+                    if (command === "template") {
+                      setTemplatePickerOpen(true);
+                    }
+                  }}
                 />
               </div>
 
-              {/* Attachments */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Label>Attachments</Label>
-                  <label className="cursor-pointer">
-                    <input
-                      type="file"
-                      multiple
-                      className="hidden"
-                      onChange={handleFileSelect}
-                    />
-                    <Button type="button" variant="outline" size="sm" asChild>
-                      <span>
-                        <Paperclip className="h-4 w-4 mr-1" />
-                        Add File
-                      </span>
+              {/* Templates & Attachments toolbar */}
+              <div className="flex items-center gap-2 pt-2">
+                {/* Template Picker (controlled for slash command support) */}
+                <TemplatePicker
+                  open={templatePickerOpen}
+                  onOpenChange={setTemplatePickerOpen}
+                  onSelect={(template, applied) => {
+                    // Insert template content into the editor
+                    setFormData((prev) => ({
+                      ...prev,
+                      // Only update subject if template has one and current is empty
+                      subject: applied.subject && !prev.subject.trim()
+                        ? applied.subject
+                        : prev.subject,
+                      // Append template body to existing content (or replace if empty)
+                      body: prev.body.trim()
+                        ? `${prev.body}<br><br>${applied.body_html}`
+                        : applied.body_html,
+                    }));
+                    setTemplatePickerOpen(false);
+                  }}
+                  trigger={
+                    <Button type="button" variant="outline" size="sm">
+                      <LayoutTemplate className="h-4 w-4 mr-1" />
+                      Templates
                     </Button>
-                  </label>
-                </div>
+                  }
+                />
+
+                {/* Attachments */}
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                  <Button type="button" variant="outline" size="sm" asChild>
+                    <span>
+                      <Paperclip className="h-4 w-4 mr-1" />
+                      Add File
+                    </span>
+                  </Button>
+                </label>
+              </div>
+
+              {/* Attachments list */}
+              <div className="space-y-2">
                 {attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {attachments.map((file, index) => (

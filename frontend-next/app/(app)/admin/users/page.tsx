@@ -9,79 +9,9 @@ import { AddUserModal } from "@/components/admin/AddUserModal";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
 
-// Define columns for Users table
-import { TableColumn, TableRow } from "@/components/table/types";
-
-const USER_COLUMNS: TableColumn[] = [
-  {
-    key: "select",
-    label: "",
-    resizable: false,
-    sortable: false,
-    filterable: false,
-    width: 32,
-    tooltip: "Select rows for bulk actions",
-  },
-  {
-    key: "id",
-    label: "ID",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "text",
-    width: 80,
-    tooltip: "User ID",
-  },
-  {
-    key: "name",
-    label: "Name",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "text",
-    width: 200,
-    tooltip: "User full name",
-  },
-  {
-    key: "email",
-    label: "Email",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "text",
-    width: 250,
-    tooltip: "Email address",
-  },
-  {
-    key: "role",
-    label: "Role",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 150,
-    tooltip: "User role (admin, user, etc.)",
-  },
-  {
-    key: "assigned_role",
-    label: "Group",
-    resizable: true,
-    sortable: true,
-    filterable: true,
-    filterType: "dropdown",
-    width: 150,
-    tooltip: "Assigned group/department",
-  },
-  {
-    key: "last_login_at",
-    label: "Last Login",
-    resizable: true,
-    sortable: true,
-    filterable: false,
-    width: 180,
-    tooltip: "Last login timestamp",
-  },
-];
+// SSoT: Columns are now fetched from Foundation API (ID: 212)
+// Removed hardcoded USER_COLUMNS - 2024-12-27
+import { TableRow } from "@/components/table/types";
 
 interface User {
   id: number;

@@ -55,6 +55,9 @@ class Column < ApplicationRecord
   validate :lookup_configuration_valid, if: -> { column_type.in?([ "lookup", "multiple_lookups" ]) }
   validate :column_name_not_reserved
 
+  # SSoT: Ensure critical properties are never NULL
+  before_save :ensure_defaults
+
   # Auto-sync views when columns are created or destroyed
   after_commit :add_to_saved_views, on: :create
   before_destroy :remove_from_saved_views
@@ -280,6 +283,14 @@ class Column < ApplicationRecord
   end
 
   private
+
+  # SSoT: Ensure critical column properties are never NULL
+  # This prevents future drift where new columns get NULL defaults
+  def ensure_defaults
+    self.searchable = true if searchable.nil?
+    self.header_align ||= "left"
+    self.data_align ||= "left"
+  end
 
   def generate_column_name
     # Generate a safe database column name from the name field

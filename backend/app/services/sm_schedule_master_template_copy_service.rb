@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# SmTemplateCopyService - Copies an SmTemplate to a Job as SmTasks
+# SmScheduleMasterTemplateCopyService - Copies an SmScheduleMasterTemplate to a Job as SmTasks
 #
 # This is a critical service that instantiates a template into actual tasks.
 # It handles:
@@ -10,7 +10,7 @@
 # - Optionally creating Purchase Orders for tasks that require them
 #
 # Usage:
-#   result = SmTemplateCopyService.new(template, job, options).execute
+#   result = SmScheduleMasterTemplateCopyService.new(template, job, options).execute
 #
 # Options:
 #   user: User performing the copy (for audit trail)
@@ -18,7 +18,7 @@
 #   clear_existing: Clear existing tasks before copying (default: false)
 #   create_purchase_orders: Create POs for tasks marked with create_po_on_job_start (default: false)
 #
-class SmTemplateCopyService
+class SmScheduleMasterTemplateCopyService
   attr_reader :template, :job, :options, :errors
 
   def initialize(template, job, options = {})
@@ -71,7 +71,7 @@ class SmTemplateCopyService
       success
     end
   rescue StandardError => e
-    Rails.logger.error "SmTemplateCopyService error: #{e.message}\n#{e.backtrace.first(10).join("\n")}"
+    Rails.logger.error "SmScheduleMasterTemplateCopyService error: #{e.message}\n#{e.backtrace.first(10).join("\n")}"
     failure("Copy failed: #{e.message}")
   end
 
@@ -95,7 +95,7 @@ class SmTemplateCopyService
   def clear_existing_tasks
     count = job.sm_tasks.count
     job.sm_tasks.destroy_all
-    Rails.logger.info "SmTemplateCopyService: Cleared #{count} existing tasks for job #{job.id}"
+    Rails.logger.info "SmScheduleMasterTemplateCopyService: Cleared #{count} existing tasks for job #{job.id}"
   end
 
   def create_tasks
@@ -148,7 +148,7 @@ class SmTemplateCopyService
         if row.create_po_on_job_start && row.po_supplier_id.blank?
           @tasks_needing_pos << task
         end
-        Rails.logger.debug "SmTemplateCopyService: Created task #{task.task_number}: #{task.name}"
+        Rails.logger.debug "SmScheduleMasterTemplateCopyService: Created task #{task.task_number}: #{task.name}"
       else
         @errors << "Row '#{row.name}': #{task.errors.full_messages.join(', ')}"
       end
@@ -181,7 +181,7 @@ class SmTemplateCopyService
 
         if dependency.save
           @created_dependencies << dependency
-          Rails.logger.debug "SmTemplateCopyService: Created dependency #{predecessor_task.task_number} -> #{successor_task.task_number}"
+          Rails.logger.debug "SmScheduleMasterTemplateCopyService: Created dependency #{predecessor_task.task_number} -> #{successor_task.task_number}"
         else
           @errors << "Dependency #{predecessor_task.name} -> #{successor_task.name}: #{dependency.errors.full_messages.join(', ')}"
         end
@@ -265,7 +265,7 @@ class SmTemplateCopyService
 
     # If we couldn't sort all tasks, there's a cycle - fall back to sequence order
     if sorted.length != tasks.length
-      Rails.logger.warn "SmTemplateCopyService: Detected dependency cycle, using sequence order"
+      Rails.logger.warn "SmScheduleMasterTemplateCopyService: Detected dependency cycle, using sequence order"
       return tasks.sort_by(&:sequence_order)
     end
 
@@ -287,10 +287,10 @@ class SmTemplateCopyService
         po = create_po_for_task(task, row)
         if po
           @created_purchase_orders << po
-          Rails.logger.info "SmTemplateCopyService: Created PO #{po.purchase_order_number} for task #{task.task_number}: #{task.name}"
+          Rails.logger.info "SmScheduleMasterTemplateCopyService: Created PO #{po.purchase_order_number} for task #{task.task_number}: #{task.name}"
         end
       rescue StandardError => e
-        Rails.logger.error "SmTemplateCopyService: Failed to create PO for task #{task.id}: #{e.message}"
+        Rails.logger.error "SmScheduleMasterTemplateCopyService: Failed to create PO for task #{task.id}: #{e.message}"
         @errors << "Auto-PO for '#{row.name}': #{e.message}"
       end
     end
@@ -333,7 +333,7 @@ class SmTemplateCopyService
         )
 
         unless line_item.save
-          Rails.logger.warn "SmTemplateCopyService: Line item creation failed: #{line_item.errors.full_messages.join(', ')}"
+          Rails.logger.warn "SmScheduleMasterTemplateCopyService: Line item creation failed: #{line_item.errors.full_messages.join(', ')}"
         end
       end
     end
