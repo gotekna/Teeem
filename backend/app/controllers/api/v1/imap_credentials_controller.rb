@@ -104,6 +104,22 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }
   end
 
+  # POST /api/v1/imap_credentials/sync_all
+  # Manually trigger sync for ALL user's IMAP accounts
+  def sync_all
+    credentials = current_user.imap_credentials.where(is_active: true)
+
+    credentials.each do |credential|
+      ImapSyncJob.perform_later(credential.id, full_sync: false)
+    end
+
+    render json: {
+      success: true,
+      message: "Sync started for #{credentials.count} account(s). New emails will appear shortly.",
+      accounts_synced: credentials.count
+    }
+  end
+
   # POST /api/v1/imap_credentials/test
   # Test connection without saving
   def test

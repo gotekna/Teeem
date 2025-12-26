@@ -980,6 +980,7 @@ Rails.application.routes.draw do
           post :schedule_email
           get :scheduled_emails
           get :folders  # Fetch folders for a specific account (pass account_id param)
+          post :sync_all  # Sync ALL user's IMAP accounts
         end
         member do
           post :sync

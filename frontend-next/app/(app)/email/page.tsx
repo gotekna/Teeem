@@ -905,20 +905,11 @@ export default function EmailPage() {
     try {
       const syncPromises: Promise<unknown>[] = [];
 
-      // Sync all accounts
-      accounts.forEach((account) => {
-        if (account.type === "outlook") {
-          syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
-        } else if (account.type === "imap") {
-          syncPromises.push(
-            api.post(`/api/v1/imap_credentials/${account.id}/sync`).catch(() => {})
-          );
-        }
-        // MS365 accounts use Outlook sync endpoint (org-level)
-      });
+      // Always trigger the main sync endpoint (handles all IMAP accounts)
+      syncPromises.push(api.post("/api/v1/imap_credentials/sync_all").catch(() => {}));
 
-      // If no accounts found, just sync the main inbox
-      if (syncPromises.length === 0) {
+      // Also sync Outlook if accounts are loaded
+      if (accounts.some(a => a.type === "outlook")) {
         syncPromises.push(api.post("/api/v1/email_warehouse/sync").catch(() => {}));
       }
 
