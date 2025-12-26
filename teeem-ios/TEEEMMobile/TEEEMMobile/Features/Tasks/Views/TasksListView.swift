@@ -76,7 +76,7 @@ struct TaskDetailView: View {
                     LabeledContent("Due Date", value: date)
                 }
             }
-            if let desc = task.description {
+            if let desc = task.taskDescription {
                 Section("Description") { Text(desc) }
             }
             if task.isHoldTask == true, let reason = task.holdReason {

@@ -4,7 +4,7 @@ import SwiftUI
 struct SMTask: Identifiable, Hashable {
     let id: Int
     let name: String?
-    let description: String?
+    let taskDescription: String?
     let status: String?
     let trade: String?
     let constructionId: Int?
@@ -76,7 +76,8 @@ struct SMTask: Identifiable, Hashable {
 
 extension SMTask: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case id, name, description, status, trade
+        case id, name, status, trade
+        case taskDescription = "description"
         case constructionId = "construction_id"
         case jobName = "job_name"
         case startDate = "start_date"
@@ -93,7 +94,7 @@ extension SMTask: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
         name = try container.decodeIfPresent(String.self, forKey: .name)
-        description = try container.decodeIfPresent(String.self, forKey: .description)
+        taskDescription = try container.decodeIfPresent(String.self, forKey: .taskDescription)
         status = try container.decodeIfPresent(String.self, forKey: .status)
         trade = try container.decodeIfPresent(String.self, forKey: .trade)
         constructionId = try container.decodeIfPresent(Int.self, forKey: .constructionId)
