@@ -4,7 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import type { DateRange } from "react-day-picker";
 
 export interface EmailFilters {
-  /** Text search query */
+  /** Text search query (may contain operators like from:, to:, subject:) */
   search: string;
   /** Filter by email address (from/to/cc) */
   email: string;
@@ -16,6 +16,125 @@ export interface EmailFilters {
   unassigned: boolean;
   /** Only show unread emails */
   unread: boolean;
+}
+
+/**
+ * Parsed search operators from the search query
+ */
+export interface ParsedOperators {
+  /** from: operator - filter by sender */
+  from?: string;
+  /** to: operator - filter by recipient */
+  to?: string;
+  /** subject: operator - filter by subject line */
+  subject?: string;
+  /** has:attachment - filter emails with attachments */
+  hasAttachment?: boolean;
+  /** is:unread - filter unread emails */
+  isUnread?: boolean;
+  /** is:starred - filter starred emails */
+  isStarred?: boolean;
+  /** before: operator - emails before date */
+  before?: string;
+  /** after: operator - emails after date */
+  after?: string;
+  /** Remaining text after operators are extracted */
+  textQuery: string;
+}
+
+/**
+ * Parse Gmail-style search operators from a search query
+ *
+ * Supported operators:
+ * - from:email@example.com - Filter by sender
+ * - to:email@example.com - Filter by recipient
+ * - subject:keyword or subject:"multi word" - Filter by subject
+ * - has:attachment - Only emails with attachments
+ * - is:unread - Only unread emails
+ * - is:starred - Only starred emails
+ * - before:2024-01-01 - Emails before date
+ * - after:2024-01-01 - Emails after date
+ *
+ * Example: "from:john@example.com subject:invoice has:attachment important meeting"
+ * Returns: { from: "john@example.com", subject: "invoice", hasAttachment: true, textQuery: "important meeting" }
+ */
+export function parseSearchOperators(query: string): ParsedOperators {
+  const result: ParsedOperators = {
+    textQuery: query,
+  };
+
+  if (!query) return result;
+
+  let remaining = query;
+
+  // Patterns for each operator
+  const patterns: Array<{
+    key: keyof ParsedOperators;
+    regex: RegExp;
+    transform?: (match: string) => unknown;
+  }> = [
+    // from:email
+    { key: "from", regex: /from:(\S+)/i },
+    // to:email
+    { key: "to", regex: /to:(\S+)/i },
+    // subject:"multi word" or subject:word
+    { key: "subject", regex: /subject:"([^"]+)"|subject:(\S+)/i },
+    // has:attachment or has:attachments
+    {
+      key: "hasAttachment",
+      regex: /has:attachments?/i,
+      transform: () => true,
+    },
+    // is:unread
+    {
+      key: "isUnread",
+      regex: /is:unread/i,
+      transform: () => true,
+    },
+    // is:starred
+    {
+      key: "isStarred",
+      regex: /is:starred/i,
+      transform: () => true,
+    },
+    // before:YYYY-MM-DD
+    { key: "before", regex: /before:(\S+)/i },
+    // after:YYYY-MM-DD
+    { key: "after", regex: /after:(\S+)/i },
+  ];
+
+  for (const { key, regex, transform } of patterns) {
+    const match = remaining.match(regex);
+    if (match) {
+      // Get the captured value (handle quoted strings)
+      const value = match[1] || match[2] || match[0];
+      const transformedValue = transform ? transform(value) : value;
+
+      // Type-safe assignment based on key
+      switch (key) {
+        case "from":
+        case "to":
+        case "subject":
+        case "before":
+        case "after":
+          result[key] = transformedValue as string;
+          break;
+        case "hasAttachment":
+        case "isUnread":
+        case "isStarred":
+          result[key] = transformedValue as boolean;
+          break;
+      }
+
+      // Remove the matched operator from the remaining string
+      remaining = remaining.replace(regex, "").trim();
+    }
+  }
+
+  // Clean up multiple spaces
+  result.textQuery = remaining.replace(/\s+/g, " ").trim();
+
+  return result;
 }
 
 export interface UseEmailFiltersReturn {
@@ -98,23 +217,58 @@ export function useEmailFilters(): UseEmailFiltersReturn {
   const toURLParams = useCallback((): URLSearchParams => {
     const params = new URLSearchParams();
 
+    // Parse search operators from the search string
     if (filters.search) {
-      params.append("search", filters.search);
+      const parsed = parseSearchOperators(filters.search);
+
+      // Send the remaining text query (after operators extracted)
+      if (parsed.textQuery) {
+        params.append("search", parsed.textQuery);
+      }
+
+      // Send parsed operators as separate params
+      if (parsed.from) {
+        params.append("from", parsed.from);
+      }
+      if (parsed.to) {
+        params.append("to", parsed.to);
+      }
+      if (parsed.subject) {
+        params.append("subject", parsed.subject);
+      }
+      if (parsed.hasAttachment) {
+        params.append("has_attachments", "true");
+      }
+      if (parsed.isUnread) {
+        params.append("unread", "true");
+      }
+      if (parsed.isStarred) {
+        params.append("starred", "true");
+      }
+      // Date operators override the dateRange filter
+      if (parsed.after) {
+        params.append("since", new Date(parsed.after).toISOString());
+      }
+      if (parsed.before) {
+        params.append("until", new Date(parsed.before).toISOString());
+      }
     }
 
     if (filters.email) {
       params.append("email", filters.email);
     }
 
-    if (filters.dateRange?.from) {
+    // Only add date range if not overridden by search operators
+    if (filters.dateRange?.from && !filters.search.includes("after:")) {
       params.append("since", filters.dateRange.from.toISOString());
     }
 
-    if (filters.dateRange?.to) {
+    if (filters.dateRange?.to && !filters.search.includes("before:")) {
       params.append("until", filters.dateRange.to.toISOString());
     }
 
-    if (filters.hasAttachments) {
+    // Only add hasAttachments if not set by search operator
+    if (filters.hasAttachments && !filters.search.toLowerCase().includes("has:attachment")) {
       params.append("has_attachments", "true");
     }
 
@@ -122,7 +276,8 @@ export function useEmailFilters(): UseEmailFiltersReturn {
       params.append("unassigned", "true");
     }
 
-    if (filters.unread) {
+    // Only add unread if not set by search operator
+    if (filters.unread && !filters.search.toLowerCase().includes("is:unread")) {
       params.append("unread", "true");
     }
 

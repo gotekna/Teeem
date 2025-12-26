@@ -73,6 +73,8 @@ import BASLodgementTab from "@/components/financial/BASLodgementTab";
 import ABNLookupTab from "@/components/financial/ABNLookupTab";
 import ASICEdgeTab from "@/components/financial/ASICEdgeTab";
 import InventoryTab from "@/components/financial/InventoryTab";
+import BudgetingTab from "@/components/financial/BudgetingTab";
+import WIPReportsTab from "@/components/financial/WIPReportsTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -680,6 +682,14 @@ export default function GlPage() {
             <Coins className="h-4 w-4" />
             Inventory
           </TabsTrigger>
+          <TabsTrigger value="budgeting" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Budgeting
+          </TabsTrigger>
+          <TabsTrigger value="wip-reports" className="flex items-center gap-2">
+            <Layers className="h-4 w-4" />
+            WIP Reports
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1101,6 +1111,16 @@ export default function GlPage() {
         {/* Inventory Tab */}
         <TabsContent value="inventory">
           <InventoryTab />
+        </TabsContent>
+
+        {/* Budgeting Tab */}
+        <TabsContent value="budgeting">
+          <BudgetingTab />
+        </TabsContent>
+
+        {/* WIP Reports Tab */}
+        <TabsContent value="wip-reports">
+          <WIPReportsTab />
         </TabsContent>
       </Tabs>
 

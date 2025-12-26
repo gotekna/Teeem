@@ -146,17 +146,6 @@ interface Supplier {
   company_name: string | null;
 }
 
-interface PriceHistory {
-  id: number;
-  pricebook_item_id: number;
-  pricebook_item_name: string;
-  pricebook_item_code: string;
-  supplier_id: number;
-  supplier_name: string;
-  new_price: number;
-  old_price: number | null;
-  created_at: string;
-}
 
 interface SyncResult {
   success: boolean;
@@ -286,11 +275,8 @@ export default function ScheduleTemplateDetailPage() {
   const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
   const [autoPORow, setAutoPORow] = React.useState<SmScheduleMaster | null>(null);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
-  const [priceHistories, setPriceHistories] = React.useState<PriceHistory[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
-  const [loadingPriceHistories, setLoadingPriceHistories] = React.useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
-  const [selectedPriceHistoryIds, setSelectedPriceHistoryIds] = React.useState<number[]>([]);
   const [savingAutoPO, setSavingAutoPO] = React.useState(false);
 
   // Load data
@@ -523,62 +509,17 @@ export default function ScheduleTemplateDetailPage() {
     }
   };
 
-  // Load price histories for a specific supplier
-  const loadPriceHistoriesForSupplier = async (supplierId: string) => {
-    if (!supplierId) {
-      setPriceHistories([]);
-      return;
-    }
-    setLoadingPriceHistories(true);
-    try {
-      const response = await api.get<{ success: boolean; data: PriceHistory[] }>(
-        `/api/v1/pricebook/all_price_histories?supplier_id=${supplierId}&limit=500`
-      );
-      setPriceHistories(response.data || []);
-    } catch (error) {
-      console.error("Failed to load price histories:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load price histories",
-        variant: "destructive",
-      });
-    } finally {
-      setLoadingPriceHistories(false);
-    }
-  };
-
   // Open auto-PO configuration dialog
   const handleOpenAutoPODialog = (row: SmScheduleMaster) => {
     setAutoPORow(row);
     setSelectedSupplierId(row.po_supplier_id ? String(row.po_supplier_id) : "");
-    setSelectedPriceHistoryIds(row.po_price_history_ids || []);
-    setPriceHistories([]);
     setShowAutoPODialog(true);
     loadSuppliers();
-    // If row already has a supplier, load its price histories
-    if (row.po_supplier_id) {
-      loadPriceHistoriesForSupplier(String(row.po_supplier_id));
-    }
   };
 
   // Handle supplier selection change
   const handleSupplierChange = (supplierId: string) => {
     setSelectedSupplierId(supplierId);
-    setSelectedPriceHistoryIds([]); // Clear selections when supplier changes
-    if (supplierId) {
-      loadPriceHistoriesForSupplier(supplierId);
-    } else {
-      setPriceHistories([]);
-    }
-  };
-
-  // Toggle price history selection
-  const togglePriceHistorySelection = (phId: number) => {
-    setSelectedPriceHistoryIds((prev) =>
-      prev.includes(phId)
-        ? prev.filter((id) => id !== phId)
-        : [...prev, phId]
-    );
   };
 
   // Save auto-PO configuration
@@ -591,7 +532,6 @@ export default function ScheduleTemplateDetailPage() {
         row: {
           create_po_on_job_start: true,
           po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
-          po_price_history_ids: selectedPriceHistoryIds,
         },
       });
       toast({ title: "Success", description: "Auto-PO configuration saved" });
@@ -619,7 +559,6 @@ export default function ScheduleTemplateDetailPage() {
         row: {
           create_po_on_job_start: false,
           po_supplier_id: null,
-          po_price_history_ids: [],
         },
       });
       toast({ title: "Success", description: "Auto-PO configuration cleared" });
@@ -1046,9 +985,6 @@ export default function ScheduleTemplateDetailPage() {
                     {editingRow?.po_supplier_id && (
                       <Badge variant="secondary" className="ml-auto">
                         {editingRow.po_supplier_name}
-                        {editingRow.po_price_history_ids?.length > 0 && (
-                          <span className="ml-1">({editingRow.po_price_history_ids.length} items)</span>
-                        )}
                       </Badge>
                     )}
                     {editForm.create_po_on_job_start && (
@@ -1721,82 +1657,10 @@ export default function ScheduleTemplateDetailPage() {
               )}
             </div>
 
-            {/* Price History Items */}
-            {selectedSupplierId && (
-              <div className="space-y-2">
-                <Label>Items from Price Book</Label>
-                <p className="text-sm text-muted-foreground">
-                  Select items to include on the auto-generated PO. Prices are from this supplier&apos;s price history.
-                </p>
-                {loadingPriceHistories ? (
-                  <div className="flex items-center gap-2 text-muted-foreground py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading price history...
-                  </div>
-                ) : priceHistories.length === 0 ? (
-                  <div className="text-sm text-muted-foreground py-4 bg-muted rounded-lg text-center">
-                    No price history found for this supplier.
-                    <br />
-                    <span className="text-xs">Add prices in the Pricebook to enable auto-PO items.</span>
-                  </div>
-                ) : (
-                  <div className="max-h-60 overflow-y-auto border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-10"></TableHead>
-                          <TableHead>Item</TableHead>
-                          <TableHead className="text-right">Price</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {priceHistories.map((ph) => (
-                          <TableRow
-                            key={ph.id}
-                            className="cursor-pointer hover:bg-muted/50"
-                            onClick={() => togglePriceHistorySelection(ph.id)}
-                          >
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedPriceHistoryIds.includes(ph.id)}
-                                onCheckedChange={() => togglePriceHistorySelection(ph.id)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <div className="font-medium">{ph.pricebook_item_name}</div>
-                              <div className="text-xs text-muted-foreground">{ph.pricebook_item_code}</div>
-                            </TableCell>
-                            <TableCell className="text-right font-mono">
-                              ${ph.new_price?.toLocaleString('en-AU', { minimumFractionDigits: 2 }) ?? '0.00'}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-
-                {selectedPriceHistoryIds.length > 0 && (
-                  <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
-                    <p className="text-sm text-green-700 dark:text-green-300">
-                      {selectedPriceHistoryIds.length} item{selectedPriceHistoryIds.length !== 1 ? 's' : ''} selected for auto-PO
-                    </p>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      Total: $
-                      {priceHistories
-                        .filter((ph) => selectedPriceHistoryIds.includes(ph.id))
-                        .reduce((sum, ph) => sum + (ph.new_price || 0), 0)
-                        .toLocaleString('en-AU', { minimumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Info message */}
             <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
               <AlertCircle className="h-4 w-4 inline mr-1 text-blue-600 dark:text-blue-400" />
-              When this template is copied to a job, a draft PO will be created automatically with the selected supplier and items.
+              When this template is copied to a job, a draft PO will be created automatically with the selected supplier.
             </div>
           </div>
 

@@ -965,6 +965,11 @@ export default function TeeemTableView({
 
   const effectiveBulkDelete = onBulkDelete || (shouldAutoEnable ? defaultBulkDelete : undefined);
 
+  // Auto-enable search options menu when foundationIdNumeric is set
+  // This shows the three-dot menu next to search (search modes, search all columns)
+  // SSoT: When foundationIdNumeric is set, tables automatically get Gold Standard features
+  const showSearchOptionsMenu = !!onServerSearch || shouldAutoEnable;
+
   // ============================================================================
   // SESSION STORAGE CACHE - Persists view state across page navigation
   // ============================================================================
@@ -2837,17 +2842,62 @@ export default function TeeemTableView({
     // ONLY filter client-side when there's NO server search - SSoT: backend handles filtering
     // When effectiveOnServerSearch exists, server already filtered with SQL ILIKE
     const hasServerSearch = !!effectiveOnServerSearch;
+
+    // DEBUG: Log search state
+    if (search) {
+      console.log('[TeeemTableView Search Debug]', {
+        search,
+        hasServerSearch,
+        effectiveOnServerSearch: !!effectiveOnServerSearch,
+        searchAllColumns,
+        searchableColumnsKeys: Object.keys(searchableColumns),
+        resultCount: result.length,
+        columnsCount: COLUMNS.length,
+        firstEntry: result[0] ? Object.keys(result[0]).slice(0, 5) : 'no entries'
+      });
+    }
+
     if (search && !hasServerSearch) {
+      // DEBUG: Check first entry's name field
+      if (result.length > 0) {
+        const firstEntry = result[0];
+        console.log('[TeeemTableView Search] First entry fields:', {
+          name: firstEntry.name,
+          id: firstEntry.id,
+          allKeys: Object.keys(firstEntry).slice(0, 10),
+          nameInSearchable: searchableColumns['name'],
+          columnsWithName: COLUMNS.filter(c => c.key === 'name').map(c => ({ key: c.key, label: c.label }))
+        });
+      }
+
       result = result.filter((entry) => {
-        return COLUMNS.some((col) => {
+        const matches = COLUMNS.some((col) => {
           if (col.key === "select" || col.key === "actions") return false;
           // If not "search all columns", only search columns marked as searchable
           if (!searchAllColumns && !searchableColumns[col.key]) return false;
           const value = entry[col.key];
           if (value == null) return false;
           // Use fuzzy match for typo tolerance
-          return fuzzyMatch(search, String(value));
+          const matched = fuzzyMatch(search, String(value));
+          // DEBUG: Log matches for name column
+          if (col.key === 'name' && entry.id === result[0]?.id) {
+            console.log('[TeeemTableView Search] Name column check:', {
+              colKey: col.key,
+              value,
+              search,
+              matched,
+              isSearchable: searchableColumns[col.key]
+            });
+          }
+          return matched;
         });
+        return matches;
+      });
+
+      // DEBUG: Log after filtering
+      console.log('[TeeemTableView Search Result]', {
+        filteredCount: result.length,
+        search
       });
     }
 
@@ -4888,7 +4938,7 @@ export default function TeeemTableView({
             onSearchAllChange={handleSearchAllChange}
             searchAllColumns={searchAllColumns}
             serverSearchLoading={effectiveServerSearchLoading}
-            hasServerSearch={!!effectiveOnServerSearch}
+            hasServerSearch={showSearchOptionsMenu}
             searchMode={propSearchMode}
             onSearchModeChange={onSearchModeChange}
           />

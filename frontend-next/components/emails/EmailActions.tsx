@@ -33,8 +33,6 @@ import {
   Archive,
   ArchiveRestore,
   Crown,
-  Bell,
-  BellOff,
   MoreHorizontal,
   Check,
   Trash2,
@@ -42,6 +40,7 @@ import {
   Mail,
   MailOpen,
 } from "lucide-react";
+import { ReminderButton } from "./ReminderPicker";
 
 // Types
 export interface EmailUserState {
@@ -593,6 +592,7 @@ interface EmailActionsBarProps {
   state?: Partial<EmailUserState>;
   onStateChange?: (state: EmailUserState) => void;
   showVip?: boolean;
+  showReminder?: boolean;
   size?: "sm" | "md";
 }
 
@@ -603,6 +603,7 @@ export function EmailActionsBar({
   state,
   onStateChange,
   showVip = true,
+  showReminder = true,
   size = "md",
 }: EmailActionsBarProps) {
   const [currentState, setCurrentState] = useState<Partial<EmailUserState>>(state || {});
@@ -646,6 +647,14 @@ export function EmailActionsBar({
           senderName={fromName}
           isVip={currentState.from_vip}
           onToggle={(isVip) => handleUpdate({ from_vip: isVip })}
+          size={size}
+        />
+      )}
+      {showReminder && (
+        <ReminderButton
+          emailId={emailId}
+          remindAt={currentState.remind_at}
+          onReminderChange={(remindAt) => handleUpdate({ remind_at: remindAt })}
           size={size}
         />
       )}

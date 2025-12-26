@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010007) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010008) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7382,7 +7382,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010007) do
     t.datetime "supplier_confirmed_at"
     t.datetime "hold_at"
     t.bigint "po_supplier_id"
-    t.integer "po_price_history_ids", default: [], array: true
     t.jsonb "po_line_items", default: []
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"

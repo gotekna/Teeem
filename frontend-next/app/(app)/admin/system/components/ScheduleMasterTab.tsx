@@ -156,8 +156,10 @@ const ALL_COLUMNS = [
   // Assignment & Supplier
   "trade", "stage", "assigned_role", "cost_centre",
   // PO Settings
-  "po_required", "critical_po", "create_po_on_job_start", "linked_po_task_id",
-  "po_line_items", "order_time_days", "call_time_days",
+  "po_required", "critical_po",
+  // Auto-PO (create_po_on_job_start + po_line_items work together)
+  "create_po_on_job_start", "po_line_items", "linked_po_task_id",
+  "order_time_days", "call_time_days",
   // Completion Requirements
   "require_photo", "require_certificate", "cert_lag_days", "pass_fail_enabled",
   // Subtasks
@@ -236,7 +238,6 @@ export function ScheduleMasterTab() {
   const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
-  const [serverSearchLoading, setServerSearchLoading] = React.useState(false);
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
@@ -470,33 +471,6 @@ export function ScheduleMasterTab() {
       setDataViewRows([]);
     } finally {
       setDataViewLoading(false);
-    }
-  };
-
-  // Server search handler - filters loaded data and enables search options menu
-  const handleServerSearch = async (query: string): Promise<{ id: number; [key: string]: unknown }[]> => {
-    setServerSearchLoading(true);
-    try {
-      if (!query.trim()) {
-        return dataViewRows as unknown as { id: number; [key: string]: unknown }[];
-      }
-
-      const lowerQuery = query.toLowerCase();
-      const filtered = dataViewRows.filter(row => {
-        // Search across key fields
-        return (
-          row.name?.toLowerCase().includes(lowerQuery) ||
-          row.description?.toLowerCase().includes(lowerQuery) ||
-          row.trade?.toLowerCase().includes(lowerQuery) ||
-          row.stage?.toLowerCase().includes(lowerQuery) ||
-          String(row.task_number || '').includes(lowerQuery) ||
-          String(row.id).includes(lowerQuery)
-        );
-      });
-
-      return filtered as unknown as { id: number; [key: string]: unknown }[];
-    } finally {
-      setServerSearchLoading(false);
     }
   };
 
@@ -963,11 +937,6 @@ export function ScheduleMasterTab() {
               }}
               onRowUpdate={handleDataViewRowUpdate}
               onRowDoubleClick={handleDataViewRowDoubleClick}
-              onServerSearch={handleServerSearch}
-              serverSearchLoading={serverSearchLoading}
-              enableExport={true}
-              enableImport={true}
-              enableSchemaEditor={true}
               initialShowTotals={true}
               leftActions={
                 <Select
@@ -1272,17 +1241,17 @@ export function ScheduleMasterTab() {
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
                     <span className="text-muted-foreground">Auto-create PO when job starts</span>
                   </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center pl-6">
+                    <Checkbox checked={columnStatus.complete["po_line_items"] || false} onCheckedChange={(v) => updateColumnStatus("po_line_items", !!v)} />
+                    <CopyableCode>po_line_items</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">jsonb</Badge>
+                    <span className="text-muted-foreground">↳ Line items for auto-PO: [{'{'}pricebook_item_id, qty{'}'}]</span>
+                  </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["linked_po_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("linked_po_task_id", !!v)} />
                     <CopyableCode>linked_po_task_id</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">FK</Badge>
                     <span className="text-muted-foreground">Link this task&apos;s PO to another task&apos;s PO</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["po_line_items"] || false} onCheckedChange={(v) => updateColumnStatus("po_line_items", !!v)} />
-                    <CopyableCode>po_line_items</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">jsonb</Badge>
-                    <span className="text-muted-foreground">PO line items with qty: [{'{'}pricebook_item_id, qty{'}'}]</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["order_time_days"] || false} onCheckedChange={(v) => updateColumnStatus("order_time_days", !!v)} />

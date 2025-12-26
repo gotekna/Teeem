@@ -87,6 +87,39 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.received_before(params[:until].to_datetime)
     end
 
+    # Search operators - specific field filters
+    # from: - filter by sender email address
+    if params[:from].present?
+      emails = emails.where("LOWER(from_email) LIKE ?", "%#{params[:from].downcase}%")
+    end
+
+    # to: - filter by recipient email addresses
+    if params[:to].present?
+      to_lower = params[:to].downcase
+      emails = emails.where("EXISTS (SELECT 1 FROM unnest(to_emails) AS e WHERE LOWER(e) LIKE ?)", "%#{to_lower}%")
+    end
+
+    # subject: - filter by subject line
+    if params[:subject].present?
+      emails = emails.where("subject ILIKE ?", "%#{params[:subject]}%")
+    end
+
+    # has:attachment - filter emails with attachments
+    if params[:has_attachments] == "true"
+      emails = emails.where(has_attachments: true)
+    end
+
+    # is:unread - filter unread emails (based on email's is_read flag)
+    if params[:unread] == "true"
+      emails = emails.where(is_read: false)
+    end
+
+    # is:starred - filter starred emails (requires join to user state)
+    if params[:starred] == "true"
+      emails = emails.joins(:email_user_states)
+                     .where(email_user_states: { user_id: current_user.id, is_starred: true })
+    end
+
     # Filter by source type (outlook, imap)
     if params[:source_type].present?
       emails = emails.where(source_type: params[:source_type])

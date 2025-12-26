@@ -35,7 +35,9 @@ import {
 import { api } from "@/lib/api";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useUndoSend } from "@/hooks/useUndoSend";
+import { useAutoSaveDraft, useEmailDrafts, type EmailDraft } from "@/hooks/useEmailDrafts";
 import { Calendar } from "@/components/ui/calendar";
+import { FileText } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -70,6 +72,8 @@ interface ComposeEmailModalProps {
   defaultBody?: string;
   replyToMessageId?: string;
   defaultFromAccountId?: string; // Account ID to send from (for replies)
+  /** Resume from a saved draft */
+  draft?: EmailDraft;
   onSent?: () => void;
 }
 
@@ -81,12 +85,14 @@ export function ComposeEmailModal({
   defaultBody = "",
   replyToMessageId,
   defaultFromAccountId,
+  draft,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [showCcBcc, setShowCcBcc] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
 
   const [formData, setFormData] = useState({
     credential_id: "",
@@ -97,6 +103,9 @@ export function ComposeEmailModal({
     subject: defaultSubject,
     body: defaultBody,
   });
+
+  // Draft management
+  const { deleteDraft } = useEmailDrafts();
 
   const [attachments, setAttachments] = useState<File[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +122,23 @@ export function ComposeEmailModal({
 
   // Undo send hook
   const { queueSend } = useUndoSend();
+
+  // Auto-save draft hook
+  const autoSave = useAutoSaveDraft({
+    enabled: open && !sending,
+    data: {
+      credential_id: formData.credential_id,
+      from_address: formData.from_address,
+      to: formData.to,
+      cc: formData.cc,
+      bcc: formData.bcc,
+      subject: formData.subject,
+      body: formData.body,
+      reply_to_message_id: replyToMessageId,
+      attachment_names: attachments.map((f) => f.name),
+    },
+    existingDraftId: draft?.id,
+  });
 
   // Search contacts by name/email
   const searchContacts = async (search: string) => {
@@ -163,19 +189,39 @@ export function ComposeEmailModal({
       setContactSearch("");
       setCcSearch("");
       setBccSearch("");
-      // Convert plain text body to HTML if it doesn't look like HTML already
-      const bodyAsHtml = defaultBody && !defaultBody.includes("<")
-        ? plainTextToHtml(defaultBody)
-        : defaultBody;
-      setFormData({
-        credential_id: "",
-        from_address: "",
-        to: defaultTo,
-        cc: "",
-        bcc: "",
-        subject: defaultSubject,
-        body: bodyAsHtml,
-      });
+      setShowCloseConfirm(false);
+
+      // If resuming from a draft, use draft data
+      if (draft) {
+        setFormData({
+          credential_id: draft.credential_id,
+          from_address: draft.from_address || "",
+          to: draft.to,
+          cc: draft.cc,
+          bcc: draft.bcc,
+          subject: draft.subject,
+          body: draft.body,
+        });
+        // Show CC/BCC if draft has those fields
+        if (draft.cc || draft.bcc) {
+          setShowCcBcc(true);
+        }
+      } else {
+        // Convert plain text body to HTML if it doesn't look like HTML already
+        const bodyAsHtml = defaultBody && !defaultBody.includes("<")
+          ? plainTextToHtml(defaultBody)
+          : defaultBody;
+        setFormData({
+          credential_id: "",
+          from_address: "",
+          to: defaultTo,
+          cc: "",
+          bcc: "",
+          subject: defaultSubject,
+          body: bodyAsHtml,
+        });
+      }
+
       setAttachments([]);
       setError(null);
       // Reset schedule state
@@ -183,7 +229,7 @@ export function ComposeEmailModal({
       setScheduledDate(undefined);
       setScheduledTime("09:00");
     }
-  }, [open, defaultTo, defaultSubject, defaultBody]);
+  }, [open, defaultTo, defaultSubject, defaultBody, draft]);
 
   // Update signature when account changes
   useEffect(() => {
