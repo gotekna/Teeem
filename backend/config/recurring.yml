@@ -412,7 +412,8 @@ sm_rollover:
 # - Checks all columns match current type definition versions
 # - Logs compliance score to system
 # - Alerts if score drops below threshold
-gold_standard_compliance_check:
-  class: GoldStandardComplianceCheckJob
-  queue: low
-  schedule: at 6am on Monday
+# Commented out - invalid schedule format crashes worker
+# gold_standard_compliance_check:
+#   class: GoldStandardComplianceCheckJob
+#   queue: low
+#   schedule: at 6am on Monday
