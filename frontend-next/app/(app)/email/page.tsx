@@ -48,6 +48,7 @@ import {
   useSplitInbox,
   type SplitInboxCategory,
 } from "@/components/emails/SplitInboxTabs";
+import { StaleIndicator } from "@/components/emails/StaleIndicator";
 import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp";
 import { BulkActionBar } from "@/components/emails/BulkActionBar";
 import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
@@ -70,6 +71,7 @@ import { useEmailState } from "@/components/emails/EmailActions";
 import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
 import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
 import { cn } from "@/lib/utils";
+import { emailCache, isIndexedDBAvailable } from "@/lib/email-cache";
 import { useToast } from "@/components/ui/use-toast";
 
 interface Email {
@@ -462,7 +464,22 @@ export default function EmailPage() {
   const threads = useEmailThreads();
 
   // WebSocket for real-time email updates
-  const handleNewEmail = useCallback((email: WebSocketEmail) => {
+  const handleNewEmail = useCallback(async (email: WebSocketEmail) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        // Determine category based on email properties (simplified - backend will have proper categorization)
+        const category = "other" as const; // Default to other, refresh will re-categorize
+        await emailCache.putEmail({
+          ...email,
+          _cachedAt: Date.now(),
+          _category: category,
+        });
+      } catch (err) {
+        console.error("[Email] Failed to cache new email:", err);
+      }
+    }
+
     // Add new email to the top of the list
     if (viewMode === "split") {
       // Refresh split inbox to re-categorize the email
@@ -480,7 +497,21 @@ export default function EmailPage() {
     });
   }, [viewMode, splitInbox, toast]);
 
-  const handleNewEmails = useCallback((emails: WebSocketEmail[], count: number) => {
+  const handleNewEmails = useCallback(async (emails: WebSocketEmail[], count: number) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        const cachedEmails = emails.map(email => ({
+          ...email,
+          _cachedAt: Date.now(),
+          _category: "other" as const, // Default to other, refresh will re-categorize
+        }));
+        await emailCache.putEmails(cachedEmails);
+      } catch (err) {
+        console.error("[Email] Failed to cache new emails:", err);
+      }
+    }
+
     if (viewMode === "split") {
       splitInbox.refresh();
     } else {
@@ -494,7 +525,16 @@ export default function EmailPage() {
     });
   }, [viewMode, splitInbox, toast]);
 
-  const handleStateChange = useCallback((emailId: number, changes: Record<string, unknown>) => {
+  const handleStateChange = useCallback(async (emailId: number, changes: Record<string, unknown>) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        await emailCache.updateEmail(emailId, changes);
+      } catch (err) {
+        console.error("[Email] Failed to update cached email:", err);
+      }
+    }
+
     // Update email in list
     setEmails(prev => prev.map(e =>
       e.id === emailId
@@ -516,7 +556,16 @@ export default function EmailPage() {
     }
   }, [viewMode, splitInbox, selectedEmail]);
 
-  const handleEmailDeleted = useCallback((emailId: number) => {
+  const handleEmailDeleted = useCallback(async (emailId: number) => {
+    // Update cache if available
+    if (isIndexedDBAvailable()) {
+      try {
+        await emailCache.deleteEmail(emailId);
+      } catch (err) {
+        console.error("[Email] Failed to delete cached email:", err);
+      }
+    }
+
     setEmails(prev => prev.filter(e => e.id !== emailId));
     setPagination(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
 
@@ -1177,6 +1226,15 @@ To: ${email.to_emails?.join(", ") || ""}
               unreadCounts={splitInbox.unreadCounts}
               loading={splitInbox.loading}
             />
+            {/* Stale/Offline Indicator */}
+            <StaleIndicator
+              isStale={splitInbox.isStale ?? false}
+              lastFetched={splitInbox.lastFetched ?? null}
+              isOffline={splitInbox.isOffline ?? false}
+              isRefreshing={splitInbox.isFetching ?? false}
+              onRefresh={splitInbox.refresh}
+              className="mt-2"
+            />
           </div>
         )}
 
@@ -1224,6 +1282,20 @@ To: ${email.to_emails?.join(", ") || ""}
             splitInbox.loading && !splitInbox.data ? (
               <div className="flex items-center justify-center py-12">
                 <Spinner />
+              </div>
+            ) : splitInbox.error ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <WifiOff className="h-8 w-8 mb-2 opacity-50 text-amber-500" />
+                <p className="text-sm">{splitInbox.error}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={splitInbox.refresh}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" />
+                  Try Again
+                </Button>
               </div>
             ) : splitInbox.currentEmails.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">

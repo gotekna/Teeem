@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import Combine
 
 @MainActor
 class ContactsViewModel: ObservableObject {

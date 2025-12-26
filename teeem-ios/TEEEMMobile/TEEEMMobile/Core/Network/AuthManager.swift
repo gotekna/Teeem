@@ -39,11 +39,24 @@ class AuthManager {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body = ["email": email, "password": password]
-        request.httpBody = try JSONEncoder().encode(body)
+        let body: [String: Any] = ["user": ["email": email, "password": password]]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw AuthError.invalidCredentials
+        guard let http = response as? HTTPURLResponse else {
+            throw AuthError.networkError("No response")
+        }
+        // Parse the response JSON
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw AuthError.networkError("Invalid response")
+        }
+        // Check for success flag
+        if let success = json["success"] as? Bool, !success {
+            let error = json["error"] as? String ?? "Login failed"
+            throw AuthError.serverError(error)
+        }
+        if http.statusCode != 200 && http.statusCode != 201 {
+            let error = json["error"] as? String ?? "Invalid credentials"
+            throw AuthError.serverError(error)
         }
         let result = try JSONDecoder().decode(LoginResponse.self, from: data)
         accessToken = result.token
@@ -55,8 +68,20 @@ class AuthManager {
         let url = URL(string: "https://teeemlive-ce8e2660a615.herokuapp.com/api/v1/auth/me")!
         var request = URLRequest(url: url)
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (data, _) = try await URLSession.shared.data(for: request)
-        return try JSONDecoder().decode(User.self, from: data)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw AuthError.notAuthenticated
+        }
+        // Parse wrapped response { "success": true, "user": {...} }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let userDict = json["user"] {
+            let userData = try JSONSerialization.data(withJSONObject: userDict)
+            return try decoder.decode(User.self, from: userData)
+        }
+        return try decoder.decode(User.self, from: data)
     }
 
     func logout() {
@@ -91,11 +116,23 @@ enum BiometricType {
     }
 }
 
-enum AuthError: Error {
+enum AuthError: LocalizedError {
     case invalidCredentials, notAuthenticated
+    case serverError(String)
+    case networkError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidCredentials: return "Invalid email or password"
+        case .notAuthenticated: return "Not authenticated"
+        case .serverError(let msg): return msg
+        case .networkError(let msg): return msg
+        }
+    }
 }
 
 struct LoginResponse: Codable {
+    let success: Bool
     let token: String
     let user: User
 }

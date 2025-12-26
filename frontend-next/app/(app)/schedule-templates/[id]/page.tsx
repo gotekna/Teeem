@@ -79,18 +79,18 @@ interface SmScheduleMaster {
   supplier_name: string | null;
   checklist_id: number | null;
   require_photo: boolean;
-  require_certificate: boolean;
   confirm: boolean;
   po_required: boolean;
   critical_po: boolean;
   create_po_on_job_start: boolean;
   po_supplier_id: number | null;
   po_supplier_name: string | null;
-  cert_lag_days: number | null;
   has_subtasks: boolean;
   subtask_count: number | null;
   subtask_names: string[] | null;
-  spawn_scan_task: boolean;
+  spawn_scan_task_id: number | null;
+  spawn_scan_lag_days: number;
+  spawn_scan_task_name: string | null;
   pass_fail_enabled: boolean;
   order_time_days: number | null;
   call_time_days: number | null;
@@ -196,7 +196,6 @@ interface CompareResult {
       trade: string | null;
       stage: string | null;
       require_photo: boolean;
-      require_certificate: boolean;
       po_required: boolean;
       critical_po: boolean;
     };
@@ -210,7 +209,6 @@ interface CompareResult {
       stage: string | null;
       status: string;
       require_photo: boolean;
-      require_certificate: boolean;
       po_required: boolean;
       critical_po: boolean;
       started_at: string | null;
@@ -318,8 +316,6 @@ export default function ScheduleTemplateDetailPage() {
       po_required: row.po_required,
       critical_po: row.critical_po,
       require_photo: row.require_photo,
-      require_certificate: row.require_certificate,
-      cert_lag_days: row.cert_lag_days,
       auto_include: row.auto_include,
       allow_duplicates: row.allow_duplicates,
       ai_select: row.ai_select,
@@ -762,15 +758,6 @@ export default function ScheduleTemplateDetailPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        {row.require_certificate ? (
-                          <Badge variant="secondary" className="text-xs">
-                            {row.cert_lag_days ? `+${row.cert_lag_days}d` : "Yes"}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
                         {row.auto_include ? (
                           <CheckCircle className="h-4 w-4 mx-auto text-green-500" />
                         ) : (
@@ -982,25 +969,8 @@ export default function ScheduleTemplateDetailPage() {
                   />
                   <Label htmlFor="require_photo" className="text-sm">Require Photo</Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="require_certificate"
-                    checked={editForm.require_certificate ?? false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, require_certificate: !!checked })}
-                  />
-                  <Label htmlFor="require_certificate" className="text-sm">Require Certificate</Label>
-                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cert Lag Days</Label>
-                  <Input
-                    type="number"
-                    value={editForm.cert_lag_days ?? ""}
-                    onChange={(e) => setEditForm({ ...editForm, cert_lag_days: e.target.value ? parseInt(e.target.value) : null })}
-                    placeholder="Days after task completion"
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label>Link to PO Task</Label>
                   <Select

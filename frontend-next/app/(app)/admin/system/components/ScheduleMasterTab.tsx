@@ -175,7 +175,7 @@ const ALL_COLUMNS = [
   // Documentation
   "documentation_category_ids",
   // Spawning Tasks
-  "spawn_scan_task", "spawn_order_task", "spawn_call_task",
+  "spawn_scan_task_id", "spawn_scan_lag_days", "spawn_order_task", "spawn_call_task",
   // Checklists
   "checklist_id",
   // Template Membership
@@ -1412,10 +1412,16 @@ export function ScheduleMasterTab() {
                     <span>Description</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["spawn_scan_task"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_task", !!v)} />
-                    <CopyableCode>spawn_scan_task</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Create a document scan task</span>
+                    <Checkbox checked={columnStatus.complete["spawn_scan_task_id"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_task_id", !!v)} />
+                    <CopyableCode>spawn_scan_task_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">bigint</Badge>
+                    <span className="text-muted-foreground">Which task template to spawn for document scan</span>
+                  </div>
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["spawn_scan_lag_days"] || false} onCheckedChange={(v) => updateColumnStatus("spawn_scan_lag_days", !!v)} />
+                    <CopyableCode>spawn_scan_lag_days</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">integer</Badge>
+                    <span className="text-muted-foreground">Days after completion to schedule the scan task</span>
                   </div>
                 </div>
               </CardContent>

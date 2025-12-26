@@ -7,7 +7,24 @@ class APIClient {
     private let authManager = AuthManager.shared
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
-        d.dateDecodingStrategy = .iso8601
+        d.keyDecodingStrategy = .convertFromSnakeCase
+        // Handle multiple date formats from Rails API
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        d.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            // Try ISO8601 with fractional seconds
+            if let date = formatter.date(from: dateString) { return date }
+            // Try ISO8601 without fractional seconds
+            formatter.formatOptions = [.withInternetDateTime]
+            if let date = formatter.date(from: dateString) { return date }
+            // Try simple date format
+            let simple = DateFormatter()
+            simple.dateFormat = "yyyy-MM-dd"
+            if let date = simple.date(from: dateString) { return date }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date")
+        }
         return d
     }()
 
@@ -21,7 +38,37 @@ class APIClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, 200..<300 ~= http.statusCode else {
+            print("API Error: HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
             throw APIError.requestFailed
+        }
+        // Debug: print raw response
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("API Response for \(path): \(jsonString.prefix(500))...")
+        }
+        // Try different response formats
+        if let wrapper = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            // Format 1: { "jobs": [...] } or { "contacts": [...] } etc
+            let resourceName = path.split(separator: "?").first.map(String.init) ?? path
+            if let items = wrapper[resourceName] ?? wrapper["data"] {
+                let itemsJSON = try JSONSerialization.data(withJSONObject: items)
+                do {
+                    return try decoder.decode(T.self, from: itemsJSON)
+                } catch {
+                    print("Decode error for \(path) (\(resourceName)): \(error)")
+                    throw error
+                }
+            }
+            // Format 2: { "data": { "entries": [...] } } (Foundation API)
+            if let dataObj = wrapper["data"] as? [String: Any],
+               let entries = dataObj["entries"] {
+                let entriesJSON = try JSONSerialization.data(withJSONObject: entries)
+                do {
+                    return try decoder.decode(T.self, from: entriesJSON)
+                } catch {
+                    print("Decode error for \(path) entries: \(error)")
+                    throw error
+                }
+            }
         }
         return try decoder.decode(T.self, from: data)
     }

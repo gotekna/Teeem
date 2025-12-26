@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
+import { useOfflineEmails } from "@/hooks/useOfflineEmails";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,7 +119,12 @@ interface CategoryEmailsResponse {
 
 // API Functions
 async function fetchSplitInbox(): Promise<SplitInboxData> {
-  const response = await api.get<SplitInboxResponse>("/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true");
+  // Use shorter timeout (10s) for split inbox - it should be fast
+  // If network is slow, we'll show cached/empty state rather than waiting 30s
+  const response = await api.get<SplitInboxResponse>(
+    "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true",
+    { timeout: 10000 }
+  );
   return (response as SplitInboxResponse).data;
 }
 
@@ -135,8 +141,10 @@ async function fetchCategoryEmails(
     total_pages: number;
   };
 }> {
+  // Use shorter timeout (10s) for category emails
   const response = await api.get<CategoryEmailsResponse>(
-    `/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`
+    `/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true&category=${category}&page=${page}&per_page=${perPage}`,
+    { timeout: 10000 }
   );
   return (response as CategoryEmailsResponse).data;
 }
@@ -294,70 +302,45 @@ export function ViewModeToggle({
   );
 }
 
-// Hook for split inbox data
+// Hook for split inbox data - now with offline-first support
 export function useSplitInbox() {
-  const [data, setData] = useState<SplitInboxData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<SplitInboxCategory>("vip");
+  const offlineEmails = useOfflineEmails({
+    enabled: true,
+    fetchOnMount: true,
+    fetchOnFocus: true,
+  });
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchSplitInbox();
-      setData(result);
-    } catch (err) {
-      console.error("Failed to fetch split inbox:", err);
-      setError("Failed to load split inbox");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadCategory = useCallback(async (category: SplitInboxCategory, page: number = 1) => {
-    setLoading(true);
-    try {
-      const result = await fetchCategoryEmails(category, page);
-      return result;
-    } catch (err) {
-      console.error("Failed to fetch category emails:", err);
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const counts: Record<SplitInboxCategory, number> = {
-    vip: data?.categories.vip.count || 0,
-    team: data?.categories.team.count || 0,
-    newsletters: data?.categories.newsletters.count || 0,
-    other: data?.categories.other.count || 0,
-  };
-
-  const unreadCounts: Record<SplitInboxCategory, number> = {
-    vip: data?.categories.vip.unread_count || 0,
-    team: data?.categories.team.unread_count || 0,
-    newsletters: data?.categories.newsletters.unread_count || 0,
-    other: data?.categories.other.unread_count || 0,
-  };
+  // Map offline emails hook to the existing useSplitInbox API
+  // This maintains backwards compatibility with the email page
 
   return {
-    data,
-    loading,
-    error,
-    refresh,
-    loadCategory,
-    selectedCategory,
-    setSelectedCategory,
-    counts,
-    unreadCounts,
-    currentEmails: data?.categories[selectedCategory]?.emails || [],
-    teamDomains: data?.team_domains || [],
+    // Legacy API (for backwards compatibility)
+    data: offlineEmails.emails.length > 0 ? {
+      categories: {
+        vip: { count: offlineEmails.counts.vip, unread_count: offlineEmails.unreadCounts.vip, emails: [] },
+        team: { count: offlineEmails.counts.team, unread_count: offlineEmails.unreadCounts.team, emails: [] },
+        newsletters: { count: offlineEmails.counts.newsletters, unread_count: offlineEmails.unreadCounts.newsletters, emails: [] },
+        other: { count: offlineEmails.counts.other, unread_count: offlineEmails.unreadCounts.other, emails: [] },
+      },
+      team_domains: offlineEmails.teamDomains,
+    } : null,
+    loading: offlineEmails.isLoading,
+    error: offlineEmails.error?.message || null,
+    refresh: offlineEmails.refresh,
+    loadCategory: async () => ({ emails: [], pagination: { page: 1, per_page: 50, total: 0, total_pages: 0 } }),
+    selectedCategory: offlineEmails.selectedCategory,
+    setSelectedCategory: offlineEmails.setSelectedCategory,
+    counts: offlineEmails.counts,
+    unreadCounts: offlineEmails.unreadCounts,
+    currentEmails: offlineEmails.emails,
+    teamDomains: offlineEmails.teamDomains,
+
+    // New offline-first properties
+    isStale: offlineEmails.isStale,
+    isFetching: offlineEmails.isFetching,
+    isOffline: offlineEmails.isOffline,
+    lastFetched: offlineEmails.lastFetched,
+    isCacheAvailable: offlineEmails.isCacheAvailable,
   };
 }
 

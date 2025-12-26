@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 class TasksViewModel: ObservableObject {
@@ -13,9 +14,11 @@ class TasksViewModel: ObservableObject {
         isLoading = true
         do {
             tasks = try await apiClient.get("sm_tasks?mine=true")
+            print("Loaded \(tasks.count) tasks")
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Failed to load tasks: \(error)"
             showError = true
+            print("Task load error: \(error)")
         }
         isLoading = false
     }

@@ -16,11 +16,11 @@ struct TasksListView: View {
                         TaskRowView(task: task)
                     }
                     .swipeActions {
-                        if task.status == .notStarted {
+                        if task.taskStatus == .notStarted {
                             Button("Start") { Task { await viewModel.startTask(task) } }
                                 .tint(.blue)
                         }
-                        if task.status == .inProgress {
+                        if task.taskStatus == .inProgress {
                             Button("Complete") { Task { await viewModel.completeTask(task) } }
                                 .tint(.green)
                         }
@@ -50,7 +50,7 @@ struct TaskRowView: View {
             HStack {
                 Text(task.displayName).font(.headline)
                 Spacer()
-                TaskStatusBadge(status: task.status ?? .notStarted)
+                TaskStatusBadge(status: task.taskStatus)
             }
             if let job = task.jobDisplayName {
                 Text(job).font(.subheadline).foregroundColor(.secondary)
@@ -70,7 +70,7 @@ struct TaskDetailView: View {
     var body: some View {
         List {
             Section("Details") {
-                LabeledContent("Status", value: task.status?.displayName ?? "-")
+                LabeledContent("Status", value: task.taskStatus.displayName)
                 LabeledContent("Trade", value: task.trade ?? "-")
                 if let date = task.formattedDueDate {
                     LabeledContent("Due Date", value: date)
@@ -80,10 +80,10 @@ struct TaskDetailView: View {
                 Section("Notes") { Text(notes) }
             }
             Section {
-                if task.status == .notStarted {
+                if task.taskStatus == .notStarted {
                     Button("Start Task") { Task { await viewModel.startTask(task) } }
                 }
-                if task.status == .inProgress {
+                if task.taskStatus == .inProgress {
                     Button("Complete Task") { Task { await viewModel.completeTask(task) } }
                         .tint(.green)
                 }

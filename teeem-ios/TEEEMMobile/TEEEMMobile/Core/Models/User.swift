@@ -7,15 +7,10 @@ struct User: Codable, Identifiable {
     let lastName: String?
     let role: String?
     let avatarUrl: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, email, role
-        case firstName = "first_name"
-        case lastName = "last_name"
-        case avatarUrl = "avatar_url"
-    }
+    let name: String?  // Some APIs return full name directly
 
     var displayName: String {
+        if let n = name, !n.isEmpty { return n }
         if let first = firstName, let last = lastName {
             return "\(first) \(last)"
         }

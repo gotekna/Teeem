@@ -59,8 +59,14 @@ class SmTaskCompletionService
       spawns << { type: "inspection_retry", condition: "if inspection fails" }
     end
 
-    if task.spawn_scan_task?
-      spawns << { type: "scan", name: "#{task.name} - Document Scan", condition: "on completion" }
+    if task.spawn_scan_task_id.present?
+      scan_template = SmScheduleMaster.find_by(id: task.spawn_scan_task_id)
+      spawns << {
+        type: "scan",
+        name: scan_template&.name || "Document Scan",
+        condition: "on completion",
+        lag_days: task.spawn_scan_lag_days || 0
+      }
     end
 
     spawns
@@ -98,15 +104,26 @@ class SmTaskCompletionService
   end
 
   def spawn_follow_up_tasks
-    spawn_scan_task if task.spawn_scan_task?
+    spawn_scan_task if task.spawn_scan_task_id.present?
   end
 
   def spawn_scan_task
+    scan_template = SmScheduleMaster.find_by(id: task.spawn_scan_task_id)
+    return unless scan_template
+
+    lag_days = task.spawn_scan_lag_days || 0
+    start_date = task.completed_at.to_date + lag_days.days
+
     spawned = create_spawned_task(
-      name: "#{task.name} - Document Scan",
-      description: "Scan documents for: #{task.name}",
+      name: scan_template.name,
+      description: scan_template.description || "Document scan for: #{task.name}",
       spawn_type: "scan",
-      duration_days: 1
+      duration_days: scan_template.duration_days || 1,
+      start_date: start_date,
+      end_date: start_date + (scan_template.duration_days || 1).days,
+      trade: scan_template.trade,
+      checklist_id: scan_template.checklist_id,
+      documentation_category_ids: scan_template.documentation_category_ids
     )
     log_spawn(spawned, "scan", "parent_complete") if spawned
   end
@@ -126,7 +143,6 @@ class SmTaskCompletionService
       duration_days: task.duration_days,
       pass_fail_enabled: true,
       # Inherit key settings from parent
-      spawn_scan_task: task.spawn_scan_task,
       trade: task.trade,
       supplier_id: task.supplier_id,
       checklist_id: task.checklist_id

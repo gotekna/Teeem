@@ -14,13 +14,6 @@ struct Job: Codable, Identifiable, Hashable {
     let postcode: String?
     let contractValue: Double?
 
-    enum CodingKeys: String, CodingKey {
-        case id, name, status, stage, address, suburb, state, postcode
-        case jobNumber = "job_number"
-        case clientName = "client_name"
-        case contractValue = "contract_value"
-    }
-
     var displayName: String {
         if let number = jobNumber, let jobName = name {
             return "\(number) - \(jobName)"

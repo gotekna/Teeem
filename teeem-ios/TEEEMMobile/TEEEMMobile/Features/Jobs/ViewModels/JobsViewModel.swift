@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 class JobsViewModel: ObservableObject {
@@ -13,9 +14,11 @@ class JobsViewModel: ObservableObject {
         isLoading = true
         do {
             jobs = try await apiClient.get("jobs")
+            print("Loaded \(jobs.count) jobs")
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Failed to load jobs: \(error)"
             showError = true
+            print("Job load error: \(error)")
         }
         isLoading = false
     }

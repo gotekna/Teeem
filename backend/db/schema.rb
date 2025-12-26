@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010025) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7397,7 +7397,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
     t.string "assigned_role"
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
-    t.boolean "spawn_scan_task", default: false
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
     t.integer "order_time_days"
@@ -7440,6 +7439,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
     t.jsonb "po_line_items", default: []
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
+    t.bigint "spawn_scan_task_id"
+    t.integer "spawn_scan_lag_days", default: 0
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
@@ -7536,7 +7537,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
     t.string "stage", limit: 100
     t.integer "documentation_category_ids", default: [], array: true
     t.jsonb "linked_task_ids", default: []
-    t.boolean "spawn_scan_task", default: false
     t.boolean "pass_fail_enabled", default: false
     t.bigint "checklist_id"
     t.integer "order_time_days"
@@ -7559,6 +7559,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
     t.bigint "recurring_task_definition_id"
     t.integer "recurring_sequence"
     t.string "source_type", default: "manual"
+    t.bigint "spawn_scan_task_id"
+    t.integer "spawn_scan_lag_days", default: 0
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -9430,6 +9432,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_schedule_master", "sm_schedule_master", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_schedule_master", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_master", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master", "users", column: "updated_by_id"
@@ -9444,6 +9447,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010024) do
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"
   add_foreign_key "sm_tasks", "sm_schedule_master"
+  add_foreign_key "sm_tasks", "sm_schedule_master", column: "spawn_scan_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify

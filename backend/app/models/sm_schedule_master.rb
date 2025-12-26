@@ -30,6 +30,9 @@ class SmScheduleMaster < ApplicationRecord
   belongs_to :linked_po_task, class_name: "SmScheduleMaster", optional: true
   has_many :linked_po_children, class_name: "SmScheduleMaster", foreign_key: :linked_po_task_id, dependent: :nullify
 
+  # Spawn scan task - which task template to spawn on completion
+  belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true
+
   # Photo storage EntityTab
   belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
 
@@ -55,7 +58,6 @@ class SmScheduleMaster < ApplicationRecord
       errors.add(:duration_days, 'must be greater than 0 for tasks')
     end
   end
-  validates :cert_lag_days, numericality: { only_integer: true, greater_than_or_equal_to: 0 }, allow_nil: true
   validates :subtask_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }, if: :has_subtasks?
   validate :subtask_names_match_count
   validate :predecessor_ids_valid
@@ -217,9 +219,16 @@ class SmScheduleMaster < ApplicationRecord
 
       pred_id = pred["id"] || pred[:id]
 
-      # Check predecessor exists
+      # Check predecessor exists in same template(s)
       unless valid_task_numbers.include?(pred_id)
-        errors.add(:predecessor_ids, "entry #{idx} references non-existent task #{pred_id}")
+        # Check if task exists at all (just in different template)
+        task_exists = SmScheduleMaster.exists?(task_number: pred_id)
+        if task_exists
+          pred_task = SmScheduleMaster.find_by(task_number: pred_id)
+          errors.add(:predecessor_ids, "task #{pred_id} (#{pred_task&.name}) is not in the same template - dependencies must share at least one common template")
+        else
+          errors.add(:predecessor_ids, "task #{pred_id} does not exist")
+        end
       end
 
       # Check dependency type is valid

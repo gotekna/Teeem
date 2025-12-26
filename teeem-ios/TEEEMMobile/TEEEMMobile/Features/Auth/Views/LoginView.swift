@@ -6,6 +6,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showPassword = false
 
     var body: some View {
         NavigationStack {
@@ -25,9 +26,25 @@ struct LoginView: View {
                         .autocapitalization(.none)
                         .textFieldStyle(.roundedBorder)
 
-                    SecureField("Password", text: $password)
-                        .textContentType(.password)
-                        .textFieldStyle(.roundedBorder)
+                    HStack {
+                        if showPassword {
+                            TextField("Password", text: $password)
+                                .textContentType(.password)
+                        } else {
+                            SecureField("Password", text: $password)
+                                .textContentType(.password)
+                        }
+                        Button {
+                            showPassword.toggle()
+                        } label: {
+                            Image(systemName: showPassword ? "eye.slash" : "eye")
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(8)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray4)))
                 }
                 .padding(.horizontal, 32)
 
@@ -62,7 +79,7 @@ struct LoginView: View {
         do {
             try await appState.login(email: email, password: password)
         } catch {
-            errorMessage = "Invalid email or password"
+            errorMessage = error.localizedDescription
         }
         isLoading = false
     }

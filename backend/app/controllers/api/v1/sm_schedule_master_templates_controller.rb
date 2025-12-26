@@ -292,8 +292,6 @@ module Api
           has_subtasks: row.has_subtasks,
           subtask_count: row.subtask_count,
           subtask_names: row.subtask_names,
-          spawn_photo_task: row.spawn_photo_task,
-          spawn_scan_task: row.spawn_scan_task,
           pass_fail_enabled: row.pass_fail_enabled,
           color: row.color,
           tags: row.tags,

@@ -97,11 +97,12 @@ export interface SmScheduleMaster {
   po_required: boolean;
   critical_po: boolean;
   create_po_on_job_start: boolean;
-  cert_lag_days: number | null;
   has_subtasks: boolean;
   subtask_count: number | null;
   subtask_names: string[] | null;
-  spawn_scan_task: boolean;
+  spawn_scan_task_id: number | null;
+  spawn_scan_lag_days: number;
+  spawn_scan_task_name: string | null;
   pass_fail_enabled: boolean;
   order_time_days: number | null;
   call_time_days: number | null;
