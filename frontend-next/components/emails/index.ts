@@ -59,3 +59,6 @@ export {
 
 // Keyboard Shortcuts
 export { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
+
+// Bulk Actions
+export { BulkActionBar } from "./BulkActionBar";

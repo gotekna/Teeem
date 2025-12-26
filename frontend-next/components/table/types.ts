@@ -29,6 +29,9 @@ export interface TableColumn {
   system?: boolean; // System column like id, created_at, updated_at (default: false)
   defaultHidden?: boolean; // Whether the column is hidden by default (default: false)
   searchable?: boolean; // Whether this column is included in search (from foundation schema)
+  // Header and data alignment
+  headerAlign?: "left" | "center" | "right";
+  dataAlign?: "left" | "center" | "right";
 }
 
 // Row data - generic record with id

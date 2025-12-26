@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Mail,
   Search,
@@ -36,7 +37,10 @@ import {
   type SplitInboxCategory,
 } from "@/components/emails/SplitInboxTabs";
 import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp";
+import { BulkActionBar } from "@/components/emails/BulkActionBar";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
+import { useEmailSelection } from "@/hooks/useEmailSelection";
+import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
 import { useEmailState } from "@/components/emails/EmailActions";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -113,49 +117,78 @@ const FOLDER_ICONS: Record<string, typeof Inbox> = {
 const EmailListItem = memo(function EmailListItem({
   email,
   isSelected,
+  isChecked,
+  hasSelections,
   onClick,
+  onCheckboxChange,
 }: {
   email: Email;
   isSelected: boolean;
-  onClick: (email: Email) => void;
+  isChecked: boolean;
+  hasSelections: boolean;
+  onClick: (email: Email, event: React.MouseEvent) => void;
+  onCheckboxChange: (email: Email) => void;
 }) {
   return (
     <div
       data-email-id={email.id}
       className={cn(
-        "px-3 py-2.5 cursor-pointer border-l-2",
+        "group px-3 py-2.5 cursor-pointer border-l-2",
         isSelected
           ? "bg-primary/10 border-l-primary"
+          : isChecked
+          ? "bg-primary/5 border-l-primary/50"
           : "hover:bg-muted/50 border-l-transparent",
-        !email.is_read && "bg-blue-50/50 dark:bg-blue-950/20"
+        !email.is_read && !isSelected && !isChecked && "bg-blue-50/50 dark:bg-blue-950/20"
       )}
-      onClick={() => onClick(email)}
+      onClick={(e) => onClick(email, e)}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 mb-0.5">
-            <span className={cn(
-              "text-sm truncate",
-              !email.is_read ? "font-semibold" : "font-medium"
-            )}>
-              {email.from_name || email.from_email || email.from_address}
-            </span>
-            {email.has_attachments && (
-              <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
-            )}
-          </div>
-          <p className={cn(
-            "text-sm truncate",
-            !email.is_read ? "font-medium" : ""
-          )}>
-            {email.subject || "(No subject)"}
-          </p>
-          <p className="text-xs text-muted-foreground truncate mt-0.5">
-            {email.snippet || email.body_preview}
-          </p>
+      <div className="flex items-start gap-2">
+        {/* Checkbox - visible on hover or when any selections exist */}
+        <div
+          className={cn(
+            "shrink-0 pt-0.5",
+            hasSelections ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            "transition-opacity"
+          )}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCheckboxChange(email);
+          }}
+        >
+          <Checkbox
+            checked={isChecked}
+            onCheckedChange={() => onCheckboxChange(email)}
+            className="h-4 w-4"
+          />
         </div>
-        <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
-          {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+
+        <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className={cn(
+                "text-sm truncate",
+                !email.is_read ? "font-semibold" : "font-medium"
+              )}>
+                {email.from_name || email.from_email || email.from_address}
+              </span>
+              {email.has_attachments && (
+                <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+              )}
+            </div>
+            <p className={cn(
+              "text-sm truncate",
+              !email.is_read ? "font-medium" : ""
+            )}>
+              {email.subject || "(No subject)"}
+            </p>
+            <p className="text-xs text-muted-foreground truncate mt-0.5">
+              {email.snippet || email.body_preview}
+            </p>
+          </div>
+          <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+            {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
+          </div>
         </div>
       </div>
     </div>
@@ -234,10 +267,29 @@ export default function EmailPage() {
   const { toast } = useToast();
   const emailState = useEmailState(selectedEmail?.id);
 
+  // Multi-select state
+  const selection = useEmailSelection();
+  const [lastClickedEmailId, setLastClickedEmailId] = useState<number | null>(null);
+
   // Get current email list based on view mode
   const currentEmails = useMemo(() => {
     return viewMode === "split" ? (splitInbox.currentEmails as Email[]) : emails;
   }, [viewMode, splitInbox.currentEmails, emails]);
+
+  // Bulk actions - refresh list and clear selection on success
+  const handleBulkSuccess = useCallback(() => {
+    selection.clear();
+    // Refresh based on current view mode
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    }
+    // Folder view refresh will happen through the normal fetchEmails flow
+  }, [selection, viewMode, splitInbox]);
+
+  const bulkActions = useEmailBulkActions({
+    selectedIds: selection.selectedIds,
+    onSuccess: handleBulkSuccess,
+  });
 
   // Keyboard shortcut handlers
   const handleKeyboardArchive = useCallback(async () => {
@@ -299,6 +351,11 @@ export default function EmailPage() {
     onReply: handleKeyboardReply,
     onCompose: handleKeyboardCompose,
     onShowHelp: () => setShowShortcutsHelp(true),
+    // Bulk selection shortcuts
+    onToggleSelection: (email) => selection.toggle(email.id),
+    onSelectAll: () => selection.selectAll(currentEmails),
+    onClearSelection: selection.clear,
+    hasSelection: selection.hasSelection,
     enabled: !composeOpen && !showShortcutsHelp,
   });
 
@@ -505,6 +562,26 @@ export default function EmailPage() {
     }
   }, []);
 
+  // Handle email row click with shift+click support for range selection
+  const handleEmailRowClick = useCallback((email: Email, event: React.MouseEvent) => {
+    // Shift+click for range selection
+    if (event.shiftKey && lastClickedEmailId !== null) {
+      selection.selectRange(lastClickedEmailId, email.id, currentEmails);
+      setLastClickedEmailId(email.id);
+      return;
+    }
+
+    // Normal click - open email (clear selection if clicking to view)
+    setLastClickedEmailId(email.id);
+    handleEmailClick(email);
+  }, [lastClickedEmailId, selection, currentEmails, handleEmailClick]);
+
+  // Handle checkbox change for multi-select
+  const handleCheckboxChange = useCallback((email: Email) => {
+    selection.toggle(email.id);
+    setLastClickedEmailId(email.id);
+  }, [selection]);
+
   const handleReply = (email: Email) => {
     setReplyTo({
       to: email.from_email || email.from_address,
@@ -707,6 +784,27 @@ export default function EmailPage() {
           </div>
         )}
 
+        {/* Bulk Action Bar - shows when emails are selected */}
+        <BulkActionBar
+          selectedCount={selection.count}
+          totalCount={currentEmails.length}
+          allSelected={selection.count === currentEmails.length && currentEmails.length > 0}
+          onToggleSelectAll={() => {
+            if (selection.count === currentEmails.length) {
+              selection.clear();
+            } else {
+              selection.selectAll(currentEmails);
+            }
+          }}
+          onClear={selection.clear}
+          onArchive={bulkActions.bulkArchive}
+          onStar={bulkActions.bulkStar}
+          onPin={bulkActions.bulkPin}
+          onMarkRead={bulkActions.bulkMarkRead}
+          onMarkUnread={bulkActions.bulkMarkUnread}
+          isLoading={bulkActions.isLoading}
+        />
+
         {/* Email List */}
         <div className="flex-1 overflow-auto">
           {viewMode === "split" ? (
@@ -727,7 +825,10 @@ export default function EmailPage() {
                     key={email.id}
                     email={email as Email}
                     isSelected={selectedEmail?.id === email.id}
-                    onClick={handleEmailClick}
+                    isChecked={selection.isSelected(email.id)}
+                    hasSelections={selection.hasSelection}
+                    onClick={handleEmailRowClick}
+                    onCheckboxChange={handleCheckboxChange}
                   />
                 ))}
               </div>
@@ -755,7 +856,10 @@ export default function EmailPage() {
                     key={email.id}
                     email={email}
                     isSelected={selectedEmail?.id === email.id}
-                    onClick={handleEmailClick}
+                    isChecked={selection.isSelected(email.id)}
+                    hasSelections={selection.hasSelection}
+                    onClick={handleEmailRowClick}
+                    onCheckboxChange={handleCheckboxChange}
                   />
                 ))}
               </div>

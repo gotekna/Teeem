@@ -37,6 +37,7 @@ import {
   XCircle,
   Clock,
   AlertCircle,
+  AlertTriangle,
   History,
   Building2,
   Layers,
@@ -57,6 +58,7 @@ import {
 } from "lucide-react";
 import RecurringInvoicesTab from "@/components/financial/RecurringInvoicesTab";
 import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
+import DuplicateBillsTab from "@/components/financial/DuplicateBillsTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -612,6 +614,10 @@ export default function GlPage() {
             <Link2 className="h-4 w-4" />
             Payment Links
           </TabsTrigger>
+          <TabsTrigger value="duplicates" className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Duplicate Bills
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -968,6 +974,11 @@ export default function GlPage() {
         {/* Payment Links Tab */}
         <TabsContent value="payments">
           <PaymentLinksTab />
+        </TabsContent>
+
+        {/* Duplicate Bills Tab */}
+        <TabsContent value="duplicates">
+          <DuplicateBillsTab />
         </TabsContent>
       </Tabs>
 

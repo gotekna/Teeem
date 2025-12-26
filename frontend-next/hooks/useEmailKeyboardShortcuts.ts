@@ -33,6 +33,14 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
   onCompose?: () => void;
   /** Show keyboard shortcuts help */
   onShowHelp?: () => void;
+  /** Toggle selection on current email (x key) */
+  onToggleSelection?: (email: T) => void;
+  /** Select all emails (Cmd/Ctrl+A) */
+  onSelectAll?: () => void;
+  /** Clear all selections */
+  onClearSelection?: () => void;
+  /** Whether there are selected emails */
+  hasSelection?: boolean;
   /** Enable/disable shortcuts */
   enabled?: boolean;
 }
@@ -44,13 +52,15 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
  * - j/↓: Next email
  * - k/↑: Previous email
  * - o/Enter: Open/select email
+ * - x: Toggle selection (for bulk actions)
+ * - Cmd/Ctrl+A: Select all
  * - e: Archive
  * - s: Star
  * - p: Pin
  * - v: Toggle VIP
  * - r: Reply
  * - c: Compose
- * - Escape: Deselect/close
+ * - Escape: Clear selection (if any) or deselect
  * - ?: Show help
  */
 export function useEmailKeyboardShortcuts<T extends BaseEmail>({
@@ -64,6 +74,10 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
   onReply,
   onCompose,
   onShowHelp,
+  onToggleSelection,
+  onSelectAll,
+  onClearSelection,
+  hasSelection = false,
   enabled = true,
 }: UseEmailKeyboardShortcutsProps<T>): void {
   // Track if an action is in progress to prevent double-triggering
@@ -126,7 +140,16 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
         return;
       }
 
-      // Ignore if modifier keys (Ctrl, Cmd, Alt) are pressed
+      // Handle Cmd/Ctrl+A for select all (before ignoring modifiers)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        if (onSelectAll) {
+          e.preventDefault();
+          onSelectAll();
+        }
+        return;
+      }
+
+      // Ignore if modifier keys (Ctrl, Cmd, Alt) are pressed for other shortcuts
       // Allow Shift for potential future shortcuts like Shift+S
       if (e.ctrlKey || e.metaKey || e.altKey) {
         return;
@@ -155,6 +178,14 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
           if (emails.length > 0 && !selectedEmail) {
             e.preventDefault();
             onSelectEmail(emails[0]);
+          }
+          break;
+
+        // Toggle selection (for multi-select)
+        case "x":
+          if (selectedEmail && onToggleSelection) {
+            e.preventDefault();
+            onToggleSelection(selectedEmail);
           }
           break;
 
@@ -210,10 +241,14 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
           }
           break;
 
-        // Escape - deselect
+        // Escape - clear selection first, then deselect
         case "escape":
-          if (selectedEmail) {
-            e.preventDefault();
+          e.preventDefault();
+          if (hasSelection && onClearSelection) {
+            // Clear bulk selection first
+            onClearSelection();
+          } else if (selectedEmail) {
+            // Then deselect single email
             onSelectEmail(null);
           }
           break;
@@ -236,6 +271,10 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
       onReply,
       onCompose,
       onShowHelp,
+      onToggleSelection,
+      onSelectAll,
+      onClearSelection,
+      hasSelection,
       handleAction,
     ]
   );

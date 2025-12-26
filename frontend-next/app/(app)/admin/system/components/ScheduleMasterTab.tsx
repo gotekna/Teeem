@@ -1858,7 +1858,7 @@ export function ScheduleMasterTab() {
                               className="cursor-pointer"
                               onClick={() => togglePriceHistorySelection(ph.id)}
                             >
-                              <TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
                                   checked={selectedPriceHistoryIds.includes(ph.id)}
                                   onCheckedChange={() => togglePriceHistorySelection(ph.id)}

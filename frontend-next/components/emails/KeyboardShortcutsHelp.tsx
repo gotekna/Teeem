@@ -35,6 +35,14 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
+    title: "Selection",
+    shortcuts: [
+      { keys: ["x"], description: "Toggle selection" },
+      { keys: ["⌘A", "Ctrl+A"], description: "Select all" },
+      { keys: ["Esc"], description: "Clear selection" },
+    ],
+  },
+  {
     title: "Actions",
     shortcuts: [
       { keys: ["e"], description: "Archive" },

@@ -201,6 +201,12 @@ export function convertColumnsToTEEEMFormat(
       choices: col.available_choices,
       editable: !isSystemColumn,
       system: isSystemColumn,
+      // SSoT: Lookup configuration from Foundation API
+      lookup_foundation_id: col.lookup_foundation_id,
+      lookup_display_column: col.lookup_display_column,
+      // Header alignment from Foundation
+      headerAlign: col.header_align as "left" | "center" | "right" | undefined,
+      dataAlign: col.data_align as "left" | "center" | "right" | undefined,
     });
   });
 
