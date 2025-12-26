@@ -1007,6 +1007,11 @@ export default function GlPage() {
         <TabsContent value="predictions">
           <LatePaymentPredictionTab />
         </TabsContent>
+
+        {/* AI Categorization Tab */}
+        <TabsContent value="categorization">
+          <AICategorizationTab />
+        </TabsContent>
       </Tabs>
 
       {/* Full Sync Progress Modal */}

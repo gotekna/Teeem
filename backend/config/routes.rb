@@ -964,6 +964,8 @@ Rails.application.routes.draw do
           get :providers
           get :all_accounts
           post :send_email
+          post :schedule_email
+          get :scheduled_emails
           get :folders  # Fetch folders for a specific account (pass account_id param)
         end
         member do

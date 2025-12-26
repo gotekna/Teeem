@@ -29,9 +29,19 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Clock,
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
+import { format, addHours, setHours, setMinutes } from "date-fns";
 
 interface Contact {
   id: number;
@@ -104,6 +114,11 @@ export function ComposeEmailModal({
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
 
+  // Schedule send state
+  const [isScheduled, setIsScheduled] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
+  const [scheduledTime, setScheduledTime] = useState("09:00");
+
   // Search contacts by name/email
   const searchContacts = async (search: string) => {
     if (!search || search.length < 2) {
@@ -162,6 +177,10 @@ export function ComposeEmailModal({
       });
       setAttachments([]);
       setError(null);
+      // Reset schedule state
+      setIsScheduled(false);
+      setScheduledDate(undefined);
+      setScheduledTime("09:00");
     }
   }, [open, defaultTo, defaultSubject, defaultBody]);
 
@@ -222,6 +241,17 @@ export function ComposeEmailModal({
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Build scheduled datetime from date and time
+  const getScheduledDateTime = (): Date | null => {
+    if (!scheduledDate) return null;
+
+    const [hours, minutes] = scheduledTime.split(":").map(Number);
+    let dateTime = new Date(scheduledDate);
+    dateTime = setHours(dateTime, hours);
+    dateTime = setMinutes(dateTime, minutes);
+    return dateTime;
+  };
+
   const handleSend = async () => {
     setError(null);
 
@@ -240,35 +270,67 @@ export function ComposeEmailModal({
       return;
     }
 
+    // Validate scheduled time if scheduling
+    if (isScheduled) {
+      const scheduledDateTime = getScheduledDateTime();
+      if (!scheduledDateTime) {
+        setError("Please select a date for scheduled send");
+        return;
+      }
+      if (scheduledDateTime <= new Date()) {
+        setError("Scheduled time must be in the future");
+        return;
+      }
+    }
+
     setSending(true);
     try {
-      const formPayload = new FormData();
-      formPayload.append("credential_id", formData.credential_id);
-      formPayload.append("to", formData.to);
-      formPayload.append("subject", formData.subject);
-      formPayload.append("body", formData.body);
+      if (isScheduled) {
+        // Schedule the email
+        const scheduledDateTime = getScheduledDateTime()!;
 
-      if (formData.cc) {
-        formPayload.append("cc", formData.cc);
-      }
-      if (formData.bcc) {
-        formPayload.append("bcc", formData.bcc);
-      }
-      if (replyToMessageId) {
-        formPayload.append("reply_to_message_id", replyToMessageId);
-      }
+        const payload = {
+          credential_id: formData.credential_id,
+          to: [formData.to],
+          cc: formData.cc ? [formData.cc] : [],
+          bcc: formData.bcc ? [formData.bcc] : [],
+          subject: formData.subject,
+          body: formData.body,
+          reply_to_message_id: replyToMessageId,
+          scheduled_for: scheduledDateTime.toISOString(),
+        };
 
-      attachments.forEach((file) => {
-        formPayload.append("attachments[]", file);
-      });
+        await api.post("/api/v1/imap_credentials/schedule_email", payload);
+      } else {
+        // Send immediately (existing logic)
+        const formPayload = new FormData();
+        formPayload.append("credential_id", formData.credential_id);
+        formPayload.append("to", formData.to);
+        formPayload.append("subject", formData.subject);
+        formPayload.append("body", formData.body);
 
-      await api.postFormData("/api/v1/imap_credentials/send_email", formPayload);
+        if (formData.cc) {
+          formPayload.append("cc", formData.cc);
+        }
+        if (formData.bcc) {
+          formPayload.append("bcc", formData.bcc);
+        }
+        if (replyToMessageId) {
+          formPayload.append("reply_to_message_id", replyToMessageId);
+        }
+
+        attachments.forEach((file) => {
+          formPayload.append("attachments[]", file);
+        });
+
+        await api.postFormData("/api/v1/imap_credentials/send_email", formPayload);
+      }
 
       onOpenChange(false);
       onSent?.();
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
-      setError(error.response?.data?.error || "Failed to send email");
+      setError(error.response?.data?.error || isScheduled ? "Failed to schedule email" : "Failed to send email");
     } finally {
       setSending(false);
     }
@@ -461,6 +523,77 @@ export function ComposeEmailModal({
                     ))}
                   </div>
                 )}
+                {isScheduled && attachments.length > 0 && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Note: Attachments are not yet supported for scheduled emails
+                  </p>
+                )}
+              </div>
+
+              {/* Schedule Send */}
+              <div className="space-y-3 pt-3 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <Label htmlFor="schedule-toggle" className="font-normal cursor-pointer">
+                      Schedule send
+                    </Label>
+                  </div>
+                  <Switch
+                    id="schedule-toggle"
+                    checked={isScheduled}
+                    onCheckedChange={setIsScheduled}
+                  />
+                </div>
+
+                {isScheduled && (
+                  <div className="flex items-center gap-3 pl-6">
+                    {/* Date picker */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-[140px] justify-start text-left font-normal"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {scheduledDate ? (
+                            format(scheduledDate, "MMM d, yyyy")
+                          ) : (
+                            <span className="text-muted-foreground">Pick date</span>
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={scheduledDate}
+                          onSelect={setScheduledDate}
+                          disabled={(date) => date < new Date()}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+
+                    {/* Time picker */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">at</span>
+                      <Input
+                        type="time"
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="w-[100px] h-8"
+                      />
+                    </div>
+
+                    {/* Preview */}
+                    {scheduledDate && (
+                      <span className="text-xs text-muted-foreground">
+                        ({format(getScheduledDateTime()!, "EEE, MMM d 'at' h:mm a")})
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Error */}
@@ -479,7 +612,12 @@ export function ComposeEmailModal({
                 {sending ? (
                   <>
                     <Spinner className="h-4 w-4 mr-2" />
-                    Sending...
+                    {isScheduled ? "Scheduling..." : "Sending..."}
+                  </>
+                ) : isScheduled ? (
+                  <>
+                    <Clock className="h-4 w-4 mr-2" />
+                    Schedule
                   </>
                 ) : (
                   <>

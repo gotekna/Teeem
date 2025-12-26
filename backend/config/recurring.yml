@@ -176,6 +176,16 @@ process_scheduled_invoices:
   schedule: every 15 minutes
 
 # ============================================
+# SCHEDULED EMAILS
+# ============================================
+# Process emails scheduled for future delivery
+# Runs every 5 minutes to check for due emails
+process_scheduled_emails:
+  class: ProcessScheduledEmailsJob
+  queue: default
+  schedule: every 5 minutes
+
+# ============================================
 # SCHEDULED REPORTS (T.A.S.)
 # ============================================
 # Auto-generate and email reports (P&L, Balance Sheet, etc.)

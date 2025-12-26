@@ -368,6 +368,113 @@ class Api::V1::ImapCredentialsController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # POST /api/v1/imap_credentials/schedule_email
+  # Schedule an email to be sent at a future time
+  def schedule_email
+    scheduled_for = params[:scheduled_for]
+
+    unless scheduled_for.present?
+      return render json: {
+        success: false,
+        error: "scheduled_for is required"
+      }, status: :unprocessable_entity
+    end
+
+    # Parse the scheduled time
+    scheduled_time = Time.zone.parse(scheduled_for)
+
+    if scheduled_time <= Time.current
+      return render json: {
+        success: false,
+        error: "Scheduled time must be in the future"
+      }, status: :unprocessable_entity
+    end
+
+    # Determine account type
+    credential_id = params[:credential_id]
+    account_type = nil
+    imap_credential_id = nil
+    microsoft_credential_id = nil
+    mailbox_email = nil
+
+    if credential_id == "outlook"
+      account_type = "outlook"
+    elsif credential_id&.start_with?("ms365_")
+      account_type = "ms365"
+      parts = credential_id.split("_")
+      microsoft_credential_id = parts[1]
+      mailbox_email = params[:mailbox_email]
+    else
+      account_type = "imap"
+      imap_credential_id = credential_id
+    end
+
+    # Handle attachments - store as file metadata for later
+    # For now, we don't support attachments in scheduled emails
+    # TODO: Implement attachment storage for scheduled emails
+
+    scheduled = ScheduledEmail.create!(
+      imap_credential_id: imap_credential_id,
+      microsoft_credential_id: microsoft_credential_id,
+      account_type: account_type,
+      mailbox_email: mailbox_email,
+      created_by: current_user,
+      to_addresses: Array(params[:to]).to_json,
+      cc_addresses: Array(params[:cc]).to_json,
+      bcc_addresses: Array(params[:bcc]).to_json,
+      subject: params[:subject],
+      body: params[:body],
+      reply_to_message_id: params[:reply_to_message_id],
+      scheduled_for: scheduled_time,
+      status: "pending"
+    )
+
+    render json: {
+      success: true,
+      message: "Email scheduled successfully",
+      data: {
+        id: scheduled.id,
+        scheduled_for: scheduled.scheduled_for,
+        status: scheduled.status,
+        to: scheduled.to_list,
+        subject: scheduled.subject
+      }
+    }
+  rescue => e
+    render json: {
+      success: false,
+      error: "Failed to schedule email: #{e.message}"
+    }, status: :unprocessable_entity
+  end
+
+  # GET /api/v1/imap_credentials/scheduled_emails
+  # List scheduled emails for the current user
+  def scheduled_emails
+    emails = ScheduledEmail.for_user(current_user)
+                           .order(scheduled_for: :asc)
+
+    # Optional status filter
+    if params[:status].present?
+      emails = emails.where(status: params[:status])
+    end
+
+    render json: {
+      success: true,
+      data: emails.map do |email|
+        {
+          id: email.id,
+          to: email.to_list,
+          subject: email.subject,
+          scheduled_for: email.scheduled_for,
+          status: email.status,
+          created_at: email.created_at,
+          sent_at: email.sent_at,
+          error_message: email.error_message
+        }
+      end
+    }
+  end
+
   # POST /api/v1/imap_credentials/:id/create_folder
   # Create a new folder on the IMAP server
   def create_folder

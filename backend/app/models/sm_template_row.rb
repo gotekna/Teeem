@@ -11,7 +11,7 @@
 # - Use add_to_template/remove_from_template to manage membership
 #
 class SmTemplateRow < ApplicationRecord
-  self.table_name = "sm_schedule_master"
+  self.table_name = "sm_template_rows"
 
   # Role/group constants for internal work assignment
   ASSIGNABLE_ROLES = %w[admin sales site supervisor builder estimator].freeze

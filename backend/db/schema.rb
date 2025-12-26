@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7148,6 +7148,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
     t.index ["position"], name: "index_roles_on_position"
   end
 
+  create_table "scheduled_emails", force: :cascade do |t|
+    t.bigint "imap_credential_id"
+    t.string "microsoft_credential_id"
+    t.string "account_type", limit: 20
+    t.string "mailbox_email"
+    t.bigint "created_by_id"
+    t.text "to_addresses", null: false
+    t.text "cc_addresses"
+    t.text "bcc_addresses"
+    t.string "subject", null: false
+    t.text "body", null: false
+    t.jsonb "attachments", default: []
+    t.string "reply_to_message_id"
+    t.datetime "scheduled_for", null: false
+    t.string "status", limit: 20, default: "pending", null: false
+    t.datetime "sent_at"
+    t.datetime "cancelled_at"
+    t.text "error_message"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_scheduled_emails_on_created_by_id"
+    t.index ["imap_credential_id"], name: "index_scheduled_emails_on_imap_credential_id"
+    t.index ["scheduled_for"], name: "index_scheduled_emails_on_scheduled_for"
+    t.index ["status", "scheduled_for"], name: "idx_scheduled_emails_due"
+  end
+
   create_table "share_transfers", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.bigint "from_shareholder_id"
@@ -9297,6 +9323,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "reconciliation_reports", "corporate_groups", column: "company_group_id"
   add_foreign_key "role_permissions", "permissions"
+  add_foreign_key "scheduled_emails", "imap_credentials"
+  add_foreign_key "scheduled_emails", "users", column: "created_by_id"
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
