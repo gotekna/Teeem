@@ -6,7 +6,7 @@
 # See GANTT_ARCHITECTURE_PLAN.md Section 2.1
 #
 class SmTask < ApplicationRecord
-  self.table_name = "tasks"
+  self.table_name = "sm_tasks"
 
   # Status enum
   enum :status, {
