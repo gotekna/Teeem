@@ -85,6 +85,39 @@ export interface SystemVariable {
   token: string;
 }
 
+// API Response Types
+interface TemplatesResponse {
+  data: { templates: EmailTemplate[]; categories: Record<string, string>; system_variables: Record<string, string> };
+}
+
+interface QuickRepliesResponse {
+  data: { templates: EmailTemplate[] };
+}
+
+interface VariablesResponse {
+  data: { variables: SystemVariable[] };
+}
+
+interface CategoriesResponse {
+  data: { categories: TemplateCategory[] };
+}
+
+interface TemplateResponse {
+  data: EmailTemplate;
+}
+
+interface ApplyTemplateResponse {
+  data: { subject: string; body_html: string; body_text: string; missing_variables: string[] };
+}
+
+interface ToggleFavoriteResponse {
+  data: { is_favorite: boolean };
+}
+
+interface CreateDefaultsResponse {
+  data: { templates: EmailTemplate[] };
+}
+
 // API Functions
 async function fetchTemplates(params?: {
   category?: string;
@@ -96,33 +129,33 @@ async function fetchTemplates(params?: {
   if (params?.favorites) searchParams.set("favorites", "true");
   if (params?.search) searchParams.set("search", params.search);
 
-  const response = await api.get(`/api/v1/email_templates?${searchParams.toString()}`);
-  return response.data;
+  const response = await api.get<TemplatesResponse>(`/api/v1/email_templates?${searchParams.toString()}`);
+  return (response as TemplatesResponse).data;
 }
 
 async function fetchQuickReplies(): Promise<EmailTemplate[]> {
-  const response = await api.get("/api/v1/email_templates/quick_replies");
-  return response.data.templates || [];
+  const response = await api.get<QuickRepliesResponse>("/api/v1/email_templates/quick_replies");
+  return (response as QuickRepliesResponse).data.templates || [];
 }
 
 async function fetchVariables(): Promise<SystemVariable[]> {
-  const response = await api.get("/api/v1/email_templates/variables");
-  return response.data.variables || [];
+  const response = await api.get<VariablesResponse>("/api/v1/email_templates/variables");
+  return (response as VariablesResponse).data.variables || [];
 }
 
 async function fetchCategories(): Promise<TemplateCategory[]> {
-  const response = await api.get("/api/v1/email_templates/categories");
-  return response.data.categories || [];
+  const response = await api.get<CategoriesResponse>("/api/v1/email_templates/categories");
+  return (response as CategoriesResponse).data.categories || [];
 }
 
 async function createTemplate(data: Partial<EmailTemplate>): Promise<EmailTemplate> {
-  const response = await api.post("/api/v1/email_templates", { template: data });
-  return response.data;
+  const response = await api.post<TemplateResponse>("/api/v1/email_templates", { template: data });
+  return (response as TemplateResponse).data;
 }
 
 async function updateTemplate(id: number, data: Partial<EmailTemplate>): Promise<EmailTemplate> {
-  const response = await api.patch(`/api/v1/email_templates/${id}`, { template: data });
-  return response.data;
+  const response = await api.patch<TemplateResponse>(`/api/v1/email_templates/${id}`, { template: data });
+  return (response as TemplateResponse).data;
 }
 
 async function deleteTemplate(id: number): Promise<void> {
@@ -133,23 +166,23 @@ async function applyTemplate(
   id: number,
   context: Record<string, string>
 ): Promise<{ subject: string; body_html: string; body_text: string; missing_variables: string[] }> {
-  const response = await api.post(`/api/v1/email_templates/${id}/apply`, { context });
-  return response.data;
+  const response = await api.post<ApplyTemplateResponse>(`/api/v1/email_templates/${id}/apply`, { context });
+  return (response as ApplyTemplateResponse).data;
 }
 
 async function duplicateTemplate(id: number, newName?: string): Promise<EmailTemplate> {
-  const response = await api.post(`/api/v1/email_templates/${id}/duplicate`, { new_name: newName });
-  return response.data;
+  const response = await api.post<TemplateResponse>(`/api/v1/email_templates/${id}/duplicate`, { new_name: newName });
+  return (response as TemplateResponse).data;
 }
 
 async function toggleFavorite(id: number): Promise<{ is_favorite: boolean }> {
-  const response = await api.post(`/api/v1/email_templates/${id}/toggle_favorite`);
-  return response.data;
+  const response = await api.post<ToggleFavoriteResponse>(`/api/v1/email_templates/${id}/toggle_favorite`);
+  return (response as ToggleFavoriteResponse).data;
 }
 
 async function createDefaults(): Promise<EmailTemplate[]> {
-  const response = await api.post("/api/v1/email_templates/create_defaults");
-  return response.data.templates || [];
+  const response = await api.post<CreateDefaultsResponse>("/api/v1/email_templates/create_defaults");
+  return (response as CreateDefaultsResponse).data.templates || [];
 }
 
 // Variable Badge Component

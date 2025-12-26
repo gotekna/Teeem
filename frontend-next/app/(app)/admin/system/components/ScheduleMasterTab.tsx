@@ -424,6 +424,35 @@ export function ScheduleMasterTab() {
     }
   };
 
+  // Handle row update from Data View (inline editing)
+  const handleDataViewRowUpdate = async (
+    rowId: number | string,
+    field: string,
+    value: unknown
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (!dataViewTemplateId) {
+      return { success: false, error: "No template selected" };
+    }
+    try {
+      await api.patch(`/api/v1/sm_templates/${dataViewTemplateId}/rows/${rowId}`, {
+        row: { [field]: value },
+      });
+      // Refresh the data
+      loadDataViewRows(dataViewTemplateId);
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to update row:", error);
+      return { success: false, error: "Failed to update row" };
+    }
+  };
+
+  // Handle row double-click - navigate to template detail page
+  const handleDataViewRowDoubleClick = (row: Record<string, unknown>) => {
+    if (dataViewTemplateId && row.id) {
+      router.push(`/schedule-templates/${dataViewTemplateId}?row=${row.id}`);
+    }
+  };
+
   // Gantt Preview functions
   const loadGanttRows = async (templateId: number) => {
     setGanttTemplateId(templateId);
@@ -671,6 +700,8 @@ export function ScheduleMasterTab() {
                 }
                 setDataViewRefreshKey(prev => prev + 1);
               }}
+              onRowUpdate={handleDataViewRowUpdate}
+              onRowDoubleClick={handleDataViewRowDoubleClick}
               enableExport={true}
               leftActions={
                 <Select

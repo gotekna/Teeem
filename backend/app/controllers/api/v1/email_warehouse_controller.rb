@@ -116,6 +116,13 @@ class Api::V1::EmailWarehouseController < ApplicationController
       end
     end
 
+    # ========================================
+    # Split Inbox Mode
+    # ========================================
+    if params[:split_inbox] == "true"
+      return render_split_inbox(emails)
+    end
+
     # Pagination
     page = (params[:page] || 1).to_i
     per_page = [ (params[:per_page] || 50).to_i, 200 ].min
@@ -630,5 +637,70 @@ class Api::V1::EmailWarehouseController < ApplicationController
     else
       []
     end
+  end
+
+  # ========================================
+  # Split Inbox Rendering
+  # ========================================
+
+  def render_split_inbox(base_scope)
+    service = SplitInboxService.new(current_user, base_scope)
+
+    # If a specific category is requested, return paginated emails for that category
+    if params[:category].present?
+      category = params[:category].to_sym
+      page = (params[:page] || 1).to_i
+      per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+
+      emails = service.emails_for_category(category, page: page, per_page: per_page)
+      total = service.category_counts[category] || 0
+
+      return render json: {
+        success: true,
+        data: {
+          category: params[:category],
+          emails: emails.map { |e| email_json(e) },
+          pagination: {
+            page: page,
+            per_page: per_page,
+            total: total,
+            total_pages: (total.to_f / per_page).ceil
+          }
+        }
+      }
+    end
+
+    # Return overview with all categories
+    overview = service.overview
+    unread = service.unread_counts
+
+    render json: {
+      success: true,
+      data: {
+        categories: {
+          vip: {
+            count: overview[:vip][:count],
+            unread_count: unread[:vip],
+            emails: overview[:vip][:emails].map { |e| email_json(e) }
+          },
+          team: {
+            count: overview[:team][:count],
+            unread_count: unread[:team],
+            emails: overview[:team][:emails].map { |e| email_json(e) }
+          },
+          newsletters: {
+            count: overview[:newsletters][:count],
+            unread_count: unread[:newsletters],
+            emails: overview[:newsletters][:emails].map { |e| email_json(e) }
+          },
+          other: {
+            count: overview[:other][:count],
+            unread_count: unread[:other],
+            emails: overview[:other][:emails].map { |e| email_json(e) }
+          }
+        },
+        team_domains: CorporateCompanySetting.team_email_domains
+      }
+    }
   end
 end

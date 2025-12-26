@@ -45,3 +45,14 @@ export {
   type EmailUserState,
   type StarColor,
 } from "./EmailActions";
+
+// Split Inbox
+export {
+  SplitInboxTabs,
+  ViewModeToggle,
+  CategoryBadge,
+  useSplitInbox,
+  type SplitInboxCategory,
+  type SplitInboxData,
+  type CategoryData,
+} from "./SplitInboxTabs";

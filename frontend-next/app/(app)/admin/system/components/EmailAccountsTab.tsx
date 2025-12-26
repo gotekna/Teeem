@@ -311,6 +311,157 @@ function MS365MailboxAccessConfig() {
   );
 }
 
+// Component for configuring team email domains (for Split Inbox)
+function TeamEmailDomainsConfig() {
+  const { toast } = useToast();
+  const [domains, setDomains] = useState<string[]>([]);
+  const [newDomain, setNewDomain] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const fetchDomains = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { team_email_domains: string[] };
+      }>("/api/v1/company_settings");
+      if (response.success) {
+        setDomains(response.data.team_email_domains || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch team domains:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDomains();
+  }, [fetchDomains]);
+
+  const saveDomains = async (updatedDomains: string[]) => {
+    setSaving(true);
+    try {
+      await api.put("/api/v1/company_settings", {
+        team_email_domains: updatedDomains
+      });
+      setDomains(updatedDomains);
+      toast({
+        title: "Saved",
+        description: "Team email domains updated successfully",
+      });
+    } catch (error) {
+      console.error("Failed to save team domains:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save team email domains",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addDomain = () => {
+    const domain = newDomain.toLowerCase().trim();
+    if (!domain) return;
+
+    // Validate domain format
+    const domainRegex = /^[a-z0-9]+([\-\.][a-z0-9]+)*\.[a-z]{2,}$/i;
+    if (!domainRegex.test(domain)) {
+      toast({
+        title: "Invalid domain",
+        description: "Please enter a valid domain (e.g., company.com)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (domains.includes(domain)) {
+      toast({
+        title: "Duplicate",
+        description: "This domain is already in the list",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updated = [...domains, domain];
+    saveDomains(updated);
+    setNewDomain("");
+  };
+
+  const removeDomain = (domain: string) => {
+    const updated = domains.filter(d => d !== domain);
+    saveDomains(updated);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Spinner />
+      </div>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Users className="h-5 w-5" />
+          Team Domains
+        </CardTitle>
+        <CardDescription>
+          Emails from these domains will appear in the &quot;Team&quot; category of Split Inbox.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Add Domain Form */}
+        <div className="flex gap-2">
+          <Input
+            placeholder="company.com"
+            value={newDomain}
+            onChange={(e) => setNewDomain(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addDomain()}
+            className="flex-1"
+          />
+          <Button onClick={addDomain} disabled={saving || !newDomain.trim()}>
+            {saving ? <Spinner className="h-4 w-4 mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+            Add
+          </Button>
+        </div>
+
+        {/* Domain List */}
+        {domains.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No team domains configured. Add domains like &quot;yourcompany.com&quot; to group team emails.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {domains.map((domain) => (
+              <Badge key={domain} variant="secondary" className="px-3 py-1.5 text-sm">
+                @{domain}
+                <button
+                  onClick={() => removeDomain(domain)}
+                  className="ml-2 hover:text-red-500 transition-colors"
+                  disabled={saving}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        <p className="text-xs text-muted-foreground">
+          Tip: You can also mark individual senders as &quot;Team&quot; in the VIP settings for non-domain-based team members.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function EmailAccountsTab() {
   const [credentials, setCredentials] = useState<ImapCredential[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -796,6 +947,17 @@ export function EmailAccountsTab() {
           </p>
         </div>
         <MS365MailboxAccessConfig />
+      </div>
+
+      {/* Team Email Domains Configuration */}
+      <div className="mt-8 pt-8 border-t">
+        <div className="mb-4">
+          <h3 className="text-lg font-medium">Team Email Domains</h3>
+          <p className="text-sm text-muted-foreground">
+            Configure email domains that belong to your team. Emails from these domains will appear in the &quot;Team&quot; tab of the Split Inbox.
+          </p>
+        </div>
+        <TeamEmailDomainsConfig />
       </div>
     </div>
   );

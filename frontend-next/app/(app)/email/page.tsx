@@ -28,6 +28,12 @@ import {
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
+import {
+  SplitInboxTabs,
+  ViewModeToggle,
+  useSplitInbox,
+  type SplitInboxCategory,
+} from "@/components/emails/SplitInboxTabs";
 import { cn } from "@/lib/utils";
 
 interface Email {
@@ -212,6 +218,10 @@ export default function EmailPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ to: string; subject: string; messageId?: string; fromAccountId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  // Split Inbox State
+  const [viewMode, setViewMode] = useState<"split" | "folders">("split");
+  const splitInbox = useSplitInbox();
 
   const fetchEmails = useCallback(async (page = 1) => {
     if (!selectedAccount) {
@@ -548,71 +558,125 @@ export default function EmailPage() {
         {/* Header */}
         <div className="flex items-center justify-between px-3 py-2 border-b shrink-0 bg-background">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-medium truncate text-sm">
-              {getSelectedAccountName()}
-            </span>
-            {selectedFolder && (
-              <Badge variant="secondary" className="text-xs shrink-0">
-                {selectedFolder}
-              </Badge>
+            <ViewModeToggle mode={viewMode} onModeChange={setViewMode} />
+            {viewMode === "folders" && (
+              <>
+                <span className="font-medium truncate text-sm">
+                  {getSelectedAccountName()}
+                </span>
+                {selectedFolder && (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {selectedFolder}
+                  </Badge>
+                )}
+              </>
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <span className="text-xs text-muted-foreground mr-1">
-              {pagination.total}
+              {viewMode === "split"
+                ? splitInbox.counts[splitInbox.selectedCategory] || 0
+                : pagination.total}
             </span>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSync} disabled={syncing || !selectedAccount}>
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? "animate-spin" : ""}`} />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={viewMode === "split" ? splitInbox.refresh : handleSync}
+              disabled={syncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", (syncing || splitInbox.loading) && "animate-spin")} />
             </Button>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="px-3 py-2 border-b shrink-0">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search emails..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && fetchEmails(1)}
-              className="pl-8 h-8 text-sm"
+        {/* Split Inbox Tabs */}
+        {viewMode === "split" && (
+          <div className="px-3 py-2 border-b shrink-0">
+            <SplitInboxTabs
+              selectedCategory={splitInbox.selectedCategory}
+              onCategoryChange={splitInbox.setSelectedCategory}
+              counts={splitInbox.counts}
+              unreadCounts={splitInbox.unreadCounts}
+              loading={splitInbox.loading}
             />
           </div>
-        </div>
+        )}
+
+        {/* Search - Only in folder mode */}
+        {viewMode === "folders" && (
+          <div className="px-3 py-2 border-b shrink-0">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search emails..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && fetchEmails(1)}
+                className="pl-8 h-8 text-sm"
+              />
+            </div>
+          </div>
+        )}
 
         {/* Email List */}
         <div className="flex-1 overflow-auto">
-          {!selectedAccount ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Mail className="h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm">Select a mailbox</p>
-            </div>
-          ) : loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner />
-            </div>
-          ) : emails.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Inbox className="h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm">No emails</p>
-            </div>
+          {viewMode === "split" ? (
+            // Split Inbox View
+            splitInbox.loading && !splitInbox.data ? (
+              <div className="flex items-center justify-center py-12">
+                <Spinner />
+              </div>
+            ) : splitInbox.currentEmails.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Inbox className="h-8 w-8 mb-2 opacity-50" />
+                <p className="text-sm">No emails in {splitInbox.selectedCategory}</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {splitInbox.currentEmails.map((email) => (
+                  <EmailListItem
+                    key={email.id}
+                    email={email as Email}
+                    isSelected={selectedEmail?.id === email.id}
+                    onClick={handleEmailClick}
+                  />
+                ))}
+              </div>
+            )
           ) : (
-            <div className="divide-y">
-              {emails.map((email) => (
-                <EmailListItem
-                  key={email.id}
-                  email={email}
-                  isSelected={selectedEmail?.id === email.id}
-                  onClick={handleEmailClick}
-                />
-              ))}
-            </div>
+            // Folder View
+            !selectedAccount ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Mail className="h-8 w-8 mb-2 opacity-50" />
+                <p className="text-sm">Select a mailbox</p>
+              </div>
+            ) : loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Spinner />
+              </div>
+            ) : emails.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                <Inbox className="h-8 w-8 mb-2 opacity-50" />
+                <p className="text-sm">No emails</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {emails.map((email) => (
+                  <EmailListItem
+                    key={email.id}
+                    email={email}
+                    isSelected={selectedEmail?.id === email.id}
+                    onClick={handleEmailClick}
+                  />
+                ))}
+              </div>
+            )
           )}
         </div>
 
-        {/* Pagination */}
-        {pagination.total_pages > 1 && (
+        {/* Pagination - Only in folder mode */}
+        {viewMode === "folders" && pagination.total_pages > 1 && (
           <div className="flex items-center justify-between px-3 py-2 border-t shrink-0">
             <p className="text-xs text-muted-foreground">
               {pagination.page}/{pagination.total_pages}

@@ -81,19 +81,19 @@ interface LabelResponse {
 // API Functions
 async function fetchLabels(): Promise<EmailLabel[]> {
   const response = await api.get<LabelsResponse>("/api/v1/email_labels");
-  return response.data.labels || [];
+  return (response as LabelsResponse).data.labels || [];
 }
 
 async function fetchLabelsForEmail(
   emailId: number
 ): Promise<{ all_labels: EmailLabel[]; assigned_labels: EmailLabel[] }> {
   const response = await api.get<LabelForEmailResponse>(`/api/v1/email_labels/for_email/${emailId}`);
-  return response.data;
+  return (response as LabelForEmailResponse).data;
 }
 
 async function fetchLabelColors(): Promise<LabelColor[]> {
   const response = await api.get<ColorsResponse>("/api/v1/email_labels/colors");
-  return response.data.colors || [];
+  return (response as ColorsResponse).data.colors || [];
 }
 
 async function createLabel(
@@ -103,7 +103,7 @@ async function createLabel(
   const response = await api.post<LabelResponse>("/api/v1/email_labels", {
     label: { name, color },
   });
-  return response!.data.label;
+  return (response as LabelResponse).data.label;
 }
 
 async function updateLabel(
@@ -113,7 +113,7 @@ async function updateLabel(
   const response = await api.patch<LabelResponse>(`/api/v1/email_labels/${id}`, {
     label: updates,
   });
-  return response!.data.label;
+  return (response as LabelResponse).data.label;
 }
 
 async function deleteLabel(id: number): Promise<void> {
@@ -128,7 +128,7 @@ async function toggleLabelForEmail(
     `/api/v1/email_labels/${labelId}/toggle_email`,
     { email_id: emailId }
   );
-  return response!.data;
+  return (response as { success: boolean; data: { assigned: boolean } }).data;
 }
 
 // Label Badge Component

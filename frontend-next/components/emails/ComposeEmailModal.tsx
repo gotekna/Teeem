@@ -115,7 +115,8 @@ export function ComposeEmailModal({
       const response = await api.get<{ contacts: Contact[] }>(
         `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&per_page=20`
       );
-      setContacts((response.contacts || []).filter(c => c.email));
+      const typedResponse = response as { contacts: Contact[] };
+      setContacts((typedResponse.contacts || []).filter(c => c.email));
     } catch (err) {
       console.error("Failed to search contacts:", err);
     } finally {
@@ -184,7 +185,8 @@ export function ComposeEmailModal({
     setLoading(true);
     try {
       const response = await api.get<{ success: boolean; data: EmailAccount[] }>("/api/v1/imap_credentials/all_accounts");
-      const activeAccounts = (response.data || []).filter(
+      const typedResponse = response as { success: boolean; data: EmailAccount[] };
+      const activeAccounts = (typedResponse.data || []).filter(
         (a) => a.is_active
       );
       setAccounts(activeAccounts);
