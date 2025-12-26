@@ -5,7 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
-import { Building2, Users, Briefcase, ArrowLeft, FileText } from "lucide-react";
+import { SharePointConfigTab } from "./SharePointConfigTab";
+import { Building2, Users, Briefcase, ArrowLeft, FileText, Settings } from "lucide-react";
 import { api } from "@/lib/api";
 
 /**
@@ -63,6 +64,16 @@ const scopes = [
     showSharePointPaths: false,
     showDocumentTypes: false,
     isEntityTab: false,
+  },
+  {
+    id: "sharepoint_config",
+    label: "SharePoint Config",
+    icon: Settings,
+    showEntityFilters: false,
+    showSharePointPaths: false,
+    showDocumentTypes: false,
+    isEntityTab: false,
+    isSharePointConfig: true,
   },
 ] as const;
 
@@ -161,6 +172,8 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
                   showTabGroups={scope.showTabGroups !== false}
                   compact={true}
                 />
+              ) : "isSharePointConfig" in scope && scope.isSharePointConfig ? (
+                <SharePointConfigTab />
               ) : (
                 <DocumentTypesTab />
               )}

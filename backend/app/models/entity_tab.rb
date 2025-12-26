@@ -152,7 +152,7 @@ class EntityTab < ApplicationRecord
 
   # Get the EFFECTIVE SharePoint path for this tab
   # - If uses_custom_path: return the custom sharepoint_folder_path
-  # - If NOT uses_custom_path: return template + tab display_name
+  # - If NOT uses_custom_path: replace {{Category}}/{{Folder}} in template with display_name
   def effective_sharepoint_path
     return nil unless has_sharepoint_folder
 
@@ -160,12 +160,15 @@ class EntityTab < ApplicationRecord
       # Custom path - use exactly what's set
       sharepoint_folder_path
     else
-      # Inherit from global template + append tab's display name or display_code
+      # Inherit from global template, replacing {{Category}} or {{Folder}} with display_name
       template = inherited_template
       return nil unless template.present?
 
-      # Append the tab's folder name (use display_name as the folder)
-      "#{template}/#{display_name}"
+      # SSoT: Replace the folder placeholder with this tab's display_name
+      # - Job/People/Contact templates use {{Category}}
+      # - Company templates use {{Folder}}
+      placeholder = scope_for_template == :company ? "Folder" : "Category"
+      CorporateCompanySetting.resolve_template(template, { placeholder => display_name })
     end
   end
 
