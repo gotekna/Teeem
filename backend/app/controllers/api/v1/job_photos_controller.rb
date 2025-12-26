@@ -33,16 +33,35 @@ module Api
           # Find or create the job folder
           job_folder = client.find_job_folder(job)
 
-          unless job_folder
-            # Create job folder structure if it doesn't exist
+          # If job folder doesn't exist or has no valid ID, create it
+          unless job_folder && job_folder["id"].present?
+            Rails.logger.info "[JobPhotos] Job folder not found, creating structure..."
             template = FolderTemplate.where(is_system_default: true, is_active: true).first
             if template
               job_folder = client.create_job_folder_structure(job, template)
             else
-              return render json: {
-                success: false,
-                error: "Job folder not found and no folder template available"
-              }, status: :unprocessable_entity
+              # No template - create a simple job folder
+              job_code = job.id.to_s.rjust(3, "0")
+              job_folder_name = "#{job_code} - #{job.title || job.name}"
+
+              # Get or create root folder
+              root_id = credential.root_folder_id
+              unless root_id
+                # Try to find TEEEM Jobs folder
+                jobs_folder_name = CorporateCompanySetting.instance&.sharepoint_jobs_path || "TEEEM Jobs"
+                root_results = client.get("#{client.send(:drive_path)}/root/children")
+                jobs_folder = root_results["value"]&.find { |item| item["folder"] && item["name"] == jobs_folder_name }
+                root_id = jobs_folder&.dig("id")
+              end
+
+              if root_id
+                job_folder = client.create_folder(job_folder_name, parent_id: root_id)
+              else
+                return render json: {
+                  success: false,
+                  error: "Cannot create job folder: SharePoint jobs folder not found"
+                }, status: :unprocessable_entity
+              end
             end
           end
 
@@ -97,26 +116,26 @@ module Api
       # Navigate through a folder path and find or create each folder
       # Returns the final folder item or nil if failed
       def find_or_create_folder_path(client, credential, parent_folder_id, path)
-        return nil if path.blank?
+        return { "id" => parent_folder_id } if path.blank?
 
         # Split path and navigate/create each folder
         path_parts = path.split("/").reject(&:blank?)
         current_folder_id = parent_folder_id
+        drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
 
         path_parts.each do |folder_name|
-          # List children of current folder
-          response = client.list_folder_items(current_folder_id)
-          items = response["value"] || []
+          begin
+            # List children of current folder
+            response = client.list_folder_items(current_folder_id)
+            items = response["value"] || []
 
-          # Find folder by name (case-insensitive)
-          folder = items.find { |item| item["folder"] && item["name"]&.downcase == folder_name.downcase }
+            # Find folder by name (case-insensitive)
+            folder = items.find { |item| item["folder"] && item["name"]&.downcase == folder_name.downcase }
 
-          if folder
-            current_folder_id = folder["id"]
-          else
-            # Create the folder
-            begin
-              drive_path = credential.drive_id.present? ? "/drives/#{credential.drive_id}" : "/me/drive"
+            if folder
+              current_folder_id = folder["id"]
+            else
+              # Create the folder
               new_folder = client.post("#{drive_path}/items/#{current_folder_id}/children", {
                 name: folder_name,
                 folder: {},
@@ -124,10 +143,30 @@ module Api
               })
               current_folder_id = new_folder["id"]
               Rails.logger.info "[JobPhotos] Created folder: #{folder_name}"
-            rescue StandardError => e
-              Rails.logger.error "[JobPhotos] Failed to create folder #{folder_name}: #{e.message}"
+            end
+          rescue MicrosoftGraphClient::APIError => e
+            # If listing fails (404), the parent folder might not exist - try creating it
+            if e.message.include?("404") || e.message.include?("itemNotFound")
+              Rails.logger.warn "[JobPhotos] Parent folder not found, creating #{folder_name}"
+              begin
+                new_folder = client.post("#{drive_path}/items/#{current_folder_id}/children", {
+                  name: folder_name,
+                  folder: {},
+                  "@microsoft.graph.conflictBehavior" => "rename"
+                })
+                current_folder_id = new_folder["id"]
+                Rails.logger.info "[JobPhotos] Created folder: #{folder_name}"
+              rescue StandardError => create_error
+                Rails.logger.error "[JobPhotos] Failed to create folder #{folder_name}: #{create_error.message}"
+                return nil
+              end
+            else
+              Rails.logger.error "[JobPhotos] Failed to navigate to folder #{folder_name}: #{e.message}"
               return nil
             end
+          rescue StandardError => e
+            Rails.logger.error "[JobPhotos] Failed to create folder #{folder_name}: #{e.message}"
+            return nil
           end
         end
 
