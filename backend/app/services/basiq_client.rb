@@ -79,6 +79,41 @@ class BasiqClient
     @access_token
   end
 
+  # Get CLIENT_ACCESS token bound to a specific user
+  # This token is used to redirect users to the consent UI
+  # @param user_id [String] - The Basiq user ID to bind the token to
+  # @return [Hash] { success: true, client_token: '...', expires_in: 3600 }
+  def get_client_token(user_id)
+    response = HTTParty.post(
+      "#{BASE_URL}/token",
+      headers: {
+        "Authorization" => "Basic #{@api_key}",
+        "Content-Type" => "application/x-www-form-urlencoded",
+        "basiq-version" => "3.0"
+      },
+      body: "scope=CLIENT_ACCESS&userId=#{user_id}",
+      timeout: 30
+    )
+
+    if response.success?
+      data = JSON.parse(response.body)
+      Rails.logger.info("[Basiq] Client token obtained for user #{user_id}")
+
+      {
+        success: true,
+        client_token: data["access_token"],
+        expires_in: data["expires_in"]
+      }
+    else
+      error_message = parse_error(response)
+      Rails.logger.error("[Basiq] Failed to get client token: #{error_message}")
+      { success: false, error: error_message }
+    end
+  rescue StandardError => e
+    Rails.logger.error("[Basiq] Client token request failed: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   # ============================================
   # USER MANAGEMENT
   # ============================================
@@ -139,60 +174,45 @@ class BasiqClient
   end
 
   # ============================================
-  # CONSENT MANAGEMENT
+  # CONSENT MANAGEMENT (Basiq v3 Flow)
   # ============================================
 
   # Create a consent request to initiate bank connection
-  # Returns a URL that the user should be redirected to
+  # In Basiq v3, consent is created through the Consent UI, not via API
+  # We get a CLIENT_ACCESS token bound to the user and redirect them
   #
   # @param user_id [String] - The Basiq user ID
   # @param options [Hash] - Optional parameters
-  #   - :duration [String] - Consent duration, e.g., "ongoing" or "once" (default: "ongoing")
-  #   - :permissions [Array] - Data permissions (default: all standard permissions)
-  #   - :redirect_url [String] - URL to redirect after consent completion
+  #   - :redirect_url [String] - URL to redirect after consent completion (passed as action param)
   #
-  # @return [Hash] { success: true, consent_url: '...', consent_id: '...' }
+  # @return [Hash] { success: true, consent_url: '...', client_token: '...' }
   def create_consent(user_id, options = {})
-    ensure_token!
+    # Get a client token bound to this user
+    token_result = get_client_token(user_id)
 
-    # Default permissions for transaction data
-    permissions = options[:permissions] || [
-      "account_details",
-      "account_balance",
-      "account_numbers",
-      "transaction_details"
-    ]
+    unless token_result[:success]
+      return { success: false, error: token_result[:error] }
+    end
 
-    body = {
-      duration: options[:duration] || "ongoing",
-      permissions: permissions
-    }
+    client_token = token_result[:client_token]
 
-    # Add redirect URL if provided (for post-consent redirect)
+    # Build the consent UI URL
+    # The user will be redirected here to select their bank and authenticate
+    consent_url = "https://consent.basiq.io/home?token=#{client_token}"
+
+    # Add redirect URL as action parameter if provided
     if options[:redirect_url].present?
-      body[:partnerCustomerId] = user_id  # For tracking
+      consent_url += "&action=#{CGI.escape(options[:redirect_url])}"
     end
 
-    response = make_request(:post, "/users/#{user_id}/consents", body)
+    Rails.logger.info("[Basiq] Consent URL generated for user #{user_id}")
 
-    if response[:success]
-      consent = response[:data]
-      links = consent["links"] || {}
-
-      # The consent UI URL is in links.self or we construct it
-      consent_url = links["public"] || "https://consent.basiq.io/home?token=#{consent['id']}"
-
-      Rails.logger.info("[Basiq] Consent created: #{consent['id']} for user #{user_id}")
-
-      {
-        success: true,
-        consent_id: consent["id"],
-        consent_url: consent_url,
-        status: consent["status"]
-      }
-    else
-      { success: false, error: response[:error] }
-    end
+    {
+      success: true,
+      consent_url: consent_url,
+      client_token: client_token,
+      consent_id: nil # In v3, consent ID is returned after user completes flow
+    }
   end
 
   # Get consent status
