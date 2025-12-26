@@ -64,6 +64,12 @@ interface UseOfflineEmailsOptions {
    * @default true
    */
   fetchOnFocus?: boolean;
+
+  /**
+   * Optional account ID to filter emails by.
+   * If provided, only emails from this account are shown.
+   */
+  accountId?: string;
 }
 
 interface UseOfflineEmailsResult {
@@ -176,6 +182,7 @@ export function useOfflineEmails(
     enabled = true,
     fetchOnMount = true,
     fetchOnFocus = true,
+    accountId,
   } = options;
 
   // State
@@ -267,8 +274,24 @@ export function useOfflineEmails(
     setError(null);
 
     try {
+      // Build URL with optional account filter
+      let url = "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true";
+
+      // Add account filter if provided
+      if (accountId) {
+        if (accountId === "outlook") {
+          url += "&source_type=outlook";
+        } else if (accountId.startsWith("ms365_")) {
+          // MS365 org accounts: extract microsoft_credential_id from "ms365_X_hash" format
+          const parts = accountId.split("_");
+          url += `&microsoft_credential_id=${parts[1]}`;
+        } else {
+          url += `&imap_credential_id=${accountId}`;
+        }
+      }
+
       const response = await api.get<SplitInboxAPIResponse>(
-        "/api/v1/email_warehouse?split_inbox=true&my_emails=true&latest_only=true",
+        url,
         { timeout: 10000 }
       );
 
@@ -366,7 +389,7 @@ export function useOfflineEmails(
       }
       fetchingRef.current = false;
     }
-  }, [enabled, isCacheAvailable, selectedCategory]);
+  }, [enabled, isCacheAvailable, selectedCategory, accountId]);
 
   // Manual refresh (always fetches)
   const refresh = useCallback(async () => {
@@ -376,6 +399,13 @@ export function useOfflineEmails(
     }
     await fetchFromAPI();
   }, [isOnline, fetchFromAPI]);
+
+  // Refetch when account changes
+  useEffect(() => {
+    if (accountId && enabled && isOnline) {
+      fetchFromAPI();
+    }
+  }, [accountId, enabled, isOnline, fetchFromAPI]);
 
   // Initial load from cache on mount
   useEffect(() => {

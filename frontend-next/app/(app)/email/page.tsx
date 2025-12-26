@@ -449,7 +449,7 @@ export default function EmailPage() {
 
   // Split Inbox State
   const [viewMode, setViewMode] = useState<"split" | "folders">("split");
-  const splitInbox = useSplitInbox();
+  const splitInbox = useSplitInbox({ accountId: selectedAccount });
 
   // Keyboard Shortcuts
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);

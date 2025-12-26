@@ -1,44 +1,49 @@
 import Foundation
 import SwiftUI
 
-struct Job: Codable, Identifiable, Hashable {
+// Simple Job model - only decode basic fields, ignore nested objects for now
+struct Job: Identifiable, Hashable {
     let id: Int
-    let jobNumber: String?
     let name: String?
-    let clientName: String?
-    let status: String?
-    let stage: String?
-    let address: String?
     let suburb: String?
     let state: String?
-    let postcode: String?
-    let contractValue: Double?
+    let contractPrice: Double?
 
     var displayName: String {
-        if let number = jobNumber, let jobName = name {
-            return "\(number) - \(jobName)"
+        if let jobName = name, !jobName.isEmpty {
+            return "\(id) - \(jobName)"
         }
-        return name ?? jobNumber ?? "Job #\(id)"
+        return "Job #\(id)"
     }
 
-    var fullAddress: String? {
-        [address, suburb, state, postcode].compactMap { $0 }.joined(separator: ", ")
+    var location: String? {
+        [suburb, state].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
     var formattedContractValue: String? {
-        guard let value = contractValue else { return nil }
+        guard let value = contractPrice else { return nil }
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "AUD"
         return formatter.string(from: NSNumber(value: value))
     }
 
-    var statusColor: Color {
-        switch status?.lowercased() {
-        case "active": return .green
-        case "completed": return .blue
-        case "on_hold": return .orange
-        default: return .gray
-        }
+    var statusName: String { "Active" }
+    var statusColor: Color { .green }
+}
+
+extension Job: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, suburb, state
+        case contractPrice = "contract_price"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        suburb = try container.decodeIfPresent(String.self, forKey: .suburb)
+        state = try container.decodeIfPresent(String.self, forKey: .state)
+        contractPrice = try container.decodeIfPresent(Double.self, forKey: .contractPrice)
     }
 }

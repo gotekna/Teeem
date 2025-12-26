@@ -70,9 +70,6 @@ class SmScheduleMaster < ApplicationRecord
   scope :by_stage, ->(stage) { where(stage: stage) if stage.present? }
   scope :requiring_po, -> { where(po_required: true) }
   scope :with_photos, -> { where(require_photo: true) }
-  scope :auto_included, -> { where(auto_include: true) }
-  scope :manual_only, -> { where(auto_include: false) }
-  scope :allow_duplicates, -> { where(allow_duplicates: true) }
 
   # Multi-template scope - filter rows by template membership
   scope :for_template, ->(template_id) { where("sm_template_ids @> ?", [template_id].to_json) }

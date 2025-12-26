@@ -113,14 +113,10 @@ export interface SmScheduleMaster {
   color: string | null;
   is_active: boolean;
   // New Schedule Master fields
-  auto_include: boolean;
-  allow_duplicates: boolean;
-  ai_select: boolean;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
   supplier_confirm: boolean;
   finance_approved: boolean;
-  is_master: boolean;
   header: string | null;
   // Multi-template support
   sm_template_ids: number[];

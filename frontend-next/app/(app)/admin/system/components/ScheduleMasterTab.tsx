@@ -180,8 +180,6 @@ const ALL_COLUMNS = [
   "checklist_id",
   // Template Membership
   "sm_template_ids",
-  // Automation & AI
-  "auto_include", "allow_duplicates", "ai_select", "is_master",
   // Display
   "tags", "color", "is_active",
   // Audit
@@ -1470,48 +1468,6 @@ export function ScheduleMasterTab() {
                     <CopyableCode>sm_template_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
                     <span className="text-muted-foreground">Array of template IDs this row belongs to (multi-template support)</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Automation & AI */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Automation & AI</CardTitle>
-                <CardDescription>Automatic task behavior</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 text-sm">
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center text-xs text-muted-foreground border-b pb-2 mb-1">
-                    <span title="Complete">Done</span>
-                    <span>Column</span>
-                    <span>Type</span>
-                    <span>Description</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["auto_include"] || false} onCheckedChange={(v) => updateColumnStatus("auto_include", !!v)} />
-                    <CopyableCode>auto_include</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Automatically include in new jobs</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["allow_duplicates"] || false} onCheckedChange={(v) => updateColumnStatus("allow_duplicates", !!v)} />
-                    <CopyableCode>allow_duplicates</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">Allow multiple instances of this task</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["ai_select"] || false} onCheckedChange={(v) => updateColumnStatus("ai_select", !!v)} />
-                    <CopyableCode>ai_select</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">AI can recommend/select this task</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["is_master"] || false} onCheckedChange={(v) => updateColumnStatus("is_master", !!v)} />
-                    <CopyableCode>is_master</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">This is a master/template task</span>
                   </div>
                 </div>
               </CardContent>

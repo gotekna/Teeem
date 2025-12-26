@@ -12,13 +12,14 @@ class JobsViewModel: ObservableObject {
 
     func loadJobs() async {
         isLoading = true
+        print("Starting to load jobs...")
         do {
             jobs = try await apiClient.get("jobs")
-            print("Loaded \(jobs.count) jobs")
+            print("SUCCESS: Loaded \(jobs.count) jobs")
         } catch {
             errorMessage = "Failed to load jobs: \(error)"
             showError = true
-            print("Job load error: \(error)")
+            print("FAILED: Job load error: \(error)")
         }
         isLoading = false
     }

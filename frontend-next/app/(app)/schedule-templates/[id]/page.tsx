@@ -101,13 +101,9 @@ interface SmScheduleMaster {
   color: string | null;
   is_active: boolean;
   // Schedule Master fields
-  auto_include: boolean;
-  allow_duplicates: boolean;
-  ai_select: boolean;
   linked_po_task_id: number | null;
   linked_po_task_name: string | null;
   supplier_confirm: boolean;
-  is_master: boolean;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -316,12 +312,8 @@ export default function ScheduleTemplateDetailPage() {
       po_required: row.po_required,
       critical_po: row.critical_po,
       require_photo: row.require_photo,
-      auto_include: row.auto_include,
-      allow_duplicates: row.allow_duplicates,
-      ai_select: row.ai_select,
       linked_po_task_id: row.linked_po_task_id,
       supplier_confirm: row.supplier_confirm,
-      is_master: row.is_master,
     });
     setShowEditDialog(true);
   };
@@ -668,24 +660,6 @@ export default function ScheduleTemplateDetailPage() {
             <p className="text-2xl font-bold">{rows.filter((r) => r.require_photo).length}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Auto Include</span>
-            </div>
-            <p className="text-2xl font-bold">{rows.filter((r) => r.auto_include).length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Manual Only</span>
-            </div>
-            <p className="text-2xl font-bold">{rows.filter((r) => !r.auto_include).length}</p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Rows Table */}
@@ -708,12 +682,6 @@ export default function ScheduleTemplateDetailPage() {
                     <TableHead className="w-[100px]">Predecessors</TableHead>
                     <TableHead className="w-[80px] text-center">PO</TableHead>
                     <TableHead className="w-[80px] text-center">Photo</TableHead>
-                    <TableHead className="w-[80px] text-center">Cert</TableHead>
-                    <TableHead className="w-[80px] text-center">Auto</TableHead>
-                    <TableHead className="w-[80px] text-center">Multi</TableHead>
-                    <TableHead className="w-[120px]">Plan Types</TableHead>
-                    <TableHead className="w-[100px]">Start Docs</TableHead>
-                    <TableHead className="w-[100px]">Complete Docs</TableHead>
                     <TableHead className="w-[60px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -753,20 +721,6 @@ export default function ScheduleTemplateDetailPage() {
                       <TableCell className="text-center">
                         {row.require_photo ? (
                           <Camera className="h-4 w-4 mx-auto text-blue-500" />
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.auto_include ? (
-                          <CheckCircle className="h-4 w-4 mx-auto text-green-500" />
-                        ) : (
-                          <span className="text-muted-foreground text-xs">Manual</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {row.allow_duplicates ? (
-                          <Badge variant="outline" className="text-xs">Multi</Badge>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
@@ -847,50 +801,6 @@ export default function ScheduleTemplateDetailPage() {
                   </p>
                 </div>
               </div>
-            </div>
-
-            {/* Task Behavior */}
-            <div className="space-y-4">
-              <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
-                Task Behavior
-              </h4>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="auto_include"
-                    checked={editForm.auto_include ?? true}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, auto_include: !!checked })}
-                  />
-                  <Label htmlFor="auto_include" className="text-sm">Auto Include</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="allow_duplicates"
-                    checked={editForm.allow_duplicates ?? false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, allow_duplicates: !!checked })}
-                  />
-                  <Label htmlFor="allow_duplicates" className="text-sm">Allow Duplicates</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="ai_select"
-                    checked={editForm.ai_select ?? false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, ai_select: !!checked })}
-                  />
-                  <Label htmlFor="ai_select" className="text-sm">AI Select</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="is_master"
-                    checked={editForm.is_master ?? false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, is_master: !!checked })}
-                  />
-                  <Label htmlFor="is_master" className="text-sm">Master Task</Label>
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Master Task: When completed, auto-completes all prior tasks (except in-progress photo/scan tasks)
-              </p>
             </div>
 
             {/* PO & Certification */}

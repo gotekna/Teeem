@@ -185,9 +185,8 @@ module Api
           :order_time_days, :call_time_days,
           :color,
           # New Schedule Master fields
-          :auto_include, :allow_duplicates, :ai_select,
           :linked_po_task_id,
-          :supplier_confirm, :is_master,
+          :supplier_confirm,
           # Manual positioning
           :hold, :hold_date, :dependency_broken,
           predecessor_ids: [ :id, :type, :lag ],
@@ -262,13 +261,9 @@ module Api
           # Multi-template support
           sm_template_ids: row.sm_template_ids || [],
           # New Schedule Master fields
-          auto_include: row.auto_include,
-          allow_duplicates: row.allow_duplicates,
-          ai_select: row.ai_select,
           linked_po_task_id: row.linked_po_task_id,
           linked_po_task_name: row.linked_po_task&.name,
           supplier_confirm: row.supplier_confirm,
-          is_master: row.is_master,
           # Manual positioning (for held/locked dates)
           hold: row.hold,
           hold_date: row.hold_date,

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010025) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010026) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7416,13 +7416,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010025) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.boolean "auto_include", default: true
-    t.boolean "allow_duplicates", default: false
-    t.boolean "ai_select", default: false
     t.integer "linked_po_task_id"
     t.string "cost_centre"
     t.boolean "supplier_confirm", default: false
-    t.boolean "is_master", default: false
     t.string "header"
     t.jsonb "sm_template_ids", default: []
     t.boolean "hold"

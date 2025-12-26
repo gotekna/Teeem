@@ -303,15 +303,22 @@ export function ViewModeToggle({
 }
 
 // Hook for split inbox data - now with offline-first support
-export function useSplitInbox() {
+export function useSplitInbox(options?: { accountId?: string }) {
   const offlineEmails = useOfflineEmails({
     enabled: true,
     fetchOnMount: true,
     fetchOnFocus: true,
+    accountId: options?.accountId, // Filter by selected account
   });
 
   // Map offline emails hook to the existing useSplitInbox API
   // This maintains backwards compatibility with the email page
+
+  // Show loading when:
+  // 1. Initial cache load is in progress, OR
+  // 2. Cache is empty and we're fetching from API
+  const showLoading = offlineEmails.isLoading ||
+    (offlineEmails.emails.length === 0 && offlineEmails.isFetching);
 
   return {
     // Legacy API (for backwards compatibility)
@@ -324,7 +331,7 @@ export function useSplitInbox() {
       },
       team_domains: offlineEmails.teamDomains,
     } : null,
-    loading: offlineEmails.isLoading,
+    loading: showLoading,
     error: offlineEmails.error?.message || null,
     refresh: offlineEmails.refresh,
     loadCategory: async () => ({ emails: [], pagination: { page: 1, per_page: 50, total: 0, total_pages: 0 } }),

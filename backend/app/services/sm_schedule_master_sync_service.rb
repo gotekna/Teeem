@@ -404,6 +404,9 @@ class SmScheduleMasterSyncService
     duration = template_row.duration_days || 1
     end_date = start_date + (duration - 1).days
 
+    # Generate unique name for duplicate tasks (e.g., "Req Bath 1", "Req Bath 2")
+    task_name = generate_unique_task_name(template_row.name)
+
     task = SmTask.new(
       # Core identifiers
       construction_id: job.id,
@@ -412,7 +415,7 @@ class SmScheduleMasterSyncService
       sequence_order: next_sequence,
 
       # Core task info (from template)
-      name: template_row.name,
+      name: task_name,
       description: template_row.description,
       duration_days: duration,
       trade: template_row.trade,
@@ -467,6 +470,48 @@ class SmScheduleMasterSyncService
       success: false,
       error: message
     }
+  end
+
+  # Generate unique task name for duplicates
+  # If task "Req Bath" already exists:
+  #   - Rename existing to "Req Bath 1"
+  #   - Return "Req Bath 2" for new task
+  # If "Req Bath 1", "Req Bath 2" exist:
+  #   - Return "Req Bath 3" for new task
+  def generate_unique_task_name(base_name)
+    return base_name if base_name.blank?
+
+    # Find all tasks with exact name or numbered variants (e.g., "Req Bath", "Req Bath 1", "Req Bath 2")
+    # Pattern: base_name or base_name followed by space and number
+    existing_tasks = job.sm_tasks.where(
+      "name = :exact OR name ~ :pattern",
+      exact: base_name,
+      pattern: "^#{Regexp.escape(base_name)} \\d+$"
+    )
+
+    return base_name if existing_tasks.empty?
+
+    # Check if there's an unnumbered task that needs renaming
+    unnumbered_task = existing_tasks.find_by(name: base_name)
+    if unnumbered_task
+      # Rename it to "Base Name 1"
+      unnumbered_task.update_column(:name, "#{base_name} 1")
+      Rails.logger.info "[SmScheduleMasterSyncService] Renamed task #{unnumbered_task.id} to '#{base_name} 1' for duplicate numbering"
+    end
+
+    # Find the highest number used
+    max_number = existing_tasks.pluck(:name).map do |name|
+      if name == base_name
+        1  # Will be renamed to 1
+      elsif name =~ /^#{Regexp.escape(base_name)} (\d+)$/
+        $1.to_i
+      else
+        0
+      end
+    end.max || 0
+
+    # Return next number
+    "#{base_name} #{max_number + 1}"
   end
 
   # Calculate order_time_days based on pricebook items or template default

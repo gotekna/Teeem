@@ -7,7 +7,7 @@ class APIClient {
     private let authManager = AuthManager.shared
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
-        d.keyDecodingStrategy = .convertFromSnakeCase
+        // Don't use convertFromSnakeCase - we handle it in CodingKeys
         // Handle multiple date formats from Rails API
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

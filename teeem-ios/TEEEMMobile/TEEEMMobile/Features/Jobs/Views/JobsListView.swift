@@ -37,12 +37,22 @@ struct JobRowView: View {
     let job: Job
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(job.displayName).font(.headline)
-            if let client = job.clientName {
-                Text(client).font(.subheadline).foregroundColor(.secondary)
+            HStack {
+                Text(job.displayName).font(.headline)
+                Spacer()
+                Text(job.statusName)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(job.statusColor.opacity(0.15))
+                    .foregroundColor(job.statusColor)
+                    .cornerRadius(4)
             }
-            if let address = job.fullAddress {
-                Text(address).font(.caption).foregroundColor(.secondary)
+            if let loc = job.location, !loc.isEmpty {
+                Text(loc).font(.subheadline).foregroundColor(.secondary)
+            }
+            if let value = job.formattedContractValue {
+                Text(value).font(.caption).foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 4)
@@ -54,13 +64,15 @@ struct JobDetailView: View {
     var body: some View {
         List {
             Section("Details") {
-                LabeledContent("Job Number", value: job.jobNumber ?? "-")
-                LabeledContent("Client", value: job.clientName ?? "-")
-                LabeledContent("Status", value: job.status?.capitalized ?? "-")
+                LabeledContent("Job ID", value: "\(job.id)")
+                LabeledContent("Status", value: job.statusName)
+                if let value = job.formattedContractValue {
+                    LabeledContent("Contract Value", value: value)
+                }
             }
-            if let address = job.fullAddress {
+            if let loc = job.location, !loc.isEmpty {
                 Section("Location") {
-                    Text(address)
+                    Text(loc)
                 }
             }
         }
