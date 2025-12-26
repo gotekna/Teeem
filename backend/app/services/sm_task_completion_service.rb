@@ -156,11 +156,16 @@ class SmTaskCompletionService
   end
 
   def spawn_inspection_retry
-    retry_count = task.parent_spawn_logs.where(spawn_type: "inspection_retry").count
+    # Find the original inspection task (trace back through parent chain)
+    original_task = find_original_inspection_task
+    original_name = original_task.name.sub(/^Re-inspect \d+: /, "")
+
+    # Count existing retries for this original task
+    retry_count = count_inspection_retries(original_task)
 
     spawned = create_spawned_task(
-      name: "#{task.name} - Retry ##{retry_count + 1}",
-      description: "Inspection retry for failed task: #{task.name}",
+      name: "Re-inspect #{retry_count + 1}: #{original_name}",
+      description: "Re-inspection ##{retry_count + 1} for: #{original_name}",
       spawn_type: "inspection_retry",
       duration_days: task.duration_days,
       pass_fail_enabled: true,
@@ -170,9 +175,47 @@ class SmTaskCompletionService
       spawn_office_tasks: task.spawn_office_tasks,
       trade: task.trade,
       supplier_id: task.supplier_id,
-      checklist_id: task.checklist_id
+      checklist_id: task.checklist_id,
+      photo_entity_tab_id: task.photo_entity_tab_id
     )
     log_spawn(spawned, "inspection_retry", "inspection_fail") if spawned
+  end
+
+  # Trace back to find the original inspection task (before any retries)
+  def find_original_inspection_task
+    current = task
+    while current.parent_task.present? && current.parent_task.pass_fail_enabled?
+      current = current.parent_task
+    end
+    current
+  end
+
+  # Count all retry tasks spawned from the original inspection
+  def count_inspection_retries(original_task)
+    SmSpawnLog.where(
+      parent_task_id: all_task_ids_in_chain(original_task),
+      spawn_type: "inspection_retry"
+    ).count
+  end
+
+  # Get all task IDs in the retry chain (original + all retries)
+  def all_task_ids_in_chain(original_task)
+    ids = [original_task.id]
+    SmSpawnLog.where(parent_task_id: original_task.id, spawn_type: "inspection_retry").find_each do |log|
+      ids << log.spawned_task_id if log.spawned_task_id
+      # Recursively get children
+      ids += all_task_ids_in_chain_recursive(log.spawned_task_id) if log.spawned_task_id
+    end
+    ids.compact.uniq
+  end
+
+  def all_task_ids_in_chain_recursive(task_id)
+    ids = []
+    SmSpawnLog.where(parent_task_id: task_id, spawn_type: "inspection_retry").find_each do |log|
+      ids << log.spawned_task_id if log.spawned_task_id
+      ids += all_task_ids_in_chain_recursive(log.spawned_task_id) if log.spawned_task_id
+    end
+    ids
   end
 
   def create_spawned_task(attrs)

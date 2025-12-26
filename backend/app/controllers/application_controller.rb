@@ -38,6 +38,12 @@ class ApplicationController < ActionController::API
     @current_user
   end
 
+  # Get the organization for the current request
+  # TODO: Add proper multi-org support when users can belong to multiple orgs
+  def current_organization
+    @current_organization ||= Organization.first
+  end
+
   def require_admin
     unless current_user&.admin?
       render json: { error: "Unauthorized. Admin access required." }, status: :forbidden
