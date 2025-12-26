@@ -15,11 +15,15 @@ class OrgEmailSyncJob < ApplicationJob
   # Performance: Memoization caches to avoid N+1 queries during sync
   attr_reader :user_cache, :blacklist_cache
 
+  # Performance: Parallel folder sync configuration
+  PARALLEL_FOLDER_THREADS = 3  # Number of folders to sync concurrently
+  SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
+
   # SSoT: Supports multi-org via organization_id (preferred)
   # Falls back to credential_id or org_name for legacy compatibility (with warning)
   def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil)
-    # Initialize performance caches
-    @user_cache = {}
+    # Performance: Thread-safe caches for parallel folder sync
+    @user_cache = Concurrent::Map.new
     @blacklist_cache = nil
     # SSoT: Find credential using org-scoped lookup
     @credential = find_credential(organization_id: organization_id, credential_id: credential_id, org_name: org_name)
@@ -76,7 +80,6 @@ class OrgEmailSyncJob < ApplicationJob
 
   def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil)
     client = MicrosoftAppGraphClient.new(@credential)
-    total_synced = 0
 
     # Determine since date - prefer sync_days over sync_years if both are set
     lookback_time = if sync_days.present?
@@ -100,15 +103,50 @@ class OrgEmailSyncJob < ApplicationJob
     # Get all mail folders
     folders = client.get_user_mail_folders(user_email)
 
-    folders.each do |folder|
-      synced = sync_folder(client, user_email, folder, since)
-      total_synced += synced
-    end
+    # Performance: Parallel folder sync with thread batching
+    # Sync folders in parallel (PARALLEL_FOLDER_THREADS at a time) for ~3x speedup
+    total_synced = sync_folders_parallel(client, user_email, folders, since)
 
     # Auto-match unassigned emails after sync
     auto_match_user_emails(user_email)
 
     total_synced
+  end
+
+  # Performance: Sync folders in parallel batches
+  # Impact: ~3x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
+  def sync_folders_parallel(client, user_email, folders, since)
+    return 0 if folders.empty?
+
+    # Thread-safe counter for total synced emails
+    total_synced = Concurrent::AtomicFixnum.new(0)
+
+    # Process folders in parallel batches
+    folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
+      threads = folder_batch.map do |folder|
+        Thread.new do
+          # Each thread gets its own database connection from the pool
+          ActiveRecord::Base.connection_pool.with_connection do
+            begin
+              # Create a new client instance per thread (thread-safe HTTP)
+              thread_client = MicrosoftAppGraphClient.new(@credential)
+              synced = sync_folder(thread_client, user_email, folder, since)
+              total_synced.increment(synced)
+            rescue StandardError => e
+              Rails.logger.error "[OrgEmailSync] Parallel sync error for folder #{folder[:name]}: #{e.message}"
+            end
+          end
+        end
+      end
+
+      # Wait for all threads in this batch to complete (with timeout)
+      threads.each do |thread|
+        thread.join(SYNC_TIMEOUT_SECONDS)
+        thread.kill if thread.alive?  # Kill timed-out threads
+      end
+    end
+
+    total_synced.value
   end
 
   def sync_folder(client, user_email, folder, since)
@@ -351,12 +389,15 @@ class OrgEmailSyncJob < ApplicationJob
     text.strip
   end
 
-  # Performance: Memoized user lookup to avoid N+1 queries
+  # Performance: Thread-safe memoized user lookup to avoid N+1 queries
   # Impact: 5,000 queries/day → 1-3 queries/day
+  # Uses Concurrent::Map for thread safety during parallel folder sync
   def find_teeem_user(email)
     return nil if email.blank?
     normalized_email = email.to_s.downcase.strip
-    @user_cache[normalized_email] ||= User.find_by("LOWER(email) = ?", normalized_email)
+    @user_cache.fetch_or_store(normalized_email) do
+      User.find_by("LOWER(email) = ?", normalized_email)
+    end
   end
 
   # Performance: Memoized blacklist lookup

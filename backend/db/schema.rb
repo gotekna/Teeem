@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010032) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010033) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2617,6 +2617,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010032) do
     t.string "labels", default: [], array: true
     t.bigint "uid"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
+    t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
@@ -2626,6 +2627,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010032) do
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
     t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
     t.index ["synced_by_user_id"], name: "idx_email_warehouse_synced_by_user"
+    t.index ["to_emails"], name: "idx_email_warehouse_to_emails_gin", using: :gin
   end
 
   create_table "emails", id: :bigint, default: nil, force: :cascade do |t|

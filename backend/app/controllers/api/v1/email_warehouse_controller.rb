@@ -215,10 +215,16 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = emails.latest_in_thread
     end
 
-    # Performance: Eager load and batch contacts
-    emails = emails.includes(:job).recent_first
+    # Performance: Eager load, batch contacts, and batch thread counts
+    emails = emails.includes(:job).recent_first.to_a  # Materialize for caching
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+
+    # Performance: Batch thread count queries (N+1 → 1 query)
+    conversation_ids = emails.map(&:conversation_id).compact.uniq
+    thread_counts_cache = EmailWarehouse.where(conversation_id: conversation_ids)
+                                        .group(:conversation_id)
+                                        .count
 
     # Also get suggested matches (unassigned emails that might match)
     suggested = []
@@ -228,7 +234,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
 
     render json: {
       job_id: job.id,
-      emails: emails.map { |e| email_json(e, include_thread_count: true, contacts_cache: contacts_cache) },
+      emails: emails.map { |e| email_json(e, include_thread_count: true, contacts_cache: contacts_cache, thread_counts_cache: thread_counts_cache) },
       count: emails.count,
       suggested: suggested.map { |s| suggestion_json(s) }
     }
@@ -782,7 +788,7 @@ class Api::V1::EmailWarehouseController < ApplicationController
     @email = EmailWarehouse.find(params[:id])
   end
 
-  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil)
+  def email_json(email, include_body: false, include_thread: false, include_thread_count: false, include_suggestions: false, contacts_cache: nil, thread_counts_cache: nil)
     json = {
       id: email.id,
       subject: email.subject,
@@ -836,7 +842,12 @@ class Api::V1::EmailWarehouseController < ApplicationController
     end
 
     if include_thread_count
-      json[:thread_count] = email.thread_count
+      # Performance: Use thread_counts_cache if provided to avoid N+1 queries
+      json[:thread_count] = if thread_counts_cache && email.conversation_id.present?
+                              thread_counts_cache[email.conversation_id] || 1
+                            else
+                              email.thread_count
+                            end
     end
 
     if include_thread && email.conversation_id.present?
@@ -945,11 +956,15 @@ class Api::V1::EmailWarehouseController < ApplicationController
       emails = service.emails_for_category(category, page: page, per_page: per_page)
       total = service.category_counts[category] || 0
 
+      # Performance: Batch load contacts for this category
+      all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+      contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+
       return render json: {
         success: true,
         data: {
           category: params[:category],
-          emails: emails.map { |e| email_json(e) },
+          emails: emails.map { |e| email_json(e, contacts_cache: contacts_cache) },
           pagination: {
             page: page,
             per_page: per_page,
@@ -964,6 +979,11 @@ class Api::V1::EmailWarehouseController < ApplicationController
     overview = service.overview
     unread = service.unread_counts
 
+    # Performance: Batch load contacts for ALL categories at once
+    all_emails = overview.values.flat_map { |cat| cat[:emails] }
+    all_contact_ids = all_emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
+    contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
+
     render json: {
       success: true,
       data: {
@@ -971,22 +991,22 @@ class Api::V1::EmailWarehouseController < ApplicationController
           vip: {
             count: overview[:vip][:count],
             unread_count: unread[:vip],
-            emails: overview[:vip][:emails].map { |e| email_json(e) }
+            emails: overview[:vip][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
           },
           team: {
             count: overview[:team][:count],
             unread_count: unread[:team],
-            emails: overview[:team][:emails].map { |e| email_json(e) }
+            emails: overview[:team][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
           },
           newsletters: {
             count: overview[:newsletters][:count],
             unread_count: unread[:newsletters],
-            emails: overview[:newsletters][:emails].map { |e| email_json(e) }
+            emails: overview[:newsletters][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
           },
           other: {
             count: overview[:other][:count],
             unread_count: unread[:other],
-            emails: overview[:other][:emails].map { |e| email_json(e) }
+            emails: overview[:other][:emails].map { |e| email_json(e, contacts_cache: contacts_cache) }
           }
         },
         team_domains: CorporateCompanySetting.team_email_domains
