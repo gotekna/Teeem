@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010018) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010019) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7386,7 +7386,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010018) do
   end
 
   create_table "sm_schedule_master", force: :cascade do |t|
-    t.bigint "parent_row_id"
     t.integer "task_number", null: false
     t.string "name", null: false
     t.text "description"
@@ -7460,7 +7459,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010018) do
     t.index ["hold"], name: "index_sm_schedule_master_on_hold", where: "(hold = true)"
     t.index ["is_active"], name: "index_sm_schedule_master_on_is_active"
     t.index ["linked_po_task_id"], name: "index_sm_schedule_master_on_linked_po_task_id"
-    t.index ["parent_row_id"], name: "index_sm_schedule_master_on_parent_row_id"
     t.index ["po_supplier_id"], name: "index_sm_schedule_master_on_po_supplier_id"
     t.index ["sm_template_ids"], name: "index_sm_schedule_master_on_sm_template_ids", using: :gin
     t.index ["stage"], name: "index_sm_schedule_master_on_stage"
@@ -9449,7 +9447,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010018) do
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
-  add_foreign_key "sm_schedule_master", "sm_schedule_master", column: "parent_row_id"
   add_foreign_key "sm_schedule_master", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_schedule_master", "users", column: "created_by_id"
   add_foreign_key "sm_schedule_master", "users", column: "updated_by_id"

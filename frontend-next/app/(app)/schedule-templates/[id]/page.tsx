@@ -78,7 +78,6 @@ interface SmScheduleMaster {
   supplier_id: number | null;
   supplier_name: string | null;
   checklist_id: number | null;
-  parent_row_id: number | null;
   require_photo: boolean;
   require_certificate: boolean;
   confirm: boolean;

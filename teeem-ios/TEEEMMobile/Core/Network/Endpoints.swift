@@ -42,6 +42,22 @@ enum Endpoint {
     case checkIn
     case voiceNote
 
+    // Emails
+    case emails
+    case emailsFolders
+    case emailsInFolder(folderId: Int)
+    case email(id: Int)
+    case emailMarkRead(id: Int)
+    case emailMarkUnread(id: Int)
+    case emailStar(id: Int)
+    case emailUnstar(id: Int)
+    case emailArchive(id: Int)
+    case emailDelete(id: Int)
+    case emailSend
+    case emailReply(id: Int)
+    case emailForward(id: Int)
+    case emailSync
+
     var path: String {
         switch self {
         // Auth
@@ -109,17 +125,48 @@ enum Endpoint {
             return "sm_field/checkin"
         case .voiceNote:
             return "sm_field/record_voice_note"
+
+        // Emails
+        case .emails:
+            return "emails"
+        case .emailsFolders:
+            return "emails/folders"
+        case .emailsInFolder(let folderId):
+            return "emails?folder_id=\(folderId)"
+        case .email(let id):
+            return "emails/\(id)"
+        case .emailMarkRead(let id):
+            return "emails/\(id)/mark_read"
+        case .emailMarkUnread(let id):
+            return "emails/\(id)/mark_unread"
+        case .emailStar(let id):
+            return "emails/\(id)/star"
+        case .emailUnstar(let id):
+            return "emails/\(id)/unstar"
+        case .emailArchive(let id):
+            return "emails/\(id)/archive"
+        case .emailDelete(let id):
+            return "emails/\(id)"
+        case .emailSend:
+            return "emails"
+        case .emailReply(let id):
+            return "emails/\(id)/reply"
+        case .emailForward(let id):
+            return "emails/\(id)/forward"
+        case .emailSync:
+            return "emails/sync"
         }
     }
 
     var method: String {
         switch self {
         case .login, .startTask, .completeTask, .holdTask, .releaseHold,
-             .uploadPhoto, .checkIn, .voiceNote, .markRead, .markAllRead:
+             .uploadPhoto, .checkIn, .voiceNote, .markRead, .markAllRead,
+             .emailSend, .emailReply, .emailForward, .emailSync:
             return "POST"
-        case .updateJobStage:
+        case .updateJobStage, .emailMarkRead, .emailMarkUnread, .emailStar, .emailUnstar, .emailArchive:
             return "PATCH"
-        case .deletePhoto:
+        case .deletePhoto, .emailDelete:
             return "DELETE"
         default:
             return "GET"

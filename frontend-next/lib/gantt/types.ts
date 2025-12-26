@@ -91,7 +91,6 @@ export interface SmScheduleMaster {
   supplier_id: number | null;
   supplier_name: string | null;
   checklist_id: number | null;
-  parent_row_id: number | null;
   require_photo: boolean;
   require_certificate: boolean;
   confirm: boolean;
@@ -591,23 +590,15 @@ export function convertRowsToTasks(
   const tasks = sortedRows.map((row) => convertRowToTask(row, projectStartDate, taskDateMap));
 
   // Third pass: update header tasks to span their children
-  // Header rows have header === 'Header' and children have parent_row_id pointing to them
-  // If a header has dependencies, shift its children accordingly
+  // Header rows have header === 'Header'
+  // Note: parent_row_id removed - header grouping handled by sequence_order positioning
   const headerIds = new Set(
     sortedRows.filter(r => r.header === 'Header').map(r => r.id)
   );
 
   if (headerIds.size > 0) {
-    // Build map of header ID -> child tasks
+    // Build map of header ID -> child tasks (empty for now - hierarchy removed)
     const headerChildrenMap = new Map<number, GanttTask[]>();
-    for (const task of tasks) {
-      const row = sortedRows.find(r => String(r.id) === task.id);
-      if (row?.parent_row_id && headerIds.has(row.parent_row_id)) {
-        const children = headerChildrenMap.get(row.parent_row_id) || [];
-        children.push(task);
-        headerChildrenMap.set(row.parent_row_id, children);
-      }
-    }
 
     // Update header task dates to span their children
     // If header has dependencies, shift children first

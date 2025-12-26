@@ -364,33 +364,27 @@ export function GanttCanvasView({
       const row = rows.find(r => String(r.id) === task.id);
       if (!row) return true;
 
-      // If this task has a parent and that parent is collapsed, hide it
-      if (row.parent_row_id && collapsedHeaders.has(row.parent_row_id)) {
-        return false;
-      }
-
-      // If showOnlyGrouped is enabled, only show headers and their children
+      // If showOnlyGrouped is enabled, only show headers
       if (showOnlyGrouped) {
         const isHeader = row.header === 'Header';
-        const isChild = Boolean(row.parent_row_id);
-        if (!isHeader && !isChild) {
-          return false; // Hide orphan tasks
+        if (!isHeader) {
+          return false;
         }
       }
 
       return true;
     });
-  }, [tasks, rows, collapsedHeaders, showOnlyGrouped]);
+  }, [tasks, rows, showOnlyGrouped]);
 
   // Check if a row is a header (header === 'Header')
   const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
     return row?.header === 'Header';
   }, []);
 
-  // Get child count for a header
-  const getChildCount = React.useCallback((headerId: number) => {
-    return rows.filter(r => r.parent_row_id === headerId).length;
-  }, [rows]);
+  // Get child count for a header (hierarchy removed - returns 0)
+  const getChildCount = React.useCallback((_headerId: number) => {
+    return 0;
+  }, []);
 
   // Fullscreen state - use external if provided, otherwise internal
   const isFullscreen = externalFullscreen !== undefined ? externalFullscreen : internalFullscreen;
@@ -2396,7 +2390,6 @@ export function GanttCanvasView({
                   const isHeader = isHeaderRow(row);
                   const childCount = isHeader && row ? getChildCount(row.id) : 0;
                   const isCollapsed = row ? collapsedHeaders.has(row.id) : false;
-                  const isChild = Boolean(row?.parent_row_id);
 
                   // Render cell content based on column id
                   const renderCell = (col: ColumnConfig) => {

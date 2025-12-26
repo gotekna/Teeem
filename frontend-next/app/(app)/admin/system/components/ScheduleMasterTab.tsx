@@ -175,7 +175,7 @@ const ALL_COLUMNS = [
   // Completion Requirements
   "require_photo", "require_certificate", "cert_lag_days", "certificate_document_type_ids", "pass_fail_enabled",
   // Subtasks
-  "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids", "parent_row_id",
+  "has_subtasks", "subtask_count", "subtask_names", "linked_task_ids",
   // Documentation
   "documentation_category_ids", "show_in_docs_tab", "start_entity_tab_ids",
   "complete_entity_tab_ids", "photo_entity_tab_id", "plan_type_ids",
@@ -1405,12 +1405,6 @@ export function ScheduleMasterTab() {
                     <CopyableCode>linked_task_ids</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">JSONB</Badge>
                     <span className="text-muted-foreground">Other tasks linked to this one</span>
-                  </div>
-                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
-                    <Checkbox checked={columnStatus.complete["parent_row_id"] || false} onCheckedChange={(v) => updateColumnStatus("parent_row_id", !!v)} />
-                    <CopyableCode>parent_row_id</CopyableCode>
-                    <Badge variant="outline" className="text-xs w-fit">FK</Badge>
-                    <span className="text-muted-foreground">Parent row for hierarchical structure</span>
                   </div>
                 </div>
               </CardContent>
