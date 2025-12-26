@@ -37,16 +37,6 @@ const scopes = [
     showTabGroups: false,  // Flat list - allows mixing tabs from any group
   },
   {
-    id: "people",
-    label: "People",
-    icon: Users,
-    showEntityFilters: false,
-    showSharePointPaths: false,
-    showDocumentTypes: false,
-    isEntityTab: true,
-    showTabGroups: false,  // Flat list - allows mixing tabs from any group
-  },
-  {
     id: "job",
     label: "Jobs",
     icon: Briefcase,
@@ -175,7 +165,7 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <EntityTabsConfig
-                  scope={scope.id as "corporate_entity" | "people" | "job" | "contact"}
+                  scope={scope.id as "corporate_entity" | "job" | "contact"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}
