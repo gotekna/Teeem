@@ -154,9 +154,10 @@ interface AIStats {
 interface JobDocumentsTabProps {
   jobId: string | number;
   jobTitle?: string;
+  initialCategory?: string; // e.g., "site-photo" -> auto-selects "Site Photo" category
 }
 
-export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
+export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumentsTabProps) {
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles">("tasks");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   const [jobFolderStatus, setJobFolderStatus] = useState<JobFolderStatus>({ loading: false, exists: false, webUrl: null });
@@ -368,7 +369,36 @@ export function JobDocumentsTab({ jobId, jobTitle }: JobDocumentsTabProps) {
       const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
       const categories = response || [];
       setDocumentCategories(categories);
+
       if (categories.length > 0 && !selectedCategory) {
+        // If initialCategory is provided, find and select it
+        if (initialCategory) {
+          // Convert "site-photo" to "Site Photo" for matching
+          const targetName = initialCategory
+            .split("-")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ");
+
+          // Search for matching category in children
+          for (const parent of categories) {
+            if (parent.children) {
+              const matchingChild = parent.children.find(
+                (child) => child.name.toLowerCase() === targetName.toLowerCase()
+              );
+              if (matchingChild) {
+                setSelectedCategory(parent);
+                setSelectedSubCategory(matchingChild);
+                return;
+              }
+            }
+            // Also check if the parent itself matches
+            if (parent.name.toLowerCase() === targetName.toLowerCase()) {
+              setSelectedCategory(parent);
+              return;
+            }
+          }
+        }
+        // Default to first category
         setSelectedCategory(categories[0]);
       }
     } catch (err) {

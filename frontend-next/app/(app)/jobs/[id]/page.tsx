@@ -1321,6 +1321,32 @@ export default function JobDetailPage() {
           <JobDocumentsTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
 
+        {/* Photo child tabs - all render JobDocumentsTab with initial category */}
+        <TabsContent value="site-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="site-photo" />
+        </TabsContent>
+        <TabsContent value="client-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="client-photo" />
+        </TabsContent>
+        <TabsContent value="slab-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="slab-photo" />
+        </TabsContent>
+        <TabsContent value="frame-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="frame-photo" />
+        </TabsContent>
+        <TabsContent value="pc-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="pc-photo" />
+        </TabsContent>
+        <TabsContent value="enclosed-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="enclosed-photo" />
+        </TabsContent>
+        <TabsContent value="fixing-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="fixing-photo" />
+        </TabsContent>
+        <TabsContent value="supervisor-photo" className="mt-4">
+          <JobDocumentsTab jobId={job.id} jobTitle={job.name} initialCategory="supervisor-photo" />
+        </TabsContent>
+
         <TabsContent value="coms" className="mt-4">
           <JobCommunicationsTab jobId={job.id} jobTitle={job.name} />
         </TabsContent>
