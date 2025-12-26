@@ -55,9 +55,13 @@ class SmTask < ApplicationRecord
   belongs_to :assigned_user, class_name: "User", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
+  belongs_to :photo_entity_tab, class_name: "EntityTab", optional: true
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
+
+  # Recurring task support
+  belongs_to :recurring_task_definition, class_name: "SmRecurringTaskDefinition", optional: true
 
   # Dependencies (separate table per Rule 9.25)
   has_many :predecessor_dependencies, class_name: "SmDependency", foreign_key: :successor_task_id, dependent: :destroy
@@ -102,6 +106,9 @@ class SmTask < ApplicationRecord
   scope :past_due, -> { where("start_date < ?", Date.current).active }
   scope :for_role, ->(role) { where(assigned_role: role) }
   scope :for_user_roles, ->(user) { where(assigned_role: user.assigned_roles) if user&.assigned_roles.present? }
+  scope :recurring, -> { where(source_type: 'recurring') }
+  scope :manual, -> { where(source_type: 'manual') }
+  scope :from_job_template, -> { where(source_type: 'job') }
 
   # Callbacks
   before_validation :set_task_number, on: :create

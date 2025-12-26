@@ -112,6 +112,7 @@ interface SmScheduleMaster {
   create_po_on_job_start?: boolean;
   spawn_order_task?: boolean;
   spawn_call_task?: boolean;
+  spawn_photo_task?: boolean;
   order_time_days?: number;
   call_time_days?: number;
   require_photo: boolean;
@@ -120,6 +121,8 @@ interface SmScheduleMaster {
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
   po_line_items?: Array<{ pricebook_item_id: number; qty: number }>;
+  // Photo storage location
+  photo_entity_tab_id?: number | null;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -270,6 +273,9 @@ export function ScheduleMasterTab() {
     complete: {},
   });
 
+  // Job EntityTabs for photo storage dropdown
+  const [jobEntityTabs, setJobEntityTabs] = React.useState<Array<{ id: number; display_name: string; tab_key: string }>>([]);
+
   // Load column status from localStorage on mount
   React.useEffect(() => {
     const saved = localStorage.getItem(COLUMN_STATUS_KEY);
@@ -303,7 +309,20 @@ export function ScheduleMasterTab() {
 
   React.useEffect(() => {
     loadTemplates();
+    loadJobEntityTabs();
   }, []);
+
+  // Load job EntityTabs for photo storage dropdown
+  const loadJobEntityTabs = async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: { tabs: Array<{ id: number; display_name: string; tab_key: string }> } }>("/api/v1/entity_tabs?scope=job");
+      if (data?.data?.tabs) {
+        setJobEntityTabs(data.data.tabs);
+      }
+    } catch (error) {
+      console.error("Failed to load job EntityTabs:", error);
+    }
+  };
 
   const loadTemplates = async () => {
     try {
@@ -1862,6 +1881,52 @@ export function ScheduleMasterTab() {
                     checked={editRowForm.require_certificate || false}
                     onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_certificate: checked })}
                   />
+                </div>
+
+                {/* Photo Task Spawning */}
+                <div className="border-t pt-3 mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="row-spawn-photo">Spawn Photo Task</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Creates "Photo [Task]" when this task completes
+                      </p>
+                    </div>
+                    <Switch
+                      id="row-spawn-photo"
+                      checked={editRowForm.spawn_photo_task || false}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          setEditRowForm({ ...editRowForm, spawn_photo_task: checked, photo_entity_tab_id: undefined });
+                        } else {
+                          setEditRowForm({ ...editRowForm, spawn_photo_task: checked });
+                        }
+                      }}
+                    />
+                  </div>
+                  {editRowForm.spawn_photo_task && (
+                    <div className="space-y-2 pl-4 border-l-2 border-purple-200 dark:border-purple-800">
+                      <Label htmlFor="row-photo-tab">Photo Storage Tab</Label>
+                      <Select
+                        value={editRowForm.photo_entity_tab_id ? String(editRowForm.photo_entity_tab_id) : ""}
+                        onValueChange={(value) => setEditRowForm({ ...editRowForm, photo_entity_tab_id: value ? parseInt(value) : undefined })}
+                      >
+                        <SelectTrigger id="row-photo-tab">
+                          <SelectValue placeholder="Select where to store photos..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {jobEntityTabs.map((tab) => (
+                            <SelectItem key={tab.id} value={String(tab.id)}>
+                              {tab.display_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Photos will be saved to this tab in the job
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

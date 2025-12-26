@@ -7280,6 +7280,47 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
     t.index ["sequence_order"], name: "index_sm_hold_reasons_on_sequence_order"
   end
 
+  create_table "sm_recurring_task_definitions", force: :cascade do |t|
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true
+    t.string "status", default: "active"
+    t.string "frequency", null: false
+    t.integer "frequency_interval", default: 1
+    t.integer "day_of_month"
+    t.integer "day_of_week"
+    t.date "start_date", null: false
+    t.date "end_date"
+    t.integer "occurrences_limit"
+    t.integer "occurrences_count", default: 0
+    t.integer "advance_days", default: 7
+    t.date "last_generated_for_date"
+    t.date "next_generation_date"
+    t.string "assignment_type", default: "user"
+    t.bigint "assigned_user_id"
+    t.string "assigned_role"
+    t.integer "default_duration_days", default: 1
+    t.string "trade"
+    t.string "stage"
+    t.bigint "checklist_id"
+    t.bigint "job_id"
+    t.jsonb "skip_config", default: {}
+    t.boolean "notify_on_create", default: true
+    t.boolean "notify_on_due", default: false
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assigned_role"], name: "index_sm_recurring_task_definitions_on_assigned_role"
+    t.index ["assigned_user_id"], name: "index_sm_recurring_task_definitions_on_assigned_user_id"
+    t.index ["checklist_id"], name: "index_sm_recurring_task_definitions_on_checklist_id"
+    t.index ["created_by_id"], name: "index_sm_recurring_task_definitions_on_created_by_id"
+    t.index ["is_active", "status"], name: "index_sm_recurring_task_definitions_on_is_active_and_status"
+    t.index ["job_id"], name: "index_sm_recurring_task_definitions_on_job_id"
+    t.index ["next_generation_date"], name: "index_sm_recurring_task_definitions_on_next_generation_date"
+    t.index ["updated_by_id"], name: "index_sm_recurring_task_definitions_on_updated_by_id"
+  end
+
   create_table "sm_resource_allocations", force: :cascade do |t|
     t.bigint "task_id", null: false
     t.bigint "resource_id", null: false
@@ -7531,6 +7572,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
     t.string "assigned_role"
     t.boolean "is_photo_task", default: false, null: false
     t.bigint "photo_entity_tab_id"
+    t.bigint "recurring_task_definition_id"
+    t.integer "recurring_sequence"
+    t.string "source_type", default: "manual"
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -7547,8 +7591,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
     t.index ["photo_entity_tab_id"], name: "index_sm_tasks_on_photo_entity_tab_id"
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
+    t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
+    t.index ["source_type"], name: "index_sm_tasks_on_source_type"
     t.index ["start_date"], name: "index_sm_tasks_on_start_date"
     t.index ["status"], name: "index_sm_tasks_on_status"
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
@@ -8030,6 +8076,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["variable_name"], name: "index_unreal_variables_on_variable_name", unique: true
+  end
+
+  create_table "user_absences", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.date "start_date", null: false
+    t.date "end_date", null: false
+    t.string "absence_type", default: "leave"
+    t.boolean "approved", default: false
+    t.bigint "approved_by_id"
+    t.datetime "approved_at"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_user_absences_on_approved_by_id"
+    t.index ["start_date", "end_date"], name: "index_user_absences_on_start_date_and_end_date"
+    t.index ["user_id", "start_date", "end_date"], name: "index_user_absences_on_user_id_and_start_date_and_end_date"
+    t.index ["user_id"], name: "index_user_absences_on_user_id"
   end
 
   create_table "user_groups", force: :cascade do |t|
@@ -9374,6 +9437,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
   add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "users", column: "hold_released_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_recurring_task_definitions", "jobs"
+  add_foreign_key "sm_recurring_task_definitions", "users", column: "assigned_user_id"
+  add_foreign_key "sm_recurring_task_definitions", "users", column: "created_by_id"
+  add_foreign_key "sm_recurring_task_definitions", "users", column: "updated_by_id"
   add_foreign_key "sm_resource_allocations", "sm_resources", column: "resource_id", on_delete: :cascade
   add_foreign_key "sm_resource_allocations", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_resources", "contacts", on_delete: :nullify
@@ -9393,6 +9460,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
   add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_recurring_task_definitions", column: "recurring_task_definition_id"
   add_foreign_key "sm_tasks", "sm_schedule_master"
   add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
@@ -9432,6 +9500,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
   add_foreign_key "unreal_measurements", "jobs"
   add_foreign_key "unreal_measurements", "pricebook", column: "pricebook_item_id"
   add_foreign_key "unreal_measurements", "purchase_orders", column: "synced_to_po_id"
+  add_foreign_key "user_absences", "users"
+  add_foreign_key "user_absences", "users", column: "approved_by_id"
   add_foreign_key "user_job_tab_configs", "job_tabs"
   add_foreign_key "user_job_tab_configs", "job_tabs", column: "parent_job_tab_id"
   add_foreign_key "user_job_tab_configs", "users"

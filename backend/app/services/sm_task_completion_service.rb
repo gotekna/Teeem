@@ -124,7 +124,9 @@ class SmTaskCompletionService
       spawn_type: "photo",
       duration_days: 1,
       require_photo: true,
-      is_photo_task: true
+      is_photo_task: true,
+      # Inherit photo storage location from parent task
+      photo_entity_tab_id: task.photo_entity_tab_id
     )
     log_spawn(spawned, "photo", "parent_complete") if spawned
   end

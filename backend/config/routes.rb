@@ -1218,6 +1218,19 @@ Rails.application.routes.draw do
         end
       end
 
+      # SM Recurring Task Definitions (auto-create tasks on schedule)
+      resources :sm_recurring_task_definitions do
+        collection do
+          get :summary
+        end
+        member do
+          post :pause
+          post :resume
+          post :cancel
+          post :generate_now
+        end
+      end
+
       # SM Schedule Master Templates (Schedule Master templates for SM Gantt)
       resources :sm_schedule_master_templates, only: [ :index, :show, :create, :update, :destroy ] do
         member do
