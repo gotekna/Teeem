@@ -368,6 +368,9 @@ export function ComposeEmailModal({
         });
       }
 
+      // Discard the draft since email was sent
+      autoSave.discard();
+
       onOpenChange(false);
       onSent?.();
     } catch (err: unknown) {
@@ -732,28 +735,81 @@ export function ComposeEmailModal({
               )}
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleSend} disabled={sending}>
-                {sending ? (
-                  <>
-                    <Spinner className="h-4 w-4 mr-2" />
-                    {isScheduled ? "Scheduling..." : "Sending..."}
-                  </>
-                ) : isScheduled ? (
-                  <>
-                    <Clock className="h-4 w-4 mr-2" />
-                    Schedule
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Send
-                  </>
-                )}
-              </Button>
+            <DialogFooter className="gap-2">
+              {/* Close confirmation when there are unsaved changes */}
+              {showCloseConfirm ? (
+                <>
+                  <div className="flex-1 text-sm text-muted-foreground">
+                    Save this draft?
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      autoSave.discard();
+                      setShowCloseConfirm(false);
+                      onOpenChange(false);
+                    }}
+                  >
+                    Discard
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      autoSave.save();
+                      setShowCloseConfirm(false);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Save draft
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowCloseConfirm(false)}
+                  >
+                    Keep editing
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      // If there's content to save, show confirmation
+                      if (autoSave.hasContent && autoSave.isDirty) {
+                        setShowCloseConfirm(true);
+                      } else {
+                        // No content or no changes, just close
+                        autoSave.discard();
+                        onOpenChange(false);
+                      }
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSend} disabled={sending}>
+                    {sending ? (
+                      <>
+                        <Spinner className="h-4 w-4 mr-2" />
+                        {isScheduled ? "Scheduling..." : "Sending..."}
+                      </>
+                    ) : isScheduled ? (
+                      <>
+                        <Clock className="h-4 w-4 mr-2" />
+                        Schedule
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send
+                      </>
+                    )}
+                  </Button>
+                </>
+              )}
             </DialogFooter>
           </>
         )}

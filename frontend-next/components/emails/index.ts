@@ -78,6 +78,9 @@ export { ThreadCountBadge } from "./ThreadCountBadge";
 // Search
 export { EmailSearchFilters } from "./EmailSearchFilters";
 
+// Drafts
+export { DraftsList, DraftsBadge } from "./DraftsList";
+
 // Quick Actions
 export { QuickEmailActions } from "./QuickEmailActions";
 
