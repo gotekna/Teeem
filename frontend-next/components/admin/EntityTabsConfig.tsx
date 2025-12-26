@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { resolveWithExamples } from "@/lib/placeholders";
+import { resolveWithExamples, resolveSharePointPath } from "@/lib/placeholders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -1276,21 +1276,36 @@ export function EntityTabsConfig({
                         placeholder="e.g., /Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/Xero"
                         className="font-mono text-sm"
                       />
+                      {/* Path Preview */}
+                      {formData.sharepoint_folder_path && (
+                        <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 font-mono">
+                          <span className="text-muted-foreground/60">Example: </span>
+                          <span className="text-foreground">{resolveSharePointPath(formData.sharepoint_folder_path)}</span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Placeholder Badges */}
+                    {/* Placeholder Badges - different for job vs corporate scopes */}
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Click to insert placeholder:</Label>
                       <div className="flex flex-wrap gap-1">
-                        {[
-                          { key: "{{CompanyGroup}}", label: "Company Group", example: "Tekna Group" },
-                          { key: "{{CompanyCode}}", label: "Company Code", example: "ABC123" },
-                          { key: "{{EntityName}}", label: "Entity Name", example: "ABC Pty Ltd" },
-                        ].map((placeholder) => (
+                        {(scope === "job" ? [
+                          { key: "{{JobCode}}", example: "069", color: "orange" },
+                          { key: "{{Category}}", example: "Residential", color: "orange" },
+                          { key: "{{JobName}}", example: "Smith Residence", color: "orange" },
+                        ] : [
+                          { key: "{{CompanyGroup}}", example: "Tekna Group", color: "purple" },
+                          { key: "{{CompanyCode}}", example: "TH", color: "purple" },
+                          { key: "{{EntityName}}", example: "ABC Pty Ltd", color: "purple" },
+                        ]).map((placeholder) => (
                           <Badge
                             key={placeholder.key}
                             variant="outline"
-                            className="cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                            className={`cursor-pointer ${
+                              placeholder.color === "orange"
+                                ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300"
+                                : "hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                            }`}
                             onClick={() => {
                               setFormData((prev) => ({
                                 ...prev,

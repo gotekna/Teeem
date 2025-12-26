@@ -524,6 +524,45 @@ function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Resolve SharePoint path placeholders with example values
+ * Handles both {{double}} and {single} brace formats
+ *
+ * @param template - The SharePoint path template
+ * @returns Resolved path with example values
+ */
+export function resolveSharePointPath(template: string): string {
+  if (!template) return "";
+
+  let result = template;
+
+  // SharePoint-specific examples (using realistic job data)
+  const examples: Record<string, string> = {
+    // Double brace format
+    "{{JobCode}}": "069",
+    "{{Category}}": "Residential",
+    "{{CompanyGroup}}": "Tekna Group",
+    "{{CompanyCode}}": "TH",
+    "{{Folder}}": "Finance",
+    "{{ContactName}}": "John Smith",
+    "{{EntityName}}": "ABC Pty Ltd",
+    // Single brace format (also common in paths)
+    "{JobCode}": "069",
+    "{Category}": "Residential",
+    "{JobName}": "Smith Residence",
+    "{Folder}": "Finance",
+    "{CompanyGroup}": "Tekna Group",
+    "{CompanyCode}": "TH",
+  };
+
+  // Replace all placeholders with examples
+  Object.entries(examples).forEach(([placeholder, example]) => {
+    result = result.replace(new RegExp(escapeRegex(placeholder), "g"), example);
+  });
+
+  return result;
+}
+
 // =============================================================================
 // COLOR UTILITY
 // =============================================================================
