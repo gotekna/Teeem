@@ -12,9 +12,9 @@ class EmailViewModel: ObservableObject {
 
     func loadEmails() async {
         isLoading = true
-        print("Loading emails...")
+        print("Loading emails from email_warehouse...")
         do {
-            emails = try await apiClient.get("emails")
+            emails = try await apiClient.get("email_warehouse?my_emails=true")
             print("SUCCESS: Loaded \(emails.count) emails")
         } catch {
             self.error = error.localizedDescription

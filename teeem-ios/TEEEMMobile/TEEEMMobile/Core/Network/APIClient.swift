@@ -47,17 +47,29 @@ class APIClient {
         }
         // Try different response formats
         if let wrapper = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            // Format 1: { "jobs": [...] } or { "contacts": [...] } etc
+            // Format 1: { "jobs": [...] } or { "contacts": [...] } or { "emails": [...] } etc
             let resourceName = path.split(separator: "?").first.map(String.init) ?? path
-            if let items = wrapper[resourceName] ?? wrapper["data"] {
-                let itemsJSON = try JSONSerialization.data(withJSONObject: items)
-                do {
-                    return try decoder.decode(T.self, from: itemsJSON)
-                } catch {
-                    print("Decode error for \(path) (\(resourceName)): \(error)")
-                    throw error
+
+            // Try multiple possible keys in order of preference
+            let possibleKeys = [
+                resourceName,                           // e.g., "jobs", "contacts"
+                "emails",                               // email_warehouse returns "emails"
+                "sm_tasks",                             // tasks endpoint
+                "data"                                  // generic wrapper
+            ]
+
+            for key in possibleKeys {
+                if let items = wrapper[key], items is [Any] {
+                    let itemsJSON = try JSONSerialization.data(withJSONObject: items)
+                    do {
+                        return try decoder.decode(T.self, from: itemsJSON)
+                    } catch {
+                        print("Decode error for \(path) (key: \(key)): \(error)")
+                        // Continue trying other keys
+                    }
                 }
             }
+
             // Format 2: { "data": { "entries": [...] } } (Foundation API)
             if let dataObj = wrapper["data"] as? [String: Any],
                let entries = dataObj["entries"] {

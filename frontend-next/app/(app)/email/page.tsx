@@ -711,6 +711,9 @@ export default function EmailPage() {
     enabled: !composeOpen && !showShortcutsHelp,
   });
 
+  // Extract stable function reference to prevent infinite loops
+  const toURLParams = emailFilters.toURLParams;
+
   const fetchEmails = useCallback(async (page = 1) => {
     if (!selectedAccount) {
       setEmails([]);
@@ -721,7 +724,7 @@ export default function EmailPage() {
     setLoading(true);
     try {
       // Start with filters from hook
-      const params = emailFilters.toURLParams();
+      const params = toURLParams();
       params.set("page", String(page));
       params.set("per_page", "50");
       params.set("my_emails", "true");
@@ -748,7 +751,7 @@ export default function EmailPage() {
     } finally {
       setLoading(false);
     }
-  }, [emailFilters, selectedAccount]);
+  }, [toURLParams, selectedAccount]);
 
   const fetchFolders = async (accountId: string, account?: EmailAccount) => {
     if (accountFolders[accountId] || loadingFolders.has(accountId)) {

@@ -16,6 +16,26 @@ class JobsViewModel: ObservableObject {
         do {
             jobs = try await apiClient.get("jobs")
             print("SUCCESS: Loaded \(jobs.count) jobs")
+        } catch let decodingError as DecodingError {
+            // Detailed decoding error info
+            switch decodingError {
+            case .keyNotFound(let key, let context):
+                print("DECODE ERROR: Key '\(key.stringValue)' not found: \(context.debugDescription)")
+                print("  Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            case .typeMismatch(let type, let context):
+                print("DECODE ERROR: Type mismatch for \(type): \(context.debugDescription)")
+                print("  Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            case .valueNotFound(let type, let context):
+                print("DECODE ERROR: Value not found for \(type): \(context.debugDescription)")
+                print("  Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            case .dataCorrupted(let context):
+                print("DECODE ERROR: Data corrupted: \(context.debugDescription)")
+                print("  Path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
+            @unknown default:
+                print("DECODE ERROR: Unknown: \(decodingError)")
+            }
+            errorMessage = "Decode error - check console"
+            showError = true
         } catch {
             errorMessage = "Failed to load jobs: \(error)"
             showError = true
