@@ -269,11 +269,17 @@ const EmailListItem = memo(function EmailListItem({
           </div>
 
           <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+            {/* Unread indicator dot */}
+            {!email.is_read && (
+              <div className="shrink-0 pt-1.5">
+                <div className="h-2 w-2 rounded-full bg-blue-500" />
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 mb-0.5">
                 <span className={cn(
                   "text-sm truncate",
-                  !email.is_read ? "font-semibold" : "font-medium"
+                  !email.is_read ? "font-bold text-foreground" : "font-normal text-muted-foreground"
                 )}>
                   {email.from_name || email.from_email || email.from_address}
                 </span>
@@ -285,7 +291,7 @@ const EmailListItem = memo(function EmailListItem({
               </div>
               <p className={cn(
                 "text-sm truncate",
-                !email.is_read ? "font-medium" : ""
+                !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
               )}>
                 {email.subject || "(No subject)"}
               </p>

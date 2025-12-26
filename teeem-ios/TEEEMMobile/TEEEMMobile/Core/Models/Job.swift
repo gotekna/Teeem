@@ -105,11 +105,19 @@ extension Job: Decodable {
         name = try container.decodeIfPresent(String.self, forKey: .name)
         suburb = try container.decodeIfPresent(String.self, forKey: .suburb)
         state = try container.decodeIfPresent(String.self, forKey: .state)
-        contractPrice = try container.decodeIfPresent(Double.self, forKey: .contractPrice)
         streetNumber = try container.decodeIfPresent(String.self, forKey: .streetNumber)
         streetName = try container.decodeIfPresent(String.self, forKey: .streetName)
         lotNumber = try container.decodeIfPresent(String.self, forKey: .lotNumber)
         jobStatus = try container.decodeIfPresent(JobStatus.self, forKey: .jobStatus)
+
+        // contract_price comes as string from Rails API - convert to Double
+        if let priceString = try container.decodeIfPresent(String.self, forKey: .contractPrice) {
+            contractPrice = Double(priceString)
+        } else if let priceDouble = try? container.decodeIfPresent(Double.self, forKey: .contractPrice) {
+            contractPrice = priceDouble
+        } else {
+            contractPrice = nil
+        }
     }
 }
 
