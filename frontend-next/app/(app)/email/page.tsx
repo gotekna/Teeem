@@ -726,8 +726,8 @@ Subject: ${email.subject}
 To: ${email.to_emails?.join(", ") || ""}
 
 `;
-    // Use text_body for plain text forwarding (html will be stripped)
-    const originalBody = email.text_body || email.html_body || "";
+    // Use body_text for plain text forwarding (html will be stripped)
+    const originalBody = email.body_text || email.body_html || "";
 
     setReplyTo({
       to: "", // Forward to new recipient

@@ -1228,13 +1228,13 @@ export function ScheduleMasterTab() {
                     <Checkbox checked={columnStatus.complete["po_required"] || false} onCheckedChange={(v) => updateColumnStatus("po_required", !!v)} />
                     <CopyableCode>po_required</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">This task needs a PO created</span>
+                    <span className="text-muted-foreground">Task invisible in Gantt until PO linked; dependencies skip over it</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["critical_po"] || false} onCheckedChange={(v) => updateColumnStatus("critical_po", !!v)} />
                     <CopyableCode>critical_po</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">boolean</Badge>
-                    <span className="text-muted-foreground">PO is critical path - high priority</span>
+                    <span className="text-muted-foreground">Critical path marker - searchable/filterable in Gantt</span>
                   </div>
                   <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
                     <Checkbox checked={columnStatus.complete["create_po_on_job_start"] || false} onCheckedChange={(v) => updateColumnStatus("create_po_on_job_start", !!v)} />

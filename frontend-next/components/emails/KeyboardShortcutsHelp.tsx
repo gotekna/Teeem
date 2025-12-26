@@ -49,6 +49,9 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { keys: ["s"], description: "Star / Unstar" },
       { keys: ["p"], description: "Pin / Unpin" },
       { keys: ["v"], description: "Toggle VIP sender" },
+      { keys: ["u"], description: "Toggle read/unread" },
+      { keys: ["m"], description: "Move to folder" },
+      { keys: ["d", "#"], description: "Delete" },
     ],
   },
   {
@@ -56,6 +59,7 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: ["c"], description: "Compose new email" },
       { keys: ["r"], description: "Reply" },
+      { keys: ["f"], description: "Forward" },
     ],
   },
   {

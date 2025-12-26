@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor, plainTextToHtml } from "@/components/ui/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -101,6 +101,8 @@ export function ComposeEmailModal({
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [ccSearch, setCcSearch] = useState("");
+  const [bccSearch, setBccSearch] = useState("");
 
   // Schedule send state
   const [isScheduled, setIsScheduled] = useState(false);
@@ -130,23 +132,25 @@ export function ComposeEmailModal({
     }
   };
 
-  // Debounced search
+  // Debounced search - triggered by any of the search inputs
   useEffect(() => {
+    const activeSearch = contactSearch || ccSearch || bccSearch;
     const timer = setTimeout(() => {
-      if (contactSearch) {
-        searchContacts(contactSearch);
+      if (activeSearch) {
+        searchContacts(activeSearch);
       } else {
         setContacts([]);
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [contactSearch]);
+  }, [contactSearch, ccSearch, bccSearch]);
 
-  // Get signature for account from database
+  // Get signature for account from database (as HTML)
   const getSignatureForAccount = (account: EmailAccount | undefined): string => {
     if (!account?.email_signature) return "";
-    // Return signature with proper separator
-    return `\n\n--\n${account.email_signature}`;
+    // Return signature with proper separator as HTML
+    const signatureLines = account.email_signature.split("\n").join("<br>");
+    return `<br><br><p>--<br>${signatureLines}</p>`;
   };
 
   // Fetch accounts when modal opens
@@ -155,13 +159,19 @@ export function ComposeEmailModal({
       fetchAccounts();
       setContacts([]);
       setContactSearch("");
+      setCcSearch("");
+      setBccSearch("");
+      // Convert plain text body to HTML if it doesn't look like HTML already
+      const bodyAsHtml = defaultBody && !defaultBody.includes("<")
+        ? plainTextToHtml(defaultBody)
+        : defaultBody;
       setFormData({
         credential_id: "",
         to: defaultTo,
         cc: "",
         bcc: "",
         subject: defaultSubject,
-        body: defaultBody,
+        body: bodyAsHtml,
       });
       setAttachments([]);
       setError(null);
@@ -180,9 +190,9 @@ export function ComposeEmailModal({
     const signature = getSignatureForAccount(account);
 
     if (signature) {
-      // Only add signature if body doesn't already contain it (check for the separator)
+      // Only add signature if body doesn't already contain it (check for HTML separator)
       setFormData((prev) => {
-        if (prev.body.includes("\n--\n")) return prev;
+        if (prev.body.includes("--<br>")) return prev;
         return { ...prev, body: prev.body + signature };
       });
     }
@@ -423,18 +433,68 @@ export function ComposeEmailModal({
                 <>
                   <div className="space-y-2">
                     <Label>CC</Label>
-                    <Input
-                      placeholder="cc@example.com"
-                      value={formData.cc}
-                      onChange={(e) => setFormData({ ...formData, cc: e.target.value })}
+                    <ComboboxDropdown
+                      items={contacts.map((c) => ({
+                        id: c.email || "",
+                        label: `${c.display_name} (${c.email})`,
+                      }))}
+                      selectedItem={
+                        formData.cc
+                          ? { id: formData.cc, label: formData.cc }
+                          : undefined
+                      }
+                      onSelect={(item) => {
+                        setFormData({ ...formData, cc: item.id });
+                        setCcSearch("");
+                      }}
+                      placeholder="Search contacts or type email..."
+                      searchInTrigger={true}
+                      onInputChange={setCcSearch}
+                      disableInternalFilter={true}
+                      onCreate={(value) => {
+                        setFormData({ ...formData, cc: value });
+                        setCcSearch("");
+                      }}
+                      renderOnCreate={(value) => (
+                        <span>Use: <strong>{value}</strong></span>
+                      )}
+                      isLoading={contactsLoading && ccSearch.length >= 2}
+                      emptyResults={ccSearch.length < 2 ? "Type 2+ characters to search..." : "No contacts found"}
+                      clearable={true}
+                      onClear={() => setFormData({ ...formData, cc: "" })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>BCC</Label>
-                    <Input
-                      placeholder="bcc@example.com"
-                      value={formData.bcc}
-                      onChange={(e) => setFormData({ ...formData, bcc: e.target.value })}
+                    <ComboboxDropdown
+                      items={contacts.map((c) => ({
+                        id: c.email || "",
+                        label: `${c.display_name} (${c.email})`,
+                      }))}
+                      selectedItem={
+                        formData.bcc
+                          ? { id: formData.bcc, label: formData.bcc }
+                          : undefined
+                      }
+                      onSelect={(item) => {
+                        setFormData({ ...formData, bcc: item.id });
+                        setBccSearch("");
+                      }}
+                      placeholder="Search contacts or type email..."
+                      searchInTrigger={true}
+                      onInputChange={setBccSearch}
+                      disableInternalFilter={true}
+                      onCreate={(value) => {
+                        setFormData({ ...formData, bcc: value });
+                        setBccSearch("");
+                      }}
+                      renderOnCreate={(value) => (
+                        <span>Use: <strong>{value}</strong></span>
+                      )}
+                      isLoading={contactsLoading && bccSearch.length >= 2}
+                      emptyResults={bccSearch.length < 2 ? "Type 2+ characters to search..." : "No contacts found"}
+                      clearable={true}
+                      onClear={() => setFormData({ ...formData, bcc: "" })}
                     />
                   </div>
                 </>
@@ -453,11 +513,11 @@ export function ComposeEmailModal({
               {/* Body */}
               <div className="space-y-2">
                 <Label>Message</Label>
-                <Textarea
-                  placeholder="Type your message..."
-                  rows={8}
+                <RichTextEditor
                   value={formData.body}
-                  onChange={(e) => setFormData({ ...formData, body: e.target.value })}
+                  onChange={(value) => setFormData({ ...formData, body: value })}
+                  placeholder="Type your message..."
+                  minHeight={180}
                 />
               </div>
 
