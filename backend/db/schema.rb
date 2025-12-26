@@ -7463,6 +7463,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
     t.datetime "hold_at"
     t.bigint "po_supplier_id"
     t.integer "po_price_history_ids", default: [], array: true
+    t.jsonb "po_line_items", default: []
     t.index ["checklist_id"], name: "index_sm_template_rows_on_checklist_id"
     t.index ["confirm"], name: "index_sm_template_rows_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_template_rows_on_cost_centre"

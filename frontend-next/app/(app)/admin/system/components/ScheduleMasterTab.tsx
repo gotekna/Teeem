@@ -116,6 +116,7 @@ interface SmTemplateRow {
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
   po_price_history_ids?: number[];
+  po_line_items?: Array<{ price_history_id: number; qty: number }>;
   // Multi-template support
   sm_template_ids: number[];
 }
@@ -255,7 +256,7 @@ export function ScheduleMasterTab() {
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
   const [loadingPriceHistories, setLoadingPriceHistories] = React.useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = React.useState<string>("");
-  const [selectedPriceHistoryIds, setSelectedPriceHistoryIds] = React.useState<number[]>([]);
+  const [poLineItems, setPoLineItems] = React.useState<Array<{ price_history_id: number; qty: number }>>([]);
   const [savingAutoPO, setSavingAutoPO] = React.useState(false);
 
   // Column status tracking (persisted to localStorage)
@@ -577,7 +578,15 @@ export function ScheduleMasterTab() {
   const handleOpenAutoPODialog = () => {
     if (!editingRow) return;
     setSelectedSupplierId(editingRow.po_supplier_id ? String(editingRow.po_supplier_id) : "");
-    setSelectedPriceHistoryIds(editingRow.po_price_history_ids || []);
+    // Initialize from po_line_items if available, otherwise from legacy po_price_history_ids
+    if (editingRow.po_line_items && editingRow.po_line_items.length > 0) {
+      setPoLineItems(editingRow.po_line_items);
+    } else if (editingRow.po_price_history_ids && editingRow.po_price_history_ids.length > 0) {
+      // Migrate legacy format to new format with qty=1
+      setPoLineItems(editingRow.po_price_history_ids.map(id => ({ price_history_id: id, qty: 1 })));
+    } else {
+      setPoLineItems([]);
+    }
     setPriceHistories([]);
     setShowAutoPODialog(true);
     loadSuppliers();
@@ -589,7 +598,7 @@ export function ScheduleMasterTab() {
   // Handle supplier change
   const handleSupplierChange = (supplierId: string) => {
     setSelectedSupplierId(supplierId);
-    setSelectedPriceHistoryIds([]);
+    setPoLineItems([]);
     if (supplierId) {
       loadPriceHistoriesForSupplier(supplierId);
     } else {
@@ -597,10 +606,24 @@ export function ScheduleMasterTab() {
     }
   };
 
-  // Toggle price history selection
+  // Toggle price history selection (adds with qty=1 or removes)
   const togglePriceHistorySelection = (phId: number) => {
-    setSelectedPriceHistoryIds(prev =>
-      prev.includes(phId) ? prev.filter(id => id !== phId) : [...prev, phId]
+    setPoLineItems(prev => {
+      const existing = prev.find(item => item.price_history_id === phId);
+      if (existing) {
+        return prev.filter(item => item.price_history_id !== phId);
+      } else {
+        return [...prev, { price_history_id: phId, qty: 1 }];
+      }
+    });
+  };
+
+  // Update quantity for a line item
+  const updateLineItemQty = (phId: number, qty: number) => {
+    setPoLineItems(prev =>
+      prev.map(item =>
+        item.price_history_id === phId ? { ...item, qty: Math.max(1, qty) } : item
+      )
     );
   };
 
@@ -613,7 +636,7 @@ export function ScheduleMasterTab() {
         row: {
           create_po_on_job_start: true,
           po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
-          po_price_history_ids: selectedPriceHistoryIds,
+          po_line_items: poLineItems,
         },
       });
       toast({ title: "Success", description: "Auto-PO configuration saved" });
@@ -624,7 +647,7 @@ export function ScheduleMasterTab() {
         create_po_on_job_start: true,
         po_supplier_id: selectedSupplierId ? parseInt(selectedSupplierId) : null,
         po_supplier_name: suppliers.find(s => s.id === parseInt(selectedSupplierId))?.display_name || null,
-        po_price_history_ids: selectedPriceHistoryIds,
+        po_line_items: poLineItems,
       } : null);
       setEditRowForm(prev => ({ ...prev, create_po_on_job_start: true }));
       loadDataViewRows(dataViewTemplateId);
@@ -1848,37 +1871,56 @@ export function ScheduleMasterTab() {
                             <TableHead className="w-[40px]"></TableHead>
                             <TableHead>Code</TableHead>
                             <TableHead>Item</TableHead>
-                            <TableHead className="text-right">Price</TableHead>
+                            <TableHead className="text-right w-[80px]">Price</TableHead>
+                            <TableHead className="text-center w-[70px]">Qty</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {priceHistories.map((ph) => (
-                            <TableRow
-                              key={ph.id}
-                              className="cursor-pointer"
-                              onClick={() => togglePriceHistorySelection(ph.id)}
-                            >
-                              <TableCell onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  checked={selectedPriceHistoryIds.includes(ph.id)}
-                                  onCheckedChange={() => togglePriceHistorySelection(ph.id)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-mono text-sm">
-                                {ph.pricebook_item_code}
-                              </TableCell>
-                              <TableCell>{ph.pricebook_item_name}</TableCell>
-                              <TableCell className="text-right">
-                                ${typeof ph.new_price === 'number' ? ph.new_price.toFixed(2) : (parseFloat(ph.new_price) || 0).toFixed(2)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {priceHistories.map((ph) => {
+                            const lineItem = poLineItems.find(item => item.price_history_id === ph.id);
+                            const isSelected = !!lineItem;
+                            return (
+                              <TableRow
+                                key={ph.id}
+                                className={`cursor-pointer ${isSelected ? "bg-accent/50" : ""}`}
+                                onClick={() => togglePriceHistorySelection(ph.id)}
+                              >
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => togglePriceHistorySelection(ph.id)}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {ph.pricebook_item_code}
+                                </TableCell>
+                                <TableCell>{ph.pricebook_item_name}</TableCell>
+                                <TableCell className="text-right">
+                                  ${typeof ph.new_price === 'number' ? ph.new_price.toFixed(2) : (parseFloat(ph.new_price) || 0).toFixed(2)}
+                                </TableCell>
+                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                  {isSelected && (
+                                    <Input
+                                      type="number"
+                                      min={1}
+                                      value={lineItem.qty}
+                                      onChange={(e) => updateLineItemQty(ph.id, parseInt(e.target.value) || 1)}
+                                      className="w-16 h-8 text-center"
+                                    />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>
-                    {selectedPriceHistoryIds.length > 0 && (
-                      <div className="border-t bg-muted/50 p-2 text-sm">
-                        {selectedPriceHistoryIds.length} item{selectedPriceHistoryIds.length !== 1 ? "s" : ""} selected
+                    {poLineItems.length > 0 && (
+                      <div className="border-t bg-muted/50 p-2 text-sm flex justify-between">
+                        <span>{poLineItems.length} item{poLineItems.length !== 1 ? "s" : ""} selected</span>
+                        <span className="font-medium">
+                          Total Qty: {poLineItems.reduce((sum, item) => sum + item.qty, 0)}
+                        </span>
                       </div>
                     )}
                   </div>

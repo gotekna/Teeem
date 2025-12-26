@@ -362,10 +362,10 @@ class PurchaseOrder < ApplicationRecord
   end
 
   # JSON representation for API - includes virtual attributes for Foundation
+  # SSoT: sm_task_id is the primary column, po_task_name is derived from linked SmTask
   def as_json(options = {})
     super(options).merge(
-      'schedule_master_name' => schedule_master_name,
-      'schedule_master_id' => schedule_master_id,
+      'sm_task_name' => po_task_name,
       'sm_template_row_name' => sm_template_row_name,
       'sm_template_row_id_via_task' => sm_template_row_id_via_task
     )

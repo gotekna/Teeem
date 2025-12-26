@@ -201,7 +201,9 @@ module Api
           plan_type_ids: [],
           start_entity_tab_ids: [],
           complete_entity_tab_ids: [],
-          po_price_history_ids: []
+          po_price_history_ids: [],
+          # PO line items with quantities
+          po_line_items: [ :price_history_id, :qty ]
         )
       end
 
@@ -249,6 +251,7 @@ module Api
           po_supplier_id: row.po_supplier_id,
           po_supplier_name: row.po_supplier&.name,
           po_price_history_ids: row.po_price_history_ids || [],
+          po_line_items: row.po_line_items || [],
           cert_lag_days: row.cert_lag_days,
           has_subtasks: row.has_subtasks,
           subtask_count: row.subtask_count,
