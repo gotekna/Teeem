@@ -9,13 +9,18 @@ module Api
 
         # Support both category ID (numeric) and category name (string)
         if category_param =~ /^\d+$/
-          # Numeric ID - look up from JobDocumentationTab first, fall back to DocumentationCategory
-          doc_tab = @job.job_documentation_tabs.find_by(id: category_param)
-          if doc_tab
-            category = doc_tab.name.downcase.gsub(" ", "-")
+          # Numeric ID - look up from EntityTab first (SSoT), then JobDocumentationTab, then DocumentationCategory
+          entity_tab = EntityTab.find_by(id: category_param)
+          if entity_tab
+            category = entity_tab.tab_key || entity_tab.display_name.downcase.gsub(" ", "-")
           else
-            doc_category = DocumentationCategory.find_by(id: category_param)
-            category = doc_category&.name&.downcase&.gsub(" ", "-") || category_param
+            doc_tab = @job.job_documentation_tabs.find_by(id: category_param)
+            if doc_tab
+              category = doc_tab.name.downcase.gsub(" ", "-")
+            else
+              doc_category = DocumentationCategory.find_by(id: category_param)
+              category = doc_category&.name&.downcase&.gsub(" ", "-") || category_param
+            end
           end
         else
           category = category_param

@@ -114,11 +114,13 @@ export function HierarchicalTabsList({
         >
           {childrenToShow.map((child) => {
             const ChildIcon = getIcon(child.icon_name || "file");
+            const isChildActive = activeTab === child.tab_key;
             return (
               <TabsPrimitive.Trigger
                 key={child.tab_key}
                 value={child.tab_key}
                 onClick={() => onTabChange?.(child.tab_key)}
+                data-state={isChildActive ? "active" : "inactive"}
                 className={cn(
                   "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
