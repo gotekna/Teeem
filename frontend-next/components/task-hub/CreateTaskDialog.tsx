@@ -63,6 +63,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     trade: '',
     started: false,
     required_by: '',
+    follow: false,
   });
 
   // Track pending attachments (before task is created)
@@ -162,6 +163,15 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           }
         }
 
+        // Follow the task if requested
+        if (taskId && formData.follow) {
+          try {
+            await api.post(`/api/v1/sm_tasks/${taskId}/follow`);
+          } catch (followError) {
+            console.error('Failed to follow task:', followError);
+          }
+        }
+
         toast({
           title: 'Success',
           description: 'Task created successfully',
@@ -179,6 +189,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           trade: '',
           started: false,
           required_by: '',
+          follow: false,
         });
         setPendingAttachments([]);
         onOpenChange(false);
@@ -306,19 +317,34 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
               </p>
             </div>
 
-            {/* Started Checkbox */}
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="started"
-                checked={formData.started}
-                onCheckedChange={(checked) => handleChange('started', checked === true)}
-              />
-              <Label
-                htmlFor="started"
-                className="text-sm font-medium leading-none cursor-pointer"
-              >
-                Mark as Started
-              </Label>
+            {/* Started & Follow Checkboxes */}
+            <div className="flex items-center gap-6">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="started"
+                  checked={formData.started}
+                  onCheckedChange={(checked) => handleChange('started', checked === true)}
+                />
+                <Label
+                  htmlFor="started"
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  Mark as Started
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="follow"
+                  checked={formData.follow}
+                  onCheckedChange={(checked) => handleChange('follow', checked === true)}
+                />
+                <Label
+                  htmlFor="follow"
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  Follow (get notifications)
+                </Label>
+              </div>
             </div>
 
             {/* Trade */}

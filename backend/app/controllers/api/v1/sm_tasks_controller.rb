@@ -8,7 +8,8 @@ module Api
         :show, :update, :destroy, :start, :complete, :spawn_preview,
         :hold, :release_hold, :cascade_preview, :cascade_execute, :move,
         :working_drawings, :process_working_drawings, :override_page_category,
-        :attachments, :add_attachment, :remove_attachment
+        :attachments, :add_attachment, :remove_attachment,
+        :follow, :unfollow, :followers
       ]
 
       # GET /api/v1/sm_tasks (global - all tasks across jobs)
@@ -661,6 +662,51 @@ module Api
         render json: { success: true, message: "Attachment removed" }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Attachment not found" }, status: :not_found
+      end
+
+      # ===== Task Followers =====
+
+      # POST /api/v1/sm_tasks/:id/follow
+      def follow
+        follower = @task.follow_by(current_user)
+
+        render json: {
+          success: true,
+          following: true,
+          follower: {
+            id: follower.id,
+            user_id: current_user.id,
+            followed_at: follower.followed_at
+          }
+        }
+      end
+
+      # DELETE /api/v1/sm_tasks/:id/unfollow
+      def unfollow
+        @task.unfollow_by(current_user)
+
+        render json: {
+          success: true,
+          following: false
+        }
+      end
+
+      # GET /api/v1/sm_tasks/:id/followers
+      def followers
+        followers = @task.task_followers.includes(:user).recent
+
+        render json: {
+          success: true,
+          followers: followers.map { |f|
+            {
+              id: f.id,
+              user_id: f.user_id,
+              user_name: f.user.name,
+              followed_at: f.followed_at
+            }
+          },
+          following: @task.followed_by?(current_user)
+        }
       end
 
       private

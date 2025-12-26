@@ -14,6 +14,9 @@ class Notification < ApplicationRecord
     mention
     email_reminder
     email_snooze_wakeup
+    task_followed
+    task_updated_followed
+    task_comment_followed
   ].freeze
 
   validates :notification_type, presence: true, inclusion: { in: TYPES }

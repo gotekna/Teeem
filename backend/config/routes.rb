@@ -1209,6 +1209,10 @@ Rails.application.routes.draw do
           get :attachments
           post :attachments, action: :add_attachment
           delete "attachments/:attachment_id", action: :remove_attachment
+          # Task followers
+          post :follow
+          delete :unfollow
+          get :followers
         end
 
         # Dependencies (nested under sm_tasks)

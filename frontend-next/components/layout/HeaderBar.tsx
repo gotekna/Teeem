@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   MessageSquare,
-  Bell,
   GraduationCap,
   Menu,
   ChevronDown,
@@ -38,6 +37,7 @@ import {
 import { InspiringBanner } from "./InspiringBanner";
 import { FloatingHelpButton } from "@/components/help/FloatingHelpButton";
 import { HeaderDebugTools } from "@/components/debug/HeaderDebugTools";
+import { NotificationBell } from "@/components/ui/notification-bell";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -326,14 +326,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           </Link>
 
           {/* Notifications */}
-          <Link prefetch={false}
-            href="/notifications"
-            className="p-1.5 text-gray-400 hover:text-gray-500 dark:hover:text-white rounded-md"
-            title="Notifications"
-          >
-            <span className="sr-only">View notifications</span>
-            <Bell className="h-4 w-4" />
-          </Link>
+          <NotificationBell />
 
           {/* Office 365 Status */}
           <Link prefetch={false}
