@@ -1132,6 +1132,7 @@ Rails.application.routes.draw do
           post :copy_to_job
           post :duplicate
           post :sync_to_job
+          get :compare_to_job
         end
         collection do
           get :default
@@ -2674,6 +2675,97 @@ Rails.application.routes.draw do
             get :status
             get :available_periods, action: :available_periods_list
           end
+        end
+
+        # Progress Claims (Construction Billing)
+        resources :progress_claims do
+          member do
+            post :submit
+            post :approve
+            post :certify
+            post :generate_invoice
+            post :release_retainage
+          end
+          collection do
+            get "job_summary/:job_id", action: :job_summary
+            get :retainage_summary
+          end
+        end
+
+        # Billing Milestones
+        resources :billing_milestones do
+          member do
+            post :start
+            post :complete
+            post :generate_invoice
+            post :cancel
+          end
+          collection do
+            get "job_summary/:job_id", action: :job_summary
+            get :billable
+            get :overdue
+            post :reorder
+          end
+        end
+
+        # Deposits / Prepayments
+        resources :deposits do
+          member do
+            post :apply
+            post :unapply
+            post :refund
+          end
+          collection do
+            get "for_invoice/:invoice_id", action: :for_invoice
+            get :summary
+            get "by_contact/:contact_id", action: :by_contact
+          end
+        end
+
+        # Approval Workflows
+        scope :approvals do
+          # Workflow templates
+          get "workflows", to: "approvals#workflows"
+          get "workflows/:id", to: "approvals#show_workflow"
+          post "workflows", to: "approvals#create_workflow"
+          patch "workflows/:id", to: "approvals#update_workflow"
+          delete "workflows/:id", to: "approvals#destroy_workflow"
+
+          # Approval requests
+          get "pending", to: "approvals#pending"
+          get "requests/:id", to: "approvals#show_request"
+          post "requests/:id/approve", to: "approvals#approve"
+          post "requests/:id/reject", to: "approvals#reject"
+          post "requests/:id/delegate", to: "approvals#delegate"
+          post "requests/:id/cancel", to: "approvals#cancel"
+          post "submit", to: "approvals#submit"
+          get "history", to: "approvals#history"
+          get "stats", to: "approvals#stats"
+        end
+
+        # Inventory
+        scope :inventory do
+          # Items
+          get "/", to: "inventory#index"
+          get "low_stock", to: "inventory#low_stock"
+          get "valuation", to: "inventory#valuation"
+          get ":id", to: "inventory#show"
+          post "/", to: "inventory#create"
+          patch ":id", to: "inventory#update"
+          get ":id/transactions", to: "inventory#transactions"
+          post ":id/receive", to: "inventory#receive"
+          post ":id/sell", to: "inventory#sell"
+          post ":id/adjust", to: "inventory#adjust"
+          post ":id/write_off", to: "inventory#write_off"
+
+          # Stock counts
+          get "stock_counts", to: "inventory#stock_counts"
+          post "stock_counts", to: "inventory#create_stock_count"
+          get "stock_counts/:id", to: "inventory#show_stock_count"
+          post "stock_counts/:id/start", to: "inventory#start_stock_count"
+          patch "stock_counts/:id/lines", to: "inventory#update_count_lines"
+          post "stock_counts/:id/complete", to: "inventory#complete_stock_count"
+          post "stock_counts/:id/approve", to: "inventory#approve_stock_count"
         end
       end
 

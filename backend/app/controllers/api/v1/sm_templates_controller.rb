@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job ]
 
       # GET /api/v1/sm_templates
       def index
@@ -176,6 +176,44 @@ module Api
           },
           skipped_tasks: results[:skipped_tasks],
           errors: results[:errors]
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
+      end
+
+      # GET /api/v1/sm_templates/:id/compare_to_job
+      # Compares template rows with a job's tasks to show differences
+      #
+      # Params:
+      #   job_id: ID of the job to compare with (required)
+      #
+      # Returns array of comparisons with status and differences
+      #
+      def compare_to_job
+        job = Job.find(params[:job_id])
+
+        comparisons = SmTemplateSyncService.compare_for_job(job, @template)
+
+        # Calculate summary counts
+        summary = {
+          will_create: comparisons.count { |c| c[:status] == "will_create" },
+          will_update: comparisons.count { |c| c[:status] == "will_update" },
+          will_skip: comparisons.count { |c| c[:status] == "will_skip" },
+          unchanged: comparisons.count { |c| c[:status] == "unchanged" },
+          total: comparisons.count
+        }
+
+        render json: {
+          success: true,
+          template_id: @template.id,
+          template_name: @template.name,
+          job_id: job.id,
+          job_name: job.name,
+          summary: summary,
+          comparisons: comparisons
         }
       rescue ActiveRecord::RecordNotFound
         render json: {

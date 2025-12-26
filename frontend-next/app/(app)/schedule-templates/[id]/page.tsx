@@ -46,6 +46,9 @@ import {
   CheckCircle,
   AlertCircle,
   GanttChartSquare,
+  RefreshCw,
+  SkipForward,
+  AlertTriangle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -128,6 +131,87 @@ interface EntityTab {
   hierarchy_path: string;
 }
 
+interface Job {
+  id: number;
+  name: string;
+  address: string;
+  status: string;
+}
+
+interface SyncResult {
+  success: boolean;
+  message: string;
+  summary: {
+    created: number;
+    updated: number;
+    skipped: number;
+    unchanged: number;
+    errors: number;
+  };
+  skipped_tasks: Array<{
+    task_id: number;
+    task_name: string;
+    reason: string;
+  }>;
+  errors: Array<{
+    row_id: number;
+    error: string;
+  }>;
+}
+
+interface CompareResult {
+  success: boolean;
+  template_id: number;
+  template_name: string;
+  job_id: number;
+  job_name: string;
+  summary: {
+    will_create: number;
+    will_update: number;
+    will_skip: number;
+    unchanged: number;
+    total: number;
+  };
+  comparisons: Array<{
+    template_row: {
+      id: number;
+      task_number: number;
+      name: string;
+      description: string | null;
+      duration_days: number;
+      trade: string | null;
+      stage: string | null;
+      require_photo: boolean;
+      require_certificate: boolean;
+      po_required: boolean;
+      critical_po: boolean;
+    };
+    job_task: {
+      id: number;
+      task_number: number;
+      name: string;
+      description: string | null;
+      duration_days: number;
+      trade: string | null;
+      stage: string | null;
+      status: string;
+      require_photo: boolean;
+      require_certificate: boolean;
+      po_required: boolean;
+      critical_po: boolean;
+      started_at: string | null;
+      completed_at: string | null;
+      confirm: boolean;
+      supplier_confirm: boolean;
+      hold: boolean;
+      purchase_order_id: number | null;
+    } | null;
+    status: "will_create" | "will_update" | "will_skip" | "unchanged";
+    skip_reason: string | null;
+    differences: Record<string, { template: unknown; task: unknown }>;
+  }>;
+}
+
 export default function ScheduleTemplateDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -146,6 +230,18 @@ export default function ScheduleTemplateDetailPage() {
   const [showEditDialog, setShowEditDialog] = React.useState(false);
   const [editingRow, setEditingRow] = React.useState<SmTemplateRow | null>(null);
   const [editForm, setEditForm] = React.useState<Partial<SmTemplateRow>>({});
+
+  // Sync to job state
+  const [showSyncDialog, setShowSyncDialog] = React.useState(false);
+  const [jobs, setJobs] = React.useState<Job[]>([]);
+  const [selectedJobId, setSelectedJobId] = React.useState<string>("");
+  const [syncing, setSyncing] = React.useState(false);
+  const [syncResult, setSyncResult] = React.useState<SyncResult | null>(null);
+  const [loadingJobs, setLoadingJobs] = React.useState(false);
+  // Comparison state
+  const [comparing, setComparing] = React.useState(false);
+  const [compareResult, setCompareResult] = React.useState<CompareResult | null>(null);
+  const [syncStep, setSyncStep] = React.useState<"select" | "compare" | "result">("select");
 
   // Load data
   const loadData = React.useCallback(async () => {
@@ -233,6 +329,88 @@ export default function ScheduleTemplateDetailPage() {
     }
   };
 
+  // Load jobs for sync dialog
+  const loadJobs = async () => {
+    setLoadingJobs(true);
+    try {
+      const response = await api.get<{ success: boolean; data: Job[] }>("/api/v1/jobs?status=active&limit=100");
+      setJobs(response.data || []);
+    } catch (error) {
+      console.error("Failed to load jobs:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load jobs",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
+
+  // Open sync dialog
+  const handleOpenSyncDialog = () => {
+    setSyncResult(null);
+    setCompareResult(null);
+    setSelectedJobId("");
+    setSyncStep("select");
+    setShowSyncDialog(true);
+    loadJobs();
+  };
+
+  // Compare template with job
+  const handleCompare = async () => {
+    if (!selectedJobId) return;
+
+    setComparing(true);
+    try {
+      const response = await api.get<CompareResult>(
+        `/api/v1/sm_templates/${templateId}/compare_to_job?job_id=${selectedJobId}`
+      );
+      if (response) {
+        setCompareResult(response);
+        setSyncStep("compare");
+      }
+    } catch (error) {
+      console.error("Failed to compare:", error);
+      toast({
+        title: "Comparison Failed",
+        description: "Failed to compare template with job",
+        variant: "destructive",
+      });
+    } finally {
+      setComparing(false);
+    }
+  };
+
+  // Sync template to job
+  const handleSyncToJob = async () => {
+    if (!selectedJobId) return;
+
+    setSyncing(true);
+    try {
+      const response = await api.post<SyncResult>(`/api/v1/sm_templates/${templateId}/sync_to_job`, {
+        job_id: parseInt(selectedJobId),
+      });
+      if (response) {
+        setSyncResult(response);
+        setSyncStep("result");
+        toast({
+          title: "Sync Complete",
+          description: `Created: ${response.summary.created}, Updated: ${response.summary.updated}, Skipped: ${response.summary.skipped}`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to sync:", error);
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync template to job",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Convert arrays to MultipleSelector options
   const planTypeOptions: Option[] = planTypes.map((pt) => ({
     value: String(pt.id),
@@ -287,6 +465,13 @@ export default function ScheduleTemplateDetailPage() {
               Default
             </Badge>
           )}
+          <Button
+            variant="outline"
+            onClick={handleOpenSyncDialog}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync to Job
+          </Button>
           <Button
             variant="outline"
             onClick={() => router.push(`/schedule-templates/${templateId}/gantt`)}
@@ -762,6 +947,306 @@ export default function ScheduleTemplateDetailPage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sync to Job Dialog - 3 Step Flow: Select → Compare → Result */}
+      <Dialog open={showSyncDialog} onOpenChange={setShowSyncDialog}>
+        <DialogContent className={syncStep === "compare" ? "max-w-4xl max-h-[90vh] overflow-hidden flex flex-col" : "max-w-lg"}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className="h-5 w-5" />
+              {syncStep === "select" && "Sync Template to Job"}
+              {syncStep === "compare" && `Compare: ${compareResult?.job_name || "Job"}`}
+              {syncStep === "result" && "Sync Complete"}
+            </DialogTitle>
+            <DialogDescription>
+              {syncStep === "select" && "Select a job to compare and sync template changes."}
+              {syncStep === "compare" && "Review the differences before syncing. Tasks with job reality will be skipped."}
+              {syncStep === "result" && "Template has been synced to the job."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Step 1: Select Job */}
+          {syncStep === "select" && (
+            <>
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label>Select Job</Label>
+                  {loadingJobs ? (
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading jobs...
+                    </div>
+                  ) : (
+                    <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a job..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {jobs.map((job) => (
+                          <SelectItem key={job.id} value={String(job.id)}>
+                            {job.name} - {job.address}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowSyncDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCompare} disabled={comparing || !selectedJobId}>
+                  {comparing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Comparing...
+                    </>
+                  ) : (
+                    "Compare"
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 2: Compare View */}
+          {syncStep === "compare" && compareResult && (
+            <>
+              {/* Summary Stats */}
+              <div className="grid grid-cols-4 gap-3 py-2 shrink-0">
+                <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
+                  <p className="text-xl font-bold text-green-600 dark:text-green-400">
+                    {compareResult.summary.will_create}
+                  </p>
+                  <p className="text-xs text-green-700 dark:text-green-300">Will Create</p>
+                </div>
+                <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
+                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                    {compareResult.summary.will_update}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">Will Update</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-2 text-center">
+                  <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+                    {compareResult.summary.will_skip}
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">Will Skip</p>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 text-center">
+                  <p className="text-xl font-bold text-gray-600 dark:text-gray-400">
+                    {compareResult.summary.unchanged}
+                  </p>
+                  <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
+                </div>
+              </div>
+
+              {/* Comparison Table */}
+              <div className="flex-1 overflow-auto border rounded-lg min-h-0">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background z-10">
+                    <TableRow>
+                      <TableHead className="w-[50px]">#</TableHead>
+                      <TableHead>Template Row</TableHead>
+                      <TableHead>Job Task</TableHead>
+                      <TableHead className="w-[100px]">Status</TableHead>
+                      <TableHead>Differences</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {compareResult.comparisons.map((comp) => (
+                      <TableRow
+                        key={comp.template_row.id}
+                        className={
+                          comp.status === "will_skip" ? "bg-amber-50/50 dark:bg-amber-950/30" :
+                          comp.status === "will_create" ? "bg-green-50/50 dark:bg-green-950/30" :
+                          comp.status === "will_update" ? "bg-blue-50/50 dark:bg-blue-950/30" :
+                          ""
+                        }
+                      >
+                        <TableCell className="font-mono text-muted-foreground text-sm">
+                          {comp.template_row.task_number}
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium text-sm">{comp.template_row.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {comp.template_row.trade && <span className="mr-2">{comp.template_row.trade}</span>}
+                            {comp.template_row.duration_days}d
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {comp.job_task ? (
+                            <>
+                              <div className="font-medium text-sm">{comp.job_task.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {comp.job_task.status}
+                                {comp.job_task.started_at && " • Started"}
+                                {comp.job_task.completed_at && " • Done"}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground italic text-sm">Not in job</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className={
+                              comp.status === "will_create" ? "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" :
+                              comp.status === "will_update" ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" :
+                              comp.status === "will_skip" ? "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" :
+                              "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                            }
+                          >
+                            {comp.status === "will_create" && "Create"}
+                            {comp.status === "will_update" && "Update"}
+                            {comp.status === "will_skip" && "Skip"}
+                            {comp.status === "unchanged" && "Match"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {comp.status === "will_skip" && comp.skip_reason && (
+                            <span className="text-xs text-amber-600 dark:text-amber-400">
+                              {comp.skip_reason}
+                            </span>
+                          )}
+                          {comp.status === "will_update" && Object.keys(comp.differences).length > 0 && (
+                            <div className="text-xs space-y-0.5">
+                              {Object.entries(comp.differences).slice(0, 3).map(([field, diff]) => (
+                                <div key={field} className="flex gap-1">
+                                  <span className="font-medium">{field}:</span>
+                                  <span className="text-red-500 line-through">{String(diff.task ?? "-")}</span>
+                                  <span>→</span>
+                                  <span className="text-green-600">{String(diff.template)}</span>
+                                </div>
+                              ))}
+                              {Object.keys(comp.differences).length > 3 && (
+                                <span className="text-muted-foreground">
+                                  +{Object.keys(comp.differences).length - 3} more
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <DialogFooter className="shrink-0 pt-2">
+                <Button variant="outline" onClick={() => setSyncStep("select")}>
+                  Back
+                </Button>
+                <Button
+                  onClick={handleSyncToJob}
+                  disabled={syncing || (compareResult.summary.will_create === 0 && compareResult.summary.will_update === 0)}
+                >
+                  {syncing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Syncing...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Sync {compareResult.summary.will_create + compareResult.summary.will_update} Tasks
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* Step 3: Result */}
+          {syncStep === "result" && syncResult && (
+            <>
+              <div className="py-4 space-y-4">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-green-50 dark:bg-green-950 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {syncResult.summary.created}
+                    </p>
+                    <p className="text-xs text-green-700 dark:text-green-300">Created</p>
+                  </div>
+                  <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                      {syncResult.summary.updated}
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300">Updated</p>
+                  </div>
+                  <div className="bg-amber-50 dark:bg-amber-950 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      {syncResult.summary.skipped}
+                    </p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">Skipped</p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-center">
+                    <p className="text-2xl font-bold text-gray-600 dark:text-gray-400">
+                      {syncResult.summary.unchanged}
+                    </p>
+                    <p className="text-xs text-gray-700 dark:text-gray-300">Unchanged</p>
+                  </div>
+                </div>
+
+                {/* Skipped Tasks */}
+                {syncResult.skipped_tasks && syncResult.skipped_tasks.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <SkipForward className="h-4 w-4 text-amber-500" />
+                      Skipped Tasks ({syncResult.skipped_tasks.length})
+                    </h4>
+                    <div className="max-h-[200px] overflow-y-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Task</TableHead>
+                            <TableHead>Reason</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {syncResult.skipped_tasks.map((task) => (
+                            <TableRow key={task.task_id}>
+                              <TableCell className="font-medium text-sm">{task.task_name}</TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="text-xs">
+                                  {task.reason}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Errors */}
+                {syncResult.errors && syncResult.errors.length > 0 && (
+                  <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-3">
+                    <h4 className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                      Errors ({syncResult.errors.length})
+                    </h4>
+                    <ul className="text-sm text-red-700 dark:text-red-300 space-y-1">
+                      {syncResult.errors.map((err, idx) => (
+                        <li key={idx}>Row #{err.row_id}: {err.error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button onClick={() => setShowSyncDialog(false)}>
+                  Done
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

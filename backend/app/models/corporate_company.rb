@@ -67,6 +67,14 @@ class CorporateCompany < ApplicationRecord
   has_many :gl_bank_rule_learnings, class_name: "Gl::BankRuleLearning", dependent: :destroy
   has_many :gl_scheduled_invoices, class_name: "Gl::ScheduledInvoice", dependent: :destroy
   has_many :gl_scheduled_reports, class_name: "Gl::ScheduledReport", dependent: :destroy
+  has_many :gl_period_locks, class_name: "Gl::PeriodLock", dependent: :destroy
+  has_many :gl_progress_claims, class_name: "Gl::ProgressClaim", dependent: :destroy
+  has_many :gl_billing_milestones, class_name: "Gl::BillingMilestone", dependent: :destroy
+  has_many :gl_deposits, class_name: "Gl::Deposit", dependent: :destroy
+  has_many :gl_approval_workflows, class_name: "Gl::ApprovalWorkflow", dependent: :destroy
+  has_many :gl_approval_requests, class_name: "Gl::ApprovalRequest", dependent: :destroy
+  has_many :gl_inventory_items, class_name: "Gl::InventoryItem", dependent: :destroy
+  has_many :gl_stock_counts, class_name: "Gl::StockCount", dependent: :destroy
 
   # Encrypted attributes
   encrypts :tfn, deterministic: true

@@ -58,6 +58,29 @@ class SmTemplateSyncService
     hold
   ].freeze
 
+  # Compare template rows with job tasks - returns detailed comparison for UI
+  # Returns array of comparisons, each with:
+  #   - template_row: the source row
+  #   - job_task: the matching task (or nil if not exists)
+  #   - status: :will_create, :will_update, :will_skip, :unchanged
+  #   - skip_reason: why it will be skipped (if applicable)
+  #   - differences: hash of field differences { field: { from: x, to: y } }
+  def self.compare_for_job(job, template)
+    comparisons = []
+
+    return comparisons unless job.present? && template.present?
+
+    # Get active template rows
+    rows = template.sm_template_rows.where(is_active: true).order(:sequence_order)
+
+    rows.each do |row|
+      service = new(job, row, {})
+      comparisons << service.compare
+    end
+
+    comparisons
+  end
+
   # Bulk sync all template rows to tasks for a job
   # Returns summary: { created: N, updated: N, skipped: N, unchanged: N, errors: [] }
   def self.sync_all_for_job(job, template, options = {})
@@ -141,7 +164,115 @@ class SmTemplateSyncService
     failure("Sync failed: #{e.message}")
   end
 
+  # Compare a single template row with its job task (if exists)
+  # Returns comparison data for UI display
+  def compare
+    existing_task = find_existing_task
+
+    if existing_task.nil?
+      return {
+        template_row: template_row_json,
+        job_task: nil,
+        status: "will_create",
+        skip_reason: nil,
+        differences: {}
+      }
+    end
+
+    # Check if task should be skipped
+    if should_skip_task?(existing_task)
+      return {
+        template_row: template_row_json,
+        job_task: task_json(existing_task),
+        status: "will_skip",
+        skip_reason: skip_reason(existing_task),
+        differences: calculate_differences(existing_task)
+      }
+    end
+
+    # Calculate differences
+    differences = calculate_differences(existing_task)
+
+    if differences.empty?
+      {
+        template_row: template_row_json,
+        job_task: task_json(existing_task),
+        status: "unchanged",
+        skip_reason: nil,
+        differences: {}
+      }
+    else
+      {
+        template_row: template_row_json,
+        job_task: task_json(existing_task),
+        status: "will_update",
+        skip_reason: nil,
+        differences: differences
+      }
+    end
+  end
+
   private
+
+  def template_row_json
+    {
+      id: template_row.id,
+      task_number: template_row.task_number,
+      name: template_row.name,
+      description: template_row.description,
+      duration_days: template_row.duration_days,
+      trade: template_row.trade,
+      stage: template_row.stage,
+      require_photo: template_row.require_photo,
+      require_certificate: template_row.require_certificate,
+      po_required: template_row.po_required,
+      critical_po: template_row.critical_po
+    }
+  end
+
+  def task_json(task)
+    {
+      id: task.id,
+      task_number: task.task_number,
+      name: task.name,
+      description: task.description,
+      duration_days: task.duration_days,
+      trade: task.trade,
+      stage: task.stage,
+      status: task.status,
+      require_photo: task.require_photo,
+      require_certificate: task.require_certificate,
+      po_required: task.po_required,
+      critical_po: task.critical_po,
+      started_at: task.started_at,
+      completed_at: task.completed_at,
+      confirm: task.confirm,
+      supplier_confirm: task.supplier_confirm,
+      hold: task.hold,
+      purchase_order_id: task.purchase_order_id
+    }
+  end
+
+  def calculate_differences(task)
+    differences = {}
+
+    SAFE_SYNC_FIELDS.each do |field|
+      next unless template_row.respond_to?(field) && task.respond_to?(field)
+
+      template_value = template_row.send(field)
+      task_value = task.send(field)
+
+      # Only show difference if template has a value and it differs
+      if template_value.present? && template_value != task_value
+        differences[field.to_s] = {
+          template: template_value,
+          task: task_value
+        }
+      end
+    end
+
+    differences
+  end
 
   def user
     @user ||= options[:user]
