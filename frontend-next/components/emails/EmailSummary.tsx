@@ -101,11 +101,11 @@ export function EmailSummary({ emailId, existingSummary, className }: EmailSumma
         { refresh }
       );
 
-      if (response.success && response.data) {
+      if (response?.success && response.data) {
         setSummary(response.data);
         setGenerated(true);
       } else {
-        setError(response.error || "Failed to generate summary");
+        setError(response?.error || "Failed to generate summary");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to generate summary");
