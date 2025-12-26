@@ -30,7 +30,8 @@
 #   )
 #
 class EmailSendingService
-  include EmailAccountTypes
+  # Reference account types from the SSoT concern (but don't include it - we're not an AR model)
+  ACCOUNT_TYPES = EmailAccountTypes::ACCOUNT_TYPES
 
   class SendError < StandardError; end
   class InvalidAccountError < SendError; end
