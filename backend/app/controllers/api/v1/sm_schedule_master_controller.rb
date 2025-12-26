@@ -200,6 +200,7 @@ module Api
           plan_type_ids: [],
           start_entity_tab_ids: [],
           complete_entity_tab_ids: [],
+          certificate_document_type_ids: [],
           # PO line items with quantities
           po_line_items: [ :pricebook_item_id, :qty ]
         )
@@ -251,6 +252,7 @@ module Api
           po_supplier_name: row.po_supplier&.name,
           po_line_items: row.po_line_items || [],
           cert_lag_days: row.cert_lag_days,
+          certificate_document_type_ids: row.certificate_document_type_ids || [],
           has_subtasks: row.has_subtasks,
           subtask_count: row.subtask_count,
           subtask_names: row.subtask_names,

@@ -20,6 +20,10 @@ module ApplicationCable
         token = auth_header.split(" ").last
         user_id = decode_token(token)
         User.find_by(id: user_id)
+      # For token-based auth (query parameter - iOS Safari/mobile support):
+      elsif token = request.params[:token]
+        user_id = decode_token(token)
+        User.find_by(id: user_id)
       else
         reject_unauthorized_connection
       end

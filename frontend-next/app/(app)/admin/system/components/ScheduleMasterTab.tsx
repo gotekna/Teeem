@@ -118,6 +118,7 @@ interface SmScheduleMaster {
   call_time_days?: number;
   require_photo: boolean;
   require_certificate?: boolean;
+  cert_lag_days?: number | null;
   // Auto-PO configuration
   po_supplier_id?: number | null;
   po_supplier_name?: string | null;
@@ -1889,9 +1890,31 @@ export function ScheduleMasterTab() {
                   <Switch
                     id="row-require-cert"
                     checked={editRowForm.require_certificate || false}
-                    onCheckedChange={(checked) => setEditRowForm({ ...editRowForm, require_certificate: checked })}
+                    onCheckedChange={(checked) => {
+                      if (!checked) {
+                        setEditRowForm({ ...editRowForm, require_certificate: checked, cert_lag_days: undefined });
+                      } else {
+                        setEditRowForm({ ...editRowForm, require_certificate: checked });
+                      }
+                    }}
                   />
                 </div>
+                {editRowForm.require_certificate && (
+                  <div className="space-y-2 pl-4 border-l-2 border-amber-200 dark:border-amber-800">
+                    <Label htmlFor="row-cert-lag">Certificate Due (days after completion)</Label>
+                    <Input
+                      id="row-cert-lag"
+                      type="number"
+                      min={0}
+                      value={editRowForm.cert_lag_days ?? 0}
+                      onChange={(e) => setEditRowForm({ ...editRowForm, cert_lag_days: parseInt(e.target.value) || 0 })}
+                      className="w-24"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Days after task completion to receive certificate
+                    </p>
+                  </div>
+                )}
 
                 {/* Photo Task Spawning */}
                 <div className="border-t pt-3 mt-3">

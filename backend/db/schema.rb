@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010018) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7450,6 +7450,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
     t.jsonb "po_line_items", default: []
     t.boolean "spawn_order_task", default: false
     t.boolean "spawn_call_task", default: false
+    t.jsonb "certificate_document_type_ids", default: []
     t.index ["checklist_id"], name: "index_sm_schedule_master_on_checklist_id"
     t.index ["confirm"], name: "index_sm_schedule_master_on_confirm", where: "(confirm = true)"
     t.index ["cost_centre"], name: "index_sm_schedule_master_on_cost_centre"
@@ -7575,6 +7576,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010017) do
     t.bigint "recurring_task_definition_id"
     t.integer "recurring_sequence"
     t.string "source_type", default: "manual"
+    t.jsonb "certificate_document_type_ids", default: []
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"

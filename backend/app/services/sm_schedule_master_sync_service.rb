@@ -48,6 +48,7 @@ class SmScheduleMasterSyncService
     pass_fail_enabled
     assigned_role
     photo_entity_tab_id
+    certificate_document_type_ids
   ].freeze
 
   # Fields that affect schedule - NEVER sync these automatically
