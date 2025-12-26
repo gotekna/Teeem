@@ -71,7 +71,7 @@ interface SettingsResponse {
   settings: Settings;
 }
 
-interface SmTemplate {
+interface SmScheduleMasterTemplate {
   id: number;
   name: string;
   description?: string;
@@ -80,7 +80,7 @@ interface SmTemplate {
 }
 
 interface TemplatesResponse {
-  sm_templates: SmTemplate[];
+  sm_schedule_master_templates: SmScheduleMasterTemplate[];
 }
 
 // ============================================
@@ -423,7 +423,7 @@ function RolloverSettingsTab() {
 
 function TemplatesTab() {
   const { toast } = useToast();
-  const [templates, setTemplates] = useState<SmTemplate[]>([]);
+  const [templates, setTemplates] = useState<SmScheduleMasterTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -432,8 +432,8 @@ function TemplatesTab() {
 
   const loadTemplates = async () => {
     try {
-      const response = await api.get<TemplatesResponse>("/api/v1/sm_templates");
-      setTemplates(response.sm_templates || []);
+      const response = await api.get<TemplatesResponse>("/api/v1/sm_schedule_master_templates");
+      setTemplates(response.sm_schedule_master_templates || []);
     } catch (error) {
       console.error("Failed to load templates:", error);
     } finally {
@@ -443,7 +443,7 @@ function TemplatesTab() {
 
   const handleSetDefault = async (templateId: number) => {
     try {
-      await api.post(`/api/v1/sm_templates/${templateId}/set_default`);
+      await api.post(`/api/v1/sm_schedule_master_templates/${templateId}/set_default`);
       toast({ title: "Default template updated" });
       loadTemplates();
     } catch {
@@ -456,8 +456,8 @@ function TemplatesTab() {
     if (!name) return;
 
     try {
-      await api.post("/api/v1/sm_templates", {
-        sm_template: { name, description: "" },
+      await api.post("/api/v1/sm_schedule_master_templates", {
+        sm_schedule_master_template: { name, description: "" },
       });
       toast({ title: "Template created" });
       loadTemplates();
@@ -470,7 +470,7 @@ function TemplatesTab() {
     if (!confirm("Archive this template?")) return;
 
     try {
-      await api.delete(`/api/v1/sm_templates/${templateId}`);
+      await api.delete(`/api/v1/sm_schedule_master_templates/${templateId}`);
       toast({ title: "Template archived" });
       loadTemplates();
     } catch {
@@ -547,7 +547,7 @@ function TemplatesTab() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant="outline" asChild>
-                    <Link href={`/designer/tables/${template.id}?type=sm_template`}>
+                    <Link href={`/designer/tables/${template.id}?type=sm_schedule_master_template`}>
                       Edit Tasks
                     </Link>
                   </Button>

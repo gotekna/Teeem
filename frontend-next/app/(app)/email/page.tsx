@@ -26,6 +26,8 @@ import {
   ChevronUp,
   Settings2,
   Keyboard,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
@@ -47,6 +49,8 @@ import { useEmailThreads, type ThreadEmail } from "@/hooks/useEmailThreads";
 import { useEmailFilters } from "@/hooks/useEmailFilters";
 import { EmailSearchFilters } from "@/components/emails/EmailSearchFilters";
 import { useEmailState } from "@/components/emails/EmailActions";
+import { useEmailWebSocket } from "@/hooks/useEmailWebSocket";
+import type { EmailListItem as WebSocketEmail } from "@/lib/email-types";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -375,6 +379,99 @@ export default function EmailPage() {
 
   // Thread expansion state
   const threads = useEmailThreads();
+
+  // WebSocket for real-time email updates
+  const handleNewEmail = useCallback((email: WebSocketEmail) => {
+    // Add new email to the top of the list
+    if (viewMode === "split") {
+      // Refresh split inbox to re-categorize the email
+      splitInbox.refresh();
+    } else {
+      // Add to folder view
+      setEmails(prev => [email as unknown as Email, ...prev]);
+      setPagination(prev => ({ ...prev, total: prev.total + 1 }));
+    }
+
+    // Show notification
+    toast({
+      title: "New email",
+      description: `From: ${email.from_name || email.from_email}`,
+    });
+  }, [viewMode, splitInbox, toast]);
+
+  const handleNewEmails = useCallback((emails: WebSocketEmail[], count: number) => {
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    } else {
+      setEmails(prev => [...emails as unknown as Email[], ...prev]);
+      setPagination(prev => ({ ...prev, total: prev.total + count }));
+    }
+
+    toast({
+      title: `${count} new email${count > 1 ? 's' : ''}`,
+      description: "Your inbox has been updated",
+    });
+  }, [viewMode, splitInbox, toast]);
+
+  const handleStateChange = useCallback((emailId: number, changes: Record<string, unknown>) => {
+    // Update email in list
+    setEmails(prev => prev.map(e =>
+      e.id === emailId
+        ? { ...e, ...changes, is_read: changes.is_read !== undefined ? changes.is_read as boolean : e.is_read }
+        : e
+    ));
+
+    // Update in split inbox
+    if (viewMode === "split") {
+      // Force refresh to update categorization if needed
+      if ('is_archived' in changes || 'is_starred' in changes) {
+        splitInbox.refresh();
+      }
+    }
+
+    // Update selected email if it's the one that changed
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail(prev => prev ? { ...prev, ...changes } : null);
+    }
+  }, [viewMode, splitInbox, selectedEmail]);
+
+  const handleEmailDeleted = useCallback((emailId: number) => {
+    setEmails(prev => prev.filter(e => e.id !== emailId));
+    setPagination(prev => ({ ...prev, total: Math.max(0, prev.total - 1) }));
+
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    }
+
+    // Clear selection if deleted email was selected
+    if (selectedEmail?.id === emailId) {
+      setSelectedEmail(null);
+    }
+  }, [viewMode, splitInbox, selectedEmail]);
+
+  const handleSyncStarted = useCallback((syncType: "incremental" | "full") => {
+    setSyncing(true);
+  }, []);
+
+  const handleSyncCompleted = useCallback((stats: { new_count: number; updated_count: number; duration_seconds: number }) => {
+    setSyncing(false);
+    if (stats.new_count > 0) {
+      toast({
+        title: "Sync complete",
+        description: `${stats.new_count} new email${stats.new_count > 1 ? 's' : ''} synced`,
+      });
+    }
+  }, [toast]);
+
+  const { isConnected, isSyncing: wsIsSyncing, newEmailCount } = useEmailWebSocket({
+    onNewEmail: handleNewEmail,
+    onNewEmails: handleNewEmails,
+    onStateChange: handleStateChange,
+    onEmailDeleted: handleEmailDeleted,
+    onSyncStarted: handleSyncStarted,
+    onSyncCompleted: handleSyncCompleted,
+    enabled: true,
+  });
 
   // Get current email list based on view mode
   const currentEmails = useMemo(() => {
@@ -884,6 +981,31 @@ To: ${email.to_emails?.join(", ") || ""}
                 ? splitInbox.counts[splitInbox.selectedCategory] || 0
                 : pagination.total}
             </span>
+            {/* WebSocket connection status */}
+            <div
+              className={cn(
+                "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs",
+                isConnected
+                  ? "text-green-600 dark:text-green-400"
+                  : "text-muted-foreground"
+              )}
+              title={isConnected ? "Real-time updates active" : "Connecting..."}
+            >
+              {isConnected ? (
+                <Wifi className="h-3 w-3" />
+              ) : (
+                <WifiOff className="h-3 w-3" />
+              )}
+              {wsIsSyncing && (
+                <span className="text-[10px]">syncing</span>
+              )}
+            </div>
+            {/* New email count badge */}
+            {newEmailCount > 0 && (
+              <Badge variant="default" className="text-xs px-1.5 py-0 h-5 bg-blue-500">
+                +{newEmailCount}
+              </Badge>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -898,9 +1020,9 @@ To: ${email.to_emails?.join(", ") || ""}
               size="icon"
               className="h-7 w-7"
               onClick={viewMode === "split" ? splitInbox.refresh : handleSync}
-              disabled={syncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
+              disabled={syncing || wsIsSyncing || splitInbox.loading || (viewMode === "folders" && !selectedAccount)}
             >
-              <RefreshCw className={cn("h-3.5 w-3.5", (syncing || splitInbox.loading) && "animate-spin")} />
+              <RefreshCw className={cn("h-3.5 w-3.5", (syncing || wsIsSyncing || splitInbox.loading) && "animate-spin")} />
             </Button>
           </div>
         </div>

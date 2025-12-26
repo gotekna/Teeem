@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder, :summarize ]
 
   # GET /api/v1/email_warehouse
   # List emails from warehouse with filtering
@@ -485,6 +485,51 @@ class Api::V1::EmailWarehouseController < ApplicationController
     else
       # IMAP - Use imap_credentials controller instead
       render json: { error: "Use /api/v1/imap_credentials/:id/move_email for IMAP emails" }, status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/v1/email_warehouse/:id/summarize
+  # Generate AI summary for an email
+  def summarize
+    # Return existing summary if available and not forcing refresh
+    if @email.ai_summary.present? && params[:refresh] != "true"
+      return render json: {
+        success: true,
+        data: {
+          summary: @email.ai_summary,
+          action_items: @email.action_items || [],
+          entities: @email.extracted_entities || {},
+          cached: true
+        }
+      }
+    end
+
+    begin
+      service = EmailSummaryService.new(@email)
+      result = service.summarize!
+
+      render json: {
+        success: true,
+        data: {
+          summary: result[:summary],
+          action_items: result[:action_items] || [],
+          entities: result[:entities] || {},
+          sentiment: result[:sentiment],
+          category: result[:category],
+          cached: false
+        }
+      }
+    rescue EmailSummaryService::AIError => e
+      render json: {
+        success: false,
+        error: e.message
+      }, status: :unprocessable_entity
+    rescue StandardError => e
+      Rails.logger.error "[EmailSummarize] Error: #{e.message}"
+      render json: {
+        success: false,
+        error: "Failed to generate summary"
+      }, status: :internal_server_error
     end
   end
 

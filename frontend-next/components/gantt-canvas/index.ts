@@ -10,7 +10,7 @@ export type {
   GanttTask,
   GanttDependency,
   SmScheduleMaster,
-  SmTemplate,
+  SmScheduleMasterTemplate,
   TaskClickEvent,
   TaskDragEvent,
   DependencyClickEvent,

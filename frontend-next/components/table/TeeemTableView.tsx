@@ -1026,26 +1026,30 @@ export default function TeeemTableView({
         const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, foundationIdNumeric);
         setFoundationColumns(teeemColumns);
 
-        // SSoT VIOLATION WARNING: Alert if parent passed hardcoded columns that differ
+        // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
+        // In development: throw error to force fix
+        // In production: log to console and use Foundation columns (SSoT)
         if (columns && columns.length > 0 && teeemColumns.length > 0) {
           const propKeys = columns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
           const foundationKeys = teeemColumns.filter(c => !['select', 'actions'].includes(c.key)).map(c => c.key);
 
           if (propKeys.length !== foundationKeys.length) {
-            // Find the difference
             const inPropsNotFoundation = propKeys.filter(k => !foundationKeys.includes(k));
             const inFoundationNotProps = foundationKeys.filter(k => !propKeys.includes(k));
 
-            console.warn(
+            const errorMessage =
               `[TeeemTableView] SSoT VIOLATION: columns prop has ${propKeys.length} columns, ` +
-              `but Foundation #${foundationIdNumeric} has ${foundationKeys.length} columns. ` +
-              `Using Foundation columns (SSoT).`
-            );
-            if (inPropsNotFoundation.length > 0) {
-              console.warn(`[TeeemTableView] In PROPS but not Foundation:`, inPropsNotFoundation);
-            }
-            if (inFoundationNotProps.length > 0) {
-              console.warn(`[TeeemTableView] In FOUNDATION but not Props:`, inFoundationNotProps);
+              `but Foundation #${foundationIdNumeric} has ${foundationKeys.length} columns.\n` +
+              `In PROPS but not Foundation: ${inPropsNotFoundation.join(', ') || 'none'}\n` +
+              `In FOUNDATION but not Props: ${inFoundationNotProps.join(', ') || 'none'}\n` +
+              `FIX: Remove the columns prop - TeeemTableView auto-fetches from Foundation API (SSoT)`;
+
+            if (process.env.NODE_ENV === 'development') {
+              // In dev mode, throw error to force immediate fix
+              throw new Error(errorMessage);
+            } else {
+              // In production, log warning and continue with Foundation columns
+              console.error(errorMessage);
             }
           }
         }

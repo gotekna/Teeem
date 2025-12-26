@@ -134,9 +134,9 @@ export interface SmScheduleMaster {
 }
 
 /**
- * Schedule Template from API
+ * Schedule Master Template from API
  */
-export interface SmTemplate {
+export interface SmScheduleMasterTemplate {
   id: number;
   name: string;
   description: string;

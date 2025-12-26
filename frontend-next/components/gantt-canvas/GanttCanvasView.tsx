@@ -781,7 +781,7 @@ export function GanttCanvasView({
       setError(null);
 
       const response = await api.get<ApiResponse>(
-        `/api/v1/sm_templates/${templateId}/rows`
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows`
       );
 
       if (response.success && response.rows) {
@@ -846,7 +846,7 @@ export function GanttCanvasView({
 
       if (isFullyLocked && predecessorData.length > 0) {
         // Task is fully locked - remove dependencies and mark as broken
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${depEditorTask.id}`, {
           row: {
             predecessor_ids: [],
             dependency_broken: true
@@ -854,7 +854,7 @@ export function GanttCanvasView({
         });
       } else {
         // Normal case - save the dependencies
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${depEditorTask.id}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${depEditorTask.id}`, {
           row: {
             predecessor_ids: predecessorData,
             // Clear dependency_broken if we're setting dependencies
@@ -902,7 +902,7 @@ export function GanttCanvasView({
           const predId = p?.id || p;
           return predId !== currentTaskNum && String(predId) !== String(depEditorTask.id);
         });
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successorId}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
           row: { predecessor_ids: newPreds }
         });
       }
@@ -918,7 +918,7 @@ export function GanttCanvasView({
           type: succLink?.type || 'FS',
           lag: succLink?.lag || 0
         }];
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successorId}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
           row: { predecessor_ids: newPreds }
         });
       }
@@ -940,7 +940,7 @@ export function GanttCanvasView({
           }
           return p;
         });
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successorId}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successorId}`, {
           row: { predecessor_ids: newPreds }
         });
       }
@@ -1127,7 +1127,7 @@ export function GanttCanvasView({
       const dateStr = newStartDate.toISOString().split('T')[0];
 
       // Save manual position to API
-      await api.patch(`/api/v1/sm_templates/${currentTemplateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${currentTemplateId}/rows/${task.id}`, {
         row: {
           hold: true,
           hold_date: dateStr
@@ -1206,7 +1206,7 @@ export function GanttCanvasView({
       const updatedPredecessors = [...currentPredecessors, newPredecessor];
 
       // Save to API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${toTaskId}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${toTaskId}`, {
         row: {
           predecessor_ids: updatedPredecessors
         }
@@ -1264,7 +1264,7 @@ export function GanttCanvasView({
       const startStr = newStartDate.toISOString().split('T')[0];
 
       // Save to API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
         row: {
           hold: true,
           hold_date: startStr,
@@ -1315,7 +1315,7 @@ export function GanttCanvasView({
 
     try {
       // Save to API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${taskId}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${taskId}`, {
         row: { duration_days: newDuration }
       });
 
@@ -1359,7 +1359,7 @@ export function GanttCanvasView({
 
     try {
       // Clear manual position via API
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
         row: {
           hold: false,
           hold_date: null
@@ -1410,7 +1410,7 @@ export function GanttCanvasView({
       // Restore to previous state via API
       const startStr = previousState.manualStartDate || previousState.startDate.toISOString().split('T')[0];
 
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
         row: {
           hold: previousState.manuallyPositioned,
           hold_date: previousState.manuallyPositioned ? startStr : null,
@@ -1482,7 +1482,7 @@ export function GanttCanvasView({
         );
 
         // Update the completed task
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: true,
             completed_at: today,
@@ -1495,7 +1495,7 @@ export function GanttCanvasView({
         // Remove completed task from all successors' predecessor_ids
         for (const successor of successors) {
           const newPredIds = (successor.predecessor_ids || []).filter(p => p.id !== taskTaskNumber);
-          await api.patch(`/api/v1/sm_templates/${templateId}/rows/${successor.id}`, {
+          await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${successor.id}`, {
             row: { predecessor_ids: newPredIds }
           });
         }
@@ -1523,7 +1523,7 @@ export function GanttCanvasView({
         }));
       } else {
         // Uncomplete - restore predecessors, clear hold, rejoin schedule
-        await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+        await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
           row: {
             is_completed: false,
             completed_at: null,
@@ -1584,7 +1584,7 @@ export function GanttCanvasView({
         updateData.hold_date = currentDateStr;
       }
 
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
         row: updateData
       });
 
@@ -1649,7 +1649,7 @@ export function GanttCanvasView({
         updateData.hold_date = currentDateStr;
       }
 
-      await api.patch(`/api/v1/sm_templates/${templateId}/rows/${task.id}`, {
+      await api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${task.id}`, {
         row: updateData
       });
 
@@ -3280,7 +3280,7 @@ export function GanttCanvasView({
                   try {
                     await Promise.all(
                       pendingUpdates.map(update =>
-                        api.patch(`/api/v1/sm_templates/${templateId}/rows/${update.id}`, {
+                        api.patch(`/api/v1/sm_schedule_master_templates/${templateId}/rows/${update.id}`, {
                           row: update.apiPayload
                         })
                       )

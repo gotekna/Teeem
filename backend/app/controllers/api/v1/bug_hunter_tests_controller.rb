@@ -199,9 +199,9 @@ class Api::V1::BugHunterTestsController < ApplicationController
   def run_working_days_test(template_id)
     start_time = Time.now
 
-    # Get the template, or use the default Schedule Master template (SmTemplate is THE ONE - SSoT)
-    template_id = template_id || SmTemplate.default_template.first&.id || 1
-    template = SmTemplate.find_by(id: template_id)
+    # Get the template, or use the default Schedule Master template (SmScheduleMasterTemplate is THE ONE - SSoT)
+    template_id = template_id || SmScheduleMasterTemplate.default_template.first&.id || 1
+    template = SmScheduleMasterTemplate.find_by(id: template_id)
 
     unless template
       return {

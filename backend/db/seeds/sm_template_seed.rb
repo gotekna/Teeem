@@ -3,7 +3,7 @@
 puts "Creating default SM Template..."
 
 # Create default SM Template
-template = SmTemplate.find_or_create_by(name: 'Default SM Schedule') do |t|
+template = SmScheduleMasterTemplate.find_or_create_by(name: 'Default SM Schedule') do |t|
   t.description = 'Standard residential construction schedule template'
   t.is_default = true
 end

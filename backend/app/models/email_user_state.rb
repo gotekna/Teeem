@@ -12,6 +12,9 @@ class EmailUserState < ApplicationRecord
   validates :star_color, inclusion: { in: %w[red orange yellow green blue purple] }, allow_blank: true
   validates :priority, inclusion: { in: %w[high normal low] }, allow_blank: true
 
+  # Callbacks - Real-time sync via ActionCable
+  after_update_commit :broadcast_state_change
+
   # Scopes
   scope :pinned, -> { where(is_pinned: true) }
   scope :starred, -> { where(is_starred: true) }
@@ -170,9 +173,16 @@ class EmailUserState < ApplicationRecord
   # Send reminder notification
   def send_reminder!
     return if reminder_sent
+    return unless email_warehouse.present?
 
-    # TODO: Send notification
-    # NotificationService.notify_email_reminder(self)
+    # Create in-app notification
+    Notification.create!(
+      user: user,
+      notifiable: email_warehouse,
+      notification_type: "email_reminder",
+      title: "Email Reminder",
+      message: "Reminder: #{email_warehouse.subject.to_s.truncate(100)}"
+    )
 
     update!(reminder_sent: true)
   end
@@ -204,5 +214,26 @@ class EmailUserState < ApplicationRecord
       created_at: created_at,
       updated_at: updated_at
     }
+  end
+
+  private
+
+  # Broadcast state change to user via ActionCable
+  def broadcast_state_change
+    # Build changes hash from saved_changes
+    changes = {}
+    relevant_attrs = %w[is_pinned is_starred star_color is_read is_archived priority remind_at notes]
+
+    relevant_attrs.each do |attr|
+      if saved_change_to_attribute?(attr)
+        changes[attr] = send(attr)
+      end
+    end
+
+    return if changes.empty?
+
+    EmailChannel.broadcast_state_change(user, email_warehouse_id, changes)
+  rescue StandardError => e
+    Rails.logger.error "Failed to broadcast email state change: #{e.message}"
   end
 end

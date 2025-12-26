@@ -5,33 +5,33 @@ module Api
     class SmScheduleMasterTemplatesController < ApplicationController
       before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job, :compare_to_job ]
 
-      # GET /api/v1/sm_templates
+      # GET /api/v1/sm_schedule_master_templates
       def index
-        @templates = SmTemplate.active.ordered
+        @templates = SmScheduleMasterTemplate.active.ordered
 
         render json: {
           success: true,
-          sm_templates: @templates.map { |t| template_json(t) }
+          sm_schedule_master_templates: @templates.map { |t| template_json(t) }
         }
       end
 
-      # GET /api/v1/sm_templates/:id
+      # GET /api/v1/sm_schedule_master_templates/:id
       def show
         render json: {
           success: true,
-          sm_template: template_json(@template, include_rows: true)
+          sm_schedule_master_template: template_json(@template, include_rows: true)
         }
       end
 
-      # POST /api/v1/sm_templates
+      # POST /api/v1/sm_schedule_master_templates
       def create
-        @template = SmTemplate.new(template_params)
+        @template = SmScheduleMasterTemplate.new(template_params)
         @template.created_by = current_user
 
         if @template.save
           render json: {
             success: true,
-            sm_template: template_json(@template)
+            sm_schedule_master_template: template_json(@template)
           }, status: :created
         else
           render json: {
@@ -41,14 +41,14 @@ module Api
         end
       end
 
-      # PATCH /api/v1/sm_templates/:id
+      # PATCH /api/v1/sm_schedule_master_templates/:id
       def update
         @template.updated_by = current_user
 
         if @template.update(template_params)
           render json: {
             success: true,
-            sm_template: template_json(@template)
+            sm_schedule_master_template: template_json(@template)
           }
         else
           render json: {
@@ -58,7 +58,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/sm_templates/:id
+      # DELETE /api/v1/sm_schedule_master_templates/:id
       def destroy
         # Soft delete by marking inactive
         @template.update!(is_active: false, updated_by: current_user)
@@ -66,10 +66,10 @@ module Api
         render json: { success: true, message: "Template archived" }
       end
 
-      # POST /api/v1/sm_templates/:id/duplicate
+      # POST /api/v1/sm_schedule_master_templates/:id/duplicate
       # Creates a copy of the template with all its rows
       def duplicate
-        new_template = SmTemplate.new(
+        new_template = SmScheduleMasterTemplate.new(
           name: "#{@template.name} (Copy)",
           description: @template.description,
           is_default: false,
@@ -87,7 +87,7 @@ module Api
 
           render json: {
             success: true,
-            sm_template: template_json(new_template),
+            sm_schedule_master_template: template_json(new_template),
             message: "Template duplicated successfully"
           }, status: :created
         else
@@ -98,17 +98,17 @@ module Api
         end
       end
 
-      # POST /api/v1/sm_templates/:id/set_default
+      # POST /api/v1/sm_schedule_master_templates/:id/set_default
       def set_default
         @template.update!(is_default: true)
 
         render json: {
           success: true,
-          sm_template: template_json(@template)
+          sm_schedule_master_template: template_json(@template)
         }
       end
 
-      # POST /api/v1/sm_templates/:id/copy_to_job
+      # POST /api/v1/sm_schedule_master_templates/:id/copy_to_job
       # Copies the template to a job, creating SmTask records
       #
       # Params:
@@ -119,7 +119,7 @@ module Api
       def copy_to_job
         job = Job.find(params[:job_id])
 
-        result = SmTemplateCopyService.new(@template, job, {
+        result = SmScheduleMasterTemplateCopyService.new(@template, job, {
           start_date: params[:start_date],
           user: current_user,
           clear_existing: params[:clear_existing] == true || params[:clear_existing] == "true"
@@ -147,7 +147,7 @@ module Api
         }, status: :not_found
       end
 
-      # POST /api/v1/sm_templates/:id/sync_to_job
+      # POST /api/v1/sm_schedule_master_templates/:id/sync_to_job
       # Syncs template changes to an existing job's tasks
       # - Skips tasks with "job reality" (started, completed, confirmed, etc.)
       # - Only updates safe fields (name, description, trade, etc.)
@@ -185,7 +185,7 @@ module Api
         }, status: :not_found
       end
 
-      # GET /api/v1/sm_templates/:id/compare_to_job
+      # GET /api/v1/sm_schedule_master_templates/:id/compare_to_job
       # Compares template rows with a job's tasks to show differences
       #
       # Params:
@@ -223,14 +223,14 @@ module Api
         }, status: :not_found
       end
 
-      # GET /api/v1/sm_templates/default
+      # GET /api/v1/sm_schedule_master_templates/default
       def default
-        @template = SmTemplate.active.default_template.first
+        @template = SmScheduleMasterTemplate.active.default_template.first
 
         if @template
           render json: {
             success: true,
-            sm_template: template_json(@template, include_rows: true)
+            sm_schedule_master_template: template_json(@template, include_rows: true)
           }
         else
           render json: {
@@ -243,11 +243,11 @@ module Api
       private
 
       def set_template
-        @template = SmTemplate.find(params[:id])
+        @template = SmScheduleMasterTemplate.find(params[:id])
       end
 
       def template_params
-        params.require(:sm_template).permit(:name, :description, :is_default)
+        params.require(:sm_schedule_master_template).permit(:name, :description, :is_default)
       end
 
       def template_json(template, include_rows: false)

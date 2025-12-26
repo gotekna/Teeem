@@ -6,7 +6,7 @@ module Api
       before_action :set_template
       before_action :set_row, only: [ :show, :update, :destroy, :move ]
 
-      # GET /api/v1/sm_templates/:sm_template_id/rows
+      # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
       def index
         # Sort by sequence_order - dependencies drive scheduling, calculated client-side
         @rows = @template.sm_schedule_master_rows.active
@@ -18,7 +18,7 @@ module Api
         }
       end
 
-      # GET /api/v1/sm_templates/:sm_template_id/rows/:id
+      # GET /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/:id
       def show
         render json: {
           success: true,
@@ -26,7 +26,7 @@ module Api
         }
       end
 
-      # POST /api/v1/sm_templates/:sm_template_id/rows
+      # POST /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows
       def create
         @row = SmScheduleMaster.new(row_params)
         @row.sm_template_ids = [@template.id]  # Add to this template
@@ -51,7 +51,7 @@ module Api
         end
       end
 
-      # PATCH /api/v1/sm_templates/:sm_template_id/rows/:id
+      # PATCH /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/:id
       def update
         @row.updated_by = current_user
 
@@ -74,7 +74,7 @@ module Api
         end
       end
 
-      # DELETE /api/v1/sm_templates/:sm_template_id/rows/:id
+      # DELETE /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/:id
       def destroy
         # Soft delete
         @row.update!(is_active: false, updated_by: current_user)
@@ -82,7 +82,7 @@ module Api
         render json: { success: true, message: "Row deleted" }
       end
 
-      # POST /api/v1/sm_templates/:sm_template_id/rows/:id/move
+      # POST /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/:id/move
       def move
         new_position = params[:position].to_f
 
@@ -98,7 +98,7 @@ module Api
         }
       end
 
-      # POST /api/v1/sm_templates/:sm_template_id/rows/bulk_create
+      # POST /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/bulk_create
       def bulk_create
         rows_data = params[:rows] || []
         created_rows = []
@@ -131,7 +131,7 @@ module Api
         end
       end
 
-      # POST /api/v1/sm_templates/:sm_template_id/rows/reorder
+      # POST /api/v1/sm_schedule_master_templates/:sm_schedule_master_template_id/rows/reorder
       def reorder
         positions = params[:positions] || [] # [{ id: 1, sequence_order: 1.0 }, ...]
 
@@ -151,7 +151,7 @@ module Api
       private
 
       def set_template
-        @template = SmTemplate.find(params[:sm_template_id])
+        @template = SmScheduleMasterTemplate.find(params[:sm_schedule_master_template_id])
       end
 
       def set_row

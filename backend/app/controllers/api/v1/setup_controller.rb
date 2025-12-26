@@ -23,7 +23,7 @@ module Api
               users: User.count,
               documentation_categories: DocumentationCategory.count,
               supervisor_checklist_templates: SupervisorChecklistTemplate.count,
-              sm_templates: SmTemplate.count,
+              sm_schedule_master_templates: SmScheduleMasterTemplate.count,
               sm_schedule_master: SmScheduleMaster.count
             }
           }

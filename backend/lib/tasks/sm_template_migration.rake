@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 namespace :sm do
-  desc "Migrate ScheduleTemplate data to SmTemplate (SSoT consolidation)"
+  desc "Migrate ScheduleTemplate data to SmScheduleMasterTemplate (SSoT consolidation)"
   task migrate_templates: :environment do
     puts "=" * 60
     puts "SM Template Migration"
@@ -10,15 +10,15 @@ namespace :sm do
 
     # Check current state
     old_count = ScheduleTemplate.count
-    new_count = SmTemplate.count
+    new_count = SmScheduleMasterTemplate.count
     old_row_count = ScheduleTemplateRow.count
-    new_row_count = SmTemplateRow.count
+    new_row_count = SmScheduleMasterTemplateRow.count
 
     puts "Current State:"
     puts "  ScheduleTemplates: #{old_count}"
-    puts "  SmTemplates: #{new_count}"
+    puts "  SmScheduleMasterTemplates: #{new_count}"
     puts "  ScheduleTemplateRows: #{old_row_count}"
-    puts "  SmTemplateRows: #{new_row_count}"
+    puts "  SmScheduleMasterTemplateRows: #{new_row_count}"
     puts ""
 
     if old_count == 0
@@ -27,7 +27,7 @@ namespace :sm do
     end
 
     if new_count > 0
-      puts "WARNING: SmTemplates already exist. Migration may have already run."
+      puts "WARNING: SmScheduleMasterTemplates already exist. Migration may have already run."
       print "Continue anyway? (y/N): "
       response = STDIN.gets&.strip&.downcase
       unless response == "y"
@@ -48,8 +48,8 @@ namespace :sm do
       ScheduleTemplate.find_each do |old_template|
         puts "Migrating: #{old_template.name}"
 
-        # Create new SmTemplate
-        new_template = SmTemplate.new(
+        # Create new SmScheduleMasterTemplate
+        new_template = SmScheduleMasterTemplate.new(
           name: old_template.name,
           description: old_template.description,
           is_default: old_template.is_default,
@@ -74,7 +74,7 @@ namespace :sm do
           # If auto-PO but no supplier, disable auto-PO (data fix)
           auto_po = old_row.create_po_on_job_start && old_row.supplier_id.present?
 
-          new_row = SmTemplateRow.new(
+          new_row = SmScheduleMasterTemplateRow.new(
             sm_template_id: new_template.id,
             name: old_row.name,
             task_number: index + 1,
@@ -161,20 +161,20 @@ namespace :sm do
     puts "  Templates: #{ScheduleTemplate.count}"
     puts "  Rows: #{ScheduleTemplateRow.count}"
     puts ""
-    puts "NEW System (SmTemplate):"
-    puts "  Templates: #{SmTemplate.count}"
-    puts "  Rows: #{SmTemplateRow.count}"
+    puts "NEW System (SmScheduleMasterTemplate):"
+    puts "  Templates: #{SmScheduleMasterTemplate.count}"
+    puts "  Rows: #{SmScheduleMasterTemplateRow.count}"
     puts ""
 
-    if SmTemplate.count > 0 && ScheduleTemplate.count > 0
+    if SmScheduleMasterTemplate.count > 0 && ScheduleTemplate.count > 0
       puts "Status: DUAL SYSTEM (migration in progress)"
       puts ""
       puts "Recommendations:"
-      puts "  1. Verify SmTemplate data is correct"
-      puts "  2. Update frontend to use SmTemplate API"
+      puts "  1. Verify SmScheduleMasterTemplate data is correct"
+      puts "  2. Update frontend to use SmScheduleMasterTemplate API"
       puts "  3. Run sm:deprecate_old_templates when ready"
-    elsif SmTemplate.count > 0
-      puts "Status: MIGRATED (SmTemplate is SSoT)"
+    elsif SmScheduleMasterTemplate.count > 0
+      puts "Status: MIGRATED (SmScheduleMasterTemplate is SSoT)"
     else
       puts "Status: NOT MIGRATED (ScheduleTemplate is active)"
       puts ""

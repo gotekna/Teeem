@@ -2008,7 +2008,7 @@ module Api
             # Whitelist valid model classes to prevent RCE via constantize
             valid_models = %w[
               Job Contact Supplier Case Invoice Quote Estimate Task
-              SmTask SmTemplate Foundation Record CorporateCompanyDocument
+              SmTask SmScheduleMasterTemplate Foundation Record CorporateCompanyDocument
               PayNowRequest FinancialTransaction User PricebookItem
               Column FoundationView WhsIncident WhsInspection WhsInduction
             ]

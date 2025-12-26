@@ -123,8 +123,8 @@ class SmScheduleMaster < ApplicationRecord
   # Multi-template management methods
 
   # Get all templates this row belongs to
-  def sm_templates
-    SmTemplate.where(id: sm_template_ids)
+  def sm_schedule_master_templates
+    SmScheduleMasterTemplate.where(id: sm_template_ids)
   end
 
   # Check if row belongs to a specific template
@@ -146,7 +146,7 @@ class SmScheduleMaster < ApplicationRecord
 
   # Get the first template (for backwards compatibility)
   def primary_template
-    SmTemplate.find_by(id: sm_template_ids&.first)
+    SmScheduleMasterTemplate.find_by(id: sm_template_ids&.first)
   end
 
   # Format predecessors as "2FS+3, 5SS" etc

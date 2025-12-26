@@ -328,6 +328,13 @@ email_snooze_wakeup:
   queue: default
   schedule: every 1 minute
 
+# Process email reminders that are due
+# Runs every minute for responsive reminder experience
+email_reminders:
+  class: EmailReminderJob
+  queue: default
+  schedule: every 1 minute
+
 # ============================================
 # FOUNDATION SYSTEM HEALTH
 # ============================================
@@ -383,3 +390,17 @@ sm_rollover:
   class: SmRolloverJob
   queue: critical
   schedule: at midnight every day
+
+# ============================================
+# SSOT COMPLIANCE
+# ============================================
+
+# Weekly Gold Standard compliance audit
+# Runs Monday 6am Brisbane time (start of week)
+# - Checks all columns match current type definition versions
+# - Logs compliance score to system
+# - Alerts if score drops below threshold
+gold_standard_compliance_check:
+  class: GoldStandardComplianceCheckJob
+  queue: low
+  schedule: at 6am on Monday

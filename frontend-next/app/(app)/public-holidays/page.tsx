@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { PlusIcon } from "@heroicons/react/24/outline";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,17 +20,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
+import TeeemTableView from "@/components/table/TeeemTableView";
+import type { TableRow as TeeemTableRow } from "@/components/table/types";
 
 // Types
 interface PublicHoliday {

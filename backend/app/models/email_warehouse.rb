@@ -33,6 +33,10 @@ class EmailWarehouse < ApplicationRecord
   # Validations
   validates :internet_message_id, presence: true, uniqueness: true
 
+  # Callbacks - Real-time sync via ActionCable
+  after_create_commit :broadcast_new_email
+  after_destroy_commit :broadcast_email_deleted
+
   # Scopes
   scope :unassigned, -> { where(job_id: nil) }
   scope :assigned, -> { where.not(job_id: nil) }
@@ -498,5 +502,23 @@ class EmailWarehouse < ApplicationRecord
 
   def update_thread_latest_flags
     self.class.update_latest_flags_for_conversation(conversation_id)
+  end
+
+  # Broadcast new email to the owner via ActionCable
+  def broadcast_new_email
+    return unless ssot_owner_id.present?
+
+    EmailChannel.broadcast_new_email(ssot_owner, self)
+  rescue StandardError => e
+    Rails.logger.error "Failed to broadcast new email: #{e.message}"
+  end
+
+  # Broadcast email deletion to the owner via ActionCable
+  def broadcast_email_deleted
+    return unless ssot_owner_id.present?
+
+    EmailChannel.broadcast_email_deleted(ssot_owner, id)
+  rescue StandardError => e
+    Rails.logger.error "Failed to broadcast email deletion: #{e.message}"
   end
 end

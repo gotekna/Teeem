@@ -874,6 +874,7 @@ Rails.application.routes.draw do
           post :mark_as_spam
           delete :delete_from_outlook
           post :move_to_folder
+          post :summarize
         end
       end
 
@@ -1214,8 +1215,8 @@ Rails.application.routes.draw do
         end
       end
 
-      # SM Templates (Schedule Master templates for SM Gantt)
-      resources :sm_templates, controller: "sm_schedule_master_templates", only: [ :index, :show, :create, :update, :destroy ] do
+      # SM Schedule Master Templates (Schedule Master templates for SM Gantt)
+      resources :sm_schedule_master_templates, only: [ :index, :show, :create, :update, :destroy ] do
         member do
           post :set_default
           post :copy_to_job

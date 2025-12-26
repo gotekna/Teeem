@@ -7,7 +7,7 @@
 #
 class SmSetting < ApplicationRecord
   # Note: default_template_id column removed in Phase 6 Tier 2
-  # Default template is now determined by SmTemplate.default_template scope
+  # Default template is now determined by SmScheduleMasterTemplate.default_template scope
 
   # Singleton pattern - always use instance method
   def self.instance

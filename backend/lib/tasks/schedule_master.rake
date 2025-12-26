@@ -13,7 +13,7 @@ namespace :schedule_master do
       exit 1
     end
 
-    template = SmTemplate.find_by(id: template_id)
+    template = SmScheduleMasterTemplate.find_by(id: template_id)
     unless template
       puts "Template not found: #{template_id}"
       exit 1
@@ -116,7 +116,7 @@ namespace :schedule_master do
   desc "Show Schedule Master template summary"
   task :summary, [:template_id] => :environment do |_t, args|
     template_id = args[:template_id]&.to_i || 7
-    template = SmTemplate.find_by(id: template_id)
+    template = SmScheduleMasterTemplate.find_by(id: template_id)
 
     unless template
       puts "Template not found: #{template_id}"

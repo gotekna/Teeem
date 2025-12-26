@@ -959,15 +959,15 @@ module Api
       end
 
       def instantiate_schedule_template(template_id)
-        # Use SmTemplate (THE ONE template system - SSoT)
-        template = SmTemplate.find_by(id: template_id)
+        # Use SmScheduleMasterTemplate (THE ONE template system - SSoT)
+        template = SmScheduleMasterTemplate.find_by(id: template_id)
         unless template
           Rails.logger.warn("Template #{template_id} not found for job #{@job.id}")
           return { success: false, error: "Template not found" }
         end
 
-        # Use SmTemplateCopyService (THE ONE template copy service - SSoT)
-        result = SmTemplateCopyService.new(template, @job, {
+        # Use SmScheduleMasterTemplateCopyService (THE ONE template copy service - SSoT)
+        result = SmScheduleMasterTemplateCopyService.new(template, @job, {
           start_date: Date.current,
           user: current_user
         }).execute

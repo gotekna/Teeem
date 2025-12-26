@@ -160,8 +160,16 @@ class EmailSnooze < ApplicationRecord
       woken_at: Time.current
     )
 
-    # TODO: Send notification to user that snoozed email is back
-    # NotificationService.notify_snooze_wakeup(self)
+    # Create in-app notification for wakeup
+    if email_warehouse.present?
+      Notification.create!(
+        user: user,
+        notifiable: email_warehouse,
+        notification_type: "email_snooze_wakeup",
+        title: "Snoozed Email",
+        message: "Back from snooze: #{email_warehouse.subject.to_s.truncate(100)}"
+      )
+    end
 
     true
   end

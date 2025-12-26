@@ -28,7 +28,7 @@ export type {
   GanttState,
   ViewportState,
   SmScheduleMaster,
-  SmTemplate,
+  SmScheduleMasterTemplate,
   TaskStatus,
   LockType,
   HoldReason,

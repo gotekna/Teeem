@@ -62,6 +62,12 @@ const eslintConfig = defineConfig([
   // Warn when importing deprecated components - use THE ONE instead
   // See: frontend-next/lib/component-registry.ts for the full list
   // ==========================================================================
+  //
+  // TODO: Custom ESLint Rule for TeeemTableView
+  // Currently enforced via runtime error in development mode (TeeemTableView.tsx)
+  // Ideal: Custom rule to detect `<TeeemTableView columns={...} foundationIdNumeric={...} />`
+  // and error: "SSoT VIOLATION: Remove columns prop when foundationIdNumeric is set"
+  //
   {
     rules: {
       "no-restricted-imports": ["warn", {

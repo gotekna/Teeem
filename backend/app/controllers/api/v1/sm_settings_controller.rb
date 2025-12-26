@@ -56,8 +56,8 @@ module Api
       end
 
       def settings_to_json(settings)
-        # Get default template from SmTemplate (THE ONE template system - SSoT)
-        default_template = SmTemplate.default_template.first
+        # Get default template from SmScheduleMasterTemplate (THE ONE template system - SSoT)
+        default_template = SmScheduleMasterTemplate.default_template.first
 
         {
           id: settings.id,
@@ -79,8 +79,8 @@ module Api
       end
 
       def available_templates
-        # Use SmTemplate (THE ONE template system - SSoT)
-        SmTemplate.order(:name).pluck(:id, :name).map do |id, name|
+        # Use SmScheduleMasterTemplate (THE ONE template system - SSoT)
+        SmScheduleMasterTemplate.order(:name).pluck(:id, :name).map do |id, name|
           { id: id, name: name }
         end
       end

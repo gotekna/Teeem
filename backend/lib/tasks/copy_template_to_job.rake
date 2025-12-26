@@ -7,7 +7,7 @@ namespace :template do
     template_id = args[:template_id].to_i
 
     job = Job.find(job_id)
-    template = SmTemplate.find(template_id)
+    template = SmScheduleMasterTemplate.find(template_id)
     user = User.first
     start_date = Date.current
 
@@ -19,7 +19,7 @@ namespace :template do
     puts "Cleared #{existing_count} existing tasks"
 
     # Get template rows
-    rows = SmTemplateRow.where("sm_template_ids @> ?", [template.id].to_json)
+    rows = SmScheduleMaster.where("sm_template_ids @> ?", [template.id].to_json)
                         .where(is_active: true)
                         .order(:sequence_order)
                         .to_a

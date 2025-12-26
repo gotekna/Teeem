@@ -7,7 +7,7 @@ namespace :sm_template_rows do
     puts "=" * 60
 
     # Step 1: Find all ts_identifiers that have duplicates
-    duplicate_ts_ids = SmTemplateRow
+    duplicate_ts_ids = SmScheduleMaster
       .where.not(ts_identifier: nil)
       .group(:ts_identifier)
       .having("COUNT(*) > 1")
@@ -20,7 +20,7 @@ namespace :sm_template_rows do
     deleted_count = 0
 
     duplicate_ts_ids.each do |ts_id|
-      rows = SmTemplateRow.where(ts_identifier: ts_id).order(:id).to_a
+      rows = SmScheduleMaster.where(ts_identifier: ts_id).order(:id).to_a
       keeper = rows.first
       duplicates = rows[1..]
 
@@ -42,7 +42,7 @@ namespace :sm_template_rows do
     puts "=" * 60
 
     # Step 3: For rows without ts_identifier, ensure sm_template_ids is set
-    rows_without_ts = SmTemplateRow.where(ts_identifier: nil)
+    rows_without_ts = SmScheduleMaster.where(ts_identifier: nil)
     rows_without_ts.find_each do |row|
       if row.sm_template_ids.blank? && row.sm_template_id.present?
         row.update_column(:sm_template_ids, [row.sm_template_id])
@@ -59,7 +59,7 @@ namespace :sm_template_rows do
 
     begin
       updated_count = 0
-      SmTemplateRow.where.not(ts_identifier: nil).find_each do |row|
+      SmScheduleMaster.where.not(ts_identifier: nil).find_each do |row|
         next if row.id == row.ts_identifier
 
         row.update_column(:id, row.ts_identifier)
@@ -74,7 +74,7 @@ namespace :sm_template_rows do
     end
 
     # Step 5: Reset the sequence
-    max_id = SmTemplateRow.maximum(:id) || 0
+    max_id = SmScheduleMaster.maximum(:id) || 0
     ActiveRecord::Base.connection.execute(
       "SELECT setval('sm_template_rows_id_seq', #{max_id})"
     )
@@ -83,10 +83,10 @@ namespace :sm_template_rows do
     # Final stats
     puts "=" * 60
     puts "Migration complete!"
-    puts "Total rows: #{SmTemplateRow.count}"
-    puts "Rows with ts_identifier: #{SmTemplateRow.where.not(ts_identifier: nil).count}"
-    puts "Rows without ts_identifier: #{SmTemplateRow.where(ts_identifier: nil).count}"
-    puts "ID range: #{SmTemplateRow.minimum(:id)} - #{SmTemplateRow.maximum(:id)}"
+    puts "Total rows: #{SmScheduleMaster.count}"
+    puts "Rows with ts_identifier: #{SmScheduleMaster.where.not(ts_identifier: nil).count}"
+    puts "Rows without ts_identifier: #{SmScheduleMaster.where(ts_identifier: nil).count}"
+    puts "ID range: #{SmScheduleMaster.minimum(:id)} - #{SmScheduleMaster.maximum(:id)}"
   end
 
   desc "Verify multi-template migration was successful"
@@ -97,7 +97,7 @@ namespace :sm_template_rows do
     errors = []
 
     # Check 1: No duplicate ts_identifiers
-    dup_count = SmTemplateRow
+    dup_count = SmScheduleMaster
       .where.not(ts_identifier: nil)
       .group(:ts_identifier)
       .having("COUNT(*) > 1")
@@ -111,7 +111,7 @@ namespace :sm_template_rows do
     end
 
     # Check 2: ID = ts_identifier for all rows with ts_identifier
-    mismatch = SmTemplateRow
+    mismatch = SmScheduleMaster
       .where.not(ts_identifier: nil)
       .where("id != ts_identifier")
       .count
@@ -123,7 +123,7 @@ namespace :sm_template_rows do
     end
 
     # Check 3: All rows have sm_template_ids populated
-    empty_template_ids = SmTemplateRow.where("sm_template_ids = '[]'::jsonb OR sm_template_ids IS NULL").count
+    empty_template_ids = SmScheduleMaster.where("sm_template_ids = '[]'::jsonb OR sm_template_ids IS NULL").count
     if empty_template_ids > 0
       errors << "Found #{empty_template_ids} rows with empty sm_template_ids!"
     else
@@ -133,7 +133,7 @@ namespace :sm_template_rows do
     # Check 4: Template row counts
     puts "\nTemplate row counts:"
     [6, 7, 9].each do |template_id|
-      count = SmTemplateRow.where("sm_template_ids @> ?", [template_id].to_json).count
+      count = SmScheduleMaster.where("sm_template_ids @> ?", [template_id].to_json).count
       puts "  Template #{template_id}: #{count} rows"
     end
 
