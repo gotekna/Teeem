@@ -35,6 +35,8 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
   onToggleRead?: () => Promise<void>;
   /** Open snooze picker handler */
   onSnooze?: () => void;
+  /** Open move to folder menu */
+  onMove?: () => void;
   /** Reply action handler */
   onReply?: () => void;
   /** Compose new email handler */
@@ -70,6 +72,7 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
  * - !: Mark as spam
  * - u: Toggle read/unread
  * - b: Snooze
+ * - m: Move to folder
  * - r: Reply
  * - c: Compose
  * - Escape: Clear selection (if any) or deselect
@@ -87,6 +90,7 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
   onSpam,
   onToggleRead,
   onSnooze,
+  onMove,
   onReply,
   onCompose,
   onShowHelp,
@@ -267,6 +271,14 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
           }
           break;
 
+        // Move to folder (m)
+        case "m":
+          if (selectedEmail && onMove) {
+            e.preventDefault();
+            onMove();
+          }
+          break;
+
         case "r":
           if (selectedEmail && onReply) {
             e.preventDefault();
@@ -321,6 +333,7 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
       onSpam,
       onToggleRead,
       onSnooze,
+      onMove,
       onReply,
       onCompose,
       onShowHelp,

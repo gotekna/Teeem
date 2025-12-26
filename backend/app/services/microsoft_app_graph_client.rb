@@ -190,6 +190,19 @@ class MicrosoftAppGraphClient
     response["value"] || []
   end
 
+  # Move an email to a different folder
+  # Returns the moved message with its new ID
+  def move_user_email(user_identifier, message_id, destination_folder_id)
+    endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/move"
+
+    response = post(endpoint, { destinationId: destination_folder_id })
+    {
+      id: response["id"],
+      new_folder_id: response["parentFolderId"],
+      subject: response["subject"]
+    }
+  end
+
   # ==========================================
   # Sync helpers
   # ==========================================

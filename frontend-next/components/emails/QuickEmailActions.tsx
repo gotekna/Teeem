@@ -10,7 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Archive, Trash2, Clock, Mail, MailOpen, AlertOctagon } from "lucide-react";
+import { Archive, Trash2, Clock, Mail, MailOpen, AlertOctagon, FolderInput } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -20,12 +20,13 @@ interface QuickEmailActionsProps {
   isArchived?: boolean;
   onAction?: () => void;
   onSnooze?: () => void;
+  onMove?: () => void;
   className?: string;
 }
 
 /**
  * Quick action buttons that appear on hover over email list items
- * Actions: Archive, Delete, Snooze, Mark Read/Unread
+ * Actions: Archive, Delete, Snooze, Move, Mark Read/Unread
  */
 export function QuickEmailActions({
   emailId,
@@ -33,6 +34,7 @@ export function QuickEmailActions({
   isArchived = false,
   onAction,
   onSnooze,
+  onMove,
   className,
 }: QuickEmailActionsProps) {
   const [loading, setLoading] = useState<string | null>(null);
@@ -79,6 +81,11 @@ export function QuickEmailActions({
   const handleSnooze = (e: React.MouseEvent) => {
     e.stopPropagation();
     onSnooze?.();
+  };
+
+  const handleMove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMove?.();
   };
 
   const handleSpam = async (e: React.MouseEvent) => {
@@ -162,6 +169,24 @@ export function QuickEmailActions({
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">
             Snooze (b)
+          </TooltipContent>
+        </Tooltip>
+
+        {/* Move to folder */}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 hover:bg-primary/10"
+              onClick={handleMove}
+              disabled={loading !== null}
+            >
+              <FolderInput className="h-3.5 w-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="text-xs">
+            Move to folder (m)
           </TooltipContent>
         </Tooltip>
 

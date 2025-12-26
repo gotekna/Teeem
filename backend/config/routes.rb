@@ -873,6 +873,7 @@ Rails.application.routes.draw do
           post :unassign
           post :mark_as_spam
           delete :delete_from_outlook
+          post :move_to_folder
         end
       end
 

@@ -201,15 +201,34 @@ module Api
           :supplier, purchase_order: :supplier
         )
 
+        # Build visibility map for po_required logic
+        # A task is invisible if po_required=true AND no PO is linked
+        invisible_task_ids = Set.new
+        task_by_id = {}
+        tasks.each do |task|
+          task_by_id[task.id] = task
+          po_required = task.po_required || false
+          has_po = task.purchase_order_id.present?
+          invisible_task_ids.add(task.id) if po_required && !has_po
+        end
+
+        # Rewire dependencies to skip invisible tasks
+        # If A → B → C and B is invisible, create A → C with combined lag
+        rewired_dependencies = rewire_dependencies_around_invisible(tasks, invisible_task_ids, task_by_id)
+
+        # Filter out invisible tasks from the task list
+        visible_tasks = tasks.reject { |t| invisible_task_ids.include?(t.id) }
+
         render json: {
           success: true,
           gantt_data: {
-            tasks: tasks.map { |task| task_to_gantt_format(task) },
-            dependencies: tasks.flat_map { |task| dependencies_to_gantt_format(task) }
+            tasks: visible_tasks.map { |task| task_to_gantt_format(task) },
+            dependencies: rewired_dependencies
           },
           meta: {
             construction_id: @job.id,
-            task_count: tasks.count,
+            task_count: visible_tasks.count,
+            invisible_count: invisible_task_ids.size,
             settings: SmSetting.instance.slice(:rollover_time, :rollover_timezone, :rollover_enabled)
           }
         }
@@ -743,6 +762,11 @@ module Api
       end
 
       def task_to_gantt_format(task)
+        # po_required visibility: task is visible if po_required=false OR has a PO linked
+        po_required = task.po_required || false
+        has_po = task.purchase_order_id.present?
+        is_visible = !po_required || has_po
+
         json = {
           id: task.id,
           task_number: task.task_number,
@@ -761,7 +785,10 @@ module Api
           # PO-Task One Entity integration
           purchase_order_id: task.purchase_order_id,
           supplier_id: task.supplier_id,
-          supplier_name: task.supplier&.name
+          supplier_name: task.supplier&.name,
+          # po_required visibility - invisible tasks are skipped in dependencies
+          po_required: po_required,
+          is_visible: is_visible
         }
 
         # Include PO details when linked (One Entity concept)
@@ -789,6 +816,92 @@ module Api
             lag: dep.lag_days
           }
         end
+      end
+
+      # Rewire dependencies to skip invisible tasks (po_required without PO)
+      # If A → B → C and B is invisible, create A → C with combined lag
+      # Uses BFS to find the visible predecessors/successors through invisible chains
+      def rewire_dependencies_around_invisible(tasks, invisible_task_ids, task_by_id)
+        return tasks.flat_map { |t| dependencies_to_gantt_format(t) } if invisible_task_ids.empty?
+
+        # Build adjacency maps
+        # predecessor_map: task_id -> [{ predecessor_id, type, lag }]
+        # successor_map: task_id -> [{ successor_id, type, lag }]
+        predecessor_map = Hash.new { |h, k| h[k] = [] }
+        successor_map = Hash.new { |h, k| h[k] = [] }
+
+        tasks.each do |task|
+          task.active_predecessor_dependencies.each do |dep|
+            predecessor_map[task.id] << {
+              id: dep.predecessor_task_id,
+              type: dep.dependency_type,
+              lag: dep.lag_days || 0
+            }
+            successor_map[dep.predecessor_task_id] << {
+              id: task.id,
+              type: dep.dependency_type,
+              lag: dep.lag_days || 0
+            }
+          end
+        end
+
+        # For each visible task, trace back through invisible predecessors to find visible ones
+        rewired = []
+        seen_pairs = Set.new
+
+        tasks.each do |task|
+          next if invisible_task_ids.include?(task.id)
+
+          # BFS to find all visible predecessors (skipping invisible ones)
+          visible_predecessors = find_visible_predecessors(
+            task.id, predecessor_map, invisible_task_ids
+          )
+
+          visible_predecessors.each do |pred_info|
+            pair_key = "#{pred_info[:id]}-#{task.id}"
+            next if seen_pairs.include?(pair_key)
+            seen_pairs.add(pair_key)
+
+            rewired << {
+              id: "rewired-#{pair_key}",
+              source: pred_info[:id],
+              target: task.id,
+              type: pred_info[:type],
+              lag: pred_info[:lag]
+            }
+          end
+        end
+
+        rewired
+      end
+
+      # BFS to find visible predecessors through invisible chains
+      # Accumulates lag through the chain
+      def find_visible_predecessors(task_id, predecessor_map, invisible_task_ids)
+        result = []
+        queue = predecessor_map[task_id].map { |p| p.dup }
+
+        while queue.any?
+          current = queue.shift
+          pred_id = current[:id]
+
+          if invisible_task_ids.include?(pred_id)
+            # This predecessor is invisible - trace through to its predecessors
+            predecessor_map[pred_id].each do |grandpred|
+              # Accumulate lag and inherit dependency type from the first link
+              queue << {
+                id: grandpred[:id],
+                type: current[:type], # Keep original dependency type
+                lag: current[:lag] + grandpred[:lag]
+              }
+            end
+          else
+            # This predecessor is visible - add to results
+            result << current
+          end
+        end
+
+        result
       end
     end
   end

@@ -68,6 +68,9 @@ import CustomerPortalTab from "@/components/financial/CustomerPortalTab";
 import POInvoiceMatchingTab from "@/components/financial/POInvoiceMatchingTab";
 import BankRulesLearningTab from "@/components/financial/BankRulesLearningTab";
 import ProgressBillingTab from "@/components/financial/ProgressBillingTab";
+import BankFeedsTab from "@/components/financial/BankFeedsTab";
+import BASLodgementTab from "@/components/financial/BASLodgementTab";
+import ABNLookupTab from "@/components/financial/ABNLookupTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -655,6 +658,18 @@ export default function GlPage() {
             <Percent className="h-4 w-4" />
             Progress Billing
           </TabsTrigger>
+          <TabsTrigger value="bank-feeds" className="flex items-center gap-2">
+            <Landmark className="h-4 w-4" />
+            Bank Feeds
+          </TabsTrigger>
+          <TabsTrigger value="bas-lodgement" className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            BAS Lodgement
+          </TabsTrigger>
+          <TabsTrigger value="abn-lookup" className="flex items-center gap-2">
+            <Building2 className="h-4 w-4" />
+            ABN Lookup
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1051,6 +1066,21 @@ export default function GlPage() {
         {/* Progress Billing Tab */}
         <TabsContent value="progress-billing">
           <ProgressBillingTab />
+        </TabsContent>
+
+        {/* Bank Feeds Tab */}
+        <TabsContent value="bank-feeds">
+          <BankFeedsTab />
+        </TabsContent>
+
+        {/* BAS Lodgement Tab */}
+        <TabsContent value="bas-lodgement">
+          <BASLodgementTab />
+        </TabsContent>
+
+        {/* ABN Lookup Tab */}
+        <TabsContent value="abn-lookup">
+          <ABNLookupTab />
         </TabsContent>
       </Tabs>
 

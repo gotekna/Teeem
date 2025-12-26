@@ -1,5 +1,5 @@
 class Api::V1::EmailWarehouseController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :delete_from_outlook, :move_to_folder ]
 
   # GET /api/v1/email_warehouse
   # List emails from warehouse with filtering
@@ -397,6 +397,61 @@ class Api::V1::EmailWarehouseController < ApplicationController
       }
     else
       render json: { error: "Failed to delete email from Outlook" }, status: :unprocessable_entity
+    end
+  end
+
+  # POST /api/v1/email_warehouse/:id/move_to_folder
+  # Move email to a different folder (Outlook/MS365)
+  def move_to_folder
+    folder_id = params[:folder_id]
+    folder_name = params[:folder_name]
+
+    unless folder_id.present? || folder_name.present?
+      return render json: { error: "folder_id or folder_name required" }, status: :unprocessable_entity
+    end
+
+    # Determine which service to use based on source type
+    if @email.source_type == "outlook" && @email.outlook_id.present?
+      unless current_user.outlook_credential&.valid_credential?
+        return render json: { error: "Outlook not connected" }, status: :unprocessable_entity
+      end
+
+      outlook_service = OutlookService.new(current_user)
+      result = outlook_service.move_email(@email.outlook_id, folder_id)
+
+      if result
+        @email.update!(folder_name: folder_name || folder_id)
+        render json: {
+          success: true,
+          message: "Email moved to #{folder_name || folder_id}",
+          email: email_json(@email)
+        }
+      else
+        render json: { error: "Failed to move email" }, status: :unprocessable_entity
+      end
+    elsif @email.microsoft_credential_id.present? && @email.outlook_id.present?
+      # MS365 app credential
+      org_cred = OrganizationMicrosoftAppCredential.find_by(id: @email.microsoft_credential_id)
+      unless org_cred&.connected?
+        return render json: { error: "MS365 organization not connected" }, status: :unprocessable_entity
+      end
+
+      graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
+      result = graph_client.move_user_email(@email.mailbox_owner_email, @email.outlook_id, folder_id)
+
+      if result
+        @email.update!(folder_name: folder_name || folder_id)
+        render json: {
+          success: true,
+          message: "Email moved to #{folder_name || folder_id}",
+          email: email_json(@email)
+        }
+      else
+        render json: { error: "Failed to move email" }, status: :unprocessable_entity
+      end
+    else
+      # IMAP - Use imap_credentials controller instead
+      render json: { error: "Use /api/v1/imap_credentials/:id/move_email for IMAP emails" }, status: :unprocessable_entity
     end
   end
 

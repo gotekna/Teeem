@@ -68,3 +68,10 @@ export { ThreadCountBadge } from "./ThreadCountBadge";
 
 // Search
 export { EmailSearchFilters } from "./EmailSearchFilters";
+
+// Quick Actions
+export { QuickEmailActions } from "./QuickEmailActions";
+
+// Folder Management
+export { MoveToFolderMenu, type EmailFolder } from "./MoveToFolderMenu";
+export { CreateFolderDialog, DeleteFolderDialog } from "./FolderManagementDialog";

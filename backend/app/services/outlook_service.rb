@@ -157,6 +157,21 @@ class OutlookService
     end
   end
 
+  # Move an email to a different folder
+  def move_email(message_id, destination_folder_id)
+    url = "#{GRAPH_API_BASE}/me/messages/#{message_id}/move"
+    body = { destinationId: destination_folder_id }
+    response = make_request(url, :post, body.to_json)
+
+    if response.is_a?(Net::HTTPSuccess) || response.is_a?(Net::HTTPCreated)
+      Rails.logger.info "Moved email #{message_id} to folder #{destination_folder_id}"
+      true
+    else
+      Rails.logger.error "Failed to move Outlook email: #{response.code} - #{response.body}"
+      false
+    end
+  end
+
   # Send an email via Microsoft Graph API
   def send_email(to:, subject:, body:, cc: [], bcc: [], attachments: [])
     url = "#{GRAPH_API_BASE}/me/sendMail"

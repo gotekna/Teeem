@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { useUndoSend } from "@/hooks/useUndoSend";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -105,6 +106,9 @@ export function ComposeEmailModal({
   const [isScheduled, setIsScheduled] = useState(false);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [scheduledTime, setScheduledTime] = useState("09:00");
+
+  // Undo send hook
+  const { queueSend } = useUndoSend();
 
   // Search contacts by name/email
   const searchContacts = async (search: string) => {
@@ -286,28 +290,17 @@ export function ComposeEmailModal({
 
         await api.post("/api/v1/imap_credentials/schedule_email", payload);
       } else {
-        // Send immediately (existing logic)
-        const formPayload = new FormData();
-        formPayload.append("credential_id", formData.credential_id);
-        formPayload.append("to", formData.to);
-        formPayload.append("subject", formData.subject);
-        formPayload.append("body", formData.body);
-
-        if (formData.cc) {
-          formPayload.append("cc", formData.cc);
-        }
-        if (formData.bcc) {
-          formPayload.append("bcc", formData.bcc);
-        }
-        if (replyToMessageId) {
-          formPayload.append("reply_to_message_id", replyToMessageId);
-        }
-
-        attachments.forEach((file) => {
-          formPayload.append("attachments[]", file);
+        // Queue with undo capability (5 second delay)
+        queueSend({
+          credential_id: formData.credential_id,
+          to: formData.to,
+          cc: formData.cc || undefined,
+          bcc: formData.bcc || undefined,
+          subject: formData.subject,
+          body: formData.body,
+          reply_to_message_id: replyToMessageId,
+          attachments: attachments,
         });
-
-        await api.postFormData("/api/v1/imap_credentials/send_email", formPayload);
       }
 
       onOpenChange(false);

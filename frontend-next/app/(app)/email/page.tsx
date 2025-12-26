@@ -357,7 +357,7 @@ export default function EmailPage() {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; messageId?: string; fromAccountId?: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<{ to: string; subject: string; body?: string; messageId?: string; fromAccountId?: string } | null>(null);
   const [isPending, startTransition] = useTransition();
 
   // Split Inbox State
@@ -443,6 +443,12 @@ export default function EmailPage() {
   const handleKeyboardReply = useCallback(() => {
     if (selectedEmail) {
       handleReply(selectedEmail);
+    }
+  }, [selectedEmail]);
+
+  const handleKeyboardForward = useCallback(() => {
+    if (selectedEmail) {
+      handleForward(selectedEmail);
     }
   }, [selectedEmail]);
 
@@ -707,6 +713,27 @@ export default function EmailPage() {
 
   const handleCompose = () => {
     setReplyTo(null);
+    setComposeOpen(true);
+  };
+
+  const handleForward = (email: Email) => {
+    // Build forwarded message header
+    const forwardHeader = `---------- Forwarded message ----------
+From: ${email.from_email || email.from_address}
+Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
+Subject: ${email.subject}
+To: ${email.to_emails?.join(", ") || ""}
+
+`;
+    // Use text_body for plain text forwarding (html will be stripped)
+    const originalBody = email.text_body || email.html_body || "";
+
+    setReplyTo({
+      to: "", // Forward to new recipient
+      subject: email.subject?.startsWith("Fwd:") ? email.subject : `Fwd: ${email.subject}`,
+      body: forwardHeader + originalBody,
+      fromAccountId: selectedAccount,
+    });
     setComposeOpen(true);
   };
 
@@ -1066,6 +1093,9 @@ export default function EmailPage() {
                     {format(new Date(selectedEmail.received_at), "PPpp")}
                   </p>
                   <div className="flex items-center gap-2 mt-2 justify-end">
+                    <Button size="sm" variant="outline" onClick={() => handleForward(selectedEmail)}>
+                      Forward
+                    </Button>
                     <Button size="sm" onClick={() => handleReply(selectedEmail)}>
                       Reply
                     </Button>
@@ -1117,6 +1147,7 @@ export default function EmailPage() {
         onOpenChange={setComposeOpen}
         defaultTo={replyTo?.to || ""}
         defaultSubject={replyTo?.subject || ""}
+        defaultBody={replyTo?.body || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
         onSent={() => {
           fetchEmails();
