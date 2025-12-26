@@ -931,6 +931,7 @@ Rails.application.routes.draw do
           post "for_email/:email_id/toggle_pin", action: :toggle_pin
           post "for_email/:email_id/toggle_star", action: :toggle_star
           post "for_email/:email_id/toggle_archive", action: :toggle_archive
+          post "for_email/:email_id/toggle_read", action: :toggle_read
           post "for_email/:email_id/set_reminder", action: :set_reminder
           delete "for_email/:email_id/clear_reminder", action: :clear_reminder
         end

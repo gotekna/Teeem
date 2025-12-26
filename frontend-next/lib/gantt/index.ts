@@ -27,7 +27,8 @@ export type {
   GanttColors,
   GanttState,
   ViewportState,
-  SmTemplateRow,
+  SmScheduleMaster,
+  SmTemplateRow, // @deprecated - Use SmScheduleMaster instead. Will be removed in Phase 7.
   SmTemplate,
   TaskStatus,
   LockType,

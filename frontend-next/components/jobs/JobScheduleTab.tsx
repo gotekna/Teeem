@@ -20,7 +20,7 @@ interface SmTask {
   duration_days?: number;
   supplier?: { id: number; display_name: string };
   supplier_name?: string;
-  sm_template_row_id?: number;
+  sm_schedule_master_id?: number;
   purchase_order_id?: number;
   purchase_order_number?: string;
 }

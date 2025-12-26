@@ -37,6 +37,10 @@ import {
   BellOff,
   MoreHorizontal,
   Check,
+  Trash2,
+  AlertOctagon,
+  Mail,
+  MailOpen,
 } from "lucide-react";
 
 // Types
@@ -97,6 +101,19 @@ async function checkVipStatus(emailAddress: string): Promise<{ is_vip: boolean }
 async function toggleVip(emailAddress: string, name?: string): Promise<{ is_vip: boolean }> {
   const response = await api.post<{ data: { is_vip: boolean } }>("/api/v1/vip_senders/toggle", { email_address: emailAddress, name });
   return (response as { data: { is_vip: boolean } }).data;
+}
+
+async function deleteEmail(emailId: number): Promise<void> {
+  await api.delete(`/api/v1/email_warehouse/${emailId}/delete_from_outlook`);
+}
+
+async function markAsSpam(emailId: number, deleteFromOutlook: boolean = false): Promise<void> {
+  await api.post(`/api/v1/email_warehouse/${emailId}/mark_as_spam`, { delete_from_outlook: deleteFromOutlook });
+}
+
+async function toggleRead(emailId: number): Promise<EmailUserState> {
+  const response = await api.post<{ data: EmailUserState }>(`/api/v1/email_user_states/for_email/${emailId}/toggle_read`);
+  return (response as { data: EmailUserState }).data;
 }
 
 // Pin Button Component
@@ -411,6 +428,160 @@ export function VipBadge({ className }: { className?: string }) {
       <Crown className="h-3 w-3 fill-current" />
       VIP
     </Badge>
+  );
+}
+
+// Delete Button Component
+interface DeleteButtonProps {
+  emailId: number;
+  onDelete?: () => void;
+  size?: "sm" | "md";
+}
+
+export function DeleteButton({ emailId, onDelete, size = "md" }: DeleteButtonProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      await deleteEmail(emailId);
+      onDelete?.();
+    } catch (error) {
+      console.error("Failed to delete email:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const buttonSize = size === "sm" ? "h-7 w-7" : "h-8 w-8";
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(buttonSize, "hover:text-red-500 hover:bg-red-500/10")}
+            onClick={handleDelete}
+            disabled={loading}
+          >
+            {loading ? (
+              <Spinner className={iconSize} />
+            ) : (
+              <Trash2 className={iconSize} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Delete</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+// Spam Button Component
+interface SpamButtonProps {
+  emailId: number;
+  onSpam?: () => void;
+  size?: "sm" | "md";
+}
+
+export function SpamButton({ emailId, onSpam, size = "md" }: SpamButtonProps) {
+  const [loading, setLoading] = useState(false);
+
+  const handleSpam = async () => {
+    setLoading(true);
+    try {
+      await markAsSpam(emailId, true); // Also delete from Outlook
+      onSpam?.();
+    } catch (error) {
+      console.error("Failed to mark as spam:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const buttonSize = size === "sm" ? "h-7 w-7" : "h-8 w-8";
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(buttonSize, "hover:text-orange-500 hover:bg-orange-500/10")}
+            onClick={handleSpam}
+            disabled={loading}
+          >
+            {loading ? (
+              <Spinner className={iconSize} />
+            ) : (
+              <AlertOctagon className={iconSize} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Mark as Spam</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+// Mark Read/Unread Button Component
+interface MarkReadButtonProps {
+  emailId: number;
+  isRead?: boolean;
+  onToggle?: (isRead: boolean) => void;
+  size?: "sm" | "md";
+}
+
+export function MarkReadButton({ emailId, isRead: initialRead, onToggle, size = "md" }: MarkReadButtonProps) {
+  const [isRead, setIsRead] = useState(initialRead ?? false);
+  const [loading, setLoading] = useState(false);
+
+  const handleToggle = async () => {
+    setLoading(true);
+    try {
+      const result = await toggleRead(emailId);
+      setIsRead(result.is_read);
+      onToggle?.(result.is_read);
+    } catch (error) {
+      console.error("Failed to toggle read status:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const iconSize = size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4";
+  const buttonSize = size === "sm" ? "h-7 w-7" : "h-8 w-8";
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={buttonSize}
+            onClick={handleToggle}
+            disabled={loading}
+          >
+            {loading ? (
+              <Spinner className={iconSize} />
+            ) : isRead ? (
+              <Mail className={iconSize} />
+            ) : (
+              <MailOpen className={iconSize} />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {isRead ? "Mark as Unread" : "Mark as Read"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

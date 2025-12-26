@@ -294,11 +294,11 @@ export interface GanttCanvasProps {
 // ============================================================================
 
 /**
- * Extended SmTemplateRow with downstream successor info for cascade dialogs
+ * Extended SmScheduleMaster with downstream successor info for cascade dialogs
  */
-export interface SuccessorInfo extends SmTemplateRow {
+export interface SuccessorInfo extends SmScheduleMaster {
   downstreamCount: number;
-  downstreamTasks: SmTemplateRow[];
+  downstreamTasks: SmScheduleMaster[];
   lockedDownstreamCount: number;
   hasMoreDownstream: boolean;
 }
@@ -457,12 +457,12 @@ export function skipToNextWorkingDay(date: Date): Date {
 }
 
 /**
- * Convert SmTemplateRow to GanttTask
+ * Convert SmScheduleMaster to GanttTask
  * Calculates dates based on sequence order and duration
  * Skips weekends and Australian public holidays
  */
 export function convertRowToTask(
-  row: SmTemplateRow,
+  row: SmScheduleMaster,
   projectStartDate: Date,
   taskDateMap?: Map<number, { start: Date; end: Date }>
 ): GanttTask {
@@ -547,10 +547,10 @@ export function convertRowToTask(
 }
 
 /**
- * Convert SmTemplateRows to GanttTasks with calculated dates
+ * Convert SmScheduleMaster records to GanttTasks with calculated dates
  */
 export function convertRowsToTasks(
-  rows: SmTemplateRow[],
+  rows: SmScheduleMaster[],
   projectStartDate: Date
 ): GanttTask[] {
   // First pass: create date map based on sequence order
@@ -657,7 +657,7 @@ export function convertRowsToTasks(
 /**
  * Convert predecessor data to GanttDependencies
  */
-export function convertToDependencies(rows: SmTemplateRow[]): GanttDependency[] {
+export function convertToDependencies(rows: SmScheduleMaster[]): GanttDependency[] {
   const dependencies: GanttDependency[] = [];
 
   // Build lookup: task_number -> row.id (for converting predecessor references)

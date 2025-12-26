@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Api::V1::EmailUserStatesController < ApplicationController
-  before_action :set_email, only: [:show, :update, :toggle_pin, :toggle_star, :toggle_archive, :set_reminder, :clear_reminder]
+  before_action :set_email, only: [:show, :update, :toggle_pin, :toggle_star, :toggle_archive, :toggle_read, :set_reminder, :clear_reminder]
 
   # GET /api/v1/email_user_states
   # List emails with specific states (pinned, starred, archived)
@@ -97,6 +97,17 @@ class Api::V1::EmailUserStatesController < ApplicationController
       success: true,
       data: state.as_json,
       message: state.is_archived ? "Email archived" : "Email unarchived"
+    }
+  end
+
+  # POST /api/v1/email_user_states/for_email/:email_id/toggle_read
+  def toggle_read
+    state = EmailUserState.toggle_read!(@email, current_user)
+
+    render json: {
+      success: true,
+      data: state.as_json,
+      message: state.is_read ? "Marked as read" : "Marked as unread"
     }
   end
 

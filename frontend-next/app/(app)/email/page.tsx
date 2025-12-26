@@ -39,6 +39,7 @@ import {
 import { KeyboardShortcutsHelp } from "@/components/emails/KeyboardShortcutsHelp";
 import { BulkActionBar } from "@/components/emails/BulkActionBar";
 import { ThreadCountBadge } from "@/components/emails/ThreadCountBadge";
+import { QuickEmailActions } from "@/components/emails/QuickEmailActions";
 import { useEmailKeyboardShortcuts } from "@/hooks/useEmailKeyboardShortcuts";
 import { useEmailSelection } from "@/hooks/useEmailSelection";
 import { useEmailBulkActions } from "@/hooks/useEmailBulkActions";
@@ -130,6 +131,8 @@ const EmailListItem = memo(function EmailListItem({
   hasSelections,
   onClick,
   onCheckboxChange,
+  onQuickAction,
+  onSnooze,
   // Thread props
   threadCount = 0,
   isExpanded = false,
@@ -143,6 +146,8 @@ const EmailListItem = memo(function EmailListItem({
   hasSelections: boolean;
   onClick: (email: Email, event: React.MouseEvent) => void;
   onCheckboxChange: (email: Email) => void;
+  onQuickAction?: () => void;
+  onSnooze?: (email: Email) => void;
   // Thread props
   threadCount?: number;
   isExpanded?: boolean;
@@ -231,7 +236,15 @@ const EmailListItem = memo(function EmailListItem({
                 {email.snippet || email.body_preview}
               </p>
             </div>
-            <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0">
+            {/* Quick actions on hover */}
+            <QuickEmailActions
+              emailId={email.id}
+              isRead={email.is_read}
+              onAction={onQuickAction}
+              onSnooze={() => onSnooze?.(email)}
+              className="shrink-0"
+            />
+            <div className="text-[10px] text-muted-foreground whitespace-nowrap shrink-0 group-hover:hidden">
               {formatDistanceToNow(new Date(email.received_at), { addSuffix: true })}
             </div>
           </div>
@@ -930,6 +943,8 @@ export default function EmailPage() {
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
+                    onQuickAction={refresh}
+                    onSnooze={handleSnoozeEmail}
                     threadCount={(email as Email).thread_count || 0}
                     isExpanded={threads.isExpanded((email as Email).conversation_id || '')}
                     onToggleThread={handleToggleThread}
@@ -966,6 +981,8 @@ export default function EmailPage() {
                     hasSelections={selection.hasSelection}
                     onClick={handleEmailRowClick}
                     onCheckboxChange={handleCheckboxChange}
+                    onQuickAction={refresh}
+                    onSnooze={handleSnoozeEmail}
                     threadCount={email.thread_count || 0}
                     isExpanded={threads.isExpanded(email.conversation_id || '')}
                     onToggleThread={handleToggleThread}

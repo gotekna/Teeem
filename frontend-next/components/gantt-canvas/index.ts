@@ -9,7 +9,8 @@ export { GanttCanvasView } from "./GanttCanvasView";
 export type {
   GanttTask,
   GanttDependency,
-  SmTemplateRow,
+  SmScheduleMaster,
+  SmTemplateRow, // @deprecated - Use SmScheduleMaster instead. Will be removed in Phase 7.
   SmTemplate,
   TaskClickEvent,
   TaskDragEvent,

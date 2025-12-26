@@ -62,7 +62,7 @@ interface SmTemplate {
   row_count: number;
 }
 
-interface SmTemplateRow {
+interface SmScheduleMaster {
   id: number;
   task_number: number;
   name: string;
@@ -104,7 +104,7 @@ interface SmTemplateRow {
   tags: string[];
   color: string | null;
   is_active: boolean;
-  // New Schedule Master fields
+  // Schedule Master fields
   auto_include: boolean;
   allow_duplicates: boolean;
   ai_select: boolean;
@@ -119,6 +119,11 @@ interface SmTemplateRow {
   // Multi-template support
   sm_template_ids: number[];
 }
+
+/**
+ * @deprecated Use SmScheduleMaster instead. Will be removed in Phase 7.
+ */
+type SmTemplateRow = SmScheduleMaster;
 
 interface PlanType {
   id: number;
@@ -253,7 +258,7 @@ export default function ScheduleTemplateDetailPage() {
 
   // State
   const [template, setTemplate] = React.useState<SmTemplate | null>(null);
-  const [rows, setRows] = React.useState<SmTemplateRow[]>([]);
+  const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
   const [planTypes, setPlanTypes] = React.useState<PlanType[]>([]);
   const [entityTabs, setEntityTabs] = React.useState<EntityTab[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -261,8 +266,8 @@ export default function ScheduleTemplateDetailPage() {
 
   // Edit dialog state
   const [showEditDialog, setShowEditDialog] = React.useState(false);
-  const [editingRow, setEditingRow] = React.useState<SmTemplateRow | null>(null);
-  const [editForm, setEditForm] = React.useState<Partial<SmTemplateRow>>({});
+  const [editingRow, setEditingRow] = React.useState<SmScheduleMaster | null>(null);
+  const [editForm, setEditForm] = React.useState<Partial<SmScheduleMaster>>({});
 
   // Sync to job state
   const [showSyncDialog, setShowSyncDialog] = React.useState(false);
@@ -285,7 +290,7 @@ export default function ScheduleTemplateDetailPage() {
 
   // Auto-PO configuration state
   const [showAutoPODialog, setShowAutoPODialog] = React.useState(false);
-  const [autoPORow, setAutoPORow] = React.useState<SmTemplateRow | null>(null);
+  const [autoPORow, setAutoPORow] = React.useState<SmScheduleMaster | null>(null);
   const [suppliers, setSuppliers] = React.useState<Supplier[]>([]);
   const [priceHistories, setPriceHistories] = React.useState<PriceHistory[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = React.useState(false);
@@ -302,7 +307,7 @@ export default function ScheduleTemplateDetailPage() {
       // Load template, rows, plan types, and entity tabs in parallel
       const [templateData, rowsData, planTypesData, entityTabsData] = await Promise.all([
         api.get<{ success: boolean; sm_template: SmTemplate }>(`/api/v1/sm_templates/${templateId}`),
-        api.get<{ success: boolean; rows: SmTemplateRow[] }>(`/api/v1/sm_templates/${templateId}/rows`),
+        api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_templates/${templateId}/rows`),
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: { tabs: EntityTab[] } }>("/api/v1/entity_tabs/for_scope/job"),
       ]);
@@ -328,7 +333,7 @@ export default function ScheduleTemplateDetailPage() {
   }, [loadData]);
 
   // Edit row handler
-  const handleEditRow = (row: SmTemplateRow) => {
+  const handleEditRow = (row: SmScheduleMaster) => {
     setEditingRow(row);
     setEditForm({
       name: row.name,
@@ -549,7 +554,7 @@ export default function ScheduleTemplateDetailPage() {
   };
 
   // Open auto-PO configuration dialog
-  const handleOpenAutoPODialog = (row: SmTemplateRow) => {
+  const handleOpenAutoPODialog = (row: SmScheduleMaster) => {
     setAutoPORow(row);
     setSelectedSupplierId(row.po_supplier_id ? String(row.po_supplier_id) : "");
     setSelectedPriceHistoryIds(row.po_price_history_ids || []);

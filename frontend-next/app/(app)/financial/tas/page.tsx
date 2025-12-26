@@ -66,6 +66,7 @@ import LatePaymentPredictionTab from "@/components/financial/LatePaymentPredicti
 import AICategorizationTab from "@/components/financial/AICategorizationTab";
 import CustomerPortalTab from "@/components/financial/CustomerPortalTab";
 import POInvoiceMatchingTab from "@/components/financial/POInvoiceMatchingTab";
+import BankRulesLearningTab from "@/components/financial/BankRulesLearningTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -645,6 +646,10 @@ export default function GlPage() {
             <Link2 className="h-4 w-4" />
             PO Matching
           </TabsTrigger>
+          <TabsTrigger value="bank-rules" className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" />
+            Bank Rules AI
+          </TabsTrigger>
         </TabsList>
 
         {/* All Companies Tab */}
@@ -1031,6 +1036,11 @@ export default function GlPage() {
         {/* PO Invoice Matching Tab */}
         <TabsContent value="po-matching">
           <POInvoiceMatchingTab />
+        </TabsContent>
+
+        {/* Bank Rules Learning Tab */}
+        <TabsContent value="bank-rules">
+          <BankRulesLearningTab />
         </TabsContent>
       </Tabs>
 

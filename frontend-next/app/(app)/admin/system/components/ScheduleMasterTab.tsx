@@ -97,7 +97,7 @@ function CopyableCode({ children }: { children: string }) {
   );
 }
 
-interface SmTemplateRow {
+interface SmScheduleMaster {
   id: number;
   task_number: number;
   name: string;
@@ -120,6 +120,11 @@ interface SmTemplateRow {
   sm_template_ids: number[];
 }
 
+/**
+ * @deprecated Use SmScheduleMaster instead. Will be removed in Phase 7.
+ */
+type SmTemplateRow = SmScheduleMaster;
+
 interface SmTemplate {
   id: number;
   name: string;
@@ -127,7 +132,7 @@ interface SmTemplate {
   is_default: boolean;
   is_active: boolean;
   row_count: number;
-  rows?: SmTemplateRow[];
+  rows?: SmScheduleMaster[];
   created_at: string;
   updated_at: string;
 }
@@ -228,19 +233,19 @@ export function ScheduleMasterTab() {
 
   // Gantt Preview state
   const [ganttTemplateId, setGanttTemplateId] = React.useState<number | null>(null);
-  const [ganttRows, setGanttRows] = React.useState<SmTemplateRow[]>([]);
+  const [ganttRows, setGanttRows] = React.useState<SmScheduleMaster[]>([]);
   const [ganttFullscreen, setGanttFullscreen] = React.useState(true); // Default to fullscreen
 
   // Data View state
   const [dataViewTemplateId, setDataViewTemplateId] = React.useState<number | null>(null);
-  const [dataViewRows, setDataViewRows] = React.useState<SmTemplateRow[]>([]);
+  const [dataViewRows, setDataViewRows] = React.useState<SmScheduleMaster[]>([]);
   const [dataViewLoading, setDataViewLoading] = React.useState(false);
   const [dataViewRefreshKey, setDataViewRefreshKey] = React.useState(0);
 
   // Row Edit Sheet state
   const [showEditSheet, setShowEditSheet] = React.useState(false);
-  const [editingRow, setEditingRow] = React.useState<SmTemplateRow | null>(null);
-  const [editRowForm, setEditRowForm] = React.useState<Partial<SmTemplateRow>>({});
+  const [editingRow, setEditingRow] = React.useState<SmScheduleMaster | null>(null);
+  const [editRowForm, setEditRowForm] = React.useState<Partial<SmScheduleMaster>>({});
   const [savingRow, setSavingRow] = React.useState(false);
 
   // Auto-PO Configuration state
@@ -447,7 +452,7 @@ export function ScheduleMasterTab() {
     }
   };
 
-  const getTotalDuration = (rows: SmTemplateRow[]) => {
+  const getTotalDuration = (rows: SmScheduleMaster[]) => {
     return rows.reduce((sum, row) => sum + row.duration_days, 0);
   };
 
@@ -460,7 +465,7 @@ export function ScheduleMasterTab() {
     }
     setDataViewLoading(true);
     try {
-      const data = await api.get<{ success: boolean; rows: SmTemplateRow[] }>(
+      const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
         `/api/v1/sm_templates/${templateId}/rows`
       );
       setDataViewRows(data.rows || []);
@@ -690,7 +695,7 @@ export function ScheduleMasterTab() {
     setGanttTemplateId(templateId);
     setLoadingRows(templateId);
     try {
-      const data = await api.get<{ success: boolean; rows: SmTemplateRow[] }>(
+      const data = await api.get<{ success: boolean; rows: SmScheduleMaster[] }>(
         `/api/v1/sm_templates/${templateId}/rows`
       );
       setGanttRows(data.rows || []);

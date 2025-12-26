@@ -165,9 +165,9 @@ Configurable dropdown for hold reasons.
 | `sm_working_drawing_pages` | AI document categorization |
 | `sm_settings` | System configuration |
 | `sm_templates` | Schedule templates |
-| `sm_template_rows` | Template task definitions |
+| `sm_schedule_master` | Template task definitions (formerly sm_template_rows) |
 
-#### sm_template_rows - Template Configuration Columns
+#### sm_schedule_master - Template Configuration Columns
 
 | Column | Type | Default | Purpose |
 |--------|------|---------|---------|
@@ -250,7 +250,7 @@ Located in `frontend-next/components/ui/gantt/`:
 - SmTaskPhoto, SmSiteCheckin, SmVoiceNote
 - SmActivity, SmComment, SmCommentMention
 - SmNotificationSetting, SmSetting
-- SmTemplate, SmTemplateRow
+- SmTemplate, SmScheduleMaster
 
 ### 3.4 What's Working
 

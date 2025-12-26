@@ -123,7 +123,7 @@ interface SmTask {
   name: string;
   task_number: number;
   sequence_order: number;
-  sm_template_row_id: number;
+  sm_schedule_master_id: number;
   start_date?: string; // SSoT: Used to auto-populate PO required_date
 }
 

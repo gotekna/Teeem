@@ -4,7 +4,7 @@
  * GanttCanvasView - React Wrapper for Canvas Gantt Engine
  *
  * High-performance canvas-based Gantt chart component.
- * Connects to the sm_template_rows API and renders tasks using the Canvas engine.
+ * Connects to the sm_schedule_master API and renders tasks using the Canvas engine.
  *
  * Part of the 3-Year Schedule Master Masterpiece Plan.
  */
@@ -16,7 +16,7 @@ import {
   convertRowsToTasks,
   convertToDependencies,
   countWorkingDays,
-  type SmTemplateRow,
+  type SmScheduleMaster,
   type GanttTask,
   type TaskClickEvent,
   type TaskDragEvent,
@@ -131,7 +131,7 @@ interface GanttCanvasViewProps {
 
 interface ApiResponse {
   success: boolean;
-  rows: SmTemplateRow[];
+  rows: SmScheduleMaster[];
 }
 
 /** Column configuration for sidebar table */
@@ -264,7 +264,7 @@ export function GanttCanvasView({
   // State
   const [loading, setLoading] = React.useState(!isStaticMode);
   const [error, setError] = React.useState<string | null>(null);
-  const [rows, setRows] = React.useState<SmTemplateRow[]>([]);
+  const [rows, setRows] = React.useState<SmScheduleMaster[]>([]);
   const [showSidebar, setShowSidebar] = React.useState(true);
   const [tasks, setTasks] = React.useState<GanttTask[]>([]);
   const [internalFullscreen, setInternalFullscreen] = React.useState(false);
@@ -289,7 +289,7 @@ export function GanttCanvasView({
     type: 'confirm' | 'supplierConfirm';
     task: GanttTask | null;
     isChecking: boolean; // true = turning ON, false = turning OFF
-    affectedSuccessors: SmTemplateRow[];
+    affectedSuccessors: SmScheduleMaster[];
   }>({
     isOpen: false,
     type: 'confirm',
@@ -303,7 +303,7 @@ export function GanttCanvasView({
     isOpen: boolean;
     task: GanttTask | null;
     newStartDate: Date | null;
-    successors: SmTemplateRow[];
+    successors: SmScheduleMaster[];
     lockedSuccessors: SuccessorInfo[]; // successors with confirm/supplier_confirm + downstream info
     unlockedSuccessors: SuccessorInfo[]; // successors that can cascade + downstream info
   }>({
@@ -383,7 +383,7 @@ export function GanttCanvasView({
   }, [tasks, rows, collapsedHeaders, showOnlyGrouped]);
 
   // Check if a row is a header (header === 'Header')
-  const isHeaderRow = React.useCallback((row: SmTemplateRow | undefined) => {
+  const isHeaderRow = React.useCallback((row: SmScheduleMaster | undefined) => {
     return row?.header === 'Header';
   }, []);
 
@@ -1558,7 +1558,7 @@ export function GanttCanvasView({
   }, [templateId, isStaticMode, rows, toast]);
 
   // Find all successors of a task (tasks that have this task as a predecessor)
-  const findSuccessors = React.useCallback((taskTaskNumber: string): SmTemplateRow[] => {
+  const findSuccessors = React.useCallback((taskTaskNumber: string): SmScheduleMaster[] => {
     return rows.filter(r =>
       r.predecessor_ids?.some(p => String(p.id) === taskTaskNumber)
     );
@@ -2487,12 +2487,12 @@ export function GanttCanvasView({
                       case 'dependencies':
                         // SSoT FIX: Use STABLE row numbers from full task list (rows)
                         // NOT visibleTasks which changes when headers collapse
-                        // rows is SmTemplateRow[] with task_number directly (not in rowData)
+                        // rows is SmScheduleMaster[] with task_number directly (not in rowData)
                         const predecessorIds = task.rowData?.predecessor_ids || [];
                         const depDisplay = predecessorIds.length > 0
                           ? predecessorIds.map((pred: { id: number; type?: string; lag?: number }) => {
                               // Find the predecessor task by task_number in FULL rows list
-                              // Note: rows is SmTemplateRow[] so use t.task_number directly
+                              // Note: rows is SmScheduleMaster[] so use t.task_number directly
                               const predRowIndex = rows.findIndex(t => t.task_number === pred.id);
                               // Get stable row number (1-based index in FULL task list)
                               const stableRowNum = predRowIndex >= 0 ? predRowIndex + 1 : pred.id;

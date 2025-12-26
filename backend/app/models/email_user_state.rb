@@ -103,6 +103,13 @@ class EmailUserState < ApplicationRecord
     state
   end
 
+  # Toggle read status
+  def self.toggle_read!(email, user)
+    state = self.for(email, user)
+    state.update!(is_read: !state.is_read)
+    state
+  end
+
   # Set priority
   def self.set_priority!(email, user, priority)
     state = self.for(email, user)

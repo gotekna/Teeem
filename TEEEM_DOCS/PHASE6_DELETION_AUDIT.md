@@ -42,7 +42,7 @@
 - `sm_task.rb` - Removed deprecated `template_row` association
 - `sm_setting.rb` - Removed `default_template` association
 - `sm_settings_controller.rb` - Updated to use SmTemplate
-- `sm_tasks_controller.rb` - Updated to use SmTemplateRow
+- `sm_tasks_controller.rb` - Updated to use SmScheduleMaster
 - `jobs_controller.rb` - Updated to use SmTemplateCopyService
 - `setup_controller.rb` - Removed sync_schedule_templates method
 - `user.rb` - Removed `schedule_template_row_audits` association
@@ -157,7 +157,7 @@ All task functionality now uses the SmTask ecosystem:
 | `ScheduleTask` | `SmTask` |
 | `TaskDependency` | `SmDependency` |
 | `ScheduleTemplate` | `SmTemplate` |
-| `ScheduleTemplateRow` | `SmTemplateRow` |
+| `ScheduleTemplateRow` | `SmScheduleMaster` |
 | `schedule_cascade_service.rb` | `SmCascadeService` |
 | `schedule/task_spawner.rb` | `SmTaskCompletionService` |
 | `schedule/template_instantiator.rb` | `SmTemplateCopyService` |

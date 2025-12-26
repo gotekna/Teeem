@@ -27,6 +27,14 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
   onPin?: () => Promise<void>;
   /** VIP toggle handler */
   onVip?: () => Promise<void>;
+  /** Delete action handler */
+  onDelete?: () => Promise<void>;
+  /** Mark as spam handler */
+  onSpam?: () => Promise<void>;
+  /** Toggle read/unread handler */
+  onToggleRead?: () => Promise<void>;
+  /** Open snooze picker handler */
+  onSnooze?: () => void;
   /** Reply action handler */
   onReply?: () => void;
   /** Compose new email handler */
@@ -58,6 +66,10 @@ export interface UseEmailKeyboardShortcutsProps<T extends BaseEmail> {
  * - s: Star
  * - p: Pin
  * - v: Toggle VIP
+ * - d/#: Delete
+ * - !: Mark as spam
+ * - u: Toggle read/unread
+ * - b: Snooze
  * - r: Reply
  * - c: Compose
  * - Escape: Clear selection (if any) or deselect
@@ -71,6 +83,10 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
   onStar,
   onPin,
   onVip,
+  onDelete,
+  onSpam,
+  onToggleRead,
+  onSnooze,
   onReply,
   onCompose,
   onShowHelp,
@@ -218,6 +234,39 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
           }
           break;
 
+        // Delete (d or #)
+        case "d":
+        case "#":
+          if (selectedEmail && onDelete) {
+            e.preventDefault();
+            handleAction(onDelete);
+          }
+          break;
+
+        // Spam (!)
+        case "!":
+          if (selectedEmail && onSpam) {
+            e.preventDefault();
+            handleAction(onSpam);
+          }
+          break;
+
+        // Toggle read/unread (u)
+        case "u":
+          if (selectedEmail && onToggleRead) {
+            e.preventDefault();
+            handleAction(onToggleRead);
+          }
+          break;
+
+        // Snooze (b)
+        case "b":
+          if (selectedEmail && onSnooze) {
+            e.preventDefault();
+            onSnooze();
+          }
+          break;
+
         case "r":
           if (selectedEmail && onReply) {
             e.preventDefault();
@@ -268,6 +317,10 @@ export function useEmailKeyboardShortcuts<T extends BaseEmail>({
       onStar,
       onPin,
       onVip,
+      onDelete,
+      onSpam,
+      onToggleRead,
+      onSnooze,
       onReply,
       onCompose,
       onShowHelp,
