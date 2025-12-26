@@ -87,29 +87,61 @@ class SystemSetting < ApplicationRecord
     # For backwards compatibility, update CorporateCompanySetting
     setting = CorporateCompanySetting.instance
 
-    # Extract template parts from full paths (if provided as full paths)
+    # Extract base path and template parts from full paths
     if templates[:company]
-      template_part = extract_template_suffix(templates[:company])
-      setting.sharepoint_company_template = template_part if template_part
+      base_path, template_part = extract_path_parts(templates[:company])
+      setting.sharepoint_company_path = base_path if base_path.present?
+      setting.sharepoint_company_template = template_part if template_part.present?
     end
     if templates[:job]
-      template_part = extract_template_suffix(templates[:job])
-      setting.sharepoint_job_template = template_part if template_part
+      base_path, template_part = extract_path_parts(templates[:job])
+      setting.sharepoint_jobs_path = base_path if base_path.present?
+      setting.sharepoint_job_template = template_part if template_part.present?
     end
     if templates[:people]
-      template_part = extract_template_suffix(templates[:people])
-      setting.sharepoint_people_template = template_part if template_part
+      base_path, template_part = extract_path_parts(templates[:people])
+      setting.sharepoint_people_path = base_path if base_path.present?
+      setting.sharepoint_people_template = template_part if template_part.present?
     end
 
     setting.save!
   end
 
-  # Helper to extract template suffix from a full path
-  def self.extract_template_suffix(full_path)
-    # Try to extract the placeholder part
-    if full_path =~ /(\{\{[^}]+\}\}.*)/
-      return $1
+  # Helper to extract base path and template from a full path
+  # e.g., "/Jobs/{{JobCode}}/{{Category}}" => ["Jobs", "{{JobCode}}/{{Category}}"]
+  def self.extract_path_parts(full_path)
+    return [nil, nil] if full_path.blank?
+
+    # Find the index of the first placeholder
+    placeholder_index = full_path.index('{{')
+    if placeholder_index
+      # Find the last slash before the first placeholder
+      base_portion = full_path[0...placeholder_index]
+      last_slash = base_portion.rindex('/')
+
+      if last_slash
+        base_path = full_path[0...last_slash]
+        template_part = full_path[(last_slash + 1)..]
+      else
+        # No slash before placeholder - entire string is template
+        base_path = nil
+        template_part = full_path
+      end
+
+      # Remove leading slash for storage (CorporateCompanySetting stores relative paths)
+      base_path = base_path.sub(/^\//, '') if base_path.present?
+      base_path = nil if base_path.blank?
+
+      return [base_path, template_part]
     end
-    nil
+
+    # No placeholders found - treat whole thing as base path
+    [full_path.sub(/^\//, ''), nil]
+  end
+
+  # DEPRECATED: Kept for backwards compatibility
+  def self.extract_template_suffix(full_path)
+    _, template = extract_path_parts(full_path)
+    template
   end
 end

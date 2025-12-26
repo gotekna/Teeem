@@ -25,6 +25,10 @@ export interface EntityTab {
   has_sharepoint_folder: boolean;
   sharepoint_folder_path: string | null;
   full_sharepoint_path: string | null;
+  // SSoT: Template inheritance fields
+  uses_custom_path: boolean;
+  effective_sharepoint_path: string | null;
+  inherited_template: string | null;
   hierarchy_path: string;
   document_count: number;
   can_delete: boolean;
@@ -70,6 +74,7 @@ export interface EntityTabCreateParams {
   component_name?: string;
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
+  uses_custom_path?: boolean;  // SSoT: Template inheritance flag
   document_type_ids?: number[];  // SSoT: Link document types to this tab
 }
 
@@ -86,6 +91,7 @@ export interface EntityTabUpdateParams {
   component_name?: string;
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
+  uses_custom_path?: boolean;  // SSoT: Template inheritance flag
   document_type_ids?: number[];  // SSoT: Link document types to this tab
 }
 

@@ -64,6 +64,12 @@ class User < ApplicationRecord
     role == "builder"
   end
 
+  # Get user initials from name (e.g., "Robert Harder" -> "RH")
+  def initials
+    return "" if name.blank?
+    name.split.map { |n| n[0] }.join.upcase[0..2]
+  end
+
   # SSoT: God View access (internal staff sees everything)
   # God View users see all entities in all groups they have access to
   def god_view?

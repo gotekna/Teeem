@@ -388,6 +388,7 @@ export function EntityTabsConfig({
       icon_name: tab.icon_name || "",
       has_sharepoint_folder: tab.has_sharepoint_folder,
       sharepoint_folder_path: tab.sharepoint_folder_path || "",
+      uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
     });
@@ -418,6 +419,7 @@ export function EntityTabsConfig({
           icon_name: formData.icon_name,
           has_sharepoint_folder: formData.has_sharepoint_folder,
           sharepoint_folder_path: formData.sharepoint_folder_path,
+          uses_custom_path: formData.uses_custom_path,  // SSoT: Template inheritance flag
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
         };
@@ -661,14 +663,16 @@ export function EntityTabsConfig({
         className={cn(
           "border rounded-lg",
           !tab.enabled && "opacity-50",
-          // Parent tabs with children get a colored background
-          depth === 0 && hasChildren && "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",
-          // Root tabs without children
-          depth === 0 && !hasChildren && "bg-background",
+          // SSoT: Custom path tabs get orange tinted background as warning indicator
+          tab.uses_custom_path && tab.has_sharepoint_folder && "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
+          // Parent tabs with children get a colored background (only if not custom path)
+          depth === 0 && hasChildren && !tab.uses_custom_path && "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",
+          // Root tabs without children (only if not custom path)
+          depth === 0 && !hasChildren && !tab.uses_custom_path && "bg-background",
           // Child tabs get indentation and left border
-          depth === 1 && "ml-10 border-l-4 border-l-blue-300 dark:border-l-blue-700 bg-background",
-          depth === 2 && "ml-20 border-l-4 border-l-primary/30 bg-background",
-          depth >= 3 && "ml-28 border-l-4 border-l-primary/50 bg-background"
+          depth === 1 && "ml-10 border-l-4 border-l-blue-300 dark:border-l-blue-700",
+          depth === 2 && "ml-20 border-l-4 border-l-primary/30",
+          depth >= 3 && "ml-28 border-l-4 border-l-primary/50"
         )}
       >
         <div className="flex items-center gap-2 flex-1 py-1 px-2">
@@ -737,10 +741,28 @@ export function EntityTabsConfig({
                 </TooltipProvider>
               )}
               {tab.has_sharepoint_folder && (
-                <Badge variant="outline" className="text-xs gap-1 text-muted-foreground font-normal">
-                  <FolderOpen className="h-3 w-3 shrink-0" />
-                  <span>{tab.hierarchy_path || tab.display_name}</span>
-                </Badge>
+                <>
+                  {/* SSoT: Show custom path warning badge if using custom override */}
+                  {tab.uses_custom_path && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge className="text-xs gap-1 bg-orange-500 hover:bg-orange-600 text-white border-0">
+                            <AlertCircle className="h-3 w-3" />
+                            Custom Path
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>This tab overrides the global SharePoint template</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  <Badge variant="outline" className="text-xs gap-1 text-muted-foreground font-normal">
+                    <FolderOpen className="h-3 w-3 shrink-0" />
+                    <span>{tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name}</span>
+                  </Badge>
+                </>
               )}
               {hasChildren && (
                 <Badge variant="secondary" className="text-xs">
@@ -1291,7 +1313,7 @@ export function EntityTabsConfig({
               </div>
             )}
 
-            {/* SharePoint Folder */}
+            {/* SharePoint Folder - SSoT: Template Inheritance */}
             {showSharePointPaths && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
@@ -1308,78 +1330,196 @@ export function EntityTabsConfig({
                   <Label htmlFor="has_sharepoint">Has SharePoint Folder</Label>
                 </div>
                 {formData.has_sharepoint_folder && (
-                  <div className="space-y-3 pl-6">
-                    {/* Path Template Input */}
+                  <div className="space-y-4 pl-6 border-l-2 border-muted ml-2">
+                    {/* Path Mode Toggle - SSoT: Template Inheritance */}
                     <div className="space-y-2">
-                      <Label>SharePoint Path Template</Label>
-                      <Input
-                        value={formData.sharepoint_folder_path || ""}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            sharepoint_folder_path: e.target.value,
-                          }))
-                        }
-                        placeholder="e.g., /Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/Xero"
-                        className="font-mono text-sm"
-                      />
-                      {/* Path Preview */}
-                      {formData.sharepoint_folder_path && (
-                        <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5 font-mono">
-                          <span className="text-muted-foreground/60">Example: </span>
-                          <span className="text-foreground">{resolveSharePointPath(formData.sharepoint_folder_path)}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Placeholder Badges - different for job vs corporate scopes */}
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Click to insert placeholder:</Label>
-                      <div className="flex flex-wrap gap-1">
-                        {(scope === "job" ? [
-                          { key: "{{JobCode}}", example: "077", color: "orange" },
-                          { key: "{{Category}}", example: "Contract Drawings", color: "orange" },
-                          { key: "{{JobName}}", example: "Tulum Street Jimboomba", color: "orange" },
-                        ] : [
-                          { key: "{{CompanyGroup}}", example: "Tekna Group", color: "purple" },
-                          { key: "{{CompanyCode}}", example: "TH", color: "purple" },
-                          { key: "{{EntityName}}", example: "Tekna Homes Pty Ltd", color: "purple" },
-                        ]).map((placeholder) => (
-                          <Badge
-                            key={placeholder.key}
-                            variant="outline"
-                            className={`cursor-pointer ${
-                              placeholder.color === "orange"
-                                ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300"
-                                : "hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-                            }`}
-                            onClick={() => {
+                      <Label>Path Mode</Label>
+                      <div className="space-y-2">
+                        {/* Option: Inherit from global template */}
+                        <label
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                            !formData.uses_custom_path
+                              ? "bg-primary/5 border-primary"
+                              : "bg-background hover:bg-muted/50"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="path_mode"
+                            checked={!formData.uses_custom_path}
+                            onChange={() =>
                               setFormData((prev) => ({
                                 ...prev,
-                                sharepoint_folder_path: (prev.sharepoint_folder_path || "") + placeholder.key,
-                              }));
-                            }}
-                          >
-                            {placeholder.key}
-                            <span className="ml-1 text-xs opacity-60">({placeholder.example})</span>
-                          </Badge>
-                        ))}
+                                uses_custom_path: false,
+                                sharepoint_folder_path: "",  // Clear custom path when switching to inherit
+                              }))
+                            }
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">Inherit from global template</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Uses the template from Admin &gt; System &gt; Company &gt; SharePoint
+                            </div>
+                            {/* Show inherited preview */}
+                            {editingTab?.inherited_template && (
+                              <div className="mt-2 text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">
+                                <span className="text-muted-foreground/60">Preview: </span>
+                                <span className="text-foreground">
+                                  {resolveSharePointPath(editingTab.inherited_template + "/" + (formData.display_name || editingTab.display_name))}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <Badge variant="secondary" className="text-xs shrink-0">Recommended</Badge>
+                        </label>
+
+                        {/* Option: Use custom path */}
+                        <label
+                          className={cn(
+                            "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                            formData.uses_custom_path
+                              ? "bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700"
+                              : "bg-background hover:bg-muted/50"
+                          )}
+                        >
+                          <input
+                            type="radio"
+                            name="path_mode"
+                            checked={formData.uses_custom_path || false}
+                            onChange={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                uses_custom_path: true,
+                                // Pre-fill with effective path when switching to custom
+                                sharepoint_folder_path: prev.sharepoint_folder_path || editingTab?.effective_sharepoint_path || "",
+                              }))
+                            }
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">Use custom path</span>
+                              {formData.uses_custom_path && (
+                                <Badge className="text-xs bg-orange-500 text-white border-0">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Override
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Override the global template with a custom path for this tab only
+                            </div>
+                          </div>
+                        </label>
                       </div>
                     </div>
 
-                    {/* Folder Browser */}
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Or browse SharePoint folders:</Label>
-                      <SharePointFolderBrowser
-                        onSelect={(folder, path) => {
-                          setFormData((prev) => ({
-                            ...prev,
-                            sharepoint_folder_path: path,
-                          }));
-                        }}
-                        rootFolder=""
-                      />
-                    </div>
+                    {/* Custom Path Input - Only shown when using custom path */}
+                    {formData.uses_custom_path && (
+                      <div className="space-y-3 p-3 rounded-lg bg-orange-50/50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800">
+                        {/* Warning banner with restore button */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 text-xs">
+                            <AlertCircle className="h-4 w-4 shrink-0" />
+                            <span>This custom path overrides the global SharePoint template</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-7 text-muted-foreground hover:text-foreground"
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                uses_custom_path: false,
+                                sharepoint_folder_path: "",
+                              }))
+                            }
+                          >
+                            Restore to Inherit
+                          </Button>
+                        </div>
+
+                        {/* Path Template Input */}
+                        <div className="space-y-2">
+                          <Label>Custom Path Template</Label>
+                          <Input
+                            value={formData.sharepoint_folder_path || ""}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                sharepoint_folder_path: e.target.value,
+                              }))
+                            }
+                            placeholder="e.g., {{JobCode}}/{{Category}}/Custom Folder"
+                            className="font-mono text-sm"
+                          />
+                          {/* Path Preview */}
+                          {formData.sharepoint_folder_path && (
+                            <div className="text-xs text-muted-foreground bg-background rounded px-2 py-1.5 font-mono border">
+                              <span className="text-muted-foreground/60">Preview: </span>
+                              <span className="text-foreground">{resolveSharePointPath(formData.sharepoint_folder_path)}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Placeholder Badges - different for job vs corporate scopes */}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Click to insert placeholder:</Label>
+                          <div className="flex flex-wrap gap-1">
+                            {(scope === "job" ? [
+                              { key: "{{JobCode}}", example: "077", color: "orange" },
+                              { key: "{{Category}}", example: "Contract Drawings", color: "orange" },
+                              { key: "{{JobName}}", example: "Tulum Street Jimboomba", color: "orange" },
+                              { key: "{{Tab}}", example: formData.display_code || "TAB", color: "blue" },
+                              { key: "{{TabLong}}", example: formData.display_name || "Tab Name", color: "blue" },
+                            ] : [
+                              { key: "{{CompanyGroup}}", example: "Tekna Group", color: "purple" },
+                              { key: "{{CompanyCode}}", example: "TH", color: "purple" },
+                              { key: "{{EntityName}}", example: "Tekna Homes Pty Ltd", color: "purple" },
+                              { key: "{{Tab}}", example: formData.display_code || "TAB", color: "blue" },
+                              { key: "{{TabLong}}", example: formData.display_name || "Tab Name", color: "blue" },
+                            ]).map((placeholder) => (
+                              <Badge
+                                key={placeholder.key}
+                                variant="outline"
+                                className={`cursor-pointer ${
+                                  placeholder.color === "orange"
+                                    ? "hover:bg-orange-100 dark:hover:bg-orange-900/30 text-orange-700 dark:text-orange-300"
+                                    : placeholder.color === "blue"
+                                    ? "hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                    : "hover:bg-purple-100 dark:hover:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                                }`}
+                                onClick={() => {
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    sharepoint_folder_path: (prev.sharepoint_folder_path || "") + placeholder.key,
+                                  }));
+                                }}
+                              >
+                                {placeholder.key}
+                                <span className="ml-1 text-xs opacity-60">({placeholder.example})</span>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Folder Browser */}
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Or browse SharePoint folders:</Label>
+                          <SharePointFolderBrowser
+                            onSelect={(folder, path) => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                sharepoint_folder_path: path,
+                              }));
+                            }}
+                            rootFolder=""
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

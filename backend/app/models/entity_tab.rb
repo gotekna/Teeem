@@ -126,6 +126,49 @@ class EntityTab < ApplicationRecord
     "#{base_path}/#{sharepoint_folder_path}"
   end
 
+  # SSoT: Template Inheritance for SharePoint Paths
+  # ================================================
+
+  # Map EntityTab scope to CorporateCompanySetting template scope
+  def scope_for_template
+    case scope
+    when 'job' then :job
+    when 'corporate_entity' then :company
+    when 'people' then :people
+    when 'contact' then :contacts
+    else :job  # Default fallback
+    end
+  end
+
+  # Get the inherited template from CorporateCompanySetting (global config)
+  # This is what would be used if uses_custom_path is false
+  def inherited_template
+    return nil unless has_sharepoint_folder
+    CorporateCompanySetting.sharepoint_template(scope_for_template)
+  rescue => e
+    Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
+    nil
+  end
+
+  # Get the EFFECTIVE SharePoint path for this tab
+  # - If uses_custom_path: return the custom sharepoint_folder_path
+  # - If NOT uses_custom_path: return template + tab display_name
+  def effective_sharepoint_path
+    return nil unless has_sharepoint_folder
+
+    if uses_custom_path && sharepoint_folder_path.present?
+      # Custom path - use exactly what's set
+      sharepoint_folder_path
+    else
+      # Inherit from global template + append tab's display name or display_code
+      template = inherited_template
+      return nil unless template.present?
+
+      # Append the tab's folder name (use display_name as the folder)
+      "#{template}/#{display_name}"
+    end
+  end
+
   # Build hierarchy path - SSoT: Use sharepoint_folder_path when set
   def hierarchy_path
     # For document tabs with SharePoint paths, use the actual path (SSoT)
@@ -173,6 +216,10 @@ class EntityTab < ApplicationRecord
       has_sharepoint_folder: has_sharepoint_folder,
       sharepoint_folder_path: sharepoint_folder_path,
       full_sharepoint_path: full_sharepoint_path,
+      # SSoT: Template inheritance fields
+      uses_custom_path: uses_custom_path,
+      effective_sharepoint_path: effective_sharepoint_path,
+      inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,
       document_count: document_count,
       can_delete: can_delete?,

@@ -188,6 +188,30 @@ export const DATE_PLACEHOLDERS: PlaceholderToken[] = [
     color: "green",
     description: "Expiry date",
   },
+  {
+    code: "{Time}",
+    example: "14:30",
+    longCode: "{TimeLong}",
+    longExample: "2:30 PM",
+    color: "green",
+    description: "Time (24h or 12h format)",
+  },
+  {
+    code: "{DateTime}",
+    example: "27-12-25 14:30",
+    longCode: "{DateTimeLong}",
+    longExample: "27 December 2025 2:30 PM",
+    color: "green",
+    description: "Date and time combined",
+  },
+  {
+    code: "{UserDateTime}",
+    example: "RH 27-12-25 14:30",
+    longCode: "{UserDateTimeLong}",
+    longExample: "Robert Harder 27-12-2025 14:30",
+    color: "green",
+    description: "User code/name with date and time",
+  },
 ];
 
 // =============================================================================
@@ -281,12 +305,12 @@ export const JOB_PLACEHOLDERS: PlaceholderToken[] = [
 
 export const TAB_PLACEHOLDERS: PlaceholderToken[] = [
   {
-    code: "{Tab}",
-    example: "SP",
-    longCode: "{TabLong}",
+    code: "{TabCode}",
+    example: "Site",
+    longCode: "{TabName}",
     longExample: "Site Photo",
     color: "orange",
-    description: "Tab code/name (the folder context)",
+    description: "Tab/folder code and name",
   },
 ];
 

@@ -242,10 +242,15 @@ export function DocumentTypesTab() {
   const [saving, setSaving] = React.useState(false);
   const [showFolderConfig, setShowFolderConfig] = React.useState(false);
   // SSoT: These templates define the folder structure for all document types
+  const DEFAULT_FOLDERS = {
+    company: "/Shared Documents/Corporate/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
+    job: "/Shared Documents/TEEEM Jobs/{{JobCode}}/{{Category}}",
+    people: "/Shared Documents/Corporate/People/{{ContactName}}"
+  };
   const [baseFolders, setBaseFolders] = React.useState({
-    company: "/Teeem/Companies/{{CompanyGroup}}/{{CompanyCode}}/{{Folder}}",
-    job: "/Teeem/Jobs/{{JobCode}}/{{Category}}",
-    people: "/Teeem/People/{{ContactName}}"
+    company: DEFAULT_FOLDERS.company,
+    job: DEFAULT_FOLDERS.job,
+    people: DEFAULT_FOLDERS.people
   });
   const [newDocType, setNewDocType] = React.useState({
     name: "",
@@ -832,22 +837,32 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Corporate/{{CompanyCode}}/{{Folder}}"
                   />
-                  <div className="flex gap-2 justify-end pt-2">
+                  <div className="flex gap-2 justify-between pt-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => setShowFolderConfig(false)}
+                      onClick={() => setBaseFolders(prev => ({ ...prev, company: DEFAULT_FOLDERS.company }))}
+                      className="text-muted-foreground"
                     >
-                      Cancel
+                      Restore Default
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={saveSharePointPathTemplates}
-                      disabled={saving}
-                    >
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Done
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowFolderConfig(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={saveSharePointPathTemplates}
+                        disabled={saving}
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Done
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : scopeFilter === "job" ? (
@@ -905,22 +920,32 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Jobs/{{JobCode}}/{{Category}}"
                   />
-                  <div className="flex gap-2 justify-end pt-2">
+                  <div className="flex gap-2 justify-between pt-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => setShowFolderConfig(false)}
+                      onClick={() => setBaseFolders(prev => ({ ...prev, job: DEFAULT_FOLDERS.job }))}
+                      className="text-muted-foreground"
                     >
-                      Cancel
+                      Restore Default
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={saveSharePointPathTemplates}
-                      disabled={saving}
-                    >
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Done
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowFolderConfig(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={saveSharePointPathTemplates}
+                        disabled={saving}
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Done
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -963,22 +988,32 @@ export function DocumentTypesTab() {
                     className="text-xs font-mono"
                     placeholder="/Contacts/{{ContactName}}"
                   />
-                  <div className="flex gap-2 justify-end pt-2">
+                  <div className="flex gap-2 justify-between pt-2">
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      onClick={() => setShowFolderConfig(false)}
+                      onClick={() => setBaseFolders(prev => ({ ...prev, people: DEFAULT_FOLDERS.people }))}
+                      className="text-muted-foreground"
                     >
-                      Cancel
+                      Restore Default
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={saveSharePointPathTemplates}
-                      disabled={saving}
-                    >
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Done
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowFolderConfig(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={saveSharePointPathTemplates}
+                        disabled={saving}
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                        Done
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}

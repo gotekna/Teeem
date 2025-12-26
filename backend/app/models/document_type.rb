@@ -244,6 +244,10 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Number}", "01")
     format.gsub!("{Category}", category.presence || "General")
 
+    # Tab/folder placeholders
+    format.gsub!("{TabCode}", "Site")
+    format.gsub!("{TabName}", "Site Photo")
+
     # People placeholders
     format.gsub!("{PersonName}", "Andrew Clememt")
     format.gsub!("{IDType}", "Passport")
@@ -253,12 +257,27 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Date}", au_date)
     format.gsub!("{Folder}", folder.presence || "GENERAL")
 
+    # Time/DateTime placeholders
+    current_time = Time.current.in_time_zone("Australia/Brisbane")
+    time_24h = current_time.strftime("%H:%M")
+    time_12h = current_time.strftime("%l:%M %p").strip
+    short_date_time = "#{current_time.strftime('%d-%m-%y')} #{time_24h}"
+    long_date_time = "#{current_time.strftime('%d %B %Y')} #{time_12h}"
+    format.gsub!("{Time}", time_24h)
+    format.gsub!("{TimeLong}", time_12h)
+    format.gsub!("{DateTime}", short_date_time)
+    format.gsub!("{DateTimeLong}", long_date_time)
+
+    # User + DateTime placeholders (use example user)
+    format.gsub!("{UserDateTime}", "RH #{short_date_time}")
+    format.gsub!("{UserDateTimeLong}", "Robert Harder #{current_time.strftime('%d-%m-%Y')} #{time_24h}")
+
     format.strip
   end
 
   # Generate proposed filename for a specific job
   # Uses actual job data instead of placeholder values
-  def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil)
+  def generate_proposed_name(job:, file_extension: nil, description: nil, number: nil, user: nil, tab: nil)
     return nil if file_name.blank?
 
     # Australian date format (DD-MM-YYYY)
@@ -276,6 +295,12 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Consultant}", description.presence || "Consultant")
     format.gsub!("{Number}", number.to_s.rjust(2, "0"))
     format.gsub!("{Category}", category.presence || "General")
+
+    # Tab/folder placeholders
+    tab_code = tab&.dig(:code) || tab&.dig("code") || "Site"
+    tab_name = tab&.dig(:name) || tab&.dig("name") || "Site Photo"
+    format.gsub!("{TabCode}", tab_code)
+    format.gsub!("{TabName}", tab_name)
 
     # Corporate placeholders (use abbreviation or defaults)
     format.gsub!("{CompanyCode}", abbreviation.presence || "ABC")
@@ -298,6 +323,23 @@ class DocumentType < ApplicationRecord
     format.gsub!("{Description}", description.presence || name.to_s.split(" - ").last.to_s)
     format.gsub!("{Date}", au_date)
     format.gsub!("{Folder}", folder.presence || "GENERAL")
+
+    # Time/DateTime placeholders
+    current_time = Time.current.in_time_zone("Australia/Brisbane")
+    time_24h = current_time.strftime("%H:%M")
+    time_12h = current_time.strftime("%l:%M %p").strip
+    short_date_time = "#{current_time.strftime('%d-%m-%y')} #{time_24h}"
+    long_date_time = "#{current_time.strftime('%d %B %Y')} #{time_12h}"
+    format.gsub!("{Time}", time_24h)
+    format.gsub!("{TimeLong}", time_12h)
+    format.gsub!("{DateTime}", short_date_time)
+    format.gsub!("{DateTimeLong}", long_date_time)
+
+    # User + DateTime placeholders
+    user_code = user&.initials || user&.name&.split&.map { |n| n[0] }&.join&.upcase || "UN"
+    user_name = user&.name || "Unknown User"
+    format.gsub!("{UserDateTime}", "#{user_code} #{short_date_time}")
+    format.gsub!("{UserDateTimeLong}", "#{user_name} #{current_time.strftime('%d-%m-%Y')} #{time_24h}")
 
     result = format.strip
 

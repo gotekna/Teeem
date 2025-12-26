@@ -202,6 +202,7 @@ module Api
           :component_name,
           :has_sharepoint_folder,
           :sharepoint_folder_path,
+          :uses_custom_path,  # SSoT: Template inheritance flag
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )
