@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010008) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010009) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6815,6 +6815,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010008) do
     t.string "colour"
     t.string "colour_code"
     t.string "colour_brand"
+    t.integer "lead_time_days"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebook_on_category"
     t.index ["category_id"], name: "index_pricebook_on_category_id"

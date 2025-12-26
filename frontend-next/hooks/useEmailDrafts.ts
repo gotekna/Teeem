@@ -1,32 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  DRAFTS_STORAGE_KEY,
+  AUTO_SAVE_INTERVAL_MS,
+  MAX_DRAFTS,
+} from "@/lib/email-constants";
+import type { EmailDraft, AutoSaveConfig } from "@/lib/email-types";
 
-// Draft data structure
-export interface EmailDraft {
-  id: string;
-  credential_id: string;
-  from_address?: string;
-  to: string;
-  cc: string;
-  bcc: string;
-  subject: string;
-  body: string;
-  reply_to_message_id?: string;
-  // Attachment names only (can't serialize File objects)
-  attachment_names: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-// Storage key for drafts
-const DRAFTS_STORAGE_KEY = "teeem_email_drafts";
-
-// Auto-save interval in milliseconds (30 seconds)
-const AUTO_SAVE_INTERVAL = 30000;
-
-// Maximum number of drafts to keep
-const MAX_DRAFTS = 20;
+// Re-export types for backwards compatibility
+export type { EmailDraft } from "@/lib/email-types";
 
 /**
  * Get all drafts from localStorage
@@ -163,27 +146,6 @@ export function useEmailDrafts() {
  *   data: formData,
  * });
  */
-interface AutoSaveConfig {
-  /** Whether auto-save is enabled */
-  enabled: boolean;
-  /** Current form data */
-  data: {
-    credential_id: string;
-    from_address?: string;
-    to: string;
-    cc: string;
-    bcc: string;
-    subject: string;
-    body: string;
-    reply_to_message_id?: string;
-    attachment_names?: string[];
-  };
-  /** Existing draft ID to update */
-  existingDraftId?: string;
-  /** Callback when draft is saved */
-  onSave?: (draftId: string) => void;
-}
-
 export function useAutoSaveDraft(config: AutoSaveConfig) {
   const { enabled, data, existingDraftId, onSave } = config;
 
@@ -259,7 +221,7 @@ export function useAutoSaveDraft(config: AutoSaveConfig) {
 
     timerRef.current = setTimeout(() => {
       save();
-    }, AUTO_SAVE_INTERVAL);
+    }, AUTO_SAVE_INTERVAL_MS);
 
     return () => {
       if (timerRef.current) {

@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-# SmTemplateSyncService - Smart sync of SmScheduleMaster to SmTask on a job
+# SmScheduleMasterSyncService - Smart sync of SmScheduleMaster to SmTask on a job
 #
 # SSoT: SmScheduleMaster is THE template definition, SmTask is THE job-level instance.
 # This service syncs from template -> task while preserving "job reality" (actual work progress).
 #
 # Usage:
 #   # Single row sync
-#   result = SmTemplateSyncService.new(job, template_row, options).sync!
+#   result = SmScheduleMasterSyncService.new(job, template_row, options).sync!
 #
 #   # Bulk sync all rows from a template to a job
-#   results = SmTemplateSyncService.sync_all_for_job(job, template, options)
+#   results = SmScheduleMasterSyncService.sync_all_for_job(job, template, options)
 #
 # Options:
 #   user: User performing the sync (for audit trail)
@@ -20,7 +20,7 @@
 #   { success: true, task: SmTask, action: :created | :updated | :unchanged | :skipped }
 #   { success: false, error: "message" }
 #
-class SmTemplateSyncService
+class SmScheduleMasterSyncService
   attr_reader :job, :template_row, :options
 
   # Fields that are safe to sync from template (exist on BOTH SmScheduleMaster and SmTask)
@@ -119,7 +119,7 @@ class SmTemplateSyncService
       end
     end
 
-    Rails.logger.info "[SmTemplateSyncService] Bulk sync for job #{job.id}: " \
+    Rails.logger.info "[SmScheduleMasterSyncService] Bulk sync for job #{job.id}: " \
       "created=#{results[:created]}, updated=#{results[:updated]}, " \
       "skipped=#{results[:skipped]}, unchanged=#{results[:unchanged]}, " \
       "errors=#{results[:errors].count}"
@@ -160,7 +160,7 @@ class SmTemplateSyncService
       create_new_task
     end
   rescue StandardError => e
-    Rails.logger.error "SmTemplateSyncService error: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+    Rails.logger.error "SmScheduleMasterSyncService error: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
     failure("Sync failed: #{e.message}")
   end
 
@@ -320,7 +320,12 @@ class SmTemplateSyncService
       next unless template_row.respond_to?(field) && task.respond_to?(field)
       next unless task.respond_to?("#{field}=")
 
-      template_value = template_row.send(field)
+      # Special handling for order_time_days - use calculated value
+      template_value = if field == :order_time_days
+                         calculate_order_time_days
+                       else
+                         template_row.send(field)
+                       end
       task_value = task.send(field)
 
       # Only update if template has a value and it differs
@@ -342,7 +347,7 @@ class SmTemplateSyncService
     task.updated_by = user if user
     task.save!
 
-    Rails.logger.info "[SmTemplateSyncService] Updated task #{task.id} (#{task.name}) with #{changes.keys.join(', ')}"
+    Rails.logger.info "[SmScheduleMasterSyncService] Updated task #{task.id} (#{task.name}) with #{changes.keys.join(', ')}"
 
     {
       success: true,
@@ -388,8 +393,8 @@ class SmTemplateSyncService
       po_required: template_row.po_required,
       critical_po: template_row.critical_po,
 
-      # Timing (from template)
-      order_time_days: template_row.order_time_days,
+      # Timing (calculated from pricebook lead times or template defaults)
+      order_time_days: calculate_order_time_days,
       call_time_days: template_row.call_time_days,
 
       # Documentation (from template)
@@ -415,7 +420,7 @@ class SmTemplateSyncService
 
     task.save!
 
-    Rails.logger.info "[SmTemplateSyncService] Created task #{task.id} (#{task.name}) from template row #{template_row.id}"
+    Rails.logger.info "[SmScheduleMasterSyncService] Created task #{task.id} (#{task.name}) from template row #{template_row.id}"
 
     {
       success: true,
@@ -430,5 +435,38 @@ class SmTemplateSyncService
       success: false,
       error: message
     }
+  end
+
+  # Calculate order_time_days based on pricebook items or template default
+  # Priority:
+  #   1. Max lead_time_days from pricebook items in po_line_items
+  #   2. Template row's order_time_days if set
+  #   3. Default of 7 days for PO tasks
+  #   4. nil for non-PO tasks
+  DEFAULT_PO_LEAD_TIME_DAYS = 7
+
+  def calculate_order_time_days
+    # Only apply lead time logic to PO tasks
+    return nil unless template_row.po_required || template_row.create_po_on_job_start
+
+    # Try to get lead time from pricebook items
+    if template_row.po_line_items.present? && template_row.po_line_items.any?
+      price_history_ids = template_row.po_line_items.map { |item| item["price_history_id"] }.compact
+      if price_history_ids.any?
+        # Get max lead_time_days from associated pricebook items
+        max_lead_time = PriceHistory
+          .where(id: price_history_ids)
+          .joins(:pricebook_item)
+          .maximum("pricebook.lead_time_days")
+
+        return max_lead_time if max_lead_time.present?
+      end
+    end
+
+    # Fall back to template's order_time_days if set
+    return template_row.order_time_days if template_row.order_time_days.present?
+
+    # Default to 7 days for PO tasks
+    DEFAULT_PO_LEAD_TIME_DAYS
   end
 end

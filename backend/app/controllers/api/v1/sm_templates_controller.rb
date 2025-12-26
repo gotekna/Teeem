@@ -160,7 +160,7 @@ module Api
       def sync_to_job
         job = Job.find(params[:job_id])
 
-        results = SmTemplateSyncService.sync_all_for_job(@template, job, {
+        results = SmScheduleMasterSyncService.sync_all_for_job(@template, job, {
           user: current_user,
           force: params[:force] == true || params[:force] == "true"
         })
@@ -196,7 +196,7 @@ module Api
       def compare_to_job
         job = Job.find(params[:job_id])
 
-        comparisons = SmTemplateSyncService.compare_for_job(job, @template)
+        comparisons = SmScheduleMasterSyncService.compare_for_job(job, @template)
 
         # Calculate summary counts
         summary = {

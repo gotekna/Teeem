@@ -1261,11 +1261,23 @@ export default function TeeemTableView({
   );
 
   // Get default searchable columns from foundation schema (SSoT)
+  // Text-based columns are searchable by default; backend can override with explicit `searchable: false`
+  const TEXT_SEARCHABLE_TYPES = new Set([
+    'single_line_text', 'email', 'phone', 'mobile', 'url', 'multiple_lines_text',
+    'searchable_text', 'abn', 'acn', 'bsb', 'postcode', 'choice'
+  ]);
   const getDefaultSearchableColumns = useCallback(
     () =>
       COLUMNS.reduce((acc, col) => {
-        // Use the searchable flag from foundation schema, default to false
-        acc[col.key] = col.searchable ?? false;
+        // If explicit searchable flag is set, use it (SSoT: backend controls)
+        if (col.searchable !== undefined && col.searchable !== null) {
+          acc[col.key] = col.searchable;
+        } else {
+          // Default: text-based columns AND 'name' columns are searchable
+          const isTextType = TEXT_SEARCHABLE_TYPES.has(col.column_type || '');
+          const isNameColumn = col.key === 'name';
+          acc[col.key] = isTextType || isNameColumn;
+        }
         return acc;
       }, {} as Record<string, boolean>),
     [COLUMNS]

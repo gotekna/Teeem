@@ -67,8 +67,8 @@ module Api
             sm_task = job.sm_tasks.find_by(sm_schedule_master_id: sm_schedule_master.id)
 
             if sm_task.nil?
-              # Task doesn't exist - use SmTemplateSyncService to create it
-              sync_result = SmTemplateSyncService.new(job, sm_schedule_master).sync!
+              # Task doesn't exist - use SmScheduleMasterSyncService to create it
+              sync_result = SmScheduleMasterSyncService.new(job, sm_schedule_master).sync!
 
               unless sync_result[:success]
                 return render json: {

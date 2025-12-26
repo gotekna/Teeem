@@ -4,36 +4,8 @@ import { useState, useRef, useCallback } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import { api } from "@/lib/api";
-
-interface QueuedEmail {
-  id: string;
-  credential_id: string;
-  from_address?: string;
-  to: string;
-  cc?: string;
-  bcc?: string;
-  subject: string;
-  body: string;
-  reply_to_message_id?: string;
-  attachments: File[];
-  timeoutId: NodeJS.Timeout;
-  countdown: number;
-  intervalId: NodeJS.Timeout;
-}
-
-interface SendEmailParams {
-  credential_id: string;
-  from_address?: string;
-  to: string;
-  cc?: string;
-  bcc?: string;
-  subject: string;
-  body: string;
-  reply_to_message_id?: string;
-  attachments?: File[];
-}
-
-const UNDO_DELAY_SECONDS = 5;
+import { UNDO_DELAY_SECONDS } from "@/lib/email-constants";
+import type { QueuedEmail, SendEmailParams } from "@/lib/email-types";
 
 /**
  * Hook for sending emails with undo capability.

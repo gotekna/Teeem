@@ -35,7 +35,13 @@ import {
 import { api } from "@/lib/api";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useUndoSend } from "@/hooks/useUndoSend";
-import { useAutoSaveDraft, useEmailDrafts, type EmailDraft } from "@/hooks/useEmailDrafts";
+import { useAutoSaveDraft, useEmailDrafts } from "@/hooks/useEmailDrafts";
+import {
+  CONTACT_SEARCH_DEBOUNCE_MS,
+  CONTACT_SEARCH_MIN_CHARS,
+  CONTACT_SEARCH_MAX_RESULTS,
+} from "@/lib/email-constants";
+import type { EmailDraft, EmailAccount, EmailContact } from "@/lib/email-types";
 import { Calendar } from "@/components/ui/calendar";
 import { FileText } from "lucide-react";
 import {
@@ -46,23 +52,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { format, addHours, setHours, setMinutes } from "date-fns";
 
-interface Contact {
-  id: number;
-  display_name: string;
-  email: string | null;
-}
-
-interface EmailAccount {
-  id: number | string;
-  type: "outlook" | "imap" | "ms365";
-  name: string;
-  email_address: string;
-  provider: string;
-  is_active: boolean;
-  is_default?: boolean;
-  email_signature?: string | null;
-  email_aliases?: string[];
-}
+// Use EmailContact as Contact for backwards compatibility
+type Contact = EmailContact;
 
 interface ComposeEmailModalProps {
   open: boolean;
@@ -142,14 +133,14 @@ export function ComposeEmailModal({
 
   // Search contacts by name/email
   const searchContacts = async (search: string) => {
-    if (!search || search.length < 2) {
+    if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
       setContacts([]);
       return;
     }
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&per_page=20`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
       setContacts((typedResponse.contacts || []).filter(c => c.email));
@@ -169,7 +160,7 @@ export function ComposeEmailModal({
       } else {
         setContacts([]);
       }
-    }, 300);
+    }, CONTACT_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [contactSearch, ccSearch, bccSearch]);
 
@@ -354,7 +345,7 @@ export function ComposeEmailModal({
 
         await api.post("/api/v1/imap_credentials/schedule_email", payload);
       } else {
-        // Queue with undo capability (5 second delay)
+        // Queue with undo capability (see UNDO_DELAY_SECONDS in email-constants.ts)
         queueSend({
           credential_id: formData.credential_id,
           from_address: formData.from_address || undefined,
@@ -516,7 +507,7 @@ export function ComposeEmailModal({
                     <span>Use: <strong>{value}</strong></span>
                   )}
                   isLoading={contactsLoading}
-                  emptyResults={contactSearch.length < 2 ? "Type 2+ characters to search..." : "No contacts found"}
+                  emptyResults={contactSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters to search...` : "No contacts found"}
                   clearable={true}
                   onClear={() => setFormData({ ...formData, to: "" })}
                 />
@@ -552,8 +543,8 @@ export function ComposeEmailModal({
                       renderOnCreate={(value) => (
                         <span>Use: <strong>{value}</strong></span>
                       )}
-                      isLoading={contactsLoading && ccSearch.length >= 2}
-                      emptyResults={ccSearch.length < 2 ? "Type 2+ characters to search..." : "No contacts found"}
+                      isLoading={contactsLoading && ccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
+                      emptyResults={ccSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters to search...` : "No contacts found"}
                       clearable={true}
                       onClear={() => setFormData({ ...formData, cc: "" })}
                     />
@@ -585,8 +576,8 @@ export function ComposeEmailModal({
                       renderOnCreate={(value) => (
                         <span>Use: <strong>{value}</strong></span>
                       )}
-                      isLoading={contactsLoading && bccSearch.length >= 2}
-                      emptyResults={bccSearch.length < 2 ? "Type 2+ characters to search..." : "No contacts found"}
+                      isLoading={contactsLoading && bccSearch.length >= CONTACT_SEARCH_MIN_CHARS}
+                      emptyResults={bccSearch.length < CONTACT_SEARCH_MIN_CHARS ? `Type ${CONTACT_SEARCH_MIN_CHARS}+ characters to search...` : "No contacts found"}
                       clearable={true}
                       onClear={() => setFormData({ ...formData, bcc: "" })}
                     />
