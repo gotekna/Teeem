@@ -758,7 +758,7 @@ export function EntityTabsConfig({
                         )}
                       >
                         <FolderOpen className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{tab.full_sharepoint_path || tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name}</span>
+                        <span className="truncate">{tab.uses_custom_path ? (tab.sharepoint_folder_path || tab.display_name) : (tab.effective_sharepoint_path || tab.hierarchy_path || tab.display_name)}</span>
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent>

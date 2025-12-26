@@ -181,11 +181,12 @@ module Api
       end
 
       # POST /api/v1/entity_tabs/reset_paths
-      # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false)
+      # Reset all tabs to use inherited SSoT paths (sets uses_custom_path = false and clears custom path)
       def reset_paths
         updated_count = EntityTab
-          .where(has_sharepoint_folder: true, uses_custom_path: true)
-          .update_all(uses_custom_path: false)
+          .where(has_sharepoint_folder: true)
+          .where("uses_custom_path = true OR sharepoint_folder_path IS NOT NULL AND sharepoint_folder_path != ''")
+          .update_all(uses_custom_path: false, sharepoint_folder_path: nil)
 
         render json: {
           success: true,

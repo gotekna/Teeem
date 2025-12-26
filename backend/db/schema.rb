@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072501) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_072503) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7544,6 +7544,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072501) do
     t.index ["spawned_task_id"], name: "index_sm_spawn_logs_on_spawned_task_id"
   end
 
+  create_table "sm_task_attachments", force: :cascade do |t|
+    t.bigint "sm_task_id", null: false
+    t.string "attachable_type", null: false
+    t.bigint "attachable_id", null: false
+    t.string "attachment_type", limit: 50
+    t.text "notes"
+    t.bigint "added_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["added_by_id"], name: "index_sm_task_attachments_on_added_by_id"
+    t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
+    t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
+    t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
+  end
+
   create_table "sm_tasks", force: :cascade do |t|
     t.bigint "job_id", null: false
     t.bigint "parent_task_id"
@@ -7604,6 +7619,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072501) do
     t.string "source_type", default: "manual"
     t.bigint "spawn_scan_task_id"
     t.integer "spawn_scan_lag_days", default: 0
+    t.date "required_by"
     t.index ["assigned_role"], name: "index_sm_tasks_on_assigned_role"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
@@ -7620,6 +7636,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072501) do
     t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
     t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
     t.index ["recurring_task_definition_id"], name: "index_sm_tasks_on_recurring_task_definition_id"
+    t.index ["required_by"], name: "index_sm_tasks_on_required_by"
     t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
     t.index ["sm_schedule_master_id"], name: "index_sm_tasks_on_sm_schedule_master_id"
     t.index ["source_type"], name: "index_sm_tasks_on_source_type"
@@ -9486,6 +9503,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072501) do
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
+  add_foreign_key "sm_task_attachments", "sm_tasks", on_delete: :cascade
+  add_foreign_key "sm_task_attachments", "users", column: "added_by_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
   add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
   add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
