@@ -65,38 +65,38 @@ export interface StarColor {
 
 // API Functions
 async function fetchEmailState(emailId: number): Promise<EmailUserState> {
-  const response = await api.get(`/api/v1/email_user_states/for_email/${emailId}`);
-  return response.data;
+  const response = await api.get<{ data: EmailUserState }>(`/api/v1/email_user_states/for_email/${emailId}`);
+  return (response as { data: EmailUserState }).data;
 }
 
 async function togglePin(emailId: number): Promise<EmailUserState> {
-  const response = await api.post(`/api/v1/email_user_states/for_email/${emailId}/toggle_pin`);
-  return response.data;
+  const response = await api.post<{ data: EmailUserState }>(`/api/v1/email_user_states/for_email/${emailId}/toggle_pin`);
+  return (response as { data: EmailUserState }).data;
 }
 
 async function toggleStar(emailId: number, color?: string): Promise<EmailUserState> {
-  const response = await api.post(`/api/v1/email_user_states/for_email/${emailId}/toggle_star`, { color });
-  return response.data;
+  const response = await api.post<{ data: EmailUserState }>(`/api/v1/email_user_states/for_email/${emailId}/toggle_star`, { color });
+  return (response as { data: EmailUserState }).data;
 }
 
 async function toggleArchive(emailId: number): Promise<EmailUserState> {
-  const response = await api.post(`/api/v1/email_user_states/for_email/${emailId}/toggle_archive`);
-  return response.data;
+  const response = await api.post<{ data: EmailUserState }>(`/api/v1/email_user_states/for_email/${emailId}/toggle_archive`);
+  return (response as { data: EmailUserState }).data;
 }
 
 async function fetchStarColors(): Promise<StarColor[]> {
-  const response = await api.get("/api/v1/email_user_states/star_colors");
-  return response.data.colors || [];
+  const response = await api.get<{ data: { colors: StarColor[] } }>("/api/v1/email_user_states/star_colors");
+  return (response as { data: { colors: StarColor[] } }).data.colors || [];
 }
 
 async function checkVipStatus(emailAddress: string): Promise<{ is_vip: boolean }> {
-  const response = await api.get(`/api/v1/vip_senders/check?email_address=${encodeURIComponent(emailAddress)}`);
-  return response.data;
+  const response = await api.get<{ data: { is_vip: boolean } }>(`/api/v1/vip_senders/check?email_address=${encodeURIComponent(emailAddress)}`);
+  return (response as { data: { is_vip: boolean } }).data;
 }
 
 async function toggleVip(emailAddress: string, name?: string): Promise<{ is_vip: boolean }> {
-  const response = await api.post("/api/v1/vip_senders/toggle", { email_address: emailAddress, name });
-  return response.data;
+  const response = await api.post<{ data: { is_vip: boolean } }>("/api/v1/vip_senders/toggle", { email_address: emailAddress, name });
+  return (response as { data: { is_vip: boolean } }).data;
 }
 
 // Pin Button Component

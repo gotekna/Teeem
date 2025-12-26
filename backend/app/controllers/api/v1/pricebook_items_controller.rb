@@ -591,9 +591,16 @@ module Api
         limit = params[:limit]&.to_i || 50000 # Default to large number (all records)
         offset = params[:offset]&.to_i || 0
 
-        total_count = PriceHistory.count
-        histories = PriceHistory
-          .includes(:pricebook_item, :supplier)
+        # Build query with optional supplier filter
+        histories_query = PriceHistory.includes(:pricebook_item, :supplier)
+
+        # Filter by supplier if provided
+        if params[:supplier_id].present?
+          histories_query = histories_query.where(supplier_id: params[:supplier_id])
+        end
+
+        total_count = histories_query.count
+        histories = histories_query
           .order(created_at: :desc)
           .limit(limit)
           .offset(offset)
@@ -608,8 +615,8 @@ module Api
             {
               id: h.id,
               pricebook_item_id: h.pricebook_item_id,
-              pricebook_item_name: h.pricebook_item&.name,
-              pricebook_item_code: h.pricebook_item&.code,
+              pricebook_item_name: h.pricebook_item&.item_name,
+              pricebook_item_code: h.pricebook_item&.item_code,
               supplier_id: h.supplier_id,
               supplier_name: h.supplier&.display_name,
               old_price: h.old_price,

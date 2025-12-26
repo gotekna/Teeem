@@ -163,7 +163,7 @@ class CreateGlAdvancedReporting < ActiveRecord::Migration[7.2]
       t.text :instructions
       t.string :status, default: "pending" # pending, uploaded, approved, rejected
       t.boolean :required, default: true
-      t.references :uploaded_file, foreign_key: { to_table: :document_files }
+      t.bigint :uploaded_file_id # No FK - document_files may not exist
       t.datetime :uploaded_at
       t.references :reviewed_by, foreign_key: { to_table: :users }
       t.datetime :reviewed_at

@@ -3327,6 +3327,21 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["status"], name: "index_gl_bas_lodgements_on_status"
   end
 
+  create_table "gl_benchmarks", force: :cascade do |t|
+    t.string "industry_code", null: false
+    t.string "industry_name", null: false
+    t.string "kpi_code", null: false
+    t.integer "year", null: false
+    t.decimal "percentile_25", precision: 15, scale: 4
+    t.decimal "percentile_50", precision: 15, scale: 4
+    t.decimal "percentile_75", precision: 15, scale: 4
+    t.decimal "percentile_90", precision: 15, scale: 4
+    t.string "source"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["industry_code", "kpi_code", "year"], name: "index_gl_benchmarks_on_industry_code_and_kpi_code_and_year", unique: true
+  end
+
   create_table "gl_billable_expenses", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.bigint "job_id", null: false
@@ -3566,6 +3581,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["status"], name: "idx_change_orders_status"
   end
 
+  create_table "gl_class_assignments", force: :cascade do |t|
+    t.bigint "tracking_class_id", null: false
+    t.string "assignable_type", null: false
+    t.bigint "assignable_id", null: false
+    t.decimal "percentage", precision: 5, scale: 2, default: "100.0"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assignable_type", "assignable_id", "tracking_class_id"], name: "idx_class_assignments_unique", unique: true
+    t.index ["assignable_type", "assignable_id"], name: "index_gl_class_assignments_on_assignable"
+    t.index ["tracking_class_id"], name: "index_gl_class_assignments_on_tracking_class_id"
+  end
+
   create_table "gl_currencies", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.string "code", null: false
@@ -3698,6 +3725,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["row", "col"], name: "index_gl_dashboard_widgets_on_row_and_col"
   end
 
+  create_table "gl_departments", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "name", null: false
+    t.string "code"
+    t.bigint "parent_id"
+    t.bigint "manager_id"
+    t.boolean "active", default: true
+    t.decimal "budget_amount", precision: 15, scale: 2
+    t.text "description"
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_gl_departments_on_active"
+    t.index ["corporate_company_id", "code"], name: "index_gl_departments_on_corporate_company_id_and_code", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_departments_on_corporate_company_id"
+    t.index ["manager_id"], name: "index_gl_departments_on_manager_id"
+    t.index ["parent_id"], name: "index_gl_departments_on_parent_id"
+  end
+
   create_table "gl_deposit_allocations", force: :cascade do |t|
     t.bigint "deposit_id", null: false
     t.bigint "invoice_id", null: false
@@ -3765,6 +3811,32 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["contact_id"], name: "index_gl_direct_debit_mandates_on_contact_id"
     t.index ["corporate_company_id", "mandate_reference"], name: "idx_dd_mandates_ref", unique: true
     t.index ["corporate_company_id"], name: "index_gl_direct_debit_mandates_on_corporate_company_id"
+  end
+
+  create_table "gl_document_requests", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "job_id"
+    t.bigint "created_by_id"
+    t.string "title", null: false
+    t.text "description"
+    t.string "status", default: "pending"
+    t.date "due_date"
+    t.datetime "sent_at"
+    t.datetime "completed_at"
+    t.string "access_token"
+    t.integer "reminder_count", default: 0
+    t.datetime "last_reminder_at"
+    t.jsonb "email_settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["access_token"], name: "index_gl_document_requests_on_access_token", unique: true
+    t.index ["contact_id"], name: "index_gl_document_requests_on_contact_id"
+    t.index ["corporate_company_id"], name: "index_gl_document_requests_on_corporate_company_id"
+    t.index ["created_by_id"], name: "index_gl_document_requests_on_created_by_id"
+    t.index ["due_date"], name: "index_gl_document_requests_on_due_date"
+    t.index ["job_id"], name: "index_gl_document_requests_on_job_id"
+    t.index ["status"], name: "index_gl_document_requests_on_status"
   end
 
   create_table "gl_duplicate_bill_reviews", force: :cascade do |t|
@@ -4019,12 +4091,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.string "payment_url"
     t.string "payment_token"
     t.datetime "payment_token_expires_at"
+    t.bigint "department_id"
     t.index ["approved_by_id"], name: "index_gl_invoices_on_approved_by_id"
     t.index ["contact_id", "invoice_type"], name: "idx_gl_inv_contact_type"
     t.index ["contact_id"], name: "index_gl_invoices_on_contact_id"
     t.index ["corporate_company_id", "invoice_date"], name: "idx_gl_inv_company_date"
     t.index ["corporate_company_id", "invoice_type", "status"], name: "idx_gl_inv_company_type_status"
     t.index ["corporate_company_id"], name: "index_gl_invoices_on_corporate_company_id"
+    t.index ["department_id"], name: "index_gl_invoices_on_department_id"
     t.index ["external_provider", "external_tenant_id", "external_invoice_id"], name: "idx_gl_invoices_external", unique: true
     t.index ["gl_journal_entry_id"], name: "idx_gl_invoices_journal"
     t.index ["job_id"], name: "idx_gl_invoices_job"
@@ -4057,16 +4131,41 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.bigint "created_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "department_id"
     t.index ["corporate_company_id", "external_provider", "external_tenant_id", "entry_date"], name: "idx_gl_journal_entries_date_lookup"
     t.index ["corporate_company_id", "external_provider", "external_tenant_id", "source_type", "external_source_id"], name: "idx_gl_journal_entries_unique_external", unique: true, where: "(external_source_id IS NOT NULL)"
     t.index ["corporate_company_id"], name: "index_gl_journal_entries_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_journal_entries_on_created_by_id"
+    t.index ["department_id"], name: "index_gl_journal_entries_on_department_id"
     t.index ["entry_date"], name: "index_gl_journal_entries_on_entry_date"
     t.index ["entry_number"], name: "index_gl_journal_entries_on_entry_number"
     t.index ["gl_period_id"], name: "index_gl_journal_entries_on_gl_period_id"
     t.index ["job_id"], name: "index_gl_journal_entries_on_job_id"
     t.index ["source_type"], name: "index_gl_journal_entries_on_source_type"
     t.index ["status"], name: "index_gl_journal_entries_on_status"
+  end
+
+  create_table "gl_kpi_definitions", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "name", null: false
+    t.string "code", null: false
+    t.string "category"
+    t.string "formula_type", null: false
+    t.jsonb "formula", null: false
+    t.string "format"
+    t.decimal "target_value", precision: 15, scale: 4
+    t.string "target_direction"
+    t.decimal "warning_threshold", precision: 15, scale: 4
+    t.decimal "critical_threshold", precision: 15, scale: 4
+    t.boolean "active", default: true
+    t.boolean "show_on_dashboard", default: false
+    t.integer "position"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_gl_kpi_definitions_on_category"
+    t.index ["corporate_company_id", "code"], name: "index_gl_kpi_definitions_on_corporate_company_id_and_code", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_kpi_definitions_on_corporate_company_id"
+    t.index ["show_on_dashboard"], name: "index_gl_kpi_definitions_on_show_on_dashboard"
   end
 
   create_table "gl_ledger_lines", force: :cascade do |t|
@@ -4278,6 +4377,25 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["corporate_company_id"], name: "index_gl_period_locks_on_corporate_company_id"
     t.index ["locked_by_id"], name: "index_gl_period_locks_on_locked_by_id"
     t.index ["unlocked_by_id"], name: "index_gl_period_locks_on_unlocked_by_id"
+  end
+
+  create_table "gl_period_snapshots", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "period_type", null: false
+    t.date "period_start", null: false
+    t.date "period_end", null: false
+    t.string "label"
+    t.jsonb "account_balances", default: {}
+    t.jsonb "department_totals", default: {}
+    t.jsonb "class_totals", default: {}
+    t.jsonb "kpi_values", default: {}
+    t.boolean "finalized", default: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["corporate_company_id", "period_type", "period_start"], name: "idx_on_corporate_company_id_period_type_period_star_c030f81621", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_period_snapshots_on_corporate_company_id"
+    t.index ["finalized"], name: "index_gl_period_snapshots_on_finalized"
+    t.index ["period_type"], name: "index_gl_period_snapshots_on_period_type"
   end
 
   create_table "gl_periods", force: :cascade do |t|
@@ -4690,6 +4808,26 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["category"], name: "index_gl_report_templates_on_category"
   end
 
+  create_table "gl_requested_documents", force: :cascade do |t|
+    t.bigint "document_request_id", null: false
+    t.string "document_type", null: false
+    t.string "name", null: false
+    t.text "instructions"
+    t.string "status", default: "pending"
+    t.boolean "required", default: true
+    t.bigint "uploaded_file_id"
+    t.datetime "uploaded_at"
+    t.bigint "reviewed_by_id"
+    t.datetime "reviewed_at"
+    t.text "rejection_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["document_request_id"], name: "index_gl_requested_documents_on_document_request_id"
+    t.index ["document_type"], name: "index_gl_requested_documents_on_document_type"
+    t.index ["reviewed_by_id"], name: "index_gl_requested_documents_on_reviewed_by_id"
+    t.index ["status"], name: "index_gl_requested_documents_on_status"
+  end
+
   create_table "gl_retainage_releases", force: :cascade do |t|
     t.bigint "corporate_company_id", null: false
     t.bigint "job_id", null: false
@@ -4757,6 +4895,43 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["corporate_company_id", "report_type"], name: "idx_scheduled_reports_type"
     t.index ["corporate_company_id"], name: "index_gl_scheduled_reports_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_scheduled_reports_on_created_by_id"
+  end
+
+  create_table "gl_split_lines", force: :cascade do |t|
+    t.bigint "split_transaction_id", null: false
+    t.bigint "account_id", null: false
+    t.bigint "department_id"
+    t.bigint "job_id"
+    t.decimal "amount", precision: 15, scale: 2, null: false
+    t.decimal "percentage", precision: 5, scale: 2
+    t.text "description"
+    t.bigint "tax_rate_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_gl_split_lines_on_account_id"
+    t.index ["department_id"], name: "index_gl_split_lines_on_department_id"
+    t.index ["job_id"], name: "index_gl_split_lines_on_job_id"
+    t.index ["split_transaction_id"], name: "index_gl_split_lines_on_split_transaction_id"
+    t.index ["tax_rate_id"], name: "index_gl_split_lines_on_tax_rate_id"
+  end
+
+  create_table "gl_split_transactions", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "original_transaction_type"
+    t.bigint "original_transaction_id"
+    t.decimal "original_amount", precision: 15, scale: 2, null: false
+    t.string "status", default: "pending"
+    t.bigint "created_by_id"
+    t.bigint "approved_by_id"
+    t.datetime "completed_at"
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["approved_by_id"], name: "index_gl_split_transactions_on_approved_by_id"
+    t.index ["corporate_company_id"], name: "index_gl_split_transactions_on_corporate_company_id"
+    t.index ["created_by_id"], name: "index_gl_split_transactions_on_created_by_id"
+    t.index ["original_transaction_type", "original_transaction_id"], name: "index_gl_split_transactions_on_original_transaction"
+    t.index ["status"], name: "index_gl_split_transactions_on_status"
   end
 
   create_table "gl_stock_count_lines", force: :cascade do |t|
@@ -4912,6 +5087,23 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
     t.index ["corporate_company_id", "financial_year"], name: "idx_tpar_reports_year", unique: true
     t.index ["corporate_company_id"], name: "index_gl_tpar_reports_on_corporate_company_id"
     t.index ["created_by_id"], name: "index_gl_tpar_reports_on_created_by_id"
+  end
+
+  create_table "gl_tracking_classes", force: :cascade do |t|
+    t.bigint "corporate_company_id", null: false
+    t.string "name", null: false
+    t.string "class_type", null: false
+    t.string "code"
+    t.bigint "parent_id"
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_gl_tracking_classes_on_active"
+    t.index ["class_type"], name: "index_gl_tracking_classes_on_class_type"
+    t.index ["corporate_company_id", "class_type", "code"], name: "idx_on_corporate_company_id_class_type_code_9ac3c99c17", unique: true
+    t.index ["corporate_company_id"], name: "index_gl_tracking_classes_on_corporate_company_id"
+    t.index ["parent_id"], name: "index_gl_tracking_classes_on_parent_id"
   end
 
   create_table "gl_transaction_categories", force: :cascade do |t|
@@ -8774,6 +8966,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_change_orders", "jobs"
   add_foreign_key "gl_change_orders", "users", column: "approved_by_id"
   add_foreign_key "gl_change_orders", "users", column: "requested_by_id"
+  add_foreign_key "gl_class_assignments", "gl_tracking_classes", column: "tracking_class_id"
   add_foreign_key "gl_currencies", "corporate_companies"
   add_foreign_key "gl_custom_reports", "corporate_companies"
   add_foreign_key "gl_custom_reports", "users", column: "created_by_id"
@@ -8787,6 +8980,9 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_customer_statements", "users", column: "generated_by_id"
   add_foreign_key "gl_dashboard_widgets", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_dashboard_widgets", "gl_report_dashboards", column: "dashboard_id"
+  add_foreign_key "gl_departments", "corporate_companies"
+  add_foreign_key "gl_departments", "gl_departments", column: "parent_id"
+  add_foreign_key "gl_departments", "users", column: "manager_id"
   add_foreign_key "gl_deposit_allocations", "gl_deposits", column: "deposit_id"
   add_foreign_key "gl_deposit_allocations", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_deposit_allocations", "users", column: "allocated_by_id"
@@ -8797,6 +8993,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_deposits", "users", column: "received_by_id"
   add_foreign_key "gl_direct_debit_mandates", "contacts"
   add_foreign_key "gl_direct_debit_mandates", "corporate_companies"
+  add_foreign_key "gl_document_requests", "contacts"
+  add_foreign_key "gl_document_requests", "corporate_companies"
+  add_foreign_key "gl_document_requests", "jobs"
+  add_foreign_key "gl_document_requests", "users", column: "created_by_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill1_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "bill2_id"
   add_foreign_key "gl_duplicate_bill_reviews", "external_invoices", column: "kept_bill_id"
@@ -8824,14 +9024,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_invoice_lines", "jobs"
   add_foreign_key "gl_invoices", "contacts"
   add_foreign_key "gl_invoices", "corporate_companies"
+  add_foreign_key "gl_invoices", "gl_departments", column: "department_id"
   add_foreign_key "gl_invoices", "gl_journal_entries"
   add_foreign_key "gl_invoices", "gl_recurring_invoices", column: "recurring_invoice_id"
   add_foreign_key "gl_invoices", "jobs"
   add_foreign_key "gl_invoices", "users", column: "approved_by_id"
   add_foreign_key "gl_journal_entries", "corporate_companies"
+  add_foreign_key "gl_journal_entries", "gl_departments", column: "department_id"
   add_foreign_key "gl_journal_entries", "gl_periods"
   add_foreign_key "gl_journal_entries", "jobs"
   add_foreign_key "gl_journal_entries", "users", column: "created_by_id"
+  add_foreign_key "gl_kpi_definitions", "corporate_companies"
   add_foreign_key "gl_ledger_lines", "contacts"
   add_foreign_key "gl_ledger_lines", "gl_accounts"
   add_foreign_key "gl_ledger_lines", "gl_journal_entries"
@@ -8861,6 +9064,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_period_locks", "corporate_companies"
   add_foreign_key "gl_period_locks", "users", column: "locked_by_id"
   add_foreign_key "gl_period_locks", "users", column: "unlocked_by_id"
+  add_foreign_key "gl_period_snapshots", "corporate_companies"
   add_foreign_key "gl_periods", "corporate_companies"
   add_foreign_key "gl_periods", "users", column: "closed_by_id"
   add_foreign_key "gl_portal_sessions", "contacts"
@@ -8902,6 +9106,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_report_filters", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_report_runs", "gl_custom_reports", column: "custom_report_id"
   add_foreign_key "gl_report_runs", "users", column: "run_by_id"
+  add_foreign_key "gl_requested_documents", "gl_document_requests", column: "document_request_id"
+  add_foreign_key "gl_requested_documents", "users", column: "reviewed_by_id"
   add_foreign_key "gl_retainage_releases", "corporate_companies"
   add_foreign_key "gl_retainage_releases", "gl_invoices", column: "invoice_id"
   add_foreign_key "gl_retainage_releases", "gl_progress_claims", column: "progress_claim_id"
@@ -8912,6 +9118,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_scheduled_invoices", "users", column: "created_by_id"
   add_foreign_key "gl_scheduled_reports", "corporate_companies"
   add_foreign_key "gl_scheduled_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_split_lines", "gl_accounts", column: "account_id"
+  add_foreign_key "gl_split_lines", "gl_departments", column: "department_id"
+  add_foreign_key "gl_split_lines", "gl_split_transactions", column: "split_transaction_id"
+  add_foreign_key "gl_split_lines", "gl_tax_rates", column: "tax_rate_id"
+  add_foreign_key "gl_split_lines", "jobs"
+  add_foreign_key "gl_split_transactions", "corporate_companies"
+  add_foreign_key "gl_split_transactions", "users", column: "approved_by_id"
+  add_foreign_key "gl_split_transactions", "users", column: "created_by_id"
   add_foreign_key "gl_stock_count_lines", "gl_inventory_items", column: "inventory_item_id"
   add_foreign_key "gl_stock_count_lines", "gl_stock_counts", column: "stock_count_id"
   add_foreign_key "gl_stock_counts", "corporate_companies"
@@ -8931,6 +9145,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_26_232002) do
   add_foreign_key "gl_tpar_payees", "gl_tpar_reports", column: "tpar_report_id"
   add_foreign_key "gl_tpar_reports", "corporate_companies"
   add_foreign_key "gl_tpar_reports", "users", column: "created_by_id"
+  add_foreign_key "gl_tracking_classes", "corporate_companies"
+  add_foreign_key "gl_tracking_classes", "gl_tracking_classes", column: "parent_id"
   add_foreign_key "gl_transaction_categories", "corporate_companies"
   add_foreign_key "gl_transaction_categories", "gl_accounts", column: "default_account_id"
   add_foreign_key "gl_transaction_categories", "gl_tax_rates", column: "default_tax_rate_id"

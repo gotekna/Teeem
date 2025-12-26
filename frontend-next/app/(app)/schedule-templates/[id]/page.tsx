@@ -533,7 +533,7 @@ export default function ScheduleTemplateDetailPage() {
     setLoadingPriceHistories(true);
     try {
       const response = await api.get<{ success: boolean; data: PriceHistory[] }>(
-        `/api/v1/price_histories?supplier_id=${supplierId}&limit=500`
+        `/api/v1/pricebook/all_price_histories?supplier_id=${supplierId}&limit=500`
       );
       setPriceHistories(response.data || []);
     } catch (error) {
@@ -1028,13 +1028,46 @@ export default function ScheduleTemplateDetailPage() {
                   />
                   <Label htmlFor="critical_po" className="text-sm">Critical PO</Label>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="create_po_on_job_start"
-                    checked={editForm.create_po_on_job_start ?? false}
-                    onCheckedChange={(checked) => setEditForm({ ...editForm, create_po_on_job_start: !!checked })}
-                  />
-                  <Label htmlFor="create_po_on_job_start" className="text-sm">Create PO on Job Start</Label>
+                <div className="col-span-2 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="create_po_on_job_start"
+                      checked={editForm.create_po_on_job_start ?? false}
+                      onCheckedChange={(checked) => {
+                        if (checked && editingRow) {
+                          // When checking, open the configuration dialog
+                          handleOpenAutoPODialog(editingRow);
+                        } else {
+                          // When unchecking, just update the form
+                          setEditForm({ ...editForm, create_po_on_job_start: false });
+                        }
+                      }}
+                    />
+                    <Label htmlFor="create_po_on_job_start" className="text-sm">Create PO on Job Start</Label>
+                    {editingRow?.po_supplier_id && (
+                      <Badge variant="secondary" className="ml-auto">
+                        {editingRow.po_supplier_name}
+                        {editingRow.po_price_history_ids?.length > 0 && (
+                          <span className="ml-1">({editingRow.po_price_history_ids.length} items)</span>
+                        )}
+                      </Badge>
+                    )}
+                    {editForm.create_po_on_job_start && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => editingRow && handleOpenAutoPODialog(editingRow)}
+                      >
+                        {editingRow?.po_supplier_id ? 'Edit' : 'Configure'}
+                      </Button>
+                    )}
+                  </div>
+                  {editForm.create_po_on_job_start && !editingRow?.po_supplier_id && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Click Configure to set up the supplier and items for auto-PO creation.
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -1645,6 +1678,157 @@ export default function ScheduleTemplateDetailPage() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Auto-PO Configuration Dialog */}
+      <Dialog open={showAutoPODialog} onOpenChange={setShowAutoPODialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Configure Auto-PO for: {autoPORow?.name}
+            </DialogTitle>
+            <DialogDescription>
+              When this template is copied to a job, a Purchase Order will be automatically created with the supplier and items selected below.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-6">
+            {/* Supplier Selection */}
+            <div className="space-y-2">
+              <Label>Supplier</Label>
+              {loadingSuppliers ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading suppliers...
+                </div>
+              ) : (
+                <Select value={selectedSupplierId} onValueChange={handleSupplierChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a supplier..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {suppliers.map((supplier) => (
+                      <SelectItem key={supplier.id} value={String(supplier.id)}>
+                        {supplier.name}
+                        {supplier.company_name && supplier.company_name !== supplier.name && (
+                          <span className="text-muted-foreground ml-1">({supplier.company_name})</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Price History Items */}
+            {selectedSupplierId && (
+              <div className="space-y-2">
+                <Label>Items from Price Book</Label>
+                <p className="text-sm text-muted-foreground">
+                  Select items to include on the auto-generated PO. Prices are from this supplier&apos;s price history.
+                </p>
+                {loadingPriceHistories ? (
+                  <div className="flex items-center gap-2 text-muted-foreground py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading price history...
+                  </div>
+                ) : priceHistories.length === 0 ? (
+                  <div className="text-sm text-muted-foreground py-4 bg-muted rounded-lg text-center">
+                    No price history found for this supplier.
+                    <br />
+                    <span className="text-xs">Add prices in the Pricebook to enable auto-PO items.</span>
+                  </div>
+                ) : (
+                  <div className="max-h-60 overflow-y-auto border rounded-lg">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>Item</TableHead>
+                          <TableHead className="text-right">Price</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {priceHistories.map((ph) => (
+                          <TableRow
+                            key={ph.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => togglePriceHistorySelection(ph.id)}
+                          >
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedPriceHistoryIds.includes(ph.id)}
+                                onCheckedChange={() => togglePriceHistorySelection(ph.id)}
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium">{ph.pricebook_item_name}</div>
+                              <div className="text-xs text-muted-foreground">{ph.pricebook_item_code}</div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">
+                              ${ph.new_price?.toLocaleString('en-AU', { minimumFractionDigits: 2 }) ?? '0.00'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {selectedPriceHistoryIds.length > 0 && (
+                  <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      {selectedPriceHistoryIds.length} item{selectedPriceHistoryIds.length !== 1 ? 's' : ''} selected for auto-PO
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      Total: $
+                      {priceHistories
+                        .filter((ph) => selectedPriceHistoryIds.includes(ph.id))
+                        .reduce((sum, ph) => sum + (ph.new_price || 0), 0)
+                        .toLocaleString('en-AU', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Info message */}
+            <div className="text-sm text-muted-foreground bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
+              <AlertCircle className="h-4 w-4 inline mr-1 text-blue-600 dark:text-blue-400" />
+              When this template is copied to a job, a draft PO will be created automatically with the selected supplier and items.
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            {autoPORow?.po_supplier_id && (
+              <Button
+                variant="destructive"
+                onClick={handleClearAutoPO}
+                disabled={savingAutoPO}
+                className="mr-auto"
+              >
+                Clear Auto-PO
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setShowAutoPODialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAutoPO}
+              disabled={savingAutoPO || !selectedSupplierId}
+            >
+              {savingAutoPO ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save PO Template"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
