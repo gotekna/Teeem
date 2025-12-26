@@ -114,11 +114,17 @@ class ImapEmailService
       # Sync from multiple folders
       all_emails = []
       SYNC_FOLDERS.each do |folder|
-        emails = if full_sync
-                   fetch_emails(folder: folder, since: 90.days.ago, limit: 500)
-                 else
-                   fetch_new_emails(folder: folder, limit: 250)
-                 end
+        # Use date-based sync for both full and incremental
+        # UID-based sync was broken because UIDs are folder-specific but we stored one global last_uid
+        since_date = if full_sync
+                       90.days.ago
+                     else
+                       # For incremental, sync emails from last sync time minus 1 hour buffer
+                       # The buffer handles timezone issues and any emails that arrived just before last sync
+                       # Duplicates are handled by internet_message_id uniqueness check
+                       (credential.last_synced_at || 7.days.ago) - 1.hour
+                     end
+        emails = fetch_emails(folder: folder, since: since_date, limit: full_sync ? 500 : 250)
         all_emails.concat(emails)
       rescue => e
         Rails.logger.warn "[ImapEmailService] Skipping folder #{folder}: #{e.message}"
