@@ -4079,6 +4079,9 @@ module Api
           :is_potential_director,
           :company_group_id,
           :is_team_contact,
+          # Supplier team configuration (for auto-calculating task duration)
+          :team_size,
+          :daily_rate_per_person,
           # NOTE: primary_company_id is now READ-ONLY (auto-synced from ContactRelationship)
           # NOTE: Xero accounting fields (bank details, payment terms, balances) are READ-ONLY
           # They are synced from Xero and cannot be edited in TEEEM

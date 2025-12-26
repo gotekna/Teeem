@@ -401,7 +401,8 @@ class SmScheduleMasterSyncService
 
     # Calculate start date - either from job or today
     start_date = job.construction_start_date || Date.current
-    duration = template_row.duration_days || 1
+    # Calculate duration - use team-based calculation if supplier has team_size
+    duration = calculate_task_duration
     end_date = start_date + (duration - 1).days
 
     # Generate unique name for duplicate tasks (e.g., "Req Bath 1", "Req Bath 2")
@@ -512,6 +513,56 @@ class SmScheduleMasterSyncService
 
     # Return next number
     "#{base_name} #{max_number + 1}"
+  end
+
+  # Calculate duration based on supplier team size or template default
+  # Formula: ceil(PO Amount / (Team Size × Daily Rate))
+  # If no team_size on supplier, use template's duration_days
+  def calculate_task_duration
+    # Only calculate for PO tasks with a supplier
+    if (template_row.po_required || template_row.create_po_on_job_start) && template_row.po_supplier_id.present?
+      supplier = Contact.find_by(id: template_row.po_supplier_id)
+
+      if supplier&.team_size.present? && supplier.team_size > 0
+        # Calculate PO amount from po_line_items
+        po_amount = calculate_po_amount_from_line_items
+
+        if po_amount && po_amount > 0
+          calculated_duration = supplier.calculate_duration_from_amount(po_amount)
+          if calculated_duration && calculated_duration > 0
+            Rails.logger.info "[SmScheduleMasterSyncService] Calculated duration #{calculated_duration} days from team_size=#{supplier.team_size}, rate=#{supplier.daily_rate_per_person || 800}, po_amount=#{po_amount}"
+            return calculated_duration
+          end
+        end
+      end
+    end
+
+    # Fallback to template default
+    template_row.duration_days || 1
+  end
+
+  # Calculate PO amount from pricebook items in po_line_items
+  def calculate_po_amount_from_line_items
+    return nil if template_row.po_line_items.blank?
+
+    total = 0.0
+    template_row.po_line_items.each do |item|
+      pricebook_item_id = item["pricebook_item_id"]
+      qty = (item["qty"] || 1).to_f
+
+      next unless pricebook_item_id
+
+      # Get current price from PriceHistory
+      price_history = PriceHistory.where(pricebook_item_id: pricebook_item_id)
+                                   .order(effective_date: :desc)
+                                   .first
+
+      if price_history&.new_price.present?
+        total += price_history.new_price.to_f * qty
+      end
+    end
+
+    total > 0 ? total : nil
   end
 
   # Calculate order_time_days based on pricebook items or template default

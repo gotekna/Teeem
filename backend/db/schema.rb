@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010027) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010028) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1465,6 +1465,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010027) do
     t.string "xero_tenant_names", default: [], array: true
     t.boolean "tpar_required", default: false
     t.string "tpar_industry_code", limit: 10
+    t.integer "team_size"
+    t.decimal "daily_rate_per_person", precision: 10, scale: 2, default: "800.0"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"

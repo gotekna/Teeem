@@ -54,7 +54,7 @@ class APIClient {
             let possibleKeys = [
                 resourceName,                           // e.g., "jobs", "contacts"
                 "emails",                               // email_warehouse returns "emails"
-                "sm_tasks",                             // tasks endpoint
+                "tasks",                                // sm_tasks endpoint returns "tasks"
                 "data"                                  // generic wrapper
             ]
 

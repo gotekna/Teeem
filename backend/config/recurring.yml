@@ -316,10 +316,11 @@ cleanup_ephemeral_emails:
   schedule: at 3am every day
 
 # Sync IMAP email accounts (unified inbox)
+# Reduced from 15min to 2min for faster email delivery
 imap_email_sync:
   class: ImapSyncJob
   queue: default
-  schedule: every 15 minutes
+  schedule: every 2 minutes
 
 # Wake up snoozed emails that have reached their snooze time
 # Runs every minute for responsive snooze experience

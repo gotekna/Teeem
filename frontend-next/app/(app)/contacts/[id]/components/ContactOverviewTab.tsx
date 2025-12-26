@@ -342,7 +342,7 @@ export function ContactOverviewTab({
 
   // Generic save function for single field updates
   const saveField = useCallback(
-    async (fieldName: string, value: string | boolean): Promise<void> => {
+    async (fieldName: string, value: string | boolean | number | null): Promise<void> => {
       try {
         const response = await api.patch<{ contact: Contact }>(
           `/api/v1/contacts/${contact.id}`,
@@ -593,6 +593,31 @@ export function ContactOverviewTab({
                   onSave={(value) => saveField("sync_with_xero", value)}
                   type="switch"
                   hint="Keep contact synced with Xero"
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Supplier Settings Card - only for suppliers */}
+          {contact["is_supplier?"] && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Team Configuration</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <PropertyRow
+                  label="Team Size"
+                  value={contact.team_size?.toString() || ""}
+                  onSave={(value) => saveField("team_size", value ? parseInt(value.toString()) : null)}
+                  placeholder="Number of workers"
+                  hint="Used to auto-calculate task duration from PO amount"
+                />
+                <PropertyRow
+                  label="Daily Rate"
+                  value={contact.daily_rate_per_person?.toString() || "800"}
+                  onSave={(value) => saveField("daily_rate_per_person", value ? parseFloat(value.toString()) : 800)}
+                  placeholder="800"
+                  hint="$ per person per day (default: $800)"
                 />
               </CardContent>
             </Card>

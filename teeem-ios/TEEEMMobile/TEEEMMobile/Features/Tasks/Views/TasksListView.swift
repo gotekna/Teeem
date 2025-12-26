@@ -76,8 +76,11 @@ struct TaskDetailView: View {
                     LabeledContent("Due Date", value: date)
                 }
             }
-            if let notes = task.notes {
-                Section("Notes") { Text(notes) }
+            if let desc = task.description {
+                Section("Description") { Text(desc) }
+            }
+            if task.isHoldTask == true, let reason = task.holdReason {
+                Section("On Hold") { Text(reason) }
             }
             Section {
                 if task.taskStatus == .notStarted {

@@ -238,6 +238,10 @@ class Contact < ApplicationRecord
   validate :validate_team_contact_company # Team contacts must have a company
   validate :validate_primary_company       # Prevent self-reference and ensure company type
 
+  # Team/supplier configuration validations
+  validates :team_size, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
+  validates :daily_rate_per_person, numericality: { greater_than: 0 }, allow_nil: true
+
   # Callbacks
   # prepend: true ensures these run BEFORE AutoColumnValidation's validate_column_types
   before_validation :auto_fix_website_url, prepend: true  # Auto-fix website URLs without protocol (MUST run before column type validation)
@@ -376,6 +380,19 @@ class Contact < ApplicationRecord
     pricebook_items.exists? ||
     price_histories.exists? ||
     external_invoices.bills.exists?
+  end
+
+  # Calculate task duration from PO amount based on team capacity
+  # Formula: ceil(PO Amount / (Team Size × Daily Rate))
+  # Returns nil if team_size not set (use template default instead)
+  def calculate_duration_from_amount(po_amount)
+    return nil if team_size.blank? || team_size <= 0
+    return nil if po_amount.blank? || po_amount <= 0
+
+    rate = daily_rate_per_person || 800.0
+    daily_capacity = team_size * rate
+
+    (po_amount.to_f / daily_capacity).ceil
   end
 
   # Note: is_director? is defined below and checks actual company directorships

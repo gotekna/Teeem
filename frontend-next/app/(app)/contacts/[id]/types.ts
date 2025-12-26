@@ -430,6 +430,9 @@ export interface Contact {
   abn_entity_type?: string | null;
   abn_gst_registered?: boolean | null;
   abn_verified_at?: string | null;
+  // Supplier team configuration (for auto-calculating task duration)
+  team_size?: number | null;
+  daily_rate_per_person?: number | null;
 }
 
 // Helper function types
