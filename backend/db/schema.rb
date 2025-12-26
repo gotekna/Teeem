@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_010003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7319,6 +7319,86 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
     t.index ["spawned_task_id"], name: "index_sm_spawn_logs_on_spawned_task_id"
   end
 
+  create_table "sm_tasks", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.bigint "parent_task_id"
+    t.integer "task_number", null: false
+    t.string "name", limit: 255, null: false
+    t.text "description"
+    t.decimal "sequence_order", precision: 10, scale: 2, null: false
+    t.date "start_date", null: false
+    t.date "end_date", null: false
+    t.integer "duration_days", null: false
+    t.string "status", limit: 50, default: "not_started", null: false
+    t.datetime "started_at", precision: nil
+    t.datetime "completed_at", precision: nil
+    t.boolean "passed"
+    t.boolean "confirm", default: false
+    t.boolean "supplier_confirm", default: false
+    t.boolean "hold", default: false
+    t.datetime "hold_at", precision: nil
+    t.string "confirm_status", limit: 50
+    t.datetime "confirm_requested_at", precision: nil
+    t.datetime "supplier_confirmed_at", precision: nil
+    t.bigint "supplier_confirmed_by_id"
+    t.boolean "is_hold_task", default: false
+    t.bigint "hold_reason_id"
+    t.datetime "hold_started_at", precision: nil
+    t.bigint "hold_started_by_id"
+    t.datetime "hold_released_at", precision: nil
+    t.bigint "hold_released_by_id"
+    t.text "hold_release_reason"
+    t.bigint "purchase_order_id"
+    t.bigint "assigned_user_id"
+    t.bigint "supplier_id"
+    t.string "trade", limit: 100
+    t.string "stage", limit: 100
+    t.integer "documentation_category_ids", default: [], array: true
+    t.boolean "show_in_docs_tab", default: false
+    t.jsonb "linked_task_ids", default: []
+    t.boolean "spawn_photo_task", default: false
+    t.boolean "spawn_scan_task", default: false
+    t.jsonb "spawn_office_tasks", default: []
+    t.boolean "pass_fail_enabled", default: false
+    t.bigint "checklist_id"
+    t.integer "order_time_days"
+    t.integer "call_time_days"
+    t.boolean "order_reminder_sent", default: false
+    t.boolean "call_reminder_sent", default: false
+    t.boolean "require_photo", default: false
+    t.boolean "require_certificate", default: false
+    t.boolean "require_confirm", default: false
+    t.boolean "po_required", default: false
+    t.boolean "critical_po", default: false
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "sm_template_row_id"
+    t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
+    t.index ["checklist_id"], name: "index_sm_tasks_on_checklist_id"
+    t.index ["confirm_status"], name: "index_sm_tasks_on_confirm_status"
+    t.index ["created_by_id"], name: "index_sm_tasks_on_created_by_id"
+    t.index ["hold_reason_id"], name: "index_sm_tasks_on_hold_reason_id"
+    t.index ["hold_released_by_id"], name: "index_sm_tasks_on_hold_released_by_id"
+    t.index ["hold_started_by_id"], name: "index_sm_tasks_on_hold_started_by_id"
+    t.index ["is_hold_task"], name: "index_sm_tasks_on_is_hold_task", where: "(is_hold_task = true)"
+    t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
+    t.index ["job_id", "status"], name: "idx_tasks_job_status"
+    t.index ["job_id", "task_number"], name: "index_sm_tasks_on_job_id_and_task_number", unique: true
+    t.index ["job_id"], name: "index_sm_tasks_on_job_id"
+    t.index ["parent_task_id"], name: "index_sm_tasks_on_parent_task_id"
+    t.index ["purchase_order_id"], name: "index_sm_tasks_on_purchase_order_id"
+    t.index ["sequence_order"], name: "index_sm_tasks_on_sequence_order"
+    t.index ["sm_template_row_id"], name: "index_sm_tasks_on_sm_template_row_id"
+    t.index ["start_date"], name: "index_sm_tasks_on_start_date"
+    t.index ["status"], name: "index_sm_tasks_on_status"
+    t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
+    t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
+    t.index ["trade"], name: "index_sm_tasks_on_trade"
+    t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
+  end
+
   create_table "sm_template_rows", force: :cascade do |t|
     t.bigint "parent_row_id"
     t.integer "task_number", null: false
@@ -7801,86 +7881,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["table_name"], name: "index_table_protections_on_table_name", unique: true
-  end
-
-  create_table "tasks", force: :cascade do |t|
-    t.bigint "job_id", null: false
-    t.bigint "parent_task_id"
-    t.integer "task_number", null: false
-    t.string "name", limit: 255, null: false
-    t.text "description"
-    t.decimal "sequence_order", precision: 10, scale: 2, null: false
-    t.date "start_date", null: false
-    t.date "end_date", null: false
-    t.integer "duration_days", null: false
-    t.string "status", limit: 50, default: "not_started", null: false
-    t.datetime "started_at", precision: nil
-    t.datetime "completed_at", precision: nil
-    t.boolean "passed"
-    t.boolean "confirm", default: false
-    t.boolean "supplier_confirm", default: false
-    t.boolean "hold", default: false
-    t.datetime "hold_at", precision: nil
-    t.string "confirm_status", limit: 50
-    t.datetime "confirm_requested_at", precision: nil
-    t.datetime "supplier_confirmed_at", precision: nil
-    t.bigint "supplier_confirmed_by_id"
-    t.boolean "is_hold_task", default: false
-    t.bigint "hold_reason_id"
-    t.datetime "hold_started_at", precision: nil
-    t.bigint "hold_started_by_id"
-    t.datetime "hold_released_at", precision: nil
-    t.bigint "hold_released_by_id"
-    t.text "hold_release_reason"
-    t.bigint "purchase_order_id"
-    t.bigint "assigned_user_id"
-    t.bigint "supplier_id"
-    t.string "trade", limit: 100
-    t.string "stage", limit: 100
-    t.integer "documentation_category_ids", default: [], array: true
-    t.boolean "show_in_docs_tab", default: false
-    t.jsonb "linked_task_ids", default: []
-    t.boolean "spawn_photo_task", default: false
-    t.boolean "spawn_scan_task", default: false
-    t.jsonb "spawn_office_tasks", default: []
-    t.boolean "pass_fail_enabled", default: false
-    t.bigint "checklist_id"
-    t.integer "order_time_days"
-    t.integer "call_time_days"
-    t.boolean "order_reminder_sent", default: false
-    t.boolean "call_reminder_sent", default: false
-    t.boolean "require_photo", default: false
-    t.boolean "require_certificate", default: false
-    t.boolean "require_confirm", default: false
-    t.boolean "po_required", default: false
-    t.boolean "critical_po", default: false
-    t.bigint "created_by_id"
-    t.bigint "updated_by_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "sm_template_row_id"
-    t.index ["assigned_user_id"], name: "index_tasks_on_assigned_user_id"
-    t.index ["checklist_id"], name: "index_tasks_on_checklist_id"
-    t.index ["confirm_status"], name: "index_tasks_on_confirm_status"
-    t.index ["created_by_id"], name: "index_tasks_on_created_by_id"
-    t.index ["hold_reason_id"], name: "index_tasks_on_hold_reason_id"
-    t.index ["hold_released_by_id"], name: "index_tasks_on_hold_released_by_id"
-    t.index ["hold_started_by_id"], name: "index_tasks_on_hold_started_by_id"
-    t.index ["is_hold_task"], name: "index_tasks_on_is_hold_task", where: "(is_hold_task = true)"
-    t.index ["job_id", "status", "start_date"], name: "idx_tasks_job_status_start"
-    t.index ["job_id", "status"], name: "idx_tasks_job_status"
-    t.index ["job_id", "task_number"], name: "index_tasks_on_job_id_and_task_number", unique: true
-    t.index ["job_id"], name: "index_tasks_on_job_id"
-    t.index ["parent_task_id"], name: "index_tasks_on_parent_task_id"
-    t.index ["purchase_order_id"], name: "index_tasks_on_purchase_order_id"
-    t.index ["sequence_order"], name: "index_tasks_on_sequence_order"
-    t.index ["sm_template_row_id"], name: "index_tasks_on_sm_template_row_id"
-    t.index ["start_date"], name: "index_tasks_on_start_date"
-    t.index ["status"], name: "index_tasks_on_status"
-    t.index ["supplier_confirmed_by_id"], name: "index_tasks_on_supplier_confirmed_by_id"
-    t.index ["supplier_id"], name: "index_tasks_on_supplier_id"
-    t.index ["trade"], name: "index_tasks_on_trade"
-    t.index ["updated_by_id"], name: "index_tasks_on_updated_by_id"
   end
 
   create_table "trinity", force: :cascade do |t|
@@ -9215,7 +9215,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   add_foreign_key "maintenance_requests", "purchase_orders"
   add_foreign_key "maintenance_requests", "users", column: "reported_by_user_id"
   add_foreign_key "meeting_agenda_items", "meetings"
-  add_foreign_key "meeting_agenda_items", "tasks", column: "sm_task_id"
+  add_foreign_key "meeting_agenda_items", "sm_tasks"
   add_foreign_key "meeting_agenda_items", "users", column: "presenter_id"
   add_foreign_key "meeting_participants", "contacts"
   add_foreign_key "meeting_participants", "meetings"
@@ -9300,24 +9300,37 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   add_foreign_key "share_transfers", "contacts", column: "from_shareholder_id"
   add_foreign_key "share_transfers", "contacts", column: "to_shareholder_id"
   add_foreign_key "share_transfers", "corporate_companies", column: "company_id"
-  add_foreign_key "sm_dependencies", "tasks", column: "predecessor_task_id", on_delete: :cascade
-  add_foreign_key "sm_dependencies", "tasks", column: "successor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "predecessor_task_id", on_delete: :cascade
+  add_foreign_key "sm_dependencies", "sm_tasks", column: "successor_task_id", on_delete: :cascade
   add_foreign_key "sm_dependencies", "users", column: "created_by_id", on_delete: :nullify
   add_foreign_key "sm_dependencies", "users", column: "deleted_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "jobs", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
-  add_foreign_key "sm_hold_logs", "tasks", column: "hold_task_id", on_delete: :cascade
+  add_foreign_key "sm_hold_logs", "sm_tasks", column: "hold_task_id", on_delete: :cascade
   add_foreign_key "sm_hold_logs", "users", column: "hold_released_by_id", on_delete: :nullify
   add_foreign_key "sm_hold_logs", "users", column: "hold_started_by_id", on_delete: :nullify
   add_foreign_key "sm_resource_allocations", "sm_resources", column: "resource_id", on_delete: :cascade
-  add_foreign_key "sm_resource_allocations", "tasks", on_delete: :cascade
+  add_foreign_key "sm_resource_allocations", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_resources", "contacts", on_delete: :nullify
   add_foreign_key "sm_resources", "users", on_delete: :nullify
   add_foreign_key "sm_rollover_logs", "jobs", on_delete: :cascade
-  add_foreign_key "sm_rollover_logs", "tasks", on_delete: :cascade
-  add_foreign_key "sm_spawn_logs", "tasks", column: "parent_task_id", on_delete: :cascade
-  add_foreign_key "sm_spawn_logs", "tasks", column: "spawned_task_id", on_delete: :cascade
+  add_foreign_key "sm_rollover_logs", "sm_tasks", column: "task_id", on_delete: :cascade
+  add_foreign_key "sm_spawn_logs", "sm_tasks", column: "parent_task_id", on_delete: :cascade
+  add_foreign_key "sm_spawn_logs", "sm_tasks", column: "spawned_task_id", on_delete: :cascade
   add_foreign_key "sm_spawn_logs", "users", column: "spawned_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "contacts", column: "supplier_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "jobs", on_delete: :cascade
+  add_foreign_key "sm_tasks", "purchase_orders", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_tasks", column: "parent_task_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "sm_template_rows"
+  add_foreign_key "sm_tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "assigned_user_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "created_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "hold_released_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "hold_started_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
+  add_foreign_key "sm_tasks", "users", column: "updated_by_id", on_delete: :nullify
   add_foreign_key "sm_template_rows", "sm_template_rows", column: "parent_row_id"
   add_foreign_key "sm_template_rows", "supervisor_checklist_templates", column: "checklist_id"
   add_foreign_key "sm_template_rows", "users", column: "created_by_id"
@@ -9326,10 +9339,10 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   add_foreign_key "sm_templates", "users", column: "updated_by_id"
   add_foreign_key "sm_time_entries", "sm_resource_allocations", column: "allocation_id", on_delete: :nullify
   add_foreign_key "sm_time_entries", "sm_resources", column: "resource_id", on_delete: :cascade
-  add_foreign_key "sm_time_entries", "tasks", on_delete: :cascade
+  add_foreign_key "sm_time_entries", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sm_time_entries", "users", column: "approved_by_id", on_delete: :nullify
   add_foreign_key "sm_time_entries", "users", column: "created_by_id", on_delete: :nullify
-  add_foreign_key "sm_working_drawing_pages", "tasks", on_delete: :cascade
+  add_foreign_key "sm_working_drawing_pages", "sm_tasks", column: "task_id", on_delete: :cascade
   add_foreign_key "sms_messages", "contacts"
   add_foreign_key "sms_messages", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
@@ -9349,19 +9362,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   add_foreign_key "subcontractor_invoices", "contacts"
   add_foreign_key "subcontractor_invoices", "purchase_orders"
   add_foreign_key "table_health_checks", "foundations"
-  add_foreign_key "tasks", "contacts", column: "supplier_id", on_delete: :nullify
-  add_foreign_key "tasks", "jobs", on_delete: :cascade
-  add_foreign_key "tasks", "purchase_orders", on_delete: :nullify
-  add_foreign_key "tasks", "sm_hold_reasons", column: "hold_reason_id", on_delete: :nullify
-  add_foreign_key "tasks", "sm_template_rows"
-  add_foreign_key "tasks", "supervisor_checklist_templates", column: "checklist_id", on_delete: :nullify
-  add_foreign_key "tasks", "tasks", column: "parent_task_id", on_delete: :nullify
-  add_foreign_key "tasks", "users", column: "assigned_user_id", on_delete: :nullify
-  add_foreign_key "tasks", "users", column: "created_by_id", on_delete: :nullify
-  add_foreign_key "tasks", "users", column: "hold_released_by_id", on_delete: :nullify
-  add_foreign_key "tasks", "users", column: "hold_started_by_id", on_delete: :nullify
-  add_foreign_key "tasks", "users", column: "supplier_confirmed_by_id", on_delete: :nullify
-  add_foreign_key "tasks", "users", column: "updated_by_id", on_delete: :nullify
   add_foreign_key "unreal_measurements", "job_colour_selections"
   add_foreign_key "unreal_measurements", "job_plans"
   add_foreign_key "unreal_measurements", "jobs"
@@ -9381,11 +9381,11 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   add_foreign_key "warehouse_bank_transactions", "contacts"
   add_foreign_key "warehouse_bank_transactions", "warehouse_contacts"
   add_foreign_key "warehouse_contacts", "contacts"
-  add_foreign_key "whs_action_items", "tasks", column: "sm_task_id"
+  add_foreign_key "whs_action_items", "sm_tasks"
   add_foreign_key "whs_action_items", "users", column: "assigned_to_user_id"
   add_foreign_key "whs_action_items", "users", column: "created_by_id"
   add_foreign_key "whs_incidents", "jobs"
-  add_foreign_key "whs_incidents", "tasks", column: "sm_task_id"
+  add_foreign_key "whs_incidents", "sm_tasks"
   add_foreign_key "whs_incidents", "users", column: "investigated_by_user_id"
   add_foreign_key "whs_incidents", "users", column: "reported_by_user_id"
   add_foreign_key "whs_inductions", "jobs"
@@ -9397,7 +9397,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_010002) do
   add_foreign_key "whs_inspections", "users", column: "created_by_id"
   add_foreign_key "whs_inspections", "users", column: "inspector_user_id"
   add_foreign_key "whs_swms", "jobs"
-  add_foreign_key "whs_swms", "tasks", column: "sm_task_id"
+  add_foreign_key "whs_swms", "sm_tasks"
   add_foreign_key "whs_swms", "users", column: "approved_by_id"
   add_foreign_key "whs_swms", "users", column: "created_by_id"
   add_foreign_key "whs_swms", "whs_swms", column: "superseded_by_id"
