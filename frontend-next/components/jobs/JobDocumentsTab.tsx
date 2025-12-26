@@ -416,7 +416,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
           for (const parent of categories) {
             if (parent.children) {
               const matchingChild = parent.children.find(
-                (child) => child.name.toLowerCase() === targetName.toLowerCase()
+                (child) => child.name && child.name.toLowerCase() === targetName.toLowerCase()
               );
               if (matchingChild) {
                 setSelectedCategory(parent);
@@ -425,7 +425,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
               }
             }
             // Also check if the parent itself matches
-            if (parent.name.toLowerCase() === targetName.toLowerCase()) {
+            if (parent.name && parent.name.toLowerCase() === targetName.toLowerCase()) {
               setSelectedCategory(parent);
               return;
             }
@@ -881,7 +881,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory }: JobDocumen
             <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
               {selectedCategory.children.map((subCat) => {
                 // Check if this sub-tab matches the initialCategory
-                const isActiveByInitial = initialCategory &&
+                const isActiveByInitial = initialCategory && subCat.name &&
                   subCat.name.toLowerCase().replace(/\s+/g, "-") === initialCategory.toLowerCase();
                 const isActive = selectedSubCategory?.id === subCat.id || isActiveByInitial;
 
