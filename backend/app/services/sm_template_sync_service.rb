@@ -1,25 +1,30 @@
 # frozen_string_literal: true
 
-# SmTemplateSyncService - Smart sync of a single SmTemplateRow to SmTask on a job
+# SmTemplateSyncService - Smart sync of SmTemplateRow to SmTask on a job
 #
 # SSoT: SmTemplateRow is THE template definition, SmTask is THE job-level instance.
-# This service syncs from template → task while preserving local schedule integrity.
+# This service syncs from template -> task while preserving "job reality" (actual work progress).
 #
 # Usage:
+#   # Single row sync
 #   result = SmTemplateSyncService.new(job, template_row, options).sync!
+#
+#   # Bulk sync all rows from a template to a job
+#   results = SmTemplateSyncService.sync_all_for_job(job, template, options)
 #
 # Options:
 #   user: User performing the sync (for audit trail)
-#   force_update: Update even "safe" fields that are usually preserved (default: false)
+#   force: Force update even on protected tasks (default: false) - USE WITH CAUTION
 #
 # Returns:
-#   { success: true, task: SmTask, action: :created | :updated | :unchanged }
+#   { success: true, task: SmTask, action: :created | :updated | :unchanged | :skipped }
 #   { success: false, error: "message" }
 #
 class SmTemplateSyncService
   attr_reader :job, :template_row, :options
 
-  # Fields that are safe to sync from template (don't affect schedule)
+  # Fields that are safe to sync from template (exist on BOTH SmTemplateRow and SmTask)
+  # These don't affect schedule or represent actual work progress
   SAFE_SYNC_FIELDS = %i[
     name
     description
@@ -27,18 +32,18 @@ class SmTemplateSyncService
     stage
     checklist_id
     require_photo
-    require_voice_note
+    require_certificate
     po_required
-    assignable_role
-    tags
-    spawn_type
-    spawn_on
-    spawn_per_item
-    spawn_prefix
-    cert_lag_days
-    has_subtasks
-    subtask_count
-    subtask_names
+    critical_po
+    order_time_days
+    call_time_days
+    documentation_category_ids
+    linked_task_ids
+    show_in_docs_tab
+    spawn_photo_task
+    spawn_scan_task
+    spawn_office_tasks
+    pass_fail_enabled
   ].freeze
 
   # Fields that affect schedule - NEVER sync these automatically
@@ -53,6 +58,52 @@ class SmTemplateSyncService
     hold
   ].freeze
 
+  # Bulk sync all template rows to tasks for a job
+  # Returns summary: { created: N, updated: N, skipped: N, unchanged: N, errors: [] }
+  def self.sync_all_for_job(job, template, options = {})
+    results = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      unchanged: 0,
+      errors: [],
+      skipped_tasks: []
+    }
+
+    return results unless job.present? && template.present?
+
+    # Get active template rows
+    rows = template.sm_template_rows.where(is_active: true).order(:sequence_order)
+
+    rows.each do |row|
+      result = new(job, row, options).sync!
+
+      if result[:success]
+        case result[:action]
+        when :created then results[:created] += 1
+        when :updated then results[:updated] += 1
+        when :skipped
+          results[:skipped] += 1
+          results[:skipped_tasks] << {
+            task_id: result[:task]&.id,
+            task_name: result[:task]&.name,
+            reason: result[:reason]
+          }
+        when :unchanged then results[:unchanged] += 1
+        end
+      else
+        results[:errors] << { row_id: row.id, row_name: row.name, error: result[:error] }
+      end
+    end
+
+    Rails.logger.info "[SmTemplateSyncService] Bulk sync for job #{job.id}: " \
+      "created=#{results[:created]}, updated=#{results[:updated]}, " \
+      "skipped=#{results[:skipped]}, unchanged=#{results[:unchanged]}, " \
+      "errors=#{results[:errors].count}"
+
+    results
+  end
+
   def initialize(job, template_row, options = {})
     @job = job
     @template_row = template_row
@@ -60,13 +111,25 @@ class SmTemplateSyncService
   end
 
   # Sync a single template row to a task on the job
-  # - If task exists: update safe fields only (preserves schedule)
+  # - If task has "job reality" (started, confirmed, etc): SKIP
+  # - If task exists and is safe: update safe fields only
   # - If task doesn't exist: create new task at end of schedule
   def sync!
     return failure("Job is required") unless job.present?
     return failure("Template row is required") unless template_row.present?
 
     existing_task = find_existing_task
+
+    # Check if task should be skipped (has job reality)
+    if existing_task && should_skip_task?(existing_task) && !force?
+      return {
+        success: true,
+        task: existing_task,
+        action: :skipped,
+        reason: skip_reason(existing_task),
+        message: "Task skipped - has job-level changes that should not be overwritten"
+      }
+    end
 
     if existing_task
       update_existing_task(existing_task)
@@ -84,14 +147,48 @@ class SmTemplateSyncService
     @user ||= options[:user]
   end
 
+  def force?
+    options[:force] == true
+  end
+
   def find_existing_task
     job.sm_tasks.find_by(sm_template_row_id: template_row.id)
+  end
+
+  # Check if task has "job reality" that should not be overwritten
+  # These represent actual work progress, confirmations, or commitments
+  def should_skip_task?(task)
+    return false if task.nil?
+
+    # Skip if task has any of these job-level states
+    task.status.in?(%w[started completed]) ||
+      task.started_at.present? ||
+      task.completed_at.present? ||
+      task.supplier_confirm == true ||
+      task.confirm == true ||
+      task.hold == true ||
+      task.purchase_order_id.present?
+  end
+
+  # Return human-readable reason why task was skipped
+  def skip_reason(task)
+    reasons = []
+    reasons << "completed" if task.status == "completed" || task.completed_at.present?
+    reasons << "started" if task.status == "started" || task.started_at.present?
+    reasons << "supplier confirmed" if task.supplier_confirm == true
+    reasons << "confirmation locked" if task.confirm == true
+    reasons << "on hold" if task.hold == true
+    reasons << "has PO ##{task.purchase_order_id}" if task.purchase_order_id.present?
+    reasons.join(", ")
   end
 
   def update_existing_task(task)
     changes = {}
 
     SAFE_SYNC_FIELDS.each do |field|
+      next unless template_row.respond_to?(field) && task.respond_to?(field)
+      next unless task.respond_to?("#{field}=")
+
       template_value = template_row.send(field)
       task_value = task.send(field)
 
@@ -136,7 +233,8 @@ class SmTemplateSyncService
 
     # Calculate start date - either from job or today
     start_date = job.construction_start_date || Date.current
-    end_date = start_date + (template_row.duration_days - 1).days
+    duration = template_row.duration_days || 1
+    end_date = start_date + (duration - 1).days
 
     task = SmTask.new(
       # Core identifiers
@@ -145,30 +243,34 @@ class SmTemplateSyncService
       task_number: next_task_number,
       sequence_order: next_sequence,
 
-      # Copied from template
+      # Core task info (from template)
       name: template_row.name,
       description: template_row.description,
-      duration_days: template_row.duration_days,
+      duration_days: duration,
       trade: template_row.trade,
       stage: template_row.stage,
       checklist_id: template_row.checklist_id,
+
+      # Requirements (from template)
       require_photo: template_row.require_photo,
-      require_voice_note: template_row.require_voice_note,
+      require_certificate: template_row.require_certificate,
       po_required: template_row.po_required,
-      assignable_role: template_row.assignable_role,
-      tags: template_row.tags,
+      critical_po: template_row.critical_po,
 
-      # Spawn settings
-      spawn_type: template_row.spawn_type,
-      spawn_on: template_row.spawn_on,
-      spawn_per_item: template_row.spawn_per_item,
-      spawn_prefix: template_row.spawn_prefix,
-      cert_lag_days: template_row.cert_lag_days,
+      # Timing (from template)
+      order_time_days: template_row.order_time_days,
+      call_time_days: template_row.call_time_days,
 
-      # Subtasks
-      has_subtasks: template_row.has_subtasks,
-      subtask_count: template_row.subtask_count,
-      subtask_names: template_row.subtask_names,
+      # Documentation (from template)
+      documentation_category_ids: template_row.documentation_category_ids,
+      linked_task_ids: template_row.linked_task_ids,
+      show_in_docs_tab: template_row.show_in_docs_tab,
+
+      # Automation (from template)
+      spawn_photo_task: template_row.spawn_photo_task,
+      spawn_scan_task: template_row.spawn_scan_task,
+      spawn_office_tasks: template_row.spawn_office_tasks,
+      pass_fail_enabled: template_row.pass_fail_enabled,
 
       # Schedule - start at end of schedule, no dependencies (safe)
       start_date: start_date,

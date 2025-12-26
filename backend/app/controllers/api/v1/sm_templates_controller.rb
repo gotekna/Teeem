@@ -3,7 +3,7 @@
 module Api
   module V1
     class SmTemplatesController < ApplicationController
-      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job ]
+      before_action :set_template, only: [ :show, :update, :destroy, :duplicate, :set_default, :copy_to_job, :sync_to_job ]
 
       # GET /api/v1/sm_templates
       def index
@@ -139,6 +139,44 @@ module Api
             errors: result[:errors]
           }, status: :unprocessable_entity
         end
+      rescue ActiveRecord::RecordNotFound
+        render json: {
+          success: false,
+          errors: [ "Job not found" ]
+        }, status: :not_found
+      end
+
+      # POST /api/v1/sm_templates/:id/sync_to_job
+      # Syncs template changes to an existing job's tasks
+      # - Skips tasks with "job reality" (started, completed, confirmed, etc.)
+      # - Only updates safe fields (name, description, trade, etc.)
+      # - Creates new tasks for template rows not yet in the job
+      #
+      # Params:
+      #   job_id: ID of the job to sync to (required)
+      #   force: Force update even protected tasks (optional, dangerous!)
+      #
+      def sync_to_job
+        job = Job.find(params[:job_id])
+
+        results = SmTemplateSyncService.sync_all_for_job(@template, job, {
+          user: current_user,
+          force: params[:force] == true || params[:force] == "true"
+        })
+
+        render json: {
+          success: true,
+          message: "Template synced to job",
+          summary: {
+            created: results[:created],
+            updated: results[:updated],
+            skipped: results[:skipped],
+            unchanged: results[:unchanged],
+            errors: results[:errors].count
+          },
+          skipped_tasks: results[:skipped_tasks],
+          errors: results[:errors]
+        }
       rescue ActiveRecord::RecordNotFound
         render json: {
           success: false,

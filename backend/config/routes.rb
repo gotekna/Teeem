@@ -1131,6 +1131,7 @@ Rails.application.routes.draw do
           post :set_default
           post :copy_to_job
           post :duplicate
+          post :sync_to_job
         end
         collection do
           get :default
@@ -2626,6 +2627,53 @@ Rails.application.routes.draw do
           get "consolidation/adjustments", action: :adjustments
           # Export
           post "consolidation/export", action: :export
+        end
+
+        # Bank Rules Learning (AI)
+        scope :bank_rules_learning do
+          get "suggestions", to: "bank_rules_learning#suggestions"
+          post "record", to: "bank_rules_learning#record"
+          post "create_rule", to: "bank_rules_learning#create_rule"
+          get "stats", to: "bank_rules_learning#stats"
+        end
+
+        # Scheduled Invoices
+        resources :scheduled_invoices, only: [:index, :show, :create, :update] do
+          member do
+            post :cancel
+            post :send_now
+          end
+          collection do
+            get :upcoming
+            post :process_due
+          end
+        end
+
+        # Scheduled Reports
+        resources :scheduled_reports do
+          member do
+            post :pause
+            post :resume
+            post :send_now
+          end
+          collection do
+            get :report_types
+            get :history
+          end
+        end
+
+        # Period Locking
+        resources :period_locks, only: [:index, :show, :create] do
+          member do
+            post :unlock
+            post :soft_lock
+            post :relock
+          end
+          collection do
+            get :check
+            get :status
+            get :available_periods, action: :available_periods_list
+          end
         end
       end
 

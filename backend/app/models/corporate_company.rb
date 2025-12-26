@@ -63,6 +63,11 @@ class CorporateCompany < ApplicationRecord
   has_many :profit_loss_reports, foreign_key: "company_id", dependent: :destroy
   has_many :balance_sheet_reports, foreign_key: "company_id", dependent: :destroy
 
+  # GL System associations
+  has_many :gl_bank_rule_learnings, class_name: "Gl::BankRuleLearning", dependent: :destroy
+  has_many :gl_scheduled_invoices, class_name: "Gl::ScheduledInvoice", dependent: :destroy
+  has_many :gl_scheduled_reports, class_name: "Gl::ScheduledReport", dependent: :destroy
+
   # Encrypted attributes
   encrypts :tfn, deterministic: true
   encrypts :encrypted_asic_password
