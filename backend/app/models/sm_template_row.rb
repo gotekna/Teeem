@@ -11,7 +11,6 @@
 # - Use add_to_template/remove_from_template to manage membership
 #
 class SmTemplateRow < ApplicationRecord
-  # Table was renamed from sm_template_rows to sm_schedule_master
   self.table_name = "sm_schedule_master"
 
   # Role/group constants for internal work assignment

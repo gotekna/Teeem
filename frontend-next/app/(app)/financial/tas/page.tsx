@@ -39,6 +39,7 @@ import {
   AlertCircle,
   AlertTriangle,
   Activity,
+  Brain,
   History,
   Building2,
   Layers,
@@ -62,6 +63,7 @@ import PaymentLinksTab from "@/components/financial/PaymentLinksTab";
 import DuplicateBillsTab from "@/components/financial/DuplicateBillsTab";
 import AnomalyDetectionTab from "@/components/financial/AnomalyDetectionTab";
 import LatePaymentPredictionTab from "@/components/financial/LatePaymentPredictionTab";
+import AICategorizationTab from "@/components/financial/AICategorizationTab";
 import Link from "next/link";
 import { api } from "@/lib/api";
 
@@ -628,6 +630,10 @@ export default function GlPage() {
           <TabsTrigger value="predictions" className="flex items-center gap-2">
             <Clock className="h-4 w-4" />
             Late Payment Risk
+          </TabsTrigger>
+          <TabsTrigger value="categorization" className="flex items-center gap-2">
+            <Brain className="h-4 w-4" />
+            AI Categorization
           </TabsTrigger>
         </TabsList>
 
