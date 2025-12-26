@@ -48,10 +48,10 @@ export function PermissionsTab() {
   const loadInitialData = async () => {
     try {
       const [usersData, permissionsData] = await Promise.all([
-        api.get<UserType[]>("/api/v1/users"),
+        api.get<{ users: UserType[] }>("/api/v1/users"),
         api.get<PermissionCategory>("/api/v1/permissions"),
       ]);
-      setUsers(usersData);
+      setUsers(usersData?.users || []);
       setPermissions(permissionsData);
     } catch (error) {
       console.error("Failed to load data:", error);

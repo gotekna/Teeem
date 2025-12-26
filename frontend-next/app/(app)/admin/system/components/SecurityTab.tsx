@@ -120,8 +120,8 @@ function UsersManagementTab() {
 
   const loadUsers = async () => {
     try {
-      const data = await api.get<User[]>("/api/v1/users");
-      setUsers(data);
+      const data = await api.get<{ users: User[] }>("/api/v1/users");
+      setUsers(data?.users || []);
     } catch (error) {
       console.error("Failed to load users:", error);
       toast({ title: "Error", description: "Failed to load users", variant: "destructive" });

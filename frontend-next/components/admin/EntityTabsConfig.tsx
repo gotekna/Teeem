@@ -230,7 +230,7 @@ export function EntityTabsConfig({
   }, []);
 
   // Form state for create/edit
-  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams>>({});
+  const [formData, setFormData] = React.useState<Partial<EntityTabCreateParams & { sharepoint_path_type?: 'corporate' | 'contacts' }>>({});
 
   // Convert entity types to MultipleSelector options
   const entityTypeOptions: Option[] = React.useMemo(() =>
@@ -369,6 +369,7 @@ export function EntityTabsConfig({
       enabled: true,
       has_sharepoint_folder: false,
       sharepoint_folder_path: "",
+      sharepoint_path_type: 'corporate',  // SSoT: Default to corporate path
     });
     setEditingTab(null);
     setIsCreateDialogOpen(true);
@@ -389,6 +390,7 @@ export function EntityTabsConfig({
       has_sharepoint_folder: tab.has_sharepoint_folder,
       sharepoint_folder_path: tab.sharepoint_folder_path || "",
       uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
+      sharepoint_path_type: tab.sharepoint_path_type || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
       document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
     });
@@ -420,6 +422,7 @@ export function EntityTabsConfig({
           has_sharepoint_folder: formData.has_sharepoint_folder,
           sharepoint_folder_path: formData.sharepoint_folder_path,
           uses_custom_path: formData.uses_custom_path,  // SSoT: Template inheritance flag
+          sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
           // SSoT: Include linked document type IDs
           document_type_ids: formData.document_type_ids,
         };
@@ -438,6 +441,7 @@ export function EntityTabsConfig({
           icon_name: formData.icon_name,
           has_sharepoint_folder: formData.has_sharepoint_folder,
           sharepoint_folder_path: formData.sharepoint_folder_path,
+          sharepoint_path_type: formData.sharepoint_path_type,  // SSoT: Path type for contacts
         };
         await createTab(createParams);
       }
@@ -1361,6 +1365,63 @@ export function EntityTabsConfig({
                             <div className="text-xs text-muted-foreground mt-0.5">
                               Uses the template from Admin &gt; System &gt; Company &gt; SharePoint
                             </div>
+
+                            {/* SSoT: Corporate/Contacts path toggle - only for contact scope */}
+                            {scope === "contact" && !formData.uses_custom_path && (
+                              <div className="mt-3 p-2 rounded bg-muted/30 border">
+                                <Label className="text-xs font-medium">SharePoint Base Path</Label>
+                                <div className="flex gap-2 mt-1.5">
+                                  <label
+                                    className={cn(
+                                      "flex-1 flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-sm",
+                                      formData.sharepoint_path_type === 'corporate'
+                                        ? "bg-primary/10 border-primary"
+                                        : "bg-background hover:bg-muted/50"
+                                    )}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="sharepoint_path_type"
+                                      checked={formData.sharepoint_path_type === 'corporate'}
+                                      onChange={() =>
+                                        setFormData((prev) => ({
+                                          ...prev,
+                                          sharepoint_path_type: 'corporate',
+                                        }))
+                                      }
+                                    />
+                                    <span>Corporate</span>
+                                  </label>
+                                  <label
+                                    className={cn(
+                                      "flex-1 flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-sm",
+                                      formData.sharepoint_path_type === 'contacts'
+                                        ? "bg-primary/10 border-primary"
+                                        : "bg-background hover:bg-muted/50"
+                                    )}
+                                  >
+                                    <input
+                                      type="radio"
+                                      name="sharepoint_path_type"
+                                      checked={formData.sharepoint_path_type === 'contacts'}
+                                      onChange={() =>
+                                        setFormData((prev) => ({
+                                          ...prev,
+                                          sharepoint_path_type: 'contacts',
+                                        }))
+                                      }
+                                    />
+                                    <span>Contacts</span>
+                                  </label>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1.5">
+                                  {formData.sharepoint_path_type === 'contacts'
+                                    ? "Uses Contacts SharePoint folder for this tab"
+                                    : "Uses Corporate SharePoint folder for this tab (default)"}
+                                </p>
+                              </div>
+                            )}
+
                             {/* Show inherited preview */}
                             {editingTab?.inherited_template && (
                               <div className="mt-2 text-xs bg-muted/50 rounded px-2 py-1.5 font-mono">

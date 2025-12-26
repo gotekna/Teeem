@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_12_27_072500) do
+ActiveRecord::Schema[8.0].define(version: 2025_12_27_072501) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2683,6 +2683,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_12_27_072500) do
     t.datetime "updated_at", null: false
     t.string "display_code", limit: 3
     t.boolean "uses_custom_path", default: false, null: false
+    t.string "sharepoint_path_type", default: "corporate"
     t.index ["enabled"], name: "index_entity_tabs_on_enabled"
     t.index ["entity_filters"], name: "index_entity_tabs_on_entity_filters", using: :gin
     t.index ["job_id"], name: "index_entity_tabs_on_job_id"

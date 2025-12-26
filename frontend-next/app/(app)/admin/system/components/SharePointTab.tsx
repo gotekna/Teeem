@@ -61,7 +61,7 @@ export function SharePointTab() {
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [config, setConfig] = React.useState<SharePointConfig | null>(null);
-  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "company" | "people" | "contacts" | null>(null);
+  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "company" | "contacts" | null>(null);
   const [resetting, setResetting] = React.useState(false);
   const [formData, setFormData] = React.useState({
     // Site configuration
@@ -439,31 +439,9 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="people_path" className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-green-500" />
-                People Documents
-              </Label>
-              <div className="flex gap-2">
-                <Input
-                  id="people_path"
-                  value={formData.sharepoint_people_path}
-                  onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
-                  placeholder="Corporate/People"
-                  className="flex-1"
-                />
-                <Button variant="outline" size="icon" onClick={() => setShowBrowser("people")}>
-                  <Search className="h-4 w-4" />
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground font-mono">
-                {getFullPath(formData.sharepoint_people_path)}
-              </p>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="contacts_path" className="flex items-center gap-1">
                 <Users className="h-3 w-3 text-blue-500" />
-                Contact Documents
+                Contacts Documents
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -555,26 +533,6 @@ export function SharePointTab() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="people_template" className="flex items-center gap-1">
-                <Users className="h-3 w-3 text-green-500" />
-                People Template
-              </Label>
-              <Input
-                id="people_template"
-                value={formData.sharepoint_people_template}
-                onChange={(e) => handleChange("sharepoint_people_template", e.target.value)}
-                placeholder="{{ContactName}}/{{Category}}"
-                className="font-mono text-sm"
-              />
-              <div className="text-xs space-y-1">
-                <p className="text-muted-foreground">Full path preview:</p>
-                <p className="font-mono text-green-600 dark:text-green-400 break-all">
-                  {getFullPath(formData.sharepoint_people_path, resolveTemplatePreview(formData.sharepoint_people_template))}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="contacts_template" className="flex items-center gap-1">
                 <Users className="h-3 w-3 text-blue-500" />
                 Contacts Template
@@ -633,7 +591,7 @@ export function SharePointTab() {
           <SheetContent side="right" className="w-[500px] sm:max-w-xl">
             <SheetHeader>
               <SheetTitle>
-                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "company" ? "Company" : showBrowser === "people" ? "People" : "Contacts"} Folder
+                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "company" ? "Company" : "Contacts"} Folder
               </SheetTitle>
               <SheetDescription>
                 Browse SharePoint to select a folder
@@ -656,11 +614,6 @@ export function SharePointTab() {
                       ? path.slice(formData.sharepoint_root_path.length + 1)
                       : path;
                     handleChange("sharepoint_company_path", relativePath);
-                  } else if (showBrowser === "people") {
-                    const relativePath = path.startsWith(formData.sharepoint_root_path)
-                      ? path.slice(formData.sharepoint_root_path.length + 1)
-                      : path;
-                    handleChange("sharepoint_people_path", relativePath);
                   } else if (showBrowser === "contacts") {
                     const relativePath = path.startsWith(formData.sharepoint_root_path)
                       ? path.slice(formData.sharepoint_root_path.length + 1)

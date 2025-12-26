@@ -129,13 +129,18 @@ class EntityTab < ApplicationRecord
   # SSoT: Template Inheritance for SharePoint Paths
   # ================================================
 
+  # Valid path types for sharepoint_path_type field
+  PATH_TYPES = %w[corporate contacts].freeze
+
   # Map EntityTab scope to CorporateCompanySetting template scope
+  # For contact scope, uses sharepoint_path_type to determine which path
   def scope_for_template
     case scope
     when 'job' then :job
     when 'corporate_entity' then :company
-    when 'people' then :people
-    when 'contact' then :contacts
+    when 'people', 'contact'
+      # SSoT: For contacts, allow choosing between corporate or contacts path
+      sharepoint_path_type == 'contacts' ? :contacts : :company
     else :job  # Default fallback
     end
   end
@@ -147,6 +152,15 @@ class EntityTab < ApplicationRecord
     CorporateCompanySetting.sharepoint_template(scope_for_template)
   rescue => e
     Rails.logger.warn "[EntityTab] Failed to get inherited template: #{e.message}"
+    nil
+  end
+
+  # Get the SharePoint base path for this tab (used in UI preview)
+  def sharepoint_base_path
+    return nil unless has_sharepoint_folder
+    CorporateCompanySetting.sharepoint_full_path(scope_for_template)
+  rescue => e
+    Rails.logger.warn "[EntityTab] Failed to get base path: #{e.message}"
     nil
   end
 
@@ -221,6 +235,8 @@ class EntityTab < ApplicationRecord
       full_sharepoint_path: full_sharepoint_path,
       # SSoT: Template inheritance fields
       uses_custom_path: uses_custom_path,
+      sharepoint_path_type: sharepoint_path_type || 'corporate',
+      sharepoint_base_path: sharepoint_base_path,
       effective_sharepoint_path: effective_sharepoint_path,
       inherited_template: inherited_template,
       hierarchy_path: hierarchy_path,

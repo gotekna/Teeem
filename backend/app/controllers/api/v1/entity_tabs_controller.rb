@@ -217,6 +217,7 @@ module Api
           :has_sharepoint_folder,
           :sharepoint_folder_path,
           :uses_custom_path,  # SSoT: Template inheritance flag
+          :sharepoint_path_type,  # SSoT: "corporate" or "contacts" for contact tabs
           entity_filters: [],
           document_type_ids: []  # SSoT: Link document types to this tab
         )

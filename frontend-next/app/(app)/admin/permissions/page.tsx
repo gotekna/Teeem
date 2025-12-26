@@ -56,17 +56,12 @@ export default function PermissionsPage() {
 
       // Load all data in parallel
       const [usersRes, permissionsRes, rolesRes] = await Promise.all([
-        api.get<User[] | { success: boolean; users: User[] }>("/api/v1/users"),
+        api.get<{ users: User[] }>("/api/v1/users"),
         api.get<{ success: boolean; permissions: PermissionsMap; categories: CategoriesMap }>("/api/v1/permissions"),
         api.get<{ success: boolean; roles: string[] }>("/api/v1/permissions/roles"),
       ]);
 
-      // Users endpoint returns array directly, not wrapped
-      if (Array.isArray(usersRes)) {
-        setUsers(usersRes);
-      } else if (usersRes.success) {
-        setUsers(usersRes.users || []);
-      }
+      setUsers(usersRes?.users || []);
 
       if (permissionsRes.success) {
         setPermissions(permissionsRes.permissions || {});

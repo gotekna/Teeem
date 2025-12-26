@@ -27,6 +27,8 @@ export interface EntityTab {
   full_sharepoint_path: string | null;
   // SSoT: Template inheritance fields
   uses_custom_path: boolean;
+  sharepoint_path_type: 'corporate' | 'contacts';
+  sharepoint_base_path: string | null;
   effective_sharepoint_path: string | null;
   inherited_template: string | null;
   hierarchy_path: string;
@@ -75,6 +77,7 @@ export interface EntityTabCreateParams {
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
+  sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
 }
 
@@ -92,6 +95,7 @@ export interface EntityTabUpdateParams {
   has_sharepoint_folder?: boolean;
   sharepoint_folder_path?: string;
   uses_custom_path?: boolean;  // SSoT: Template inheritance flag
+  sharepoint_path_type?: 'corporate' | 'contacts';  // SSoT: Path type for contacts
   document_type_ids?: number[];  // SSoT: Link document types to this tab
 }
 

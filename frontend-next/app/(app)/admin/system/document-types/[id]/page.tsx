@@ -49,11 +49,11 @@ const FOLDER_OPTIONS = [
   "LOANS", "MINUTES", "REGISTRY", "TRUST"
 ];
 
-// Scope options
+// Scope options - SSoT: "contacts" is the canonical scope (replaces legacy "people")
 const SCOPE_OPTIONS = [
   { value: "company", label: "Company", description: "Corporate documents" },
   { value: "job", label: "Job", description: "Construction/job documents" },
-  { value: "people", label: "People", description: "Personal/contact documents" },
+  { value: "contacts", label: "Contacts", description: "Contact documents (licenses, insurance, etc.)" },
   { value: "both", label: "Both", description: "Used for both" }
 ];
 
@@ -153,7 +153,7 @@ export default function DocumentTypeDetailPage() {
   const documentTypeId = params.id as string;
   const isNew = documentTypeId === "new";
   const searchParams = useSearchParams();
-  const urlScope = searchParams.get("scope") as "company" | "job" | "people" | null;
+  const urlScope = searchParams.get("scope") as "company" | "job" | "contacts" | "people" | null;
   const urlTabId = searchParams.get("tab");
 
   // SSoT: Fetch available tabs from EntityTab API (replaces old document_folders)
@@ -163,7 +163,9 @@ export default function DocumentTypeDetailPage() {
         // Use document type scope (for existing) or URL scope (for new), default to corporate_entity
         const scope = documentType?.scope || urlScope || "company";
         // Map document type scope to EntityTab scope
-        const entityTabScope = scope === "people" ? "people" : scope === "job" ? "job" : "corporate_entity";
+        // SSoT: Map document type scope to EntityTab scope
+        // "contacts" and legacy "people" both map to "contact" EntityTab scope
+        const entityTabScope = (scope === "contacts" || scope === "people") ? "contact" : scope === "job" ? "job" : "corporate_entity";
 
         // Build folder hierarchy recursively for all depths
         const mapTabRecursive = (tab: any): any => ({
@@ -267,7 +269,8 @@ export default function DocumentTypeDetailPage() {
 
   // Get default file name template based on scope
   const getDefaultFileNameForScope = (scope: string) => {
-    if (scope === "people") return "{PersonCode} {DocTypeCode} {FY}";
+    // SSoT: "contacts" is canonical, "people" is legacy - both use same default pattern
+    if (scope === "contacts" || scope === "people") return "{PersonCode} {DocTypeCode} {FY}";
     if (scope === "job") return "{JobCode} {DocTypeCode} {FY}";
     return "{CompanyCode} {DocTypeCode} {FY}";
   };
@@ -417,7 +420,8 @@ export default function DocumentTypeDetailPage() {
       const scope = documentType.scope || "company";
       let defaultTemplate = "{CompanyCode} {DocTypeCode} {FY}";
 
-      if (scope === "people") {
+      // SSoT: "contacts" is canonical, "people" is legacy
+      if (scope === "contacts" || scope === "people") {
         defaultTemplate = "{PersonCode} {DocTypeCode} {FY}";
       } else if (scope === "job") {
         defaultTemplate = "{JobCode} {DocTypeCode} {FY}";
@@ -468,8 +472,9 @@ export default function DocumentTypeDetailPage() {
       // Remove entity placeholder based on scope if the checkbox is checked
       if (removeCompanyName) {
         const scope = documentType.scope || "company";
-        if (scope === "people") {
-          // Remove person placeholders for people scope
+        // SSoT: "contacts" is canonical, "people" is legacy
+        if (scope === "contacts" || scope === "people") {
+          // Remove person placeholders for contacts scope
           fileName = fileName.replace(/\{PersonName\}\s*/g, '').replace(/\{PersonCode\}\s*/g, '').replace(/\{Person\}\s*/g, '');
         } else if (scope === "job") {
           // Remove job placeholders for job scope
@@ -1426,7 +1431,7 @@ export default function DocumentTypeDetailPage() {
                       htmlFor="hide-company"
                       className="text-sm font-normal cursor-pointer text-muted-foreground"
                     >
-                      {documentType.scope === "people" ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
+                      {(documentType.scope === "contacts" || documentType.scope === "people") ? "Hide Person" : documentType.scope === "job" ? "Hide Job" : "Hide Company"}
                     </Label>
                   </div>
                   <div className="flex items-center gap-2">

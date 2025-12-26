@@ -5,7 +5,7 @@ class Api::V1::UsersController < ApplicationController
     @users = User.includes(:email_sync_status)
     .order("users.name")
 
-    render json: @users.map { |user| user_with_presence(user) }
+    render json: { users: @users.map { |user| user_with_presence(user) } }
   end
 
   # GET /api/v1/users/:id

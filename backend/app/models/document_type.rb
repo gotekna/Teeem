@@ -72,6 +72,8 @@ class DocumentType < ApplicationRecord
   scope :by_scope, ->(scope_name) { where(scope: scope_name) }
   scope :for_company, -> { where(scope: %w[company both]) }
   scope :for_job, -> { where(scope: %w[job both]) }
+  # SSoT: "contacts" is the canonical scope, "people" is legacy - include both for backwards compatibility
+  scope :for_contacts, -> { where(scope: %w[contacts people]) }
   scope :requiring_filing, -> { where(requires_filing: true) }
 
   # Default aliases for common document types - maps alternative names to canonical names

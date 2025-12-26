@@ -37,8 +37,8 @@ export default function UsersPage() {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const response = await api.get<User[]>("/api/v1/users");
-      setUsers(Array.isArray(response) ? response : []);
+      const response = await api.get<{ users: User[] }>("/api/v1/users");
+      setUsers(response?.users || []);
       setError(null);
     } catch (err) {
       console.error("Failed to load users:", err);
