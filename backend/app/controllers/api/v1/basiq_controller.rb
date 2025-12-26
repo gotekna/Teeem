@@ -286,9 +286,9 @@ module Api
       end
 
       def current_organization
-        # Use the organization from the current user context
-        # This depends on your auth setup - adjust as needed
-        @current_organization ||= current_user&.organization || Organization.first
+        # For now, use the first organization (single-tenant mode)
+        # TODO: When multi-org support is needed, add organization_id param or user association
+        @current_organization ||= Organization.first
       end
 
       def handle_connection_event(data)
