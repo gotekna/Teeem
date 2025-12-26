@@ -24,6 +24,15 @@ import {
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-browser";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Search } from "lucide-react";
 
 interface SharePointConfig {
   configured: boolean;
@@ -52,6 +61,7 @@ export function SharePointTab() {
   const [saving, setSaving] = React.useState(false);
   const [testing, setTesting] = React.useState(false);
   const [config, setConfig] = React.useState<SharePointConfig | null>(null);
+  const [showBrowser, setShowBrowser] = React.useState<"root" | "jobs" | "company" | "people" | "contacts" | null>(null);
   const [formData, setFormData] = React.useState({
     // Site configuration
     sharepoint_site_url: "",
@@ -339,13 +349,18 @@ export function SharePointTab() {
             <Label htmlFor="root_path" className="text-sm font-medium">
               Root Path
             </Label>
-            <Input
-              id="root_path"
-              value={formData.sharepoint_root_path}
-              onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
-              placeholder="/Shared Documents"
-              className="font-mono"
-            />
+            <div className="flex gap-2">
+              <Input
+                id="root_path"
+                value={formData.sharepoint_root_path}
+                onChange={(e) => handleChange("sharepoint_root_path", e.target.value)}
+                placeholder="/Shared Documents"
+                className="font-mono flex-1"
+              />
+              <Button variant="outline" size="icon" onClick={() => setShowBrowser("root")}>
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Info className="h-3 w-3" />
               All paths below are relative to this root
@@ -359,12 +374,18 @@ export function SharePointTab() {
                 <Briefcase className="h-3 w-3 text-orange-500" />
                 Job Documents
               </Label>
-              <Input
-                id="jobs_path"
-                value={formData.sharepoint_jobs_path}
-                onChange={(e) => handleChange("sharepoint_jobs_path", e.target.value)}
-                placeholder="TEEEM Jobs"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="jobs_path"
+                  value={formData.sharepoint_jobs_path}
+                  onChange={(e) => handleChange("sharepoint_jobs_path", e.target.value)}
+                  placeholder="TEEEM Jobs"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={() => setShowBrowser("jobs")}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground font-mono">
                 {getFullPath(formData.sharepoint_jobs_path)}
               </p>
@@ -375,12 +396,18 @@ export function SharePointTab() {
                 <Building2 className="h-3 w-3 text-purple-500" />
                 Company Documents
               </Label>
-              <Input
-                id="company_path"
-                value={formData.sharepoint_company_path}
-                onChange={(e) => handleChange("sharepoint_company_path", e.target.value)}
-                placeholder="00 TEEEM PRIVATE"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="company_path"
+                  value={formData.sharepoint_company_path}
+                  onChange={(e) => handleChange("sharepoint_company_path", e.target.value)}
+                  placeholder="00 TEEEM PRIVATE"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={() => setShowBrowser("company")}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground font-mono">
                 {getFullPath(formData.sharepoint_company_path)}
               </p>
@@ -391,12 +418,18 @@ export function SharePointTab() {
                 <Users className="h-3 w-3 text-green-500" />
                 People Documents
               </Label>
-              <Input
-                id="people_path"
-                value={formData.sharepoint_people_path}
-                onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
-                placeholder="Corporate/People"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="people_path"
+                  value={formData.sharepoint_people_path}
+                  onChange={(e) => handleChange("sharepoint_people_path", e.target.value)}
+                  placeholder="Corporate/People"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={() => setShowBrowser("people")}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground font-mono">
                 {getFullPath(formData.sharepoint_people_path)}
               </p>
@@ -407,12 +440,18 @@ export function SharePointTab() {
                 <Users className="h-3 w-3 text-blue-500" />
                 Contact Documents
               </Label>
-              <Input
-                id="contacts_path"
-                value={formData.sharepoint_contacts_path}
-                onChange={(e) => handleChange("sharepoint_contacts_path", e.target.value)}
-                placeholder="Contacts"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="contacts_path"
+                  value={formData.sharepoint_contacts_path}
+                  onChange={(e) => handleChange("sharepoint_contacts_path", e.target.value)}
+                  placeholder="Contacts"
+                  className="flex-1"
+                />
+                <Button variant="outline" size="icon" onClick={() => setShowBrowser("contacts")}>
+                  <Search className="h-4 w-4" />
+                </Button>
+              </div>
               <p className="text-xs text-muted-foreground font-mono">
                 {getFullPath(formData.sharepoint_contacts_path)}
               </p>
@@ -549,6 +588,55 @@ export function SharePointTab() {
           )}
         </Button>
       </div>
+
+      {/* SharePoint Folder Browser Sheet */}
+      {showBrowser && (
+        <Sheet open={true} onOpenChange={() => setShowBrowser(null)}>
+          <SheetContent side="right" className="w-[500px] sm:max-w-xl">
+            <SheetHeader>
+              <SheetTitle>
+                Select {showBrowser === "root" ? "Root" : showBrowser === "jobs" ? "Jobs" : showBrowser === "company" ? "Company" : showBrowser === "people" ? "People" : "Contacts"} Folder
+              </SheetTitle>
+              <SheetDescription>
+                Browse SharePoint to select a folder
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-4 h-[calc(100vh-200px)] overflow-auto">
+              <SharePointFolderBrowser
+                onSelect={(folder, path) => {
+                  if (!path) return;
+                  if (showBrowser === "root") {
+                    handleChange("sharepoint_root_path", path);
+                  } else if (showBrowser === "jobs") {
+                    // Remove root path prefix if present
+                    const relativePath = path.startsWith(formData.sharepoint_root_path)
+                      ? path.slice(formData.sharepoint_root_path.length + 1)
+                      : path;
+                    handleChange("sharepoint_jobs_path", relativePath);
+                  } else if (showBrowser === "company") {
+                    const relativePath = path.startsWith(formData.sharepoint_root_path)
+                      ? path.slice(formData.sharepoint_root_path.length + 1)
+                      : path;
+                    handleChange("sharepoint_company_path", relativePath);
+                  } else if (showBrowser === "people") {
+                    const relativePath = path.startsWith(formData.sharepoint_root_path)
+                      ? path.slice(formData.sharepoint_root_path.length + 1)
+                      : path;
+                    handleChange("sharepoint_people_path", relativePath);
+                  } else if (showBrowser === "contacts") {
+                    const relativePath = path.startsWith(formData.sharepoint_root_path)
+                      ? path.slice(formData.sharepoint_root_path.length + 1)
+                      : path;
+                    handleChange("sharepoint_contacts_path", relativePath);
+                  }
+                  setShowBrowser(null);
+                }}
+                rootFolder=""
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

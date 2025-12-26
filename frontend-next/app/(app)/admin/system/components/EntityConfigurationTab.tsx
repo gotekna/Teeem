@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { EntityTabsConfig } from "@/components/admin/EntityTabsConfig";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { SharePointTab } from "./SharePointTab";
-import { Building2, Users, Briefcase, ArrowLeft, FileText, Settings } from "lucide-react";
+import { Building2, Users, Briefcase, ArrowLeft, FileText, Settings, Contact2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 /**
@@ -55,6 +55,16 @@ const scopes = [
     showDocumentTypes: false,
     isEntityTab: true,
     showTabGroups: false,  // Flat list - allows mixing tabs from any group
+  },
+  {
+    id: "contact",
+    label: "Contacts",
+    icon: Contact2,
+    showEntityFilters: false,
+    showSharePointPaths: true,
+    showDocumentTypes: true,  // For licenses, insurance, etc.
+    isEntityTab: true,
+    showTabGroups: false,
   },
   {
     id: "document_types",
@@ -165,7 +175,7 @@ export function EntityConfigurationTab({ onClose }: EntityConfigurationTabProps)
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <EntityTabsConfig
-                  scope={scope.id as "corporate_entity" | "people" | "job"}
+                  scope={scope.id as "corporate_entity" | "people" | "job" | "contact"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}
